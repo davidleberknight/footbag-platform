@@ -76,6 +76,13 @@ SKIP_TESTS="${SKIP_TESTS:-no}"
 SKIP_DB_REBUILD="${SKIP_DB_REBUILD:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Everything this script reads, builds or runs belongs to the checkout it lives in,
+# not to wherever the operator happened to be standing. Anchoring the rsync source
+# alone left the worse half of the same defect here: the database rebuild, the
+# media integrity check and the test preflight were all resolved against the
+# caller's directory, so a run from a second checkout could build one database and
+# ship another.
+cd "$REPO_ROOT"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-rebuild-remote.sh"
 # shellcheck source=lib/image-transfer.sh
 source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
@@ -114,14 +121,16 @@ case "$REMOTE" in
 esac
 
 # A production database replacement enters only through the wrapper's typed
-# REPLACE PRODUCTION DB confirmation, which threads this ack through the
-# environment. A direct invocation of this leaf with piped stdin must not
-# bypass that confirmation (the host-side guards still fire either way).
+# confirmation, which threads this ack through the environment. A direct
+# invocation of this leaf with piped stdin must not bypass that confirmation
+# (the host-side guards still fire either way). The wrapper clears the variable
+# on entry and sets it only after the word is typed, so it is a handshake
+# between the two halves rather than something an operator's shell can hold.
 if [[ "$FOOTBAG_ENV" == "production" && "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
   echo "ERROR: production database replacement requires the deploy_to_aws.sh confirmation." >&2
   echo "       Run: bash deploy_to_aws.sh — it asks for the typed confirmation and threads" >&2
-  echo "       FOOTBAG_PROD_DB_REPLACE_ACK=1 through to this leaf (scripted runs may set" >&2
-  echo "       the variable deliberately)." >&2
+  echo "       the acknowledgement through to this leaf. There is no non-interactive form" >&2
+  echo "       of that confirmation, and setting the variable by hand does not create one." >&2
   exit 1
 fi
 
@@ -151,7 +160,7 @@ command -v docker >/dev/null || { echo "ERROR: docker required locally for image
 
 HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2; exit}')
 REMOTE_RELEASE_DIR='/home/footbag/footbag-release'
-LOCAL_DB='database/footbag.db'
+LOCAL_DB="$REPO_ROOT/database/footbag.db"
 
 if [[ -z "$HOST_IP" ]]; then
   echo "ERROR: unable to resolve deploy target hostname from ssh config: $REMOTE" >&2
@@ -159,7 +168,13 @@ if [[ -z "$HOST_IP" ]]; then
 fi
 
 echo "==> WARNING: this deploy will REPLACE the live host database from scratch."
-echo "==> Deploy target: $REMOTE ($HOST_IP)"
+# The address goes to stderr, not stdout. ssh-known-hosts.sh records that the
+# production origin address is deliberately not public: the host's web port is
+# scoped to the CloudFront origin ranges rather than open, so publishing the
+# address gives away what that scoping withholds. Deploy stdout is what a wrapper,
+# a CI job or an agent session captures; the operator still sees this on a
+# terminal.
+echo "==> Deploy target: $REMOTE ($HOST_IP)" >&2
 
 echo "==> Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
@@ -181,11 +196,11 @@ if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
-  if ! BASE_URL="$STAGING_BASE_URL" bash scripts/smoke-local.sh; then
+  if ! BASE_URL="$STAGING_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
     exit 1
   fi
-  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash scripts/smoke-security.sh; then
+  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     echo "ERROR: staging security probes failed; refusing to deploy production." >&2
     exit 1
   fi
@@ -211,7 +226,7 @@ if [[ "$SKIP_DB_REBUILD" != "yes" ]]; then
   # Built to be shipped, so the builder leaves out the affordances that only
   # make sense on a developer's own machine. They live in the file and would
   # otherwise travel to the host with it.
-  FOOTBAG_DB_FOR_DEPLOY=1 bash scripts/reset-local-db.sh
+  FOOTBAG_DB_FOR_DEPLOY=1 FOOTBAG_DB_PATH="$LOCAL_DB" bash "$REPO_ROOT/scripts/reset-local-db.sh"
 else
   echo "==> Skipping local DB rebuild (SKIP_DB_REBUILD=yes)"
 fi
@@ -253,12 +268,21 @@ sqlite3 "$LOCAL_DB" \
 # bucket) is never shipped. Idempotent (DELETE + INSERT OR REPLACE pattern in
 # seed_fh_curator.py). Runs unconditionally so every deploy that ships a DB
 # picks up the latest sidecars.
+# The name is fixed rather than made with mktemp, and has to be: the rsync include
+# below is the anchored literal /.curated-build/***, the remote half names the
+# same path three times including the --delete exclude that protects the live
+# tree, and .gitignore covers exactly this directory.
 CURATED_BUILD_DIR="${REPO_ROOT}/.curated-build"
-trap 'rm -rf "${CURATED_BUILD_DIR}"' EXIT
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   echo "==> Building curator media from /curated → .curated-build (sidecars → media_items)..."
   rm -rf "${CURATED_BUILD_DIR}"
   mkdir -p "${CURATED_BUILD_DIR}"
+  # Armed here rather than above, and covering the signals an interrupt actually
+  # sends. Installed before the branch it used to be, the handler removed a
+  # directory this run never created whenever curator seeding was off, which is
+  # the one thing a trap must never do; EXIT alone also left the build tree
+  # behind when the Python seed below was interrupted.
+  trap 'rm -rf "${CURATED_BUILD_DIR}"' EXIT INT TERM
   _venv="${REPO_ROOT}/scripts/.venv"
   if [[ ! -f "${_venv}/bin/python3" ]]; then
     echo "    → Creating Python venv at ${_venv}"
@@ -302,6 +326,7 @@ RSYNC_INCLUDES=(
   --include='/scripts/'
   --include='/scripts/backup-db.sh'
   --include='/scripts/cutover-marker.sh'
+  --include='/scripts/take-pre-cutover-snapshot.sh'
   --include='/package.json'
   --include='/package-lock.json'
   --include='/tsconfig.json'
@@ -316,7 +341,7 @@ fi
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   "${RSYNC_INCLUDES[@]}" \
   --exclude='*' \
-  ./ "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
+  "$REPO_ROOT/" "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
 
 # ── Build images locally (workstation, where memory is plentiful) ──────────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build.
@@ -393,11 +418,21 @@ else
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".
   # This runs, automatically, the same reclaim the failure hint used to ask the
-  # operator to perform by hand. The running stack's images are referenced and
-  # are kept. Best-effort: a reclaim failure must not abort the deploy.
-  echo "==> Reclaiming host disk (journal vacuum + docker prune)..."
+  # operator to perform by hand. Best-effort: a reclaim failure must not abort the
+  # deploy.
+  #
+  # Scoped deliberately, and NOT `docker system prune -af`. That form removes
+  # stopped containers first and then every image no container references, so the
+  # claim that the running stack's images are kept holds only while the stack is
+  # up. This script takes the stack down to rebuild, which is exactly the window
+  # where the broad form deletes the current release's images and a transfer
+  # failing mid-stream leaves nothing to restart from. `image prune` without -a
+  # takes only dangling images, which is what the previous :latest becomes, and
+  # cannot touch a tagged image whatever the container state; `builder prune`
+  # takes the build cache. Neither removes a container.
+  echo "==> Reclaiming host disk (journal vacuum + dangling images + build cache)..."
   printf '%s\n' "$SUDO_PASS" \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker image prune -f; docker builder prune -af"' \
     || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
   send_images_to_host
 fi
@@ -516,7 +551,7 @@ elif [[ -z "$SMOKE_BASE_URL" ]]; then
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
 else
   echo "==> Running smoke check against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" bash scripts/smoke-local.sh; then
+  if ! BASE_URL="$SMOKE_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
@@ -525,7 +560,7 @@ else
   # dev-harness environment contract). Same fail-hard stance as the route
   # smoke above. Mirrors deploy-code.sh.
   echo "==> Running security smoke probes against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash scripts/smoke-security.sh; then
+  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     echo "ERROR: security smoke probes failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
@@ -545,28 +580,62 @@ fi
 # of the deployed state without needing tooling on the host.
 if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
   echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
-  MEDIA_BUCKET="$(terraform -chdir="terraform/$FOOTBAG_ENV" output -raw media_bucket_name 2>/dev/null || true)"
+  MEDIA_BUCKET="$(terraform -chdir="$REPO_ROOT/terraform/$FOOTBAG_ENV" output -raw media_bucket_name 2>/dev/null || true)"
   if [[ -z "$MEDIA_BUCKET" ]]; then
     echo "ERROR: could not read media_bucket_name from terraform/$FOOTBAG_ENV." >&2
     echo "       The media sync ran, so the rows now reference objects this deploy" >&2
     echo "       cannot verify. Run 'terraform -chdir=terraform/$FOOTBAG_ENV init' or" >&2
     echo "       check the workstation's AWS profile, then re-run the check:" >&2
     echo "         MEDIA_STORAGE_ADAPTER=s3 MEDIA_STORAGE_S3_BUCKET=<bucket> \\" >&2
-    echo "           bash scripts/check-media-integrity.sh" >&2
+    echo "           AWS_REGION=<region> bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
     exit 1
   fi
-  if ! FOOTBAG_DB_PATH="database/footbag.db" \
-       MEDIA_STORAGE_ADAPTER="s3" \
-       MEDIA_STORAGE_S3_BUCKET="$MEDIA_BUCKET" \
-       bash scripts/check-media-integrity.sh; then
+
+  # Forcing the check into S3 mode below makes a region mandatory, and the values
+  # file it loads is a workstation dev file with no reason to carry one. So resolve
+  # it from the same AWS configuration the media sync itself just used, and refuse
+  # here rather than let the check fail to boot: the boot failure exits 1, which is
+  # the check's code for objects being absent, so the operator was told the rows
+  # this deploy shipped were broken when nothing had been compared at all.
+  MEDIA_CHECK_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || true)}}"
+  if [[ -z "$MEDIA_CHECK_REGION" ]]; then
+    echo "ERROR: no AWS region is configured, so the media integrity check cannot run." >&2
+    echo "       The media sync ran, so the rows now reference objects this deploy" >&2
+    echo "       cannot verify. Give the workstation's AWS profile a region (or export" >&2
+    echo "       AWS_REGION), then re-run the check against the bucket just synced:" >&2
+    echo "         FOOTBAG_DB_PATH=$LOCAL_DB MEDIA_STORAGE_ADAPTER=s3 \\" >&2
+    echo "           MEDIA_STORAGE_S3_BUCKET=$MEDIA_BUCKET AWS_REGION=<region> \\" >&2
+    echo "           bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
+    exit 1
+  fi
+
+  # The verdict is the exit code, and the two failures are different news: 1 is a
+  # real comparison that found objects absent, anything else is a check that never
+  # reached one. Treating both as the first is what made a crash read as missing
+  # media, with a remedy that would not have fixed it.
+  MEDIA_CHECK_STATUS=0
+  FOOTBAG_DB_PATH="$LOCAL_DB" \
+    MEDIA_STORAGE_ADAPTER="s3" \
+    MEDIA_STORAGE_S3_BUCKET="$MEDIA_BUCKET" \
+    AWS_REGION="$MEDIA_CHECK_REGION" \
+    bash "$REPO_ROOT/scripts/check-media-integrity.sh" || MEDIA_CHECK_STATUS=$?
+  if (( MEDIA_CHECK_STATUS == 1 )); then
     echo "ERROR: media integrity check failed against s3://$MEDIA_BUCKET." >&2
     echo "       The live database references objects that are not in the bucket, so" >&2
     echo "       those images, posters or videos will 404. Re-run the deploy with the" >&2
     echo "       media sync (it rides a rebuild by default; --no-media turns it off)." >&2
     exit 1
+  elif (( MEDIA_CHECK_STATUS != 0 )); then
+    echo "ERROR: the media integrity check could not run (exit $MEDIA_CHECK_STATUS)." >&2
+    echo "       It reached no verdict, so whether the rows this deploy shipped resolve" >&2
+    echo "       in s3://$MEDIA_BUCKET is unknown rather than bad. The reason is in the" >&2
+    echo "       output above, and re-running the deploy will not change it." >&2
+    exit 1
   fi
 fi
 
 echo
-echo "Deploy complete. Origin: http://$HOST_IP"
+echo "Deploy complete."
+# stderr, for the reason given at the target banner above.
+echo "Origin: http://$HOST_IP" >&2
 echo "WARNING: live DB was replaced from scratch."

@@ -18,6 +18,14 @@ Safety:
   * touches only historical_persons.legacy_member_id -- never the members' claim
     columns (claimed_by_member_id / claimed_at), which live on legacy_members.
 
+Proposals are read through the merge map when one is supplied, because the member
+load that runs first collapses duplicate accounts and this artifact was built
+before it. A proposal naming an account the merge collapsed is a proposal naming
+the survivor: the person's link moved there with the merge, so what was a no-op
+before the merge would otherwise read afterwards as an attempt to overwrite a link
+with a deleted id. The map is the authority on account identity after the merge,
+and every other consumer of it already reads its artifacts that way.
+
 This is one of two guarded writes in the apply (the other is the member-row load
 in load_legacy_export.py). They are separate processes and separate database
 connections, so they are two transactions, each atomic on its own -- not one
@@ -84,6 +92,29 @@ def read_proposed_links(path: Path) -> list[dict[str, str]]:
             }
             for r in csv.DictReader(f)
         ]
+
+
+def remap_through_merge_map(links: list[dict[str, str]],
+                            merge_map: dict[str, str]) -> int:
+    """Rewrite each proposal's account id loser -> survivor, in place. Returns how
+    many were rewritten.
+
+    The proposals are built before the member load, and the load collapses the
+    duplicate accounts the recorded rulings name. An id this map calls a loser no
+    longer exists afterwards, so a proposal still naming it is stale by exactly one
+    step -- and the link it asked for is already in place on the survivor, because
+    the merge remapped it there. Reading the proposal through the map turns it back
+    into the no-op it was before the merge ran.
+    """
+    if not merge_map:
+        return 0
+    remapped = 0
+    for lk in links:
+        survivor = merge_map.get(lk["legacy_member_id"])
+        if survivor:
+            lk["legacy_member_id"] = survivor
+            remapped += 1
+    return remapped
 
 
 def _current_links(conn) -> dict[str, str | None]:
@@ -224,6 +255,9 @@ def main() -> None:
                     help="perform the writes; without this flag the writer is a dry run")
     ap.add_argument("--audit-out", type=Path, default=DEFAULT_AUDIT_CSV)
     ap.add_argument("--rollback-out", type=Path, default=DEFAULT_ROLLBACK_SQL)
+    ap.add_argument("--merge-map", type=Path, default=None,
+                    help="loser->survivor map from the final merge; proposals naming a "
+                         "collapsed account are read as naming its survivor")
     args = ap.parse_args()
 
     refuse_if_deployed_target(str(args.db))
@@ -234,6 +268,14 @@ def main() -> None:
             sys.exit(1)
 
     links = read_proposed_links(args.proposed_links)
+    remapped = 0
+    if args.merge_map is not None:
+        if not Path(args.merge_map).exists():
+            print(f"error: not found: {args.merge_map}", file=sys.stderr)
+            sys.exit(1)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from member_merge import load_merge_map  # noqa: E402
+        remapped = remap_through_merge_map(links, load_merge_map(Path(args.merge_map)))
     conn = _connect(args.db)
     try:
         errs = validate_preconditions(conn, links)
@@ -258,6 +300,9 @@ def main() -> None:
 
     print(f"apply_reconciled_links [{mode}]")
     print(f"  proposed links:        {len(links)}")
+    if args.merge_map is not None:
+        print(f"  read through the merge map: {remapped} proposal(s) named a collapsed "
+              f"account and were read as naming its survivor")
     print(f"  new links written:     {len(changes)}")
     print(f"  already linked (noop): {len(noops)}")
     print(f"  audit CSV:    {args.audit_out}")

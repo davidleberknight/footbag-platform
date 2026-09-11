@@ -246,6 +246,16 @@ describe('set-host-env.sh refusals', () => {
     expect(r.stderr).toContain("must be 'staging' or 'production'");
   });
 
+  it('refuses to run without a target, rather than choosing an environment', () => {
+    // This defaulted to staging, so a run carrying the production credential on
+    // stdin resolved staging's Terraform outputs and opened a session to the
+    // staging host with the wrong environment's password.
+    const r = run(['--dry-run']);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toContain('--target is required');
+  });
+
+
   it('refuses a missing env file rather than creating one', () => {
     const r = run(['--target', 'staging', '--env-file', '/nonexistent/footbag-env'], {
       BACKUP_S3_BUCKET_VALUE: 'b',

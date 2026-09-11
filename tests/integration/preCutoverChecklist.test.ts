@@ -131,6 +131,7 @@ function runChecklist(
   dbPath: string,
   snapshotDir: string,
   args: string[] = [],
+  envOverrides: Record<string, string> = {},
 ): { status: number; stdout: string; stderr: string } {
   // The payments-boot gate reads a deploy env file; a live-mode fixture
   // beside the test DB satisfies it.
@@ -152,6 +153,7 @@ function runChecklist(
     FOOTBAG_CLUB_ONLY_PERSONS_MIN:    '0',
 
     FOOTBAG_BOOTSTRAP_LEADER_MIN:     '1',
+    ...envOverrides,
   };
   const result = spawnSync('bash', ['scripts/pre-cutover-checklist.sh', ...args], {
     cwd: REPO_ROOT,
@@ -274,6 +276,72 @@ describe('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir, ['--target', 'production']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/mutually exclusive/);
+  });
+
+  it('payments-boot skips with its reason when there is no env file to read', { timeout: 60_000 }, () => {
+    // The gate reads a deploy env file, which lives on a host. Without a target
+    // and without a file it used to FAIL, so a run counted a failure that said
+    // nothing about the environment being certified. Looking at nothing is a
+    // skip, and the reason has to name what was missing.
+    buildFixtureDb(dbPath);
+    const envFile = path.join(workDir, 'deploy-env');
+    const r = runChecklist(dbPath, snapshotDir, [], { FOOTBAG_ENV_FILE: '' });
+    expect(fs.existsSync(envFile)).toBe(true); // the harness wrote one; the run was told to ignore it
+    expect(r.stdout).toMatch(/GATE: PAYMENTS-BOOT SKIP: no --target and no FOOTBAG_ENV_FILE/);
+    expect(r.stdout).not.toMatch(/GATE: PAYMENTS-BOOT FAIL/);
+    expect(r.status).toBe(0);
+  });
+});
+
+// ── what a targeted run attests to ──────────────────────────────────────────
+//
+// A targeted run opens a privileged session to a real host, so these are read off
+// the script rather than driven: the behaviour under test is which environment each
+// leg is pointed at, and a test that could drive it would have to contact the host
+// it is asserting about.
+
+describe('a targeted run points each leg at the environment it names', () => {
+  const SOURCE = fs.readFileSync(
+    path.join(REPO_ROOT, 'scripts', 'pre-cutover-checklist.sh'), 'utf8');
+
+  it('fetches the host env file for the payments gate instead of reading a local one', () => {
+    // Pointing the gate at a workstation stand-in is worse than failing: it
+    // certifies a fixture under the target's heading. The host's own file comes
+    // down over the same wire every other privileged step here uses.
+    expect(SOURCE).toMatch(/host_env_fetch "\$\{SSH_ALIAS\}" "\$\{PAYMENTS_ENV_FILE\}"/);
+    expect(SOURCE).toMatch(/env FOOTBAG_ENV_FILE="\$\{PAYMENTS_ENV_FILE\}" bash scripts\/validate-payments-boot\.sh/);
+    // A failed fetch is a failed gate, not a silent pass on the local file.
+    expect(SOURCE).toMatch(/PAYMENTS-BOOT FAIL: the \$\{TARGET\} host env file could not be read/);
+  });
+
+  it('shreds the fetched env file on every exit path', () => {
+    // It holds the host's entire secret set, so it is shredded on the trap that
+    // already removes the pulled database rather than left for whatever runs next.
+    expect(SOURCE).toMatch(/trap cleanup_run_artifacts EXIT/);
+    const cleanup = SOURCE.slice(SOURCE.indexOf('cleanup_run_artifacts() {'),
+                                 SOURCE.indexOf('trap cleanup_run_artifacts EXIT'));
+    expect(cleanup).toMatch(/shred -u/);
+    expect(cleanup).toContain('PAYMENTS_ENV_DIR');
+  });
+
+  it('points the smoke suite at the named environment', () => {
+    // The smoke runner reads its values from terraform output and defaults to
+    // staging, so an unsteered run certifies staging under the target's heading.
+    // Its AWS calls are reads and its only send goes to the mailbox simulator.
+    expect(SOURCE).toMatch(/run_step "SMOKE" env SMOKE_TARGET_ENV="\$\{TARGET\}" npm run test:smoke/);
+  });
+
+  it('never points the browser suite at the named environment', () => {
+    // The opposite case. It drives onboarding, password reset and admin write
+    // flows, and the sign-in-capable accounts it creates would trip the guard
+    // that refuses a rebuild above three of them, which would block the cutover
+    // rebuild itself. Skipped with its reason rather than counted.
+    const e2e = SOURCE.slice(SOURCE.indexOf('# The browser suite is the opposite case'),
+                             SOURCE.indexOf('# 7. Dev-admin-shortcut audit'));
+    expect(e2e).toMatch(/GATE: E2E SKIP: the browser suite drives write flows/);
+    expect(e2e).not.toMatch(/E2E_BASE_URL|BASE_URL/);
+    // And it still runs where it is safe: a workstation run keeps the gate.
+    expect(e2e).toMatch(/run_step "E2E"\s+npm run test:e2e/);
   });
 });
 

@@ -40,7 +40,7 @@
 #   1  staging: plan, gate, confirm, apply, verify
 #   2  production: the same
 #   3  shared: the same, plus the state-reachability proof
-#   4  final baseline check across the applied estate
+#   4  final baseline check, against the tree rather than the applied estate
 #
 # Usage:
 #   scripts/apply-bucket-tls-baseline.sh --dry-run
@@ -77,7 +77,10 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 
 TF_BIN="${TERRAFORM_APPLY_BIN:-terraform}"
 if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
-  echo "NOTE: TERRAFORM_APPLY_BIN is set; terraform calls go to '${TF_BIN}'."
+  # stderr, and in the same words every other operator script uses. On stdout a
+  # wrapper capturing output swallows it, and a stubbed run then reads as a real
+  # one -- which is the whole reason a seam has to announce itself.
+  echo "SYNTHETIC: terraform='${TF_BIN}' -- this run proves nothing about the estate." >&2
 fi
 
 usage() {
@@ -129,7 +132,9 @@ Dry run. A real run would, in this order:
   step 3  terraform/shared    the same, and then prove Terraform can still read
                               its own state. On failure, print the one recovery
                               call and the identity it needs.
-  step 4  the repository's bucket baseline check, against the applied estate.
+  step 4  the repository's bucket baseline check. It reads the Terraform source
+                              of all three trees, not the applied estate, so it
+                              proves the baseline is declared rather than live.
 
 Nothing was planned, applied or read.
 PLAN
@@ -158,16 +163,39 @@ trap cleanup_plan EXIT INT TERM
 # diff at all. Reading the plan as JSON rather than grepping the human output:
 # the human rendering elides a SecureString value as (sensitive value), which
 # looks identical whether it is changing or not.
+#
+# A gate that cannot read refuses. Every failure path below used to collapse to
+# an empty result, which reads as "nothing is changing": a `terraform show` that
+# failed, an absent python3, or truncated JSON all let a typed APPLY through and
+# overwrite the live secret with the placeholder. The reasons a gate cannot see
+# are exactly the conditions under which it must not wave the change past.
 gate_session_secret() {
-  local plan_file="$1" tf_dir="$2" changing
+  local plan_file="$1" tf_dir="$2" changing plan_json
+  if ! plan_json="$("$TF_BIN" -chdir="$tf_dir" show -json "$plan_file" 2>&1)"; then
+    echo "" >&2
+    echo "REFUSING: could not read the plan as JSON, so the session-secret check" >&2
+    echo "  could not run. This gate is the reason this script exists; it refuses" >&2
+    echo "  rather than assuming nothing is changing." >&2
+    echo "  terraform show said: ${plan_json}" >&2
+    return 1
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "" >&2
+    echo "REFUSING: python3 is not available, so the session-secret check could" >&2
+    echo "  not run. Install it, or apply through a host that has it." >&2
+    return 1
+  fi
   changing="$(
-    "$TF_BIN" -chdir="$tf_dir" show -json "$plan_file" 2>/dev/null \
+    printf '%s' "$plan_json" \
       | python3 -c '
 import json, sys
 try:
     plan = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
+except Exception as exc:
+    # Exit non-zero so the caller refuses. Exiting 0 here meant a truncated or
+    # unparseable plan was indistinguishable from a clean one.
+    sys.stderr.write("could not parse the plan JSON: %s\n" % exc)
+    sys.exit(2)
 for change in plan.get("resource_changes", []):
     if change.get("type") != "aws_ssm_parameter":
         continue
@@ -181,7 +209,13 @@ for change in plan.get("resource_changes", []):
     if before != after:
         print(change.get("address", "aws_ssm_parameter.session_secret"))
 '
-  )" || changing=""
+  )" || {
+    echo "" >&2
+    echo "REFUSING: the session-secret check did not complete, so it cannot say" >&2
+    echo "  whether the plan would overwrite a live secret. Refusing rather than" >&2
+    echo "  assuming it would not." >&2
+    return 1
+  }
 
   if [[ -n "$changing" ]]; then
     echo "" >&2
@@ -213,10 +247,22 @@ newest_log_key() {
 # the plaintext endpoint must be refused. An anonymous probe proves nothing here,
 # because the public access block already refuses those.
 assert_plaintext_refused() {
-  local bucket="$1"
-  if aws s3api head-bucket --bucket "$bucket" \
-      --endpoint-url "http://s3.us-east-1.amazonaws.com" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
+  local bucket="$1" err rc
+  err="$(aws s3api head-bucket --bucket "$bucket" \
+      --endpoint-url "http://s3.us-east-1.amazonaws.com" "${AWS_ARGS[@]}" 2>&1)" && rc=0 || rc=$?
+  if (( rc == 0 )); then
     echo "  FAIL: ${bucket} accepted an authenticated request over plaintext." >&2
+    return 1
+  fi
+  # The refusal has to be the deny doing its job, not any failure at all. A
+  # proxy blocking port 80, a credential expiring mid-run, or a redirect from a
+  # bucket outside this region all made the old form print "refuses plaintext"
+  # while proving nothing. An invariant this script exists to establish cannot be
+  # asserted by a check that passes on every error.
+  if ! printf '%s' "$err" | grep -qiE 'AccessDenied|403|Forbidden'; then
+    echo "  FAIL: ${bucket} did not accept plaintext, but not because it was denied." >&2
+    echo "        The check cannot tell a working deny from an unrelated failure." >&2
+    printf '        aws said: %s\n' "$err" | head -5 >&2
     return 1
   fi
   echo "  ok: ${bucket} refuses plaintext"
@@ -247,7 +293,11 @@ for s in doc.get("Statement", []):
 }
 
 plan_and_apply() {
-  local tf_dir="$1" label="$2"
+  # Anchored to the checkout rather than to the caller's directory, for the reason
+  # the deploy family now anchors everything: a relative tree name means the run
+  # depends on where the operator was standing, and the state-reachability check
+  # this protects was anchored while the three calls that follow it were not.
+  local tf_dir="${REPO_ROOT}/$1" label="$2"
   TF_PLAN="$(mktemp /tmp/footbag-tls-baseline-plan.XXXXXX)"
   chmod 600 "$TF_PLAN"
 
@@ -354,16 +404,31 @@ if (( FROM_STEP <= 3 )) || (( VERIFY_ONLY )); then
   assert_plaintext_refused "$STATE_BUCKET" || fail=1
   # The proof that matters: a refresh-only plan reads and writes nothing but
   # still has to reach the backend.
-  if ! "$TF_BIN" -chdir="terraform/production" plan -refresh-only -input=false >/dev/null 2>&1; then
+  #
+  # Anchored to $REPO_ROOT, and the error is kept. Both mattered: the path was
+  # relative to the caller's working directory, and every error was discarded, so
+  # a run started from the wrong directory reported "Terraform can no longer read
+  # its own state" and handed the operator a command that removes the protection
+  # this script had just installed. A verdict that cannot distinguish a lockout
+  # from a missing directory must not name the lockout as its cause.
+  refresh_err=""
+  if ! refresh_err="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/production" plan -refresh-only -input=false 2>&1)"; then
     echo "" >&2
-    echo "  FAIL: Terraform can no longer read its own state." >&2
+    echo "  FAIL: the refresh-only plan against terraform/production did not succeed." >&2
     echo "" >&2
-    echo "  The deny on ${STATE_BUCKET} is refusing the backend. Recover from the" >&2
-    echo "  break-glass session, which is outside the deny, with exactly this:" >&2
+    echo "  terraform said:" >&2
+    printf '    %s\n' "$refresh_err" | tail -20 >&2
+    echo "" >&2
+    echo "  If, and only if, that names an access denial on ${STATE_BUCKET}, the deny" >&2
+    echo "  is refusing the backend. Recover from the break-glass session, which is" >&2
+    echo "  outside the deny, with exactly this:" >&2
     echo "" >&2
     echo "    aws s3api delete-bucket-policy --bucket ${STATE_BUCKET}" >&2
     echo "" >&2
-    echo "  Then fix terraform/shared/s3.tf and resume with --from-step 3." >&2
+    echo "  Then fix terraform/shared/s3.tf and resume with --from-step 3. Any other" >&2
+    echo "  error above (an uninitialised tree, expired credentials, no network) is" >&2
+    echo "  not a lockout, and running that command would remove the protection this" >&2
+    echo "  script just installed." >&2
     fail=1
   else
     echo "  ok: Terraform still reads its own state"
@@ -372,10 +437,14 @@ if (( FROM_STEP <= 3 )) || (( VERIFY_ONLY )); then
   echo ""
 fi
 
-# ── Step 4: the repository's own gate, against the applied estate ────────────
-
+# ── Step 4: the repository's own gate, against the tree ──────────────────────
+#
+# check_bucket_baseline.sh greps the Terraform trees and reads no AWS at all, so
+# what this proves is that every bucket in the source declares the baseline. The
+# applied estate was proven by the per-tree verifications in steps 1 to 3; this
+# catches the next bucket somebody adds without the three resources.
 if (( FROM_STEP <= 4 )); then
-  echo "-- step 4: baseline check --"
+  echo "-- step 4: baseline check (Terraform source, not the estate) --"
   echo ""
   if ! bash "${REPO_ROOT}/scripts/ci/check_bucket_baseline.sh"; then
     echo "ERROR: the bucket baseline check failed against the tree." >&2

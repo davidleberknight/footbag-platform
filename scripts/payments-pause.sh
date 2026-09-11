@@ -17,7 +17,7 @@
 #
 # It is therefore the right lever for "something is wrong, stop taking money"
 # and the wrong lever for "the provider itself is the problem". The full stop is
-# disarming (scripts/arming.sh --state dark), which swaps the live adapter out
+# disarming (scripts/arming.sh --target production --state dark), which swaps the live adapter out
 # entirely; it takes a few minutes, requires the provider's webhook endpoint be
 # disabled first, and is a deploy. Reach for this one first: it is seconds, and
 # it is reversible with the same command.
@@ -128,7 +128,7 @@ if [[ "$ACTION" != "status" ]]; then
   if [[ "$ASSUME_YES" == "yes" ]]; then
     echo "  Confirmation skipped (--yes)."
   else
-    confirm_from_tty "Type ${TARGET} to ${verb}: " "$TARGET" \
+    confirm_from_tty "Type 'APPLY' to ${verb}: " "APPLY" \
       || die "not confirmed; nothing was changed"
   fi
 fi
@@ -160,9 +160,20 @@ if [[ "$state" == "1" ]]; then
   echo "  Webhooks are still processed, so in-flight payments settle normally."
   echo "  Clear it with: scripts/payments-pause.sh --target ${TARGET} --resume --reason '...'"
 else
-  echo "payments on ${TARGET}: LIVE"
-  echo "  New purchases and donations are being accepted."
-  echo "  Stop them with: scripts/payments-pause.sh --target ${TARGET} --pause --reason '...'"
+  # "NOT PAUSED" rather than "LIVE", and the qualifier is not pedantry. This lever
+  # is one of two switches, and it is the weaker one: it decides whether the
+  # platform refuses a checkout, while the arming switch decides whether the live
+  # payment adapter boots at all. Before go-live the correct state is this lever
+  # clear and payments dark, and a line reading "payments: LIVE / donations are
+  # being accepted" describes that state as the opposite of what it is. An operator
+  # reading it on a production host would believe real money can move.
+  echo "payments on ${TARGET}: NOT PAUSED"
+  echo "  This lever is not refusing anything. Whether real money can move is a"
+  echo "  separate question, decided by the arming switch: with payments dark the"
+  echo "  host runs the stub adapter and a checkout takes no money however this"
+  echo "  lever reads. The two together are reported by:"
+  echo "    scripts/bringup-status.sh --target ${TARGET}"
+  echo "  Pause with: scripts/payments-pause.sh --target ${TARGET} --pause --reason '...'"
 fi
 echo ""
 echo "The admin payments-health page shows this same state at /admin/payments/health."

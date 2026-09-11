@@ -74,9 +74,9 @@ function writeTerraformStub(opts: { planFails?: boolean; applyFails?: boolean } 
   chmodSync(tfStub, 0o755);
 }
 
-function run(args: string[], withStub = true): RunResult {
+function run(args: string[], withStub = true, extraEnv: NodeJS.ProcessEnv = {}): RunResult {
   rmSync(callLog, { force: true });
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
   if (withStub) env.TERRAFORM_APPLY_BIN = tfStub;
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
@@ -123,6 +123,19 @@ describe('terraform-apply.sh: argument handling', () => {
     const res = run(['--target', 'staging', '--from-step', '7'], false);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toMatch(/from-step takes a step number from 1 to 2/);
+  });
+
+  it('does not inherit the confirmation from the caller environment', () => {
+    // An exported ASSUME_YES=yes must not stand in for the typed APPLY on a
+    // production apply. The library assigns the variable unconditionally so no
+    // caller can inherit it; this is the end-to-end proof through a real script.
+    writeTerraformStub();
+    const res = run(['--target', 'production'], true, { ASSUME_YES: 'yes' });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    // Matched with surrounding whitespace: the plan file's own name carries
+    // "apply", so a looser pattern hits the plan line and never fails.
+    expect(calls()).not.toMatch(/\sapply\s/);
   });
 });
 

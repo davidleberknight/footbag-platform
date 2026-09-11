@@ -107,14 +107,17 @@ not script inputs, and are never committed. The final, useful results are
 committed as the curated, seed, and identity inputs below.
 
 **Two kinds of script input are never committed: the membership roster below, and the member
-load's five recorded-human-decision CSVs, which live in the maintainers' private checkout and
-reach a run through environment variables.** Every other CSV a script reads is committed.
+load's five recorded-human-decision CSVs, which live together in the maintainers' private
+checkout at `private_data/stage_a_overrides/`, reached through the git-ignored repo-root
+`footbag_private_repo` symlink. No environment variable names that location and no operator
+command carries a path: a run resolves it and reports what it found there.** Every other CSV a
+script reads is committed.
 
 | CSV (path / glob) | Git | Read by | What it is |
 |---|---|---|---|
 | `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); operator handoff, not regenerable |
-| `stage_a_adjudication.csv`, `entitlement_dispositions.csv` (in the directory `FOOTBAG_MEMBER_ADJUDICATIONS_DIR` names) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` (which passes them to the reconciler's final merge) | recorded human rulings about which duplicate legacy accounts are the same person, and the entitlement disposition per merged set; fingerprinted, failing closed against an extract they were not adjudicated on |
-| `board_at_cutover.csv` (the file `FOOTBAG_BOARD_ROSTER` names) | **private checkout, never committed here** | `member_data_scripts/extract_legacy_members.py`, resolved and passed by the runner | the directors sitting at cutover, each with the paid tier underneath the seat; validated and fingerprinted against the dump it is applied to, same fail-closed contract as the rulings |
+| `stage_a_adjudication.csv`, `entitlement_dispositions.csv` (in `private_data/stage_a_overrides/`) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` (which resolves them by canonical path and passes them to the reconciler's final merge) | recorded human rulings about which duplicate legacy accounts are the same person, and the entitlement disposition per merged set; fingerprinted, failing closed against an extract they were not adjudicated on |
+| `board_at_cutover.csv` (same private directory) | **private checkout, never committed here** | `member_data_scripts/extract_legacy_members.py`, resolved and passed by the runner | the directors sitting at cutover, each with the paid tier underneath the seat; validated and fingerprinted against the dump it is applied to, same fail-closed contract as the rulings |
 | `person_link_holds.csv`, `review_resolutions.csv` (same private directory) | **private checkout, never committed here** | accepted by the reconciler; not passed by the runner today (whether the production load applies them is an open ruling in the maintainers' private tracker) | recorded holds on historical-person links, and review-outcome rulings |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
 | `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations) |
@@ -390,6 +393,16 @@ index-hidden content is captured (`--seeds` narrows to specific lists), and it
 generates the archive navigation at the end of each run (an Archive Directory
 page and a homepage card pointing at it) so a captured page the old site's own
 menus never linked is still reachable by browsing.
+
+It also strips file types a static archive can never serve — the patterns in
+`unservable_artifact_exclusions.txt` beside the script, server-side imagemaps
+being the case that prompted it — at the end of every run and before the
+dead-link pass, so the pages that linked them are settled in the same run rather
+than left offering a reader a link that can only fail.
+`--strip-unservable-only` applies a pattern added since the last crawl without
+re-reading the site. The publisher's own exclusion list is a different mechanism
+for a different reason: it withholds bytes worth keeping in what is now the only
+copy of the site, while this removes bytes nothing can serve.
 
 Videos are skipped by default: video binaries dominated the previous crawl's
 time and disk (each is ffmpeg re-encoded), so the page crawl runs without them

@@ -90,6 +90,14 @@ describe('arming.sh — argument validation', () => {
     expect(res.stderr).toMatch(/--target must be 'staging' or 'production'/);
   });
 
+  it('refuses to run without a target, rather than choosing an environment', () => {
+    // This script used to default to production, so `--state dark` disarmed the
+    // environment holding member data having been told no environment at all.
+    const res = run(ARMING, ['--switch', 'payments', '--state', 'dark']);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/--target is required/);
+  });
+
   it('requires either a status read or a state to move to', () => {
     const res = run(ARMING, ['--target', 'production']);
     expect(res.exitCode).toBe(2);
@@ -241,7 +249,7 @@ describe('arming.sh — tfvars rewrite', () => {
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
       // Arming's own step-1 attestation, then the tfvars diff confirmation.
-      'CREDENTIALS IN PLACE\nyes\n',
+      'APPLY\nyes\n',
     );
     expect(res.exitCode).toBe(0);
     const after = readFileSync(tfvars, 'utf-8');
@@ -257,14 +265,14 @@ describe('arming.sh — tfvars rewrite', () => {
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
       // Arming's own step-1 attestation, then the tfvars diff confirmation.
-      'CREDENTIALS IN PLACE\nyes\n',
+      'APPLY\nyes\n',
     );
     expect(res.stdout).toMatch(/stopping before terraform and deploy/);
   });
 
   it('leaves the file alone when it already declares the wanted state', () => {
     const tfvars = writeTfvars(BASE_TFVARS);
-    const res = run(ARMING, ['--target', 'production', '--state', 'dark', '--tfvars', tfvars], 'ENDPOINT DISABLED\n');
+    const res = run(ARMING, ['--target', 'production', '--state', 'dark', '--tfvars', tfvars], 'APPLY\n');
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toMatch(/already "dark"; leaving the file alone/);
   });
@@ -275,7 +283,7 @@ describe('arming.sh — tfvars rewrite', () => {
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
       // Arming's own step-1 attestation, then the tfvars diff confirmation.
-      'CREDENTIALS IN PLACE\nyes\n',
+      'APPLY\nyes\n',
     );
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/no payments_armed assignment found/);
@@ -287,7 +295,7 @@ describe('arming.sh — tfvars rewrite', () => {
     const res = run(
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
-      'CREDENTIALS IN PLACE\nno\n',
+      'APPLY\nno\n',
     );
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/tfvars not changed/);
@@ -313,7 +321,7 @@ describe('arming.sh — disarming cannot proceed past the Stripe endpoint', () =
     const res = run(
       ARMING,
       ['--target', 'production', '--state', 'dark', '--tfvars', tfvars],
-      'ENDPOINT DISABLED\nyes\n',
+      'APPLY\nyes\n',
     );
     expect(res.exitCode).toBe(0);
     expect(readFileSync(tfvars, 'utf-8')).toMatch(/payments_armed\s+= "dark"/);
@@ -327,7 +335,9 @@ describe('arming.sh — disarming cannot proceed past the Stripe endpoint', () =
       'yes\n',
     );
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).not.toMatch(/ENDPOINT DISABLED/);
+    // Keyed on the prompt's own wording, not on the typed word, which is now
+    // APPLY everywhere and so cannot tell one prompt from another.
+    expect(res.stdout).not.toMatch(/once you have done it/);
     expect(readFileSync(tfvars, 'utf-8')).toMatch(/payments_armed\s+= "dark"/);
   });
 });
@@ -432,13 +442,273 @@ describe('arming.sh — the email switch', () => {
     const res = run(
       ARMING,
       ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
-      'SES READY\nyes\n',
+      'APPLY\nyes\n',
     );
     expect(res.exitCode).toBe(0);
     const after = readFileSync(tfvars, 'utf-8');
     expect(after).toMatch(/^email_send_armed\s+= "armed"$/m);
     // The two switches are independent; arming one must never move the other.
     expect(after).toMatch(/^payments_armed\s+= "dark"$/m);
+  });
+
+  /**
+   * Stands in for the host. `-G` answers the alias resolution the library does
+   * before it opens anything; otherwise it discards the first stdin line, which
+   * is what sudo does with the password, drains the rest, and returns the two
+   * sentinel lines the read half would have returned. The wire itself is proven
+   * in its own suite; what these cases need is the env file content arriving.
+   */
+  function writeHostStandIns(envContent: string): { binDir: string; pinFile: string } {
+    fileCounter += 1;
+    const binDir = join(tmpDir, `bin-${fileCounter}`);
+    spawnSync('mkdir', ['-p', binDir], SPAWN_GUARD);
+    const payload = Buffer.from(envContent, 'utf-8').toString('base64');
+    writeFileSync(
+      join(binDir, 'ssh'),
+      [
+        '#!/usr/bin/env bash',
+        'set -euo pipefail',
+        'if [[ "${1:-}" == "-G" ]]; then',
+        '  echo "hostname 198.51.100.9"',
+        '  exit 0',
+        'fi',
+        'IFS= read -r _password || true',
+        'cat > /dev/null',
+        'printf "%s\\n" "---FOOTBAG-ENV-B64---"',
+        `printf "%s\\n" "${payload}"`,
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+    chmodSync(join(binDir, 'ssh'), 0o755);
+    const pinFile = join(tmpDir, `pin-${fileCounter}`);
+    // Never the operator's own pin: a suite that reads it passes on the one
+    // machine that has it installed and fails everywhere else.
+    writeFileSync(pinFile, '[198.51.100.9]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+    chmodSync(pinFile, 0o600);
+    return { binDir, pinFile };
+  }
+
+  function runWithHost(
+    args: string[],
+    input: string,
+    envContent: string | null,
+    withCredential = true,
+  ): RunResult {
+    const { binDir, pinFile } = writeHostStandIns(envContent ?? '');
+    fileCounter += 1;
+    const credFile = join(tmpDir, `cred-${fileCounter}.txt`);
+    writeFileSync(credFile, 'host-sudo-password-not-real\n');
+    chmodSync(credFile, 0o600);
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      FOOTBAG_KNOWN_HOSTS: pinFile,
+    };
+    if (withCredential) {
+      env.AWS_OPERATOR_FILE = credFile;
+    } else {
+      delete env.AWS_OPERATOR_FILE;
+    }
+    const result = spawnSync('bash', [ARMING, ...args], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input,
+      env,
+      ...SPAWN_GUARD,
+    });
+    return {
+      exitCode: result.status ?? 1,
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? '',
+    };
+  }
+
+  it('refuses to arm email when the host env file has no sender identity', () => {
+    // The live mail adapter requires SES_FROM_IDENTITY at boot and the compose
+    // file interpolates it with no default, so arming without it crash-loops the
+    // host: down rather than degraded. The script can read the value, so it
+    // refuses instead of asking an operator to confirm it under pressure.
+    const tfvars = writeTfvars(EMAIL_TFVARS);
+    const res = runWithHost(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+      'SES_FEEDBACK_QUEUE_URL=https://sqs.example/queue\nLOG_LEVEL=warn\n',
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/REFUSING: SES_FROM_IDENTITY is not set in \/srv\/footbag\/env/);
+    expect(res.stdout).not.toMatch(/step 2: tfvars/);
+    expect(readFileSync(tfvars, 'utf-8')).toMatch(/email_send_armed\s+= "dark"/);
+  });
+
+  it('refuses a sender identity present but empty, which boots no better than absent', () => {
+    const tfvars = writeTfvars(EMAIL_TFVARS);
+    const res = runWithHost(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+      'SES_FROM_IDENTITY=\nSES_FEEDBACK_QUEUE_URL=https://sqs.example/queue\n',
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/REFUSING: SES_FROM_IDENTITY is not set/);
+  });
+
+  it('checks both host values off the host, leaving the operator attesting to the rest', () => {
+    const tfvars = writeTfvars(EMAIL_TFVARS);
+    const res = runWithHost(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+      'SES_FROM_IDENTITY=noreply@example.org\nSES_FEEDBACK_QUEUE_URL=https://sqs.example/queue\n',
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/SES_FROM_IDENTITY in \/srv\/footbag\/env \.+ CHECKED, present/);
+    expect(res.stdout).toMatch(/SES_FEEDBACK_QUEUE_URL in \/srv\/footbag\/env \.+ CHECKED, present/);
+    expect(res.stdout).toMatch(/You are attesting to b-e/);
+  });
+
+  it('reports a missing feedback queue without refusing, because boot does not need it', () => {
+    // The asymmetry is the point: the sender identity stops the host, the queue
+    // does not. Refusing on the queue would block arming for a fault that
+    // degrades bounce recording rather than taking the site down.
+    const tfvars = writeTfvars(EMAIL_TFVARS);
+    const res = runWithHost(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+      'SES_FROM_IDENTITY=noreply@example.org\n',
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/SES_FEEDBACK_QUEUE_URL in \/srv\/footbag\/env \.+ CHECKED, ABSENT/);
+    expect(res.stdout).toMatch(/Nothing will record a bounce/);
+  });
+
+  it('says the host values were not read, rather than reporting them absent', () => {
+    // Without the credential file the read self-skips. Reporting "absent" for a
+    // value nothing looked at would refuse a correctly configured host.
+    const tfvars = writeTfvars(EMAIL_TFVARS);
+    const res = runWithHost(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+      null,
+      false,
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/Host env file NOT read: AWS_OPERATOR_FILE is not set/);
+    expect(res.stdout).toMatch(/Type 'APPLY' only if every one of 0 and a-e is true/);
+  });
+
+  /**
+   * Writes an `aws` stand-in beside the ssh one so the SSM read returns a known
+   * value, and runs with `--profile`, which is what makes that read happen at all.
+   */
+  function runWithHostAndSsm(
+    args: string[],
+    input: string,
+    envContent: string,
+    ssmValue: string,
+  ): RunResult {
+    const { binDir, pinFile } = writeHostStandIns(envContent);
+    fileCounter += 1;
+    writeFileSync(
+      join(binDir, 'aws'),
+      ['#!/usr/bin/env bash', `printf '%s\\n' '${ssmValue}'`].join('\n') + '\n',
+      'utf-8',
+    );
+    chmodSync(join(binDir, 'aws'), 0o755);
+    const credFile = join(tmpDir, `cred-ssm-${fileCounter}.txt`);
+    writeFileSync(credFile, 'host-sudo-password-not-real\n');
+    chmodSync(credFile, 0o600);
+    const result = spawnSync('bash', [ARMING, ...args, '--profile', 'stand-in-profile'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input,
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: pinFile,
+        AWS_OPERATOR_FILE: credFile,
+      },
+      ...SPAWN_GUARD,
+    });
+    return {
+      exitCode: result.status ?? 1,
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? '',
+    };
+  }
+
+  const ARMED_TFVARS = [
+    'environment         = "production"',
+    'payments_armed      = "dark"',
+    'email_send_armed    = "armed"',
+    'url_screening_armed = "dark"',
+    'reachability_armed  = "dark"',
+  ];
+
+  it('asks nothing and runs nothing when all three places already read the state', () => {
+    // Arming is three places that must agree, and when they do there is no work.
+    // Asking an operator to attest to provider-side facts and then authorise an
+    // apply and a deploy, having just reported the flag as already set, is asking
+    // permission to redo what it said was done: two typed confirmations for a
+    // no-op, which is the loudest possible way to break the idempotency invariant.
+    const tfvars = writeTfvars(ARMED_TFVARS);
+    const res = runWithHostAndSsm(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      '',
+      'EMAIL_SEND_ARMED=armed\nSES_FROM_IDENTITY=noreply@example.org\n',
+      'armed',
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/Already armed, in all three places that have to agree/);
+    expect(res.stdout).toMatch(/host footbag-production \(\/srv\/footbag\/env\): EMAIL_SEND_ARMED=armed/);
+    expect(res.stdout).toMatch(/Nothing to do, so nothing was asked and nothing was run/);
+    // The three things it must not have done.
+    expect(res.stdout).not.toMatch(/step 1: SES readiness/);
+    expect(res.stdout).not.toMatch(/Type 'APPLY'/);
+    expect(res.stdout).not.toMatch(/step 2: tfvars/);
+  });
+
+  it('still runs when the host has not caught up with the flag', () => {
+    // This is the half-applied state the script exists for: the tfvars says armed
+    // and the host still derives its adapter from dark. Stopping here because the
+    // flag looks right is the one outcome that would make the check harmful.
+    const tfvars = writeTfvars(ARMED_TFVARS);
+    const res = runWithHostAndSsm(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+      'EMAIL_SEND_ARMED=dark\nSES_FROM_IDENTITY=noreply@example.org\n',
+      'armed',
+    );
+    expect(res.stdout).not.toMatch(/Already armed, in all three places/);
+    expect(res.stdout).toMatch(/finishing a\s+sequence rather than starting one/);
+    expect(res.stdout).toMatch(/step 1: SES readiness/);
+  });
+
+  it('treats a read it could not take as no answer, never as agreement', () => {
+    // Without --profile there is no SSM read and without a credential file no host
+    // read, and the sentinel those return must never equal the requested state.
+    // Short-circuiting on the flag alone would skip the work on exactly the tree
+    // where the flag was written and the apply never ran.
+    const tfvars = writeTfvars(ARMED_TFVARS);
+    const res = run(
+      ARMING,
+      ['--target', 'production', '--switch', 'email', '--state', 'armed', '--tfvars', tfvars],
+      'APPLY\nyes\n',
+    );
+    expect(res.stdout).not.toMatch(/Already armed, in all three places/);
+    expect(res.stdout).toMatch(/A value shown as not-read is a read this run could not take/);
+  });
+
+  it('a resume never short-circuits, whatever the state reads', () => {
+    // --from-step is the operator saying which step to start at. A state read that
+    // overrides that turns a deliberate resume into a silent no-op.
+    const tfvars = writeTfvars(ARMED_TFVARS);
+    const res = runWithHostAndSsm(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed',
+       '--tfvars', tfvars, '--from-step', '2'],
+      'APPLY\nyes\n',
+      'EMAIL_SEND_ARMED=armed\nSES_FROM_IDENTITY=noreply@example.org\n',
+      'armed',
+    );
+    expect(res.stdout).not.toMatch(/Already armed, in all three places/);
+    expect(res.stdout).toMatch(/step 2: tfvars/);
   });
 
   it('does not ask about the Stripe endpoint when the switch is email', () => {

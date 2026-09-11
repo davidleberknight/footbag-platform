@@ -15,13 +15,19 @@
 # never lands on the host under the operator's ownership on its way to root's,
 # and the caller has no remote temp path to name, clean up, or leak.
 #
-# It is decoded into a restricted temp file owned by root and promoted with
-# `install`, rather than being redirected straight at the destination. Writing
-# in place would leave the live file truncated for as long as the write takes,
-# and any failure part-way would leave the host holding half its configuration,
-# which is a host that boots without a secret it needs. `install` makes the
-# swap atomic, and it sets the mode in the same step so the file is never
-# briefly readable by anyone else.
+# It is decoded into a restricted temp file owned by root and promoted with a
+# rename, rather than being redirected straight at the destination. Writing in
+# place would leave the live file truncated for as long as the write takes, and
+# any failure part-way would leave the host holding half its configuration,
+# which is a host that boots without a secret it needs.
+#
+# The promote is `mv` within the destination's own directory, not `install`.
+# `install` unlinks the destination before creating and writing the new file, so
+# it carries the very window this is meant to close: an error or a signal between
+# the unlink and the last write leaves the file absent or short, and the trap
+# below removes only the temp. A rename inside one filesystem is atomic, so the
+# file is either wholly old or wholly new. The mode and owner are set on the temp
+# before it holds anything, so it is never briefly readable by anyone else.
 #
 # No backup copy is kept. A backup is a second, staler copy of the entire
 # secret set sitting at rest for as long as nobody remembers to delete it, and
@@ -38,7 +44,11 @@ set -euo pipefail
 : "${NEW_ENV_B64:?remote half requires NEW_ENV_B64}"
 
 umask 077
-tmp="$(mktemp)"
+# The temp is created in the destination's own directory so the promote below is
+# a rename within one filesystem, which is atomic. A temp in /tmp could land on a
+# different filesystem, where `mv` degrades to copy-then-unlink and reintroduces
+# the partial-write window this exists to avoid.
+tmp="$(mktemp "$(dirname "$HOST_ENV_PATH")/.env.write.XXXXXX")"
 cleanup() { rm -f "$tmp"; }
 trap cleanup EXIT INT TERM
 
@@ -55,5 +65,8 @@ if [[ ! -s "$tmp" ]]; then
   exit 1
 fi
 
-install -m 0600 -o root -g root "$tmp" "$HOST_ENV_PATH"
+chown root:root "$tmp"
+chmod 0600 "$tmp"
+mv -f "$tmp" "$HOST_ENV_PATH"
+trap - EXIT INT TERM
 echo "    installed $HOST_ENV_PATH (root:root 0600)" >&2

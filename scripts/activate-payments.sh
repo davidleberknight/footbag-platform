@@ -415,7 +415,7 @@ if (( DRY_RUN )); then
       echo "== dry run: remove payment credentials from $TARGET (ssh alias: $SSH_ALIAS) =="
       echo ""
       echo "Would run, in order:"
-      echo "  1. Require the typed phrase REMOVE PAYMENT CREDENTIALS"
+      echo "  1. Require the typed APPLY confirmation"
       echo "  2. Stage $HOST_ENV_PATH down from $SSH_ALIAS and REFUSE if"
       echo "     PAYMENT_ADAPTER=live: disarm payments first, or the host fails every"
       echo "     delivery at once and refuses to boot on its next restart"
@@ -498,7 +498,7 @@ else
   if [[ "$MODE" == "activate" ]]; then
     if [[ "$TARGET" == "production" ]]; then
       echo "This activates LIVE Stripe payments on production."
-      if ! confirm_from_tty "Type 'ACTIVATE LIVE PAYMENTS' to continue: " "ACTIVATE LIVE PAYMENTS"; then
+      if ! confirm_from_tty "Type 'APPLY' to continue: " "APPLY"; then
         echo ""
         echo "Aborted: confirmation phrase not entered." >&2
         exit 1
@@ -513,7 +513,7 @@ else
     echo "and the rotation twin go back to the placeholder, and the signing-secret"
     echo "lines are removed from the host env file. The next activation will be a"
     echo "first activation again. Nothing else is touched, and no money is involved."
-    if ! confirm_from_tty "Type 'REMOVE PAYMENT CREDENTIALS' to continue: " "REMOVE PAYMENT CREDENTIALS"; then
+    if ! confirm_from_tty "Type 'APPLY' to continue: " "APPLY"; then
       echo ""
       echo "Aborted: confirmation phrase not entered." >&2
       exit 1

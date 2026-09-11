@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# Production email send-path validation. Operator-run only once the SES account
-# has left the sandbox: inside the sandbox a send reaches pre-verified addresses
-# only, so this check would report success while proving nothing about the real
-# send path. Sends through live SES to
-# the AWS mailbox simulator
-# (reputation-safe: the success simulator address never bounces and is not a
-# real recipient) and, optionally, to one operator-supplied real inbox for an
-# end-to-end deliverability + DKIM confirmation.
+# Production email send-path validation. Sends through live SES to the AWS
+# mailbox simulator (reputation-safe: the success simulator address never bounces
+# and is not a real recipient) and, optionally, to one operator-supplied real
+# inbox for an end-to-end deliverability + DKIM confirmation.
+#
+# The SES sandbox bounds what this proves; it does not block the run, and an
+# earlier version of this header said otherwise. The simulator accepts inside the
+# sandbox, so the sender identity, the runtime role's grant and the --host-alias
+# outbox leg are all provable there, which is the whole reason the email arming
+# flag is flipped early on the interim sender rather than at cutover. What waits
+# for production access is delivery to an arbitrary address: in the sandbox a
+# real --inbox has to be an identity already verified in the account, and SES
+# refuses anything else. So run it in the sandbox and read the result for what it
+# is, rather than deferring the check and learning nothing until the cutover.
 #
 # With --host-alias, additionally runs the outbox leg (validation gate G10):
 # the outbox send-path smoke executes inside the web container on the host,
@@ -180,7 +186,10 @@ cat <<'EOF'
 
 Manual confirmation checklist:
   1. If --inbox was supplied: the message arrived, and its headers show
-     DKIM=pass and SPF=pass for footbag.org.
+     DKIM=pass and SPF=pass. Read the signing DOMAIN before calling it a
+     failure: while production sends under the interim address identity with
+     domain-level signing off, the pass is for amazonses.com, which is correct.
+     It becomes footbag.org when the domain identity and its DKIM records land.
   2. An email-gated production page (e.g. /register/check-email after a real
      registration) renders the standard "check your email" copy with NO in-page
      preview card. The preview card is a development and staging affordance

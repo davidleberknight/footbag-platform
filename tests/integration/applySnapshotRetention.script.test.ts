@@ -53,17 +53,71 @@ afterAll(() => {
 });
 
 /**
- * A stand-in for the AWS CLI. The two generation counts are injected, so a test can
- * put the bucket in the state it wants to assert against; everything else
- * answers with the shape the real command returns.
+ * What the stand-in AWS CLI should report, beyond the two generation counts.
+ * Every field defaults to the healthy, fully-applied estate, so a test names only
+ * the one thing it is putting wrong.
  */
-function writeAwsStub(hourly: number, daily: number): void {
+interface AwsStubOptions {
+  /** How old the newest object in each generation is. 0 = just now. */
+  hourlyAgeHours: number;
+  dailyAgeHours: number;
+  /** The timestamp read comes back empty, as an unreadable listing would. */
+  ageUnreadable: boolean;
+  /** 'unfiltered' is the pre-change rule the apply was supposed to replace. */
+  replication: 'scoped' | 'unfiltered' | 'none' | 'scoped-disabled';
+  /** 'daily-disabled' is a rule that exists and expires nothing. */
+  generationRules: 'all' | 'missing-daily' | 'daily-disabled';
+  alarms: 'present' | 'none';
+}
+
+/**
+ * A stand-in for the AWS CLI. The two generation counts stay positional because
+ * every gate test turns on them; everything else arrives in the options above and
+ * answers with the shape the real command returns.
+ *
+ * The age read and the count read are the same subcommand against the same prefix
+ * and are told apart by the query: only the age read asks for LastModified. A stub
+ * that answered both with the count would hand the script a bare integer where it
+ * expects a timestamp, and GNU date parses a bare integer as a day of the current
+ * month rather than refusing, which would make a stale-generation test pass for
+ * the wrong reason.
+ */
+function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOptions> = {}): void {
+  const o: AwsStubOptions = {
+    hourlyAgeHours: 0,
+    dailyAgeHours: 0,
+    ageUnreadable: false,
+    replication: 'scoped',
+    generationRules: 'all',
+    alarms: 'present',
+    ...opts,
+  };
+  const stamp = (ageHours: number): string =>
+    o.ageUnreadable ? 'echo ""' : `date -u -d "-${ageHours} hours" +%Y-%m-%dT%H:%M:%S+00:00`;
+  const replicationCase =
+    o.replication === 'none'
+      ? ['    echo "" ;;']
+      : o.replication === 'unfiltered'
+        ? ['    printf "replicate-snapshots-to-dr\\tEnabled\\tNone\\n" ;;']
+        : o.replication === 'scoped-disabled'
+          ? [
+              '    printf "replicate-hourly-tier-to-dr\\tDisabled\\thourly/\\n"',
+              '    printf "replicate-daily-tier-to-dr\\tDisabled\\tdaily/\\n" ;;',
+            ]
+          : [
+              '    printf "replicate-hourly-tier-to-dr\\tEnabled\\thourly/\\n"',
+              '    printf "replicate-daily-tier-to-dr\\tEnabled\\tdaily/\\n" ;;',
+            ];
   writeFileSync(
     awsStub,
     [
       '#!/usr/bin/env bash',
       `echo "aws $*" >> "${callLog}"`,
       'case "$*" in',
+      // The age reads first: they carry the prefix too, so the count patterns
+      // below would otherwise swallow them.
+      `  *hourly/*LastModified*|*LastModified*hourly/*) ${stamp(o.hourlyAgeHours)} ;;`,
+      `  *daily/*LastModified*|*LastModified*daily/*)   ${stamp(o.dailyAgeHours)} ;;`,
       `  *list-objects-v2*hourly/*) echo "${hourly}" ;;`,
       `  *list-objects-v2*daily/*)  echo "${daily}" ;;`,
       '  *get-bucket-lifecycle-configuration*-dr*|*-dr*get-bucket-lifecycle-configuration*)',
@@ -73,12 +127,17 @@ function writeAwsStub(hourly: number, daily: number): void {
       '  *get-bucket-lifecycle-configuration*)',
       '    printf "expire-routine-stream\\tEnabled\\troutine/\\t2\\n"',
       '    printf "expire-hourly-tier\\tEnabled\\thourly/\\t30\\n"',
-      '    printf "expire-daily-tier\\tEnabled\\tdaily/\\t400\\n" ;;',
+      ...(o.generationRules === 'all'
+        ? ['    printf "expire-daily-tier\\tEnabled\\tdaily/\\t400\\n" ;;']
+        : o.generationRules === 'daily-disabled'
+          ? ['    printf "expire-daily-tier\\tDisabled\\tdaily/\\t400\\n" ;;']
+          : ['    ;;']),
       '  *get-bucket-replication*)',
-      '    printf "replicate-hourly-tier-to-dr\\tEnabled\\thourly/\\n"',
-      '    printf "replicate-daily-tier-to-dr\\tEnabled\\tdaily/\\n" ;;',
+      ...replicationCase,
       '  *describe-alarms*)',
-      '    printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n" ;;',
+      ...(o.alarms === 'present'
+        ? ['    printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n" ;;']
+        : ['    echo "" ;;']),
       '  *) echo "" ;;',
       'esac',
       'exit 0',
@@ -213,11 +272,75 @@ describe('apply-snapshot-retention.sh: the generation-history gate', () => {
       .toMatch(/stalled producer looks exactly like this/);
   });
 
+  it('still runs the gate when the operator resumes at the apply step', () => {
+    // The header says there is no flag to skip this gate, and there was one:
+    // --from-step 2 is accepted by the argument validator and recommended by
+    // the script's own resume hint after a failed plan, and it went straight to
+    // the apply. Skipping it applies the two-day routine rule with no fallback
+    // history, which is the one irreversible mistake available here.
+    writeAwsStub(1, 1);
+    const res = run(['--target', 'production', '--from-step', '2', '--yes']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/REFUSING: the promoted generations do not hold history yet/);
+    expect(calls()).not.toMatch(/terraform .*plan/);
+  });
+
   it('proceeds to the plan once both generations hold history', () => {
     writeAwsStub(2, 2);
     const res = run(['--target', 'production', '--yes']);
     expect(res.exitCode).toBe(0);
     expect(calls()).toMatch(/terraform .*plan/);
+  });
+
+  it('refuses a populated hourly/ whose newest promotion is older than the cadence', () => {
+    // Counting alone cleared this: two objects promoted by a producer that
+    // stopped satisfy the count and describe a host where the two-day routine/
+    // rule still collapses the recovery window.
+    writeAwsStub(2, 2, { hourlyAgeHours: 9 });
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/REFUSING: both generations hold history, but it has stopped being added to/);
+    expect(res.stderr).toMatch(/newest hourly\/ object: 9h old \(allowed: 3h\)/);
+    expect(calls()).not.toMatch(/terraform .*plan/);
+  });
+
+  it('refuses a stale daily/ as well, not only a stale hourly/', () => {
+    writeAwsStub(2, 2, { dailyAgeHours: 100 });
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/newest daily\/  object: 100h old \(allowed: 48h\)/);
+    expect(calls()).not.toMatch(/terraform .*plan/);
+  });
+
+  it('tolerates one missed promotion in each generation, so a late run is not a stall', () => {
+    // 3h and 48h are one missed hourly promotion and one missed daily one. The
+    // gate refuses a stall, not a producer that ran late.
+    writeAwsStub(2, 2, { hourlyAgeHours: 3, dailyAgeHours: 48 });
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(0);
+    expect(calls()).toMatch(/terraform .*plan/);
+  });
+
+  it('refuses rather than guesses when the promotion timestamps cannot be read', () => {
+    writeAwsStub(2, 2, { ageUnreadable: true });
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/could not establish how old the newest promoted snapshots are/);
+    expect(calls()).not.toMatch(/terraform .*plan/);
+  });
+
+  it('reads the age from the whole prefix, not from the two keys the count caps at', () => {
+    // --max-keys 2 returns the lexicographically first two keys, so the newest
+    // object is not in that listing. The age read must be its own unbounded call.
+    writeAwsStub(2, 2);
+    run(['--target', 'production', '--yes']);
+    const ageCalls = calls()
+      .split('\n')
+      .filter((l) => l.includes('LastModified'));
+    expect(ageCalls.length, 'one age read per generation').toBe(2);
+    for (const line of ageCalls) {
+      expect(line).not.toMatch(/--max-keys/);
+    }
   });
 
   it('consults both generations before planning, not one', () => {
@@ -294,6 +417,79 @@ describe('apply-snapshot-retention.sh: verification', () => {
     const res = run(['--target', 'staging', '--verify']);
     expect(res.exitCode).toBe(0);
     expect(calls()).not.toMatch(/get-bucket-replication/);
+  });
+
+  it('fails the run on an unfiltered replication rule, rather than describing one', () => {
+    // The step used to print "the change did not land" and exit 0. An unfiltered
+    // rule keeps replicating the two-day routine/ stream this change narrows away,
+    // so the verdict has to be carried by the exit status.
+    writeAwsStub(2, 2, { replication: 'unfiltered' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/UNFILTERED replication rule still in place:\s+replicate-snapshots-to-dr/);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+  });
+
+  it('fails the run when a generation rule is missing', () => {
+    writeAwsStub(2, 2, { generationRules: 'missing-daily' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/MISSING generation rules:\s+expire-daily-tier/);
+  });
+
+  it('fails the run when a generation rule is present but Disabled', () => {
+    // Present is not in effect. The id check read the listing's first column and
+    // never the Status beside it, so a rule that expires nothing reported as
+    // landed and the run exited 0.
+    writeAwsStub(2, 2, { generationRules: 'daily-disabled' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/NOT ENABLED generation rules:\s+expire-daily-tier/);
+    expect(res.stdout).toMatch(/A Disabled rule expires nothing/);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+  });
+
+  it('fails the run when the scoped replication rules are present but Disabled', () => {
+    // The loop printed NOT ENABLED and carried on, so the operator was told to
+    // look for a problem the exit code denied.
+    writeAwsStub(2, 2, { replication: 'scoped-disabled' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/NOT ENABLED: rule 'replicate-hourly-tier-to-dr' is 'Disabled'/);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+  });
+
+  it('fails the run when production reports no replication configuration at all', () => {
+    writeAwsStub(2, 2, { replication: 'none' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/this run cannot prove the scope/);
+  });
+
+  it('fails the run when production declares the replication alarm and none exists', () => {
+    writeAwsStub(2, 2, { alarms: 'none' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/enable_replication_alarm = true, so an alarm should/);
+  });
+
+  it('never fails on an alarm state, because insufficient data after an apply is correct', () => {
+    // The whole alarm section is a read-out. A run whose only unusual reading is
+    // INSUFFICIENT_DATA passes, and says so.
+    writeAwsStub(2, 2);
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/INSUFFICIENT_DATA/);
+    expect(res.stdout).toMatch(/read-out and are not part of that verdict/);
+  });
+
+  it('does not hold staging to the alarm assertion, whose subject is not this change', () => {
+    // Staging has no snapshot disaster-recovery bucket, so the alarms its flag
+    // governs belong to other replication and are not this script's to fail on.
+    writeAwsStub(2, 2, { alarms: 'none' });
+    const res = run(['--target', 'staging', '--verify']);
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/this change arms no alarm here; nothing is wrong/);
   });
 });
 

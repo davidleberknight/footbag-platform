@@ -27,7 +27,6 @@
 // import time, so this must come first).
 import 'dotenv/config';
 import BetterSqlite3 from 'better-sqlite3';
-import { getMediaStorageAdapter } from '../src/adapters/mediaStorageAdapter';
 import { allSiteMediaSlots } from '../src/content/siteMedia';
 
 const DB = process.env.FOOTBAG_DB_PATH ?? './database/footbag.db';
@@ -74,6 +73,13 @@ async function main(): Promise<void> {
   });
   db.close();
 
+  // Imported here rather than at the top of the file so that a configuration
+  // failure is caught below and exits 2, a setup error. The adapter resolves its
+  // config when the module loads, so a top-level import threw before main ran,
+  // the catch never saw it, and the process exited 1 — which is this script's own
+  // code for "objects are missing". A caller acting on that told the operator the
+  // database referenced absent objects when the check had not run at all.
+  const { getMediaStorageAdapter } = await import('../src/adapters/mediaStorageAdapter');
   const adapter = getMediaStorageAdapter();
   let missing = 0;
   const samples: string[] = [];

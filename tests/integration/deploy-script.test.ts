@@ -43,6 +43,19 @@ function run(
 const HAS_DOCKER =
   spawnSync('command', ['-v', 'docker'], { shell: true, ...SPAWN_GUARD }).status === 0;
 
+// The wrapper refuses to deploy at all without the maintainers' private checkout,
+// and a developer or CI machine legitimately has none, so a test that needs to
+// reach any later check runs the wrapper from a temp root carrying a stand-in.
+// Copying the single file is enough: each of those assertions lands at the
+// production gate or the credential check, and both sit above anything else the
+// wrapper reads from the tree.
+function scaffoldWrapperRoot(withPrivateCheckout = true): string {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-wrapper-'));
+  fs.copyFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), path.join(tmpRoot, 'deploy_to_aws.sh'));
+  if (withPrivateCheckout) fs.mkdirSync(path.join(tmpRoot, 'footbag_private_repo'));
+  return tmpRoot;
+}
+
 // ── deploy_to_aws.sh wrapper ──────────────────────────────────────────────────
 
 describe('deploy_to_aws.sh wrapper', () => {
@@ -189,12 +202,19 @@ describe('deploy_to_aws.sh wrapper', () => {
   it.skipIf(!HAS_DOCKER)(
     '-k with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',
     () => {
-      const r = run('bash', ['deploy_to_aws.sh', '-k'], {
-        env: {
-          AWS_OPERATOR_FILE: '/nonexistent/never/exists',
-          DEPLOY_TARGET: 'footbag-staging',
-        },
-      });
+      const tmpRoot = scaffoldWrapperRoot();
+      let r;
+      try {
+        r = run('bash', ['deploy_to_aws.sh', '-k'], {
+          cwd: tmpRoot,
+          env: {
+            AWS_OPERATOR_FILE: '/nonexistent/never/exists',
+            DEPLOY_TARGET: 'footbag-staging',
+          },
+        });
+      } finally {
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
+      }
       expect(r.status).toBe(1);
       // Either we hit the credential-file check or an earlier ssh-alias /
       // tool check — both produce a Recommendation: line. Path must not leak.
@@ -213,8 +233,10 @@ describe('deploy_to_aws.sh wrapper', () => {
       // refuses with a clear "no TTY available" recommendation.
       const tmpFile = path.join(os.tmpdir(), `op-prod-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '--from-csv'], {
+          cwd: tmpRoot,
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
@@ -226,6 +248,7 @@ describe('deploy_to_aws.sh wrapper', () => {
         expect(combined).toMatch(/requires interactive confirmation/);
       } finally {
         fs.unlinkSync(tmpFile);
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
   );
@@ -239,8 +262,10 @@ describe('deploy_to_aws.sh wrapper', () => {
       // no TTY, so the gate refuses before any host contact.
       const tmpFile = path.join(os.tmpdir(), `op-prod-alldata-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+          cwd: tmpRoot,
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
@@ -252,29 +277,33 @@ describe('deploy_to_aws.sh wrapper', () => {
         expect(combined).toMatch(/requires interactive confirmation/);
       } finally {
         fs.unlinkSync(tmpFile);
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
   );
 
   it.skipIf(!HAS_DOCKER)(
-    'production DB-replace with FOOTBAG_PROD_DB_REPLACE_ACK=1 bypasses the prompt and proceeds past the gate',
+    'production DB-replace refuses even when the acknowledgement is exported in the environment',
     () => {
-      // The FOOTBAG_PROD_DB_REPLACE_ACK=1 escape hatch lets scripted deploys
-      // (rare, by design) skip the interactive prompt. What is under test is
-      // the gate decision alone, proven by the absence of the "requires
-      // interactive confirmation" message and the presence of the bypass line.
+      // An exported FOOTBAG_PROD_DB_REPLACE_ACK=1 used to skip the typed
+      // confirmation outright, on the one operation that destroys the live
+      // database. That is the same defect the accept-without-asking flag had: a
+      // variable left in a profile, or inherited from a parent process, standing
+      // in for a person typing. The wrapper now clears the variable on entry and
+      // sets it only after the word is typed, so it is a handshake with the leaf
+      // rather than something a shell can hold.
       //
-      // Driven as a dry run because the flag being exercised is the one that
-      // disarms the production database-replace confirmation. Without it the
-      // only thing left between this test and a real production DB replace is
-      // whichever preflight happens to fail on the machine running the suite,
-      // which is not a safety property at all: on a workstation with the
-      // deploy alias configured and no process holding the local database,
-      // every preflight passes and the deploy proceeds for real.
+      // Driven as a dry run, and the refusal is the passing outcome: with no
+      // terminal attached the wrapper must stop here. If this ever regressed,
+      // the only thing left between this test and a real production database
+      // replacement would be whichever preflight happens to fail on the machine
+      // running the suite, which is not a safety property at all.
       const tmpFile = path.join(os.tmpdir(), `op-prod-ack-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '-n'], {
+          cwd: tmpRoot,
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
@@ -282,19 +311,26 @@ describe('deploy_to_aws.sh wrapper', () => {
           },
         });
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
-        expect(combined).toMatch(/skipping interactive confirmation/);
-        expect(combined).not.toMatch(/requires interactive confirmation/);
+        expect(r.status).not.toBe(0);
+        expect(combined).toMatch(/requires interactive confirmation/);
+        expect(combined).toMatch(/no non-interactive form of this confirmation/);
+        expect(combined).not.toMatch(/skipping interactive confirmation/);
       } finally {
         fs.unlinkSync(tmpFile);
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
   );
 
   it.skipIf(!HAS_DOCKER)(
-    'code-only against production never trips the database-replace gate',
+    'code-only against production still requires the typed confirmation, and says the database is untouched',
     () => {
-      // The gate fires on modes that replace the host database; a code-only
-      // deploy touches no data and must pass straight through it.
+      // Every production deploy needs a person at a terminal, whatever the mode:
+      // a code-only deploy leaves member data alone but still replaces what the
+      // public is served, so no automated caller gets to make that change
+      // unattended. The database-replace warning must NOT appear, because nothing
+      // here replaces the database, and an operator who is shown that warning on a
+      // code-only deploy learns to read past it.
       //
       // Asserted in dry-run so the check stays inside the wrapper's own
       // decision logic. Driving a real deploy to observe the same thing makes
@@ -303,8 +339,10 @@ describe('deploy_to_aws.sh wrapper', () => {
       // rather than of the code.
       const tmpFile = path.join(os.tmpdir(), `op-prod-k-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '-kny'], {
+          cwd: tmpRoot,
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
@@ -324,11 +362,62 @@ describe('deploy_to_aws.sh wrapper', () => {
         // deliberately not asserted here: reaching it requires a configured
         // alias, which is a property of the machine rather than of the code.
         expect(combined).not.toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+        expect(combined).not.toMatch(/database will be REPLACED/);
+        // Gated all the same, and refused because the suite has no terminal.
+        expect(r.status).not.toBe(0);
+        expect(combined).toMatch(/PRODUCTION DEPLOY/);
+        expect(combined).toMatch(/the on-host database is left alone/);
+        expect(combined).toMatch(/a production deploy requires interactive confirmation/);
       } finally {
         fs.unlinkSync(tmpFile);
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
   );
+
+  it('refuses to deploy at all without the maintainers private checkout', () => {
+    // The member intake reads the recorded account rulings and the board roster
+    // from that checkout. A build without them is a different database that looks
+    // identical afterwards: accounts a human ruled to be two people are fused and
+    // one of them becomes unclaimable, and every sitting director loads as an
+    // ordinary member. Neither failure raises an error of its own, so the deploy
+    // refuses rather than quietly producing the lesser build.
+    const tmpRoot = scaffoldWrapperRoot(false);
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+        cwd: tmpRoot,
+        env: { DEPLOY_TARGET: 'footbag-production' },
+      });
+      expect(r.status).toBe(1);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      // Names the symlink, because that is the thing the machine is missing.
+      expect(combined).toMatch(/footbag_private_repo/);
+      // And refuses ahead of the production gate: a missing symlink must not cost
+      // an operator a typed confirmation or a typed host password first.
+      expect(combined).not.toMatch(/PRODUCTION DEPLOY/);
+      expect(combined).not.toMatch(/requires interactive confirmation/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('proceeds past that check to the production gate once the checkout is present', () => {
+    // The pair to the test above: the refusal is about the checkout being absent,
+    // not about anything else in the run, so with it present the same invocation
+    // reaches the gate it is supposed to reach.
+    const tmpRoot = scaffoldWrapperRoot();
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+        cwd: tmpRoot,
+        env: { DEPLOY_TARGET: 'footbag-production' },
+      });
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).not.toMatch(/footbag_private_repo/);
+      expect(combined).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
 
   it.skipIf(!HAS_DOCKER)(
     '-k with non-allowlisted DEPLOY_TARGET exits 1 at the allowlist gate',
@@ -727,6 +816,276 @@ describe('deploy-rebuild-remote.sh stub webhook signing secret', () => {
   });
 });
 
+// ── appending to the host env file ───────────────────────────────────────────
+
+describe('the remote halves never append onto an unterminated last line', () => {
+  // A host env file whose last line carries no newline turns the next appended
+  // line into a continuation of it: one malformed variable, and the one that was
+  // being seeded silently lost. The grep -v-based rewrites cannot hit this,
+  // because grep terminates every line it emits. The cp-plus-append seeds and the
+  // direct appends can, so each calls the helper first.
+  const HALVES = [
+    'scripts/internal/deploy-code-remote.sh',
+    'scripts/internal/deploy-rebuild-remote.sh',
+  ];
+
+  it.each(HALVES)('%s defines the helper, since a remote half can source nothing', (relPath) => {
+    // These bodies are cat'd down an ssh pipe and run as a standalone script, so
+    // each carries its own copy rather than sharing one.
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    expect(content).toMatch(/^ensure_final_newline\(\) \{$/m);
+  });
+
+  it.each(HALVES)('%s calls it on every copy-then-append seed', (relPath) => {
+    const lines = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8').split('\n');
+    const copySites = lines
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => /^\s*cp "\$ENV_PATH" "\$env_tmp"$/.test(line));
+    expect(copySites.length, 'the seeds this guards still exist').toBeGreaterThan(0);
+    for (const { i } of copySites) {
+      expect(lines[i + 1], `line ${i + 2} of ${relPath}`).toMatch(
+        /^\s*ensure_final_newline "\$env_tmp"$/,
+      );
+    }
+  });
+
+  it.each(HALVES)('%s calls it before every direct append to the live env file', (relPath) => {
+    const lines = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8').split('\n');
+    const appendSites = lines
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => /\s>>\s"\$ENV_PATH"$/.test(line));
+    for (const { i } of appendSites) {
+      expect(lines[i - 1], `line ${i} of ${relPath}`).toMatch(
+        /^\s*ensure_final_newline "\$ENV_PATH"$/,
+      );
+    }
+  });
+
+  it.each(HALVES)('%s: the helper terminates a file that needs it and only that', (relPath) => {
+    // Behavioural, against the real function text lifted out of the real file, so
+    // this cannot pass against a helper that does nothing.
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    const start = content.indexOf('ensure_final_newline() {');
+    const end = content.indexOf('\n}\n', start);
+    expect(start, 'the helper was found').toBeGreaterThan(-1);
+    const fn = content.slice(start, end + 3);
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-newline-'));
+    const unterminated = path.join(dir, 'unterminated');
+    const terminated = path.join(dir, 'terminated');
+    const empty = path.join(dir, 'empty');
+    fs.writeFileSync(unterminated, 'A=1\nB=2');
+    fs.writeFileSync(terminated, 'A=1\nB=2\n');
+    fs.writeFileSync(empty, '');
+
+    const res = run('bash', [
+      '-c',
+      [
+        'set -euo pipefail',
+        fn,
+        `ensure_final_newline "${unterminated}"`,
+        `printf 'C=3\\n' >> "${unterminated}"`,
+        `ensure_final_newline "${terminated}"`,
+        `ensure_final_newline "${empty}"`,
+      ].join('\n'),
+    ]);
+
+    expect(res.status, res.stderr).toBe(0);
+    // The appended line stands alone instead of becoming "B=2C=3".
+    expect(fs.readFileSync(unterminated, 'utf8')).toBe('A=1\nB=2\nC=3\n');
+    // An already-terminated file is left byte-identical: a blank line seeded into
+    // an env file is harmless but means the helper is writing when it should not.
+    expect(fs.readFileSync(terminated, 'utf8')).toBe('A=1\nB=2\n');
+    expect(fs.readFileSync(empty, 'utf8')).toBe('');
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ── the leaves work in their own checkout ────────────────────────────────────
+
+describe('the deploy leaves resolve everything against their own checkout', () => {
+  // A leaf run from anywhere but the repository root used to ship a tree that
+  // matched none of the anchored rsync includes, and the remote half then promoted
+  // that near-empty tree over the live install. Anchoring the rsync source fixed
+  // the half that ships; the database rebuild, the media check, the Terraform read
+  // and the smoke checks were still resolved against the caller's directory, so a
+  // run from a second checkout could build one database and ship another.
+  const LEAVES = ['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'];
+  const source = (relPath: string) => fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+
+  it('the wrapper reaches its orchestrator by absolute path, so it runs from anywhere', () => {
+    // The leaves anchor their own work, and the orchestrator anchors the leaves,
+    // but the entry point an operator actually types called the orchestrator as
+    // `scripts/deploy-to-aws.sh`, so it only ran from the repository root. It
+    // failed loudly rather than shipping the wrong tree, which is why it survived
+    // the first pass at this.
+    const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
+    expect(wrapper).toMatch(/^ORCHESTRATOR="\$\{SCRIPT_DIR\}\/scripts\/deploy-to-aws\.sh"$/m);
+    const relativeCalls = wrapper
+      .split('\n')
+      .filter((line) => /exec bash scripts\//.test(line));
+    expect(relativeCalls, relativeCalls.join('\n')).toEqual([]);
+  });
+
+  it('the wrapper prints usage when run from a directory that is not the checkout', () => {
+    const res = spawnSync('bash', [path.join(REPO_ROOT, 'deploy_to_aws.sh'), '--help'], {
+      cwd: os.tmpdir(),
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/Usage: bash deploy_to_aws\.sh/);
+  });
+
+  it('the wrapper works in its own checkout, so its preflights read the tree it ships', () => {
+    // Reaching the orchestrator by absolute path is only half of running from
+    // anywhere: every preflight in the wrapper reads a bare `database/...` path,
+    // and each one fails open rather than loudly. The workstation disk check
+    // measured whatever filesystem the caller stood on, the database-lock check
+    // found no database and passed, and both schema gates are conditioned on the
+    // file being there, so the gate that refuses a code-only deploy onto a host
+    // whose schema has drifted skipped in silence. A deploy from the home
+    // directory shipped; the identical deploy from the repository root refused.
+    const lines = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8').split('\n');
+    const orchestratorAt = lines.findIndex((l) => /^ORCHESTRATOR=/.test(l));
+    const cdAt = lines.findIndex((l) => /^cd "\$SCRIPT_DIR"$/.test(l));
+    const firstTreeRead = lines.findIndex((l) => !/^\s*#/.test(l) && /database\//.test(l));
+    expect(cdAt, 'the wrapper still moves into its own checkout').toBeGreaterThan(orchestratorAt);
+    expect(firstTreeRead, 'the wrapper still reads the tree it ships').toBeGreaterThan(-1);
+    expect(cdAt, 'it moves before the first path it reads').toBeLessThan(firstTreeRead);
+  });
+
+  it.each(LEAVES)('%s moves to the repository root before doing any work', (relPath) => {
+    const lines = source(relPath).split('\n');
+    const rootAt = lines.findIndex((l) => /^REPO_ROOT="\$\(cd "\$\{SCRIPT_DIR\}\/\.\." && pwd\)"$/.test(l));
+    const cdAt = lines.findIndex((l) => /^cd "\$REPO_ROOT"$/.test(l));
+    expect(rootAt, 'the repository root is still computed here').toBeGreaterThan(-1);
+    expect(cdAt, 'the leaf still moves into it').toBeGreaterThan(rootAt);
+  });
+
+  it.each(LEAVES)('%s rsyncs the repository root, never the working directory', (relPath) => {
+    const content = source(relPath);
+    expect(content).toMatch(/"\$REPO_ROOT\/" "\$REMOTE:/);
+    expect(content).not.toMatch(/^\s*"?\.\/"? "\$REMOTE:/m);
+  });
+
+  it.each(LEAVES)('%s runs no helper script by a working-directory-relative path', (relPath) => {
+    // Usage text and operator hints legitimately show the command as an operator
+    // types it from the repository root, so comments, echoed text and the bodies
+    // of here-documents are all skipped and only executable lines are checked.
+    const offenders: string[] = [];
+    let heredocTerminator: string | null = null;
+    for (const line of source(relPath).split('\n')) {
+      if (heredocTerminator !== null) {
+        if (line.trim() === heredocTerminator) heredocTerminator = null;
+        continue;
+      }
+      const opener = line.match(/<<-?\s*'?([A-Za-z_][A-Za-z0-9_]*)'?\s*$/);
+      if (opener) {
+        heredocTerminator = opener[1];
+        continue;
+      }
+      if (/^\s*#/.test(line) || /^\s*echo /.test(line)) continue;
+      if (/(bash |-chdir=")(scripts|database|terraform)\//.test(line)) offenders.push(line);
+    }
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('the rebuild leaf builds and ships the same database file', () => {
+    const content = source('scripts/deploy-rebuild.sh');
+    expect(content).toMatch(/^LOCAL_DB="\$REPO_ROOT\/database\/footbag\.db"$/m);
+    // The reset script defaults to ./database/footbag.db, so the rebuild hands it
+    // the path it is about to ship rather than relying on where it is standing.
+    expect(content).toMatch(/FOOTBAG_DB_PATH="\$LOCAL_DB" bash "\$REPO_ROOT\/scripts\/reset-local-db\.sh"/);
+    expect(content).not.toMatch(/FOOTBAG_DB_PATH="database\/footbag\.db"/);
+  });
+
+  it('the media check gets the whole configuration the rebuild forces on it', () => {
+    // The rebuild overrides the adapter to s3 and supplies the bucket, and that
+    // mode also requires a region. The values file the check loads is a workstation
+    // dev file with no reason to carry one, so without this the check could not boot
+    // on a normal workstation, and the deploy reported the crash as absent media.
+    const block = source('scripts/deploy-rebuild.sh');
+    const invocation = block.slice(block.indexOf('MEDIA_CHECK_STATUS=0'));
+    expect(invocation).toMatch(/MEDIA_STORAGE_ADAPTER="s3"/);
+    expect(invocation).toMatch(/MEDIA_STORAGE_S3_BUCKET="\$MEDIA_BUCKET"/);
+    expect(invocation).toMatch(/AWS_REGION="\$MEDIA_CHECK_REGION"/);
+    // And a region it cannot resolve is a refusal before the check runs, not a
+    // crash inside it.
+    expect(block).toMatch(/if \[\[ -z "\$MEDIA_CHECK_REGION" \]\]; then/);
+  });
+
+  it('the rebuild reads the media check verdict from the exit code it documents', () => {
+    // 1 means a comparison happened and objects were absent; anything else means no
+    // comparison happened. Collapsing both into the first told the operator the rows
+    // just shipped were broken, and sent them to re-run a media sync that was fine.
+    const block = source('scripts/deploy-rebuild.sh');
+    const branch = block.slice(block.indexOf('MEDIA_CHECK_STATUS=0'));
+    expect(branch).toMatch(/\(\( MEDIA_CHECK_STATUS == 1 \)\)/);
+    expect(branch).toMatch(/\(\( MEDIA_CHECK_STATUS != 0 \)\)/);
+    expect(branch).toMatch(/could not run/);
+    expect(branch).toMatch(/unknown rather than bad/);
+  });
+});
+
+// ── reclaiming host disk ─────────────────────────────────────────────────────
+
+describe('the deploy leaves reclaim host disk without risking the running release', () => {
+  // `docker system prune -af` removes stopped containers first and then every
+  // image no container references, so after a deploy that left the stack down it
+  // takes the current release's images with it, and a transfer that then fails
+  // mid-stream leaves the host with nothing to restart from.
+  const LEAVES = ['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'];
+
+  it.each(LEAVES)('%s prunes dangling images and the build cache only', (relPath) => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    expect(content).toContain(
+      'journalctl --vacuum-time=7d; docker image prune -f; docker builder prune -af',
+    );
+    const broad = content
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .filter((line) => /docker system prune/.test(line));
+    expect(broad, broad.join('\n')).toEqual([]);
+  });
+});
+
+// ── rewriting the host env file through a temp ───────────────────────────────
+
+describe('the remote halves never promote a grep read error over the live env file', () => {
+  // grep exits 1 when it kept no lines, which is a legitimate result for these
+  // rewrites, and 2 on a read or write error, which is not. `|| true` swallows
+  // both, so an I/O error mid-copy leaves a truncated temp that the following
+  // `mv` installs as the host's whole configuration. One site in the code-only
+  // half kept the `|| true` form after the other seventeen were corrected, which
+  // is why this counts the sites rather than checking a sample.
+  const HALVES = [
+    'scripts/internal/deploy-code-remote.sh',
+    'scripts/internal/deploy-rebuild-remote.sh',
+  ];
+
+  it.each(HALVES)('%s guards every grep -v rewrite that writes a file', (relPath) => {
+    const lines = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8').split('\n');
+    const rewrites = lines.filter(
+      (line) => /^\s*grep -vE? /.test(line) && / > "\$(env_)?tmp"/.test(line),
+    );
+    expect(rewrites.length, 'the rewrites this guards still exist').toBeGreaterThan(10);
+    for (const line of rewrites) {
+      expect(line.trim(), `${relPath}: ${line.trim()}`).toMatch(/\|\| \[\[ \$\? -eq 1 \]\]$/);
+      expect(line, `${relPath}: ${line.trim()}`).not.toContain('|| true');
+    }
+  });
+
+  it('both halves carry the same number of them, since they are twins', () => {
+    const count = (relPath: string) =>
+      fs
+        .readFileSync(path.join(REPO_ROOT, relPath), 'utf8')
+        .split('\n')
+        .filter((line) => /^\s*grep -vE? /.test(line) && / > "\$(env_)?tmp"/.test(line)).length;
+    expect(count(HALVES[0])).toBe(count(HALVES[1]));
+  });
+});
+
 // ── log level from Parameter Store (static-text) ─────────────────────────────
 
 describe('deploy-rebuild-remote.sh log-level sync', () => {
@@ -853,12 +1212,31 @@ describe('Stripe webhook-secret sync from Parameter Store (both remote halves)',
 });
 
 describe('production database-replacement ack threading', () => {
-  // The typed REPLACE PRODUCTION DB confirmation lives in the wrapper; the
-  // leaf refuses a production run without the threaded ack, so a direct leaf
-  // invocation with piped stdin cannot bypass the confirmation.
+  // The typed confirmation lives in the wrapper; the leaf refuses a production
+  // run without the threaded ack, so a direct leaf invocation with piped stdin
+  // cannot bypass the confirmation.
   it('the wrapper exports the ack only after the confirmation path', () => {
     const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
     expect(wrapper).toMatch(/export FOOTBAG_PROD_DB_REPLACE_ACK=1/);
+  });
+
+  it('the wrapper clears any inherited ack before it asks', () => {
+    // Order is the whole property: clearing after the prompt, or not at all,
+    // lets an exported value decide that the most destructive operation in the
+    // tree needs no person present.
+    const lines = fs
+      .readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8')
+      .split('\n');
+    const unsetAt = lines.findIndex((l) => /^\s*unset FOOTBAG_PROD_DB_REPLACE_ACK$/.test(l));
+    const promptAt = lines.findIndex((l) => /Type 'APPLY' to confirm/.test(l));
+    const exportAt = lines.findIndex((l) => /^\s*export FOOTBAG_PROD_DB_REPLACE_ACK=1$/.test(l));
+    expect(unsetAt).toBeGreaterThan(-1);
+    expect(promptAt).toBeGreaterThan(unsetAt);
+    expect(exportAt).toBeGreaterThan(promptAt);
+    // And nothing anywhere still offers the bypass as a recommendation.
+    const wrapper = lines.join('\n');
+    expect(wrapper).not.toMatch(/skipping interactive confirmation/);
+    expect(wrapper).not.toMatch(/to bypass/);
   });
 
   it('the leaf refuses FOOTBAG_ENV=production without the ack', () => {
@@ -870,6 +1248,68 @@ describe('production database-replacement ack threading', () => {
       /"\$FOOTBAG_ENV" == "production" && "\$\{FOOTBAG_PROD_DB_REPLACE_ACK:-\}" != "1"/,
     );
     expect(leaf).toMatch(/production database replacement requires the deploy_to_aws\.sh confirmation/);
+  });
+});
+
+describe('production deploys type their host password instead of reading a file', () => {
+  // Staging reads the sudo password from a file with nobody at the keyboard,
+  // which is right: typing one on every staging deploy is friction with no
+  // benefit. Production does not, because it holds member data and anyone who
+  // can read that file could deploy it. The typed APPLY proves a person is
+  // present; it does not prove WHICH person, and this is the difference.
+  //
+  // The typed path itself cannot be driven from here: it needs stdin, stdout and
+  // stderr to all be terminals and this suite has none, which is the same reason
+  // the gate above it is pinned statically. So these assert the shape, and the
+  // behavioural proof is the refusal cases and a real production deploy.
+  const wrapper = () => fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
+
+  it('reads the production password silently, from the terminal, after the confirmation', () => {
+    const lines = wrapper().split('\n');
+    const promptAt = lines.findIndex((l) => /Type 'APPLY' to confirm/.test(l));
+    // -s matters as much as the device: a visible read puts the host password
+    // into the scrollback of whatever terminal the deploy ran in.
+    const readAt = lines.findIndex((l) => /read -rs _PROD_SUDO_PASS <\/dev\/tty/.test(l));
+    expect(promptAt, 'the confirmation prompt is still there').toBeGreaterThan(-1);
+    expect(readAt, 'the production password is read silently from the terminal device').toBeGreaterThan(-1);
+    expect(readAt, 'it is asked for after the confirmation, not before').toBeGreaterThan(promptAt);
+  });
+
+  it('refuses an empty production password rather than handing one onward', () => {
+    expect(wrapper()).toMatch(/a production deploy will not proceed on an empty password/);
+  });
+
+  it('hands the typed password to the orchestrator without an argv or a temp file', () => {
+    // printf is a builtin, so nothing reaches any process's argv. Process
+    // substitution is a pipe on every bash; a here-string (<<<) is the shorthand
+    // this deliberately avoids, because its backing store depends on the version
+    // and the payload size — bash before 5.1 wrote every here-document to a temp
+    // file, and 5.1 still falls back to one above a threshold. A password is short
+    // enough to get a pipe on a current bash, so this pins the construct rather
+    // than the outcome: the guarantee should not rest on a version and a length.
+    // exec replaces the process image, so the variable does not outlive the call.
+    const source = wrapper();
+    // The media answer the gate may have appended sits between the arguments and
+    // the redirect; what this pins is that the password still arrives as the
+    // process-substitution stdin and nowhere else.
+    expect(source).toMatch(
+      /exec bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< <\(printf '%s\\n' "\$_PROD_SUDO_PASS"\)/,
+    );
+    expect(source, 'the password is never exported').not.toMatch(/export _PROD_SUDO_PASS/);
+    expect(source, 'no here-string carries the password').not.toMatch(/<<<.*_PROD_SUDO_PASS/);
+  });
+
+  it('leaves staging reading its credential file, with the mode check intact', () => {
+    const source = wrapper();
+    expect(source).toMatch(
+      /exec bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< "\$AWS_OPERATOR_FILE"/);
+    expect(source).toMatch(/expected 600 \(or 400\)/);
+  });
+
+  it('ignores AWS_OPERATOR_FILE for production rather than letting it bypass the prompt', () => {
+    // Otherwise the gate is one environment variable away from gone, which is
+    // the defect the inherited database-replacement ack already had.
+    expect(wrapper()).toMatch(/AWS_OPERATOR_FILE is ignored for a production deploy/);
   });
 });
 
@@ -965,6 +1405,30 @@ describe('arming-switch sync and production adapter derivation (both remote halv
       expect(darkSeed, file).toMatch(/openssl rand -hex 24/);
     }
   });
+
+  it('reconciles the below-production payment adapter rather than seeding it once', () => {
+    // Below production the value has exactly one correct setting: the application
+    // refuses the live payment SDK there, so the stub is the only bootable value.
+    // Seeding it only when absent left whoever last edited the host owning it from
+    // then on, and a hand-set `live` would survive every later deploy while being
+    // unbootable. The SES adapter immediately above it in both halves already
+    // force-reconciles for the same reason, so this is the seed-versus-owner
+    // mismatch inside a single block rather than a disagreement between scripts.
+    for (const { file, content } of halves) {
+      const block = content.slice(
+        content.indexOf('FOOTBAG_ENV_VAL" != "production"'),
+        content.indexOf('STRIPE_WEBHOOK_SECRET_STUB'),
+      );
+      expect(block.length, file).toBeGreaterThan(0);
+      expect(block, file).toMatch(/grep -v '\^PAYMENT_ADAPTER=' "\$ENV_PATH"/);
+      expect(block, file).not.toMatch(/if ! grep -q '\^PAYMENT_ADAPTER='/);
+      // And this block's wording no longer promises to preserve what it overwrites.
+      // Scoped to the block: the stub webhook secret below it genuinely is kept
+      // when already set, because regenerating one would reject deliveries that
+      // are already configured against the old value.
+      expect(block, file).not.toMatch(/preserved if already set/);
+    }
+  });
 });
 
 // ── script 20 graceful skip ───────────────────────────────────────────────────
@@ -983,6 +1447,69 @@ describe('legacy_data script 20 graceful skip', () => {
     expect(combined).toMatch(/skip:/);
     // The skip message points the operator at the scrape script that populates the CSV.
     expect(combined).toMatch(/18_scrape_footbag_org_moves/);
+  });
+});
+
+describe('the production gate asks what happens to the media bucket', () => {
+  // A rebuild couples the media sync on, and that sync defaults to removing bucket
+  // objects with no local counterpart, which the leaf refuses anywhere but staging.
+  // The refusal used to arrive after the whole local database had been rebuilt and
+  // after this gate had taken a typed word and a password, telling the operator to
+  // start over with a flag. An intent nobody stated is a question, and it belongs
+  // where the answer is still free.
+  const wrapperSrc = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf-8');
+  const gate = wrapperSrc.slice(wrapperSrc.indexOf('# What happens to the media bucket'));
+  const question = gate.slice(0, gate.indexOf("Type 'APPLY'"));
+
+  it('asks only for a rebuild, and only when no media flag was given', () => {
+    // Pinned as the whole condition through to its `then`, not as a substring:
+    // a substring match is satisfied by a branch that has been disabled with a
+    // trailing conjunction, which is how a question that no longer gets asked
+    // keeps a passing test.
+    expect(question).toMatch(
+      /if \(\( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 \)\); then\n/);
+    // Every media flag counts as the operator having said so, in either direction,
+    // and combined short flags are expanded before this scan reads them.
+    expect(wrapperSrc).toMatch(
+      /-W\|--no-s3-wipe\|-m\|--sync-media\|--no-media\) MEDIA_INTENT_NAMED=1/);
+  });
+
+  it('asks before the typed word, so one APPLY covers the whole plan', () => {
+    // Order is the substance here: asked afterwards, the operator would have
+    // confirmed a plan that did not yet include this answer.
+    expect(wrapperSrc.indexOf('Upload the rebuilt media additively?'))
+      .toBeLessThan(wrapperSrc.indexOf("Type 'APPLY' to confirm"));
+  });
+
+  it('adds no second password and no second confirmation phrase', () => {
+    // The gate is one stop. Asking one more question must not turn it into two.
+    expect(wrapperSrc.match(/Type 'APPLY' to confirm/g) ?? []).toHaveLength(1);
+    expect(wrapperSrc.match(/Host sudo password for/g) ?? []).toHaveLength(1);
+    expect(question).not.toMatch(/read -rs|APPLY/);
+  });
+
+  it('offers upload or nothing, never a delete', () => {
+    // Deleting bucket objects on production stays a command-line decision. No
+    // prompt default should be able to select it, which is why neither branch can.
+    expect(question).toMatch(/PROD_MEDIA_ARGS=\(-W\)/);
+    expect(question).toMatch(/PROD_MEDIA_ARGS=\(--no-media\)/);
+    expect(question).toMatch(/Nothing in the bucket is deleted either way/);
+    // Asked in the negative, so a bare Enter selects the upload, which is the
+    // answer that leaves the shipped rows resolvable, while the prompt still
+    // defaults to no like every other prompt in this file. Skipping is typed.
+    expect(question).toMatch(/\[y\/N\]/);
+    expect(question).not.toMatch(/\[Y\/n\]/);
+    expect(question).toMatch(/\$\{_media:-\}" =~ \^\[Yy\]\$/);
+  });
+
+  it('appends the answer to the handoff rather than replacing what was typed', () => {
+    const handoff = wrapperSrc.slice(wrapperSrc.indexOf('if (( PROD_PASSWORD_TYPED == 1 )); then'));
+    expect(handoff).toMatch(
+      /exec bash "\$ORCHESTRATOR" "\$@" "\$\{PROD_MEDIA_ARGS\[@\]\+"\$\{PROD_MEDIA_ARGS\[@\]\}"\}"/);
+    // And the array is declared outside the gate, so a staging run's handoff is
+    // safe under `set -u` where the gate never fires.
+    expect(wrapperSrc.indexOf('PROD_MEDIA_ARGS=()'))
+      .toBeLessThan(wrapperSrc.indexOf('# Production hard-confirm gate'));
   });
 });
 
@@ -1131,6 +1658,41 @@ describe('both deploy halves sync the same Parameter Store set', () => {
     expect(code).toContain('media_bucket:MEDIA_STORAGE_S3_BUCKET');
     expect(code).toContain('jwt_kms_key_id:JWT_KMS_KEY_ID');
   });
+
+  // The parameter list above is what each half READS. This is what each half
+  // WRITES, which is the half of the claim that was unprotected: the
+  // deploy-time ownership decision states that both halves carry the same set
+  // of syncs and reconciliations "pinned by a test rather than by review", and
+  // no test compared the env keys. A key added to one half and forgotten in the
+  // other produces a host whose configuration depends on which deploy stood it
+  // up, and nothing fails at the time.
+  function writtenEnvKeys(file: string): string[] {
+    const body = read(file);
+    const keys = new Set<string>();
+    // Two mechanisms write a key: a rewrite that filters the old line out, and
+    // an append that emits the new one. Both are collected, because a key that
+    // is only ever appended still belongs to the set.
+    for (const m of body.matchAll(/grep -v\s+["']\^([A-Z_]{3,})=/g)) keys.add(m[1]);
+    for (const m of body.matchAll(/(?:printf|echo)\s+["']\^?([A-Z_]{3,})=/g)) keys.add(m[1]);
+    return [...keys].sort();
+  }
+
+  it('writes an identical set of host env keys', () => {
+    const code = writtenEnvKeys('scripts/internal/deploy-code-remote.sh');
+    const rebuild = writtenEnvKeys('scripts/internal/deploy-rebuild-remote.sh');
+    expect(code.length, 'the code half writes no env keys at all').toBeGreaterThan(0);
+    expect(rebuild, 'the two deploy halves write different host env keys').toEqual(code);
+  });
+
+  it('validates the mail configuration-set names to the same shape on both paths', () => {
+    // One half checked the shape and the other only that the value was
+    // non-empty, so a placeholder the code deploy refused was accepted by the
+    // rebuild deploy and reached a send, where it fails every message rather
+    // than one.
+    const shape = /ses_set_value["']?\s*=~\s*\^\[A-Za-z0-9_-\]\+\$/;
+    expect(read('scripts/internal/deploy-code-remote.sh')).toMatch(shape);
+    expect(read('scripts/internal/deploy-rebuild-remote.sh')).toMatch(shape);
+  });
 });
 
 describe('both deploy paths start from an empty upload directory', () => {
@@ -1159,16 +1721,25 @@ describe('both deploy paths start from an empty upload directory', () => {
   );
 
   // The upload deliberately carries almost none of scripts/, because operator
-  // tooling has no business on a host. Two scripts are exceptions, and both are
-  // invoked there by name: the deploy's own snapshot hook, and the cutover
-  // marker, which the cutover runbook tells the operator to run on the host as
-  // root instead of typing the two writes it makes. A marker script that never
-  // ships turns that step into an instruction naming a path that is not there.
-  it('ships the two scripts that run on the host', () => {
-    const source = read('scripts/deploy-code.sh');
-    expect(source).toContain("--include='/scripts/backup-db.sh'");
-    expect(source).toContain("--include='/scripts/cutover-marker.sh'");
-  });
+  // tooling has no business on a host. Three scripts are exceptions, and each is
+  // invoked there by name: the backup script two systemd units call, the cutover
+  // marker the cutover runbook runs on the host as root instead of handing an
+  // operator the two writes to type, and the pre-cutover snapshot the rollback
+  // artifact comes from. A script that never ships turns the step that calls it
+  // into an instruction naming a path that is not there — which is exactly what
+  // happened to the snapshot: its remote half errors "It ships with the deploy"
+  // and no deploy shipped it, so the cutover's own snapshot step failed on every
+  // host. Asserted against both halves, because pinning the list in one of a
+  // pair is how the rebuild half's list drifted unnoticed in the first place.
+  it.each(['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'])(
+    '%s ships the three scripts that run on the host',
+    (file) => {
+      const source = read(file);
+      expect(source).toContain("--include='/scripts/backup-db.sh'");
+      expect(source).toContain("--include='/scripts/cutover-marker.sh'");
+      expect(source).toContain("--include='/scripts/take-pre-cutover-snapshot.sh'");
+    },
+  );
 });
 
 describe('the removed one-shot seeds stay removed', () => {

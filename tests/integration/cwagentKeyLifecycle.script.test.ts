@@ -176,6 +176,40 @@ describe('cwagent key cleanup', () => {
     expect(calls()).toHaveLength(0);
   });
 
+  it('deletes once and reports once when the handler runs twice', () => {
+    // The callers install this on EXIT, INT and TERM, and a trapped INT does not
+    // terminate bash: the handler runs, the script resumes, the next command fails
+    // under set -e, and the EXIT handler runs the same branch again. The second
+    // pass cannot delete an already-deleted key, so it reported a key the run had
+    // successfully removed as one the operator must chase by hand.
+    const r = runSnippet(
+      [
+        'CWAGENT_AKID=AKIAFAKE',
+        'CWAGENT_KEY_USER=footbag-staging-cwagent-publisher',
+        'CWAGENT_KEY_STATE=minted',
+        'cwagent_key_cleanup',
+        'cwagent_key_cleanup',
+      ].join('\n'),
+    );
+    expect(calls().filter((c) => c.includes('delete-access-key'))).toHaveLength(1);
+    expect(r.stderr.match(/is being deleted/g) ?? []).toHaveLength(1);
+    expect(r.stderr).not.toMatch(/COULD NOT DELETE IT/);
+  });
+
+  it('reports a vaulted key once, not on every pass of the handler', () => {
+    const r = runSnippet(
+      [
+        'CWAGENT_AKID=AKIAFAKE',
+        'CWAGENT_KEY_USER=footbag-staging-cwagent-publisher',
+        'CWAGENT_KEY_STATE=vaulted',
+        'cwagent_key_cleanup',
+        'cwagent_key_cleanup',
+      ].join('\n'),
+    );
+    expect(r.stderr.match(/NOT being deleted/g) ?? []).toHaveLength(1);
+    expect(calls().some((c) => c.includes('delete-access-key'))).toBe(false);
+  });
+
   it('tells the operator how to remove the key by hand when the delete itself fails', () => {
     const failingStub = join(stubDir, 'aws-failing.sh');
     writeFileSync(
@@ -240,5 +274,29 @@ describe('cwagent installers', () => {
     const source = readFileSync(join(process.cwd(), script), 'utf-8');
     expect(source).not.toContain('KEYS_FILE');
     expect(source).not.toContain('create-access-key');
+  });
+
+  it('the root-side half installs exactly one cleanup handler, which owns everything', () => {
+    // Bash keeps one handler per signal. The privileged-writer helper used to
+    // install its own EXIT INT TERM handler and clear all three on the way out,
+    // which replaced and then discarded the handler the install step sets for its
+    // downloaded package directory: a fresh install left that directory behind
+    // every time, and an interrupt after the first promoted file left it behind
+    // with nothing watching. A registry the single handler sweeps is the only shape
+    // that can hold both, so what is pinned here is that there is exactly one
+    // registration and that the helper adds to the registry rather than trapping.
+    const half = readFileSync(
+      join(process.cwd(), 'scripts/internal/install-cwagent-remote.sh'),
+      'utf-8',
+    );
+    const registrations = half.split('\n').filter((l) => /^\s*trap\s/.test(l));
+    expect(registrations, registrations.join('\n')).toHaveLength(1);
+    expect(registrations[0]).toMatch(/EXIT INT TERM/);
+    expect(half).not.toMatch(/trap - EXIT/);
+
+    const helper = half.slice(half.indexOf('install_via_tmp() {'));
+    const body = helper.slice(0, helper.indexOf('\n}'));
+    expect(body).toMatch(/CWAGENT_TMPS\+=\("\$tmp"\)/);
+    expect(body).not.toMatch(/trap/);
   });
 });

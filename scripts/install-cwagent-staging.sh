@@ -122,15 +122,21 @@ trap cwagent_key_cleanup EXIT INT TERM
 cwagent_key_provision "$PUBLISHER_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
 
 echo "==> Running remote-as-root cwagent install via cat-pipe..."
-# cat reads our stdin (password line, supplied by the wrapper or operator).
+# Exactly ONE line is read from stdin, not the whole file. `cat` here forwarded
+# every line the operator credential file held, and sudo consumes only the first:
+# any second line was inherited by the remote bash and executed as a root shell
+# command. The shared helper reads one line for the same reason; this script is
+# named by the rule as the model wire pattern, so it has to match it.
+#
 # printf lines emit shell-quoted variable assignments so the remote bash binds
 # CWAGENT_AKID and CWAGENT_SAK before running the body. cat <body> appends
 # the remote-half. Combined stream -> ssh stdin -> remote sudo -S consumes the
 # password line -> bash inherits the rest, runs the assignments, then the body.
 # Argv stays clean of secrets on every hop. This host keeps the remote-half's
 # default namespace, which production deliberately overrides.
+IFS= read -r SUDO_PASS
 {
-  cat
+  printf '%s\n' "$SUDO_PASS"
   printf 'CWAGENT_AKID=%q\n' "$CWAGENT_AKID"
   printf 'CWAGENT_SAK=%q\n' "$CWAGENT_SAK"
   cat "$REMOTE_HALF"

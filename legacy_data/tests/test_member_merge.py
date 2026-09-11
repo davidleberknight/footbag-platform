@@ -9,6 +9,9 @@ Real in-memory SQLite with the referencing tables and their unique indexes:
     before any mutation;
   * a uniqueness collision that is an exact duplicate is deduplicated, one that
     is not is aborted, and two different canonical persons never fuse;
+  * the collapsed loser's own legacy_members row is deleted after the remap, but
+    only where it is the local bootstrap's fixture and only for an id the merge
+    map names;
   * a MergeAbort inside the caller's transaction rolls everything back;
   * after a clean apply no loser id survives in any referencing table.
 """
@@ -26,7 +29,8 @@ SCHEMA = """
 CREATE TABLE legacy_members (
   legacy_member_id TEXT PRIMARY KEY,
   claimed_by_member_id TEXT,
-  claimed_at TEXT
+  claimed_at TEXT,
+  import_source TEXT
 );
 CREATE TABLE members (
   id TEXT PRIMARY KEY,
@@ -126,7 +130,10 @@ def test_pipeline_references_remap_to_survivor():
 # ── live-entity references hard-abort before mutation ───────────────────────
 
 @pytest.mark.parametrize("seed", [
-    lambda cur: _ins(cur, "legacy_members", legacy_member_id="200"),
+    # An authoritative row for the loser: the export has already loaded it, so
+    # collapsing it now would destroy loaded data rather than a placeholder.
+    lambda cur: _ins(cur, "legacy_members", legacy_member_id="200",
+                     import_source="legacy_site_data"),
     lambda cur: _ins(cur, "members", id="m1", legacy_member_id="200"),
     lambda cur: _ins(cur, "account_tokens", id="t1", target_legacy_member_id="200"),
     lambda cur: _ins(cur, "auto_link_staged_candidates", id="s1", legacy_member_id="200"),
@@ -142,6 +149,83 @@ def test_live_reference_hard_aborts_before_mutation(seed):
         mm.precheck_live_references(cur, {"200"})
     # precheck is a pure read: the pipeline ref is still on the loser, untouched.
     assert _one(cur, "SELECT legacy_member_id FROM historical_persons WHERE person_id='pX'") == "200"
+
+
+def test_a_bootstrap_fixture_row_is_not_live_evidence():
+    # The local build seeds legacy_members from a development bootstrap so the
+    # historical_persons foreign key resolves on a machine with no delivered
+    # export. Those rows carry import_source='system_fixture' and nothing else:
+    # no profile, no claim, no token. Treating their existence as proof that a
+    # member has claimed or is onboarding blocked every merge whose loser the
+    # bootstrap happened to cover -- which on a real load was sixteen of a hundred
+    # and thirty, enough to stop the whole member load before any write.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _ins(cur, "historical_persons", person_id="pX", legacy_member_id="200")
+    _ins(cur, "legacy_members", legacy_member_id="200", import_source="system_fixture")
+    # Does not raise: the four checks that name an actual live entity are empty.
+    mm.precheck_live_references(cur, {"200"})
+
+
+def test_a_bootstrap_row_that_is_also_claimed_still_aborts():
+    # The exemption above must not become a way to drop a claimed account. A
+    # fixture row someone has since claimed is claimed, and the members check is
+    # what says so.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _ins(cur, "legacy_members", legacy_member_id="200", import_source="system_fixture")
+    _ins(cur, "members", id="m1", legacy_member_id="200")
+    with pytest.raises(mm.MergeAbort):
+        mm.precheck_live_references(cur, {"200"})
+
+
+# ── the collapsed loser's own row ───────────────────────────────────────────
+
+def test_the_collapsed_bootstrap_row_is_deleted_so_the_merge_completes():
+    # The remap moves every reference onto the survivor, and the one thing left
+    # holding a collapsed id is the loser's own legacy_members row. Nothing used
+    # to delete it, so the post-merge verification refused a merge that had
+    # otherwise succeeded and the whole member load aborted. Deleting it is what
+    # makes the apply complete.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _ins(cur, "historical_persons", person_id="pX", legacy_member_id="200")
+    _ins(cur, "legacy_members", legacy_member_id="200", import_source="system_fixture")
+
+    stats = mm.apply_member_merge(cur, {"200": "100"})
+
+    assert _one(cur, "SELECT legacy_member_id FROM legacy_members WHERE legacy_member_id='200'") is None
+    assert _one(cur, "SELECT legacy_member_id FROM historical_persons WHERE person_id='pX'") == "100"
+    assert stats["fixture_rows_deleted"] == 1
+
+
+def test_a_fixture_row_the_merge_map_does_not_name_survives():
+    # The delete is scoped to the ids the map names and is never a sweep over the
+    # seeded population: which of those rows the cutover export leaves uncovered is
+    # a separate decision, and a wider delete would destroy its subject.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _ins(cur, "legacy_members", legacy_member_id="200", import_source="system_fixture")
+    _ins(cur, "legacy_members", legacy_member_id="300", import_source="system_fixture")
+
+    mm.apply_member_merge(cur, {"200": "100"})
+
+    assert _one(cur, "SELECT legacy_member_id FROM legacy_members WHERE legacy_member_id='300'") == "300"
+
+
+def test_an_export_owned_row_is_never_deleted():
+    # Provenance decides. A row the export loaded authoritatively is real member
+    # data: the precheck already refuses to collapse it, and the delete must not
+    # become a second door to the same loss. Unknown provenance counts as
+    # authoritative, which is the conservative way round.
+    conn = _db(); cur = conn.cursor()
+    _ins(cur, "legacy_members", legacy_member_id="200", import_source="legacy_site_data")
+    _ins(cur, "legacy_members", legacy_member_id="201")
+
+    assert mm.delete_collapsed_fixture_rows(cur, {"200", "201"}) == 0
+
+    assert _one(cur, "SELECT legacy_member_id FROM legacy_members WHERE legacy_member_id='200'") == "200"
+    assert _one(cur, "SELECT legacy_member_id FROM legacy_members WHERE legacy_member_id='201'") == "201"
 
 
 # ── uniqueness resolution ───────────────────────────────────────────────────

@@ -326,4 +326,23 @@ describe('the wire the operator half actually uses', () => {
       expect(rows[0].reason_text).toContain(word);
     }
   });
+
+  it('the payments lever never reports a clear switch as money moving', () => {
+    // Read as source because the workstation half of this lever reaches a host and
+    // this suite drives the root-side body only. What is pinned is the wording,
+    // because the wording was wrong in the way that matters on a money surface:
+    // this lever decides whether a checkout is refused, while a separate arming
+    // switch decides whether the live payment adapter boots at all. Before go-live
+    // the correct state is this lever clear and payments dark, and the old line
+    // read "payments: LIVE / New purchases and donations are being accepted",
+    // which describes that state as its opposite to anyone reading a production
+    // host.
+    const lever = readFileSync(join(process.cwd(), 'scripts/payments-pause.sh'), 'utf8');
+    const notPaused = lever.slice(lever.indexOf('payments on ${TARGET}: NOT PAUSED'));
+    expect(notPaused).toMatch(/NOT PAUSED/);
+    expect(notPaused).not.toMatch(/donations are being accepted/);
+    expect(notPaused).toMatch(/arming switch/);
+    expect(notPaused).toMatch(/stub adapter/);
+    expect(notPaused).toMatch(/bringup-status\.sh --target/);
+  });
 });

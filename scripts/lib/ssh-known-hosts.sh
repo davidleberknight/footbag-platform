@@ -57,11 +57,29 @@ require_pinned_known_hosts() {
 
   # A pin any other account can rewrite is not a pin: an attacker who can edit
   # it can install the key of the host they want the deploy to reach.
-  local mode
+  #
+  # Ownership is checked as well as mode, and a stat that fails is a refusal
+  # rather than a skip. Mode alone was not enough: a pin owned by another local
+  # account at 644 passed, while being writable by that account -- which is
+  # exactly the substitution described above, just performed by its owner
+  # instead of by the world.
+  local mode owner
   mode="$(stat -c '%a' "$pin" 2>/dev/null || echo "")"
-  if [[ -n "$mode" && "$mode" != "600" && "$mode" != "644" && "$mode" != "400" && "$mode" != "444" ]]; then
+  owner="$(stat -c '%u' "$pin" 2>/dev/null || echo "")"
+  if [[ -z "$mode" || -z "$owner" ]]; then
+    echo "ERROR: could not stat the pinned host-key file $pin, so its permissions" >&2
+    echo "       cannot be checked. Refusing rather than trusting it unverified." >&2
+    return 1
+  fi
+  if [[ "$mode" != "600" && "$mode" != "644" && "$mode" != "400" && "$mode" != "444" ]]; then
     echo "ERROR: pinned host-key file $pin has mode $mode; expected it to be non-writable by others." >&2
     echo "       Fix with: chmod 600 $pin" >&2
+    return 1
+  fi
+  if [[ "$owner" != "$(id -u)" && "$owner" != "0" ]]; then
+    echo "ERROR: pinned host-key file $pin is owned by uid $owner, not by you or root." >&2
+    echo "       Its owner can rewrite it, which would redirect the deploy to a host" >&2
+    echo "       of their choosing. Take ownership before relying on it." >&2
     return 1
   fi
 

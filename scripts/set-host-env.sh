@@ -90,7 +90,10 @@ source "${REPO_ROOT}/scripts/lib/host-env-expectations.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 
-TARGET="staging"
+# No default target. Which environment a run lands on is exactly the decision
+# this script must not make for the operator: the credential on stdin belongs to
+# one host, and a defaulted target would send it at the other.
+TARGET=""
 PREVIEW_MODE=0
 AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
@@ -144,8 +147,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$TARGET" ]]; then
+  echo "ERROR: --target is required ('staging' or 'production')" >&2
+  exit 2
+fi
 if [[ "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
-  echo "ERROR: --target must be 'staging' or 'production'" >&2
+  echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
   exit 2
 fi
 

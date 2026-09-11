@@ -57,7 +57,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
              ↓                                      ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │ S3 primary buckets (us-east-1):                                     │
-│    footbag-production-db-snapshots   SQLite snapshots, 30-day vers. │
+│    footbag-production-db-snapshots   SQLite snapshots, 2d/30d/400d  │
 │    footbag-production-media          photo variants (thumb+display) │
 │ Cross-region DR (us-west-2):                                        │
 │    footbag-production-db-snapshots-dr WORM Object Lock (immutable)  │

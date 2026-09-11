@@ -4,7 +4,9 @@
 # Lightsail does not support EC2 instance profiles natively. The runtime AWS
 # principal is a source-profile IAM user plus an AssumeRole chain into
 # `app-runtime`: the source-profile access keys live on the host at
-# /root/.aws/credentials (root-owned, 0600) and the app runs under
+# /root/.aws/credentials (root-owned, 0640 inside a 0750 directory owned by
+# the credential group, so the unprivileged web and worker containers joined
+# to that group can resolve the profile) and the app runs under
 # AWS_PROFILE=footbag-staging-runtime, which resolves via sts:AssumeRole.
 # =============================================================================
 
@@ -64,8 +66,9 @@ resource "aws_iam_role_policy" "app_ssm_read" {
       {
         # Reading a SecureString parameter needs Decrypt and nothing else. The
         # application never encrypts under this key: it writes no parameters, and
-        # ballot envelope encryption uses its own dedicated key rather than this
-        # one. GenerateDataKey was granted here and never called, which is a
+        # ballot envelope encryption, when the voting subsystem lands, will take
+        # its own dedicated key rather than this one. GenerateDataKey was granted
+        # here and never called, which is a
         # standing grant to produce key material under the key that protects
         # every secret this environment holds. Removed to match production,
         # which dropped it for the same reason.
@@ -217,7 +220,8 @@ resource "aws_iam_instance_profile" "app_runtime" {
 # =============================================================================
 # Source-profile IAM user.
 # Long-lived keys live on the staging Lightsail host at /root/.aws/credentials
-# (root-owned, 0600); the host SDK uses them as the source profile of the
+# (root-owned, 0640, readable by the credential group the app containers
+# join); the host SDK uses them as the source profile of the
 # AssumeRole chain into app_runtime. Console access disabled. Permission is
 # scoped to sts:AssumeRole on app_runtime via the inline policy below.
 #

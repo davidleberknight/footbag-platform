@@ -1,0 +1,31 @@
+# File types the archive can never serve, stripped from the capture itself.
+#
+# One glob per line, matched against a file's path relative to the served root
+# and against its bare name, '#' comments and blank lines ignored. A pattern
+# here is applied by the strip pass at the end of every crawl, and over a
+# finished tree with --strip-unservable-only.
+#
+# This list is not the publisher's exclusion list and the two are not
+# interchangeable. The publisher's list is the home for "captured, and
+# deliberately not served": the bytes stay in the capture, which is the only
+# surviving copy of a site being switched off, and a Word document or a layered
+# image nobody can scan is still IFPA history worth keeping locally. THIS list
+# is narrower and harsher: a type here cannot be served by a static archive by
+# its own nature, not merely unscanned, so keeping the bytes serves nobody and
+# keeping the links that point at them actively misleads a reader.
+#
+# The test for adding a pattern: name what would have to exist for the archive
+# to serve this file usefully. If the answer is a program running on the server,
+# it belongs here. If the answer is a reader with the right application, it
+# belongs in the publisher's list instead.
+#
+# Removing a pattern does not bring anything back. The strip deletes, and the
+# dead-link pass that follows it rewrites the pages that pointed at what it
+# removed. Recovering a stripped file means re-capturing it.
+
+# Server-side imagemaps. A .map file is a coordinate table that only ever had
+# meaning to the CGI imagemap handler the old server ran: the ones in this
+# capture were written by WebMap 1.0.7d in 1996 and point at /cgi-bin/ endpoints
+# that died with that server. The archive runs nothing, so the file is inert,
+# and the pages linking it offer a reader a link that can only fail.
+*.map

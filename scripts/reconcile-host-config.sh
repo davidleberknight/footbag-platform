@@ -122,7 +122,7 @@ if [[ "$ACTION" == "apply" ]]; then
   echo "  Run --status first if you have not, so you see what will change."
   echo "  Reason recorded: ${REASON}"
   echo ""
-  if ! confirm_from_tty "Type ${TARGET} to apply: " "$TARGET"; then
+  if ! confirm_from_tty "Type 'APPLY' to apply: " "APPLY"; then
     die "not confirmed; nothing was changed"
   fi
 fi

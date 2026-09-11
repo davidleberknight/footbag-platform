@@ -3640,7 +3640,6 @@ Seed these defaults into the database-backed configuration store during initial 
 - `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
 - `admin_inactivity_alert_days = 180 days` (days without a sign-in before an administrator is surfaced for recruitment follow-up, per `SYS_Detect_Admin_Loss`; valid `>= 1`)
 - `work_queue_resolve_rate_limit_per_hour = 120` (maximum work-queue resolutions per admin per hour)
-- `primary_snapshot_version_days = 30` (number of days of point-in-time snapshot versions retained in the primary S3 backup bucket; governs the S3 versioning lifecycle setting)
 - `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
 - `continuous_backup_interval_minutes = 5` (interval in minutes between continuous SQLite backup runs)
 - `system_health_window_hours = 24` (the recent window, in hours, that the system-health view aggregates outbound-email and scheduled-job counts over, per `A_View_System_Health`; valid `1`–`8760`)
@@ -4113,7 +4112,7 @@ Success Criteria:
 
 - Background worker runs every 5 minutes.
 - Process executes: (1) WAL checkpoint commits pending writes to the main database file, (2) SQLite backup API creates a consistent point-in-time snapshot, (3) Upload snapshot to primary S3 bucket with retry (3 attempts, exponential backoff), (4) Update health timestamp. The technical implementation of the WAL checkpoint (including specific PRAGMA commands and busy-timeout handling) is specified in Design Decisions.
-- S3 versioning enabled on primary bucket provides 30-day point-in-time recovery (restore any snapshot from last 30 days).
+- Every run writes a timestamped snapshot to the primary bucket, and lifecycle rules thin the history by age: in production the fine-grained stream is kept two days, the hourly generation thirty days, and the daily generation four hundred days; staging keeps deliberately shorter windows.
 - Upload failures trigger retry with exponential backoff (max 3 attempts per cycle).
 - After 3 consecutive failures, alarm raised and logged for admin investigation.
 - Health timestamp tracks last successful backup for monitoring dashboard.

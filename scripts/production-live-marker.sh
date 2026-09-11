@@ -36,10 +36,11 @@ MODE=""
 DESIRED=""
 DRY_RUN=0
 
-# Confirmation phrases, deliberately different from each other so a half-read
-# prompt cannot be answered with the phrase for the opposite direction.
-CONFIRM_LIVE="GO LIVE"
-CONFIRM_PRE_LIVE="RESTORE PRE-LIVE"
+# One word for every confirmation in the tree. The direction comes from the flag
+# and is stated in full, with its consequences, immediately before the prompt; it
+# was once also encoded in the phrase, which meant an operator had two phrases to
+# look up here and a different pair in every other script.
+CONFIRM_WORD="APPLY"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -173,7 +174,6 @@ fi
 
 echo ""
 if [[ "$WANT_VALUE" == "true" ]]; then
-  CONFIRM_PHRASE="$CONFIRM_LIVE"
   echo "This takes production LIVE."
   echo ""
   echo "From this point the database-replacing deploy is refused permanently, with no"
@@ -181,7 +181,6 @@ if [[ "$WANT_VALUE" == "true" ]]; then
   echo "use. Restoring pre-live afterwards is possible with this same script, but any"
   echo "full-refresh deploy you were relying on should happen BEFORE this flip, not after."
 else
-  CONFIRM_PHRASE="$CONFIRM_PRE_LIVE"
   echo "This returns production to PRE-LIVE."
   echo ""
   echo "It re-arms the database-replacing deploy paths against production. Do this only"
@@ -190,9 +189,9 @@ else
 fi
 
 echo ""
-printf "Type '%s' to continue: " "$CONFIRM_PHRASE"
+printf "Type '%s' to continue: " "$CONFIRM_WORD"
 read -r TYPED
-if [[ "$TYPED" != "$CONFIRM_PHRASE" ]]; then
+if [[ "$TYPED" != "$CONFIRM_WORD" ]]; then
   echo "Aborted: confirmation phrase not entered." >&2
   exit 1
 fi

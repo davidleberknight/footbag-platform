@@ -47,12 +47,13 @@ default columns and seeded fixtures.
 
 There is one load path, no modes, entered through `run_legacy_members.sh`; what
 a run does is decided by what is on the machine, and every run prints what it
-found. A production build (`DEPLOY_TARGET=footbag-production`) makes two private
-inputs mandatory: the recorded account rulings
-(`FOOTBAG_MEMBER_ADJUDICATIONS_DIR`, a directory in the maintainers' private
-checkout) and, at extract, the board roster (`FOOTBAG_BOARD_ROSTER`, the curated
-CSV of directors sitting at cutover with the paid tier under each seat). A
-machine without them loads anyway and says so. `FOOTBAG_CUTOVER_DATE` is
+found. Two private inputs live in the maintainers' private checkout under
+`private_data/stage_a_overrides/`, which the runner resolves by canonical path
+rather than from any variable: the recorded account rulings, and the board
+roster of directors sitting at cutover with the paid tier under each seat. A
+production build (`DEPLOY_TARGET=footbag-production`) makes the rulings
+mandatory, and the roster too at extract, refusing with the symlink named; a
+machine without the checkout loads anyway and says so. `FOOTBAG_CUTOVER_DATE` is
 optional and defaults to the day the run happens. The retired `--final-export`
 flag is refused by name in both the runner and the extractor rather than
 silently ignored, and nothing gates on how old the dump is — the extract prints

@@ -16,12 +16,24 @@ Reference classes (enumerated from database/schema.sql):
   Live-entity references, a hard abort if a loser carries any of them (they mean
   a member has already claimed or is onboarding onto the loser account, which the
   merge must never silently drop):
-    - an existing legacy_members row for the loser (claimed or not)
     - members.legacy_member_id
     - account_tokens.target_legacy_member_id
     - auto_link_staged_candidates.legacy_member_id
     - a club_bootstrap_leaders row for the loser with a member already imported
       or claimed onto it
+
+  Separately, and for a different reason: an existing legacy_members row for the
+  loser that the export owns (anything but the local development bootstrap's
+  import_source='system_fixture') aborts too. That is not live-entity evidence,
+  it is a refusal to re-run the merge over data already loaded authoritatively.
+  The bootstrap's own rows are exempt, because they exist only to satisfy the
+  historical_persons foreign key on a machine with no delivered export and carry
+  no claim; one that has since been claimed is caught by the members check above.
+
+  The loser's own legacy_members row, deleted after the remap has moved every
+  reference onto the survivor, and only where that row is the bootstrap's own
+  fixture. It is the one place a collapsed id survives the remap, and leaving it
+  made the post-merge verification refuse a merge that had otherwise succeeded.
 
 Uniqueness conflicts are resolved explicitly: a pipeline row that, after
 remapping, exactly duplicates an existing survivor row is deleted (deduplicated);
@@ -83,11 +95,29 @@ def precheck_live_references(cur: sqlite3.Cursor, losers: set[str]) -> None:
     read; raises MergeAbort naming the offending table and ids."""
     violations: list[str] = []
 
+    # What this check is for is refusing to re-run the merge over a row the export
+    # has already loaded authoritatively, where collapsing would destroy loaded
+    # data. It used to fire on a row's bare existence, and the local build seeds
+    # legacy_members from a development bootstrap so the historical_persons foreign
+    # key resolves on a machine with no delivered export. Those rows carry an id, a
+    # display name and import_source='system_fixture', and nothing else: no
+    # profile, no claim, no token. Counting them as live evidence blocked every
+    # merge whose loser the bootstrap covered, and it covers the same curated id
+    # space the rulings adjudicate, so the first real load aborted on sixteen of its
+    # hundred and thirty merges before writing anything.
+    #
+    # A bootstrap row that someone has since claimed is still caught, by the
+    # members check immediately below rather than by this one. An unknown
+    # provenance (NULL) is treated as authoritative, which is the conservative way
+    # round.
     existing = _ids_present(
-        cur, "SELECT legacy_member_id FROM legacy_members", losers)
+        cur,
+        "SELECT legacy_member_id FROM legacy_members "
+        "WHERE COALESCE(import_source, '') <> 'system_fixture'",
+        losers)
     if existing:
         violations.append(
-            f"already present as legacy_members rows (claimed or not): {existing}")
+            f"already loaded as legacy_members rows the export owns: {existing}")
 
     if _table_exists(cur, "members"):
         m = _ids_present(
@@ -229,6 +259,42 @@ def remap_pipeline_references(cur: sqlite3.Cursor,
     return stats
 
 
+def delete_collapsed_fixture_rows(cur: sqlite3.Cursor, losers: set[str]) -> int:
+    """Delete the bootstrap placeholder legacy_members row of every collapsed loser,
+    after the remap has moved its references onto the survivor. Returns the count.
+
+    The remap above relocates every reference a loser carried; the one thing left
+    holding a collapsed id is the loser's own legacy_members row, and nothing else
+    deletes it. verify_no_loser_remains then refuses -- correctly, because a
+    surviving row is an id the merge claimed to have collapsed and did not. So with
+    the recorded rulings applied the load could never complete, which is exactly
+    what happened the first time one ran.
+
+    Two restrictions make the delete safe, and both are narrow on purpose:
+
+      - only ids the merge map names, never a sweep. The seeded population this
+        draws from is the subject of a separate decision about which rows the
+        cutover export does not cover, and a wider delete would destroy the very
+        rows that decision is about.
+      - only the local bootstrap's own provenance. A row the export owns is not
+        deleted, it aborts in the precheck, because collapsing it would discard
+        loaded data rather than a placeholder; and a placeholder someone has since
+        claimed aborts there too, through the members check.
+
+    So by the time this runs, every row it can touch is a development stub carrying
+    a name and nothing else, whose references now point at the survivor.
+    """
+    if not losers:
+        return 0
+    deleted = 0
+    for loser in sorted(losers):
+        cur.execute(
+            "DELETE FROM legacy_members WHERE legacy_member_id = ? "
+            "AND COALESCE(import_source, '') = 'system_fixture'", (loser,))
+        deleted += cur.rowcount if cur.rowcount > 0 else 0
+    return deleted
+
+
 def verify_no_loser_remains(cur: sqlite3.Cursor, losers: set[str]) -> None:
     """After the remap, no loser id may survive in any referencing table."""
     checks = [
@@ -281,5 +347,7 @@ def apply_member_merge(cur: sqlite3.Cursor, loser_to_survivor: dict[str, str]) -
             f"survivor rows absent from legacy_members after upsert: {sorted(missing)}. "
             f"The merged member CSV must carry every survivor.")
     remap = remap_pipeline_references(cur, loser_to_survivor)
+    deleted = delete_collapsed_fixture_rows(cur, losers)
     verify_no_loser_remains(cur, losers)
-    return {"losers": len(losers), "remap": remap}
+    return {"losers": len(losers), "remap": remap,
+            "fixture_rows_deleted": deleted}

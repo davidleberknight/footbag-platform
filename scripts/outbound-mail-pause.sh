@@ -20,7 +20,7 @@
 #
 # WHY THIS AND NOT DISARMING.
 #
-# Disarming email (scripts/arming.sh --switch email --state dark) is NOT a
+# Disarming email (scripts/arming.sh --target <env> --switch email --state dark) is NOT a
 # pause, but not for the reason this comment used to give. It claimed the stub
 # would report every queued message as delivered and clear its body, emptying
 # the queue with nothing left to resend. That hazard is real below production
@@ -134,7 +134,7 @@ if [[ "$ACTION" != "status" ]]; then
   if [[ "$ASSUME_YES" == "yes" ]]; then
     echo "  Confirmation skipped (--yes)."
   else
-    confirm_from_tty "Type ${TARGET} to ${verb}: " "$TARGET" \
+    confirm_from_tty "Type 'APPLY' to ${verb}: " "APPLY" \
       || die "not confirmed; nothing was changed"
   fi
 fi

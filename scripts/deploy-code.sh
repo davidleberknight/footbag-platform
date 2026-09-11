@@ -51,6 +51,22 @@ Skip post-deploy direct-IP smoke check:
 EOF
 }
 
+# Arguments are refused rather than ignored. This script took none and parsed
+# none, so `--help` ran a full deploy to whatever DEPLOY_TARGET happened to hold,
+# and deploy-migrate.sh forwards unknown options here while telling the operator
+# they "behave exactly as in scripts/deploy-code.sh".
+if [[ $# -gt 0 ]]; then
+  case "$1" in
+    --help|-h) usage; exit 0 ;;
+    *)
+      echo "ERROR: unknown argument '$1'. This script takes none; it is configured" >&2
+      echo "       through DEPLOY_TARGET and SKIP_SMOKE." >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+fi
+
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
   echo "       Run via: bash deploy_to_aws.sh -k" >&2
@@ -71,6 +87,12 @@ REMOTE="${DEPLOY_TARGET:-footbag-staging}"
 SKIP_SMOKE="${SKIP_SMOKE:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Everything this script reads or runs belongs to the checkout it lives in, not to
+# wherever the operator happened to be standing. Anchoring the rsync source alone
+# left the other half of the same defect: the smoke checks were still resolved
+# against the caller's directory, so a run from elsewhere promoted the release and
+# then reported a smoke failure that was really a missing file.
+cd "$REPO_ROOT"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-code-remote.sh"
 # shellcheck source=lib/image-transfer.sh
 source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
@@ -115,7 +137,13 @@ HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}')
 
 # ── Pre-flight ────────────────────────────────────────────────────────────────
 
-echo "==> Deploy target: $REMOTE ($HOST_IP)"
+# The address goes to stderr, not stdout. ssh-known-hosts.sh records that the
+# production origin address is deliberately not public: the host's web port is
+# scoped to the CloudFront origin ranges rather than open, so publishing the
+# address gives away what that scoping withholds. Deploy stdout is what a wrapper,
+# a CI job or an agent session captures; the operator still sees this on a
+# terminal.
+echo "==> Deploy target: $REMOTE ($HOST_IP)" >&2
 echo "==> Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 
@@ -135,11 +163,11 @@ if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
-  if ! BASE_URL="$STAGING_BASE_URL" bash scripts/smoke-local.sh; then
+  if ! BASE_URL="$STAGING_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
     exit 1
   fi
-  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash scripts/smoke-security.sh; then
+  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     echo "ERROR: staging security probes failed; refusing to deploy production." >&2
     exit 1
   fi
@@ -151,7 +179,13 @@ echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf ~/footbag-release && mkdir -p ~/footbag-release" </dev/null
 
 # ── Step 2: Rsync deployable files (code only, no database) ──────────────────
-
+#
+# The source is $REPO_ROOT, not the working directory. It was `./`, so a run
+# started from anywhere but the repository root matched none of the anchored
+# includes below, shipped an almost-empty tree, and the remote half then promoted
+# it with `rsync -a --delete` -- deleting the live install before anything
+# noticed. The docker build below already anchored to $REPO_ROOT, so the two
+# halves of this script disagreed about what "here" meant.
 echo "==> Rsyncing source to host (code only, no database)..."
 
 # backup-db.sh is the one script that ships, because two systemd units invoke it
@@ -159,9 +193,13 @@ echo "==> Rsyncing source to host (code only, no database)..."
 # the scheduled backup timer's service, and the main unit's post-stop hook that
 # takes a snapshot before a destructive stop. Without it both resolve to nothing
 # and exit 127, the post-stop one silently because a leading dash ignores it.
-# cutover-marker.sh is the other one: it writes the host env file and the live
+# cutover-marker.sh is the second: it writes the host env file and the live
 # database, so it runs on the host as root by design, and the cutover runbook
 # now invokes it there instead of handing an operator the two writes to type.
+# take-pre-cutover-snapshot.sh is the third, and it shipped with nothing until a
+# production host read showed why: its remote half invokes it out of the release
+# tree and errors "It ships with the deploy", which was not true of either half,
+# so the cutover's own rollback-artifact step failed on every host.
 # The rest of scripts/ is operator tooling that has no business on a host, so the
 # directory is included only far enough for rsync to descend into it.
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
@@ -173,11 +211,12 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/scripts/' \
   --include='/scripts/backup-db.sh' \
   --include='/scripts/cutover-marker.sh' \
+  --include='/scripts/take-pre-cutover-snapshot.sh' \
   --include='/package.json' \
   --include='/package-lock.json' \
   --include='/tsconfig.json' \
   --exclude='*' \
-  ./ "$REMOTE:~/footbag-release/" </dev/null
+  "$REPO_ROOT/" "$REMOTE:~/footbag-release/" </dev/null
 
 # ── Step 3: Build images locally (workstation, where memory is plentiful) ────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build;
@@ -266,11 +305,21 @@ else
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".
   # This runs, automatically, the same reclaim the failure hint used to ask the
-  # operator to perform by hand. The running stack's images are referenced and
-  # are kept. Best-effort: a reclaim failure must not abort the deploy.
-  echo "==> Reclaiming host disk (journal vacuum + docker prune)..."
+  # operator to perform by hand. Best-effort: a reclaim failure must not abort the
+  # deploy.
+  #
+  # Scoped deliberately, and NOT `docker system prune -af`. That form removes
+  # stopped containers first and then every image no container references, so the
+  # claim that the running stack's images are kept holds only while the stack is
+  # up. After a deploy that left it down, it deletes the current release's images,
+  # and a transfer that then fails mid-stream leaves the host with nothing to
+  # restart from. `image prune` without -a takes only dangling images, which is
+  # exactly what the previous :latest becomes, and cannot touch a tagged image
+  # whatever the container state; `builder prune` takes the build cache. Neither
+  # removes a container.
+  echo "==> Reclaiming host disk (journal vacuum + dangling images + build cache)..."
   printf '%s\n' "$SUDO_PASS" \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker image prune -f; docker builder prune -af"' \
     || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
   send_images_to_host
 fi
@@ -393,7 +442,7 @@ elif [[ -z "$SMOKE_BASE_URL" ]]; then
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
 else
   echo "==> Running smoke check against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" bash scripts/smoke-local.sh; then
+  if ! BASE_URL="$SMOKE_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
@@ -402,7 +451,7 @@ else
   # dev-harness environment contract). Same fail-hard stance as the route
   # smoke above.
   echo "==> Running security smoke probes against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash scripts/smoke-security.sh; then
+  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     echo "ERROR: security smoke probes failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
@@ -410,4 +459,6 @@ else
 fi
 
 echo ""
-echo "Deploy complete. Origin: http://$HOST_IP"
+echo "Deploy complete."
+# stderr, for the reason given at the target banner above.
+echo "Origin: http://$HOST_IP" >&2

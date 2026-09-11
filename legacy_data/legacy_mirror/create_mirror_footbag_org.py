@@ -23,6 +23,12 @@ What it does
 - Rewrites links for offline browsing (links to hosts that are never crawled
   resolve offline: kept when a past capture exists, otherwise removed)
 - Converts legacy media formats when needed
+- Strips file types a static archive can never serve (the patterns in
+  unservable_artifact_exclusions.txt, a server-side imagemap being the
+  example) from the served tree at the end of each run, before the dead-link
+  pass, so the pages that linked them are settled in the same run rather than
+  left offering a reader a link that can only fail. --strip-unservable-only
+  applies a pattern added since the last crawl, without re-reading the site.
 - Generates the archive navigation at the end of each run: the Archive
   Directory page and a homepage card pointing at it
 - Saves progress so it can resume after interruption
@@ -122,6 +128,7 @@ import mimetypes
 import hashlib
 import argparse
 import html
+import fnmatch
 import importlib.util
 import json
 from collections import Counter
@@ -266,6 +273,16 @@ MEMBER_AREA_EXCLUSION_LIST = str(SCRIPT_DIR / 'member_area_exclusions.txt')
 # whole feature ruled broken, obsolete or superseded (not a privacy surface).
 # Kept separate so each file's own header states one coherent reason.
 SUPERSEDED_FEATURE_EXCLUSION_LIST = str(SCRIPT_DIR / 'superseded_feature_exclusions.txt')
+
+# A list of a different kind: file TYPES a static archive cannot serve whatever
+# they contain, rather than URL paths a ruling removed. Globs, matched against
+# the path relative to the served root and against the bare name, so a type
+# cannot creep back in on the next capture the way a hand-found path would. Its
+# own header states the test for belonging in it, and the distinction that
+# matters: the publisher's exclusion list withholds bytes worth keeping locally,
+# while a type here is inert wherever it sits, so the capture keeping it serves
+# nobody and the pages linking it mislead a reader.
+UNSERVABLE_ARTIFACT_LIST = str(SCRIPT_DIR / 'unservable_artifact_exclusions.txt')
 
 # A third, always-loaded list for a third reason to exclude content: an
 # individual page a human judged was never real published content (an
@@ -493,6 +510,21 @@ def parse_args():
             "tree, prune crawl state to match, and exit. Idempotent; how a "
             "ruling's removals are applied to an existing tree. Combine with "
             "--dry-run to print the removals without deleting."
+        ),
+    )
+    parser.add_argument(
+        "--strip-unservable-only",
+        dest="strip_unservable_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials, no exclusion list: delete "
+            "every file in the served tree whose type the archive cannot serve "
+            "(unservable_artifact_exclusions.txt, beside this script), then "
+            "settle the references that pointed at them so no page offers a "
+            "link the archive cannot answer. A crawl runs the strip at its end; "
+            "this is how a pattern added afterwards reaches a finished capture. "
+            "Idempotent. Combine with --dry-run to list the removals without "
+            "deleting anything or rewriting any page."
         ),
     )
     parser.add_argument(
@@ -1682,6 +1714,107 @@ def _excluded_disk_candidates(entry):
         out.append(c)
         out.append(Path(str(c) + '.sanitized'))
     return out
+
+def load_unservable_patterns(path=None):
+    # Globs, one per line, '#' comments and blanks ignored. An absent list is not
+    # an error: the strip is a cleanliness pass, and a capture made on a machine
+    # without the list is still a valid capture. An EMPTY list is an error, the
+    # same way the content lists treat it, because a file someone emptied by
+    # accident would otherwise read as a deliberate decision to strip nothing.
+    path = path or UNSERVABLE_ARTIFACT_LIST
+    if not os.path.exists(path):
+        # Said out loud rather than passed over: the list is committed beside this
+        # script, so its absence means a checkout someone has edited, and the
+        # consequence is a capture that keeps types the archive cannot serve while
+        # every log line says the run completed normally.
+        logging.warning(
+            f"No unservable-artifact list at {path}; nothing will be stripped, "
+            f"and the publish will refuse any type it would have removed")
+        return frozenset()
+    patterns = set()
+    with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            patterns.add(line.strip('/'))
+    if not patterns:
+        raise ValueError(f"Unservable-artifact list has no entries: {path}")
+    return frozenset(patterns)
+
+
+def strip_unservable_artifacts(dry_run=False, patterns=None):
+    # Removes file types a static archive cannot serve whatever they hold, from
+    # the capture rather than at publish time. The publisher can only withhold a
+    # file, which leaves every page still offering a link to it: a reader clicks
+    # and meets a 404 the archive could have answered for. Stripping here puts
+    # the removal ahead of the dead-link pass, which keeps the link's visible
+    # text and drops the anchor, so the page reads as its author wrote it and
+    # promises nothing the archive cannot deliver.
+    #
+    # Matched on the path relative to the served root AND on the bare name, so
+    # '*.map' catches every depth while a pattern naming a directory still works.
+    # Type-based on purpose: a path list would have to be re-found by hand after
+    # every capture, and the next crawl would quietly restore what the last one
+    # cleaned.
+    #
+    # Returns the files removed, for the caller's log and for the tests.
+    patterns = load_unservable_patterns() if patterns is None else frozenset(patterns)
+    if not patterns:
+        return []
+    root = Path(_www_root()).resolve()
+    if not root.is_dir():
+        logging.warning("Unservable-artifact strip: no served tree to sweep")
+        return []
+
+    removed = []
+    for path in sorted(p for p in root.rglob('*') if p.is_file()):
+        rel = path.relative_to(root).as_posix()
+        if not any(fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(path.name, pat)
+                   for pat in patterns):
+            continue
+        removed.append(path)
+        if not dry_run:
+            path.unlink()
+            # The sanitization sidecar is bookkeeping about a file that is now
+            # gone; leaving it behind would hand the publisher a sidecar with no
+            # media beside it, which is a shape its own gate refuses.
+            sidecar = Path(str(path) + '.sanitized')
+            if sidecar.is_file():
+                sidecar.unlink()
+
+    if not dry_run:
+        for parent in sorted({p.parent for p in removed}, reverse=True):
+            while parent != root and parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+                parent = parent.parent
+
+    removed_strs = {str(p) for p in removed}
+    state_pruned = 0
+    if removed and not dry_run and mirror_state.load_progress():
+        # The sitemap and the content hashes are keyed by on-disk path, so they
+        # name files that are gone; the crawl queue and visited set are keyed by
+        # URL and are deliberately left alone. A stripped type is not content a
+        # ruling withdrew: a resumed crawl may fetch it again, and this pass
+        # running at the end of that crawl is what removes it again. Pruning the
+        # URL state instead would make the strip look like an exclusion and leave
+        # the crawl believing it had never seen pages it had.
+        before = len(mirror_state.sitemap) + len(mirror_state.content_hashes)
+        mirror_state.sitemap = [p for p in mirror_state.sitemap if p not in removed_strs]
+        mirror_state.content_hashes = {
+            h: p for h, p in mirror_state.content_hashes.items() if p not in removed_strs
+        }
+        state_pruned = before - (len(mirror_state.sitemap) + len(mirror_state.content_hashes))
+        mirror_state.save_progress()
+
+    verb = "would remove" if dry_run else "removed"
+    logging.info(f"Unservable-artifact strip: {verb} {len(removed)} file(s) "
+                 f"matching {len(patterns)} pattern(s), pruned {state_pruned} "
+                 f"state entr(ies)")
+    for path in removed:
+        logging.info(f"  {verb}: {path.relative_to(root).as_posix()}")
+    return removed
+
 
 def apply_exclusions_sweep(dry_run=False):
     # Deterministic enforcement pass over an existing tree: removes every
@@ -7001,6 +7134,12 @@ def generate_reachability_pages(seeds_dir=None):
     # would otherwise leave the refresh in place while neutralizing only the
     # visible link beside it.
     convert_dead_redirect_stubs()
+    # Types the archive can never serve go before every pass that reads links, so
+    # the dead-link pass below sees the removals and settles the references that
+    # pointed at them. Stripping after it would leave a page offering a link to a
+    # file this capture no longer holds, which is the publish-time exclusion's
+    # weakness and the reason the strip lives here instead.
+    strip_unservable_artifacts()
     # The PostScript patterns get their modern rendering before anything reads
     # the tree for links, so the link this adds is settled by the passes below
     # rather than left for the next crawl.
@@ -8176,6 +8315,7 @@ def _run_crawler():
             name for name, on in (
                 ('--video-backfill', args.video_backfill),
                 ('--apply-exclusions-only', args.apply_exclusions_only),
+                ('--strip-unservable-only', args.strip_unservable_only),
                 ('--rebuild-directory-only', args.rebuild_directory_only),
                 ('--wrap-plain-text-only', args.wrap_plain_text_only),
                 ('--settle-for-publication-only', args.settle_for_publication_only),
@@ -8233,7 +8373,7 @@ def _run_crawler():
                      f"entries from {len(paths)} file(s): {', '.join(paths)}")
     elif not (args.apply_exclusions_only or args.rebuild_directory_only
               or args.wrap_plain_text_only or args.settle_for_publication_only
-              or args.relink_nav_items_only):
+              or args.relink_nav_items_only or args.strip_unservable_only):
         sys.exit(
             "ERROR: --exclusion-list is required for any crawl or backfill:\n"
             "  --exclusion-list footbag_private_repo/private-custody/"
@@ -8250,6 +8390,20 @@ def _run_crawler():
         if not args.exclusion_list:
             sys.exit("ERROR: --apply-exclusions-only requires --exclusion-list.")
         apply_exclusions_sweep(dry_run=args.dry_run)
+        return
+
+    if args.strip_unservable_only:
+        # Strip only: no login, no credentials, no network, and no exclusion list,
+        # because the patterns are types rather than rulings and live beside this
+        # script. The dead-link pass follows the removals in the same run: a
+        # stripped file leaves every page that linked it offering a link to
+        # nothing, and that page is the reader's experience of the archive, so
+        # repairing it is part of the strip rather than a step to remember. A dry
+        # run lists the removals and rewrites nothing, which also means it cannot
+        # show the link repair, because there is nothing yet to repair.
+        removed = strip_unservable_artifacts(dry_run=args.dry_run)
+        if removed and not args.dry_run:
+            neutralize_dead_internal_links()
         return
 
     if args.wrap_plain_text_only:
@@ -8273,6 +8427,13 @@ def _run_crawler():
         except SystemExit:
             logging.info("No skipped-video manifest; nothing is awaiting backfill")
         convert_dead_redirect_stubs()
+        # The strip runs here too, and first, for the same reason it runs inside a
+        # crawl's own settling: this mode is how a finished capture is brought to
+        # publication state, and a type the archive cannot serve is exactly what
+        # "settle what the archive cannot deliver" means. Running it anywhere the
+        # tree is settled, rather than only at the end of a crawl, is what keeps it
+        # from being a step anyone has to remember before a publish.
+        strip_unservable_artifacts()
         render_postscript_patterns()
         settle_vhost_placeholder_pages()
         relink_restored_nav_items()

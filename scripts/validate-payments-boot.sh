@@ -40,7 +40,7 @@ if [[ "${PAYMENTS_ARMED_VAL}" == "dark" ]]; then
     echo "GATE: PAYMENTS-BOOT FAIL: PAYMENTS_ARMED=dark but PAYMENT_ADAPTER=live; a dark production refuses the live payment SDK at boot. Redeploy so the adapter follows the flag, or arm payments via the Terraform step." >&2
     exit 1
   fi
-  echo "GATE: PAYMENTS-BOOT PASS: PAYMENTS_ARMED=dark with the stub adapter, the required dark state. Arming is scripts/arming.sh --switch payments --state armed, which owns the values file, the apply and the deploy in order."
+  echo "GATE: PAYMENTS-BOOT PASS: PAYMENTS_ARMED=dark with the stub adapter, the required dark state. Arming is scripts/arming.sh --target production --switch payments --state armed, which owns the values file, the apply and the deploy in order."
   exit 0
 fi
 

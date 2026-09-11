@@ -17,6 +17,23 @@
 #   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Route 53 zone (required if not --mock-aws)
 #   FOOTBAG_PRECUTOVER_MOCK_AWS=1    skip AWS calls (equivalent to --mock-aws)
 #   FOOTBAG_PRECUTOVER_SKIP_TESTS=1  skip npm run test:smoke / test:e2e
+#   FOOTBAG_SNAPSHOT_LOCAL_ONLY=1    the snapshot step keeps its artifact local
+#                                    instead of uploading to the cross-region DR
+#                                    bucket. A rehearsal needs this: --mock-aws
+#                                    does not reach the snapshot step, which
+#                                    refuses rather than upload nowhere, so a
+#                                    mocked run without it stops at gate one.
+#   FOOTBAG_ENV_FILE                 deploy env file the payments-boot gate reads
+#                                    (default /srv/footbag/env, absent on a
+#                                    workstation; point it at a fixture to
+#                                    rehearse that gate)
+#
+# So the whole-orchestrator rehearsal, which touches no AWS and no host, is:
+#   FOOTBAG_SNAPSHOT_LOCAL_ONLY=1 FOOTBAG_ENV_FILE=<fixture> \
+#     bash scripts/pre-cutover-checklist.sh --mock-aws --skip-tests
+# Both variables are listed here because the two gates that need them are the
+# first and the second-to-last in the sequence, and a rehearsal that stops at
+# gate one teaches an operator to read past the summary it exists to produce.
 #   FOOTBAG_PRECUTOVER_EMAIL_PROFILE     AWS profile for the live outbox smoke (step 8a)
 #   FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS  deploy ssh alias for the outbox smoke
 #   FOOTBAG_PRECUTOVER_EMAIL_CREDFILE    operator credential file (sudo password line 1)
@@ -91,15 +108,22 @@ fail=0
 GATE_DB="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 SNAPSHOT_URI=""
 PULLED_DB=""
+PAYMENTS_ENV_DIR=""
 
-cleanup_pulled_db() {
-  # The pulled artifact is a copy of the production member database. It exists
-  # only for the length of this run and is removed on every exit path, including
-  # a failed gate, rather than left in a temp directory for whatever comes next.
+cleanup_run_artifacts() {
+  # The pulled artifact is a copy of the production member database, and the
+  # fetched env file is the host's entire secret set. Both exist only for the
+  # length of this run and are removed on every exit path, including a failed
+  # gate, rather than left in a temp directory for whatever comes next. The env
+  # file is shredded rather than unlinked, because its bytes are secrets.
   [[ -n "${PULLED_DB}" && -d "${PULLED_DB}" ]] && rm -rf "${PULLED_DB}"
+  if [[ -n "${PAYMENTS_ENV_DIR}" && -d "${PAYMENTS_ENV_DIR}" ]]; then
+    find "${PAYMENTS_ENV_DIR}" -type f -exec shred -u {} + 2>/dev/null || true
+    rm -rf "${PAYMENTS_ENV_DIR}"
+  fi
   return 0
 }
-trap cleanup_pulled_db EXIT
+trap cleanup_run_artifacts EXIT
 
 run_step() {
   local label="$1"; shift
@@ -196,8 +220,27 @@ run_step "G11" bash scripts/validate-name-variants.sh
 # through the integration suite.
 if [[ "${SKIP_TESTS}" -eq 0 ]]; then
   run_step "CLAIM-SAFETY" npm run test:integration
-  run_step "SMOKE" npm run test:smoke
-  run_step "E2E"   npm run test:e2e
+  # The smoke suite reads its environment-specific values from terraform output, so
+  # a run that does not name the target certifies staging under the target's
+  # heading. Its AWS calls are reads and its only send goes to Amazon's mailbox
+  # simulator, so pointing it at the named environment is safe.
+  if [[ -n "${TARGET}" ]]; then
+    run_step "SMOKE" env SMOKE_TARGET_ENV="${TARGET}" npm run test:smoke
+  else
+    run_step "SMOKE" npm run test:smoke
+  fi
+  # The browser suite is the opposite case and must not follow the target. It
+  # drives onboarding, password reset and admin write flows against whatever it is
+  # pointed at, and the accounts it creates would trip the guard that refuses a
+  # rebuild above three sign-in-capable accounts, which would block the cutover
+  # rebuild itself. Given no base URL it boots a local stack, so an unsteered run
+  # under a named target proves something about this workstation and nothing about
+  # the environment: it is reported as skipped rather than counted.
+  if [[ -n "${TARGET}" ]]; then
+    results+=("GATE: E2E SKIP: the browser suite drives write flows and creates sign-in-capable accounts, so it is never pointed at ${TARGET}; run it against a local stack")
+  else
+    run_step "E2E"   npm run test:e2e
+  fi
 else
   results+=("GATE: CLAIM-SAFETY SKIP: --skip-tests passed")
   results+=("GATE: SMOKE SKIP: --skip-tests passed")
@@ -216,8 +259,30 @@ run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
 # is not kept in the database.
 
 # 8. Live-payments boot readiness (env file names the live adapter and the
-#    webhook secret; the Stripe key itself lives in SSM)
-run_step "PAYMENTS-BOOT" bash scripts/validate-payments-boot.sh
+#    webhook secret; the Stripe key itself lives in SSM).
+#
+#    The gate reads a deploy env file, which exists on a host and nowhere else, so
+#    on a workstation it used to fail for a reason that had nothing to do with the
+#    environment being certified. Pointing it at a local stand-in is worse than
+#    failing: it certifies a fixture under the target's heading. With a target
+#    named, fetch the host's own file over the same wire every other privileged
+#    step here uses; with no target and no file, say so and look at nothing.
+if [[ -n "${TARGET}" ]]; then
+  PAYMENTS_ENV_DIR="$(mktemp -d)"
+  chmod 700 "${PAYMENTS_ENV_DIR}"
+  PAYMENTS_ENV_FILE="${PAYMENTS_ENV_DIR}/env"
+  if host_env_fetch "${SSH_ALIAS}" "${PAYMENTS_ENV_FILE}"; then
+    run_step "PAYMENTS-BOOT" \
+      env FOOTBAG_ENV_FILE="${PAYMENTS_ENV_FILE}" bash scripts/validate-payments-boot.sh
+  else
+    results+=("GATE: PAYMENTS-BOOT FAIL: the ${TARGET} host env file could not be read, so this gate looked at nothing")
+    fail=$((fail + 1))
+  fi
+elif [[ -n "${FOOTBAG_ENV_FILE:-}" ]]; then
+  run_step "PAYMENTS-BOOT" bash scripts/validate-payments-boot.sh
+else
+  results+=("GATE: PAYMENTS-BOOT SKIP: no --target and no FOOTBAG_ENV_FILE, so there is no deploy env file to read (the default /srv/footbag/env exists only on a host)")
+fi
 
 # 8a. Live outbox send-path smoke (gate G10): enqueue through the application
 #     path on the production host, worker drains to live SES, inbox confirms.

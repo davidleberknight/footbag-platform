@@ -70,18 +70,22 @@ Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [-
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 
 There is ONE load path. What it does is decided by its inputs, not by a mode
-flag, and every run prints which of them it had:
+flag, and every run prints which of them it had. The inputs holding real account
+identities live in the maintainers' private checkout, at a location this script
+resolves itself: no path is ever typed and nothing has to be exported.
 
-  FOOTBAG_MEMBER_ADJUDICATIONS_DIR   Directory holding stage_a_adjudication.csv and
+  private_data/stage_a_overrides/    In the private checkout, reached through the
+                                     git-ignored repo-root footbag_private_repo symlink.
+                                     Holds stage_a_adjudication.csv and
                                      entitlement_dispositions.csv, the recorded human
-                                     rulings about which accounts are the same person.
-                                     Present: they are applied and duplicate accounts
-                                     collapse through the merge map. Absent: they are
-                                     not, and the run says so.
-  FOOTBAG_BOARD_ROSTER               CSV of the directors sitting at cutover, one row per
-                                     director with the legacy member id and the paid tier
-                                     underneath the seat. Present: those rows carry the
-                                     board flag. Absent: no row does, and the run says so.
+                                     rulings about which accounts are the same person,
+                                     and board_at_cutover.csv, the directors sitting at
+                                     cutover, one row per director with the legacy member
+                                     id and the paid tier underneath the seat. Present:
+                                     the rulings are applied, duplicate accounts collapse
+                                     through the merge map, and the rostered rows carry
+                                     the board flag. Absent: none of that happens, and
+                                     the run says so.
   FOOTBAG_CUTOVER_DATE               Optional. The moment annual memberships are measured
                                      against, defaulting to today, which is the honest
                                      answer for a load happening today. Pin it only to
@@ -94,10 +98,10 @@ flag, and every run prints which of them it had:
                                      visible. A load reading an intermediate CSV has no
                                      dump in front of it and prints no age.
 
-A developer or CI machine has neither the rulings nor the roster and loads
-anyway; that is the supported case. A production database can only be built the
-complete way, and the only thing a human supplies is where those two files live
--- both in the private checkout, so in practice they are present or they are not.
+A developer or CI machine has no private checkout, so it has neither the rulings
+nor the roster, and it loads anyway; that is the supported case. A production
+database can only be built the complete way, and a human supplies nothing at all:
+the files arrive with the checkout, so they are present or they are not.
 USAGE
 }
 
@@ -122,8 +126,8 @@ while [[ $# -gt 0 ]]; do
     # development load.
     --final-export)
       echo "run_legacy_members: --final-export no longer exists. The load has one path and reads its" >&2
-      echo "  inputs instead: set FOOTBAG_MEMBER_ADJUDICATIONS_DIR and FOOTBAG_CUTOVER_DATE, and set" >&2
-      echo "  DEPLOY_TARGET=footbag-production to make both mandatory. Run --help for the detail." >&2
+      echo "  inputs instead: the recorded rulings and the board roster are resolved from the private" >&2
+      echo "  checkout, and DEPLOY_TARGET=footbag-production makes them mandatory. Run --help." >&2
       exit 2 ;;
     --db)            DB="${2:-}"; shift 2 ;;
     -h|--help)       usage; exit 0 ;;
@@ -155,21 +159,30 @@ db_has_historical_persons() {
 # which is what the annual-membership derivation compares expiry dates against.
 # A machine without the rulings (a fresh clone, CI, a developer) still loads;
 # it just says so. A production build without them refuses.
-ADJ_DIR="${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}"
-ADJ_STAGE_A="${ADJ_DIR}/stage_a_adjudication.csv"
-ADJ_ENTITLEMENTS="${ADJ_DIR}/entitlement_dispositions.csv"
+# Where the recorded decisions live. All three files sit together in the private
+# checkout, reached through the git-ignored repo-root symlink that five other
+# scripts in this subtree already use to find private material, so this run
+# resolves them the same way. No variable names the location, because an operator
+# command never carries a path: a production load used to refuse for want of an
+# exported variable, which put the one input that cannot be rebuilt from the dump
+# behind something a human had to remember. Every guard below is unchanged. What
+# changed is that they now have somewhere to look.
+PRIVATE_OVERRIDES="${REPO_ROOT}/footbag_private_repo/private_data/stage_a_overrides"
+
+ADJ_STAGE_A="${PRIVATE_OVERRIDES}/stage_a_adjudication.csv"
+ADJ_ENTITLEMENTS="${PRIVATE_OVERRIDES}/entitlement_dispositions.csv"
 ADJUDICATIONS_READY=0
-if [[ -n "${ADJ_DIR}" && -s "${ADJ_STAGE_A}" && -s "${ADJ_ENTITLEMENTS}" ]]; then
+if [[ -s "${ADJ_STAGE_A}" && -s "${ADJ_ENTITLEMENTS}" ]]; then
   ADJUDICATIONS_READY=1
 fi
 # The directors sitting at cutover. Nothing in the dump records who they are, so
-# the roster is supplied the same way the rulings are, and it is resolved and
-# reported here rather than left to the extractor's own environment lookup: an
-# input that only takes effect when a variable happens to be exported is an input
-# nobody can see was missing.
-BOARD_ROSTER="${FOOTBAG_BOARD_ROSTER:-}"
+# the roster sits beside the rulings, and it is resolved here and handed to the
+# extractor as an argument rather than left to the extractor's own environment
+# lookup: an input that only takes effect when a variable happens to be exported
+# is an input nobody can see was missing.
+BOARD_ROSTER="${PRIVATE_OVERRIDES}/board_at_cutover.csv"
 BOARD_ROSTER_READY=0
-if [[ -n "${BOARD_ROSTER}" && -s "${BOARD_ROSTER}" ]]; then
+if [[ -s "${BOARD_ROSTER}" ]]; then
   BOARD_ROSTER_READY=1
 fi
 # The moment annual memberships are measured against. It defaults to now, which
@@ -183,12 +196,15 @@ if [[ "${DEPLOY_TARGET:-}" == "footbag-production" ]]; then
 fi
 
 if [[ "${PRODUCTION_LOAD}" -eq 1 && "${ADJUDICATIONS_READY}" -eq 0 ]]; then
-  cat >&2 <<'NOPROD'
+  cat >&2 <<NOPROD
 
 run_legacy_members: REFUSING a production load. The recorded account rulings are missing.
 
-  Set FOOTBAG_MEMBER_ADJUDICATIONS_DIR to the directory in the private checkout
-  holding a non-empty stage_a_adjudication.csv and entitlement_dispositions.csv.
+  Looked for a non-empty stage_a_adjudication.csv and entitlement_dispositions.csv in:
+    ${PRIVATE_OVERRIDES}
+
+  They arrive with the maintainers' private checkout, reached through the git-ignored
+  repo-root footbag_private_repo symlink. Create that symlink and re-run.
 
   Without them, accounts a human ruled to be different people are fused, and one
   of the two becomes unclaimable by the person it belongs to. That failure raises
@@ -201,12 +217,15 @@ fi
 # Only at extraction: the flag is written into the intermediate CSV there, so a
 # production --from-csv run reads a roster decision that was already made.
 if [[ "${PRODUCTION_LOAD}" -eq 1 && "${DO_EXTRACT}" -eq 1 && "${BOARD_ROSTER_READY}" -eq 0 ]]; then
-  cat >&2 <<'NOBOARD'
+  cat >&2 <<NOBOARD
 
 run_legacy_members: REFUSING a production extract. The board roster is missing.
 
-  Set FOOTBAG_BOARD_ROSTER to the non-empty CSV in the private checkout listing the
-  directors sitting at cutover.
+  Looked for a non-empty CSV listing the directors sitting at cutover in:
+    ${BOARD_ROSTER}
+
+  It arrives with the maintainers' private checkout, reached through the git-ignored
+  repo-root footbag_private_repo symlink. Create that symlink and re-run.
 
   Nothing in the legacy dump records who sits on the board, so without this file no
   row carries the board flag and every sitting director loads as an ordinary member.
@@ -223,12 +242,15 @@ fi
 # naming a column rather than the missing file. Caught here instead, before
 # anything runs.
 if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${DO_EXTRACT}" -eq 1 && "${BOARD_ROSTER_READY}" -eq 0 ]]; then
-  cat >&2 <<'NOBOARDADJ'
+  cat >&2 <<NOBOARDADJ
 
 run_legacy_members: REFUSING. The account rulings are present and the board roster is not.
 
-  Set FOOTBAG_BOARD_ROSTER to the non-empty CSV in the private checkout listing the
-  directors sitting at cutover, beside the rulings directory you already supplied.
+  The rulings resolved, so the private checkout is reachable; the roster did not.
+  Looked in:
+    ${BOARD_ROSTER}
+
+  It belongs beside the rulings in the footbag_private_repo checkout.
 
   The rulings turn on the final merge, and that merge will not build its artifacts
   while no row carries the board flag, because an OR-merge could otherwise drop a
@@ -240,9 +262,9 @@ NOBOARDADJ
 fi
 
 echo "==> member intake: $([[ "${PRODUCTION_LOAD}" -eq 1 ]] && echo 'PRODUCTION load' || echo 'development load')"
-echo "    account rulings: $([[ "${ADJUDICATIONS_READY}" -eq 1 ]] && echo "applied from ${ADJ_DIR}" || echo 'NOT APPLIED (none supplied; duplicate accounts merge on the mechanical rule alone)')"
+echo "    account rulings: $([[ "${ADJUDICATIONS_READY}" -eq 1 ]] && echo "applied from ${PRIVATE_OVERRIDES}" || echo "NOT APPLIED (nothing readable at ${PRIVATE_OVERRIDES}; duplicate accounts merge on the mechanical rule alone)")"
 if [[ "${DO_EXTRACT}" -eq 1 ]]; then
-  echo "    board roster:    $([[ "${BOARD_ROSTER_READY}" -eq 1 ]] && echo "applied from ${BOARD_ROSTER}" || echo 'NOT APPLIED (none supplied; no row carries the board flag)')"
+  echo "    board roster:    $([[ "${BOARD_ROSTER_READY}" -eq 1 ]] && echo "applied from ${BOARD_ROSTER}" || echo "NOT APPLIED (nothing readable at ${BOARD_ROSTER}; no row carries the board flag)")"
   echo "    measured at:     ${CUTOVER_DATE}$([[ -n "${FOOTBAG_CUTOVER_DATE:-}" ]] && echo ' (pinned)' || echo ' (today)')"
 else
   # The date is consumed at extraction, so it is already baked into the CSV this
@@ -327,9 +349,9 @@ run_legacy_members --load: REFUSING. The account rulings are present and this CS
 
   MISSING: a board flag on every row of ${CSV}
 
-  Re-extract with FOOTBAG_BOARD_ROSTER pointing at the non-empty CSV in the private
-  checkout that lists the directors sitting at cutover, or load a CSV that was
-  extracted with it.
+  The flag is written into the CSV at extraction, so it cannot be added now: re-run
+  with --extract, which resolves the roster from the private checkout itself, or load
+  a CSV that was extracted with it. This CSV predates that roster.
 
   The rulings turn on the final merge, and that merge will not build its artifacts
   while no row carries the board flag. Refusing now rather than after every earlier
@@ -459,11 +481,21 @@ BLOCKED
     "${PY}" "${MDS}/load_legacy_export.py" --export "${LOAD_CSV}" --db "${DB}" --apply
   fi
 
+  # The link proposals were built before the member load, and the load collapses
+  # the duplicate accounts the rulings name, so the map goes to this writer too:
+  # a proposal naming a collapsed account names its survivor, where the merge has
+  # already put that person's link. Without it the apply refuses at the last step
+  # of the whole intake, on a stale id, having written the member rows already.
   echo "==> apply: proposed historical-person links (writes historical_persons.legacy_member_id)"
+  LINK_MAP_ARGS=()
+  if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]; then
+    LINK_MAP_ARGS=(--merge-map "${MERGE_MAP_CSV}")
+  fi
   "${PY}" "${MDS}/apply_reconciled_links.py" \
     --proposed-links "${PROPOSED_LINKS_CSV}" --db "${DB}" \
     --audit-out "${OUT_DIR}/apply_links_audit.csv" \
-    --rollback-out "${OUT_DIR}/apply_links_rollback.sql" --apply
+    --rollback-out "${OUT_DIR}/apply_links_rollback.sql" --apply \
+    "${LINK_MAP_ARGS[@]+"${LINK_MAP_ARGS[@]}"}"
 
   echo ""
   echo "run_legacy_members --load --apply: complete. Wrote the reconciled member"

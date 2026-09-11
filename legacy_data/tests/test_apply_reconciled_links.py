@@ -66,11 +66,28 @@ def write_proposed(tmp_path, rows):
     return p
 
 
-def run(db, proposed, tmp_path, apply=False, env_extra=None):
+def write_merge_map(tmp_path, pairs):
+    p = tmp_path / "merge_map.csv"
+    with p.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(
+            f, lineterminator="\n",
+            fieldnames=["group_id", "match_key", "survivor_legacy_member_id",
+                        "loser_legacy_member_id", "survivor_email_union"])
+        w.writeheader()
+        for i, (survivor, loser) in enumerate(pairs):
+            w.writerow({"group_id": f"A{i:04d}", "match_key": "n|d",
+                        "survivor_legacy_member_id": survivor,
+                        "loser_legacy_member_id": loser, "survivor_email_union": ""})
+    return p
+
+
+def run(db, proposed, tmp_path, apply=False, env_extra=None, merge_map=None):
     cmd = [sys.executable, str(SCRIPT), "--proposed-links", str(proposed), "--db", str(db),
            "--audit-out", str(tmp_path / "audit.csv"), "--rollback-out", str(tmp_path / "rb.sql")]
     if apply:
         cmd.append("--apply")
+    if merge_map is not None:
+        cmd += ["--merge-map", str(merge_map)]
     env = dict(os.environ)
     if env_extra:
         env.update(env_extra)
@@ -262,3 +279,57 @@ def test_claim_state_on_legacy_members_is_untouched(tmp_path):
         "SELECT claimed_by_member_id, claimed_at FROM legacy_members WHERE legacy_member_id='200'").fetchone()
     con.close()
     assert claim == ("mem-x", "2026-01-02T00:00:00Z")
+
+
+# ── proposals read through the merge map ────────────────────────────────────
+#
+# The member load runs before this writer and collapses the duplicate accounts the
+# recorded rulings name, moving each collapsed account's person link onto the
+# survivor. This artifact was built before that, so a proposal naming a collapsed
+# account is stale by exactly one step: the account is gone and the link it asked
+# for is already in place. Read through the map it is a no-op again. Found by
+# running the real intake, where it aborted the final step of the whole load after
+# the member rows had already been written.
+
+def test_a_proposal_naming_a_collapsed_account_is_read_as_naming_the_survivor(tmp_path):
+    # The shape the real load hit: the person is linked to the survivor (the merge
+    # put it there), and the proposal still names the loser, which no longer exists.
+    db = make_db(tmp_path, hp_rows=[("hp_pre", "Cyril", "100")], lm_ids=("100", "300"))
+    proposed = write_proposed(tmp_path, [("hp_pre", "200", "verified_id")])
+    merge_map = write_merge_map(tmp_path, [("100", "200")])
+
+    r = run(db, proposed, tmp_path, apply=True, merge_map=merge_map)
+
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert link_of(db, "hp_pre") == "100"
+    assert "already linked (noop): 1" in r.stdout
+    assert "1 proposal(s) named a collapsed account" in r.stdout
+
+
+def test_without_the_map_the_same_proposal_is_refused(tmp_path):
+    # The other half: nothing is silently tolerated. Absent the map the writer
+    # still refuses a proposal naming an account that is not there, which is what
+    # makes passing the map a statement about identity rather than a way to soften
+    # a check.
+    db = make_db(tmp_path, hp_rows=[("hp_pre", "Cyril", "100")], lm_ids=("100", "300"))
+    proposed = write_proposed(tmp_path, [("hp_pre", "200", "verified_id")])
+
+    r = run(db, proposed, tmp_path, apply=True)
+
+    assert r.returncode == 1
+    assert "not in legacy_members: 200" in r.stderr
+    assert link_of(db, "hp_pre") == "100"
+
+
+def test_a_proposal_for_a_live_account_is_unaffected_by_the_map(tmp_path):
+    # A map in hand must not disturb the ordinary case: an account nothing
+    # collapsed is linked exactly as it would be without one.
+    db = make_db(tmp_path, hp_rows=[("hp_new", "New", None)])
+    proposed = write_proposed(tmp_path, [("hp_new", "300", "name_dob")])
+    merge_map = write_merge_map(tmp_path, [("100", "200")])
+
+    r = run(db, proposed, tmp_path, apply=True, merge_map=merge_map)
+
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert link_of(db, "hp_new") == "300"
+    assert "0 proposal(s) named a collapsed account" in r.stdout

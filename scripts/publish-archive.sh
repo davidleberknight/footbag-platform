@@ -29,6 +29,14 @@
 #      refuses, naming them. Any other media extension on disk is an
 #      unconverted crawler leftover and always fatal.
 #      The sidecars themselves are crawl bookkeeping and are never uploaded.
+#      A type nothing can scan splits two ways, and the refusal text asks the
+#      question that sorts them: a type that would need a program running on the
+#      server to mean anything is stripped from the capture by the crawler
+#      (--strip-unservable-only, and every crawl does it at its end), because
+#      only the crawler can also settle the pages that linked it; a file a reader
+#      with the right application could open stays in the capture, which is the
+#      only surviving copy of the site, and is withheld here by
+#      archive-publish-exclusions.txt.
 #   3. Independent verification of the finished tree, by the mirror's own
 #      verifier (legacy_data/legacy_mirror/verify_mirror.sh). The gates above
 #      are this script's reading of the capture; that one is the capture's
@@ -305,9 +313,22 @@ UNKNOWN_COUNT="$(wc -l < "$KNOWN_LIST")"
 if [[ "$UNKNOWN_COUNT" -gt 0 ]]; then
   echo "REFUSING: ${UNKNOWN_COUNT} files of types nothing has scanned." >&2
   echo "Neither the crawler's re-encode nor the checks above look at these." >&2
-  echo "Read the list. A file the archive should serve means the capture needs" >&2
-  echo "fixing; a file it should not means adding it to ${EXCLUSION_LIST##*/}," >&2
-  echo "which records the decision once instead of per publish:" >&2
+  echo "Read the list, and answer one question about each type: what would have" >&2
+  echo "to exist for the archive to serve it usefully?" >&2
+  echo "  A program running on the server (an imagemap handler, a CGI) — the type" >&2
+  echo "  is inert wherever it sits, so it comes out of the capture rather than" >&2
+  echo "  being hidden at publish. Add the pattern to the crawler's" >&2
+  echo "  unservable_artifact_exclusions.txt and strip it:" >&2
+  echo "    python legacy_data/legacy_mirror/create_mirror_footbag_org.py \\" >&2
+  echo "      --strip-unservable-only --dry-run   (then again without --dry-run)" >&2
+  echo "  That also settles the pages that linked it, which this list cannot do:" >&2
+  echo "  an excluded file still leaves every reference to it offering a reader a" >&2
+  echo "  link that can only fail." >&2
+  echo "  A reader with the right application (a document, a layered image) — the" >&2
+  echo "  bytes are worth keeping in the only surviving copy of the site, so add" >&2
+  echo "  the path to ${EXCLUSION_LIST##*/}, which withholds it from the" >&2
+  echo "  publish and records the decision once instead of per run." >&2
+  echo "  A browser, and it simply was not scanned — then the capture needs fixing." >&2
   cat "$KNOWN_LIST" >&2
   exit 1
 fi
@@ -578,7 +599,14 @@ if grep -q '\.sanitized$' "$AFTER_LISTING"; then
   fail=1
 fi
 for manifest in sitemap.txt redirect_map.json skipped_videos.json skipped_videos_summary.txt; do
-  if awk '{print $4}' "$AFTER_LISTING" | grep -qx "$manifest"; then
+  # A here-string, not a pipe into `grep -q`. The listing is tens of thousands of
+  # lines and these keys sort into the middle of it, so grep found the leak, exited,
+  # closed the pipe, and awk died on SIGPIPE with most of the listing still to
+  # write; `pipefail` then made that the answer to the `if`. The check failed in
+  # exactly the case it exists for, reliably rather than occasionally, and the
+  # publish went on to invalidate the CDN and serve a manifest that carries the
+  # crawling workstation's filesystem paths.
+  if grep -qx "$manifest" <<< "$(awk '{print $4}' "$AFTER_LISTING")"; then
     echo "ERROR: crawl manifest published to the bucket root: ${manifest}" >&2
     fail=1
   fi

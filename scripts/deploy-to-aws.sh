@@ -85,8 +85,11 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
 
 MODIFIERS
 ─────────────────────────────────────────────────────────────────────
-  -y, --yes                    Accept every destructive prompt as its
-                               default-yes answer. CI / scripted use.
+  -y, --yes                    Accepted and ignored. The per-axis prompts this
+                               once answered are gone; the mode flags decide
+                               directly. The one remaining destructive
+                               confirmation, replacing the production database,
+                               is deliberately NOT covered by it.
   -m, --sync-media             Opt in to the S3 media cycle: rebuild curated
                                media from /curated/ and sync it to the bucket.
                                Default OFF (curated DB rows still ship every
@@ -172,9 +175,6 @@ EXAMPLES
 
   Soup-to-nuts deploy (everything on: mirror rebuild + media + seeds):
       bash deploy_to_aws.sh --soup-to-nuts
-
-  Non-interactive (CI), accept default-yes prompts:
-      bash deploy_to_aws.sh -y
 
   Dry run:
       bash deploy_to_aws.sh -n
@@ -387,37 +387,20 @@ if [[ -t 0 ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Per-axis prompts. Mode flags pre-answer prompts. -y accepts all defaults.
-# Reads from /dev/tty so the credential-file stdin pipe is preserved.
+# The per-axis prompt helper that lived here has been removed. It had no caller:
+# the mode flags decide each axis directly, so nothing asked. Leaving it in place
+# meant the usage text advertised a -y flag that changed nothing, and the helper
+# itself used the `[[ -r /dev/tty ]]` probe that deploy-migrate.sh documents as
+# unreliable -- it tests the device node's permissions, which pass in a process
+# with no controlling terminal, so it reports a terminal that is not there.
+#
+# The destructive confirmation that does remain is read before this file runs at
+# all: the root entry point stops every production deploy, whatever its mode, and
+# requires a word typed at the terminal, refusing outright when no terminal is
+# attached. It is deliberately not answerable by a flag or by an environment
+# variable. Naming this file as the home of that guard, which an earlier version of
+# this comment did, sends a reader looking for it in the wrong script.
 # -----------------------------------------------------------------------------
-prompt_yn() {
-  local question="$1"
-  local default="$2"   # "Y" or "N"
-
-  if [[ "$YES_TO_ALL" == "yes" ]]; then
-    echo "  ${question} [auto-${default}]" >&2
-    [[ "$default" == "Y" ]] && return 0 || return 1
-  fi
-
-  if [[ ! -r /dev/tty ]]; then
-    echo "  ${question} [non-interactive default ${default}]" >&2
-    [[ "$default" == "Y" ]] && return 0 || return 1
-  fi
-
-  local prompt_text
-  if [[ "$default" == "Y" ]]; then
-    prompt_text="  ${question} [Y/n] "
-  else
-    prompt_text="  ${question} [y/N] "
-  fi
-
-  local answer=""
-  read -r -p "$prompt_text" answer </dev/tty || answer=""
-  if [[ -z "$answer" ]]; then
-    [[ "$default" == "Y" ]] && return 0 || return 1
-  fi
-  [[ "$answer" =~ ^[Yy] ]]
-}
 
 # -----------------------------------------------------------------------------
 # Resolve the three destructive choices: REBUILD_LOCAL, REPLACE_STAGING, WIPE.

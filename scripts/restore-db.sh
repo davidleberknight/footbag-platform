@@ -283,12 +283,12 @@ fi
 
 # ── Host destination: in place, behind the adapter check and a typed word ────
 # This script has no --yes flag, and must not acquire one by inheritance. The
-# library initialises ASSUME_YES from the environment (`${ASSUME_YES:-no}`) so
-# that callers which DO offer --yes can set it; every such caller sets it
-# locally first. Without this line an exported ASSUME_YES=yes in the operator's
-# shell satisfies confirm_from_tty, and the typed "RESTORE PRODUCTION" phrase
-# guarding a live member-database replacement silently stops being asked for.
-# Set before the source, so the library's :- default keeps it.
+# shared library assigns ASSUME_YES unconditionally when it is sourced, so an
+# exported value in the operator's shell cannot satisfy confirm_from_tty and the
+# typed confirmation guarding a live member-database replacement cannot silently
+# stop being asked for. This line predates that fix, when each caller was
+# expected to clear the variable itself; it is harmless now because the library
+# overwrites it either way.
 ASSUME_YES=no
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
@@ -331,7 +331,7 @@ echo "  payment adapter: ${PAYMENT_ADAPTER_ON_HOST:-unset}"
 echo "The database in place is copied aside on the host first and is not deleted."
 echo ""
 
-CONFIRM_WORD="RESTORE ${TARGET^^}"
+CONFIRM_WORD="APPLY"
 confirm_from_tty "Type '${CONFIRM_WORD}' to continue: " "$CONFIRM_WORD" \
   || die "not confirmed; nothing was restored"
 

@@ -59,4 +59,24 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 ## Enforcement
 
-`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, `sudo -S` feeding a file writer, any `ssh -t` under `scripts/`, and a prompt-style read in a script carrying no terminal guard. Everything else here is enforced by code review.
+`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k`, `sudo -S` feeding a stdin-consuming file writer, any `ssh -t` (or the long `RequestTTY` spelling), and a prompt-style read in a script carrying no terminal guard. Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy.
+
+Three properties of that gate are load-bearing, and each was absent once.
+
+**No line can exempt itself.** Path exclusions apply to the file list, never to a matched line. One filter does read the matched line, to let data plumbing through rather than report it as an operator prompt, and it reads the line's code only: every comment is cut away first, and the words it looks for have to stand as shell tokens. Otherwise a line excuses itself by naming one of them in its own trailing comment, or by carrying one inside a variable name.
+
+**It fails closed.** An empty file list, a shell tree with no files, or a `grep` exiting above 1 is a failure rather than a pass, and a successful run prints the number of files scanned so a silently shrinking scope is visible.
+
+**A file-level exemption for a prompt requires a terminal guard present as code**, with every comment cut away before it is looked for, so a file cannot describe a guard it does not have. That search reads a here-string rather than piping into `grep -q`: the early exit of `grep -q` closes the pipe, the stripper ahead of it dies on SIGPIPE, and under `pipefail` the pipeline's status makes a guard near the top of a long file read as no guard at all. Which files that hit depended on timing, which is the worst form this can take.
+
+`tests/integration/scriptCredentialsGate.script.test.ts` pins this by asserting refusals against throwaway repositories. Its "no weaker than the gate it replaced" block is the important half and exists for a specific reason: a rewrite of this gate once strengthened four properties while quietly catching *less* on a fifth, and every test at the time asserted a new capability rather than the absence of a regression, so nothing noticed. Any future rewrite has to keep refusing every form in that block, whatever its patterns look like. Add to it rather than replacing it.
+
+The gate is a floor, not a proof. It matches shapes, so a determined author can still write a violation it does not recognise; what it buys is that the *common* regressions cannot land silently. Everything else in this rule is enforced by code review.
+
+## Ambient state decides nothing
+
+A guard that an environment variable can satisfy is not a guard. `ASSUME_YES` is the worked example: the shared helper used to default it from the environment, so an exported `ASSUME_YES=yes` in an operator's shell accepted the typed confirmation on a production apply, on arming live payments, and on restoring a database, with no terminal involved and nothing printed to say so.
+
+The fix belongs in the shared library, not in each caller. Callers were expected to clear the variable before sourcing, which is a convention every new script has to remember, no test can enforce from outside, and seven scripts had already got wrong or half-right. `scripts/lib/host-env-remote.sh` now assigns it unconditionally, so a caller cannot inherit what the library always overwrites, and `--yes` still works because every caller parses its flags after sourcing.
+
+Generalise it: when a safety property depends on every script doing something, put it where every script already goes rather than in a convention each one repeats.

@@ -82,8 +82,8 @@ DRY_RUN=0
 # Must match scripts/cutover-marker.sh. A drift there aborts the marker move
 # loudly rather than moving anything, because that script compares the phrase it
 # asked for against what it was given.
-PHRASE_COMPLETE="RECORD CUTOVER COMPLETE"
-PHRASE_REVERSED="REVERSE CUTOVER MARKER"
+PHRASE_COMPLETE="APPLY"
+PHRASE_REVERSED="APPLY"
 
 # Named test seams. The companion test drives the script through these; a run
 # using either says so on stderr, because a seamed run proves nothing about the

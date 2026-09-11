@@ -530,7 +530,7 @@ describe('activate-payments.sh — deactivation leaves nothing behind', () => {
     expect(result.stdout).toContain('/footbag/production/secrets/stripe_webhook_secret');
     expect(result.stdout).toContain('/footbag/production/secrets/stripe_webhook_secret_previous');
     expect(result.stdout).toMatch(/REFUSE if\s*\n?\s*PAYMENT_ADAPTER=live/);
-    expect(result.stdout).toContain('REMOVE PAYMENT CREDENTIALS');
+    expect(result.stdout).toContain('Require the typed APPLY confirmation');
   });
 
   it('resets the parameters before touching the host, so a deploy between the two cannot undo it', () => {
@@ -591,9 +591,13 @@ describe('activate-payments.sh — prompts never read the credential stream', ()
     });
   });
 
-  it('routes the typed confirmation phrases through the terminal helper', () => {
-    expect(source).toMatch(/confirm_from_tty "Type 'ACTIVATE LIVE PAYMENTS'/);
-    expect(source).toMatch(/confirm_from_tty "Type 'REMOVE PAYMENT CREDENTIALS'/);
+  it('routes both typed confirmations through the terminal helper', () => {
+    // Both say APPLY: one word for every confirmation in the tree, so an operator
+    // has one thing to type and no phrase to look up. What matters here is that
+    // each is read through the helper rather than off stdin, which carries the
+    // password on this script's path.
+    const prompts = source.match(/confirm_from_tty "Type 'APPLY' to continue: " "APPLY"/g) ?? [];
+    expect(prompts).toHaveLength(2);
     // No bare stdin read is left behind to catch a phrase.
     expect(source).not.toMatch(/^\s*read -r CONFIRM\s*$/m);
   });

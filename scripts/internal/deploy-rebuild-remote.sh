@@ -62,6 +62,23 @@ cleanup_env_tempfiles() {
 }
 trap cleanup_env_tempfiles EXIT
 
+# Appending to a file whose last line carries no newline concatenates onto that
+# line, producing one malformed variable and silently losing another. The
+# grep -v-based rewrites below are immune, because grep terminates every line it
+# emits; the cp-plus-append seeds and the direct appends are not, so each calls
+# this first.
+#
+# A file whose last byte is a newline yields an empty command substitution, so the
+# test is false and nothing is written. The explicit `return 0` is load-bearing
+# under `set -e`: without it the function's status would be the failed test's.
+ensure_final_newline() {
+  local f="$1"
+  if [[ -s "$f" ]] && [[ -n "$(tail -c1 "$f")" ]]; then
+    printf '\n' >> "$f"
+  fi
+  return 0
+}
+
 require_path() {
   local label="$1"
   local path="$2"
@@ -170,7 +187,11 @@ seed_committed_host_config() {
   local tmp
   tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$tmp"; chown root:root "$tmp"
-  grep -vE "$line_re" "$ENV_PATH" > "$tmp" || true
+  # `|| [[ $? -eq 1 ]]`, not `|| true`: grep exits 1 when it kept no lines, which
+  # is normal here, and 2 on a read or write error, which is not. `|| true`
+  # swallowed both, so a failure during this copy installed a truncated env file
+  # over the host's full configuration.
+  grep -vE "$line_re" "$ENV_PATH" > "$tmp" || [[ $? -eq 1 ]]
   cat "$adds" >> "$tmp"
   rm -f "$adds"
   mv "$tmp" "$ENV_PATH"
@@ -218,7 +239,14 @@ command -v rsync >/dev/null   || { echo "rsync missing on host"   >&2; exit 1; }
 SRV_AVAIL_KB=$(df -k --output=avail /srv/footbag 2>/dev/null | tail -1 | tr -d ' ')
 if [[ -n "$SRV_AVAIL_KB" ]] && (( SRV_AVAIL_KB < 512000 )); then
   echo "ERROR: /srv/footbag has only ${SRV_AVAIL_KB}K free; need >=500 MB." >&2
-  echo "Recommendation: ssh ${DEPLOY_TARGET:-<deploy host>} 'sudo journalctl --vacuum-time=7d; sudo docker system prune -af'" >&2
+  # Scoped the same way the automatic reclaim above is scoped, and for the same
+  # reason. An age filter does not make `system prune -a` safe: with `-a` it still
+  # removes every image no container references, whatever its tag, and this hint
+  # fires at the moment before the new images are referenced by anything running.
+  # On a host whose stack is down that is the current release. Dangling images and
+  # the build cache are what an operator short of disk actually wants back, and
+  # neither form can take a tagged image a container holds.
+  echo "Recommendation: ssh ${DEPLOY_TARGET:-<deploy host>} 'sudo journalctl --vacuum-time=7d; sudo docker image prune -f; sudo docker builder prune -af'" >&2
   exit 1
 fi
 
@@ -293,6 +321,7 @@ if [[ -z "$EXISTING_FOOTBAG_ENV" ]]; then
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
   cp "$ENV_PATH" "$env_tmp"
+  ensure_final_newline "$env_tmp"
   printf 'FOOTBAG_ENV=%s\n' "$FOOTBAG_ENV" >> "$env_tmp"
   mv "$env_tmp" "$ENV_PATH"
 elif [[ "$EXISTING_FOOTBAG_ENV" != "$FOOTBAG_ENV" ]]; then
@@ -304,14 +333,27 @@ fi
 # One-shot migration: directory-mount DB layout
 if grep -q '^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$' "$ENV_PATH"; then
   echo "    Migrating env file to directory-mount DB layout..."
-  # In place, with no backup copy: the sed default would leave a full plaintext
-  # copy of the previous env file, secrets and all, sitting beside it forever.
-  sed -i \
-    -e 's|^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$|FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db|' \
-    "$ENV_PATH"
-  if ! grep -q '^FOOTBAG_DB_DIR=' "$ENV_PATH"; then
-    echo 'FOOTBAG_DB_DIR=/srv/footbag/db' >> "$ENV_PATH"
+  # Staged through the swept prefix rather than rewritten with `sed -i`, and with
+  # no backup copy either way: the sed default would leave a full plaintext copy
+  # of the previous env file, secrets and all, sitting beside it forever.
+  #
+  # `sed -i` with no suffix leaves no backup but still stages its own temp next to
+  # the target, under a sed* name that cleanup_env_tempfiles does not glob. An
+  # interrupt mid-rewrite therefore left a complete copy of the host's entire
+  # secret set on disk, unswept and unlooked-for. This uses the same
+  # mktemp-into-the-swept-prefix shape as every other rewrite in this file, and
+  # folds the FOOTBAG_DB_DIR line into the same staged file so the whole migration
+  # lands as one rename instead of a rewrite followed by an append to the live file.
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  sed -e 's|^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$|FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db|' \
+    "$ENV_PATH" > "$env_tmp"
+  if ! grep -q '^FOOTBAG_DB_DIR=' "$env_tmp"; then
+    ensure_final_newline "$env_tmp"
+    printf 'FOOTBAG_DB_DIR=%s\n' '/srv/footbag/db' >> "$env_tmp"
   fi
+  mv "$env_tmp" "$ENV_PATH"
   rm -f /srv/footbag/footbag.db /srv/footbag/footbag.db-wal /srv/footbag/footbag.db-shm
 fi
 
@@ -327,6 +369,7 @@ fi
 # delete the line from /srv/footbag/env and redeploy.
 if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
   echo "    Seeding INTERNAL_EVENT_SECRET into env file (random hex)..."
+  ensure_final_newline "$ENV_PATH"
   printf 'INTERNAL_EVENT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$ENV_PATH"
 fi
 
@@ -358,24 +401,32 @@ if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]];
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
-  grep -v '^SES_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+  grep -v '^SES_ADAPTER=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
   printf 'SES_ADAPTER=%s\n' 'stub' >> "$env_tmp"
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
   chown root:root "$ENV_PATH"
 fi
 
-# PAYMENT_ADAPTER: seed the stub on a fresh non-production host so the compose
-# ${PAYMENT_ADAPTER:?} guard and env.ts have a value, but do not overwrite an
-# existing one. env.ts refuses the live payment SDK anywhere below production,
-# so the stub is the only bootable value here. Production is derived, not
-# hand-owned: the arming-switch sync later in this script writes
-# PAYMENT_ADAPTER from the declared flag (armed -> live, dark -> stub).
+# PAYMENT_ADAPTER below production is reconciled, not seeded. There is exactly one
+# correct value there: env.ts refuses the live payment SDK anywhere below
+# production, so the stub is the only value that boots. Seeding it only when absent
+# gave the value two owners, the deploy on a fresh host and whoever last edited the
+# host thereafter, and a hand-set `live` would then survive every subsequent deploy
+# while being unbootable. The SES adapter above does the same thing for the same
+# reason. Production is derived rather than hand-owned either way: the arming-switch
+# sync later in this script writes PAYMENT_ADAPTER from the declared flag
+# (armed -> live, dark -> stub).
 if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
-  if ! grep -q '^PAYMENT_ADAPTER=' "$ENV_PATH"; then
-    echo "    Seeding PAYMENT_ADAPTER=stub into env file (staging/dev default; preserved if already set)..."
-    echo 'PAYMENT_ADAPTER=stub' >> "$ENV_PATH"
-  fi
+  echo "    Reconciling PAYMENT_ADAPTER=stub into env file (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; the live payment SDK is refused below production)..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^PAYMENT_ADAPTER=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
+  printf 'PAYMENT_ADAPTER=%s\n' 'stub' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
   # The stub adapter's built-in signing secret is committed source, so a host
   # that kept it would accept a webhook forged by anyone holding a checkout of
   # the repository. Give each host its own value instead. The whsec_stub_
@@ -384,6 +435,7 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   # regenerated secret would silently reject deliveries already configured.
   if ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
     echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (preserved if already set)..."
+    ensure_final_newline "$ENV_PATH"
     printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
   fi
 fi
@@ -491,7 +543,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^X_ORIGIN_VERIFY_SECRET=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^X_ORIGIN_VERIFY_SECRET=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'X_ORIGIN_VERIFY_SECRET=%s\n' "$ORIGIN_VERIFY_SECRET_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -544,7 +596,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^SESSION_SECRET=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^SESSION_SECRET=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'SESSION_SECRET=%s\n' "$SESSION_SECRET_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -579,7 +631,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^LOG_LEVEL=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^LOG_LEVEL=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'LOG_LEVEL=%s\n' "$LOG_LEVEL_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -612,7 +664,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^PAYMENTS_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^PAYMENTS_ARMED=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'PAYMENTS_ARMED=%s\n' "$PAYMENTS_ARMED_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -640,7 +692,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^EMAIL_SEND_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^EMAIL_SEND_ARMED=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'EMAIL_SEND_ARMED=%s\n' "$EMAIL_SEND_ARMED_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -673,7 +725,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^URL_SCREENING_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^URL_SCREENING_ARMED=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'URL_SCREENING_ARMED=%s\n' "$URL_SCREENING_ARMED_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -700,7 +752,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^REACHABILITY_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^REACHABILITY_ARMED=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'REACHABILITY_ARMED=%s\n' "$REACHABILITY_ARMED_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
@@ -718,7 +770,7 @@ echo "    Deriving link-protection adapters from arming switches: SAFE_BROWSING_
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v -e '^SAFE_BROWSING_ADAPTER=' -e '^HTTP_REACHABILITY_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+grep -v -e '^SAFE_BROWSING_ADAPTER=' -e '^HTTP_REACHABILITY_ADAPTER=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 printf 'SAFE_BROWSING_ADAPTER=%s\n' "$SAFE_BROWSING_ADAPTER_DERIVED" >> "$env_tmp"
 printf 'HTTP_REACHABILITY_ADAPTER=%s\n' "$HTTP_REACHABILITY_ADAPTER_DERIVED" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
@@ -749,14 +801,21 @@ for ses_set_stream in transactional bulk; do
     echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
     exit 1
   }
-  if [[ -z "$ses_set_value" ]]; then
-    echo "ERROR: SSM $ses_set_param resolved empty; expected the configuration-set name terraform published." >&2
+  # SES configuration-set names are limited to letters, digits, dashes and
+  # underscores. Checking the shape here keeps a malformed or placeholder value
+  # from reaching a send, where it would fail every message rather than one.
+  # This half checked only for emptiness, so a placeholder that the code-deploy
+  # path refused passed on the rebuild path -- the two halves disagreeing about
+  # what is acceptable is exactly what the deploy-time ownership decision says
+  # must not happen.
+  if [[ ! "$ses_set_value" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "ERROR: SSM $ses_set_param is '$ses_set_value'; expected a configuration-set name." >&2
     exit 1
   fi
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
-  grep -v "^SES_CONFIGURATION_SET_${ses_set_stream^^}=" "$ENV_PATH" > "$env_tmp" || true
+  grep -v "^SES_CONFIGURATION_SET_${ses_set_stream^^}=" "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
   printf 'SES_CONFIGURATION_SET_%s=%s\n' "${ses_set_stream^^}" "$ses_set_value" >> "$env_tmp"
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
@@ -797,7 +856,7 @@ for host_ident in media_bucket:MEDIA_STORAGE_S3_BUCKET jwt_kms_key_id:JWT_KMS_KE
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
-  grep -v "^${ident_var}=" "$ENV_PATH" > "$env_tmp" || true
+  grep -v "^${ident_var}=" "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
   printf '%s=%s\n' "$ident_var" "$ident_value" >> "$env_tmp"
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
@@ -823,7 +882,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
-  grep -v -e '^SES_ADAPTER=' -e '^PAYMENT_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+  grep -v -e '^SES_ADAPTER=' -e '^PAYMENT_ADAPTER=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
   printf 'SES_ADAPTER=%s\n' "$SES_ADAPTER_DERIVED" >> "$env_tmp"
   printf 'PAYMENT_ADAPTER=%s\n' "$PAYMENT_ADAPTER_DERIVED" >> "$env_tmp"
   mv "$env_tmp" "$ENV_PATH"
@@ -850,6 +909,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
 
   if [[ "$PAYMENT_ADAPTER_DERIVED" == "stub" ]] && ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
     echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
+    ensure_final_newline "$ENV_PATH"
     printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
   fi
 
@@ -903,7 +963,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
     chmod 600 "$env_tmp"
     chown root:root "$env_tmp"
-    grep -v "^${env_key}=" "$ENV_PATH" > "$env_tmp" || true
+    grep -v "^${env_key}=" "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
     printf '%s=%s\n' "$env_key" "$value" >> "$env_tmp"
     mv "$env_tmp" "$ENV_PATH"
     chmod 600 "$ENV_PATH"
@@ -940,7 +1000,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^ARCHIVE_URL=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^ARCHIVE_URL=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 if [[ -n "$ARCHIVE_URL_VAL" ]]; then
   printf 'ARCHIVE_URL=%s\n' "$ARCHIVE_URL_VAL" >> "$env_tmp"
 fi
@@ -973,7 +1033,7 @@ fi
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^ARCHIVE_LOGIN_REDIRECT=' "$ENV_PATH" > "$env_tmp" || true
+grep -v '^ARCHIVE_LOGIN_REDIRECT=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
 if [[ -n "$ARCHIVE_LOGIN_REDIRECT_VAL" ]]; then
   printf 'ARCHIVE_LOGIN_REDIRECT=%s\n' "$ARCHIVE_LOGIN_REDIRECT_VAL" >> "$env_tmp"
 fi
@@ -1006,7 +1066,7 @@ if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
-  grep -v '^FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+  grep -v '^FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%s\n' "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" >> "$env_tmp"
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
@@ -1016,7 +1076,7 @@ if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
-  grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+  grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
   chown root:root "$ENV_PATH"

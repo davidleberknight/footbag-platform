@@ -529,7 +529,7 @@ Memory limits provide:
 **Estimated Monthly Costs:**
 
 - AWS Lightsail (4GB instance): $40.00 (2 vCPUs, 80GB SSD, 4TB transfer).
-- AWS S3 storage: approximately $3.20 (database backups: approximately $3/month for primary and cross-region backup storage using S3 Intelligent-Tiering and Object Lock; photos: approximately $0.18/month with 2-variant storage and One Zone-IA backup replication). 
+- AWS S3 storage: approximately $3.20 (database backups: approximately $3/month for primary and cross-region backup storage using per-generation lifecycle rules and Object Lock; photos: approximately $0.18/month with 2-variant storage and One Zone-IA backup replication). 
 - AWS S3 requests: $0.05 (Normal read/write volume).
 - AWS CloudFront: $0.00 (Free tier covers expected usage).
 - AWS SES email: $0.00 (Free 62k emails/month from Lightsail).
@@ -716,25 +716,25 @@ Sensitive credentials (Stripe API keys, webhook secrets) are stored in AWS Param
 
 ## 7.1 Backup Strategy
 
-The system backs up the SQLite database file every 5 minutes by creating a consistent snapshot and uploading it to an S3 backup bucket. These frequent snapshots provide the primary short-RPO recovery path. Cross-region disaster recovery for database backups is handled by a separate sync process (nightly, per current design decisions), not by continuous replication of the SQLite database file. Backups proceed only after a successful checkpoint to ensure consistency.
+The system backs up the SQLite database file every 5 minutes by creating a consistent snapshot and uploading it to an S3 backup bucket. These frequent snapshots provide the primary short-RPO recovery path. Cross-region disaster recovery for database backups rides S3 replication, which continuously copies the promoted hourly and daily snapshots to a bucket in the backup region. Backups proceed only after a successful checkpoint to ensure consistency.
 
-Photos are backed up via Amazon S3 cross-region replication separate from database backups. Primary bucket replicates continuously to backup bucket in different region using cost-optimized storage class. RPO less than 15 minutes. No manual backup jobs required.
+Photos are backed up via Amazon S3 cross-region replication separate from database backups. Primary bucket replicates continuously to backup bucket in different region. Propagation typically completes within minutes; Replication Time Control is not enabled, so no formal recovery-point objective is committed for photos. No manual backup jobs required.
 
 **Monitoring and Alerts:** If backups fail 3 times in a row, administrators receive a CRITICAL alert. The system health page shows when the last successful backup completed. CloudWatch monitoring triggers alarms if backups become more than 15 minutes old, ensuring backup issues are detected immediately.
 
 **Safe Application Restarts:** When the application needs to restart (for updates or maintenance), it follows a graceful shutdown process to prevent any data loss: stop accepting new web requests, wait for active operations to finish (up to 30 seconds), save all pending database changes, close the database cleanly, perform one final backup upload, then shut down. This ensures deployments never lose data.
 
-**Backup Protection and Retention:** Backup files in the cross-region disaster-recovery bucket are protected using AWS S3 Object Lock in governance mode, which stops any ordinary credential from deleting or modifying a retained backup version. It is deliberately not absolute: an administrator holding the bypass permission can still remove one, because a lawful erasure request has to be honourable on a backup object that holds personal data. Retention windows are configurable: the primary S3 bucket uses a 30-day snapshot version-history window for point-in-time recovery (configurable via `primary_snapshot_version_days`); the cross-region backup bucket uses a 90-day Object Lock retention for disaster-recovery backup objects. Audit logs are retained for 7 years. Normative defaults for all configurable retention windows are defined in the User Stories Configurable Parameters section.
+**Backup Protection and Retention:** Backup files in the cross-region disaster-recovery bucket are protected using AWS S3 Object Lock in governance mode, which stops any ordinary credential from deleting or modifying a retained backup version. It is deliberately not absolute: an administrator holding the bypass permission can still remove one, because a lawful erasure request has to be honourable on a backup object that holds personal data. The primary S3 bucket thins its snapshot history by age through lifecycle rules: in production, two days of the fine-grained stream, thirty days of the hourly generation, four hundred days of the daily one; staging keeps deliberately shorter windows. The cross-region backup bucket uses a 90-day Object Lock retention for disaster-recovery backup objects. Audit logs are retained for 7 years. Normative defaults for all configurable retention windows are defined in the User Stories Configurable Parameters section.
 
 **Recovery Point Objectives (RPO)** include two recovery scenarios:
 
-**Primary Recovery (most common):** Restore from primary S3 bucket using versioned snapshots uploaded every 5 minutes. RPO is 5 to 10 minutes maximum for all data. Use this for: database corruption, accidental deletion, application bugs.
+**Primary Recovery (most common):** Restore from primary S3 bucket using timestamped snapshots uploaded every 5 minutes. RPO is 5 to 10 minutes maximum for all data. Use this for: database corruption, accidental deletion, application bugs.
 
-**Disaster Recovery (rare):** Restore from cross-region backup bucket synced nightly. RPO = 24 hours for database backups (per nightly sync), while photos use S3 cross-region replication with 15 minute RPO. Use this for: complete AWS region failure, S3 bucket deletion, catastrophic infrastructure loss.
+**Disaster Recovery (rare):** Restore from the cross-region backup bucket, which receives the promoted hourly and daily snapshots by continuous S3 replication. The recovery point is up to an hour, the interval between promoted points, plus replication lag; photos replicate continuously too, with per-object propagation typically completing within minutes and no formal RPO commitment. Use this for: complete AWS region failure, S3 bucket deletion, catastrophic infrastructure loss.
 
 **Recovery Time Objective (RTO):** Depends on failure scope: routine application/database recovery targets minutes-scale restoration (about 5 minutes for database file restore once operators begin recovery), whereas full regional disaster recovery is hours-scale (2-4 hours).
 
-The AWS free tier does not provide viable continuous database backup at the required RPO. The selected 5-minute backup interval provides acceptable RPO (5-10 minutes) at minimal cost (approximately $1/month using S3 Intelligent-Tiering for automated cost optimization). This approach balances data protection requirements with budget constraints.
+The AWS free tier does not provide viable continuous database backup at the required RPO. The selected 5-minute backup interval provides acceptable RPO (5-10 minutes) at minimal cost (approximately $1/month, held there by the per-generation lifecycle rules that expire each generation at the end of its window). This approach balances data protection requirements with budget constraints.
 
 ## 7.2 High Availability
 

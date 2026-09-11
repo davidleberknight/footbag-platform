@@ -140,4 +140,19 @@ describe('apply-bucket-tls-baseline.sh — the session-secret gate', () => {
     const r = run(['--yes'], NO_SECRET_CHANGE);
     expect(r.stderr).not.toMatch(/REFUSING: the plan would change the value of/);
   });
+
+  it('refuses when the plan cannot be parsed, rather than reading it as clean', () => {
+    // The third outcome, and the one with no operator-visible symptom. A truncated
+    // or unparseable plan once exited zero from the check, which made it
+    // indistinguishable from a plan carrying no secret change: the gate reported
+    // nothing to worry about because it had failed to look. The check now exits
+    // non-zero and the caller refuses rather than assuming the answer it could not
+    // compute. Driving it needs only a stub that emits something that is not JSON.
+    const r = run(['--yes'], 'this is not JSON, it is a truncated plan');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/REFUSING: the session-secret check did not complete/);
+    expect(r.stderr).toMatch(/Refusing rather than|assuming it would not/);
+    // It must not claim to know which way the plan would have gone.
+    expect(r.stderr).not.toMatch(/REFUSING: the plan would change the value of/);
+  });
 });

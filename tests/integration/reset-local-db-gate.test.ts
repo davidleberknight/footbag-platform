@@ -117,6 +117,12 @@ describe('the database built for a host carries no local-only affordances', () =
   it('is asked for that by the deploy path that ships the database', () => {
     // Without this the guard exists and nothing ever sets it, which reads as
     // fixed while behaving exactly as before.
-    expect(REBUILD).toMatch(/FOOTBAG_DB_FOR_DEPLOY=1 bash scripts\/reset-local-db\.sh/);
+    // The path is anchored to the repository root rather than the caller's
+    // directory, and the database path is handed over explicitly, so the file the
+    // reset builds is the file the deploy is about to ship. What this pins is
+    // unchanged: the rebuild leaf, and only it, sets the deploy guard.
+    expect(REBUILD).toMatch(
+      /FOOTBAG_DB_FOR_DEPLOY=1 FOOTBAG_DB_PATH="\$LOCAL_DB" bash "\$REPO_ROOT\/scripts\/reset-local-db\.sh"/,
+    );
   });
 });

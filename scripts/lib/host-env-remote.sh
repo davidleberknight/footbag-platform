@@ -353,7 +353,20 @@ write_tfvars_url() {
 }
 
 # Set to "yes" by a caller's --yes flag, matching the deploy wrapper's -y.
-ASSUME_YES="${ASSUME_YES:-no}"
+#
+# Assigned unconditionally, NOT defaulted from the environment. This used to read
+# "${ASSUME_YES:-no}", which meant every script sourcing this file inherited the
+# variable from whatever shell launched it: an exported ASSUME_YES=yes accepted
+# the typed confirmation on a production apply, on arming live payments, and on
+# restoring a database, with no terminal involved and nothing printed to say so.
+# The name is generic enough that an unrelated tool could set it.
+#
+# Each caller was clearing the variable before sourcing to defend against that,
+# which is a convention every new script has to remember and one no test can
+# enforce from the outside. Assigning here removes the class instead: a caller
+# cannot inherit what the library always overwrites, and --yes still works
+# because every caller parses its flags after this file is sourced.
+ASSUME_YES="no"
 
 # confirm_from_tty <prompt> <expected-word>
 # Reads from the terminal rather than stdin, because stdin is the credential

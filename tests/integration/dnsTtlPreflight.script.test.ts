@@ -75,6 +75,15 @@ function writeFakes(): void {
       '  esac',
       'done',
       'if [[ "${FAKE_DIG_SILENT_NS:-}" == "$ns" ]]; then exit 0; fi',
+      // An unreachable nameserver, reproduced exactly: real dig writes the
+      // communications-error notice to STDOUT rather than stderr and exits 9.
+      // That combination is what made the gate read the word "communications"
+      // out of field two and report a dead nameserver as a wrong TTL.
+      'if [[ "${FAKE_DIG_UNREACHABLE_NS:-}" == "$ns" ]]; then',
+      '  printf \';; communications error to 75.144.20.98#53: timed out\\n\'',
+      '  printf \';; no servers could be reached\\n\'',
+      '  exit 9',
+      'fi',
       'f="${FAKE_DIG_DIR}/${rec}${rtype}.txt"',
       'if [[ -f "$f" ]]; then cat "$f"; fi',
       '',
@@ -197,6 +206,27 @@ describe('dns-ttl-preflight: it fails when the gate is not met', () => {
     const res = run(['--phase', 'handover'], { FAKE_DIG_SILENT_NS: 'ns-2.awsdns-00.co.uk' });
     expect(res.status).toBe(1);
     expect(res.stdout).toContain('returned no answer from ns-2.awsdns-00.co.uk');
+  });
+
+  it('reports an unreachable nameserver as a reachability failure, never as a TTL value', () => {
+    // Found by running this gate against the real zone: one of the four
+    // nameservers footbag.org is delegated to was down, and the gate printed
+    // "ttl=communications" and then failed for a TTL mismatch. dig writes its
+    // communications-error notice to stdout, so the empty-answer branch above
+    // cannot fire, and field two of ";; communications error to ..." is the word
+    // "communications". An operator reading that goes to the zone's records to
+    // fix a problem that is not there, while the real fault -- a dead nameserver
+    // -- goes unnamed. A TTL the gate cannot actually observe must never be
+    // reported as an observed TTL.
+    seedZone({});
+    const res = run(['--phase', 'handover'], { FAKE_DIG_UNREACHABLE_NS: 'ns-2.awsdns-00.co.uk' });
+    expect(res.status).toBe(1);
+    expect(res.stdout).not.toMatch(/ttl=communications/);
+    expect(res.stdout).not.toMatch(/served ttl communications/);
+    expect(res.stdout).toContain('could not be looked up on ns-2.awsdns-00.co.uk');
+    // And the reachable nameserver is still observed, so one dead server does
+    // not hide the TTL the others serve.
+    expect(res.stdout).toMatch(/observed: footbag\.org\. A ttl=60 from ns-1\.awsdns-00\.org/);
   });
 
   it('fails when the zone cannot be read rather than passing on an empty result', () => {

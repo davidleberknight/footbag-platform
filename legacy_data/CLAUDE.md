@@ -53,13 +53,13 @@ the step that needs it, and never block unrelated work.
   arrived is tracked in the maintainers' private tracker.
 
 The member load reads two further inputs that are not legacy artifacts but recorded human decisions,
-held in the maintainers' private checkout and named to a run through environment variables rather
-than symlinks: a directory of rulings about which duplicate accounts are the same person, and a
-roster of the directors sitting at cutover. A machine without them loads anyway and says so; a
+held in the maintainers' private checkout and reached through the same repo-root symlink convention,
+at a canonical path no variable names and no operator command carries: a directory of rulings about
+which duplicate accounts are the same person, and a roster of the directors sitting at cutover. A machine without them loads anyway and says so; a
 production load refuses without the rulings, and a production extract refuses without the roster as
 well, because the roster only takes effect where the flag is written into the intermediate CSV.
 Supplying the rulings without the roster is a dead end the run refuses before doing any work. The
-member-data runner's own help is authoritative for their variable names and for what each one
+member-data runner's own help is authoritative for where they live and for what each one
 changes.
 
 ## Runbook routing

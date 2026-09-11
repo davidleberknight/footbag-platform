@@ -42,17 +42,24 @@
 #     interpolates it with no default, so arming without it crash-loops
 #     production. A code-only deploy neither writes it nor checks it, and
 #     verify-host-env.sh cannot warn you beforehand because its SES checks
-#     self-neutralise while the host is still dark. Confirm it on the host
-#     first; step 1 asks.
+#     self-neutralise while the host is still dark. Step 1 reads the host env
+#     file itself and REFUSES when the line is missing or empty, rather than
+#     asking an operator to go and look.
 #
-#     What does NOT stop the host, contrary to what this comment said before:
-#     a missing bounce and complaint queue. Boot deliberately does not require
-#     it, because a queue is created and subscribed independently of a deploy.
-#     The cost is quieter and still serious: mail goes out with nothing
-#     recording which addresses died. The sender identity must also be verified
-#     and the account out of the SES sandbox, or mail is accepted and delivered
-#     nowhere. This script cannot check any of that from here, so it states
-#     each one and requires the operator to confirm it.
+#     What does NOT stop the host: a missing bounce and complaint queue. Boot
+#     deliberately does not require it, because a queue is created and subscribed
+#     independently of a deploy. The cost is quieter and still serious: mail goes
+#     out with nothing recording which addresses died. Step 1 reads that line
+#     too, and reports it rather than refusing, because blocking an arm for a
+#     degraded bounce record would be the wrong trade.
+#
+#     What this script genuinely cannot see: whether the sender identity is
+#     verified with AWS, whether the account is out of the SES sandbox, and
+#     whether domain authentication is aligned. Those three stay an attestation,
+#     because nothing on the workstation can settle them.
+#
+#     Both host reads need AWS_OPERATOR_FILE (see Environment below). Without it
+#     they self-skip, say so, and fall back to asking for all of them.
 #
 #   url_screening, going armed: the Safe Browsing key must already be a real
 #     value in this environment's Parameter Store. This is the one precondition
@@ -103,12 +110,33 @@
 #   scripts/arming.sh --target production --state dark --dry-run
 #   scripts/arming.sh --target production --state armed --from-step 3
 #
+# Do NOT redirect the operator credential file into this script. Its confirmations
+# read standard input, so a redirect makes the credential the answer to a prompt
+# and echoes it on the failed comparison. It refuses to run unless stdin, stdout
+# and stderr are all terminals, for that reason.
+#
+# Environment:
+#   AWS_OPERATOR_FILE   Path to this environment's operator credential file, whose
+#                       first line is the host sudo password. Optional, and worth
+#                       setting: it is how the two steps that read the host get to
+#                       do so. Without it, step 1 cannot check the two SES values
+#                       that live in the host env file and asks you to confirm them
+#                       by hand, and step 5's host-side rows come back UNKNOWN,
+#                       which reads like a verification that ran and found nothing
+#                       rather than one that did not run. Set it rather than
+#                       redirect it:
+#                         AWS_OPERATOR_FILE=~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+#                           scripts/arming.sh --target production --switch email --state armed
+#
 # Synthetic mode (CI tests only; operators never use this):
 #   --tfvars <path> points the rewrite at a local file and stops after step 2,
 #   printing the remaining steps instead of running terraform or a deploy.
 set -euo pipefail
 
-TARGET="production"
+# No default target. Which environment an arming change lands on is exactly the
+# decision this script must not make for the operator: defaulting it meant
+# `--state dark` disarmed production having been told no environment at all.
+TARGET=""
 STATE=""
 MODE=""
 SWITCH="payments"
@@ -118,6 +146,32 @@ TFVARS_OVERRIDE=""
 AWS_PROFILE_ARG=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Sourced for host_env_fetch and require_ssh_alias, which step 1 uses to read the
+# two SES readiness values that live in the host env file rather than asking the
+# operator to confirm them. Sourced before the flag loop, because the library
+# assigns the accept-without-asking flag unconditionally and a caller parsing
+# flags first would have its answer overwritten.
+# shellcheck source=lib/host-env-remote.sh
+source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+
+# Every temp file this run creates, removed on any exit path. One handler rather
+# than a trap per step: a second `trap` call REPLACES the first, so a later step
+# installing its own would silently stop cleaning up an earlier step's file, and
+# one of these files holds the host's entire secret set.
+ARMING_TMPS=()
+arming_cleanup() {
+  local f
+  for f in ${ARMING_TMPS[@]+"${ARMING_TMPS[@]}"}; do
+    [[ -n "$f" ]] || continue
+    # Overwritten rather than unlinked: the host env copy carries the session
+    # signing key and the worker channel secret, and an unlink leaves the blocks
+    # readable. shred is best-effort on a journalling filesystem; the plain
+    # removal stays as the fallback so the sweep cannot itself leave the file.
+    shred -u "$f" 2>/dev/null || rm -f "$f" 2>/dev/null || true
+  done
+}
+trap arming_cleanup EXIT INT TERM
 
 # The deploy command and its flags live in one place so the preview printed in
 # synthetic mode and the command actually run in step 4 cannot drift apart. The
@@ -131,6 +185,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # both.
 DEPLOY_CMD="${ARMING_DEPLOY_CMD:-$REPO_ROOT/deploy_to_aws.sh}"
 DEPLOY_ARGS=(-k)
+if [[ -n "${ARMING_DEPLOY_CMD:-}" ]]; then
+  # Announced, because it was not: a real run with this set applies for real and
+  # then hands the injected command the deploy, which is precisely the
+  # half-applied state this script exists to prevent, and it did so silently.
+  echo "SYNTHETIC: deploy command='${DEPLOY_CMD}' -- not the real deploy." >&2
+  echo "           Pass --tfvars as well, or this run applies for real." >&2
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -182,6 +243,10 @@ done
 
 case "$TARGET" in
   staging|production) ;;
+  '')
+    echo "ERROR: --target is required ('staging' or 'production')" >&2
+    exit 2
+    ;;
   *)
     echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
     exit 2
@@ -193,21 +258,25 @@ case "$SWITCH" in
     TFVAR_NAME="payments_armed"
     SSM_SUFFIX="payments_armed"
     ADAPTER_LABEL="PAYMENT_ADAPTER"
+    HOST_ARMED_VAR="PAYMENTS_ARMED"
     ;;
   email)
     TFVAR_NAME="email_send_armed"
     SSM_SUFFIX="email_send_armed"
     ADAPTER_LABEL="SES_ADAPTER"
+    HOST_ARMED_VAR="EMAIL_SEND_ARMED"
     ;;
   url_screening)
     TFVAR_NAME="url_screening_armed"
     SSM_SUFFIX="url_screening_armed"
     ADAPTER_LABEL="SAFE_BROWSING_ADAPTER"
+    HOST_ARMED_VAR="URL_SCREENING_ARMED"
     ;;
   reachability)
     TFVAR_NAME="reachability_armed"
     SSM_SUFFIX="reachability_armed"
     ADAPTER_LABEL="HTTP_REACHABILITY_ADAPTER"
+    HOST_ARMED_VAR="REACHABILITY_ARMED"
     ;;
   *)
     echo "ERROR: --switch must be one of 'payments', 'email', 'url_screening'," >&2
@@ -324,14 +393,116 @@ fi
 # party, and nothing that has to be settled elsewhere first. Its consequence is
 # still stated at step 5, because "no probe" is not the same as "no change".
 
+# The two SES readiness items that are lines in the host env file rather than
+# facts about the provider. A precondition an operator is asked to check is one
+# that gets skipped under pressure, and one of these takes production down rather
+# than degrading it, so both are read here and the operator attests only to what
+# this workstation genuinely cannot see.
+#
+# The sudo password cannot arrive on stdin: this script's confirmations read stdin
+# and it refuses to run unless stdin is a terminal, so a redirected credential file
+# would be consumed as an answer to a prompt. It is taken from the first line of
+# the operator credential file named by AWS_OPERATOR_FILE instead, which is a file
+# read and puts nothing in any process's argument list. That is the same credential
+# step 5 already hands to the status view.
+#
+# Every failure here leaves the state "unchecked" and says why, so a run that
+# cannot reach the host falls back to asking rather than reporting a value absent
+# that it never looked for.
+HOST_SES_IDENTITY_STATE="unchecked"
+HOST_SES_QUEUE_STATE="unchecked"
+
+# Reads this switch's arming value off the host, for the already-there check
+# above. Every failure to read returns the same sentinel rather than a guess: the
+# caller treats anything but the exact state as "not agreement", so a host that
+# could not be reached can never be mistaken for a host that agrees. Quiet by
+# design, because it runs before the script has announced anything, and the
+# caller prints what it found.
+read_host_armed_value() {
+  local alias="footbag-$TARGET" env_local="" pass="" value=""
+
+  [[ -n "${AWS_OPERATOR_FILE:-}" ]] || { echo "(not read: no credential file)"; return 0; }
+  [[ -r "${AWS_OPERATOR_FILE}" ]] || { echo "(not read: credential file unreadable)"; return 0; }
+  IFS= read -r pass < "$AWS_OPERATOR_FILE" || true
+  [[ -n "$pass" ]] || { echo "(not read: credential file has no first line)"; return 0; }
+  require_ssh_alias "$alias" >/dev/null 2>&1 || { echo "(not read: no ssh alias)"; return 0; }
+
+  env_local="$(mktemp "${TMPDIR:-/tmp}/footbag-arming-env.XXXXXX")"
+  chmod 600 "$env_local"
+  ARMING_TMPS+=("$env_local")
+  SUDO_PASS="$pass" host_env_fetch "$alias" "$env_local" >/dev/null 2>&1 \
+    || { echo "(not read: host env fetch failed)"; return 0; }
+
+  # `|| [[ $? -eq 1 ]]`, not `|| true`: grep exits 1 when the key is simply absent,
+  # which is a real answer here, and 2 on a read error, which is not an answer at
+  # all and must not read as one.
+  value="$(grep -E "^${HOST_ARMED_VAR}=" "$env_local" | tail -1 | cut -d= -f2-)" \
+    || [[ $? -eq 1 ]]
+  [[ -n "$value" ]] || { echo "(not read: $HOST_ARMED_VAR absent from the host env file)"; return 0; }
+  printf '%s\n' "$value"
+}
+
+read_host_ses_values() {
+  local alias="footbag-$TARGET" env_local=""
+
+  if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
+    echo "  Host env file NOT read: AWS_OPERATOR_FILE is not set, so the two values"
+    echo "  below marked (host) have to be confirmed by hand. Set it to this"
+    echo "  environment's operator credential file to have them checked instead."
+    return 0
+  fi
+  if [[ ! -r "${AWS_OPERATOR_FILE}" ]]; then
+    echo "  Host env file NOT read: AWS_OPERATOR_FILE names a file this run cannot"
+    echo "  read, so the two values below marked (host) have to be confirmed by hand."
+    return 0
+  fi
+
+  IFS= read -r SUDO_PASS < "$AWS_OPERATOR_FILE" || true
+  if [[ -z "${SUDO_PASS:-}" ]]; then
+    echo "  Host env file NOT read: the first line of the operator credential file is"
+    echo "  empty, where the host sudo password was expected."
+    return 0
+  fi
+
+  require_ssh_alias "$alias" || return 0
+
+  env_local="$(mktemp "${TMPDIR:-/tmp}/footbag-arming-env.XXXXXX")"
+  chmod 600 "$env_local"
+  ARMING_TMPS+=("$env_local")
+
+  echo "  Reading /srv/footbag/env from $alias to check the two host values."
+  host_env_fetch "$alias" "$env_local" || return 0
+
+  # Present means present AND non-empty: the live adapter requires a value at
+  # boot, and a bare `SES_FROM_IDENTITY=` satisfies a grep for the key while
+  # crash-looping the host exactly as an absent line would.
+  if grep -qE '^SES_FROM_IDENTITY=.+' "$env_local"; then
+    HOST_SES_IDENTITY_STATE="present"
+  else
+    HOST_SES_IDENTITY_STATE="absent"
+  fi
+  if grep -qE '^SES_FEEDBACK_QUEUE_URL=.+' "$env_local"; then
+    HOST_SES_QUEUE_STATE="present"
+  else
+    HOST_SES_QUEUE_STATE="absent"
+  fi
+  return 0
+}
+
 # Reads a secret parameter's value only to classify it: present and real, still
 # the bootstrap placeholder, or unreadable. The value itself is never printed.
 classify_secret_param() {
   local param="/footbag/$TARGET/secrets/$1" value
+  # --profile is omitted rather than passed empty when no profile was given.
+  # `--profile ""` is not "use the ambient credentials": it names a profile that
+  # does not exist, so the call fails and the parameter reads as unreadable,
+  # which sent the operator to fix KMS access for what was a missing flag.
+  local -a profile_args=()
+  [[ -n "$AWS_PROFILE_ARG" ]] && profile_args=(--profile "$AWS_PROFILE_ARG")
   if ! value=$(
     aws ssm get-parameter --name "$param" --with-decryption \
       --query 'Parameter.Value' --output text \
-      --profile "$AWS_PROFILE_ARG" 2>/dev/null
+      "${profile_args[@]}" 2>/dev/null
   ); then
     echo "unreadable"
     return 0
@@ -363,9 +534,11 @@ if (( DRY_RUN )); then
       echo "     finished takes production down instead of turning payments on."
       ;;
     ses-readiness)
-      echo "  1. Confirm every SES precondition, one at a time. Without the bounce"
-      echo "     and complaint queue on the host, arming turns mail on with nothing"
-      echo "     recording which addresses died."
+      echo "  1. Read the two SES values that live in the host env file, REFUSE if the"
+      echo "     sender identity is missing (the live adapter requires it at boot, so"
+      echo "     arming without it takes the host down), and confirm the rest. Without"
+      echo "     the bounce and complaint queue, arming turns mail on with nothing"
+      echo "     recording which addresses died; that one is reported, not refused."
       ;;
     outbox-drained)
       echo "  1. Confirm what happens to mail already queued. Disarming is not a"
@@ -429,24 +602,138 @@ if [[ -z "$TFVARS_OVERRIDE" ]] && ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; };
   exit 1
 fi
 
+# ── Already there? Then say so and stop, before asking for anything ──────────
+#
+# Arming is three places that must agree: the tfvars flag, the SSM parameter the
+# apply publishes, and the adapter the host derives at deploy time. When all three
+# already read the requested state there is no work, and a run that asks the
+# operator to attest to provider-side facts and then authorise an apply and a
+# deploy is asking permission to redo what it has just finished reporting as done.
+# That is the operator-script rule's idempotency invariant, and it was being
+# broken in the loudest possible way: two typed confirmations for a no-op.
+#
+# The short-circuit needs positive evidence from all three, and it is deliberately
+# conservative about what counts. A read it could not take is not agreement: no
+# --profile means no SSM read, no credential file means no host read, and either
+# one leaves the possibility this run exists to fix, which is the half-applied
+# state where the tfvars says one thing and the host does another. So a missing
+# read falls through to the full sequence and says why, and a disagreement falls
+# through naming the part that is behind. Only unanimity stops.
+#
+# A resume (--from-step) never short-circuits: the operator has said which step to
+# start at, and second-guessing that with a state read is how a resume silently
+# does nothing.
+#
+# Synthetic mode is not excluded, deliberately: the check has to be reachable by a
+# test, and there it cannot fire by accident, because a run with no --profile and
+# no credential file takes neither of the two reads it requires.
+if (( FROM_STEP <= 1 )) && [[ "$MODE" != "status" ]]; then
+  sc_ssm="$(read_ssm_armed)"
+  sc_host="$(read_host_armed_value)"
+  if [[ "$CURRENT_TFVARS" == "$STATE" && "$sc_ssm" == "$STATE" && "$sc_host" == "$STATE" ]]; then
+    echo "Already $STATE, in all three places that have to agree:"
+    echo "  tfvars ($TFVARS_PATH): $TFVAR_NAME = $CURRENT_TFVARS"
+    echo "  SSM (/footbag/$TARGET/app/$SSM_SUFFIX): $sc_ssm"
+    echo "  host footbag-$TARGET (/srv/footbag/env): $HOST_ARMED_VAR=$sc_host"
+    echo ""
+    echo "Nothing to do, so nothing was asked and nothing was run. The adapter the"
+    echo "host derives from this switch is reported by:"
+    echo "  scripts/bringup-status.sh --target $TARGET"
+    echo ""
+    echo "To re-publish the parameter and re-derive the adapter anyway, name the step:"
+    echo "  scripts/arming.sh --target $TARGET --switch $SWITCH --state $STATE --from-step 3"
+    exit 0
+  fi
+  if [[ "$CURRENT_TFVARS" == "$STATE" ]]; then
+    # Worth stating rather than quietly proceeding: this is the shape the script
+    # exists for, and the operator should know which half is behind before they
+    # start typing.
+    if [[ "$sc_ssm" != "$STATE" ]] || [[ "$sc_host" != "$STATE" ]]; then
+      echo "NOTE: the tfvars already reads \"$STATE\", so this run is finishing a"
+      echo "      sequence rather than starting one:"
+      echo "        SSM (/footbag/$TARGET/app/$SSM_SUFFIX): $sc_ssm"
+      echo "        host footbag-$TARGET: ${sc_host}"
+      echo "      A value shown as not-read is a read this run could not take, not a"
+      echo "      value that disagrees; pass --profile and AWS_OPERATOR_FILE to have"
+      echo "      both checked."
+      echo ""
+    fi
+  fi
+  unset sc_ssm sc_host
+fi
+
 # ── Step 1: the provider side, which this script cannot do for you ───────────
 if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "-- step 1: SES readiness --"
   echo ""
+  read_host_ses_values
+  echo ""
+
+  # Refused rather than asked. This is the one item that takes production DOWN
+  # rather than degrading it: the live adapter requires the value at boot and the
+  # compose file interpolates it with no default, so arming without it
+  # crash-loops the host. The script already refuses rather than asks on the one
+  # other precondition it can settle, for the reason stated there -- a check that
+  # cannot be defeated by a distracted 'yes' is worth more than a typed
+  # confirmation -- and this one now qualifies.
+  if [[ "$HOST_SES_IDENTITY_STATE" == "absent" ]]; then
+    echo "REFUSING: SES_FROM_IDENTITY is not set in /srv/footbag/env on $TARGET." >&2
+    echo "" >&2
+    echo "  Arming email makes the mail adapter live, and the live adapter requires that" >&2
+    echo "  value at boot. The compose file interpolates it with no default, so the" >&2
+    echo "  containers would crash-loop and $TARGET would be down rather than degraded." >&2
+    echo "" >&2
+    echo "  A code-only deploy neither writes nor checks it, and verify-host-env.sh" >&2
+    echo "  cannot warn you while the host is still dark, because its SES checks" >&2
+    echo "  self-neutralise until the adapter is live. That is why this is checked here." >&2
+    echo "" >&2
+    echo "  Write it, then re-run:" >&2
+    echo "    scripts/set-host-env.sh --target $TARGET" >&2
+    echo "" >&2
+    echo "  Nothing has been changed. Email stays dark, which is the safe state." >&2
+    exit 1
+  fi
+
   echo "Arming email with any of these unmet does harm rather than nothing:"
   echo ""
-  echo "  0. SES_FROM_IDENTITY is present in /srv/footbag/env on the host."
-  echo "     This is the one that takes production DOWN rather than degrading"
-  echo "     it: the live adapter requires it at boot, the compose file has no"
-  echo "     default for it, and a code-only deploy neither writes nor checks"
-  echo "     it. verify-host-env.sh cannot warn you while the host is still"
-  echo "     dark, because its SES checks self-neutralise until the adapter is"
-  echo "     live. Read the host env file and confirm the line is there."
-  echo "  a. The bounce and complaint queue is on the host, as"
-  echo "     SES_FEEDBACK_QUEUE_URL. Without it nothing records a bounce: sending"
-  echo "     carries on while the platform's view of which mailboxes are dead"
-  echo "     stops being updated. Enable the feed queues in terraform, apply, then"
-  echo "     scripts/set-host-env.sh --target $TARGET"
+  case "$HOST_SES_IDENTITY_STATE" in
+    present)
+      echo "  0. SES_FROM_IDENTITY in /srv/footbag/env ..... CHECKED, present (host)"
+      ;;
+    *)
+      echo "  0. SES_FROM_IDENTITY is present in /srv/footbag/env on the host. (host)"
+      echo "     This is the one that takes production DOWN rather than degrading"
+      echo "     it: the live adapter requires it at boot, the compose file has no"
+      echo "     default for it, and a code-only deploy neither writes nor checks"
+      echo "     it. verify-host-env.sh cannot warn you while the host is still"
+      echo "     dark, because its SES checks self-neutralise until the adapter is"
+      echo "     live. Read the host env file and confirm the line is there."
+      ;;
+  esac
+  case "$HOST_SES_QUEUE_STATE" in
+    present)
+      echo "  a. SES_FEEDBACK_QUEUE_URL in /srv/footbag/env . CHECKED, present (host)"
+      ;;
+    absent)
+      # Reported rather than refused: boot deliberately does not require the
+      # queue, because a queue is created and subscribed independently of a
+      # deploy. The cost is quieter and still serious, so it stays an item the
+      # operator has to accept deliberately.
+      echo "  a. SES_FEEDBACK_QUEUE_URL in /srv/footbag/env . CHECKED, ABSENT (host)"
+      echo "     Nothing will record a bounce: sending carries on while the"
+      echo "     platform's view of which mailboxes are dead stops being updated."
+      echo "     This does not stop the host, so it is yours to accept or fix:"
+      echo "     enable the feed queues in terraform, apply, then"
+      echo "     scripts/set-host-env.sh --target $TARGET"
+      ;;
+    *)
+      echo "  a. The bounce and complaint queue is on the host, as (host)"
+      echo "     SES_FEEDBACK_QUEUE_URL. Without it nothing records a bounce: sending"
+      echo "     carries on while the platform's view of which mailboxes are dead"
+      echo "     stops being updated. Enable the feed queues in terraform, apply, then"
+      echo "     scripts/set-host-env.sh --target $TARGET"
+      ;;
+  esac
   echo "  b. The queue is subscribed to the feedback topic, which the same apply"
   echo "     does, and the worker is running a build that polls it."
   echo "  c. The sender identity is VERIFIED with AWS, not Pending."
@@ -458,9 +745,15 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "     providers, which is worse than dark: dark at least renders the"
   echo "     verification link on screen where the member can use it."
   echo ""
-  printf "Type 'SES READY' only if every one of 0 and a-e is true: "
+  if [[ "$HOST_SES_IDENTITY_STATE" == "present" && "$HOST_SES_QUEUE_STATE" != "unchecked" ]]; then
+    echo "Items 0 and a were read off the host just now. You are attesting to b-e,"
+    echo "which this workstation cannot see."
+    printf "Type 'APPLY' only if every one of b-e is true: "
+  else
+    printf "Type 'APPLY' only if every one of 0 and a-e is true: "
+  fi
   read -r TYPED
-  if [[ "$TYPED" != "SES READY" ]]; then
+  if [[ "$TYPED" != "APPLY" ]]; then
     echo "Aborted: nothing has been changed. Email stays dark, which is the safe" >&2
     echo "state: the check-email page keeps rendering the verification link on" >&2
     echo "screen, so registration still works end to end." >&2
@@ -483,9 +776,9 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "outbox-drained" ]]; then
   echo "which stops the drain in seconds without a deploy and keeps the queue."
   echo "Disarm when the sender itself must go away, not merely stop."
   echo ""
-  printf "Type 'HOLD THE QUEUE' to disarm email anyway: "
+  printf "Type 'APPLY' to disarm email anyway: "
   read -r TYPED
-  if [[ "$TYPED" != "HOLD THE QUEUE" ]]; then
+  if [[ "$TYPED" != "APPLY" ]]; then
     echo "Aborted: nothing has been changed. Email stays armed." >&2
     exit 1
   fi
@@ -505,9 +798,9 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "payments-readiness" ]]; then
     echo "No --profile was given, so this cannot be checked from here. Re-run with"
     echo "--profile to have it checked, or attest to it."
     echo ""
-    printf "Type 'CREDENTIALS IN PLACE' only if activation has already run: "
+    printf "Type 'APPLY' only if activation has already run: "
     read -r TYPED
-    if [[ "$TYPED" != "CREDENTIALS IN PLACE" ]]; then
+    if [[ "$TYPED" != "APPLY" ]]; then
       echo "Aborted: nothing has been changed. Run scripts/activate-payments.sh first." >&2
       exit 1
     fi
@@ -564,9 +857,9 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "screening-exposure" ]]; then
   echo "and phishing corpus. Nothing alarms on it; the parameter history and this"
   echo "confirmation are the only record that it was deliberate."
   echo ""
-  printf "Type 'STOP SCREENING' to confirm that is what you mean: "
+  printf "Type 'APPLY' to confirm that is what you mean: "
   read -r TYPED
-  if [[ "$TYPED" != "STOP SCREENING" ]]; then
+  if [[ "$TYPED" != "APPLY" ]]; then
     echo "Aborted: nothing has been changed. Screening stays armed." >&2
     exit 1
   fi
@@ -584,9 +877,9 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "stripe-endpoint" ]]; then
   echo "delivery fails with 400. Stripe retries for days and then disables the"
   echo "endpoint itself — typically right when the payout events arrive."
   echo ""
-  printf "Type 'ENDPOINT DISABLED' once you have done it: "
+  printf "Type 'APPLY' once you have done it: "
   read -r TYPED
-  if [[ "$TYPED" != "ENDPOINT DISABLED" ]]; then
+  if [[ "$TYPED" != "APPLY" ]]; then
     echo "Aborted: the endpoint must be disabled before the host goes dark." >&2
     echo "Nothing has been changed. Re-run when it is done." >&2
     exit 1
@@ -606,7 +899,7 @@ if (( FROM_STEP <= 2 )); then
       exit 1
     fi
     TFVARS_TMP="$(mktemp "${TMPDIR:-/tmp}/footbag-tfvars.XXXXXX")"
-    trap 'rm -f "${TFVARS_TMP:-}"' EXIT INT TERM
+    ARMING_TMPS+=("$TFVARS_TMP")
     STATE_VALUE="$STATE" VAR_NAME="$TFVAR_NAME" awk '
       BEGIN { pattern = "^[ \t]*" ENVIRON["VAR_NAME"] "[ \t]*=" }
       $0 ~ pattern && !done {
@@ -763,7 +1056,10 @@ else
   bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
     --skip-remote || true
   echo ""
-  echo "The host-side rows were not read: this step needs the operator credential file."
+  echo "The host-side rows above are UNKNOWN because they were not read, not because"
+  echo "the host is in an unknown state: this step needs AWS_OPERATOR_FILE set to this"
+  echo "environment's operator credential file. Set it for the whole run and step 1"
+  echo "checks its two host values as well."
   echo "For the full picture, re-run:"
   if [[ "$TARGET" == "production" ]]; then
     echo "  < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"

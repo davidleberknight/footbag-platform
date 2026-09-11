@@ -63,6 +63,14 @@ CWAGENT_KEY_STATE="none"
 # Trap body. Safe to install before anything is minted: in the "none" state it
 # does nothing, so a failure during the preconditions says nothing about a
 # credential that was never created.
+#
+# Idempotent, and it has to be: the callers install it on EXIT, INT and TERM, and
+# a trapped INT does not terminate bash. The handler runs, the script resumes, the
+# next command fails under `set -e`, and the EXIT handler runs the same branch a
+# second time. That second pass cannot delete an already-deleted key, so it used
+# to print "COULD NOT DELETE IT. Remove it by hand" about a key that was gone, at
+# the moment the operator is least able to judge it. The state reset at the end is
+# what makes each branch report exactly once.
 cwagent_key_cleanup() {
   case "$CWAGENT_KEY_STATE" in
     minted)
@@ -94,6 +102,12 @@ cwagent_key_cleanup() {
       echo "its vault entry if you are abandoning the install." >&2
       ;;
   esac
+  # Both branches above have now had their say, and neither is true a second time:
+  # the minted key has been deleted or reported unremovable, and the vaulted one
+  # has been reported as kept. "none" matches no branch, so a second pass is
+  # silent. This is not a claim that nothing was minted; it is the record that
+  # cleanup has already happened.
+  CWAGENT_KEY_STATE="none"
   CWAGENT_SAK=""
 }
 

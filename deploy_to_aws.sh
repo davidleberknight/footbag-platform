@@ -4,16 +4,43 @@
 # Orchestrates: preflight (tools, ssh alias, disk, DB lock), credential pipe,
 # pre-deploy summary, delegation to scripts/deploy-to-aws.sh.
 #
-# Reads ~/AWS/AWS_OPERATOR.txt exactly once via shell `<` redirection. The
-# password never appears in any process's argv on the workstation. Forward
-# scripts (orchestrator, leaves) consume stdin; none re-reads the file.
+# Where the host sudo password comes from depends on the target, and the
+# difference is the point. Staging reads ~/AWS/AWS_OPERATOR.txt exactly once via
+# shell `<` redirection, with nobody at the keyboard. Production reads it from the
+# operator's terminal, silently, in the same gate that asks for the typed
+# confirmation, and has no file to fall back to: the file proves only that its
+# reader had filesystem access, which on this workstation is not the same as an
+# operator being present and accountable.
+#
+# Either way the password never appears in any process's argv and never reaches
+# disk on its way onward. Forward scripts (orchestrator, leaves) consume stdin and
+# read exactly one line from it; none re-reads a file.
 
 set -euo pipefail
+
+# Anchored to this file's own checkout, not to the caller's directory: the
+# orchestrator below is reached by absolute path so a run started from anywhere
+# finds it. A relative `scripts/deploy-to-aws.sh` here meant this entry point only
+# worked from the repository root, which is the same defect the leaves had on their
+# rsync source, and it is the leaves that anchor everything downstream.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORCHESTRATOR="${SCRIPT_DIR}/scripts/deploy-to-aws.sh"
+
+# Then work in that checkout, for the same reason the leaves do. Anchoring the
+# hand-off alone left every preflight below reading the caller's directory, so a
+# deploy started from anywhere else still ran -- it just ran without its gates.
+# The workstation disk check measured whatever filesystem the caller stood on;
+# the database-lock check found no database and passed; and both schema gates are
+# conditioned on `[[ -f database/schema.sql ]]`, so the local drift preflight and
+# the deployed schema-sync gate that refuses a code-only deploy onto a drifted
+# host both self-skipped in silence. A run from the home directory lost exactly
+# the gate that exists to stop it.
+cd "$SCRIPT_DIR"
 
 # --help / -h short-circuits before any preflight or file read.
 for arg in "$@"; do
   case "$arg" in
-    --help|-h) exec bash scripts/deploy-to-aws.sh --help ;;
+    --help|-h) exec bash "$ORCHESTRATOR" --help ;;
   esac
 done
 
@@ -44,6 +71,8 @@ SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after
 # only whether the operator NAMED it, because the target allowlist below refuses
 # an explicit request and the inner script re-checks the target for the default.
 REFRESH_TEST_PERSONAS=0
+MEDIA_INTENT_NAMED=0   # -W / -m / --no-media / --sync-media / --no-s3-wipe: the
+                       # operator has stated what happens to the media bucket.
 
 HAS_MODE=0
 for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
@@ -53,6 +82,10 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     --from-csv|--soup-to-nuts|--all-data)  DATA_REBUILD=1 ;;
     --seed-test-personas)       SEED_TEST_PERSONAS=1 ;;
     --refresh-test-personas)    REFRESH_TEST_PERSONAS=1 ;;
+    # Whether the operator has said what happens to the media bucket. Any of
+    # these answers it, in either direction; the production gate asks only when
+    # none of them is present.
+    -W|--no-s3-wipe|-m|--sync-media|--no-media) MEDIA_INTENT_NAMED=1 ;;
   esac
 done
 # Bare deploy (no -k/-r and no --from-csv/--soup-to-nuts/--all-data) is code-only:
@@ -81,65 +114,186 @@ case "${DEPLOY_TARGET:-footbag-staging}" in
     ;;
 esac
 
-# Production DB-replace hard-confirm gate. Any DB-touching mode against
-# production requires a deliberate operator confirmation. DB-rebuild
-# (default mode, no -k/-r flag) and reuse-local (-r) both REPLACE the
-# on-host production database with the workstation-built file. -k
-# (code-only) is permitted without this gate because it does not touch the
-# DB. The gate fires here, before any preflight, so the operator sees the
-# warning before incidental tools like ssh/jq/sqlite checks consume time.
-if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]] \
-    && (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )); then
+# The maintainers' private checkout is a prerequisite for deploying, not an
+# optional convenience. It carries the recorded human decisions the member intake
+# applies, and a build without them is a different database that looks identical
+# afterwards: duplicate accounts a human ruled to be two people get fused, and the
+# directors sitting at cutover load as ordinary members. Neither failure raises an
+# error of its own. Every operator is a maintainer and has the checkout, so this
+# refuses rather than degrading, and it refuses here, ahead of the production gate,
+# so a missing symlink never costs a typed confirmation or a typed password.
+PRIVATE_CHECKOUT="${SCRIPT_DIR}/footbag_private_repo"
+if [[ ! -d "$PRIVATE_CHECKOUT" ]]; then
+  echo "ERROR: the maintainers' private checkout is not reachable: ${PRIVATE_CHECKOUT}" >&2
+  echo "Recommendation: create the git-ignored repo-root footbag_private_repo symlink pointing at" >&2
+  echo "  your private operations checkout, then re-run. A deploy requires it: the member intake" >&2
+  echo "  reads the recorded account rulings and the board roster from it, and a database built" >&2
+  echo "  without them is wrong in ways nothing afterwards reports." >&2
+  exit 1
+fi
+
+# Set by the production gate below once the operator has typed the host password,
+# and read twice afterwards: the credential-file block skips itself for production,
+# and the handoff pipes the typed value instead of the file. Declared here so both
+# readers are safe under `set -u` on a staging run, where the gate never fires.
+PROD_PASSWORD_TYPED=0
+
+# Set by the production gate when it asks what happens to the media bucket, and
+# appended to the orchestrator's arguments at the handoff. Declared here so the
+# handoff is safe under `set -u` on a staging run, where the gate never fires.
+PROD_MEDIA_ARGS=()
+
+# Production hard-confirm gate. EVERY production deploy through this wrapper
+# requires a person at a terminal, whatever the mode. A code-only deploy does not
+# touch the database, but it still replaces what the public is served, so no
+# automated caller gets to make that change unattended: the confirmation is read
+# from the terminal device, and a run with no terminal is refused rather than
+# waved through. The database-touching modes add their own warning inside the same
+# gate, so a production deploy costs one typed word rather than two, and the host
+# password is asked for in the same place so the whole interaction is one stop.
+#
+# The gate fires here, before any preflight, so the operator sees the warning
+# before incidental tools like ssh/jq/sqlite checks consume time.
+if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
+  PROD_DB_TOUCHING=0
+  if (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )); then
+    PROD_DB_TOUCHING=1
+  fi
   echo "" >&2
   echo "═══════════════════════════════════════════════════════════════" >&2
-  echo "  PRODUCTION DB-TOUCHING DEPLOY" >&2
+  if (( PROD_DB_TOUCHING == 1 )); then
+    echo "  PRODUCTION DB-TOUCHING DEPLOY" >&2
+  else
+    echo "  PRODUCTION DEPLOY" >&2
+  fi
   echo "═══════════════════════════════════════════════════════════════" >&2
   echo "  Target:     footbag-production" >&2
   if (( MODE_REUSE == 1 )); then
     echo "  Mode:       reuse local DB (-r) — ships current ./database/footbag.db" >&2
-  else
+  elif (( PROD_DB_TOUCHING == 1 )); then
     echo "  Mode:       full rebuild from sources" >&2
+  else
+    echo "  Mode:       code only — the on-host database is left alone" >&2
   fi
-  echo "  Effect:     The on-host production database will be REPLACED" >&2
-  echo "              with the workstation-built file. This is irreversible" >&2
-  echo "              without an off-host backup taken before the deploy." >&2
+  if (( PROD_DB_TOUCHING == 1 )); then
+    echo "  Effect:     The on-host production database will be REPLACED" >&2
+    echo "              with the workstation-built file. This is irreversible" >&2
+    echo "              without an off-host backup taken before the deploy." >&2
+  else
+    echo "  Effect:     The running release is replaced. Member data is untouched." >&2
+  fi
   echo "═══════════════════════════════════════════════════════════════" >&2
   echo "" >&2
-  if [[ "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
-    # Detect TTY availability via [[ -t ]] tests against fds 0/1/2 BEFORE
-    # attempting any read. Reading from /dev/tty can succeed even in
-    # subprocess contexts by picking up buffered terminal input from
-    # an earlier prompt the operator answered in the parent shell; that
-    # makes a read-success/empty-result check unreliable. When none of
-    # stdin/stdout/stderr is a TTY (Vitest spawnSync, CI runners,
-    # systemd units), refuse with a clear message instead of prompting.
-    if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
-      echo "" >&2
-      echo "ERROR: production DB-replace requires interactive confirmation, but stdin/stdout/stderr are not all TTYs." >&2
-      echo "Recommendation: run from a TTY, or set FOOTBAG_PROD_DB_REPLACE_ACK=1 to bypass (scripted runs only)." >&2
-      exit 1
-    fi
-    printf "  Type 'REPLACE PRODUCTION DB' to confirm: " >&2
-    if ! read -r _ack </dev/tty 2>/dev/null; then
-      echo "" >&2
-      echo "ERROR: production DB-replace requires interactive confirmation, but no TTY is available." >&2
-      echo "Recommendation: run from a TTY, or set FOOTBAG_PROD_DB_REPLACE_ACK=1 to bypass (scripted runs only)." >&2
-      exit 1
-    fi
-    if [[ "$_ack" != "REPLACE PRODUCTION DB" ]]; then
-      echo "Aborted. Confirmation phrase did not match." >&2
-      exit 1
-    fi
-    echo "  → Confirmed. Proceeding." >&2
+  # Ambient state decides nothing. This acknowledgement is produced here, by the
+  # typed word, and handed to the leaf; it is never read from the launching shell.
+  # An exported value used to skip the prompt outright, which is the same defect
+  # the accept-without-asking flag had: a variable left in a profile or inherited
+  # from a parent process stood in for a person typing, on the one operation that
+  # destroys the live database.
+  unset FOOTBAG_PROD_DB_REPLACE_ACK
+  # Detect TTY availability via [[ -t ]] tests against fds 0/1/2 BEFORE
+  # attempting any read. Reading from /dev/tty can succeed even in
+  # subprocess contexts by picking up buffered terminal input from
+  # an earlier prompt the operator answered in the parent shell; that
+  # makes a read-success/empty-result check unreliable. When none of
+  # stdin/stdout/stderr is a TTY (Vitest spawnSync, CI runners, an agent
+  # session, systemd units), refuse with a clear message instead of prompting.
+  if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
     echo "" >&2
-    # Thread the confirmed ack through to the leaf: deploy-rebuild.sh
-    # refuses a production database replacement without it, so a direct
-    # leaf invocation cannot bypass this typed confirmation.
-    export FOOTBAG_PROD_DB_REPLACE_ACK=1
-  else
-    echo "  FOOTBAG_PROD_DB_REPLACE_ACK=1 → skipping interactive confirmation." >&2
-    export FOOTBAG_PROD_DB_REPLACE_ACK
+    echo "ERROR: a production deploy requires interactive confirmation, but stdin/stdout/stderr are not all TTYs." >&2
+    echo "Recommendation: run it from a terminal. There is no non-interactive form of this confirmation." >&2
+    exit 1
   fi
+  # What happens to the media bucket, asked here or not at all.
+  #
+  # A rebuild couples the media sync on, because it reseeds curated media and
+  # mints new storage keys, so the bytes have to reach the bucket or the rows it
+  # just shipped point at objects that are not there. That sync defaults to
+  # removing bucket objects with no local counterpart, and the leaf refuses to do
+  # that on anything but staging. The refusal is right and it arrived in the wrong
+  # place: at the end of step one, after the whole local database had been
+  # rebuilt, and after this gate had already taken a typed word and a password,
+  # telling the operator to start over with a flag. An intent nobody stated is a
+  # question, so it is asked here, where the answer still costs nothing, and it
+  # rides inside the one stop this gate already is. It adds no second password and
+  # no second confirmation phrase: the typed word below now covers this answer
+  # too, which is why the question comes first.
+  #
+  # Deleting is deliberately not on the menu. The operator who wants it can say
+  # so on the command line, and no prompt default should be able to select it.
+  if (( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 )); then
+    echo "  This rebuild reseeds curated media under new storage keys, so the bytes" >&2
+    echo "  need to reach the bucket or the rows it ships point at objects that are" >&2
+    echo "  not there. Nothing in the bucket is deleted either way." >&2
+    echo "" >&2
+    printf "  Skip the media upload, leaving the bucket exactly as it is? [y/N] " >&2
+    if ! read -r _media </dev/tty 2>/dev/null; then
+      echo "" >&2
+      echo "ERROR: a production deploy requires interactive confirmation, but no TTY is available." >&2
+      exit 1
+    fi
+    # Asked in the negative so the empty answer is the one that leaves the shipped
+    # rows resolvable, and so this prompt defaults to no like every other prompt in
+    # this file. Skipping has to be typed.
+    if [[ "${_media:-}" =~ ^[Yy]$ ]]; then
+      PROD_MEDIA_ARGS=(--no-media)
+      echo "  → Media upload skipped. The bucket is left exactly as it is, and any" >&2
+      echo "    row shipped under a new storage key will not resolve until those" >&2
+      echo "    bytes are uploaded separately." >&2
+    else
+      PROD_MEDIA_ARGS=(-W)
+      echo "  → Media uploaded additively, nothing deleted." >&2
+    fi
+    echo "" >&2
+  fi
+  printf "  Type 'APPLY' to confirm: " >&2
+  if ! read -r _ack </dev/tty 2>/dev/null; then
+    echo "" >&2
+    echo "ERROR: a production deploy requires interactive confirmation, but no TTY is available." >&2
+    echo "Recommendation: run it from a terminal. There is no non-interactive form of this confirmation." >&2
+    exit 1
+  fi
+  if [[ "$_ack" != "APPLY" ]]; then
+    echo "Aborted. Confirmation did not match." >&2
+    exit 1
+  fi
+  echo "  → Confirmed. Proceeding." >&2
+  echo "" >&2
+  # Thread the confirmed ack through to the leaf, for the modes that need it:
+  # deploy-rebuild.sh refuses a production database replacement without it, so a
+  # direct leaf invocation cannot bypass this typed confirmation.
+  if (( PROD_DB_TOUCHING == 1 )); then
+    export FOOTBAG_PROD_DB_REPLACE_ACK=1
+  fi
+
+  # The host sudo password is typed for production, never read from a file. The
+  # word above proves a person is present; it cannot prove which person, and on a
+  # workstation where the credential file is readable those are different
+  # properties: anyone who can read that file and reach a terminal could deploy
+  # what the public is served. Staging keeps the file read, deliberately, because
+  # its data is disposable and typing a password on every staging deploy is
+  # friction that buys nothing.
+  #
+  # Asked for here rather than just before the handoff, so production costs one
+  # interaction instead of a word now and a password after every preflight. The
+  # cost of that choice is real and small: a later preflight refusal wastes a
+  # typed password. The terminal test above has already run, so the read below
+  # cannot be satisfied by anything but a person.
+  printf "  Host sudo password for footbag-production: " >&2
+  if ! read -rs _PROD_SUDO_PASS </dev/tty 2>/dev/null; then
+    echo "" >&2
+    echo "ERROR: could not read the host password from the terminal." >&2
+    echo "Recommendation: run it from a terminal. There is no file fallback for production." >&2
+    exit 1
+  fi
+  echo "" >&2
+  if [[ -z "$_PROD_SUDO_PASS" ]]; then
+    echo "ERROR: a production deploy will not proceed on an empty password." >&2
+    exit 1
+  fi
+  PROD_PASSWORD_TYPED=1
+  echo "  → Password captured. It is piped to the deploy and never written down." >&2
+  echo "" >&2
 fi
 
 # CUTOVER-REMOVE: --seed-test-personas is allowlisted to a single explicit
@@ -404,35 +558,46 @@ if (( MODE_REUSE == 1 )) \
   trap - EXIT
 fi
 
-# Operator credential source. Default path is per-environment so a stale
-# AWS_OPERATOR env var bleed cannot accidentally feed staging credentials
-# into a production deploy (or vice versa). Explicit AWS_OPERATOR_FILE
-# overrides both defaults. Generic error: never print the resolved path.
-if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
-  if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
-    AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR_PRODUCTION.txt"
-  else
+# Operator credential source, for staging only. Production has none: its host
+# password was typed at the gate above, so there is no file to resolve, nothing to
+# check for readability and no mode to enforce. An AWS_OPERATOR_FILE aimed at a
+# production run is ignored rather than honoured, because a variable that could
+# redirect the read would leave the typed gate one environment variable away from
+# gone, which is precisely the defect the inherited database-replacement
+# acknowledgement used to have.
+if (( PROD_PASSWORD_TYPED == 1 )); then
+  if [[ -n "${AWS_OPERATOR_FILE:-}" ]]; then
+    echo "NOTICE: AWS_OPERATOR_FILE is ignored for a production deploy; the host" >&2
+    echo "        password was typed at the terminal. Staging still reads its file." >&2
+    echo "" >&2
+  fi
+else
+  # Default path is per-environment so a stale AWS_OPERATOR env var bleed cannot
+  # accidentally feed one environment's credentials into another's deploy.
+  # Explicit AWS_OPERATOR_FILE overrides the default. Generic error: never print
+  # the resolved path.
+  if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
     AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR.txt"
   fi
-fi
-if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
-  echo "ERROR: operator credential source unavailable." >&2
-  echo "Recommendation: verify the configured credential location is readable." >&2
-  exit 1
-fi
+  if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
+    echo "ERROR: operator credential source unavailable." >&2
+    echo "Recommendation: verify the configured credential location is readable." >&2
+    exit 1
+  fi
 
-# The file holds a host sudo password, so anything readable beyond its owner is
-# an exposure rather than an inconvenience: every account on the workstation can
-# read it, and nothing else in the chain would notice. The requirement is
-# already the documented one; this refuses rather than trusting it, because a
-# wrong mode is silent and can persist for months. Generic message: never print
-# the resolved path.
-_cred_mode=$(stat -c '%a' "$AWS_OPERATOR_FILE" 2>/dev/null || echo "")
-if [[ "$_cred_mode" != "600" && "$_cred_mode" != "400" ]]; then
-  echo "ERROR: operator credential file has mode ${_cred_mode:-unknown}; expected 600 (or 400)." >&2
-  echo "Recommendation: restrict it to its owner, then rotate the password it holds," >&2
-  echo "                since a readable file must be assumed to have been read." >&2
-  exit 1
+  # The file holds a host sudo password, so anything readable beyond its owner is
+  # an exposure rather than an inconvenience: every account on the workstation can
+  # read it, and nothing else in the chain would notice. The requirement is
+  # already the documented one; this refuses rather than trusting it, because a
+  # wrong mode is silent and can persist for months. Generic message: never print
+  # the resolved path.
+  _cred_mode=$(stat -c '%a' "$AWS_OPERATOR_FILE" 2>/dev/null || echo "")
+  if [[ "$_cred_mode" != "600" && "$_cred_mode" != "400" ]]; then
+    echo "ERROR: operator credential file has mode ${_cred_mode:-unknown}; expected 600 (or 400)." >&2
+    echo "Recommendation: restrict it to its owner, then rotate the password it holds," >&2
+    echo "                since a readable file must be assumed to have been read." >&2
+    exit 1
+  fi
 fi
 
 # Code-only schema-sync (the bare default, or -k). A code-only deploy ships new
@@ -549,13 +714,44 @@ fi
 # Pre-deploy summary. No paths, no secrets; just mode + target + host IP.
 # Helps the operator catch a wrong DEPLOY_TARGET before the deploy proceeds.
 # -----------------------------------------------------------------------------
-echo "──────────────────────────────────────────────────────────"
-echo "  Deploy mode:    $*"
-echo "  Target alias:   $DEPLOY_TARGET"
-echo "  Resolved host:  $RESOLVED_HOST"
-echo "──────────────────────────────────────────────────────────"
+# To stderr, for the reason both leaves send their own banners there: the
+# production origin address is deliberately not public, because the host's web
+# port is scoped to the CDN's origin ranges and publishing the address gives away
+# what that scoping withholds. Standard output is what a wrapper, a
+# continuous-integration job or an agent session captures, and this summary runs
+# before the leaves do, so moving only their banners left the address reaching the
+# capture anyway through the very first thing an operator runs. The operator still
+# sees every line, because a terminal receives both streams.
+echo "──────────────────────────────────────────────────────────" >&2
+echo "  Deploy mode:    $*" >&2
+echo "  Target alias:   $DEPLOY_TARGET" >&2
+echo "  Resolved host:  $RESOLVED_HOST" >&2
+echo "──────────────────────────────────────────────────────────" >&2
 
-# Pipe the operator-secrets file to the orchestrator's stdin instead of
-# passing as a positional arg. argv-leak hardening: the password never
-# appears in any process's argv on the operator workstation.
-exec bash scripts/deploy-to-aws.sh "$@" < "$AWS_OPERATOR_FILE"
+# Hand the host password to the orchestrator on stdin instead of as a positional
+# arg. argv-leak hardening: the password never appears in any process's argv on
+# the operator workstation, and everything downstream reads exactly one line
+# (require_operator_stdin in scripts/lib/host-env-remote.sh), so a typed line and
+# a file's first line are interchangeable.
+#
+# Production sends the typed value through a process substitution, which is a pipe
+# on every bash. A here-string is the obvious shorthand and is avoided here because
+# its backing store is not guaranteed: bash before 5.1 wrote every here-document to
+# a temp file, and 5.1 still falls back to one above a size threshold (measured on
+# 5.1.16: a short value gets a pipe, 64 KB gets /tmp/sh-thd.XXXXXX, unlinked but on
+# disk). A password is short, so today's bash would keep it in a pipe either way;
+# the point is that the guarantee comes from the construct rather than from the
+# version and the length, and this is not a value to make that bet about.
+# exec replaces this process image, so the variable does not outlive the handoff.
+#
+# PROD_MEDIA_ARGS carries the media intent the production gate asked for, appended
+# rather than substituted: an operator who named one of the media flags themselves
+# never reached that question, so the array is empty and the arguments are exactly
+# what they typed.
+if (( PROD_PASSWORD_TYPED == 1 )); then
+  exec bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
+    < <(printf '%s\n' "$_PROD_SUDO_PASS")
+else
+  exec bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
+    < "$AWS_OPERATOR_FILE"
+fi

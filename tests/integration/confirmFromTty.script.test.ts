@@ -38,7 +38,12 @@ function runConfirm(assumeYes: 'yes' | 'no'): { status: number | null; stderr: s
   // condition that used to produce a prompt.
   const res = spawnSync(
     'bash',
-    ['-c', `ASSUME_YES=${assumeYes}; source "${LIB}"; confirm_from_tty "apply? (yes/no): " yes`],
+    // Assigned AFTER the source, which is the real calling convention: every
+    // script sources this library first and parses its own --yes flag second.
+    // The library assigns ASSUME_YES unconditionally, so a value set before the
+    // source is deliberately overwritten -- that is what stops an exported one
+    // deciding a confirmation.
+    ['-c', `source "${LIB}"; ASSUME_YES=${assumeYes}; confirm_from_tty "apply? (yes/no): " yes`],
     { encoding: 'utf8', ...SPAWN_GUARD },
   );
   return { status: res.status, stderr: res.stderr ?? '' };
@@ -71,5 +76,44 @@ describe('confirm_from_tty: the human-present guard', () => {
     const source = readFileSync(LIB, 'utf8');
     const guard = source.slice(source.indexOf('confirm_from_tty() {'), source.indexOf('confirm_from_tty() {') + 900);
     expect(guard).not.toMatch(/-t\s*0/);
+  });
+
+  it('does not let the launching environment decide a confirmation', () => {
+    // An exported ASSUME_YES=yes once accepted the typed confirmation on a
+    // production apply, on arming live payments, and on restoring a database,
+    // with no terminal involved and nothing printed to say so. The name is
+    // generic enough for an unrelated tool to set it.
+    //
+    // The fix is here rather than in each caller. Every script used to have to
+    // remember to clear the variable before sourcing, which is a convention no
+    // test can enforce from outside and every new script can forget. Assigning
+    // unconditionally in the library removes the class: a caller cannot inherit
+    // what the library always overwrites.
+    const lib = readFileSync(LIB, 'utf8');
+    expect(lib).toMatch(/^ASSUME_YES="no"$/m);
+    expect(
+      lib,
+      'the library must not default this from the environment; assign it unconditionally',
+    ).not.toMatch(/ASSUME_YES="\$\{ASSUME_YES/);
+  });
+
+  it('overrides an exported value even for a caller that never clears it', () => {
+    // The behavioural half of the assertion above, driven the way a real
+    // operator shell would: the variable is exported into the child process.
+    const res = spawnSync(
+      'bash',
+      ['-c', `source "${LIB}"; printf '%s' "$ASSUME_YES"`],
+      { encoding: 'utf8', env: { ...process.env, ASSUME_YES: 'yes' }, ...SPAWN_GUARD },
+    );
+    expect(res.stdout).toBe('no');
+  });
+
+  it('still lets a caller opt in after sourcing, which is how --yes works', () => {
+    const res = spawnSync(
+      'bash',
+      ['-c', `source "${LIB}"; ASSUME_YES="yes"; printf '%s' "$ASSUME_YES"`],
+      { encoding: 'utf8', env: { ...process.env, ASSUME_YES: 'no' }, ...SPAWN_GUARD },
+    );
+    expect(res.stdout).toBe('yes');
   });
 });

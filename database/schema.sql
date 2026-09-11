@@ -3321,7 +3321,6 @@ VALUES
 --   reconciliation_window_days      Lookback window the nightly reconciliation compares
 --   reconciliation_grace_minutes    Age a record must reach before reconciliation judges it
 --   reconciliation_summary_interval_days Cadence for reconciliation digest email
---   primary_snapshot_version_days   S3 versioning retention for primary bucket
 --   cross_region_backup_retention_days Object Lock retention for DR bucket
 --   continuous_backup_interval_minutes Interval between SQLite backup runs
 --   outbox_retry_base_seconds       Base interval (seconds) for send-failure exponential backoff
@@ -3472,7 +3471,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'outbox_bulk_batch_limit', '5',
    '2000-01-01T00:00:00.000Z',
-   'Most of one polling pass bulk mail may take, so a bulk run paces itself and never delays transactional mail (default: 5).',
+   'The most of one polling pass that bulk mail may take, so a bulk run paces itself and never delays transactional mail (default: 5).',
    NULL
   ),
 
@@ -3921,15 +3920,6 @@ VALUES
    'work_queue_resolve_rate_limit_per_hour', '120',
    '2000-01-01T00:00:00.000Z',
    'Max work-queue resolutions per admin per hour (default: 120).',
-   NULL
-  ),
-
-  (
-   'seed-primary-snapshot-version-days',
-   '2000-01-01T00:00:00.000Z',
-   'primary_snapshot_version_days', '30',
-   '2000-01-01T00:00:00.000Z',
-   'S3 versioning retention window in days for primary backup bucket (default: 30).',
    NULL
   ),
 

@@ -67,8 +67,10 @@ function runTyped(args: string[], phrase: string) {
   });
 }
 
-const PHRASE_COMPLETE = 'RECORD CUTOVER COMPLETE';
-const PHRASE_REVERSED = 'REVERSE CUTOVER MARKER';
+// One word for every confirmation in the tree; the direction comes from --set.
+// Two names are kept so each call site still reads as the direction it drives.
+const PHRASE_COMPLETE = 'APPLY';
+const PHRASE_REVERSED = PHRASE_COMPLETE;
 
 /** The real config table and its current-value view, so the fixture answers the
  *  same question the live database would. */
@@ -209,12 +211,22 @@ describe('cutover marker writer', () => {
     expect(configRowCount()).toBe(0);
   });
 
-  it('will not accept the other direction\'s phrase', () => {
+  it('states which direction it is about to take, and what that costs, before asking', () => {
+    // The typed word used to encode the direction, so typing the wrong script's
+    // phrase aborted the run. Every confirmation in the tree now asks for the same
+    // word, which means the direction is carried by --set alone and the operator's
+    // only protection against the wrong one is being told, in full, what is about
+    // to happen. That text is therefore load-bearing and is pinned here.
     makeDb('1');
     fs.appendFileSync(envPath, 'FOOTBAG_CUTOVER_COMPLETE=1\n', 'utf-8');
-    const r = runTyped(['--set', 'reversed'], PHRASE_COMPLETE);
+    const r = runTyped(['--set', 'reversed'], 'not the word');
     expect(r.status).toBe(1);
-    expect(`${r.stdout}${r.stderr}`).toMatch(/confirmation phrase not entered/);
+    const out = `${r.stdout}${r.stderr}`;
+    expect(out).toMatch(/This REVERSES the cutover marker, re-arming the destructive rebuild deploy/);
+    expect(out).toMatch(/removes the protection that stops a full-refresh deploy destroying the live/);
+    // The narrative comes before the prompt, not after it.
+    expect(out.indexOf('This REVERSES')).toBeLessThan(out.indexOf("Type 'APPLY'"));
+    expect(out).toMatch(/confirmation phrase not entered/);
     // Still protected: the reversal did not happen.
     expect(envHasMarker()).toBe(true);
     expect(configRowCount()).toBe(1);
@@ -238,5 +250,29 @@ describe('cutover marker writer', () => {
     const r = run(['--set', 'reversed', '--dry-run']);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain(PHRASE_REVERSED);
+  });
+
+  it('reports the status from a machine that holds no host env file', () => {
+    // Every other case here supplies one, which is why nothing caught this: off
+    // the host the file is simply absent, and reading a value from it is meant to
+    // yield nothing and fall back to the default path. Instead grep exited 2 on
+    // the missing file, pipefail carried that out of the pipeline, and the failed
+    // command substitution tripped `set -e`: the script died with status 2 having
+    // printed nothing at all. An operator checking the marker from their
+    // workstation got silence and a failure code.
+    // DB_PATH is deliberately NOT set: it short-circuits the only place the env
+    // file is read for a value, so a case that sets it cannot reach the defect at
+    // all. The first version of this test set it and passed against the broken
+    // script, which is the whole reason the rule is to watch a test fail first.
+    const r = spawnSync('bash', [SCRIPT, '--status'], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, ENV_PATH: path.join(tmp, 'absent-env'), DB_PATH: '' },
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
+    expect(r.stdout).toContain('Cutover marker status');
+    expect(r.stdout).toMatch(/FOOTBAG_CUTOVER_COMPLETE: reversed/);
+    expect(r.stdout).toMatch(/post_cutover:\s+no-database/);
   });
 });

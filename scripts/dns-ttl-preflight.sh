@@ -165,10 +165,38 @@ for rec in "${REC_LIST[@]}"; do
     esac
 
     for ns in "${NS_ARR[@]}"; do
-      answer=$(dig "@${ns}" +noall +answer "${rec}" "${rtype}" 2>/dev/null || true)
-      served=$(printf '%s' "${answer}" | sed -E 's/[[:space:]]+/ /g' | cut -d' ' -f2 | head -1)
+      # dig's exit status is kept rather than swallowed, because an unreachable
+      # nameserver is not a quiet one. dig writes ";; communications error to
+      # <addr>: timed out" and ";; no servers could be reached" to STDOUT, not to
+      # stderr, and exits non-zero. Swallowing the status and reading field two
+      # of that notice yielded the word "communications" as the served TTL, so a
+      # dead nameserver was reported as a TTL mismatch and sent the operator to
+      # the zone's records to fix a problem that was not there. Found by running
+      # this gate against the real zone, where one of four delegated nameservers
+      # was down.
+      dig_status=0
+      answer=$(dig "@${ns}" +noall +answer "${rec}" "${rtype}" 2>/dev/null) || dig_status=$?
+      if (( dig_status != 0 )); then
+        printf 'GATE: DNS-TTL FAIL: %s %s could not be looked up on %s (dig exit %d): that is a nameserver reachability failure, not a TTL value\n' \
+          "${rec}" "${rtype}" "${ns}" "${dig_status}"
+        fail=1
+        continue
+      fi
+      # Comment lines are dropped before the field is taken, so no part of dig's
+      # own diagnostics can be mistaken for an answer. sed rather than grep -v,
+      # because grep exits 1 when it filters everything out and pipefail would
+      # turn that into a script-killing failure on exactly the input this guards.
+      served=$(printf '%s' "${answer}" | sed '/^;/d' | sed -E 's/[[:space:]]+/ /g' | cut -d' ' -f2 | head -1)
       if [[ -z "${served}" ]]; then
         printf 'GATE: DNS-TTL FAIL: %s %s returned no answer from %s\n' "${rec}" "${rtype}" "${ns}"
+        fail=1
+        continue
+      fi
+      # A TTL is a number. Anything else means the answer was not an answer, and
+      # the gate says so rather than comparing a word against the required value.
+      if ! [[ "${served}" =~ ^[0-9]+$ ]]; then
+        printf 'GATE: DNS-TTL FAIL: %s %s from %s produced no numeric TTL (got %s): treat it as a failed lookup, not a TTL mismatch\n' \
+          "${rec}" "${rtype}" "${ns}" "${served}"
         fail=1
         continue
       fi

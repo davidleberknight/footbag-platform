@@ -71,4 +71,28 @@ describe('check-media-integrity.sh exit contract', () => {
     expect(res.status, res.stdout + res.stderr).toBe(2);
     expect(res.stderr).toContain('check-media-integrity: error');
   });
+
+  it('exits 2 when the storage adapter cannot be configured', { timeout: 60_000 }, () => {
+    // The adapter resolves its configuration as its module loads, so a bad
+    // configuration threw before main ran: the catch above never saw it and the
+    // process exited 1, which is the code that means referenced objects are absent.
+    // A caller reading that told the operator the database pointed at missing media
+    // when nothing had been compared. Deferring the import makes a configuration
+    // failure land where it belongs, as the setup error the exit contract promises.
+    const dbPath = path.join(workDir, 'fixture.db');
+    const db = new BetterSqlite3(dbPath);
+    db.exec(SCHEMA_SQL);
+    db.close();
+
+    const res = spawnSync('bash', ['scripts/check-media-integrity.sh'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      env: { ...process.env, FOOTBAG_DB_PATH: dbPath, MEDIA_STORAGE_ADAPTER: 'not-an-adapter' },
+      ...SPAWN_GUARD,
+      timeout: 55_000,
+    });
+    expect(res.status, res.stdout + res.stderr).toBe(2);
+    expect(res.stderr).toContain('check-media-integrity: error');
+    expect(res.stderr).toContain("MEDIA_STORAGE_ADAPTER must be 's3' or 'local'");
+  });
 });

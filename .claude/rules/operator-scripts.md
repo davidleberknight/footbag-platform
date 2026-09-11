@@ -22,7 +22,21 @@ each is a real one.
   refuse; if it cannot, state it and require the operator to attest to it.
 - **Confirmation is typed, and read from a terminal.** Never from stdin when stdin carries a
   credential: the prompt would consume the credential as the answer and echo it on the failed
-  comparison.
+  comparison. And never from the environment: the accept-without-asking flag is assigned by the
+  shared helper, so an exported value in the operator's shell cannot stand in for the typed answer.
+  Use `confirm_from_tty`; do not re-implement the prompt.
+- **The word is always `APPLY`.** One word for every confirmation in the tree, whatever the script
+  and whatever the direction. State what is being confirmed in full, immediately before the prompt,
+  and never encode it in the word: a phrase per script gives the operator something to look up, and
+  looking it up is what teaches them to reach for whatever flag skips the prompt. A script that asks
+  for anything else fails the conventions suite, which counts the prompts rather than sampling them.
+  Where a confirmation carries a direction, the direction comes from the flag and the prose, not from
+  the word.
+- **A production deploy asks every time.** Whatever the mode, including a code-only deploy that
+  leaves the database alone, because the release it replaces is what the public is served. No flag
+  and no environment variable supplies that confirmation in advance, and a run with no terminal
+  attached is refused rather than waved through, so no scheduled job, continuous-integration runner
+  or agent session can deploy production unattended. Staging is deliberately not gated this way.
 - **Verification proves the outcome.** Not that a command was invoked, and not that a service is
   running, if what matters is that it is configured and doing its job.
 - **Cleanup is on a trap**, covering EXIT, INT and TERM, so an interrupt leaves nothing behind
@@ -47,7 +61,28 @@ Each of these was violated by a script in this repository, and each failure was 
 ## The shape
 
 - A `--target` naming the environment, with **no default**. Which environment a run lands on is
-  never inherited from ambient state.
+  never inherited from ambient state. Two exceptions, both deliberate and recorded in the design
+  decisions. A script whose subject exists in exactly one environment, such as the live-payments
+  levers, where the environment is a property of the thing rather than a choice the operator is
+  making. And the deploy entry points, which take `DEPLOY_TARGET` from the environment and default it
+  to staging: the wrapper refuses any value that is not one of the two known environments, so a typo
+  cannot route a deploy somewhere unintended, and a forgotten variable sends the run to the
+  environment whose data is disposable. Production is protected by a different mechanism instead,
+  which is the one that matters: every production deploy stops for a typed confirmation read from the
+  terminal, and refuses outright when no terminal is attached, so no scheduled job or agent session
+  can replace what the public is served unattended.
+- The deploy works in `$REPO_ROOT`, never the working directory: it moves there once, as soon as it
+  has computed it, ships from there, and reaches every script it hands off to by a path built from
+  its own location rather than a relative one. A relative source means a run started from elsewhere ships a
+  tree that matches none of the anchored includes, and the remote half then promotes that near-empty
+  tree over the live install with `--delete`. Anchoring the source alone leaves the same defect on the
+  building side, where the database rebuild, the smoke checks, the Terraform reads and the media check
+  resolve against the caller's directory: the run then builds one database and ships another. The same
+  applies to the entry point an operator types, and there it is worse, because its preflights fail open
+  rather than loudly. A wrapper that anchors only its hand-off still measures disk on whichever
+  filesystem the caller stood on, still finds no database to check for a lock, and still conditions its
+  schema gates on a file it is now looking for in the wrong place — so the run proceeds without the gate
+  that exists to stop it, and says nothing. Anchor the whole run, not the path it hands off.
 - A named test seam (an environment variable replacing the external binary) for anything that
   reaches AWS or a host, and the script **says on stderr when the seam is in use**, because a
   stubbed run proves nothing about the estate.

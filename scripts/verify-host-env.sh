@@ -17,7 +17,7 @@
 # Usage (the sudo password is read from stdin, line 1). The credential file is
 # per-environment, matching the defaults deploy_to_aws.sh resolves; the path is
 # not sensitive, the contents are, so these are pasteable as written:
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/verify-host-env.sh
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/verify-host-env.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-host-env.sh --target production
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/verify-host-env.sh --target staging --ssh-alias my-staging-host
 #
@@ -41,7 +41,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-expectations.
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
-TARGET="staging"
+# No default target. A verification that silently reports on the environment the
+# operator did not name is worse than one that refuses.
+TARGET=""
 SSH_ALIAS=""
 HOST_ENV_PATH="/srv/footbag/env"
 ENV_FILE_OVERRIDE=""
@@ -80,6 +82,10 @@ done
 
 case "$TARGET" in
   staging|production) ;;
+  '')
+    echo "ERROR: --target is required ('staging' or 'production')" >&2
+    exit 2
+    ;;
   *)
     echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
     exit 2
@@ -91,9 +97,13 @@ if [[ -z "$SSH_ALIAS" ]]; then
 fi
 
 if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
-  TF_DIR="terraform/$TARGET"
+  # Anchored to this script's own checkout, the way the container-sizing file below
+  # already is, rather than to the caller's directory. The refusal it replaces told
+  # the operator to run from the project root, which is a requirement no other
+  # script in this family still has.
+  TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/terraform/$TARGET"
   if [[ ! -d "$TF_DIR" ]]; then
-    echo "ERROR: terraform directory $TF_DIR does not exist (run from project root)" >&2
+    echo "ERROR: terraform directory $TF_DIR does not exist" >&2
     exit 2
   fi
 fi
@@ -193,8 +203,10 @@ fi
 # -----------------------------------------------------------------------------
 declare -A HOST_ENV
 PARSE_ERRORS=0
+LINE_NO=0
 
 while IFS= read -r line; do
+  LINE_NO=$((LINE_NO + 1))
   # Strip leading whitespace; ignore blank lines and comment lines.
   trimmed="${line#"${line%%[![:space:]]*}"}"
   if [[ -z "$trimmed" || "$trimmed" == \#* ]]; then
@@ -210,10 +222,12 @@ while IFS= read -r line; do
     fi
     HOST_ENV[$key]="$value"
   else
-    # The line is reported by shape, never by content. An unparseable line is
-    # most often a mangled assignment, so echoing it verbatim is the one path
-    # in this script that would print a secret value in the clear.
-    echo "WARN: unparseable line in $HOST_ENV_PATH (${#trimmed} chars, starts '${trimmed:0:12}'); value withheld" >&2
+    # The line is reported by shape, never by content: its length and the line
+    # number, and nothing of what it holds. The first twelve characters used to
+    # be printed as a locating aid, which defeats the purpose -- the likeliest
+    # mangling is a value pasted onto a line of its own, and the head of a
+    # secret is still a secret.
+    echo "WARN: unparseable line ${LINE_NO:-?} in $HOST_ENV_PATH (${#trimmed} chars); content withheld" >&2
     PARSE_ERRORS=$((PARSE_ERRORS + 1))
   fi
 done <<< "$HOST_ENV_RAW"
@@ -334,8 +348,15 @@ get_effective_source() {
     echo "env-file"
     return
   fi
-  local cf
-  for cf in docker/docker-compose.yml docker/docker-compose.prod.yml; do
+  # Anchored, like the Terraform directory and the sizing file: read relatively,
+  # these two files simply do not exist when the script is run from anywhere but
+  # the repository root, every `[[ -f ]]` skips, and each key the compose side
+  # supplies is then reported as missing from the host. That is worse than a path
+  # error, because it reads as a content failure: the operator is told the host env
+  # file lacks three values it does have, and sent to a setter that will not fix it.
+  local cf repo_root
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  for cf in "$repo_root/docker/docker-compose.yml" "$repo_root/docker/docker-compose.prod.yml"; do
     [[ -f "$cf" ]] || continue
     # ${KEY:?...}: compose-required, must be in env file
     if grep -F "\${${key}:?" "$cf" >/dev/null 2>&1; then
@@ -552,7 +573,7 @@ SES_FEEDBACK_QUEUE_ACTUAL="${HOST_ENV[SES_FEEDBACK_QUEUE_URL]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
   check_pass "ses feedback queue: not required (SES_ADAPTER is not 'live')"
 elif [[ -z "$SES_FEEDBACK_QUEUE_ACTUAL" ]]; then
-  check_fail "ses feedback queue: SES_FEEDBACK_QUEUE_URL is unset, so no bounce or complaint is ever recorded (enable the feed queues in terraform, then run scripts/set-host-env.sh)"
+  check_fail "ses feedback queue: SES_FEEDBACK_QUEUE_URL is unset, so no bounce or complaint is ever recorded (enable the feed queues in terraform, then run scripts/set-host-env.sh --target $TARGET)"
 else
   check_pass "ses feedback queue: SES_FEEDBACK_QUEUE_URL present"
 fi
@@ -566,7 +587,7 @@ SES_FEEDBACK_ARN_ACTUAL="${HOST_ENV[SES_FEEDBACK_TOPIC_ARN]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
   check_pass "ses feedback topic: not required (SES_ADAPTER is not 'live')"
 elif [[ -z "$SES_FEEDBACK_ARN_ACTUAL" ]]; then
-  check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is unset, so every feedback delivery is refused (run scripts/set-host-env.sh, which writes the topic ARNs from the Terraform outputs)"
+  check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is unset, so every feedback delivery is refused (run scripts/set-host-env.sh --target $TARGET, which writes the topic ARNs from the Terraform outputs)"
 elif [[ ! "$SES_FEEDBACK_ARN_ACTUAL" =~ ^arn:aws:sns: ]]; then
   check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is not an SNS topic ARN"
 else
@@ -583,7 +604,7 @@ SES_SET_BULK="${HOST_ENV[SES_CONFIGURATION_SET_BULK]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
   check_pass "ses configuration sets: not required (SES_ADAPTER is not 'live')"
 elif [[ -z "$SES_SET_TRANSACTIONAL" || -z "$SES_SET_BULK" ]]; then
-  check_fail "ses configuration sets: SES_CONFIGURATION_SET_TRANSACTIONAL and _BULK must both be set, or bulk and transactional mail share one sending reputation (run scripts/set-host-env.sh, which writes them from the Terraform outputs)"
+  check_fail "ses configuration sets: SES_CONFIGURATION_SET_TRANSACTIONAL and _BULK must both be set, or bulk and transactional mail share one sending reputation (run scripts/set-host-env.sh --target $TARGET, which writes them from the Terraform outputs)"
 elif [[ "$SES_SET_TRANSACTIONAL" == "$SES_SET_BULK" ]]; then
   check_fail "ses configuration sets: both names are '$SES_SET_BULK', so the two streams are not separated at all"
 else
@@ -623,7 +644,7 @@ elif [[ "$TF_NOTICE_ENABLED" == "true" && -n "$TF_PREVIEW_URL" && "$PUBLIC_URL_A
   # below, which is what marches the operator through the launch move.
   check_pass "public base URL: PUBLIC_BASE_URL=$TF_PREVIEW_URL (cutover window: the notice is up and preview is the platform's public name; at launch re-run scripts/set-host-env.sh --target $TARGET without --preview)"
 elif [[ -z "$PUBLIC_URL_ACTUAL" ]]; then
-  check_fail "public base URL: PUBLIC_BASE_URL is unset (expected '$TF_PLATFORM_URL'); scripts/set-host-env.sh writes it"
+  check_fail "public base URL: PUBLIC_BASE_URL is unset (expected '$TF_PLATFORM_URL'); scripts/set-host-env.sh --target $TARGET writes it"
 elif [[ -n "$TF_PREVIEW_URL" && "$PUBLIC_URL_ACTUAL" == "$TF_PREVIEW_URL" ]]; then
   check_fail "public base URL: PUBLIC_BASE_URL=$TF_PREVIEW_URL is the window form, but the notice flag is off — the window is over and the host is still building every link against preview. Re-run scripts/set-host-env.sh --target $TARGET (no --preview) and restart"
 else
@@ -783,10 +804,11 @@ if (( FAILS > 0 )); then
   echo "      -> docker/env/<environment>.env, then deploy" >&2
   echo "  a deploy-synced value (session secret, origin verify, JWT key id, media bucket)" >&2
   echo "      -> owned by Terraform and written by the deploy: redeploy" >&2
-  echo "  an operator-run value (proxy hops, backup bucket, topics, queues, sender)" >&2
-  echo "      -> scripts/set-host-env.sh" >&2
-  echo "  anything else (public base URL, env label, DB path, AWS profile/region," >&2
-  echo "  captcha site key) is still hand-set on the host; edit it there." >&2
+  echo "  an operator-run value (proxy hops, backup bucket, topics, queues, sender," >&2
+  echo "  public base URL)" >&2
+  echo "      -> scripts/set-host-env.sh --target <env>" >&2
+  echo "  anything else (env label, DB path, AWS profile/region, captcha site key)" >&2
+  echo "  has no owning script yet and is set on the host at bootstrap." >&2
   exit 1
 fi
 

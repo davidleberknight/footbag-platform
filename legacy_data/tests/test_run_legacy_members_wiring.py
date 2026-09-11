@@ -129,9 +129,8 @@ def test_final_merge_applies_the_recorded_account_rulings() -> None:
     assert '--entitlement-dispositions "${ADJ_ENTITLEMENTS}"' in merge_call
     # Both paths are built once, where the readiness check reads them, so the
     # check and the call cannot disagree about which files a run actually applied.
-    assert 'ADJ_DIR="${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}"' in TEXT
-    assert 'ADJ_STAGE_A="${ADJ_DIR}/stage_a_adjudication.csv"' in TEXT
-    assert 'ADJ_ENTITLEMENTS="${ADJ_DIR}/entitlement_dispositions.csv"' in TEXT
+    assert 'ADJ_STAGE_A="${PRIVATE_OVERRIDES}/stage_a_adjudication.csv"' in TEXT
+    assert 'ADJ_ENTITLEMENTS="${PRIVATE_OVERRIDES}/entitlement_dispositions.csv"' in TEXT
 
 
 def test_production_load_refuses_when_its_inputs_are_absent() -> None:
@@ -144,11 +143,13 @@ def test_production_load_refuses_when_its_inputs_are_absent() -> None:
     guard = TEXT[i_guard:i_merge]
     assert "REFUSING a production load" in guard
     assert "exit 1" in guard
-    # The rulings are the one thing a human supplies, and the only thing a
-    # production load insists on. The measurement date defaults to today, so it
-    # is not a thing anyone can forget to set, and how old a dump is worth
-    # loading stays the operator's call rather than a gate.
-    assert "FOOTBAG_MEMBER_ADJUDICATIONS_DIR" in guard
+    # The rulings are the only input a production load insists on, and the refusal
+    # names the symlink that delivers them rather than a variable to export: on a
+    # maintainer machine they are already there, so the only machine that can still
+    # refuse is one without the private checkout. The measurement date defaults to
+    # today, so it is not a thing anyone can forget to set, and how old a dump is
+    # worth loading stays the operator's call rather than a gate.
+    assert "footbag_private_repo" in guard
     assert 'CUTOVER_DATE="${FOOTBAG_CUTOVER_DATE:-$(date -u +%F)}"' in TEXT
     assert "max-dump-age" not in TEXT
 
@@ -161,9 +162,13 @@ def test_the_rulings_are_applied_whenever_they_are_present() -> None:
     assert 'ADJUDICATIONS_READY=1' in TEXT
     assert TEXT.index('if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]') < \
         TEXT.index('reconcile_legacy_members.py" --final-merge')
+    # The rulings reach the final merge and nothing earlier: Stage B proposes links
+    # mechanically and the quality gate reads its output, so handing either the
+    # rulings would make the gate judge a result already adjudicated.
     stage_b_call = TEXT[TEXT.index('reconcile_legacy_members.py" --stage-b'):
                         TEXT.index('reconcile_legacy_members.py" --qc-gate')]
-    assert "FOOTBAG_MEMBER_ADJUDICATIONS_DIR" not in stage_b_call
+    assert "--overrides" not in stage_b_call
+    assert "ADJ_STAGE_A" not in stage_b_call
 
 
 def test_the_board_roster_is_resolved_and_passed_by_the_runner() -> None:
@@ -172,7 +177,7 @@ def test_the_board_roster_is_resolved_and_passed_by_the_runner() -> None:
     # by the runner and handed to the extractor as an argument: relying on the
     # extractor's own environment lookup makes it an input that takes effect only
     # when a variable happens to be exported, and whose absence nothing reports.
-    assert 'BOARD_ROSTER="${FOOTBAG_BOARD_ROSTER:-}"' in TEXT
+    assert 'BOARD_ROSTER="${PRIVATE_OVERRIDES}/board_at_cutover.csv"' in TEXT
     assert "BOARD_ROSTER_READY=1" in TEXT
     extract_call = TEXT[TEXT.index("extract_legacy_members.py"):]
     extract_call = extract_call[:extract_call.index("extract_legacy_admins.py")]
@@ -187,7 +192,7 @@ def test_production_extract_refuses_without_the_board_roster() -> None:
     i_guard = TEXT.index('"${BOARD_ROSTER_READY}" -eq 0')
     guard = TEXT[i_guard:TEXT.index("==> member intake:")]
     assert "REFUSING a production extract" in guard
-    assert "FOOTBAG_BOARD_ROSTER" in guard
+    assert "footbag_private_repo" in guard
     assert "exit 1" in guard
     assert '"${DO_EXTRACT}" -eq 1' in TEXT[i_guard - 200:i_guard]
 
@@ -204,7 +209,7 @@ def test_rulings_without_a_roster_are_refused_before_any_stage_runs() -> None:
         '&& "${BOARD_ROSTER_READY}" -eq 0 ]]')
     assert i_extract_guard < TEXT.index("==> extract: members from the dump")
     extract_guard = TEXT[i_extract_guard:TEXT.index("==> member intake:")]
-    assert "FOOTBAG_BOARD_ROSTER" in extract_guard
+    assert "footbag_private_repo" in extract_guard
     assert "exit 1" in extract_guard
 
     i_csv_guard = TEXT.index('if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${CSV_BOARD_ROWS}" -eq 0 ]]')
@@ -238,3 +243,47 @@ def test_the_help_promises_the_dump_age_only_where_a_dump_is_read() -> None:
     assert "an extract\n" in usage
     assert "prints no age" in usage
     assert "every run" not in usage
+
+
+def test_the_private_inputs_resolve_themselves_and_no_variable_names_a_path() -> None:
+    # A production load refused because an operator had not exported a variable
+    # naming a path inside the private checkout. The refusal was right and the
+    # remedy was wrong: every operator command in this tree is a canonical script
+    # invocation, and no command carries a path. The three files always sit
+    # together in the private checkout, reached through the repo-root symlink that
+    # extract_legacy_estate.py, derive_vote_tallies.py,
+    # build_group_disposition_worksheet.py, fetch_group_files.py and
+    # verify_mirror.sh already use, so the runner resolves them the same way.
+    assert 'PRIVATE_OVERRIDES="${REPO_ROOT}/footbag_private_repo/private_data/stage_a_overrides"' in TEXT
+    # Resolved once, before the readiness checks that read it.
+    assert TEXT.index("PRIVATE_OVERRIDES=") < TEXT.index("ADJUDICATIONS_READY=0")
+    # And there is no way left to name the location. A variable that overrides it
+    # is the same defect wearing a default: the path becomes something a human can
+    # get wrong, and a load can silently apply a different set of rulings than the
+    # one the checkout holds.
+    assert "FOOTBAG_MEMBER_ADJUDICATIONS_DIR" not in TEXT
+    assert "FOOTBAG_BOARD_ROSTER" not in TEXT
+
+
+def test_the_refusals_name_the_symlink_rather_than_a_variable_to_export() -> None:
+    # Telling an operator to set a variable is the shape this change removed. On a
+    # maintainer machine the files are already there and the run finds them; the
+    # only machine that can still refuse is one without the private checkout, and
+    # what that machine needs is the symlink, which is what the message should say.
+    for marker in ("REFUSING a production load",
+                   "REFUSING a production extract",
+                   "REFUSING. The account rulings are present and the board roster is not."):
+        start = TEXT.index(marker)
+        message = TEXT[start:start + 900]
+        assert "footbag_private_repo" in message, marker
+        assert "Set FOOTBAG_" not in message, marker
+
+
+def test_every_run_reports_the_resolved_path_whether_it_found_the_inputs_or_not() -> None:
+    # An input resolved silently is as hard to audit as one that silently stayed
+    # unset, and the absent case is the one that matters: a run that applied no
+    # rulings must say where it looked, or the lesser load it produced is
+    # indistinguishable afterwards.
+    assert "account rulings:" in TEXT
+    assert 'NOT APPLIED (nothing readable at ${PRIVATE_OVERRIDES}' in TEXT
+    assert 'applied from ${PRIVATE_OVERRIDES}' in TEXT

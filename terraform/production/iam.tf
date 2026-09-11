@@ -4,8 +4,10 @@
 # Lightsail does not support EC2 instance profiles natively. The runtime AWS
 # principal is a source-profile IAM user plus an AssumeRole chain to
 # `app-runtime`: the source-profile access keys live at
-# /root/.aws/credentials on the host (root-owned, 0600) and the app runs
-# under AWS_PROFILE=<env>-runtime which resolves via sts:AssumeRole.
+# /root/.aws/credentials on the host (root-owned, 0640 inside a 0750
+# directory owned by the credential group, so the unprivileged web and
+# worker containers joined to that group can resolve the profile) and the
+# app runs under AWS_PROFILE=<env>-runtime which resolves via sts:AssumeRole.
 # =============================================================================
 
 resource "aws_iam_role" "app_runtime" {
@@ -64,8 +66,9 @@ resource "aws_iam_role_policy" "app_ssm_read" {
       {
         # Reading a SecureString parameter needs Decrypt and nothing else. The
         # application never encrypts under this key: it writes no parameters, and
-        # ballot envelope encryption uses its own dedicated key rather than this
-        # one. GenerateDataKey was granted here and never called, which is a
+        # ballot envelope encryption, when the voting subsystem lands, will take
+        # its own dedicated key rather than this one. GenerateDataKey was granted
+        # here and never called, which is a
         # standing grant to produce key material under the key that protects
         # every secret this platform holds.
         Sid      = "DecryptSSMParameters"
@@ -255,7 +258,8 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
 # =============================================================================
 # Source-profile IAM user.
 # Long-lived keys live on the production Lightsail host at
-# /root/.aws/credentials (root-owned, 0600); the host SDK uses them as the
+# /root/.aws/credentials (root-owned, 0640, readable by the credential group
+# the app containers join); the host SDK uses them as the
 # source profile of the AssumeRole chain into app_runtime. Console access
 # disabled. Permission is scoped to sts:AssumeRole on app_runtime and the
 # logs-publisher role via the inline policy below.

@@ -82,6 +82,19 @@ done
 exec /usr/bin/install "\${args[@]}"
 `;
 
+/**
+ * The same stand-in reason, for the same reason. The root-side write body now
+ * promotes with an atomic rename rather than `install`, because `install`
+ * unlinks the destination before writing the new content and so carries the
+ * partial-write window the body exists to close. Setting the owner explicitly
+ * before that rename is something a test process cannot do, so this accepts the
+ * call and succeeds without changing anything; the mode, the rename and the
+ * destination path are all still exercised for real.
+ */
+const FAKE_CHOWN = `#!/usr/bin/env bash
+exit 0
+`;
+
 interface RunResult {
   exitCode: number;
   stdout: string;
@@ -126,6 +139,8 @@ beforeAll(() => {
   chmodSync(join(binDir, 'ssh'), 0o755);
   writeFileSync(join(binDir, 'install'), FAKE_INSTALL, 'utf-8');
   chmodSync(join(binDir, 'install'), 0o755);
+  writeFileSync(join(binDir, 'chown'), FAKE_CHOWN, 'utf-8');
+  chmodSync(join(binDir, 'chown'), 0o755);
 
   pinFile = join(workDir, 'known_hosts');
   writeFileSync(pinFile, PIN_LINE, 'utf-8');

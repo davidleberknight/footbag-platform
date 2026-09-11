@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -433,6 +433,15 @@ describe('verify-host-env.sh — CLI / fixture errors', () => {
     expect(result.status).toBe(2);
   });
 
+  it('no --target → exit 2, rather than verifying an environment nobody named', () => {
+    const result = spawnSync('bash', [SCRIPT], {
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/--target is required/);
+  });
+
   it('a host left on the pre-cutover origin fails, where presence alone would pass', () => {
     // The failure this guards: after DNS moves, a host holding the previous
     // origin still answers and still passes every health check, while building
@@ -655,5 +664,21 @@ describe('verify-host-env.sh — the link-protection switches and their derived 
     // to a file that cannot change the value.
     expect(result.stderr).toMatch(/not editable here: fix its switch above, or redeploy/);
     expect(result.stderr).not.toMatch(/Fix \/srv\/footbag\/env on/);
+  });
+});
+
+describe('verify-host-env.sh — every remedy it prints is a command that runs', () => {
+  // The setter lost its staging default, so a remedy naming it without a target
+  // exits 2 before doing anything. Four of these hints were left behind when the
+  // others were updated, which is the shape this counts rather than samples.
+  it('names the setter script only with a target', () => {
+    const lines = readFileSync(SCRIPT, 'utf8').split('\n');
+    const offenders = lines.filter(
+      (line) =>
+        !/^\s*#/.test(line) &&
+        /set-host-env\.sh/.test(line) &&
+        !/set-host-env\.sh --target/.test(line),
+    );
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 });

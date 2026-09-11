@@ -131,7 +131,7 @@ if [[ "$ACTION" != "status" ]]; then
   if [[ "$ASSUME_YES" == "yes" ]]; then
     echo "  Confirmation skipped (--yes)."
   else
-    confirm_from_tty "Type ${TARGET} to ${verb}: " "$TARGET" \
+    confirm_from_tty "Type 'APPLY' to ${verb}: " "APPLY" \
       || die "not confirmed; nothing was changed"
   fi
 fi

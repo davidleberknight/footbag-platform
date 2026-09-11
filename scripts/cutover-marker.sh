@@ -42,11 +42,11 @@ set -euo pipefail
 MARKER_ENV_PATH="${ENV_PATH:-/srv/footbag/env}"
 ACTION=""
 DRY_RUN="no"
-# One phrase per direction, deliberately different from each other and from the
-# production-live marker's pair, so no phrase an operator has typed before
-# carries them through a direction they did not mean.
-CONFIRM_COMPLETE="RECORD CUTOVER COMPLETE"
-CONFIRM_REVERSED="REVERSE CUTOVER MARKER"
+# One word for every confirmation in the tree. The direction comes from --set and
+# is stated in full, with its consequences, immediately before the prompt; it was
+# once also encoded in the phrase, which meant an operator had two phrases to look
+# up here and a different pair in every other script.
+CONFIRM_WORD="APPLY"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -66,7 +66,25 @@ case "$ACTION" in
 esac
 
 marker_env() {
-  grep -E "^$1=" "$MARKER_ENV_PATH" 2>/dev/null | tail -1 | cut -d= -f2-
+  # The env file is absent anywhere but the host, and --status is meant to be
+  # readable from anywhere: absent means "no value", and the caller falls back to
+  # the default path. That was the intent of the suppressed stderr, and `pipefail`
+  # defeated it — grep exits 2 on a missing file, the pipeline carried that out,
+  # and the command substitution's failure tripped `set -e`, so the script died
+  # with status 2 before printing a single line. A refusal with no reason is worse
+  # than a wrong answer, and every test supplied an env file, so nothing caught it.
+  #
+  # A file that exists but cannot be read is a different thing and still says so:
+  # the tolerated exit is named rather than swallowed with `|| true`, which would
+  # hide a real read error exactly as it hid this one.
+  [[ -f "$MARKER_ENV_PATH" ]] || return 0
+  local value status=0
+  value=$(grep -E "^$1=" "$MARKER_ENV_PATH" | tail -1 | cut -d= -f2-) || status=$?
+  if (( status > 1 )); then
+    echo "ERROR: $MARKER_ENV_PATH exists but could not be read (grep exit ${status})." >&2
+    return "$status"
+  fi
+  printf '%s\n' "$value"
 }
 
 if [[ -n "${DB_PATH:-}" ]]; then
@@ -148,7 +166,7 @@ if [[ "$DRY_RUN" == "yes" ]]; then
   echo "    (dry run: nothing is written)"
   echo "    env file:  $([[ "$TARGET" == "complete" ]] && echo "append FOOTBAG_CUTOVER_COMPLETE=1" || echo "remove the FOOTBAG_CUTOVER_COMPLETE line")"
   echo "    database:  append a post_cutover row with value '$DB_VALUE'"
-  echo "    a real run asks for the typed phrase: $([[ "$TARGET" == "complete" ]] && echo "$CONFIRM_COMPLETE" || echo "$CONFIRM_REVERSED")"
+  echo "    a real run asks for the typed confirmation: $CONFIRM_WORD"
   exit 0
 fi
 
@@ -177,14 +195,12 @@ fi
 
 echo ""
 if [[ "$TARGET" == "complete" ]]; then
-  CONFIRM_PHRASE="$CONFIRM_COMPLETE"
   echo "This records the cutover as complete, on this host and inside the database."
   echo ""
   echo "From this point the database-replacing rebuild deploy refuses this host and any"
   echo "copy of this database, with no bypass flag, and every destructive seeder and"
   echo "loader refuses alongside it. The reversal exists and is this same script."
 else
-  CONFIRM_PHRASE="$CONFIRM_REVERSED"
   echo "This REVERSES the cutover marker, re-arming the destructive rebuild deploy."
   echo ""
   echo "It removes the protection that stops a full-refresh deploy destroying the live"
@@ -193,9 +209,9 @@ else
 fi
 
 echo ""
-printf "Type '%s' to continue: " "$CONFIRM_PHRASE"
+printf "Type '%s' to continue: " "$CONFIRM_WORD"
 read -r TYPED
-if [[ "$TYPED" != "$CONFIRM_PHRASE" ]]; then
+if [[ "$TYPED" != "$CONFIRM_WORD" ]]; then
   echo "Aborted: confirmation phrase not entered. Neither marker was moved." >&2
   exit 1
 fi

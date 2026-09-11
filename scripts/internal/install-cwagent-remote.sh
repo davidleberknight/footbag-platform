@@ -34,14 +34,46 @@ RPM_URL="https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/late
 # Write stdin to a destination file via a user-owned tmpfile, then promote
 # with `install` (avoids piping secrets to a wrapped command's stdin, which
 # can leak when sudo creds are cached).
+# The temp file is created restricted, trapped, and shredded rather than
+# unlinked. One of its callers writes the AWS secret key: with a plain `rm -f`
+# and no trap, an `install` that failed on a full or read-only filesystem, or a
+# signal between the write and the promote, left that key sitting in /tmp
+# indefinitely. The rule names this function as the shape every privileged writer
+# should copy, which is why it is worth getting exactly right here.
+# Bash keeps ONE handler per signal, so exactly one handler owns cleanup here and
+# everything that creates something to clean up registers it. The previous shape
+# had this function install its own EXIT INT TERM handler and then clear all three
+# on the way out, which replaced and then discarded the package-directory handler
+# the install step sets below: a fresh install left its downloaded package
+# directory behind on every run, and an interrupt after the first promoted file
+# left it behind with nothing watching. A per-function trap cannot coexist with a
+# file-level one; a registry can.
+CWAGENT_TMPS=()
+cwagent_remote_cleanup() {
+  local t
+  for t in "${CWAGENT_TMPS[@]+"${CWAGENT_TMPS[@]}"}"; do
+    [[ -e "$t" ]] || continue
+    # Shredded rather than unlinked: one caller writes the AWS secret key, and an
+    # `install` that failed on a full or read-only filesystem leaves the value in
+    # the temp file.
+    shred -u "$t" 2>/dev/null || rm -f "$t"
+  done
+  if [[ -n "${tmpdir:-}" && -d "${tmpdir:-}" ]]; then
+    rm -rf "$tmpdir"
+  fi
+  return 0
+}
+trap cwagent_remote_cleanup EXIT INT TERM
+
 install_via_tmp() {
   local dest="$1"
   local mode="$2"
   local tmp
-  tmp=$(mktemp)
+  tmp=$(umask 077 && mktemp)
+  CWAGENT_TMPS+=("$tmp")
   cat > "$tmp"
   install -m "$mode" -o root -g root "$tmp" "$dest"
-  rm -f "$tmp"
+  shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
 }
 
 echo "=== Pre-flight 1: root fstype ==="
@@ -68,8 +100,9 @@ echo "=== Step 1: install amazon-cloudwatch-agent (rpm) ==="
 if rpm -q amazon-cloudwatch-agent >/dev/null 2>&1; then
   echo "  Already installed: $(rpm -q amazon-cloudwatch-agent)"
 else
+  # No trap of its own: the file-level handler above removes this directory, and a
+  # second handler here would replace that one rather than add to it.
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "${tmpdir}"' EXIT
   curl -fsSL "$RPM_URL" -o "${tmpdir}/amazon-cloudwatch-agent.rpm"
   dnf install -y "${tmpdir}/amazon-cloudwatch-agent.rpm"
 fi

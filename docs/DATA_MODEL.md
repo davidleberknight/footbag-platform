@@ -1190,6 +1190,11 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `outbox_max_retry_attempts` | `5` | Max email retry attempts before moving to dead-letter queue |
 | `outbox_poll_interval_seconds` | `30` | Outbox worker polling interval (seconds) |
 | `outbox_sending_lease_seconds` | `600` | Lease before a stranded `sending` outbox row is reaped back to `pending` (seconds) |
+| `outbox_retention_days` | `90` | Age (days) at which a per-recipient outbox copy is deleted: from `sent_at` when delivered, from the last attempt when dead-lettered |
+| `outbox_batch_limit` | `10` | Messages the outbox worker sends in one polling pass, both streams together |
+| `outbox_bulk_batch_limit` | `5` | The most of one polling pass that bulk mail may take, so a bulk run paces itself and never delays transactional mail |
+| `outbox_retry_base_seconds` | `60` | Base interval (seconds) for the exponential backoff after a definitive send failure |
+| `outbox_throttle_retry_seconds` | `120` | Delay (seconds) when the provider throttles; consumes no retry attempt |
 | `token_cleanup_threshold_days` | `7` | Age threshold (days) for cleanup of expired/consumed account tokens |
 | `deceased_cleanup_grace_days` | `30` | Grace period (days) before PII removal after member marked deceased |
 | `data_export_link_expiry_hours` | `72` | Hours before a personal data export download link expires |
@@ -1216,9 +1221,11 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `admin_queue_digest_interval_days` | `1` | Cadence (days) for the admin work-queue digest of open routine items |
 | `admin_queue_stale_escalation_days` | `3` | Days an unclaimed routine work-queue item may stay open before a one-time all-admins escalation |
 | `work_queue_resolve_rate_limit_per_hour` | `120` | Max work-queue resolutions per admin per hour |
-| `primary_snapshot_version_days` | `30` | S3 versioning retention window (days) for primary backup bucket |
 | `media_flag_rate_limit_per_hour` | `10` | Max media flags per member per hour |
 | `curator_write_rate_limit_per_hour` | `60` | Max curated-media writes per curator per hour |
+| `media_edit_rate_limit_per_hour` | `15` | Max edits a member may make to their own media per hour |
+| `gallery_write_rate_limit_per_hour` | `30` | Max gallery creates, renames and deletes per member per hour |
+| `group_email_rate_limit_per_hour` | `30` | Maximum messages one member may post to one group per hour; an abuse ceiling set well above what a live debate needs |
 | `cross_region_backup_retention_days` | `90` | Object Lock retention (days) for cross-region DR S3 bucket |
 | `continuous_backup_interval_minutes` | `5` | Interval (minutes) between continuous SQLite backup runs |
 | `tier1_price_cents` | `1000` | Tier 1 IFPA Member dues ($10.00 USD default; stored as integer cents) |
@@ -1240,6 +1247,11 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `bootstrap_claim_rate_limit_max_per_member` | `5` | Max first-admin bootstrap-claim attempts per member per window |
 | `bootstrap_claim_rate_limit_max_per_ip` | `5` | Max first-admin bootstrap-claim attempts per source IP per window (silent) |
 | `bootstrap_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for bootstrap-claim attempts |
+| `bulk_send_paused` | `0` | Operator switch stopping the bulk stream only, leaving transactional mail flowing (`0` = releasing, `1` = stopped) |
+| `bulk_halt_min_sent_in_window` | `50` | Messages that must have been sent inside the health window before bounce and complaint rates are judged at all, so one bounce against an idle sender cannot stop a run |
+| `bounce_rate_alarm_threshold_per_10k` | `500` | Bulk mail stops at or above this bounce rate, in ten-thousandths of messages sent (5%, the rate at which the provider places an account under review) |
+| `complaint_rate_alarm_threshold_per_10k` | `25` | Bulk mail stops at or above this complaint rate, in ten-thousandths of messages sent (0.25%, tighter than the provider's own review point) |
+| `announce_send_rate_limit_per_day` | `2` | Max community announcements one organizer member may send per day |
 
 #### Membership pricing config keys (initial pricing, update before launch)
 
@@ -1670,13 +1682,13 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 
 **Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
-- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders` (verify by `slug`); admin notification and member subscription workflows depend on these slugs. The reconciliation digest is not a list: it goes to the fixed IFPA treasurer contact address, so the treasurer receives it without holding any platform account.
+- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `announce`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders` (verify by `slug`); admin notification and member subscription workflows depend on these slugs. The reconciliation digest is not a list: it goes to the fixed IFPA treasurer contact address, so the treasurer receives it without holding any platform account.
 - `system_config`: the seeded keys listed in §4.23 (verify by `config_key`); the application reads these at startup and during operations. A key with no seed row resolves to its built-in code fallback (per §4.23), so it does not error.
 
 **To verify seed data is present after initialization:**
 ```sql
-SELECT count(*) FROM mailing_lists;     -- expect 7
-SELECT count(*) FROM system_config;     -- expect 55
+SELECT count(*) FROM mailing_lists;     -- expect 8
+SELECT count(*) FROM system_config;     -- expect 92
 ```
 
 **Prefer semantic-key verification for publishable checks/examples:**
