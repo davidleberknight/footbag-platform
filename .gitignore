@@ -19,10 +19,14 @@
 legacy_data/legacy_mirror/mirror_footbag_org/
 legacy_data/legacy_mirror/create_mirror.sh
 legacy_data/legacy_mirror/mirror_progress.json
+# Previous-checkpoint backup of the crawl state, kept beside it so a refused or
+# half-finished state write is always recoverable.
+legacy_data/legacy_mirror/mirror_progress.json.prev
 legacy_data/legacy_mirror/mirror.log
 # The mirror scraper writes these with bare relative names, so they also land in
 # the repo root when it runs from there; ignore both spots.
 /mirror_progress.json
+/mirror_progress.json.prev
 /robots_cache.json
 
 # =========================
