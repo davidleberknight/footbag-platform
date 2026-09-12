@@ -137,6 +137,39 @@ describe('terraform-apply.sh: argument handling', () => {
     // "apply", so a looser pattern hits the plan line and never fails.
     expect(calls()).not.toMatch(/\sapply\s/);
   });
+
+  it('refuses --yes on a production apply, because a flag is not a confirmation', () => {
+    // The typed answer is what stands between a decision and replacing what the
+    // public is served. A flag that supplies it in advance makes an unattended
+    // production apply possible from a scheduled job, a wrapper or an agent
+    // session, none of which can read the plan they are accepting.
+    writeTerraformStub();
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/--yes does not carry a production apply/);
+  });
+
+  it('refuses it before planning, so no copy of state is written to disk at all', () => {
+    // The saved plan is a zip holding every resolved value in the clear. A
+    // refusal at the prompt would still have produced one; this one lands first.
+    writeTerraformStub();
+    run(['--target', 'production', '--yes']);
+    expect(calls(), 'terraform was never invoked').toBe('');
+  });
+
+  it('still previews production with --yes, since a dry run applies nothing', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'production', '--dry-run', '--yes']);
+    expect(res.exitCode).toBe(0);
+    expect(calls()).toBe('');
+  });
+
+  it('keeps --yes working for staging, which is the deliberate half of the split', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--yes']);
+    expect(res.exitCode).toBe(0);
+    expect(calls()).toMatch(/apply /);
+  });
 });
 
 describe('terraform-apply.sh: the preview', () => {

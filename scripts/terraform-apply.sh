@@ -43,7 +43,11 @@
 #   scripts/terraform-apply.sh --target production
 #   scripts/terraform-apply.sh --target staging --init
 #   scripts/terraform-apply.sh --target staging --init-upgrade
-#   ... --yes   accept the confirmation, where no terminal is attached
+#   ... --yes   accept the confirmation, where no terminal is attached.
+#               Staging and shared only: a production apply is refused with it,
+#               because a confirmation a flag can supply in advance is not one.
+#               --dry-run --yes still works against production, since a dry run
+#               applies nothing.
 #
 # --dry-run runs nothing at all: it states what the real run would do.
 #
@@ -146,6 +150,28 @@ if (( DRY_RUN )); then
   echo "anything else pending in the tree is applied with it. That is the reason the"
   echo "plan is shown and confirmed rather than applied straight through."
   exit 0
+fi
+
+# --yes does not carry a production apply.
+#
+# The confirmation below is what stands between a typed decision and replacing
+# what the public is served, and a flag that supplies it in advance is not a
+# confirmation at all: it makes an unattended production apply possible from a
+# scheduled job, a wrapper, or an agent session, none of which can read the plan
+# it is accepting. The plan is the whole environment rather than the change the
+# operator came for, so what gets waved through is not knowable in advance.
+#
+# Refused here rather than at the prompt, so the run stops before a plan file
+# holding a full copy of state in the clear has been written at all. A dry run is
+# deliberately above this line: it applies nothing, so the flag costs nothing
+# there. Staging keeps --yes, which is the same split the deploy wrapper makes.
+if [[ "$TARGET" == "production" && "$ASSUME_YES" == "yes" ]]; then
+  echo "ERROR: --yes does not carry a production apply." >&2
+  echo "       This plan reaches what the public is served, so the confirmation is" >&2
+  echo "       typed every time and is never supplied in advance by a flag." >&2
+  echo "       Re-run without --yes, read the plan, and answer it." >&2
+  echo "       Use --dry-run --yes to see what the run would do, changing nothing." >&2
+  exit 2
 fi
 
 # ── Step 1: init, only when asked ────────────────────────────────────────────
