@@ -190,9 +190,10 @@ variable "enable_backup_alarm" {
   description = <<-EOT
     Set to true only after the SQLite backup job exists, runs on schedule,
     and is confirmed to emit BackupAgeMinutes to the
-    Footbag/{environment} CloudWatch namespace after each run.
-    Enabling before the job exists causes the alarm to immediately enter
-    ALARM state (treat_missing_data = "breaching") and fire constantly.
+    Footbag/{environment} CloudWatch namespace after each run. Arms all three
+    backup alarms: staleness, consecutive failures, and generation promotion.
+    Enabling before the job exists causes the staleness alarm to immediately
+    enter ALARM state (treat_missing_data = "breaching") and fire constantly.
   EOT
   type        = bool
   default     = false

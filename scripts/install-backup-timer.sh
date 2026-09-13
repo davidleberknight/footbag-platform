@@ -27,8 +27,9 @@
 #
 # After the first two scheduled runs emit the BackupAgeMinutes metric, set
 # enable_backup_alarm = true in terraform/<target>/terraform.tfvars and
-# apply, so the db-backup-stale alarm goes live against flowing data
-# (arming it earlier pages immediately: treat_missing_data is breaching).
+# apply, so the backup alarms go live against flowing data (arming them
+# earlier pages immediately: the staleness alarm treats missing data as
+# breaching).
 set -euo pipefail
 
 TARGET="staging"
@@ -144,5 +145,5 @@ echo "== footbag-backup.timer installed and active on $TARGET =="
 echo ""
 echo "Next step: after the timer has run at least twice (BackupAgeMinutes flowing"
 echo "in CloudWatch namespace Footbag/$TARGET), set enable_backup_alarm = true in"
-echo "terraform/$TARGET/terraform.tfvars and apply to arm the db-backup-stale alarm."
+echo "terraform/$TARGET/terraform.tfvars and apply to arm the backup alarms."
 exit 0

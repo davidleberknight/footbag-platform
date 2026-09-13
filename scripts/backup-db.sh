@@ -3,11 +3,14 @@
 #
 # Checkpoints the WAL into the main file, snapshots the live SQLite file with
 # `sqlite3 .backup`, gzips it, uploads it to the primary snapshots bucket under
-# routine/YYYY/MM/DD/ with bounded retry, and emits two CloudWatch metrics:
+# routine/YYYY/MM/DD/ with bounded retry, and emits three CloudWatch metrics:
 # BackupAgeMinutes (the db-backup-stale alarm watches it; threshold 15 minutes,
-# treat_missing_data=breaching) and BackupConsecutiveFailures (raised once a run
+# treat_missing_data=breaching), BackupConsecutiveFailures (raised once a run
 # fails three times in a row so a persistently failing backup surfaces even
-# while older snapshots keep the age metric healthy).
+# while older snapshots keep the age metric healthy), and
+# BackupPromotionFailures (the db-backup-promotion-failing alarm watches it, and
+# fires only when every run in an hour failed to promote; see the retention
+# generations below).
 #
 # Retention generations. Every run writes routine/, which the bucket lifecycle keeps
 # for two days. The first run of each hour is additionally copied to hourly/ and
@@ -24,7 +27,9 @@
 # instead of losing the generation. A promotion that fails raises
 # BackupPromotionFailures but never fails the run: the snapshot itself is
 # already safe, and failing here would raise the consecutive-failure alarm for
-# something the alarm does not mean.
+# something the alarm does not mean. It answers to an alarm of its own instead,
+# on every run in an hour failing, which is the state where the generations stop
+# advancing and the recovery window collapses to the routine/ window alone.
 #
 # Cross-region DR copies ride the bucket's S3 replication, which is scoped to
 # the promoted generations: the off-region copy carries hourly and daily points, not

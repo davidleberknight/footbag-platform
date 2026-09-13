@@ -156,9 +156,10 @@ variable "enable_cwagent_alarms" {
 variable "enable_backup_alarm" {
   description = <<-EOT
     Set to true only after the SQLite backup job runs on schedule and emits
-    BackupAgeMinutes to the Footbag/{environment} namespace. The alarm uses
-    treat_missing_data = "breaching"; enabling before metric data exists
-    fires the alarm on apply.
+    BackupAgeMinutes to the Footbag/{environment} namespace. Arms all three
+    backup alarms: staleness, consecutive failures, and generation promotion.
+    The staleness alarm uses treat_missing_data = "breaching"; enabling before
+    metric data exists fires it on apply.
   EOT
   type        = bool
   default     = false

@@ -317,8 +317,8 @@ resource "aws_iam_user" "cwagent_publisher" {
   force_destroy = false
 }
 
-# The backup script publishes BackupAgeMinutes and BackupConsecutiveFailures
-# under the host's runtime role, in the platform's own metric namespace rather
+# The backup script publishes BackupAgeMinutes, BackupConsecutiveFailures and
+# BackupPromotionFailures under the host's runtime role, in the platform's own metric namespace rather
 # than the CWAgent one. Without this grant the put fails with AccessDenied and
 # the script swallows it, so the metric is never emitted, the backup alarm can
 # never satisfy its documented "confirmed to emit" precondition, and a backup

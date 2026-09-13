@@ -4773,7 +4773,7 @@ Purpose: Fast recovery from common issues (corruption, bugs, accidental deletion
 
 Process: A host systemd timer executes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main database file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to the primary S3 bucket with retry (3 attempts, exponential backoff), (4) update the health timestamp and emit the backup-age and consecutive-failure metrics.
 
-Retention thins with age rather than keeping every snapshot for one flat window. Each upload lands in the fine-grained stream; the first of each hour and the first of each day are additionally copied into an hourly and a daily generation, server-side. Lifecycle rules keep the fine-grained stream for two days, the hourly generation for a month, and the daily generation for just over a year. Each object is a complete database, so any one of them restores on its own with no chain to replay.
+Retention thins with age rather than keeping every snapshot for one flat window. Each upload lands in the fine-grained stream; the first of each hour and the first of each day are additionally copied into an hourly and a daily generation, server-side. Lifecycle rules keep the fine-grained stream for two days, the hourly generation for a month, and the daily generation for just over a year. Each object is a complete database, so any one of them restores on its own with no chain to replay. A promotion that fails leaves the run successful, because the snapshot is already safe and the next run in the same window promotes in its place; a promotion failing on every run for an hour raises its own alarm, because that is the state in which the generations stop advancing and the recovery window collapses to the fine-grained stream's two days.
 
 Cost: about \$1/month, storage and cross-region transfer together. The generations are what make that figure reachable: holding every snapshot at full granularity for a month is roughly a hundred gigabytes of near-identical copies, and it still leaves nothing at all to restore from once the window passes.
 
@@ -5013,7 +5013,7 @@ Alert Severities: Warning-level: Email to operations team, 1-hour response expec
 
 degraded but functional state. Examples: CPU \>80% for 10 minutes, P95 latency \>2 seconds for 5 minutes, background job missed 1 execution.
 
-Critical-level: Email and SMS to on-call, 15-minute response expectation, indicates service disruption or imminent failure. Examples: host CPU, memory or disk \>85% for 3 minutes, 5xx rate \>5% for 2 minutes, any background job missed 3+ consecutive executions, container restart loop (3+ restarts in 10 minutes). Database: backup age \>15 minutes, 3 consecutive backup failures, WAL file \>1GB (checkpoint issues), SQLITE_BUSY rate \>5% of operations, checkpoint latency \>5 seconds, database file approaching disk capacity (80%/90% thresholds).
+Critical-level: Email and SMS to on-call, 15-minute response expectation, indicates service disruption or imminent failure. Examples: host CPU, memory or disk \>85% for 3 minutes, 5xx rate \>5% for 2 minutes, any background job missed 3+ consecutive executions, container restart loop (3+ restarts in 10 minutes). Database: backup age \>15 minutes, 3 consecutive backup failures, generation promotion failing on every run for an hour, WAL file \>1GB (checkpoint issues), SQLITE_BUSY rate \>5% of operations, checkpoint latency \>5 seconds, database file approaching disk capacity (80%/90% thresholds).
 
 Dashboards:
 

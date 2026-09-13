@@ -186,6 +186,37 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
+# Promotion is the retention story rather than the backup itself, and it fails on
+# its own terms. A run can snapshot, upload, and refresh the age metric while the
+# server-side copy that carries the first run of the hour into hourly/ and the
+# first of the day into daily/ fails, so both alarms above stay green while the
+# generations stop advancing. That state is expensive here: routine/ expires after
+# two days, and the cross-region replication rules carry hourly/ and daily/ alone,
+# so a stuck promotion collapses the recovery history to two days and holds the
+# off-region copy at the last point that promoted.
+#
+# Minimum over an hour rather than Maximum over a backup cycle, because a single
+# failed promotion is self-healing: the producer asks S3 whether the window
+# already holds a point, so the next run promotes in its place. Minimum reaches 1
+# only when every run in the hour failed, which is the persistent state worth
+# waking someone for, and an hour is the window the hourly generation is cut on,
+# so an hour of failure means one generation point is lost rather than late.
+resource "aws_cloudwatch_metric_alarm" "db_backup_promotion" {
+  count               = var.enable_backup_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-db-backup-promotion-failing"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "BackupPromotionFailures"
+  namespace           = "Footbag/${var.environment}"
+  period              = 3600 # one hour: the window the hourly generation is cut on
+  statistic           = "Minimum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching" # silence is covered by the staleness alarm
+  alarm_description   = "SQLite backup generation promotion failed on every run for an hour"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
 # ── Cross-region replication health ───────────────────────────────────────────
 # The DR copies of the snapshot and media buckets are maintained by S3
 # replication and, until these, nothing watched it. A replication rule that
