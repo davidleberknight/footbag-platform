@@ -3106,6 +3106,14 @@ CREATE TABLE media_flags (
   version    INTEGER NOT NULL DEFAULT 1,
   media_id           TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
   reporter_member_id TEXT NOT NULL REFERENCES members(id),
+  -- Which published conduct rule the reporter says the item breaks. A closed
+  -- set so the queue can be triaged and repeat patterns counted; each value
+  -- maps to a clause of the terms of use the site publishes.
+  reason_code TEXT NOT NULL
+    CHECK (reason_code IN ('illegal_or_harassing','infringes_rights','impersonation',
+                           'false_information','spam','other')),
+  -- The reporter's own words, optional except on 'other'. Member free text, so
+  -- it is scrubbed on account erasure and never copied to the audit ledger.
   reason_text        TEXT,
   reported_at        TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),

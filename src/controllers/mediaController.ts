@@ -56,7 +56,7 @@ export const mediaController = {
       const vm = mediaService.getNamedGalleryItemPage(
         req.params.galleryId,
         req.params.mediaId,
-        { authenticated: req.user != null },
+        { authenticated: req.user != null, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
       );
       res.render('media/gallery-item', vm);
     } catch (err) {
@@ -74,7 +74,7 @@ export const mediaController = {
           rawSort: req.query.sort,
           rawBack: req.query.back,
         },
-        { authenticated: req.user != null },
+        { authenticated: req.user != null, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
       );
       res.render('media/gallery-item', vm);
     } catch (err) {

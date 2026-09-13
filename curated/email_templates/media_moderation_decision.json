@@ -1,0 +1,7 @@
+{
+  "templateKey": "media_moderation_decision",
+  "subjectTemplate": "Your footbag.org media: {displayDecision}",
+  "bodyTemplate": "Hi {memberName},\n\nA member reported one of your media items, and an IFPA administrator has reviewed it.\n\nDecision: {displayDecision}\n\nAdministrator's note:\n{note}\n\nIf you believe this was decided in error, reply to this message or submit a contact request from your profile edit page.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

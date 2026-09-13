@@ -68,6 +68,11 @@ const CATALOG: CatalogEntry[] = [
   { template: 'contact_request_resolution', services: ['adminWorkQueueService'], samples: [
     { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'contact_request_resolution' },
   ] },
+  // mediaModerationService — what the uploader is told after their item is
+  // reported and decided, either way the decision went.
+  { template: 'media_moderation_decision', services: ['mediaModerationService'], samples: [
+    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n' }, variant: 'media_moderation_decision' },
+  ] },
   // identityAccessService — the reply for the one contact category answered by
   // applying a link rather than by writing back.
   { template: 'link_help_request_resolution', services: ['identityAccessService'], samples: [

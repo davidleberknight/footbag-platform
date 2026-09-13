@@ -65,7 +65,7 @@ describe('live work-queue categories', () => {
     // these categories and the surfaces that would fill them are still to be
     // built. Dropping a label would mean the first item enqueued after one of
     // those lands renders its raw category slug.
-    for (const category of ['events', 'media', 'elections', 'club_leadership']) {
+    for (const category of ['events', 'elections', 'club_leadership']) {
       expect(WORK_QUEUE_CATEGORY_LABELS[category], `no label for ${category}`).toBeTruthy();
       expect(LIVE_WORK_QUEUE_CATEGORIES).not.toContain(category);
     }

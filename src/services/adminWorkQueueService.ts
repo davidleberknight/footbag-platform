@@ -219,12 +219,13 @@ export const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
 // map above is wider because the schema's CHECK constraint is wider, and a
 // category no producer writes to is not an empty queue: it is a queue that
 // cannot exist yet, and showing a permanent zero for one tells an admin they
-// are up to date on work the platform has no way to create. Events, media and
+// are up to date on work the platform has no way to create. Events and
 // elections wait on their own surfaces being built; club leadership is
 // different again, because that queue does exist and lives in the club cleanup
 // queue rather than here. A unit test reads every enqueue call site in `src/`
 // and fails if this list drifts from what the code can actually produce.
 export const LIVE_WORK_QUEUE_CATEGORIES: readonly string[] = [
+  'media',
   'membership',
   'payments',
   'system',

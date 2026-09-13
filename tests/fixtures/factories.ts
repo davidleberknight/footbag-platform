@@ -307,6 +307,10 @@ export interface MediaItemOverrides {
   height_px?: number;
   source_filename?: string | null;
   caption?: string | null;
+  // Tag displays to attach, for example `#by_<slug>`, which is what the
+  // production upload path stamps and what every uploader-attribution read
+  // resolves ownership from.
+  tags?: string[];
 }
 
 export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverrides): string {
@@ -329,6 +333,39 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
     o.height_px ?? 600,
     o.source_filename ?? null,
     'image/jpeg',
+  );
+  attachMediaTags(db, id, o.tags ?? []);
+  return id;
+}
+
+// ── Media flag ───────────────────────────────────────────────────────────────
+
+export interface MediaFlagOverrides {
+  id?: string;
+  media_id: string;
+  reporter_member_id: string;
+  reason_code?: 'illegal_or_harassing' | 'infringes_rights' | 'impersonation'
+              | 'false_information' | 'spam' | 'other';
+  reason_text?: string | null;
+  reported_at?: string;
+  status?: 'open' | 'resolved';
+}
+
+export function insertMediaFlag(db: BetterSqlite3.Database, o: MediaFlagOverrides): string {
+  const id = o.id ?? `mediaflag-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO media_flags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      media_id, reporter_member_id, reason_code, reason_text, reported_at, status
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, TS,
+    o.media_id,
+    o.reporter_member_id,
+    o.reason_code ?? 'illegal_or_harassing',
+    o.reason_text === undefined ? null : o.reason_text,
+    o.reported_at ?? TS,
+    o.status ?? 'open',
   );
   return id;
 }

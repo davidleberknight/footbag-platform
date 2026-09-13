@@ -122,6 +122,7 @@ export const TEMPLATE_VARIANTS = {
   club_coleader_invite:            v('confidential', ['leaderName', 'inviteeName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
+  media_moderation_decision:       v('confidential', ['memberName', 'displayDecision', 'note']),
   link_help_request_resolution:    v('confidential', ['memberName', 'displayDecision', 'note']),
   admin_loss_recruitment:          v('internal',     ['entityId', 'queueUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
@@ -354,6 +355,14 @@ const SHAPERS = {
   }),
   contact_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'contact_request_resolution',
+    merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
+  }),
+  // The uploader is told what was decided about their item, whichever way it
+  // went. The report itself is never quoted back to them: the reporter's words
+  // are evidence for the administrator, and naming the reporter to the person
+  // they reported is how a report turns into a reprisal.
+  media_moderation_decision: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
+    variant: 'media_moderation_decision',
     merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
   }),
   // The identity-link category is answered by applying a link rather than by

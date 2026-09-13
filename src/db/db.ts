@@ -6616,6 +6616,35 @@ export const media = {
       gallery_id, label, url, validated_at, sort_order
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `); },
+
+  // The moderation read: deliberately unfiltered by moderation_status, since a
+  // takedown decision has to see an item the public reads no longer return, and
+  // re-deciding an already-hidden item is how a failed object removal is
+  // retried. Carries the storage keys so the decision can remove the bytes.
+  get getMediaItemForModeration() { return db.prepare(`
+    SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
+           mi.s3_key_thumb, mi.s3_key_display, mi.video_platform, mi.video_url,
+           mi.thumbnail_url, mi.is_avatar,
+           mi.moderation_status, mi.moderation_reason,
+           m.display_name AS uploader_display_name,
+           m.slug         AS uploader_slug,
+           m.login_email  AS uploader_login_email,
+           m.is_system    AS uploader_is_system
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE mi.id = ?
+  `); },
+
+  // The takedown write. Guarded on the current status so two administrators
+  // deciding the same item cannot both report success: the second changes no
+  // rows and the service reports the item already settled.
+  get setMediaItemRemovedByAdmin() { return db.prepare(`
+    UPDATE media_items
+       SET moderation_status = 'removed_by_admin',
+           moderation_reason = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND moderation_status = 'active'
+  `); },
 };
 
 // Tag display + normalized values for a set of media ids in one round-trip.
@@ -7154,6 +7183,98 @@ export const mediaTags = {
            updated_by     = ?,
            version        = version + 1
      WHERE id = ?
+  `); },
+};
+
+// Member-submitted reports against a media item, and the administrator's
+// resolution of them. One row per (media, reporter) pair, which is what makes a
+// repeat report from the same member a no-op rather than a second count.
+export const mediaFlags = {
+  get insertFlag() { return db.prepare(`
+    INSERT INTO media_flags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      media_id, reporter_member_id, reason_code, reason_text, reported_at,
+      status
+    ) VALUES (?, ?, ?, ?, ?, 1,
+              ?, ?, ?, ?, ?,
+              'open')
+  `); },
+
+  // Any existing row, open or resolved, because the unique pair index means a
+  // reporter who has already flagged an item cannot file a second report on it.
+  get findFlagByMediaAndReporter() { return db.prepare(`
+    SELECT id, status FROM media_flags
+    WHERE media_id = ? AND reporter_member_id = ?
+  `); },
+
+  get findFlagById() { return db.prepare(`
+    SELECT id, media_id, reporter_member_id, status FROM media_flags
+    WHERE id = ?
+  `); },
+
+  get countOpenFlagsForMedia() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM media_flags
+    WHERE media_id = ? AND status = 'open'
+  `); },
+
+  // The queue body: one row per open flag, newest first, with the reporter
+  // named. Unpaginated by design, since the moderation story sizes this queue
+  // at roughly ten items and an administrator needs every one of them.
+  get listOpenFlagsWithMedia() { return db.prepare(`
+    SELECT f.id, f.media_id, f.reason_code, f.reason_text, f.reported_at,
+           f.reporter_member_id,
+           r.display_name AS reporter_display_name,
+           r.slug         AS reporter_slug,
+           mi.media_type, mi.caption, mi.s3_key_thumb, mi.thumbnail_url,
+           mi.moderation_status,
+           u.display_name AS uploader_display_name,
+           u.slug         AS uploader_slug
+    FROM media_flags f
+    JOIN members r     ON r.id = f.reporter_member_id
+    JOIN media_items mi ON mi.id = f.media_id
+    JOIN members u     ON u.id = mi.uploader_member_id
+    WHERE f.status = 'open'
+    ORDER BY f.reported_at DESC, f.id DESC
+  `); },
+
+  // How many reports this member has filed since a cutoff, which is the
+  // repeated-flagging pattern the moderation story asks to surface. Counted from
+  // the reports themselves; nothing about the reporter's network is recorded.
+  get countFlagsByReporterSince() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM media_flags
+    WHERE reporter_member_id = ? AND reported_at >= ?
+  `); },
+
+  get resolveOpenFlagsForMedia() { return db.prepare(`
+    UPDATE media_flags
+       SET status = 'resolved',
+           resolved_at = ?,
+           resolved_by_admin_member_id = ?,
+           resolution_label = ?,
+           resolution_reason = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE media_id = ? AND status = 'open'
+  `); },
+
+  get resolveFlagById() { return db.prepare(`
+    UPDATE media_flags
+       SET status = 'resolved',
+           resolved_at = ?,
+           resolved_by_admin_member_id = ?,
+           resolution_label = ?,
+           resolution_reason = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status = 'open'
+  `); },
+
+  // Account erasure reaches the reporter's own words. The report itself stays,
+  // because the moderation record is what justifies a takedown decision that
+  // was already taken, but nothing the member wrote survives.
+  get scrubTextForMember() { return db.prepare(`
+    UPDATE media_flags
+       SET reason_text = NULL,
+           updated_at = ?, updated_by = 'operations_purge', version = version + 1
+     WHERE reporter_member_id = ?
   `); },
 };
 

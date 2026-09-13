@@ -19,6 +19,10 @@ export const FLASH_KIND = {
   WIZARD_CLUB_CARD_RESOLVED: 'wizard_club_card_resolved',
   WIZARD_CLUB_CAP_HIT: 'wizard_club_cap_hit',
   MEDIA_SAVED: 'media_saved',
+  // An administrator's decision on a reported item. The payload carries the
+  // outcome and whether the stored files actually went, since a hidden item
+  // whose bytes survive still needs the decision running again.
+  MEDIA_MODERATION_DECIDED: 'media_moderation_decided',
   CONTACT_SUBMITTED: 'contact_submitted',
   WORK_QUEUE_RESOLVED: 'work_queue_resolved',
   WORK_QUEUE_REVIEWED: 'work_queue_reviewed',

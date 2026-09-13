@@ -142,6 +142,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Curated Media', href: '/admin/curator/media' },
       { label: 'Upload Media', href: '/admin/curator/upload' },
       { label: 'Galleries', href: '/admin/curator/galleries' },
+      { label: 'Flagged Media', href: '/admin/media-flags' },
       { label: 'Freestyle Tricks', href: '/admin/freestyle/tricks' },
       { label: 'Trick Tips', href: '/admin/freestyle/tips' },
       { label: 'Freestyle Records', href: '/admin/freestyle/records' },

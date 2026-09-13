@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { adminController } from '../controllers/adminController';
 import { adminCuratorController } from '../controllers/adminCuratorController';
+import { adminMediaFlagsController } from '../controllers/adminMediaFlagsController';
 import { adminWorkQueueController } from '../controllers/adminWorkQueueController';
 import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
@@ -229,3 +230,12 @@ adminRouter.post('/curator/galleries', adminCuratorController.postGalleryCreate)
 adminRouter.get('/curator/galleries/:id/edit', adminCuratorController.getGalleryEdit);
 adminRouter.post('/curator/galleries/:id/edit', adminCuratorController.postGalleryEdit);
 adminRouter.post('/curator/galleries/:id/delete', adminCuratorController.postGalleryDelete);
+
+// The takedown queue: media members have reported, and the two decisions an
+// administrator may take on an item. The per-report clear carries a literal
+// `flags` segment and is declared first so it is never captured as a media id.
+adminRouter.get('/media-flags',                        adminMediaFlagsController.index);
+adminRouter.post('/media-flags/flags/:flagId/clear',   adminMediaFlagsController.clearFlag);
+adminRouter.post('/media-flags/:mediaId/delete',       adminMediaFlagsController.remove);
+adminRouter.post('/media-flags/:mediaId/no-action',    adminMediaFlagsController.noAction);
+adminRouter.post('/media-flags/:mediaId/flag',         adminMediaFlagsController.flag);

@@ -982,6 +982,17 @@ th.sortable:hover { color: var(--primary); }
   padding: 0;
   margin-top: 12px;
 }
+/* The reporting control in the item rail: closed by default, because reporting
+   is the rare act on a page whose subject is the media itself. */
+.media-report {
+  margin-top: 16px;
+}
+.media-report summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
 .gallery-item-pager {
   display: flex;
   flex-wrap: wrap;

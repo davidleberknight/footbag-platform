@@ -1,0 +1,70 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>{{page.intro}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if page.notice}}
+    <p class="form-notice" role="status">{{page.notice}}</p>
+  {{/if}}
+
+  {{#unless content.hasItems}}
+    <section>
+      <p class="text-muted">{{content.emptyMessage}}</p>
+    </section>
+  {{/unless}}
+
+  {{#each content.items}}
+    <section>
+      <div class="card">
+        <div class="card-title">{{#if caption}}{{caption}}{{else}}Untitled item{{/if}}</div>
+        <p class="card-meta">
+          {{flagCountLabel}} &middot; {{statusLabel}} &middot; Uploaded by
+          <a href="{{uploaderHref}}">{{uploaderDisplay}}</a> &middot;
+          <a href="{{mediaHref}}">Open the item page</a>
+        </p>
+
+        {{#if thumbHref}}
+          <p><a href="{{mediaHref}}"><img src="{{thumbHref}}" alt="" class="curator-thumb" width="120" height="120"></a></p>
+        {{/if}}
+
+        {{#each reports}}
+          <div class="card">
+            <p class="card-meta">
+              {{reasonLabel}} &middot; reported {{reportedAtDisplay}} by
+              <a href="{{reporterHref}}">{{reporterDisplay}}</a>
+            </p>
+            {{#if detail}}<p class="text-secondary">{{detail}}</p>{{/if}}
+            {{#if patternNote}}<p class="card-meta">{{patternNote}}</p>{{/if}}
+            <form method="POST" action="{{clearHref}}" class="form-block">
+              <div class="form-field">
+                <label for="clear-reason-{{flagId}}">Reason for clearing this report</label>
+                <textarea id="clear-reason-{{flagId}}" name="reason" rows="2" maxlength="{{@root.content.reasonMaxLength}}" required placeholder="Internal note; not sent to the uploader"></textarea>
+              </div>
+              <button type="submit" class="btn btn-outline btn-sm">Clear This Report</button>
+            </form>
+          </div>
+        {{/each}}
+
+        <form method="POST" action="{{deleteHref}}" class="form-block">
+          <div class="form-field">
+            <label for="remove-reason-{{mediaId}}">Reason for removing the item</label>
+            <textarea id="remove-reason-{{mediaId}}" name="reason" rows="2" maxlength="{{@root.content.reasonMaxLength}}" required placeholder="Sent to the uploader with the decision"></textarea>
+          </div>
+          <p class="card-meta">Removing hides the item everywhere and deletes its stored files. Copies already cached at the edge can persist until they expire.</p>
+          <button type="submit" class="btn btn-primary btn-sm">Remove the Item</button>
+        </form>
+
+        <form method="POST" action="{{noActionHref}}" class="form-block">
+          <div class="form-field">
+            <label for="keep-reason-{{mediaId}}">Reason for keeping the item</label>
+            <textarea id="keep-reason-{{mediaId}}" name="reason" rows="2" maxlength="{{@root.content.reasonMaxLength}}" required placeholder="Sent to the uploader with the decision"></textarea>
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Close With No Action</button>
+        </form>
+      </div>
+    </section>
+  {{/each}}
+</div>

@@ -110,7 +110,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
   assembleBirthDate,
@@ -883,6 +883,10 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // owner-and-admin private content. Subject, body and note all clear; the
     // rows stay so the queue item's trail keeps its shape.
     memberMessages.scrubTextForMember.run(now, memberId);
+    // What they wrote when reporting someone else's media. The report itself
+    // stays, because it is what justifies a decision already taken, but their
+    // own words go with everything else they authored.
+    mediaFlags.scrubTextForMember.run(now, memberId);
     // The club insight notes the member left in the onboarding wizard are
     // member-authored free text too. The text clears; the row stays, so the
     // club evidence trail keeps its shape without keeping their words.
@@ -964,6 +968,8 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     // An administrator's questions and the member's answers are private content
     // about them; the deceased scrub clears the words and keeps the rows.
     memberMessages.scrubTextForMember.run(now, memberId);
+    // Anything they wrote reporting another member's media goes the same way.
+    mediaFlags.scrubTextForMember.run(now, memberId);
     // Same treatment for the wizard's club insight notes: the words go, the
     // evidence row stays.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);

@@ -4,6 +4,7 @@ import { config } from '../config/env';
 import { homeController } from '../controllers/homeController';
 import { clubController } from '../controllers/clubController';
 import { mediaController } from '../controllers/mediaController';
+import { mediaFlagController } from '../controllers/mediaFlagController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
@@ -78,6 +79,10 @@ publicRouter.get('/media/member-galleries', mediaController.memberGalleries);
 // teaching). It shares the two-segment depth of /media/:galleryId/:mediaId, so
 // it MUST be registered before that route or "item" is captured as a galleryId.
 publicRouter.get('/media/item/:mediaId',    mediaController.mediaItem);
+// Reporting an item for moderation. Behind the Tier 1 benefits gate the story
+// sets, with the same predicate re-checked in the service. Visibility never
+// changes here: only an administrator's decision moves an item.
+publicRouter.post('/media/item/:mediaId/flag', requireMember, requireTier1Benefits('media'), mediaFlagController.submit);
 publicRouter.get('/media/:galleryId',    mediaController.namedGallery);
 // Two-segment item-detail page within a named gallery; distinct depth from the
 // single-segment routes above, so ordering against them does not matter.

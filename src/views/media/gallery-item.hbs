@@ -74,6 +74,33 @@
         {{/if}}
 
         <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
+
+        {{#if content.flag}}
+          {{#if content.flag.alreadyFlagged}}
+            <p class="card-meta">{{content.flag.alreadyFlaggedMessage}}</p>
+          {{else}}
+            <details class="media-report">
+              <summary>Report This Item</summary>
+              <form method="POST" action="{{content.flag.actionHref}}" class="form-block">
+                <div class="form-field">
+                  <label for="report-reason">Why are you reporting it?</label>
+                  <select id="report-reason" name="reason_code" required>
+                    <option value="" disabled selected>Choose a reason&hellip;</option>
+                    {{#each content.flag.reasons}}
+                      <option value="{{value}}">{{label}}</option>
+                    {{/each}}
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="report-detail">Anything else we should know? (optional)</label>
+                  <textarea id="report-detail" name="reason_text" rows="3" maxlength="{{content.flag.detailMaxLength}}"></textarea>
+                </div>
+                <p class="card-meta">The item stays visible until an administrator reviews it.</p>
+                <button type="submit" class="btn btn-outline btn-sm">Send Report</button>
+              </form>
+            </details>
+          {{/if}}
+        {{/if}}
       </div>
     </div>
   </article>

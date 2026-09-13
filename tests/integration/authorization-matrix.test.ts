@@ -211,6 +211,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/curator/media',
     '/admin/curator/galleries',
     '/admin/curator/upload',
+    '/admin/media-flags',
     '/admin/freestyle/tricks',
     '/admin/freestyle/records',
     '/admin/freestyle/consecutive-records',
@@ -337,6 +338,10 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/mailing-lists/ph/compose',
     '/admin/system-parameters',
     '/admin/system-parameters/pricing',
+    '/admin/media-flags/flags/ph/clear',
+    '/admin/media-flags/ph/delete',
+    '/admin/media-flags/ph/no-action',
+    '/admin/media-flags/ph/flag',
   ];
 
   it('403s an authenticated non-admin and redirects the unauthenticated', async () => {

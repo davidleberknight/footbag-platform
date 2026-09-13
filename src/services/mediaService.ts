@@ -123,6 +123,7 @@ import { isSafePath } from '../lib/safePath';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
+import { buildMediaFlagBlock, type MediaFlagBlockViewModel } from './mediaModerationService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 import {
@@ -149,6 +150,12 @@ export interface TagChip {
 
 export interface ViewerContext {
   authenticated: boolean;
+  // Who the viewer is, supplied only by the two item-page routes, which are the
+  // only surfaces that offer a control bound to the viewer's own identity. Every
+  // other media surface shapes the same for every signed-in reader and passes
+  // neither.
+  memberId?: string | null;
+  slug?: string | null;
 }
 
 /** Standing behind an uploader credit. The tier and Active Player halves are
@@ -565,6 +572,9 @@ export interface MediaItemContent {
   position: { current: number; total: number } | null;
   prevHref: string | null;
   nextHref: string | null;
+  // The reporting control, shaped by the moderation service, or null where this
+  // viewer has no business being offered one.
+  flag: MediaFlagBlockViewModel | null;
 }
 
 // Request inputs for the standalone /media/item/:mediaId viewer. `rawTags` /
@@ -992,6 +1002,7 @@ function buildItemPage(
     collectMemberInfoForByTags(itemTagRows.map((r) => r.tag_display));
 
   let uploadedBy: UploaderAttribution | null = null;
+  let uploaderSlug: string | null = null;
   let isCurated = false;
   const tags: TagChip[] = [];
   for (const tr of itemTagRows) {
@@ -1002,6 +1013,7 @@ function buildItemPage(
       isCurated = true;
     } else if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
       const slug = tr.tag_display.slice(UPLOADER_TAG_PREFIX.length);
+      if (uploaderSlug === null) uploaderSlug = slug;
       if (uploadedBy === null && memberNamesBySlug.has(slug)) {
         const chip = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
         const badges = memberBadgesBySlug.get(slug);
@@ -1058,6 +1070,13 @@ function buildItemPage(
       position: showPager ? { current: set.index + 1, total: n } : null,
       prevHref: showPager ? set.encodeItemHref(set.rows[(set.index - 1 + n) % n].id) : null,
       nextHref: showPager ? set.encodeItemHref(set.rows[(set.index + 1) % n].id) : null,
+      flag: buildMediaFlagBlock({
+        mediaId,
+        viewerMemberId: viewer.memberId ?? null,
+        // The uploader tag is the item's ownership record on this surface, so
+        // the viewer's own slug settles it without another query.
+        isOwnItem: uploaderSlug != null && viewer.slug != null && uploaderSlug === viewer.slug,
+      }),
     },
   };
 }

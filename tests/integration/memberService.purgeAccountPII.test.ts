@@ -16,7 +16,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
-  insertPayment, insertRecurringDonationSubscription,
+  insertPayment, insertRecurringDonationSubscription, insertMediaItem, insertMediaFlag,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -239,6 +239,34 @@ describe('memberService.purgeAccountPII', () => {
     r.close();
     expect(row.detail_text).toBeNull();
     expect(row.reason_text).not.toContain('secret');
+  });
+
+  it('redacts what the member wrote reporting other people’s media, keeping the report itself', () => {
+    seedClaimedMember('purge-reporter');
+    seedClaimedMember('purge-media-owner');
+    const d = db();
+    insertMediaItem(d, { id: 'media-purge-reported', uploader_member_id: 'purge-media-owner' });
+    const flagId = insertMediaFlag(d, {
+      media_id: 'media-purge-reported',
+      reporter_member_id: 'purge-reporter',
+      reason_code: 'other',
+      reason_text: 'my secret accusation in full',
+    });
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-reporter').status).toBe('purged');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const row = r.prepare('SELECT reason_code, reason_text, status, updated_by FROM media_flags WHERE id = ?')
+      .get(flagId) as { reason_code: string; reason_text: string | null; status: string; updated_by: string };
+    r.close();
+
+    expect(row.reason_text).toBeNull();
+    // The report survives its author: it is what justifies a decision an
+    // administrator may already have taken on someone else's item.
+    expect(row.reason_code).toBe('other');
+    expect(row.status).toBe('open');
+    expect(row.updated_by).toBe('operations_purge');
   });
 
   it('is idempotent and anti-revealing on unknown ids', () => {

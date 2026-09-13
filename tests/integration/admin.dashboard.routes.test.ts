@@ -112,6 +112,7 @@ describe('the dashboard with nothing waiting', () => {
   it('still renders every live queue, at zero', async () => {
     const text = await getDashboard();
     expect(text).toContain('Work Waiting');
+    expect(text).toContain('Media');
     expect(text).toContain('Membership');
     expect(text).toContain('Payments');
     expect(text).toContain('System');
@@ -125,7 +126,7 @@ describe('the dashboard with nothing waiting', () => {
     // A row labelled with one category that lands on a page showing all of them
     // makes the reader find their category again by eye, which is exactly what
     // the row was for.
-    for (const category of ['membership', 'payments', 'system']) {
+    for (const category of ['media', 'membership', 'payments', 'system']) {
       expect(text, `${category} at zero must still link to itself`)
         .toContain(`href="/admin/work-queue?category=${category}"`);
     }
@@ -268,6 +269,7 @@ describe('the Go To tier', () => {
       '/admin/freestyle/emerging-vocabulary',
       '/admin/freestyle/tips',
       '/admin/system-parameters',
+      '/admin/media-flags',
     ]) {
       expect(text, `${href} is reachable only by typing it`).toContain(`href="${href}"`);
     }

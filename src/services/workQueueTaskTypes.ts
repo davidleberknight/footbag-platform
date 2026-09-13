@@ -356,6 +356,23 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     }],
   },
 
+  media_flag_review: {
+    label:            'Flagged media',
+    queueCategory:    'media',
+    entityTypes:      ['media_item'],
+    urgentAdminAlert: null,
+    evidence:         { kind: 'reason_text' },
+    // The twin of an open report, closed when the item is decided on the page
+    // that owns the decision. The review needs the thumbnail and the flagging
+    // pattern to be decidable at all, neither of which a queue card carries, so
+    // the card points at the takedown queue rather than trying to hold it.
+    actions: [{
+      kind:  'elsewhere',
+      label: 'Review on the Flagged Media Page',
+      href:  '/admin/media-flags',
+    }],
+  },
+
   reconciliation_discrepancy: {
     label:            'Payment reconciliation discrepancy',
     queueCategory:    'payments',
