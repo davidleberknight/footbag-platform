@@ -3,10 +3,17 @@
  *
  * Owns: the read-and-shape surface for the admin email-log page over
  * `outbox_emails`, including each row's template-body preview read from
- * `email_templates`. Does not own: enqueuing or sending email (that is
- * `emailService` / `communicationService`), or any mutation of the outbox.
+ * `email_templates`, and one write: an administrator's review of a message the
+ * sender gave up on. Does not own: enqueuing or sending email (that is
+ * `emailService` / `communicationService`), or any other mutation of the outbox.
  *
- * Audience: admin only (Sensitivity 4). The page is read-only. Each message's
+ * Audience: admin only (Sensitivity 4). The page is read-only about content:
+ * nothing here edits, resends or deletes a message, and the one write records a
+ * human judgement against a row in a terminal failure state (`dead_letter`,
+ * `manual_review`), which is the only thing on this surface an administrator can
+ * act on. The review changes no delivery fact: the status stays, the health page
+ * keeps counting the failure, and what ends is the urgent signal that otherwise
+ * has no off switch short of retention deleting the row. Each message's
  * body is shown as its underlying template with the merge fields left clearly
  * unpopulated (the stamped variant key names the exact message sent), so the
  * log conveys what was sent without exposing the recipient's rendered
@@ -18,14 +25,28 @@
  */
 import {
   emailTemplates,
+  outbox,
   queryOutboxLog,
   countOutboxLog,
+  transaction,
   type EmailTemplateRow,
   type OutboxLogFilters,
   type OutboxLogQueryRow,
 } from '../db/db';
 import { emailTemplateClassification, listEmailTemplateKeys } from './emailService';
+import { appendAuditEntry } from './auditService';
+import { NotFoundError, ValidationError } from './serviceErrors';
+import { runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
+
+const REVIEW_NOTE_MAX = 300;
+
+export type MarkReviewedResult =
+  | { status: 'reviewed' }
+  | { status: 'already_reviewed' }
+  // The message is not in a terminal failure state, so there is nothing here to
+  // settle: the drain still owns it.
+  | { status: 'not_reviewable' };
 
 const PAGE_SIZE = 50;
 const STATUS_OPTIONS = ['pending', 'sending', 'sent', 'failed', 'dead_letter', 'manual_review'] as const;
@@ -38,6 +59,7 @@ export interface EmailLogQuery {
 }
 
 interface EmailLogEntryViewModel {
+  id: string;
   createdAtDisplay: string;
   sentAtDisplay: string | null;
   recipientLabel: string;
@@ -48,6 +70,13 @@ interface EmailLogEntryViewModel {
   statusLabel: string;
   lastError: string | null;
   templateBodyPreview: string | null;
+  // A message the drain has given up on, or cannot say was received, is the
+  // only kind an administrator can act on here, and only once.
+  isReviewable: boolean;
+  isReviewed: boolean;
+  reviewedLabel: string | null;
+  reviewNote: string | null;
+  reviewHref: string;
 }
 
 export interface EmailLogContent {
@@ -65,6 +94,7 @@ export interface EmailLogContent {
   };
   templateKeyOptions: string[];
   statusOptions: string[];
+  reviewNoteMaxLength: number;
 }
 
 function normalize(q: EmailLogQuery): { filters: OutboxLogFilters; page: number } {
@@ -119,8 +149,13 @@ function templateBodyPreview(templateKey: string | null): string | null {
   return row ? row.body_template : null;
 }
 
+/** The two terminal failure states: nothing in the platform moves them on. */
+const REVIEWABLE_STATUSES = new Set(['dead_letter', 'manual_review']);
+
 function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
+  const isReviewed = row.reviewed_at !== null;
   return {
+    id: row.id,
     createdAtDisplay: tsDisplay(row.created_at) ?? '',
     sentAtDisplay: tsDisplay(row.sent_at),
     recipientLabel: recipientLabel(row),
@@ -131,6 +166,13 @@ function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
     statusLabel: row.status.replace('_', ' '),
     lastError: row.last_error,
     templateBodyPreview: templateBodyPreview(row.template_key),
+    isReviewable: REVIEWABLE_STATUSES.has(row.status) && !isReviewed,
+    isReviewed,
+    reviewedLabel: isReviewed
+      ? `Reviewed ${tsDisplay(row.reviewed_at)}${row.reviewed_by_display_name ? ` by ${row.reviewed_by_display_name}` : ''}`
+      : null,
+    reviewNote: row.review_note,
+    reviewHref: `/admin/email-log/${row.id}/review`,
   };
 }
 
@@ -166,7 +208,68 @@ export const emailLogService = {
         },
         templateKeyOptions: listEmailTemplateKeys(),
         statusOptions: [...STATUS_OPTIONS],
+        reviewNoteMaxLength: REVIEW_NOTE_MAX,
       },
     };
+  },
+
+  /**
+   * Record that an administrator has looked at a message the platform gave up
+   * on and judged it settled. It asserts nothing about delivery: the row keeps
+   * its status, so the log still says what happened, and the health page keeps
+   * counting it. What it ends is the urgent signal, which otherwise has no off
+   * switch short of the row ageing out of retention.
+   *
+   * Deliberately no resend. The stored row is a rendered message, and the mail
+   * most likely to reach this state carries a verification or reset link that
+   * has since expired, so replaying it would deliver something worse than
+   * silence. Where the member still needs the content, the route is the live
+   * action that issues a fresh one.
+   */
+  markReviewed(input: { outboxId: string; adminMemberId: string; note: unknown }): MarkReviewedResult {
+    const note = typeof input.note === 'string' ? input.note.trim() : '';
+    if (note.length === 0) {
+      throw new ValidationError('A note is required.', { note: 'A note is required.' });
+    }
+    if (note.length > REVIEW_NOTE_MAX) {
+      throw new ValidationError(`Keep the note under ${REVIEW_NOTE_MAX} characters.`, {
+        note: `Keep the note under ${REVIEW_NOTE_MAX} characters.`,
+      });
+    }
+
+    const row = runSqliteRead('emailLogService.findForReview', () =>
+      outbox.findForReview.get(input.outboxId),
+    ) as { id: string; status: string; template_key: string | null; recipient_member_id: string | null; reviewed_at: string | null } | undefined;
+    if (!row) throw new NotFoundError(`Outbox message not found: ${input.outboxId}`);
+    if (!REVIEWABLE_STATUSES.has(row.status)) return { status: 'not_reviewable' };
+
+    const nowIso = new Date().toISOString();
+    let reviewed = false;
+    transaction(() => {
+      const res = outbox.markReviewed.run(
+        nowIso, input.adminMemberId, note, nowIso, input.adminMemberId, input.outboxId,
+      );
+      if (res.changes === 0) return;
+
+      appendAuditEntry({
+        actionType: 'email.dead_letter_reviewed',
+        category:   'email',
+        actorType:  'admin',
+        actorMemberId: input.adminMemberId,
+        entityType: 'outbox_email',
+        entityId:   input.outboxId,
+        reasonText: note,
+        metadata:   {
+          outboxStatus: row.status,
+          templateKey:  row.template_key,
+          // The recipient is referenced by member id where there is one, never
+          // by address: this ledger is permanent and erasure cannot reach it.
+          recipientMemberId: row.recipient_member_id,
+        },
+      });
+      reviewed = true;
+    });
+
+    return reviewed ? { status: 'reviewed' } : { status: 'already_reviewed' };
   },
 };

@@ -5614,6 +5614,9 @@ export interface OutboxLogQueryRow {
   last_error: string | null;
   recipient_display_name: string | null;
   recipient_slug: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  reviewed_by_display_name: string | null;
 }
 
 function buildOutboxLogWhere(f: OutboxLogFilters): { sql: string; params: unknown[] } {
@@ -5631,12 +5634,18 @@ export function queryOutboxLog(filters: OutboxLogFilters, limit: number, offset:
     SELECT
       o.id, o.created_at, o.sent_at, o.recipient_email, o.recipient_member_id,
       o.mailing_list_id, o.subject, o.template_key, o.status, o.last_error,
-      rm.display_name AS recipient_display_name, rm.slug AS recipient_slug
+      o.reviewed_at, o.review_note,
+      rm.display_name AS recipient_display_name, rm.slug AS recipient_slug,
+      am.display_name AS reviewed_by_display_name
     FROM outbox_emails o
     -- Join through members_active so a soft-deleted recipient resolves to no
     -- slug: the viewer then shows the stored email with no profile link, rather
     -- than a /members/<slug> link that 404s for a deleted account.
     LEFT JOIN members_active rm ON rm.id = o.recipient_member_id
+    -- The reviewing administrator is named from the live members table rather
+    -- than stored on the row, so a rename follows and a deleted account leaves
+    -- the disposition standing with no name rather than a stale one.
+    LEFT JOIN members_active am ON am.id = o.reviewed_by_member_id
     ${sql}
     ORDER BY o.created_at DESC, o.id DESC
     LIMIT ? OFFSET ?
@@ -5730,6 +5739,38 @@ export const outbox = {
   // windowed count would quietly drop it off the page once it aged out.
   get countDeadLetterAllTime() { return db.prepare(`
     SELECT COUNT(*) AS n FROM outbox_emails WHERE status = 'dead_letter'
+  `); },
+
+  // The same set an administrator has not yet dispositioned. The health view
+  // reports both, because a reviewed failure is still a message that never
+  // arrived, while the dashboard's urgent signal reads this one: a row someone
+  // has already looked at is not something to act on today.
+  get countDeadLetterUnreviewed() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM outbox_emails
+    WHERE status = 'dead_letter' AND reviewed_at IS NULL
+  `); },
+
+  get countDeadLetterReviewed() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM outbox_emails
+    WHERE status = 'dead_letter' AND reviewed_at IS NOT NULL
+  `); },
+
+  // One row's disposition. Guarded on the row still being terminal and not yet
+  // reviewed, so a second administrator submitting the same judgement changes
+  // nothing and is told so rather than overwriting the first one's note.
+  get markReviewed() { return db.prepare(`
+    UPDATE outbox_emails
+       SET reviewed_at = ?, reviewed_by_member_id = ?, review_note = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+       AND status IN ('dead_letter','manual_review')
+       AND reviewed_at IS NULL
+  `); },
+
+  get findForReview() { return db.prepare(`
+    SELECT id, status, template_key, recipient_member_id, reviewed_at
+    FROM outbox_emails
+    WHERE id = ?
   `); },
 
   // Retention cleanup: a delivered copy is one message to one recipient,
@@ -7235,6 +7276,23 @@ export const mediaFlags = {
     JOIN members u     ON u.id = mi.uploader_member_id
     WHERE f.status = 'open'
     ORDER BY f.reported_at DESC, f.id DESC
+  `); },
+
+  // Items taken down whose stored files are still there, which is what the
+  // open card of that type means. Read from the queue rather than from the
+  // media row, because nothing on the row says whether its objects survived.
+  get listMediaAwaitingStorageRemoval() { return db.prepare(`
+    SELECT mi.id, mi.caption, mi.moderation_reason, mi.updated_at AS removed_at,
+           w.id AS queue_item_id, w.opened_at,
+           u.display_name AS uploader_display_name,
+           u.slug         AS uploader_slug
+    FROM work_queue_items w
+    JOIN media_items mi ON mi.id = w.entity_id
+    JOIN members u      ON u.id = mi.uploader_member_id
+    WHERE w.task_type = 'media_takedown_storage_removal'
+      AND w.entity_type = 'media_item'
+      AND w.status = 'open'
+    ORDER BY w.opened_at ASC, w.id ASC
   `); },
 
   // How many reports this member has filed since a cutoff, which is the

@@ -29,6 +29,9 @@ const DECISION_NOTICES: Record<string, string> = {
   already_hidden:     'That item was already hidden. The stored files were removed.',
   already_hidden_no_storage: 'That item was already hidden, and its stored files still could not be removed.',
   cleared:            'The report is cleared.',
+  retry_removed:      'The stored files are removed.',
+  retry_failed:       'The stored files still could not be removed. The item stays on the list below until they go.',
+  retry_not_needed:   'That item is visible, so it has no stored files owed.',
   flagged:            'Your report was added.',
   already_flagged:    'You have already reported that item, so nothing changed.',
 };
@@ -69,6 +72,24 @@ export const adminMediaFlagsController = {
     } catch (err) {
       if (err instanceof ValidationError) { renderWithError(res, 422, err.message); return; }
       if (err instanceof NotFoundError)   { renderWithError(res, 404, 'That media item no longer exists.'); return; }
+      handleControllerError(err, res, next, 'admin media flags controller');
+    }
+  },
+
+  /** POST /admin/media-flags/:mediaId/retry-removal */
+  async retryRemoval(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await getDefaultMediaModerationService().retryStorageRemoval({
+        mediaId:       req.params['mediaId'] ?? '',
+        adminMemberId: req.user!.userId,
+      });
+      const payload = result.status === 'removed'
+        ? 'retry_removed'
+        : result.status === 'still_failing' ? 'retry_failed' : 'retry_not_needed';
+      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, payload);
+      res.redirect(303, '/admin/media-flags');
+    } catch (err) {
+      if (err instanceof NotFoundError) { renderWithError(res, 404, 'That media item no longer exists.'); return; }
       handleControllerError(err, res, next, 'admin media flags controller');
     }
   },

@@ -342,6 +342,8 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/media-flags/ph/delete',
     '/admin/media-flags/ph/no-action',
     '/admin/media-flags/ph/flag',
+    '/admin/media-flags/ph/retry-removal',
+    '/admin/email-log/ph/review',
   ];
 
   it('403s an authenticated non-admin and redirects the unauthenticated', async () => {

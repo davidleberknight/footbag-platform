@@ -712,6 +712,18 @@ CREATE TABLE outbox_emails (
   sent_at         TEXT,
   scheduled_for   TEXT,
 
+  -- An administrator's disposition of a message that will never be delivered.
+  -- 'dead_letter' and 'manual_review' are terminal: the drain has given up, or
+  -- cannot tell whether a person received it, and nothing else in the platform
+  -- can move the row. Without a disposition those rows hold the health view's
+  -- urgent signal for as long as they exist, which trains an administrator to
+  -- ignore the one block they most need to read. Reviewing records that a human
+  -- looked and judged; it never claims the message was delivered, and the row
+  -- keeps its status so the log still says what happened to it.
+  reviewed_at           TEXT,
+  reviewed_by_member_id TEXT REFERENCES members(id),
+  review_note           TEXT,
+
   CHECK (
     recipient_email     IS NOT NULL
     OR recipient_member_id IS NOT NULL

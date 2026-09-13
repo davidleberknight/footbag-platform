@@ -30,6 +30,7 @@ const REPORTER_ID = 'cccccccc-0000-0000-0000-0000000ms003';
 
 const ITEM_OK = 'media_ms_ok';
 const ITEM_FAILS = 'media_ms_fails';
+const ITEM_ACTIVE = 'media_ms_active';
 
 interface StubStorage extends MediaStorageAdapter {
   deleted: string[];
@@ -66,6 +67,15 @@ function statusOf(mediaId: string): string {
   return row.moderation_status;
 }
 
+function storageCards(mediaId: string): { id: string; status: string }[] {
+  const db = readDb();
+  const rows = db
+    .prepare("SELECT id, status FROM work_queue_items WHERE task_type = 'media_takedown_storage_removal' AND entity_type = 'media_item' AND entity_id = ? ORDER BY id")
+    .all(mediaId) as { id: string; status: string }[];
+  db.close();
+  return rows;
+}
+
 function auditCount(mediaId: string): number {
   const db = readDb();
   const row = db
@@ -86,7 +96,7 @@ beforeAll(async () => {
   insertMember(db, { id: REPORTER_ID, slug: 'ms_reporter', display_name: 'MS Reporter', login_email: 'ms-reporter@example.com' });
   for (const id of [ADMIN_ID, UPLOADER_ID, REPORTER_ID]) completeOnboarding(db, id);
 
-  for (const id of [ITEM_OK, ITEM_FAILS]) {
+  for (const id of [ITEM_OK, ITEM_FAILS, ITEM_ACTIVE]) {
     insertMediaItem(db, {
       id,
       uploader_member_id: UPLOADER_ID,
@@ -139,6 +149,42 @@ describe('decideDelete — the stored objects', () => {
     // whole reason the row is hidden before the objects are touched.
     expect(statusOf(ITEM_FAILS)).toBe('removed_by_admin');
     expect(storage.deleted).toEqual([`${ITEM_FAILS}/thumb.jpg`]);
+  });
+
+  it('raises one queue card when the files survive, and does not stack a second on a failed retry', async () => {
+    expect(storageCards(ITEM_FAILS).filter((c) => c.status === 'open')).toHaveLength(1);
+
+    storage.failOn.add(`${ITEM_FAILS}/display.jpg`);
+    const svc = svcModule.createMediaModerationService({ storage });
+    const again = await svc.retryStorageRemoval({ mediaId: ITEM_FAILS, adminMemberId: ADMIN_ID });
+
+    expect(again.status).toBe('still_failing');
+    expect(storageCards(ITEM_FAILS)).toHaveLength(1);
+    expect(storageCards(ITEM_FAILS)[0].status).toBe('open');
+  });
+
+  it('raises no card at all when the removal works first time', () => {
+    expect(storageCards(ITEM_OK)).toHaveLength(0);
+  });
+
+  it('closes the card on a retry that works', async () => {
+    const svc = svcModule.createMediaModerationService({ storage });
+    const result = await svc.retryStorageRemoval({ mediaId: ITEM_FAILS, adminMemberId: ADMIN_ID });
+
+    expect(result.status).toBe('removed');
+    expect(storage.deleted.sort()).toEqual([`${ITEM_FAILS}/display.jpg`, `${ITEM_FAILS}/thumb.jpg`]);
+    expect(storageCards(ITEM_FAILS)[0].status).toBe('resolved');
+  });
+
+  it('touches nothing when asked to retry an item that is still visible', async () => {
+    const svc = svcModule.createMediaModerationService({ storage });
+    const result = await svc.retryStorageRemoval({ mediaId: ITEM_ACTIVE, adminMemberId: ADMIN_ID });
+
+    expect(result.status).toBe('not_applicable');
+    // A visible item owes no files. Deleting its objects here would take the
+    // bytes out from under a live item nobody decided against.
+    expect(storage.deleted).toEqual([]);
+    expect(statusOf(ITEM_ACTIVE)).toBe('active');
   });
 
   it('retries the removal on a second run without deciding the item again', async () => {

@@ -19,6 +19,10 @@ export const FLASH_KIND = {
   WIZARD_CLUB_CARD_RESOLVED: 'wizard_club_card_resolved',
   WIZARD_CLUB_CAP_HIT: 'wizard_club_cap_hit',
   MEDIA_SAVED: 'media_saved',
+  // An administrator's disposition of a message the sender gave up on. The
+  // payload carries the outcome, since a second administrator reviewing the same
+  // message changed nothing and must not be told they did.
+  EMAIL_LOG_REVIEWED: 'email_log_reviewed',
   // An administrator's decision on a reported item. The payload carries the
   // outcome and whether the stored files actually went, since a hidden item
   // whose bytes survive still needs the decision running again.

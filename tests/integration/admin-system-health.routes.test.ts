@@ -289,6 +289,39 @@ describe('the admin dashboard surfaces the same health signals', () => {
     expect(res.text).not.toContain('One alarm is waiting for an administrator.');
   });
 
+  // A dead-lettered message an administrator has already dispositioned is a
+  // fact the health page keeps reporting and is not work waiting today. Without
+  // this split the urgent block stays open for the ninety days the row lives,
+  // with nothing anyone can do about it.
+  it('drops a reviewed dead letter from the urgent block while the health page still counts it', async () => {
+    withDb((db) => {
+      insertOutboxEmail(db, {
+        id: 'sh_reviewed_dl', status: 'dead_letter', created_at: HOURS_AGO(1),
+        reviewed_at: '2026-09-14T00:00:00.000Z', reviewed_by_member_id: ADMIN_ID,
+        review_note: 'Address does not exist yet.',
+      });
+    });
+
+    const dash = await request(createApp()).get('/admin').set('Cookie', adminCookie());
+    expect(dash.status).toBe(200);
+    expect(dash.text).not.toContain('One message was dead-lettered.');
+
+    const html = await healthPage();
+    expect(html).toContain('<a href="/admin/email-log?status&#x3D;dead_letter" class="fw-600">1</a>');
+    expect(html).toContain('1 of 1 reviewed');
+  });
+
+  it('keeps an unreviewed dead letter in the urgent block', async () => {
+    withDb((db) => {
+      insertOutboxEmail(db, { id: 'sh_open_dl', status: 'dead_letter', created_at: HOURS_AGO(1) });
+    });
+    const dash = await request(createApp()).get('/admin').set('Cookie', adminCookie());
+    expect(dash.text).toContain('One message was dead-lettered.');
+
+    const html = await healthPage();
+    expect(html).toContain('0 of 1 reviewed');
+  });
+
   // The scheduled jobs are half of what the health page reports. A dashboard
   // that stays quiet while a job is failing, has never once succeeded, or was
   // killed mid-run hides exactly the quiet failure it exists to surface.

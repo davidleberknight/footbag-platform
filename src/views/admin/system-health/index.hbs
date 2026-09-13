@@ -29,6 +29,9 @@
       &middot; Dead-lettered all time:
       {{#if content.outbox.hasDeadLetter}}
         <a href="{{content.outbox.deadLetterHref}}" class="fw-600">{{content.outbox.deadLetterCount}}</a>
+        {{#if content.outbox.deadLetterReviewedLabel}}
+          <span class="text-muted">({{content.outbox.deadLetterReviewedLabel}})</span>
+        {{/if}}
       {{else}}
         <span class="fw-600">0</span>
       {{/if}}

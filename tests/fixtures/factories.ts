@@ -1529,7 +1529,7 @@ export interface OutboxEmailOverrides {
   subject?: string;
   body_text?: string | null;
   template_key?: string | null;
-  status?: 'pending' | 'sending' | 'sent' | 'failed' | 'dead_letter';
+  status?: 'pending' | 'sending' | 'sent' | 'failed' | 'dead_letter' | 'manual_review';
   last_error?: string | null;
   sent_at?: string | null;
   created_at?: string;
@@ -1537,6 +1537,10 @@ export interface OutboxEmailOverrides {
   stream?: 'transactional' | 'bulk';
   /** When the drain last tried this row, which is what a dead letter ages on. */
   last_attempt_at?: string | null;
+  /** An administrator's disposition of a message that will never be delivered. */
+  reviewed_at?: string | null;
+  reviewed_by_member_id?: string | null;
+  review_note?: string | null;
 }
 
 export interface MailingListOverrides {
@@ -1598,8 +1602,9 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
       id, created_at, created_by, updated_at, updated_by, version,
       recipient_email, recipient_member_id, mailing_list_id,
       subject, body_text, template_key, status, last_error, sent_at,
-      stream, last_attempt_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stream, last_attempt_at,
+      reviewed_at, reviewed_by_member_id, review_note
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, ts, SYS, ts, SYS,
     recipientEmail,
@@ -1613,6 +1618,9 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     o.sent_at ?? null,
     o.stream ?? 'transactional',
     o.last_attempt_at ?? null,
+    o.reviewed_at ?? null,
+    o.reviewed_by_member_id ?? null,
+    o.review_note ?? null,
   );
   return id;
 }

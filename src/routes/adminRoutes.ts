@@ -114,6 +114,9 @@ adminRouter.get('/audit-log',                 adminAuditLogController.index);
 adminRouter.get('/audit-log/summary',         adminAuditLogController.summary);
 adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/email-log',                 adminEmailLogController.index);
+// The one write on this surface: an administrator settles a message the sender
+// gave up on. It changes no delivery fact and there is deliberately no resend.
+adminRouter.post('/email-log/:id/review',     adminEmailLogController.review);
 adminRouter.get('/system-health',             adminSystemHealthController.index);
 // The tunable runtime configuration, in one place. The save posts every value
 // the screen owns; the pricing post schedules a new membership price, which is
@@ -239,3 +242,4 @@ adminRouter.post('/media-flags/flags/:flagId/clear',   adminMediaFlagsController
 adminRouter.post('/media-flags/:mediaId/delete',       adminMediaFlagsController.remove);
 adminRouter.post('/media-flags/:mediaId/no-action',    adminMediaFlagsController.noAction);
 adminRouter.post('/media-flags/:mediaId/flag',         adminMediaFlagsController.flag);
+adminRouter.post('/media-flags/:mediaId/retry-removal', adminMediaFlagsController.retryRemoval);

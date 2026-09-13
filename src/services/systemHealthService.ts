@@ -91,6 +91,11 @@ export interface SystemHealthContent {
     deadLetterCount: number;
     hasDeadLetter: boolean;
     deadLetterHref: string;
+    // How many of that all-time figure an administrator has dispositioned. The
+    // total stays as the story requires, because a reviewed failure is still a
+    // message that never arrived; the split is what says whether any of them
+    // are still waiting on a person.
+    deadLetterReviewedLabel: string | null;
     sendingPaused: boolean;
     pausedLabel: string;
   };
@@ -231,7 +236,12 @@ export const systemHealthService = {
   },
 
   readHealthBadges(): SystemHealthBadges {
-    const deadLetterCount = (outbox.countDeadLetterAllTime.get() as { n: number }).n;
+    // Unreviewed, not all-time. A dead-lettered message an administrator has
+    // already read and dispositioned is a fact the health page keeps reporting;
+    // it is not work waiting today, and leaving it in the urgent signal would
+    // hold that signal open for the ninety days the row survives, with nothing
+    // anyone could do about it.
+    const deadLetterCount = (outbox.countDeadLetterUnreviewed.get() as { n: number }).n;
     const activeAlarmCount = systemAlarmService.countActiveUnacknowledged();
     const sendingPaused = readIntConfig('email_outbox_paused', 0) === 1;
     const attentionNotes: string[] = [];
@@ -362,6 +372,9 @@ export const systemHealthService = {
           deadLetterCount,
           hasDeadLetter: deadLetterCount > 0,
           deadLetterHref: '/admin/email-log?status=dead_letter',
+          deadLetterReviewedLabel: deadLetterCount > 0
+            ? `${(outbox.countDeadLetterReviewed.get() as { n: number }).n} of ${deadLetterCount} reviewed`
+            : null,
           sendingPaused,
           pausedLabel: sendingPaused ? 'Paused' : 'Draining',
         },

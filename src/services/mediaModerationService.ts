@@ -27,6 +27,10 @@
  *     is what every public read honours and the objects are what the storage origin
  *     still serves. A failed object removal leaves the item hidden and is reported
  *     to the administrator, and deciding the same item again retries it.
+ *   - A failed object removal also raises its own work-queue card, one per item,
+ *     because a banner and a log line are gone the moment the administrator closes
+ *     the tab while the bytes stay served. The card closes on the first removal
+ *     that succeeds, whether from the dedicated retry or from a later decision.
  *   - The first open report on an item raises one work-queue twin; later reports on
  *     an item that already has an open twin raise none. The decision closes it in
  *     the same transaction, so a settled item cannot leave a card behind.
@@ -55,6 +59,8 @@
  *   - audit_entries append: `media.flagged`, `media.deleted`, `media.flag_resolved`,
  *     `media.flag_cleared`
  *   - work-queue insert of `media_flag_review`, and its close on a decision
+ *   - work-queue insert of `media_takedown_storage_removal` on a failed object
+ *     removal, and its close on a removal that succeeds
  *   - outbox enqueue of the uploader's decision mail
  *   - object-storage delete on a Delete decision
  *
@@ -110,6 +116,9 @@ const PATTERN_WINDOW_DAYS = 30;
 /** The task type whose card points at this surface. */
 const TASK_TYPE = 'media_flag_review';
 
+/** The card raised when a takedown's stored files outlive the decision. */
+const STORAGE_TASK_TYPE = 'media_takedown_storage_removal';
+
 export type FlagResult =
   | { status: 'recorded'; flagId: string }
   | { status: 'already_flagged' };
@@ -124,6 +133,12 @@ export type DecisionResult =
 export type ClearFlagResult =
   | { status: 'cleared' }
   | { status: 'already_settled' };
+
+export type RetryRemovalResult =
+  | { status: 'removed' }
+  | { status: 'still_failing' }
+  // The item is visible, so there is no takedown whose files could be owed.
+  | { status: 'not_applicable' };
 
 export interface FlaggedReportViewModel {
   flagId: string;
@@ -152,11 +167,25 @@ export interface FlaggedMediaViewModel {
   noActionHref: string;
 }
 
+/** A hidden item whose stored files are still there. */
+export interface PendingRemovalViewModel {
+  mediaId: string;
+  caption: string | null;
+  uploaderDisplay: string;
+  uploaderHref: string;
+  removedAtDisplay: string;
+  decisionReason: string | null;
+  retryHref: string;
+}
+
 export interface AdminMediaFlagsContent {
   items: FlaggedMediaViewModel[];
   hasItems: boolean;
   emptyMessage: string;
   reasonMaxLength: number;
+  pendingRemoval: PendingRemovalViewModel[];
+  hasPendingRemoval: boolean;
+  pendingRemovalNote: string;
 }
 
 interface ModerationRow {
@@ -176,6 +205,17 @@ interface ModerationRow {
   uploader_slug: string;
   uploader_login_email: string;
   uploader_is_system: number;
+}
+
+interface AwaitingRemovalRow {
+  id: string;
+  caption: string | null;
+  moderation_reason: string | null;
+  removed_at: string;
+  queue_item_id: string;
+  opened_at: string;
+  uploader_display_name: string;
+  uploader_slug: string;
 }
 
 interface OpenFlagRow {
@@ -301,6 +341,44 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     if (row.s3_key_thumb) keys.push(row.s3_key_thumb);
     if (row.s3_key_display) keys.push(row.s3_key_display);
     return keys;
+  }
+
+  /**
+   * Remove the item's stored objects and leave the queue telling the truth
+   * about the result: a failure raises one card for the item, a success closes
+   * whichever card an earlier failure left open. Deduplicated per item, so a
+   * retry that fails again does not stack a second card.
+   */
+  async function removeStoredObjectsAndRecord(row: ModerationRow, actorId: string): Promise<boolean> {
+    const allRemoved = await removeStoredObjects(row);
+    const nowIso = new Date().toISOString();
+
+    if (allRemoved) {
+      workQueue.resolveOpenByEntity.run(
+        nowIso, actorId, 'removed', 'Stored files removed.',
+        nowIso, actorId,
+        STORAGE_TASK_TYPE, 'media_item', row.id,
+      );
+      return true;
+    }
+
+    transaction(() => {
+      const open = workQueue.findOpenByEntity.get(
+        STORAGE_TASK_TYPE, 'media_item', row.id,
+      ) as { id: string } | undefined;
+      if (open) return;
+      workQueueService.enqueue({
+        actorId,
+        queueCategory: 'media',
+        taskType:      STORAGE_TASK_TYPE,
+        entityType:    'media_item',
+        entityId:      row.id,
+        priority:      0,
+        reasonText:    'This item is hidden, but its stored files were not removed and are still served to anyone holding their address.',
+        detailText:    null,
+      });
+    });
+    return false;
   }
 
   async function removeStoredObjects(row: ModerationRow): Promise<boolean> {
@@ -567,7 +645,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       // failed earlier. Nothing is decided twice: no second audit row, no second
       // mail to the uploader, just another attempt at the bytes.
       if (row.moderation_status !== 'active') {
-        const retried = await removeStoredObjects(row);
+        const retried = await removeStoredObjectsAndRecord(row, input.adminMemberId);
         return { status: 'already_hidden', storageRemoved: retried };
       }
 
@@ -577,7 +655,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       });
       if (!settled) return { status: 'already_settled' };
 
-      const storageRemoved = await removeStoredObjects(row);
+      const storageRemoved = await removeStoredObjectsAndRecord(row, input.adminMemberId);
       const uploaderNotified = notifyUploader(
         row, 'Removed', reason, `media-moderation:${input.mediaId}:deleted`,
       );
@@ -605,6 +683,20 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         row, 'No action taken', reason, `media-moderation:${input.mediaId}:no_action`,
       );
       return { status: 'decided', storageRemoved: true, uploaderNotified };
+    },
+
+    /**
+     * Try again to remove a hidden item's stored files. Its own act rather than
+     * a repeat of the decision: the decision needs a reason and a retry has
+     * nothing new to say, so asking for one again would be typing that nothing
+     * records.
+     */
+    async retryStorageRemoval(input: { mediaId: string; adminMemberId: string }): Promise<RetryRemovalResult> {
+      const row = loadItemForModeration(input.mediaId);
+      if (row.moderation_status === 'active') return { status: 'not_applicable' };
+
+      const removed = await removeStoredObjectsAndRecord(row, input.adminMemberId);
+      return { status: removed ? 'removed' : 'still_failing' };
     },
 
     /** The takedown queue an administrator reads and decides from. */
@@ -666,6 +758,19 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           : `${item.reports.length} open reports`;
       }
 
+      const awaiting = runSqliteRead('listMediaAwaitingStorageRemoval', () =>
+        mediaFlags.listMediaAwaitingStorageRemoval.all(),
+      ) as AwaitingRemovalRow[];
+      const pendingRemoval: PendingRemovalViewModel[] = awaiting.map((r) => ({
+        mediaId:         r.id,
+        caption:         r.caption,
+        uploaderDisplay: r.uploader_display_name,
+        uploaderHref:    `/members/${r.uploader_slug}`,
+        removedAtDisplay: r.removed_at.slice(0, 10),
+        decisionReason:  r.moderation_reason,
+        retryHref:       `/admin/media-flags/${r.id}/retry-removal`,
+      }));
+
       return {
         seo:  { title: 'Flagged Media', noindex: true },
         page: {
@@ -682,6 +787,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           hasItems: items.length > 0,
           emptyMessage: 'No media is awaiting review.',
           reasonMaxLength: DECISION_REASON_MAX_LEN,
+          pendingRemoval,
+          hasPendingRemoval: pendingRemoval.length > 0,
+          pendingRemovalNote: 'These items are hidden, but their stored files were not removed and are still served to anyone who has their address. Retrying removes them.',
         },
       };
     },

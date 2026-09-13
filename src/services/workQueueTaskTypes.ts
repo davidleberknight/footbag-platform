@@ -373,6 +373,24 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     }],
   },
 
+  media_takedown_storage_removal: {
+    label:            'Removed media with files still stored',
+    queueCategory:    'media',
+    entityTypes:      ['media_item'],
+    urgentAdminAlert: null,
+    evidence:         { kind: 'reason_text' },
+    // Raised when a takedown hid the item but its stored files survived, so the
+    // bytes are still served to anyone holding their address. Without a card the
+    // only record is a log line and a banner in one administrator's browser,
+    // both gone the moment they close the tab. It closes as soon as a retry
+    // removes the files.
+    actions: [{
+      kind:  'elsewhere',
+      label: 'Retry on the Flagged Media Page',
+      href:  '/admin/media-flags',
+    }],
+  },
+
   reconciliation_discrepancy: {
     label:            'Payment reconciliation discrepancy',
     queueCategory:    'payments',

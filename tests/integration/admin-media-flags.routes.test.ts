@@ -28,6 +28,7 @@ import {
   insertMemberTierGrant,
   insertMediaItem,
   insertMediaFlag,
+  insertWorkQueueItem,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -47,6 +48,7 @@ const ITEM_CLEAR = 'media_af_clear';
 const ITEM_RACE = 'media_af_race';
 const ITEM_ADMIN_FLAG = 'media_af_adminflag';
 const ITEM_PATTERN = 'media_af_pattern';
+const ITEM_FILES_OWED = 'media_af_files_owed';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
@@ -76,11 +78,11 @@ function flagsFor(mediaId: string): { id: string; status: string; resolution_lab
   return rows;
 }
 
-function queueFor(mediaId: string): { id: string; status: string; decision_label: string | null }[] {
+function queueFor(mediaId: string): { id: string; status: string; decision_label: string | null; task_type: string }[] {
   const db = readDb();
   const rows = db
-    .prepare("SELECT id, status, decision_label FROM work_queue_items WHERE entity_type = 'media_item' AND entity_id = ? ORDER BY id")
-    .all(mediaId) as { id: string; status: string; decision_label: string | null }[];
+    .prepare("SELECT id, status, decision_label, task_type FROM work_queue_items WHERE entity_type = 'media_item' AND entity_id = ? ORDER BY id")
+    .all(mediaId) as { id: string; status: string; decision_label: string | null; task_type: string }[];
   db.close();
   return rows;
 }
@@ -127,17 +129,40 @@ beforeAll(async () => {
       // real open report sits.
       reported_at: new Date().toISOString(),
     });
-    db.prepare(`
-      INSERT INTO work_queue_items (
-        id, created_at, created_by, updated_at, updated_by, version,
-        queue_category, task_type, entity_type, entity_id, status, priority, opened_at, reason_text
-      ) VALUES (?, '2025-01-01T00:00:00.000Z', 'test', '2025-01-01T00:00:00.000Z', 'test', 1,
-                'media', 'media_flag_review', 'media_item', ?, 'open', 0, '2025-01-01T00:00:00.000Z',
-                'A member reported this media item for review.')
-    `).run(`wq_af_${id}`, id);
+    insertWorkQueueItem(db, {
+      id:             `wq_af_${id}`,
+      queue_category: 'media',
+      task_type:      'media_flag_review',
+      entity_type:    'media_item',
+      entity_id:      id,
+      status:         'open',
+      priority:       0,
+      reason_text:    'A member reported this media item for review.',
+    });
   }
   // No report of its own: it exists for the administrator-raised report.
   insertMediaItem(db, { id: ITEM_ADMIN_FLAG, uploader_member_id: UPLOADER_ID, caption: 'Admin raised', tags: ['#by_af_uploader'] });
+
+  // A takedown whose stored files outlived it: hidden, no open reports left,
+  // and one open card saying the bytes are still there.
+  insertMediaItem(db, {
+    id: ITEM_FILES_OWED,
+    uploader_member_id: UPLOADER_ID,
+    caption: 'Files still stored',
+    tags: ['#by_af_uploader'],
+  });
+  db.prepare("UPDATE media_items SET moderation_status = 'removed_by_admin', moderation_reason = ? WHERE id = ?")
+    .run('Removed after review.', ITEM_FILES_OWED);
+  insertWorkQueueItem(db, {
+    id:             `wq_af_${ITEM_FILES_OWED}`,
+    queue_category: 'media',
+    task_type:      'media_takedown_storage_removal',
+    entity_type:    'media_item',
+    entity_id:      ITEM_FILES_OWED,
+    status:         'open',
+    priority:       0,
+    reason_text:    'This item is hidden, but its stored files were not removed and are still served to anyone holding their address.',
+  });
 
   db.close();
   createApp = await importApp();
@@ -373,6 +398,56 @@ describe('POST /admin/media-flags/:mediaId/no-action', () => {
 
     expect(res.status).toBe(303);
     expect(auditFor(ITEM_NO_ACTION)).toHaveLength(auditBefore);
+  });
+});
+
+describe('items whose stored files outlived the takedown', () => {
+  it('lists each one with a retry control, and says why it matters', async () => {
+    const res = await request(createApp()).get('/admin/media-flags').set('Cookie', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Files Still to Remove');
+    expect(res.text).toContain('Files still stored');
+    expect(res.text).toContain('still served to anyone');
+    expect(res.text).toContain(`/admin/media-flags/${ITEM_FILES_OWED}/retry-removal`);
+    expect(res.text).toContain('Retry File Removal');
+  });
+
+  it('removes the files on a retry and takes the item off the list', async () => {
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_FILES_OWED}/retry-removal`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({});
+
+    expect(res.status).toBe(303);
+    expect(res.headers['location']).toBe('/admin/media-flags');
+
+    const queue = queueFor(ITEM_FILES_OWED);
+    expect(queue).toHaveLength(1);
+    expect(queue[0].status).toBe('resolved');
+    expect(queue[0].decision_label).toBe('removed');
+
+    const page = await request(createApp()).get('/admin/media-flags').set('Cookie', admin());
+    expect(page.text).not.toContain(`/admin/media-flags/${ITEM_FILES_OWED}/retry-removal`);
+  });
+
+  it('tells an administrator retrying a visible item there is nothing owed', async () => {
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_ADMIN_FLAG}/retry-removal`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+    expect(queueFor(ITEM_ADMIN_FLAG).every((q) => q.task_type !== 'media_takedown_storage_removal')).toBe(true);
+  });
+
+  it('403s a signed-in non-admin on the retry', async () => {
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_FILES_OWED}/retry-removal`)
+      .set('Cookie', member())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(403);
   });
 });
 

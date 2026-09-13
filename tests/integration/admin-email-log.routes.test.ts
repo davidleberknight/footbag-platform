@@ -186,3 +186,192 @@ describe('GET /admin/email-log', () => {
     expect(bravo).toBeLessThan(alpha);
   });
 });
+
+// A message the sender has given up on is the one thing on this surface an
+// administrator can act on, and until now nothing could: the row held the
+// dashboard's urgent signal until retention deleted it three months later.
+// Reviewing settles it without claiming the message was delivered.
+describe('POST /admin/email-log/:id/review', () => {
+  function outboxRow(id: string): {
+    status: string; reviewed_at: string | null; reviewed_by_member_id: string | null;
+    review_note: string | null; version: number;
+  } {
+    return withDb((db) => db
+      .prepare('SELECT status, reviewed_at, reviewed_by_member_id, review_note, version FROM outbox_emails WHERE id = ?')
+      .get(id)) as {
+        status: string; reviewed_at: string | null; reviewed_by_member_id: string | null;
+        review_note: string | null; version: number;
+      };
+  }
+
+  function auditRows(entityId: string): { action_type: string; actor_member_id: string | null; reason_text: string | null; metadata_json: string }[] {
+    return withDb((db) => db
+      .prepare("SELECT action_type, actor_member_id, reason_text, metadata_json FROM audit_entries WHERE entity_type = 'outbox_email' AND entity_id = ? ORDER BY id")
+      .all(entityId)) as { action_type: string; actor_member_id: string | null; reason_text: string | null; metadata_json: string }[];
+  }
+
+  it('redirects an unauthenticated visitor and reviews nothing', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_anon', status: 'dead_letter' }));
+    const res = await request(createApp())
+      .post('/admin/email-log/el_rev_anon/review')
+      .type('form').send({ note: 'Letting myself in.' });
+    expect(res.status).toBe(302);
+    expect(res.headers['location']).toContain('/login');
+    expect(outboxRow('el_rev_anon').reviewed_at).toBeNull();
+  });
+
+  it('403s a signed-in non-admin and reviews nothing', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_member', status: 'dead_letter' }));
+    const res = await request(createApp())
+      .post('/admin/email-log/el_rev_member/review')
+      .set('Cookie', memberCookie())
+      .type('form').send({ note: 'Not mine to settle.' });
+    expect(res.status).toBe(403);
+    expect(outboxRow('el_rev_member').reviewed_at).toBeNull();
+  });
+
+  it('records the review with its note and audits it, leaving the delivery status alone', async () => {
+    withDb((db) => insertOutboxEmail(db, {
+      id: 'el_rev_ok', status: 'dead_letter', template_key: 'account_verify',
+      recipient_member_id: MEMBER_ID, recipient_email: null,
+    }));
+
+    const res = await request(createApp())
+      .post('/admin/email-log/el_rev_ok/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: 'Address does not exist yet; nothing to resend.' });
+
+    expect(res.status).toBe(303);
+    const row = outboxRow('el_rev_ok');
+    expect(row.reviewed_at).not.toBeNull();
+    expect(row.reviewed_by_member_id).toBe(ADMIN_ID);
+    expect(row.review_note).toBe('Address does not exist yet; nothing to resend.');
+    // The review is a judgement, not a delivery claim.
+    expect(row.status).toBe('dead_letter');
+    expect(row.version).toBe(2);
+
+    const audit = auditRows('el_rev_ok');
+    expect(audit).toHaveLength(1);
+    expect(audit[0].action_type).toBe('email.dead_letter_reviewed');
+    expect(audit[0].actor_member_id).toBe(ADMIN_ID);
+    expect(JSON.parse(audit[0].metadata_json).recipientMemberId).toBe(MEMBER_ID);
+    // The permanent ledger names the recipient by id, never by address.
+    expect(audit[0].metadata_json).not.toContain('@example.com');
+  });
+
+  it('shows the review on the row afterwards and offers no second form', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_shown', status: 'dead_letter', subject: 'Already settled' }));
+    await request(createApp())
+      .post('/admin/email-log/el_rev_shown/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: 'Seen and settled.' });
+
+    const page = await request(createApp()).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(page.text).toContain('Seen and settled.');
+    expect(page.text).toContain('Reviewed ');
+    expect(page.text).not.toContain('/admin/email-log/el_rev_shown/review');
+  });
+
+  it('tells a second administrator that nothing changed, and keeps the first note', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_twice', status: 'dead_letter' }));
+    await request(createApp())
+      .post('/admin/email-log/el_rev_twice/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: 'First look.' });
+
+    const second = await request(createApp())
+      .post('/admin/email-log/el_rev_twice/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: 'Second look.' });
+
+    expect(second.status).toBe(303);
+    expect(outboxRow('el_rev_twice').review_note).toBe('First look.');
+    expect(auditRows('el_rev_twice')).toHaveLength(1);
+  });
+
+  it('refuses a review with no note', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_nonote', status: 'dead_letter' }));
+    const res = await request(createApp())
+      .post('/admin/email-log/el_rev_nonote/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: '   ' });
+    expect(res.status).toBe(422);
+    expect(outboxRow('el_rev_nonote').reviewed_at).toBeNull();
+  });
+
+  // The banner the administrator reads has to tell the two refusals apart: a
+  // message already settled by a colleague is not the same as one the sender
+  // may still deliver, and reporting either as the other misleads them about
+  // what happened to the message.
+  async function bannerAfterPost(id: string, note: string): Promise<string> {
+    const app = createApp();
+    const post = await request(app)
+      .post(`/admin/email-log/${id}/review`)
+      .set('Cookie', adminCookie())
+      .type('form').send({ note });
+    expect(post.status).toBe(303);
+    const flash = (post.headers['set-cookie'] as unknown as string[]) ?? [];
+    const page = await request(app)
+      .get('/admin/email-log')
+      .set('Cookie', [adminCookie(), ...flash.map((c) => c.split(';')[0])]);
+    return page.text;
+  }
+
+  it('reviews nothing on a message the sender may still deliver, and says which refusal it was', async () => {
+    withDb((db) => {
+      insertOutboxEmail(db, { id: 'el_rev_pending', status: 'pending' });
+      insertOutboxEmail(db, { id: 'el_rev_failed',  status: 'failed' });
+    });
+
+    for (const id of ['el_rev_pending', 'el_rev_failed']) {
+      const banner = await bannerAfterPost(id, 'Too early.');
+      expect(banner, `${id} must report nothing to review`).toContain('not in a failed state');
+      expect(outboxRow(id).reviewed_at, `${id} must not be reviewable`).toBeNull();
+      expect(auditRows(id)).toHaveLength(0);
+    }
+  });
+
+  it('tells an administrator reviewing a settled message that it was already reviewed', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_settled', status: 'dead_letter' }));
+    await request(createApp())
+      .post('/admin/email-log/el_rev_settled/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: 'First look.' });
+
+    const banner = await bannerAfterPost('el_rev_settled', 'Second look.');
+    expect(banner).toContain('already reviewed');
+  });
+
+  it('offers the control on a message held for manual review as well', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_manual', status: 'manual_review' }));
+    const page = await request(createApp()).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(page.text).toContain('/admin/email-log/el_rev_manual/review');
+  });
+
+  it('persists only the review fields when the body carries extras', async () => {
+    withDb((db) => insertOutboxEmail(db, {
+      id: 'el_rev_extras', status: 'dead_letter', recipient_email: 'victim@example.com',
+    }));
+
+    const res = await request(createApp())
+      .post('/admin/email-log/el_rev_extras/review')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        note: 'Settled.',
+        status: 'sent',
+        recipient_email: 'attacker@example.com',
+        sent_at: '2026-01-01T00:00:00.000Z',
+        reviewed_by_member_id: MEMBER_ID,
+      });
+
+    expect(res.status).toBe(303);
+    const row = withDb((db) => db
+      .prepare('SELECT status, recipient_email, sent_at, reviewed_by_member_id FROM outbox_emails WHERE id = ?')
+      .get('el_rev_extras')) as { status: string; recipient_email: string; sent_at: string | null; reviewed_by_member_id: string };
+    expect(row.status).toBe('dead_letter');
+    expect(row.recipient_email).toBe('victim@example.com');
+    expect(row.sent_at).toBeNull();
+    expect(row.reviewed_by_member_id).toBe(ADMIN_ID);
+  });
+});

@@ -6,6 +6,10 @@
 </div>
 
 <div class="wrapper">
+  {{#if page.notice}}
+    <p class="form-notice" role="status">{{page.notice}}</p>
+  {{/if}}
+
   <form method="GET" action="/admin/email-log" class="mb-6">
     <p>
       <label>Recipient <input type="text" name="recipient" value="{{content.filters.recipient}}"></label>
@@ -50,6 +54,22 @@
           <summary>Template body (merge fields unpopulated)</summary>
           <pre>{{templateBodyPreview}}</pre>
         </details>
+      {{/if}}
+      {{#if isReviewed}}
+        <p class="card-meta fs-sm">{{reviewedLabel}}{{#if reviewNote}}: {{reviewNote}}{{/if}}</p>
+      {{/if}}
+      {{#if isReviewable}}
+        <form method="POST" action="{{reviewHref}}" class="form-block">
+          <input type="hidden" name="status" value="{{@root.content.filters.status}}" />
+          <input type="hidden" name="recipient" value="{{@root.content.filters.recipient}}" />
+          <input type="hidden" name="template" value="{{@root.content.filters.templateKey}}" />
+          <div class="form-field">
+            <label for="review-note-{{id}}">What you did about it</label>
+            <textarea id="review-note-{{id}}" name="note" rows="2" maxlength="{{@root.content.reviewNoteMaxLength}}" required placeholder="Internal note; the message is not resent"></textarea>
+          </div>
+          <p class="card-meta fs-sm">This message will never be delivered. Marking it reviewed records that you looked and settles it; it does not resend anything, and the failure stays on the health page.</p>
+          <button type="submit" class="btn btn-outline btn-sm">Mark Reviewed</button>
+        </form>
       {{/if}}
     </div>
   {{/each}}

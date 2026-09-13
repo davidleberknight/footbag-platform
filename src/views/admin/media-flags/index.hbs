@@ -16,6 +16,29 @@
     </section>
   {{/unless}}
 
+  {{#if content.hasPendingRemoval}}
+    <section>
+      <div class="section-heading">
+        <h2>Files Still to Remove</h2>
+        <span class="section-count">{{content.pendingRemoval.length}}</span>
+      </div>
+      <p class="text-muted fs-sm">{{content.pendingRemovalNote}}</p>
+      {{#each content.pendingRemoval}}
+        <div class="card">
+          <div class="card-title">{{#if caption}}{{caption}}{{else}}Untitled item{{/if}}</div>
+          <p class="card-meta">
+            Removed {{removedAtDisplay}} &middot; uploaded by
+            <a href="{{uploaderHref}}">{{uploaderDisplay}}</a>
+          </p>
+          {{#if decisionReason}}<p class="text-secondary">{{decisionReason}}</p>{{/if}}
+          <form method="POST" action="{{retryHref}}" class="form-block">
+            <button type="submit" class="btn btn-primary btn-sm">Retry File Removal</button>
+          </form>
+        </div>
+      {{/each}}
+    </section>
+  {{/if}}
+
   {{#each content.items}}
     <section>
       <div class="card">
