@@ -1,7 +1,7 @@
 ---
 paths:
   - "src/views/**"
-  - "src/public/css/**"
+  - "src/public/**"
 ---
 
 # View-layer standard
@@ -219,6 +219,17 @@ where it is most often violated.
   editorial and content strings, UI labels and notices, and notification email bodies (the email
   bodies are authored in the service layer). Use commas, parentheses, or restructure instead. This
   restriction applies only to that user-facing text; this rule is its sole home.
+
+## Static assets (`src/public/`)
+
+Served by Express at the root URL path `/`, with no build step of any kind:
+
+- Scripts in `src/public/js/` are served directly, so they run as plain ES5/ES6 with no bundler or
+  transpiler. Scope each to a single page or feature and load it with `defer`.
+- Progressive enhancement is mandatory. Every page works without JavaScript; a script may enhance
+  behavior (maps, tooltips) but core content never depends on one.
+- `src/public/img/` holds images belonging to the site itself (world map, logos, icons,
+  placeholders). Member-uploaded photos and media live in object storage, never here.
 
 ## Where the rest lives
 

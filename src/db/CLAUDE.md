@@ -1,42 +1,27 @@
-# CLAUDE.md
+# CLAUDE.md — src/db/
 
-## Purpose
-
-Local rules for `src/db/` work.
+Local rules for `src/db/`. The layer's general contract (prepared-statement style, SQL
+conventions, views, transactions, flat rows, no abstractions) is `.claude/rules/db-layer.md`;
+only the file-local additions live here.
 
 ## File boundaries
 
-- `db.ts` is the prepared-statement module for the current implemented public-route baseline.
-- `db.ts` owns:
-  - calling `openDatabase()` to obtain the single connection at module load
-  - prepared statement groups
-  - transaction helper
-  - minimal database readiness probe
-- `openDatabase.ts` owns:
-  - `new BetterSqlite3(...)` — the actual connection open
-  - startup PRAGMAs only
+- `db.ts` owns the single connection obtained from `openDatabase()` at module load, the prepared
+  statement groups, the transaction helper, and the minimal database readiness probe.
+- `openDatabase.ts` owns `new BetterSqlite3(...)` and the startup PRAGMAs, nothing else.
 
-## Statement laziness
+## File-local additions to the layer rule
 
-The getter-based lazy-compilation contract lives in `.claude/rules/db-layer.md`. File-local addition: dynamic-SQL helpers (`queryFilteredTeams`, `queryCandidateItems`, `queryCuratedItems`, `queryReviewItems`) build and prepare their SQL inside the function body, never at module top level.
-
-## Do not put this in `db.ts`
-
-The generic db-layer exclusions (no business or page-use-case logic, no result grouping or view shaping, no repository/ORM/query-builder abstractions) live in `.claude/rules/db-layer.md`. File-local additions here:
-
-- request parsing
-- `eventKey` validation or parsing
-- full readiness composition
-
-## Growth rule
-
-When functionality grows, add explicit statement groups and small helpers instead of abstraction layers.
-
-- Keep returned rows flat when possible; shape them above `db.ts`.
+- Dynamic-SQL helpers (`queryFilteredTeams`, `queryCandidateItems`, `queryCuratedItems`,
+  `queryReviewItems`) build and prepare their SQL inside the function body, never at module top
+  level, so the getter-based lazy-compilation contract still holds.
+- Beyond the generic exclusions, `db.ts` never carries request parsing, `eventKey` validation or
+  parsing, or full readiness composition.
 
 ## Schema changes and tests
 
-When adding or removing columns from tables that appear in `tests/fixtures/factories.ts`, update the relevant factory inserts to stay in sync with the schema. Failing to do so will cause tests to fail with SQLite column errors.
+When adding or removing columns from tables that appear in `tests/fixtures/factories.ts`, update
+the relevant factory inserts in the same change; otherwise tests fail with SQLite column errors.
 
 ### Where a schema change lands
 
@@ -51,18 +36,17 @@ schema assertion to catch it; `tests/integration/schemaMigrations.parity.test.ts
 ### Migrations are additive: expand and contract
 
 A migration adds. It does not drop and it does not rename. Add a column in one release, read it in
-the next, remove it in a third once nothing reads it.
+the next, remove it in a third once nothing reads it. Additivity is what lets a restore to a
+snapshot taken before the migration still serve traffic: the older schema carries everything the
+older code asks of it.
 
-This is not tidiness. Additivity is what lets a restore to a snapshot taken before the migration
-still serve traffic: the older schema carries everything the older code asks of it.
-
-The reverse direction needs its own guarantee, and additivity does not supply it. The migrating
-deploy promotes the new code and images BEFORE it runs the migration, and restoring the
-pre-migration database on failure does not put the old code back, so a failed migration leaves the
-host running the new release against the old schema. Every migration's paired code must therefore
-run correctly against the pre-migration schema, checked per migration: read the new column behind a
-guard, or keep the feature that needs it dark until the migration has landed. Code that reads the
-new column unconditionally turns a working restore into a broken site.
+The reverse direction needs its own guarantee. The migrating deploy promotes the new code and images
+BEFORE it runs the migration, and restoring the pre-migration database on failure does not put the
+old code back, so a failed migration leaves the host running the new release against the old schema.
+Every migration's paired code must therefore run correctly against the pre-migration schema, checked
+per migration: read the new column behind a guard, or keep the feature that needs it dark until the
+migration has landed. Code that reads the new column unconditionally turns a working restore into a
+broken site.
 
 `scripts/ci/check_migrations_additive.sh` refuses a drop or a rename. A genuine contraction, once
 that third release arrives, declares itself with a `-- CONTRACTION:` header line saying why nothing

@@ -198,6 +198,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/audit-log/summary',
     '/admin/audit-log/export',
     '/admin/email-log',
+    '/admin/system-parameters',
     '/admin/mailing-lists',
     '/admin/mailing-lists/new',
     '/admin/broadcasts',
@@ -334,6 +335,8 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/mailing-lists/ph/archive',
     '/admin/mailing-lists/ph/subscriptions/adjust',
     '/admin/mailing-lists/ph/compose',
+    '/admin/system-parameters',
+    '/admin/system-parameters/pricing',
   ];
 
   it('403s an authenticated non-admin and redirects the unauthenticated', async () => {

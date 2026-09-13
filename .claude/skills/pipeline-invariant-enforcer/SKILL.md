@@ -172,7 +172,8 @@ Always-on invariants (loaded automatically by the harness):
 - `.claude/rules/db-write-safety.md` for DB mutation invariants
 - `.claude/rules/testing.md` for test mandate
 - `.claude/rules/doc-governance.md` for doc rules
-- `legacy_data/CLAUDE.md` for pipeline + DB invariants summary
+- `legacy_data/CLAUDE.md` for the subtree's lane, source precedence, local safety rules, known
+  pipeline traps and the loader contract (it defers the structural invariants above to this skill)
 
 ---
 

@@ -58,6 +58,8 @@ In any doc or plan, describe the thing in plain words a reader understands on it
 ## Style
 
 - **No "Last updated: <date>"** in any canonical doc header; git log is the authoritative source. Strip existing ones on audit passes.
+- **State what the system does** (the real mechanism), never what it lacks: write the positive behavior, not a negative like "there is no X" or "not gated".
+- **Where a canonical doc and current code disagree**, the doc describes the target and the code describes today; that gap is a tracked deviation, not canonical drift. Surface the conflict rather than silently blending incompatible sources.
 
 ## DD-specific rules (`docs/DESIGN_DECISIONS.md`)
 

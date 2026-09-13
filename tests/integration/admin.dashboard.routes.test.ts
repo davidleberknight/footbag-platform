@@ -267,6 +267,7 @@ describe('the Go To tier', () => {
       '/admin/freestyle/sources',
       '/admin/freestyle/emerging-vocabulary',
       '/admin/freestyle/tips',
+      '/admin/system-parameters',
     ]) {
       expect(text, `${href} is reachable only by typing it`).toContain(`href="${href}"`);
     }

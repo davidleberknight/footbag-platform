@@ -67,7 +67,7 @@ function stub(name: string, body: string[]): string {
 function terraformStub(): string {
   return stub('terraform', [
     'for arg in "$@"; do',
-    '  if [ "$arg" = "cloudfront_domain" ]; then echo "example.cloudfront.net"; exit 0; fi',
+    '  if [ "$arg" = "cloudfront_domain" ]; then echo "d1234abcdef8.cloudfront.net"; exit 0; fi',
     '  if [ "$arg" = "cloudfront_distribution_id" ]; then echo "EXAMPLEDIST"; exit 0; fi',
     'done',
     'exit 1',
@@ -83,7 +83,7 @@ function curlStub(): string {
     '  if [ "$prev" = "-c" ]; then jar="$arg"; fi',
     '  prev="$arg"',
     'done',
-    '[ -n "$jar" ] && printf "#HttpOnly_example.cloudfront.net\\tFALSE\\t/\\tTRUE\\t0\\t__Host-footbag_session\\tvalue\\n" > "$jar"',
+    '[ -n "$jar" ] && printf "#HttpOnly_d1234abcdef8.cloudfront.net\\tFALSE\\t/\\tTRUE\\t0\\t__Host-footbag_session\\tvalue\\n" > "$jar"',
     'exit 0',
   ]);
 }
@@ -229,7 +229,7 @@ describe('load-check.sh — preflight', () => {
     run(['--target', 'staging', '--preflight-only'], { terraform: true, curl: true, driverExit: 0 });
     const calls = readCalls('terraform').join('\n');
     expect(calls).toMatch(/cloudfront_domain/);
-    expect(readCalls('driver')[0]).toMatch(/https:\/\/example\.cloudfront\.net/);
+    expect(readCalls('driver')[0]).toMatch(/https:\/\/d1234abcdef8\.cloudfront\.net/);
   });
 });
 

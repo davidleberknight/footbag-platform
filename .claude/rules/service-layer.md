@@ -31,6 +31,10 @@ Methods that produce a public page view-model:
 
 Non-page methods follow distinct prefixes: `list<X>` for arrays, `search<X>` for queries, `get<X>` for single rows that aren't page envelopes.
 
+## eventKey
+
+The public `eventKey` is `event_{year}_{event_slug}`, validated against `^event_(\d{4})_([a-z0-9_]+)$` and normalized to the stored standardized hashtag form `#event_{year}_{event_slug}` before querying. There is no `event_slug` column to invent, and a bare slug is never accepted.
+
 ## Errors
 
 All thrown errors are subclasses of `ServiceError` from `src/services/serviceErrors.ts`:

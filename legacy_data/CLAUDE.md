@@ -9,27 +9,26 @@ Stay in this lane:
 - For repo-root/platform tasks, use repo-root `CLAUDE.md` and the maintainers' private tracker (the `tracker-ops` skill).
 - `legacy_data` is primarily the data and freestyle maintainer's area, but task ownership is not siloed: any maintainer may pick up work here, and the data/freestyle maintainer may pull other board tasks. Coordinate on overlapping in-flight changes.
 
+Before editing any pipeline script, loader, canonical generator or identity-lock file, run the
+`pipeline-invariant-enforcer` skill: it owns the structural invariants (producer before consumer,
+no hidden local state, canonical and derived artifacts never patched in place, identity resolution
+upstream only, QC before done) and this file does not restate them.
+
 ## Source of truth
 
-- **Curated data outranks the dump and the mirror where they disagree about the
-  same row's value.** The dump and the mirror record what the old system happened
-  to store, damage included; a curated file is a human decision about what is
-  true. This is a per-row override precedence for club and member data, not a
-  global ranking of sources: the results lanes are split by era, and a
-  cross-source collision there is an error to fix rather than a disagreement to
-  adjudicate.
-- **The dump stays authoritative for whether a row exists, and supplies the
-  values for rows that exist nowhere else.** Deletion on the legacy site was
-  soft, the approval flag set false rather than the row removed, so a deleted
-  club has no page left to crawl and the dump is the only source that knows.
+- **Curated data outranks the dump and the mirror where they disagree about the same row's value**,
+  because a curated file is a human decision about what is true while the other two record what the
+  old system happened to store, damage included. This is a per-row override precedence for club and
+  member data, not a global ranking: the results lanes are split by era, so a cross-source collision
+  there is an error to fix rather than a disagreement to adjudicate.
+- **The dump stays authoritative for whether a row exists**, and supplies the values for rows that
+  exist nowhere else. Legacy deletion was soft (the approval flag set false, the row kept), so a
+  deleted club has no page left to crawl and the dump is the only source that knows it existed.
 - **A correction belongs upstream, never in a regenerated artifact.** No stage of
   any pipeline mode writes into the curated or overrides trees. Those files are
   changed by hand or by the dedicated curation tools, never by a run.
-- `out/canonical/*.csv` is authoritative pipeline output. Never edit it directly.
-- The workbook is derived only.
-- Mirror HTML is the highest-priority source for 1997-present results.
-- Structured curated CSVs are authoritative for pre-1997 intake.
-- Identity lock files are frozen except through the patch toolchain.
+- Mirror HTML is the highest-priority source for 1997-present results; structured curated CSVs are
+  authoritative for pre-1997 intake. The workbook is derived only.
 - Unknown data stays unknown. Never fabricate results.
 
 `run_pipeline.sh` is authoritative for stage order, script paths and arguments; `README.md`
@@ -46,21 +45,19 @@ the step that needs it, and never block unrelated work.
 - **The footbag.org mirror**, reached through the repo-root `footbag_legacy_mirror` symlink.
   Besides results, it preserves rendered legacy content pages, so a content domain the mirror
   captures is not automatically an uncatalogued loss risk. It is a static snapshot: refresh it
-  before regenerating canonical output (see the stale-mirror trap under Pipeline invariants).
+  before regenerating canonical output (see the stale-mirror trap below).
 - **The legacy footbag.org database dump**, reached read-only through the repo-root
   `footbag_legacy_repo` symlink. The complete per-module export from the live site, spanning far
   more than members and results. Extractors only read it; never write to it. Which modules have
   arrived is tracked in the maintainers' private tracker.
 
-The member load reads two further inputs that are not legacy artifacts but recorded human decisions,
-held in the maintainers' private checkout and reached through the same repo-root symlink convention,
-at a canonical path no variable names and no operator command carries: a directory of rulings about
-which duplicate accounts are the same person, and a roster of the directors sitting at cutover. A machine without them loads anyway and says so; a
-production load refuses without the rulings, and a production extract refuses without the roster as
-well, because the roster only takes effect where the flag is written into the intermediate CSV.
-Supplying the rulings without the roster is a dead end the run refuses before doing any work. The
-member-data runner's own help is authoritative for where they live and for what each one
-changes.
+The member load reads two further recorded human decisions held in the maintainers' private
+checkout, reached through the same repo-root symlink convention: rulings about which duplicate
+accounts are the same person, and the roster of directors sitting at cutover. A machine without
+them loads anyway and says so; a production load refuses without the rulings, and a production
+extract refuses without the roster as well. Supplying the rulings without the roster is a dead end
+the run refuses before doing any work. The member-data runner's own help is authoritative for where
+they live and what each one changes.
 
 ## Runbook routing
 
@@ -79,87 +76,55 @@ Use the runbooks instead of improvising:
 DB mutation safety lives in `.claude/rules/db-write-safety.md`. Freestyle tables, the curated
 records and their loaders belong to the freestyle subtree, not this one: see `freestyle/CLAUDE.md`.
 
-## Non-negotiable safety rules
+## Local safety rules
 
-- QC must pass before canonical-output changes are committed.
-- Never edit generated canonical CSVs directly.
-- Never edit identity lock files directly.
 - `inputs/name_variants.csv` is generated: hand edits are clobbered on the next run, so add a
   pair upstream in `overrides/person_aliases.csv` instead.
 - All exclusions must be traceable in `overrides/`.
-- Verify external URLs before reviewer sign-off. Pattern extrapolation is not verification.
-  - Unverified extrapolated URLs may sit in staging with blank `reviewer`.
-  - Before promotion, confirm by browser, WebFetch, curl, or source-site index.
-  - Capture verification in `notes`, for example: `WebFetch 200 YYYY-MM-DD`.
-- For wide curated CSV batch edits, use `sed -i`; do not round-trip with `csv.DictReader -> csv.DictWriter`.
-  - This is the one approved, scoped exception to the root `CLAUDE.md` ban on `sed -i` file
-    editing; each `sed -i` still gates behind the approval prompt, and everywhere outside
-    wide curated-CSV batch edits the root ban stands.
-  - `DictReader` can place extra columns under a literal `None` key and truncate files on write.
-  - Always `wc -l` before and after.
-- Prefer one-command workflows defined in skills/runbooks.
+- Verify external URLs before reviewer sign-off; pattern extrapolation is not verification. An
+  unverified extrapolated URL may sit in staging with a blank `reviewer`, but promotion needs a
+  confirmed fetch (browser, WebFetch, curl, or the source site's own index) captured in `notes`,
+  for example `WebFetch 200 YYYY-MM-DD`.
+- For wide curated CSV batch edits, use `sed -i`; do not round-trip with `csv.DictReader ->
+  csv.DictWriter`, which can place extra columns under a literal `None` key and truncate the file
+  on write. Always `wc -l` before and after. This is the one approved, scoped exception to the root
+  `CLAUDE.md` ban on `sed -i` file editing; each `sed -i` still gates behind the approval prompt,
+  and everywhere outside wide curated-CSV batch edits the root ban stands.
 
-## Pipeline invariants
+## Pipeline traps
 
-Identity and canonicalization:
-- `AliasResolver` is the sole identity authority.
-- Alias merges happen upstream only.
-- Name normalization is deterministic: NFKC, lowercase, trim.
-- Name-variant generators are idempotent.
-- Person-likeness gates filter non-person rows.
-- No team names in person entities.
-- Honor overrides are secondary to `AliasResolver`.
-
-Canonical outputs:
-- Canonical CSVs are deterministic: LF, UTF-8, sorted.
-- Only HIGH-confidence rows reach DB.
-- Corrections carry provenance metadata.
-- Workbook person visibility follows the platform filter.
-- Federations such as WFA/NHSA may act as host clubs for early events.
 - **A stale mirror silently deletes events.** The committed canonical CSVs can be ahead of the
   local mirror. Regenerating from a checkout whose crawl predates recently-completed events drops
   them, because the parser skips events whose result pages that crawl never captured. Refresh the
   mirror first, or treat the committed CSVs as source of truth.
-
-## DB invariants
-
-- Soft delete with `deleted_at`; never hard delete.
-- Audit logs are append-only.
-- Unique constraints use partial indexes.
-- Business rules belong in the app's services, not in loaders or the DB layer; the app-layer contract is `.claude/rules/service-layer.md` and `.claude/rules/db-layer.md`.
-- Ambiguous identity resolution never auto-selects.
-- Auto-link requires a strong multi-anchor match.
-- `name_variants` stores high-confidence entries only.
-- A club's external URL stays hidden on the public read until it is verified and not quarantined.
-- Writes are transactional.
+- Canonical CSVs are deterministic: LF, UTF-8, sorted. Corrections carry provenance metadata, and
+  workbook person visibility follows the platform filter.
+- Name-variant generators are idempotent; person-likeness gates filter non-person rows; no team
+  names ever become person entities; honor overrides are secondary to `AliasResolver`.
+- Federations such as WFA/NHSA may act as host clubs for early events.
+- The workbook's EVENT INDEX must match `canonical_input/events.csv` row-for-row. If it diverges,
+  debug `build_event_index` or the population of the `events` dict. The 30-event delta between
+  `out/canonical/events.csv` and `event_results/canonical_input/events.csv` is intentional:
+  `export_canonical_platform.py` drops sparse disciplines, then drops events left with none. Build
+  steps and the input contract are in `runbooks/workbook-v22.md`.
 
 ## Loader contract
 
 For pipeline-regenerated tables:
-- Use DELETE + INSERT, not `INSERT OR IGNORE` alone.
-- Scope deletes where multiple owners share a table.
-  - Example: `DELETE WHERE source='mirror_mined'`.
-  - Example: `DELETE WHERE source_scope='PROVISIONAL'`.
-- `historical_persons` is the live case: its canonical and provisional cohorts have different
-  owning loaders and each deletes only its own scope, so widening either delete destroys the
-  other's rows.
-- Use one transaction spanning delete and insert; commit once.
-- Report honest counters.
-  - Good: increment only when `rowcount` shows an insert.
-  - Bad: raw `+= 1` after `INSERT OR IGNORE`.
-- Every skipped row needs a named category: dedup, FK miss, PK collision, bad row, etc.
+- Use DELETE + INSERT, not `INSERT OR IGNORE` alone, inside one transaction spanning both, committed once.
+- Scope deletes where multiple owners share a table (`DELETE WHERE source='mirror_mined'`,
+  `DELETE WHERE source_scope='PROVISIONAL'`). `historical_persons` is the live case: its canonical
+  and provisional cohorts have different owning loaders and each deletes only its own scope, so
+  widening either delete destroys the other's rows.
+- Report honest counters: increment only when `rowcount` shows an insert, never a raw `+= 1` after
+  `INSERT OR IGNORE`. Every skipped row needs a named category: dedup, FK miss, PK collision, bad row.
 - The club loaders are the exception to uniformity: the bootstrap-leader loaders reseed with
   DELETE + INSERT, while the clubs seed and cutover loaders are additive.
-
-## Workbook
-
-Build steps, the input contract and the deprecated builders are in `runbooks/workbook-v22.md`.
-Two traps:
-- EVENT INDEX must match `canonical_input/events.csv` row-for-row. If it diverges, debug
-  `build_event_index` or the population of the `events` dict.
-- The 30-event delta between `out/canonical/events.csv` and
-  `event_results/canonical_input/events.csv` is intentional: `export_canonical_platform.py`
-  drops sparse disciplines, then drops events left with none.
+- Ambiguous identity resolution never auto-selects; auto-link requires a strong multi-anchor match;
+  `name_variants` stores high-confidence entries only; a club's external URL stays hidden on the
+  public read until it is verified and not quarantined.
+- Business rules belong in the app's services, not in loaders or the DB layer; the app-layer
+  contract is `.claude/rules/service-layer.md` and `.claude/rules/db-layer.md`.
 
 ## Canonical references
 
@@ -171,11 +136,9 @@ Load only the relevant source:
   user stories for the member and admin flows.
 - Schema, the `name_variants` contract, and the migration staging and bootstrap tables:
   DATA_MODEL and `database/schema.sql`.
-- The legacy-site export contract and its credential exclusion: the webmaster-coordination gate
-  rows in GO_LIVE_PLAN.md (private GitHub repo). The pipeline validation gates that check the
-  loaded result are in `docs/TESTING.md`.
-- Persons count baseline: the pipeline QC reports are authoritative; the recorded baseline moved
-  to GO_LIVE_PLAN.md (private GitHub repo), beside the pipeline validation gates.
+- The legacy-site export contract, its credential exclusion, and the persons count baseline:
+  GO_LIVE_PLAN.md (private GitHub repo). The pipeline validation gates that check the loaded
+  result are in `docs/TESTING.md`.
 
 ## Archives
 

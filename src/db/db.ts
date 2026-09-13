@@ -5332,6 +5332,27 @@ export const systemConfig = {
     WHERE config_key = ?
   `); },
 
+  // Every key's current value in one read, for a surface that presents the
+  // whole configuration rather than looking one key up at a time.
+  get listCurrent() { return db.prepare(`
+    SELECT id, config_key, value_json, effective_start_at, reason_text, changed_by_member_id
+    FROM system_config_current
+    ORDER BY config_key
+  `); },
+
+  // One key's superseded rows as well as its current one, which is the reason
+  // the bare table is read here: the view shows only what is in force, and a
+  // value's history is what makes a price change or a pause reviewable. Newest
+  // first, ending on the row id so two rows sharing an instant cannot swap
+  // places between pages.
+  get listHistoryByKey() { return db.prepare(`
+    SELECT id, config_key, value_json, effective_start_at, reason_text, changed_by_member_id, created_at
+    FROM system_config
+    WHERE config_key = ?
+    ORDER BY effective_start_at DESC, id DESC
+    LIMIT ?
+  `); },
+
   // Appends a row; the table is append-only by trigger, so this is the only
   // write shape it has. A null author is a system observation rather than an
   // administrator's decision.
@@ -5341,6 +5362,16 @@ export const systemConfig = {
     ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `); },
 };
+
+export interface SystemConfigRow {
+  id: string;
+  config_key: string;
+  value_json: string;
+  effective_start_at: string;
+  reason_text: string;
+  changed_by_member_id: string | null;
+  created_at?: string;
+}
 
 export interface OutboxRow {
   id: string;

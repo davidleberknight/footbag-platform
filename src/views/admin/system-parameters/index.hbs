@@ -1,0 +1,139 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Settings the platform reads while it runs. A change here takes effect without a deployment, the next time the job or flow that reads it runs. Every change is kept with the reason you give for it.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.hasSavedMessage}}
+  <p class="notice notice-info">{{content.savedMessage}}</p>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Membership and Pricing</h2></div>
+    <p class="text-muted fs-sm">{{content.priceHelpText}}</p>
+
+    {{#each content.priceProducts}}
+    <h3>{{this.label}}</h3>
+    <p class="text-muted">Price now: {{this.currentAmountLabel}}</p>
+    {{#if this.hasEntries}}
+    <table class="data-table">
+      <thead>
+        <tr><th>Amount</th><th>Starts</th><th>State</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        {{#each this.entries}}
+        <tr>
+          <td>{{this.amountLabel}}</td>
+          <td>{{this.effectiveLabel}}</td>
+          <td><span class="badge">{{this.stateLabel}}</span></td>
+          <td>{{this.reasonText}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/if}}
+    {{/each}}
+
+    {{#if content.hasPriceErrors}}
+    <div class="form-error-banner">
+      {{#each content.priceErrorList}}<p>{{this}}</p>{{/each}}
+    </div>
+    {{/if}}
+
+    <form method="POST" action="{{content.priceFormAction}}" class="form-block">
+      <div class="form-field">
+        <label for="priceKey">Membership</label>
+        <select id="priceKey" name="priceKey">
+          {{#each content.priceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+        </select>
+        {{#if content.priceFieldErrors.priceKey}}
+        <p class="form-field-error" role="alert">{{content.priceFieldErrors.priceKey}}</p>
+        {{/if}}
+      </div>
+      <div class="form-field">
+        <label for="amountUsd">Amount in dollars</label>
+        <input type="text" id="amountUsd" name="amountUsd" value="{{content.priceFields.amountUsd}}" inputmode="decimal" />
+        {{#if content.priceFieldErrors.amountUsd}}
+        <p class="form-field-error" role="alert">{{content.priceFieldErrors.amountUsd}}</p>
+        {{/if}}
+      </div>
+      <div class="form-field">
+        <label for="effectiveStartDate">Start date</label>
+        <input type="date" id="effectiveStartDate" name="effectiveStartDate" value="{{content.priceFields.effectiveStartDate}}" />
+        {{#if content.priceFieldErrors.effectiveStartDate}}
+        <p class="form-field-error" role="alert">{{content.priceFieldErrors.effectiveStartDate}}</p>
+        {{/if}}
+      </div>
+      <div class="form-field">
+        <label for="priceReason">Reason</label>
+        <input type="text" id="priceReason" name="reason" value="{{content.priceFields.reason}}" maxlength="{{content.reasonMax}}" />
+        <p class="text-muted fs-sm">Kept with the price for as long as the record lasts, so write it for whoever reads it later.</p>
+        {{#if content.priceFieldErrors.reason}}
+        <p class="form-field-error" role="alert">{{content.priceFieldErrors.reason}}</p>
+        {{/if}}
+      </div>
+      <button type="submit" class="btn btn-primary">Schedule a Price Change</button>
+    </form>
+  </section>
+
+  <section class="mt-8">
+    <div class="section-heading"><h2>Donations and Payments</h2></div>
+    <p class="text-muted fs-sm">These three switches stop money or mail during an incident. They are set by a system administrator running a script on the host, never from this screen, so that stopping live payments stays a deliberate act with a record of who ran it.</p>
+
+    <table class="data-table">
+      <thead>
+        <tr><th>Switch</th><th>State</th><th>Since</th><th>Reason</th><th>Changed by running</th></tr>
+      </thead>
+      <tbody>
+        {{#each content.switches}}
+        <tr>
+          <td>{{this.label}}<p class="text-muted fs-sm">{{this.helpText}}</p></td>
+          <td><span class="badge{{#unless this.isPaused}} badge-muted{{/unless}}">{{this.stateLabel}}</span></td>
+          <td>{{this.sinceLabel}}</td>
+          <td>{{#if this.hasReason}}{{this.reasonText}}{{/if}}</td>
+          <td><code>{{this.operatorScript}}</code></td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+
+  {{#if content.hasErrors}}
+  <div class="form-error-banner mt-8">
+    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+  </div>
+  {{/if}}
+
+  <form method="POST" action="{{content.formAction}}" class="form-block">
+    {{#each content.sections}}
+    <section class="mt-8">
+      <div class="section-heading"><h2>{{this.title}}</h2></div>
+      <p class="text-muted fs-sm">{{this.intro}}</p>
+
+      {{#each this.fields}}
+      <div class="form-field">
+        <label for="{{this.key}}">{{this.label}}{{#if this.hasDisposition}} <span class="badge">{{this.dispositionLabel}}</span>{{/if}}</label>
+        <input type="text" id="{{this.key}}" name="{{this.key}}" value="{{this.value}}" inputmode="numeric" />
+        <p class="text-muted fs-sm">{{this.helpText}} Measured in {{this.unit}}. Default {{this.defaultValue}}.</p>
+        {{#if this.hasError}}
+        <p class="form-field-error" role="alert">{{this.errorMessage}}</p>
+        {{/if}}
+      </div>
+      {{/each}}
+    </section>
+    {{/each}}
+
+    <div class="form-field mt-8">
+      <label for="reason">Reason</label>
+      <input type="text" id="reason" name="reason" value="{{content.reason}}" maxlength="{{content.reasonMax}}" />
+      <p class="text-muted fs-sm">Why these values are changing. It is kept with every value this save changes.</p>
+      {{#if content.fieldErrors.reason}}
+      <p class="form-field-error" role="alert">{{content.fieldErrors.reason}}</p>
+      {{/if}}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Parameters</button>
+  </form>
+</div>

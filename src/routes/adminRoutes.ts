@@ -16,6 +16,7 @@ import { adminSystemHealthController } from '../controllers/adminSystemHealthCon
 import { adminAlarmsController } from '../controllers/adminAlarmsController';
 import { adminPaymentsController } from '../controllers/adminPaymentsController';
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
+import { adminSystemParametersController } from '../controllers/adminSystemParametersController';
 import { adminMailingListController } from '../controllers/adminMailingListController';
 import { adminBroadcastController } from '../controllers/adminBroadcastController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
@@ -113,6 +114,12 @@ adminRouter.get('/audit-log/summary',         adminAuditLogController.summary);
 adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/email-log',                 adminEmailLogController.index);
 adminRouter.get('/system-health',             adminSystemHealthController.index);
+// The tunable runtime configuration, in one place. The save posts every value
+// the screen owns; the pricing post schedules a new membership price, which is
+// a separate act because it starts on a date rather than immediately.
+adminRouter.get('/system-parameters',          adminSystemParametersController.index);
+adminRouter.post('/system-parameters',         adminSystemParametersController.update);
+adminRouter.post('/system-parameters/pricing', adminSystemParametersController.schedulePrice);
 adminRouter.get('/alarms',                    adminAlarmsController.index);
 adminRouter.post('/alarms/:id/acknowledge',   adminAlarmsController.acknowledge);
 // Email-template editor: edit wording, enabled flag, and classification of the

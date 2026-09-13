@@ -173,6 +173,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Admin Roles', href: '/admin/admin-roles' },
       { label: 'Honor Tier Grants', href: '/admin/honor-grants' },
       { label: 'System Health', href: '/admin/system-health' },
+      { label: 'System Parameters', href: '/admin/system-parameters' },
       { label: 'Audit Log', href: '/admin/audit-log' },
       { label: 'Audit Summary', href: '/admin/audit-log/summary' },
     ],

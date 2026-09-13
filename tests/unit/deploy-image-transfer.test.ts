@@ -44,6 +44,39 @@ function stubDir(readerExit: number): string {
   return dir;
 }
 
+/**
+ * Empty every single-quoted argument in a shell script, newlines included, so
+ * one command reads as one line. An inline `node -e '…'` program otherwise
+ * spreads its command across a dozen lines and a redirect after the closing
+ * quote looks like it belongs to a different statement.
+ *
+ * The state tracking is what makes it safe: a `'` inside double quotes is an
+ * apostrophe, not a quote, and pairing on it would empty a span that runs to
+ * the next unrelated quote and swallow whole commands.
+ */
+function blankSingleQuotedSpans(src: string): string {
+  let out = '';
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (inSingle) {
+      if (ch === "'") inSingle = false;
+      if (ch === "'") out += ch;
+      continue;
+    }
+    if (inDouble && ch === '\\' && i + 1 < src.length) {
+      out += ch + src[i + 1];
+      i += 1;
+      continue;
+    }
+    if (ch === '"') inDouble = !inDouble;
+    else if (ch === "'" && !inDouble) inSingle = true;
+    out += ch;
+  }
+  return out;
+}
+
 /** Run a bash snippet with the stubs on PATH, returning its exit status. */
 function runWithStubs(snippet: string, readerExit: number): number {
   const dir = stubDir(readerExit);
@@ -121,11 +154,25 @@ describe('image transfer to a deploy target', () => {
     for (const name of ['deploy-code-remote.sh', 'deploy-rebuild-remote.sh']) {
       const file = path.resolve(__dirname, '../../scripts/internal', name);
       const text = readFileSync(file, 'utf8');
-      // Join line continuations so a redirect on the next line counts.
-      const joined = text.replace(/\\\n\s*/g, ' ');
-      const offenders = joined
+      // Drop comments before anything else, so an apostrophe in prose cannot
+      // pair with a quote in the code below it. Then collapse single-quoted
+      // arguments, which carry newlines wherever a call passes an inline node
+      // program: the redirect sits after the closing quote, so without the
+      // collapse it reads as a separate line and a guarded call looks
+      // unguarded. Line continuations join for the same reason.
+      const code = text
         .split('\n')
         .filter((line) => !/^\s*#/.test(line))
+        .join('\n');
+      const joined = blankSingleQuotedSpans(code).replace(/\\\n\s*/g, ' ');
+      // A quote that failed to pair swallows a call instead of reporting it, so
+      // the collapsed text must still carry every call the file contains.
+      const found = (joined.match(/\bexec\s+-T\b/g) ?? []).length;
+      expect(found, `${name}: collapsing quotes lost a compose exec`).toBe(
+        (code.match(/\bexec\s+-T\b/g) ?? []).length,
+      );
+      const offenders = joined
+        .split('\n')
         .filter((line) => /\bexec\s+-T\b/.test(line))
         .filter((line) => !line.includes('</dev/null'));
       expect(offenders, `${name}: unguarded compose exec:\n${offenders.join('\n')}`).toEqual([]);
