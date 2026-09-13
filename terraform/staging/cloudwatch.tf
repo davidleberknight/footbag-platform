@@ -479,18 +479,26 @@ resource "aws_cloudfront_monitoring_subscription" "main" {
   }
 }
 
+# Calibrated 2026-09-13 against a measured staging baseline, and set to the
+# warning-level latency target the design decisions already state. The staging
+# load check ran twenty minutes at five concurrent clients, 8,156 requests, no
+# errors, and its worst five-minute p95 origin latency was 1,414 ms. Seven days
+# of idle traffic on the same distribution were worse than the loaded run,
+# peaking at 2,770 ms on cold caches, but never produced two adjacent
+# five-minute periods above 2,000 ms. Two periods rather than one because a
+# single-period alarm would have fired twelve times in that week.
 resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-origin-latency"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 3
+  evaluation_periods  = 2
   metric_name         = "OriginLatency"
   namespace           = "AWS/CloudFront"
   period              = 300
-  extended_statistic  = "p90"
-  threshold           = 3000
+  extended_statistic  = "p95"
+  threshold           = 2000
   treat_missing_data  = "notBreaching"
-  alarm_description   = "CloudFront p90 origin latency above 3s for 15+ minutes"
+  alarm_description   = "CloudFront p95 origin latency above 2s for 10+ minutes"
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
 

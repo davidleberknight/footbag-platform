@@ -985,7 +985,7 @@ These assertions are derived in the same playbook step (§4.4) as the security a
 
 The following test classes are explicitly deferred from this strategy. The deferral is intentional; surfacing a need for any of them later is a scope expansion that requires explicit maintainer decision and an update to this section.
 
-- *Performance and load testing.* No load test runs against any environment. Performance assertions are limited to per-request resource bounds (request size, response size, worker concurrency) tested as configuration verification, not throughput. When traffic warrants, a separate work item introduces load testing with explicit scope, fixtures, and execution-environment isolation.
+- *Performance and load testing.* Deferred except for one narrowly scoped exception, taken by maintainer decision on 2026-09-13: `scripts/load-check.sh` drives a representative request mix against staging so the go-live origin-latency threshold is calibrated from a measured baseline rather than from a default, which the go-live gate index requires before the go/no-go walk. It is operator-invoked only, never part of CI or the default test run, and refuses production. Everything else in this class stays deferred: no throughput assertion gates a build, and performance assertions in the suite remain limited to per-request resource bounds (request size, response size, worker concurrency) tested as configuration verification. Widening beyond that calibration run is a further scope expansion and updates this section again.
 - *Chaos engineering.* No deliberate failure injection into running stacks. Partial-failure scenarios are tested by simulated failures at the adapter seam in unit and integration tests, not by injecting failures into staging or production.
 - *Visual regression testing.* No automated visual-diff snapshotting. Visual changes are reviewed by the maintainer through the deploy preview, not by a snapshot test. Visual snapshots are brittle and produce flake without commensurate value at the platform's risk profile and scale.
 - *Network-fault testing.* No automated test simulates network partitions, DNS failures, or upstream provider outages. Fault behavior is tested at the adapter contract level (per `.claude/rules/testing.md`) using fakes that return configured error responses.
@@ -1042,7 +1042,7 @@ The platform's testing toolchain consists of:
 - *Cypress.* Playwright is the platform browser automation tool. No Cypress.
 - *Cucumber and other BDD frameworks.* Tests describe long-term contracts in straightforward TypeScript; no Gherkin or feature files. Test names describe user-visible behavior; no separate spec layer is maintained.
 - *Snapshot-driven UI testing libraries that produce committed image diffs.* Per §14.3.
-- *Load testing or chaos tooling (k6, Locust, Chaos Monkey, equivalent).* Deferred per §14.3.
+- *Load testing or chaos tooling (k6, Locust, Chaos Monkey, equivalent).* Still not adopted. The staging calibration run in §14.3 drives the platform's own routes with the tooling already in the tree and adds no dependency; chaos tooling remains deferred.
 
 ---
 

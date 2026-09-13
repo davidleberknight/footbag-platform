@@ -557,7 +557,7 @@ Memory limits provide:
 
 This cost model remains sustainable even if community doubles or triples in size. At 3,000+ active members, may need to optimize (add selective indexes for specific high-frequency queries) or scale (8GB instance), but architectural changes not required.
 
-**Cost Monitoring:** CloudWatch monitors actual memory usage continuously. If utilization stays consistently below 50%, could down-scale to 2GB in future. If regularly exceeds 80%, would up-scale to 8GB ($40/month). Current allocation based on load testing and conservative estimates for production launch.
+**Cost Monitoring:** CloudWatch monitors actual memory usage continuously. If utilization stays consistently below 50%, could down-scale to 2GB in future. If regularly exceeds 80%, would up-scale to 8GB ($40/month). Current allocation follows the typical workload patterns recorded in the design decisions, with a conservative margin for launch; the staging load check calibrates the monitoring thresholds rather than the allocation.
 
 AWS CloudWatch alarms notify administrators if:
 

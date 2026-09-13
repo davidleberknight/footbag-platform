@@ -1168,6 +1168,66 @@ describe('deploy-code-remote.sh log-level sync', () => {
   });
 });
 
+describe('both remote halves verify the container AWS identity', () => {
+  // Every defect the first production bring-up surfaced was a guard the code-only
+  // path had and the full-refresh path did not. This check must not become the
+  // next one: the full-refresh path is the one that runs on a freshly bootstrapped
+  // host, which is exactly where the credential files are most likely unreadable.
+  const halves = [
+    'scripts/internal/deploy-code-remote.sh',
+    'scripts/internal/deploy-rebuild-remote.sh',
+  ].map((p) => ({
+    file: p,
+    content: fs.readFileSync(path.join(REPO_ROOT, p), 'utf8'),
+  }));
+
+  it.each(halves)('$file asks its own container and refuses a mismatch', ({ content }) => {
+    expect(content).toMatch(/_expected_role="footbag-\$\{FOOTBAG_ENV_VAL\}-app-runtime"/);
+    expect(content).toMatch(/exec -T web node -e/);
+    expect(content).toMatch(/GetCallerIdentityCommand/);
+    expect(content).toMatch(/\*"assumed-role\/\$\{_expected_role\}\/"\*/);
+  });
+});
+
+describe('deploy-code-remote.sh container AWS identity verification', () => {
+  // The readiness poll proves the app answers, not that it answers as itself.
+  // When the containers cannot read the mounted credential files the SDK falls
+  // through to instance metadata and runs as the host provider's own role in a
+  // foreign account: the stack boots, the deploy reports success, and the first
+  // symptom is a permission denial naming an account nobody recognises.
+  const content = fs.readFileSync(
+    path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+    'utf8',
+  );
+  const block = content.slice(
+    content.indexOf('_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"'),
+    content.indexOf('Container AWS identity verified'),
+  );
+
+  it('asks the container, not the host', () => {
+    // A host-side check reads root\'s profile, which is not the identity the
+    // application resolves and was never the one that broke.
+    expect(block).toMatch(/exec -T web node -e/);
+    expect(block).toMatch(/GetCallerIdentityCommand/);
+  });
+
+  it('requires an assumed-role session for the environment app-runtime role', () => {
+    expect(block).toMatch(
+      /\*"assumed-role\/\$\{_expected_role\}\/"\*/,
+    );
+  });
+
+  it('fails the deploy rather than warning', () => {
+    expect(block).toMatch(/exit 1/);
+  });
+
+  it('runs after the readiness poll, so it asks a container that is actually up', () => {
+    expect(content.indexOf('_stack_healthy == 0')).toBeLessThan(
+      content.indexOf('_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"'),
+    );
+  });
+});
+
 describe('Stripe webhook-secret sync from Parameter Store (both remote halves)', () => {
   // The webhook signing secrets reach the host env only through the deploy
   // sync, never by hand-paste. A placeholder value clears the env line; a

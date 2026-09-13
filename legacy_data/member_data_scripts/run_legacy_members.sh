@@ -171,8 +171,16 @@ PRIVATE_OVERRIDES="${REPO_ROOT}/footbag_private_repo/private_data/stage_a_overri
 
 ADJ_STAGE_A="${PRIVATE_OVERRIDES}/stage_a_adjudication.csv"
 ADJ_ENTITLEMENTS="${PRIVATE_OVERRIDES}/entitlement_dispositions.csv"
+# The Stage B half of the same adjudication: one file withholds proposed person
+# links a human ruled must not be made, the other moves reviewed groups out of the
+# undecided pile. They sit in the same private directory as the two above and are
+# required alongside them, because a ruling the load never reads is a ruling that
+# does not apply, and this load happens once.
+ADJ_LINK_HOLDS="${PRIVATE_OVERRIDES}/person_link_holds.csv"
+ADJ_REVIEW_RESOLUTIONS="${PRIVATE_OVERRIDES}/review_resolutions.csv"
 ADJUDICATIONS_READY=0
-if [[ -s "${ADJ_STAGE_A}" && -s "${ADJ_ENTITLEMENTS}" ]]; then
+if [[ -s "${ADJ_STAGE_A}" && -s "${ADJ_ENTITLEMENTS}" \
+      && -s "${ADJ_LINK_HOLDS}" && -s "${ADJ_REVIEW_RESOLUTIONS}" ]]; then
   ADJUDICATIONS_READY=1
 fi
 # The directors sitting at cutover. Nothing in the dump records who they are, so
@@ -200,8 +208,10 @@ if [[ "${PRODUCTION_LOAD}" -eq 1 && "${ADJUDICATIONS_READY}" -eq 0 ]]; then
 
 run_legacy_members: REFUSING a production load. The recorded account rulings are missing.
 
-  Looked for a non-empty stage_a_adjudication.csv and entitlement_dispositions.csv in:
+  Looked for four non-empty files in:
     ${PRIVATE_OVERRIDES}
+  stage_a_adjudication.csv, entitlement_dispositions.csv, person_link_holds.csv
+  and review_resolutions.csv.
 
   They arrive with the maintainers' private checkout, reached through the git-ignored
   repo-root footbag_private_repo symlink. Create that symlink and re-run.
@@ -439,12 +449,23 @@ BLOCKED
     # outside this repository and the operator supplies their location, the same
     # way the dump location is supplied.
     echo "==> account rulings: build the exact-name + full-DOB auto-merge artifacts"
+    # Completeness is asserted on the production load alone: it refuses unless every
+    # membership-only provisional person carries a proposed link or a recorded
+    # disposition, which is the right bar for the load that cannot be redone and too
+    # strict for a dev or CI run against a partial dump.
+    COMPLETE_ARGS=()
+    if [[ "${PRODUCTION_LOAD}" -eq 1 ]]; then
+      COMPLETE_ARGS=(--require-complete-dispositions)
+    fi
     "${PY}" "${MDS}/reconcile_legacy_members.py" --final-merge \
       --csv "${RECONCILED_CSV}" --db "${DB}" \
       --proposed-out "${PROPOSED_LINKS_CSV}" \
       --merged-out "${MERGED_CSV}" --merge-map-out "${MERGE_MAP_CSV}" \
       --overrides "${ADJ_STAGE_A}" \
-      --entitlement-dispositions "${ADJ_ENTITLEMENTS}"
+      --entitlement-dispositions "${ADJ_ENTITLEMENTS}" \
+      --link-holds "${ADJ_LINK_HOLDS}" \
+      --review-resolutions "${ADJ_REVIEW_RESOLUTIONS}" \
+      "${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"
     LOAD_CSV="${MERGED_CSV}"
   fi
 

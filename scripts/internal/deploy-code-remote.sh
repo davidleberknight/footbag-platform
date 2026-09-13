@@ -1513,6 +1513,31 @@ if (( _stack_healthy == 0 )); then
   exit 1
 fi
 
+# The containers resolve AWS credentials from the mounted profile. When they cannot
+# read it the SDK falls through to instance metadata and runs as the host provider's
+# own instance role, in an account that is not ours. That failure boots cleanly, so
+# the readiness poll above cannot see it, and it surfaces much later as a permission
+# denial naming an unfamiliar account id. Ask the container who it actually is.
+_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"
+_identity=$(docker compose --env-file /srv/footbag/env \
+      -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
+      exec -T web node -e '
+        const { STSClient, GetCallerIdentityCommand } = require("@aws-sdk/client-sts");
+        new STSClient({}).send(new GetCallerIdentityCommand({}))
+          .then(r => process.stdout.write(r.Arn || ""))
+          .catch(e => { process.stderr.write(String(e && e.message)); process.exit(1); });
+      ' </dev/null 2>/dev/null) || _identity=""
+if [[ "$_identity" != *"assumed-role/${_expected_role}/"* ]]; then
+  echo "    ERROR: the web container does not resolve the expected AWS identity." >&2
+  echo "           Expected an assumed-role session for ${_expected_role}." >&2
+  echo "           Resolved: ${_identity:-<none: the SDK resolved no identity at all>}" >&2
+  echo "           The usual cause is the credential files being unreadable inside the" >&2
+  echo "           container, after which the SDK falls through to instance metadata and" >&2
+  echo "           runs as the host provider's own role in a different account." >&2
+  exit 1
+fi
+echo "    Container AWS identity verified: ${_expected_role}."
+
 systemctl status footbag --no-pager -l
 
 # CUTOVER-REMOVE: post-deploy persona-catalog seed. Mirrors the same block in

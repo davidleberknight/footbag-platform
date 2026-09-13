@@ -127,10 +127,35 @@ def test_final_merge_applies_the_recorded_account_rulings() -> None:
     merge_call = merge_call[:merge_call.index("LOAD_CSV=")]
     assert '--overrides "${ADJ_STAGE_A}"' in merge_call
     assert '--entitlement-dispositions "${ADJ_ENTITLEMENTS}"' in merge_call
-    # Both paths are built once, where the readiness check reads them, so the
+    # The Stage B half of the same adjudication. A ruling the call never passes is
+    # a ruling that does not apply: the withheld link is proposed anyway and the
+    # reviewed groups stay in the undecided pile, neither of which raises an error.
+    assert '--link-holds "${ADJ_LINK_HOLDS}"' in merge_call
+    assert '--review-resolutions "${ADJ_REVIEW_RESOLUTIONS}"' in merge_call
+    # All four paths are built once, where the readiness check reads them, so the
     # check and the call cannot disagree about which files a run actually applied.
     assert 'ADJ_STAGE_A="${PRIVATE_OVERRIDES}/stage_a_adjudication.csv"' in TEXT
     assert 'ADJ_ENTITLEMENTS="${PRIVATE_OVERRIDES}/entitlement_dispositions.csv"' in TEXT
+    assert 'ADJ_LINK_HOLDS="${PRIVATE_OVERRIDES}/person_link_holds.csv"' in TEXT
+    assert 'ADJ_REVIEW_RESOLUTIONS="${PRIVATE_OVERRIDES}/review_resolutions.csv"' in TEXT
+    # Readiness covers all four, so a checkout carrying only the Stage A pair cannot
+    # reach a production load and silently drop the Stage B rulings.
+    assert '-s "${ADJ_LINK_HOLDS}" && -s "${ADJ_REVIEW_RESOLUTIONS}"' in TEXT
+
+
+def test_completeness_is_required_on_the_production_load_alone() -> None:
+    # The flag refuses unless every membership-only provisional person carries a
+    # proposed link or a recorded disposition. That is the right bar for the load
+    # that cannot be redone, and too strict for a dev or CI run on a partial dump.
+    merge_call = TEXT[TEXT.index('reconcile_legacy_members.py" --final-merge'):]
+    merge_call = merge_call[:merge_call.index("LOAD_CSV=")]
+    assert '"${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"' in merge_call
+    i_merge = TEXT.index('reconcile_legacy_members.py" --final-merge')
+    setup = TEXT[:i_merge]
+    i_args = setup.rindex("COMPLETE_ARGS=()")
+    guard = setup[i_args:]
+    assert 'if [[ "${PRODUCTION_LOAD}" -eq 1 ]]' in guard
+    assert "COMPLETE_ARGS=(--require-complete-dispositions)" in guard
 
 
 def test_production_load_refuses_when_its_inputs_are_absent() -> None:
