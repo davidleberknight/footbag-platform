@@ -25,6 +25,7 @@ import {
   insertActivePlayerGrant,
   createMemberAtTier,
 } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3090');
 
@@ -140,7 +141,14 @@ function readOutboxForMember(memberId: string): number {
 function readOutboxRowForMember(memberId: string): { subject: string; body_text: string; idempotency_key: string | null; mailing_list_id: string | null } | undefined {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
-    return db.prepare('SELECT subject, body_text, idempotency_key, mailing_list_id FROM outbox_emails WHERE recipient_member_id = ? ORDER BY created_at DESC LIMIT 1').get(memberId) as { subject: string; body_text: string; idempotency_key: string | null; mailing_list_id: string | null } | undefined;
+    // Each caller seeds its own member and enqueues one mail to them, so the
+    // recipient identifies the row outright. Asserting that beats taking the
+    // newest: a case that ever enqueues two is named rather than silently
+    // handing back whichever won a millisecond tie against a random outbox id.
+    return theOnlyRow<{ subject: string; body_text: string; idempotency_key: string | null; mailing_list_id: string | null }>(
+      db,
+      rowPin('outbox_emails', 'recipient_member_id = ?', [memberId]),
+    );
   } finally {
     db.close();
   }
@@ -159,6 +167,10 @@ function readReminderSentCountForMember(memberId: string): number {
 function readLatestGrantChangeType(memberId: string): string | undefined {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
+    // ordering-is-the-contract: active-player grant ids are UUIDv7, whose
+    // millisecond prefix and same-millisecond counter make them increase with
+    // insertion, so this tiebreak really does name the newest grant. That is
+    // not true of the random ids most tables here use.
     const r = db.prepare(`
       SELECT change_type FROM active_player_grants
       WHERE member_id = ? ORDER BY created_at DESC, id DESC LIMIT 1

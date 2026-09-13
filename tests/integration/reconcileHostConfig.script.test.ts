@@ -139,6 +139,10 @@ describe('restoring the host configuration', () => {
   it('records the reason verbatim on the row it writes', () => {
     overrideTo('2');
     run({ ACTION: 'apply', REASON: "operator's correction after a rebuild deploy" });
+    // ordering-is-the-contract: system_config is unique on (config_key,
+    // effective_start_at), so for one key the ordering column cannot tie. A
+    // second write landing in the same instant fails that constraint loudly
+    // rather than leaving two rows a reader has to choose between.
     const reason = withDb((db) => (db.prepare(`
       SELECT reason_text FROM system_config WHERE config_key = ?
       ORDER BY effective_start_at DESC LIMIT 1

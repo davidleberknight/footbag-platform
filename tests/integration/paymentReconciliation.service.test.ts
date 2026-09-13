@@ -10,6 +10,7 @@
  * match.
  */
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('4034');
 process.env.PAYMENT_ADAPTER = 'stub';
@@ -1543,11 +1544,11 @@ describe('purging resolved issues on the daily tick', () => {
     const db = openDb();
     try {
       expect(db.prepare('SELECT COUNT(*) AS n FROM reconciliation_issues').get()).toEqual({ n: 0 });
-      const run = db.prepare(
-        `SELECT status FROM system_job_runs
-         WHERE job_name = 'SYS_Purge_Reconciliation_Issues'
-         ORDER BY started_at DESC LIMIT 1`,
-      ).get() as { status: string } | undefined;
+      // The purge runs once in this file, so its job name identifies the run.
+      const run = theOnlyRow<{ status: string }>(
+        db,
+        rowPin('system_job_runs', `job_name = 'SYS_Purge_Reconciliation_Issues'`),
+      );
       expect(run?.status).toBe('succeeded');
     } finally {
       db.close();

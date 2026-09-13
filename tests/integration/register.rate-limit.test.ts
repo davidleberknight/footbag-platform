@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -61,10 +62,11 @@ describe('POST /register — rate limiting', () => {
 
     // The block is recorded for operator visibility.
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const auditRow = db.prepare(
-      `SELECT action_type, category, actor_type FROM audit_entries
-         WHERE action_type = 'auth.register_rate_limited' ORDER BY created_at DESC LIMIT 1`,
-    ).get() as { action_type: string; category: string; actor_type: string } | undefined;
+    // One throttle event in this file, so the action type identifies the row.
+    const auditRow = theOnlyRow<{ action_type: string; category: string; actor_type: string }>(
+      db,
+      rowPin('audit_entries', `action_type = 'auth.register_rate_limited'`),
+    );
     // The throttled email must NOT have produced a member row.
     const blockedMember = db.prepare(
       'SELECT id FROM members WHERE login_email = ?',

@@ -60,6 +60,9 @@ function dbFile(name: string, value: string | null): string {
       id TEXT PRIMARY KEY, created_at TEXT NOT NULL, config_key TEXT NOT NULL,
       value_json TEXT NOT NULL, effective_start_at TEXT NOT NULL
     );
+    -- ordering-is-the-contract: this is fixture schema standing in for the real
+    -- view, and the fixture holds at most one config row, so the ordering is
+    -- reproducing the production view's shape rather than picking between rows.
     CREATE VIEW system_config_current AS
       SELECT config_key, value_json FROM system_config
       WHERE id IN (SELECT id FROM system_config ORDER BY effective_start_at DESC LIMIT 1);

@@ -12,13 +12,13 @@
  *   - build* methods return plain strings; the route sets the content type.
  *   - Sitemap URLs are absolute, built from config.publicBaseUrl, and cover only
  *     public content: static hubs, plus per-row event, club, net-team, freestyle
- *     trick, set-detail, and modifier-detail, rules, IFPA, and named-gallery
- *     pages. Member and
- *     historical-person profiles are excluded: the member listing is a welcome
- *     page rather than a public directory, and member enumeration is a privacy
- *     boundary. Individual media-item pages are excluded too -- high-volume and
- *     reachable from the named-gallery and browse pages already listed. Auth,
- *     admin, internal, webhook, and health routes are never listed.
+ *     trick, set-detail, modifier-detail and family-detail, historical-person,
+ *     rules, IFPA, and named-gallery pages. Member profiles are excluded: the
+ *     member listing is a welcome page rather than a public directory, and
+ *     member enumeration is a privacy boundary. Individual media-item pages are
+ *     excluded too -- high-volume and reachable from the named-gallery and
+ *     browse pages already listed. Auth, admin, internal, webhook, and health
+ *     routes are never listed.
  *   - robots.txt allows all crawlers (search engines and AI agents alike) in
  *     production. Private content is kept out of search by per-response noindex
  *     headers and per-page noindex meta, never by naming paths here: a Disallow

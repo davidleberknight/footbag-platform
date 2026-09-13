@@ -12,12 +12,16 @@
 # Two modes, and the first needs no DNS at all:
 #
 #   --function   Runs the published function against synthetic viewer events at
-#                the DEVELOPMENT stage (`aws cloudfront test-function`), which
-#                exercises the real edge runtime with whatever Host the tester
-#                chooses. This is the rehearsal that exists because the
-#                maintenance-page resources are deliberately absent from
-#                staging, so the notice branch has no pre-production home.
-#                Read-only: the DEVELOPMENT stage is not what viewers reach.
+#                the LIVE stage (`aws cloudfront test-function`), which exercises
+#                the real edge runtime with whatever Host the tester chooses.
+#                This is the rehearsal that exists because the maintenance-page
+#                resources are deliberately absent from staging, so the notice
+#                branch has no pre-production home. Read-only: test-function
+#                serves no traffic on either stage and publishes no metrics.
+#                LIVE rather than DEVELOPMENT because Terraform writes
+#                DEVELOPMENT and then publishes, so a publish that did not land
+#                leaves the two stages holding different code and only LIVE is
+#                what a viewer would reach.
 #
 #   --front-door Fetches the real names once they resolve, asserting the notice
 #                on www and the platform on preview in the same run. This is the
@@ -119,14 +123,14 @@ if [[ "$MODE" == "function" ]]; then
   WORK="$(mktemp -d)"
 
   ETAG="$(aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" cloudfront describe-function \
-    --name "$FUNCTION_NAME" --query 'ETag' --output text 2>/dev/null || true)"
+    --name "$FUNCTION_NAME" --stage LIVE --query 'ETag' --output text 2>/dev/null || true)"
   if [[ -z "$ETAG" || "$ETAG" == "None" ]]; then
     echo "ERROR: could not read the ETag for function '$FUNCTION_NAME'." >&2
     echo "       The function must exist and be published before it can be tested." >&2
     exit 1
   fi
 
-  echo "== cutover notice: function test (${FUNCTION_NAME}, DEVELOPMENT stage) =="
+  echo "== cutover notice: function test (${FUNCTION_NAME}, LIVE stage) =="
   echo "   expecting the notice to be: ${EXPECT}"
 
   for row in "${MATRIX[@]}"; do
@@ -149,7 +153,7 @@ if [[ "$MODE" == "function" ]]; then
 EVENT
     out="$(aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" cloudfront test-function \
       --name "$FUNCTION_NAME" --if-match "$ETAG" \
-      --event-object "fileb://${event}" --stage DEVELOPMENT \
+      --event-object "fileb://${event}" --stage LIVE \
       --query 'TestResult.FunctionOutput' --output text 2>/dev/null || true)"
 
     if [[ -z "$out" ]]; then

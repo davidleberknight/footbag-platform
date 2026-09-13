@@ -4,8 +4,21 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3128');
+
+// The submission rows one member has accumulated. Several cases here submit as
+// the same member and the ledger is append-only, so the per-case cleanup cannot
+// clear it; each case takes the row its own POST added rather than the most
+// recent, which a millisecond-resolution stamp and a random ledger id cannot
+// identify.
+const contactAudit = (memberId: string) =>
+  rowPin(
+    'audit_entries',
+    `entity_id = ? AND action_type = 'support.contact_request_submitted'`,
+    [memberId],
+  );
 
 const OWNER_ID    = 'member_contact_owner';
 const OWNER_SLUG  = 'contact_owner';
@@ -162,6 +175,9 @@ describe('GET /members/:slug/contact-admin', () => {
 describe('POST /members/:slug/contact-admin', () => {
   it('happy path → 303 + flash cookie + queue row inserted + audit entry', async () => {
     const app = createApp();
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeSubmit = snapshotIds(snapDb, contactAudit(OWNER_ID));
+    snapDb.close();
     const res = await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', ownerCookie())
@@ -181,9 +197,11 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(queueRow!.status).toBe('open');
     expect(queueRow!.reason_text).toMatch(/Display name correction/);
 
-    const auditRow = db
-      .prepare(`SELECT action_type, category, actor_type FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted' ORDER BY created_at DESC LIMIT 1`)
-      .get(OWNER_ID) as Record<string, unknown> | undefined;
+    const auditRow = oneRowAddedSince<Record<string, unknown>>(
+      db,
+      contactAudit(OWNER_ID),
+      beforeSubmit,
+    );
     expect(auditRow).toBeDefined();
     expect(auditRow!.action_type).toBe('support.contact_request_submitted');
     expect(auditRow!.category).toBe('support');
@@ -301,17 +319,8 @@ describe('POST /members/:slug/contact-admin', () => {
     // resolvable work-queue row.
     const app = createApp();
     const payload = '<script>alert(1)</script>';
-    // Snapshot existing audit-entry ids BEFORE the POST. Prior tests in this
-    // file write `support.contact_request_submitted` rows for OWNER_ID with
-    // millisecond-resolution created_at (per src/services/auditService.ts).
-    // Under parallel-load timestamp ties, ORDER BY created_at DESC LIMIT 1
-    // is non-deterministic; snapshot-diff picks the row this test inserted.
     const dbSnap = new BetterSqlite3(dbPath, { readonly: true });
-    const beforeIds = new Set(
-      (dbSnap
-        .prepare(`SELECT id FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted'`)
-        .all(OWNER_ID) as Array<{ id: string }>).map((r) => r.id),
-    );
+    const beforeIds = snapshotIds(dbSnap, contactAudit(OWNER_ID));
     dbSnap.close();
     await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
@@ -324,10 +333,10 @@ describe('POST /members/:slug/contact-admin', () => {
       .get(OWNER_ID) as { reason_text: string } | undefined;
     expect(queueRow).toBeDefined();
     expect(queueRow!.reason_text).toContain(payload);
-    const newRow = (db
-      .prepare(`SELECT id, metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted'`)
-      .all(OWNER_ID) as Array<{ id: string; metadata_json: string }>).find(
-      (r) => !beforeIds.has(r.id),
+    const newRow = oneRowAddedSince<{ metadata_json: string }>(
+      db,
+      contactAudit(OWNER_ID),
+      beforeIds,
     );
     expect(newRow).toBeDefined();
     const parsed = JSON.parse(newRow!.metadata_json);

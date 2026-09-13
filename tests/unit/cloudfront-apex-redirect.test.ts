@@ -198,18 +198,22 @@ describe('cutover notice: the sentinel contract Terraform substitutes on', () =>
 });
 
 describe('cutover notice: with the flag on', () => {
-  it('answers a page path on www with 503, the notice body, and the four headers', () => {
+  it('answers a page path on www with 503, the notice body, and the three headers', () => {
     const result = noticeHandler(viewerRequest('www.footbag.org', '/events')) as NoticeResponse;
     expect(isRedirect(result)).toBe(true);
     expect(result.statusCode).toBe(503);
     expect(result.body).toContain('migrating to new technology');
-    // Never cached, never indexed, honest about coming back: the notice must
-    // vanish the instant the flag lifts, and 503-with-Retry-After is what keeps
+    // Never cached and honest about coming back: the notice must vanish the
+    // instant the flag lifts, and a 503 carrying Retry-After is what keeps
     // search engines returning instead of deindexing the site.
     expect(result.headers['retry-after'].value).toBe('86400');
     expect(result.headers['cache-control'].value).toBe('no-store');
-    expect(result.headers['x-robots-tag'].value).toBe('noindex');
     expect(result.headers['content-type'].value).toContain('text/html');
+  });
+
+  it('sends no noindex directive, because a crawler that acts on one drops the site out of search results for longer than the window lasts', () => {
+    const result = noticeHandler(viewerRequest('www.footbag.org', '/events')) as NoticeResponse;
+    expect(result.headers['x-robots-tag']).toBeUndefined();
   });
 
   it('matches www whatever casing the viewer typed', () => {

@@ -40,6 +40,12 @@ resource "aws_s3_bucket" "snapshots" {
   lifecycle { prevent_destroy = true }
 }
 
+# The bucket exists so both trees hold the same bucket set; nothing serves from
+# it here. Production also carries the page object itself, and this tree
+# deliberately does not: with no distribution origin, no ordered behaviour and no
+# custom error responses pointing at it, an object here would be a file nothing
+# can ever read. The reason staging serves no maintenance page at all is recorded
+# where those resources would otherwise sit, in cloudfront.tf.
 resource "aws_s3_bucket" "maintenance" {
   bucket = local.buckets.maintenance
 }

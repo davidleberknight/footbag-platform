@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3091');
 
@@ -36,16 +37,28 @@ interface JobRunRow {
   last_error: string | null;
 }
 
-function readLatestJobRun(): JobRunRow | undefined {
+// Runs of this job accumulate across the file, and their started_at values come
+// from fixed injected dates while the run id is random, so no ordering names the
+// one a given pass produced. Each case snapshots first and takes what its own
+// call added.
+const expiryJobRuns = rowPin(
+  'system_job_runs',
+  `job_name = 'SYS_Check_Active_Player_Expiry'`,
+);
+
+function snapshotJobRuns(): Set<string> {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
-    return db.prepare(`
-      SELECT id, job_name, started_at, finished_at, status, details_json, last_error
-      FROM system_job_runs
-      WHERE job_name = 'SYS_Check_Active_Player_Expiry'
-      ORDER BY started_at DESC, id DESC
-      LIMIT 1
-    `).get() as JobRunRow | undefined;
+    return snapshotIds(db, expiryJobRuns);
+  } finally {
+    db.close();
+  }
+}
+
+function jobRunAddedSince(before: Set<string>): JobRunRow {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  try {
+    return oneRowAddedSince<JobRunRow>(db, expiryJobRuns, before);
   } finally {
     db.close();
   }
@@ -67,6 +80,7 @@ function countJobRuns(): number {
 describe('OperationsPlatformService.runActivePlayerExpiryCheck — system_job_runs lifecycle', () => {
   it('writes one succeeded row per pass, with the counter struct in details_json', async () => {
     const before = countJobRuns();
+    const beforeRuns = snapshotJobRuns();
     const now = new Date('2070-06-15T12:00:00.000Z');
 
     const result = await ops.operationsPlatformService.runActivePlayerExpiryCheck({ now });
@@ -74,7 +88,7 @@ describe('OperationsPlatformService.runActivePlayerExpiryCheck — system_job_ru
     const after = countJobRuns();
     expect(after - before).toBe(1);
 
-    const row = readLatestJobRun()!;
+    const row = jobRunAddedSince(beforeRuns);
     expect(row.job_name).toBe('SYS_Check_Active_Player_Expiry');
     expect(row.status).toBe('succeeded');
     expect(row.finished_at).not.toBeNull();
@@ -116,6 +130,7 @@ describe('OperationsPlatformService.recordJobRun — failure path', () => {
   it('on throw, marks the row failed with the error message and re-throws', async () => {
     expectLoggedError('SYS_Check_Active_Player_Expiry: failed');
     const before = countJobRuns();
+    const beforeRuns = snapshotJobRuns();
     await expect(
       ops.operationsPlatformService.recordJobRun('SYS_Check_Active_Player_Expiry', () => {
         throw new Error('synthetic failure for test');
@@ -123,15 +138,7 @@ describe('OperationsPlatformService.recordJobRun — failure path', () => {
     ).rejects.toThrow(/synthetic failure/);
 
     expect(countJobRuns() - before).toBe(1);
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const failed = db.prepare(`
-      SELECT status, last_error, finished_at
-      FROM system_job_runs
-      WHERE job_name = 'SYS_Check_Active_Player_Expiry' AND status = 'failed'
-      ORDER BY started_at DESC
-      LIMIT 1
-    `).get() as { status: string; last_error: string | null; finished_at: string | null };
-    db.close();
+    const failed = jobRunAddedSince(beforeRuns);
     expect(failed.status).toBe('failed');
     expect(failed.last_error).toContain('synthetic failure');
     expect(failed.finished_at).not.toBeNull();

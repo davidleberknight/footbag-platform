@@ -20,6 +20,7 @@ import {
   createTestSessionJwt,
 } from '../fixtures/factories';
 import { expectCsrfReject } from '../fixtures/expectCsrfReject';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3163');
 
@@ -155,13 +156,23 @@ describe('POST /members/:slug/edit stores the entered date', () => {
   });
 
   it('records the change in the audit trail without recording the date', async () => {
+    // Earlier cases edit the same member, and one of them stores exactly the
+    // date this case asserts is absent, so reading the wrong row would report a
+    // leak that did not happen. Pin the row this edit adds: the stamp is
+    // millisecond-resolution and the ledger id is random, so ordering cannot
+    // tell the rows apart.
+    const profileAudit = rowPin(
+      'audit_entries',
+      `action_type = 'member.profile_updated' AND entity_id = ?`,
+      [MEMBER_ID],
+    );
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const before = snapshotIds(snapDb, profileAudit);
+    snapDb.close();
+
     await postEdit({ birthDay: '9', birthMonth: '12', birthYear: '1974' });
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(
-      `SELECT metadata_json FROM audit_entries
-       WHERE action_type = 'member.profile_updated' AND entity_id = ?
-       ORDER BY occurred_at DESC LIMIT 1`,
-    ).get(MEMBER_ID) as { metadata_json: string } | undefined;
+    const row = oneRowAddedSince<{ metadata_json: string }>(db, profileAudit, before);
     db.close();
     expect(row).toBeDefined();
     expect(row!.metadata_json).toContain('birthDate');

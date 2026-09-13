@@ -643,6 +643,30 @@ resource "aws_s3_bucket" "maintenance" {
   bucket = "${local.prefix}-maintenance"
 }
 
+# The page itself, placed by Terraform rather than by an operator upload. It has
+# to be here for the same reason the archive gate pages are: it is the thing the
+# stack falls back to, so it cannot be a step somebody runs later. CloudFront's
+# rule when a custom error page is missing is to return the status it got from
+# the bucket holding that page, and an OAC-read bucket with no ListBucket answers
+# 403 for a key that is not there. So an unplaced page does not degrade to a bare
+# CloudFront error, it turns every origin 5xx into a 403 carrying S3's XML, which
+# is worse than no fallback at all and invisible until an outage.
+#
+# Ungated, unlike the archive gate pages: the bucket is ungated too, and the page
+# should already be in the bucket on the pass that first enables CloudFront
+# rather than arriving one apply later.
+#
+# Cache-Control is short deliberately. The page is edited rarely, but when it is
+# edited it is usually because it said something wrong, and a long browser cache
+# would keep serving the wrong words after the fix applied.
+resource "aws_s3_object" "maintenance_page" {
+  bucket        = aws_s3_bucket.maintenance.id
+  key           = "maintenance.html"
+  content       = file("${path.module}/maintenance-page/maintenance.html")
+  content_type  = "text/html; charset=utf-8"
+  cache_control = "public, max-age=60"
+}
+
 # Declared rather than inherited. Objects here land encrypted either way, from
 # the S3 account-level default, but the encryption-at-rest decision says
 # Terraform sets this on each application-data bucket, and a baseline that

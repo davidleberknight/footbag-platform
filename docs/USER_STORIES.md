@@ -1165,7 +1165,7 @@ Success Criteria:
 
 ### M_View_Profile
 
-Access: Members can view other members' profiles according to each profile's visibility settings.
+Access: Members can view other members' profiles according to each profile's visibility settings. Hall of Fame and Big Add Posse honorees are the one exception: an anonymous visitor can open an honoree's profile and sees the honor record only (display name, country, avatar, honor badges, the historical competition name, and the member-controlled competing-since year and competition results), with everything else member-only as on any other profile.
 
 Story: As a member, I can view member profiles so that I learn about other members or see how my own profile appears to others.
 

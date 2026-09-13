@@ -13,6 +13,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3133');
 
@@ -829,25 +830,30 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
       // The account_claim token was committed by accountTokenService.issueToken
       // before the enqueueEmailOrFail call. Confirm row presence keyed on the
       // requesting member and target legacy id.
-      const tokenRow = testDb.prepare(
-        `SELECT id, target_legacy_member_id FROM account_tokens
-           WHERE member_id = ? AND token_type = 'account_claim'
-           ORDER BY created_at DESC LIMIT 1`,
-      ).get(memberId) as
-        | { id: string; target_legacy_member_id: string | null }
-        | undefined;
+      // The case mints its own member, who claims once, so the member and token
+      // type identify the row without reference to when it was written.
+      const tokenRow = theOnlyRow<{ id: string; target_legacy_member_id: string | null }>(
+        testDb,
+        rowPin(
+          'account_tokens',
+          `member_id = ? AND token_type = 'account_claim'`,
+          [memberId],
+        ),
+      );
       expect(tokenRow).toBeDefined();
       expect(tokenRow!.target_legacy_member_id).toBe(legacyId);
 
       // Catch-block audit row exists and carries the expected shape.
-      const auditRow = testDb.prepare(
-        `SELECT action_type, category, actor_type, entity_id FROM audit_entries
-           WHERE entity_id = ?
-             AND action_type = 'legacy.claim_initiate_notification_failed'
-           ORDER BY created_at DESC LIMIT 1`,
-      ).get(memberId) as
-        | { action_type: string; category: string; actor_type: string; entity_id: string }
-        | undefined;
+      const auditRow = theOnlyRow<{
+        action_type: string; category: string; actor_type: string; entity_id: string;
+      }>(
+        testDb,
+        rowPin(
+          'audit_entries',
+          `entity_id = ? AND action_type = 'legacy.claim_initiate_notification_failed'`,
+          [memberId],
+        ),
+      );
       expect(auditRow).toBeDefined();
       expect(auditRow!.action_type).toBe('legacy.claim_initiate_notification_failed');
       expect(auditRow!.category).toBe('identity');
@@ -890,11 +896,14 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
     expect(postRes.status).toBe(303);
     // The confirm link is delivered to the legacy email's outbox, never rendered
     // on the sent page; recipient_member_id is the claiming member.
-    const row = testDb.prepare(
-      `SELECT body_text FROM outbox_emails
-       WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
-       ORDER BY created_at DESC LIMIT 1`,
-    ).get(memberId) as { body_text: string | null } | undefined;
+    const row = theOnlyRow<{ body_text: string | null }>(
+      testDb,
+      rowPin(
+        'outbox_emails',
+        `recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'`,
+        [memberId],
+      ),
+    );
     const m = row?.body_text?.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
     if (!m) throw new Error('no claim confirm link in outbox');
     return m[1];

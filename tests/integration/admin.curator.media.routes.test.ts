@@ -50,6 +50,7 @@ import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 let resetImageProcessingAdapterForTests: () => void;
 
@@ -140,10 +141,17 @@ async function uploadPhotoViaRoute(caption: string, tags: string[]): Promise<str
     .field('tags', tags.join(' '))
     .attach('mediaFile', jpeg, filename);
   expect(res.status).toBeLessThan(400);
-  // Look up the media row by unique caption to retrieve the new id.
+  // Look up the media row by unique caption to retrieve the new id. Callers
+  // build the caption to be unique, so it identifies the row on its own; the
+  // assertion says so rather than leaning on an upload-time ordering that a
+  // repeated caption would silently resolve at random.
   const db = new BetterSqlite3(TEST_DB_PATH);
-  const row = db.prepare(`SELECT id FROM media_items WHERE caption = ? ORDER BY uploaded_at DESC LIMIT 1`).get(caption) as { id: string };
-  db.close();
+  let row: { id: string };
+  try {
+    row = theOnlyRow<{ id: string }>(db, rowPin('media_items', 'caption = ?', [caption]));
+  } finally {
+    db.close();
+  }
   return row.id;
 }
 

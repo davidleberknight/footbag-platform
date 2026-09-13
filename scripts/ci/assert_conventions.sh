@@ -302,6 +302,52 @@ if [ -n "$skip_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: a test does not identify a row by ordering on a timestamp and taking one.
+# Reason: the platform stamps rows to the millisecond, so two rows written by one
+# action or by two quick ones tie, and what happens on a tie decides the test.
+# With no tiebreaker SQLite settles it however it likes; with the row's own id
+# the order is stable but still arbitrary in time, because nearly every id here
+# is a prefix plus a random UUID. Stable is not newest. The tie opens only when
+# the writes bunch, which is when the machine is busy, so the test passes alone
+# and fails in the full suite, and the failure reads as a wrong value rather than
+# a wrong row. Snapshot the matching ids before the action and take what was not
+# there before (tests/fixtures/rowPinning.ts), or select on a key the test
+# controls, such as an idempotency key it can reconstruct.
+#
+# Exempt a line that genuinely tests ordering itself, or whose ordering column is
+# unique, or whose id really is time-ordered, by writing the reason on it or just
+# above it as: ordering-is-the-contract: <why>
+echo "[conventions] check: tests/ identify a row by ordering on a timestamp"
+row_order_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+# ORDER BY <col>_at ... LIMIT 1, allowing the clause to wrap across lines inside
+# a template literal, which is how most of these are written.
+order_re = re.compile(
+    r'ORDER\s+BY\s+[A-Za-z_][A-Za-z0-9_.]*_at\b[^;`]{0,200}?LIMIT\s+1\b',
+    re.I | re.S,
+)
+exempt_re = re.compile(r'ordering-is-the-contract:', re.I)
+
+for path in sorted(pathlib.Path('tests').rglob('*.ts')):
+    text = path.read_text(encoding='utf-8', errors='replace')
+    for m in order_re.finditer(text):
+        line_no = text.count('\n', 0, m.start()) + 1
+        # The marker may sit on the offending line or on the few lines above it,
+        # because the clause often begins partway through a template literal.
+        lines = text.splitlines()
+        window = lines[max(0, line_no - 7):line_no + 1]
+        if any(exempt_re.search(w) for w in window):
+            continue
+        print(f"{path}:{line_no}: {lines[line_no - 1].strip()[:120]}")
+PYEOF
+)
+if [ -n "$row_order_hits" ]; then
+  echo "$row_order_hits" >&2
+  echo "  FAIL: pin the row the action wrote (tests/fixtures/rowPinning.ts) instead of ordering by a timestamp; if the ordering is the contract, say so with an ordering-is-the-contract: comment" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: a test file that spawns a process synchronously imports the shared bound
 # in tests/fixtures/spawnGuard.ts.
 # Reason: a synchronous spawn blocks the worker's event loop, and vitest's own

@@ -12,6 +12,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertClub, insertClubLeader, insertMemberClubAffiliation, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3201');
 
@@ -148,12 +149,19 @@ describe('discoverable-in-member-search toggle', () => {
   });
 
   it('records searchable among the changed fields in the profile-update audit row', async () => {
+    // Earlier cases in this file edit the same member, so several
+    // `member.profile_updated` rows already exist and only some of them carry
+    // `searchable` in their field list. Take the row this edit adds rather than
+    // ordering: the rows share a millisecond-resolution stamp, and the ledger id
+    // is random, so no ordering distinguishes them.
+    const profileAudit = rowPin(
+      'audit_entries',
+      `entity_id = ? AND action_type = 'member.profile_updated'`,
+      [OWNER_ID],
+    );
+    const before = snapshotIds(db, profileAudit);
     await editOwner({ emailVisibility: 'private' }).expect(303);
-    const row = db.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE entity_id = ? AND action_type = 'member.profile_updated'
-        ORDER BY created_at DESC, id DESC LIMIT 1`,
-    ).get(OWNER_ID) as { metadata_json: string };
+    const row = oneRowAddedSince<{ metadata_json: string }>(db, profileAudit, before);
     expect(JSON.parse(row.metadata_json).fields).toContain('searchable');
   });
 });

@@ -70,6 +70,9 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
       const tier = testDb.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get(MEMBER_T0_TIER1) as Record<string, unknown>;
       expect(tier.tier_status).toBe('tier1');
 
+      // ordering-is-the-contract: this member is granted exactly one tier in the
+      // suite, and tier-grant ids are UUIDv7 besides, so the ordering names a
+      // single defined row either way.
       const grant = testDb.prepare(
         'SELECT * FROM member_tier_grants WHERE member_id = ? ORDER BY created_at DESC LIMIT 1',
       ).get(MEMBER_T0_TIER1) as Record<string, unknown>;

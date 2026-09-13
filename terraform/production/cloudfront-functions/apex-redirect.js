@@ -87,11 +87,13 @@ function handler(event) {
       headers: {
         // Seconds, not a date: the window has deliberately no declared end.
         'retry-after': { value: '86400' },
-        // Never cached and never indexed: the notice must vanish the moment the
-        // flag lifts, and a 503 with these headers is what keeps search engines
-        // returning instead of deindexing the site.
+        // Never cached: the notice must vanish the moment the flag lifts.
         'cache-control': { value: 'no-store' },
-        'x-robots-tag': { value: 'noindex' },
+        // No noindex directive here, deliberately. A 503 body is not indexed, so
+        // the header buys nothing, while a crawler that does act on it drops the
+        // site's URLs out of search results and the recovery outlasts the window
+        // by weeks. Published search guidance for a planned outage is a 503
+        // carrying Retry-After and nothing else.
         'content-type': { value: 'text/html; charset=utf-8' },
       },
       body: NOTICE_HTML,

@@ -638,6 +638,111 @@ resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   }
 }
 
+# ── CloudFront Functions: edge failures ──────────────────────────────────────
+# The viewer-request functions decide every request on the behaviours they are
+# attached to, before the cache and before any origin, and nothing else in this
+# tree reports on them. Two separate failure modes, one alarm each per function.
+#
+# Validation errors are the class that cannot be rehearsed. A function altering
+# a read-only header returns 502 to the viewer, and that error does not appear
+# when the function is tested, only once it is deployed and a real request runs
+# through it. The only pre-DNS rehearsal available here is a synthetic function
+# test, so this metric is the sole signal for that class.
+#
+# Execution errors are the function failing to complete at all.
+#
+# Both matter most during the cutover window, where the 5xx alarm above is
+# deliberately absent because the migration notice is itself a 503. These
+# metrics count function failures only, so the notice does not touch them.
+#
+# Zero is the threshold. These functions run on every matching request, so an
+# error is never a blip: the deployed code is broken for everyone or for nobody.
+# Missing data is not breaching, which is the normal state: neither metric is
+# published for these functions, because neither has ever fired.
+resource "aws_cloudwatch_metric_alarm" "cf_function_validation_errors_apex" {
+  count               = var.enable_cloudfront ? 1 : 0
+  alarm_name          = "${local.prefix}-cf-function-validation-errors-apex-redirect"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "FunctionValidationErrors"
+  namespace           = "AWS/CloudFront"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "The apex-redirect edge function returned an invalid response; viewers are getting 502 and no function test would have caught it"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    FunctionName = aws_cloudfront_function.apex_redirect[0].name
+    Region       = "Global"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cf_function_execution_errors_apex" {
+  count               = var.enable_cloudfront ? 1 : 0
+  alarm_name          = "${local.prefix}-cf-function-execution-errors-apex-redirect"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "FunctionExecutionErrors"
+  namespace           = "AWS/CloudFront"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "The apex-redirect edge function failed to complete; the origin is never reached"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    FunctionName = aws_cloudfront_function.apex_redirect[0].name
+    Region       = "Global"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cf_function_validation_errors_media" {
+  count               = var.enable_cloudfront ? 1 : 0
+  alarm_name          = "${local.prefix}-cf-function-validation-errors-media-prefix"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "FunctionValidationErrors"
+  namespace           = "AWS/CloudFront"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "The media-prefix edge function returned an invalid response; member photo URLs are returning 502"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    FunctionName = aws_cloudfront_function.strip_media_store_prefix[0].name
+    Region       = "Global"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cf_function_execution_errors_media" {
+  count               = var.enable_cloudfront ? 1 : 0
+  alarm_name          = "${local.prefix}-cf-function-execution-errors-media-prefix"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "FunctionExecutionErrors"
+  namespace           = "AWS/CloudFront"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "The media-prefix edge function failed to complete; the media origin is never reached"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    FunctionName = aws_cloudfront_function.strip_media_store_prefix[0].name
+    Region       = "Global"
+  }
+}
+
 # ── Cutover zero-logins watch ─────────────────────────────────────────────────
 # The login controller logs a structured `auth.login_success` line per
 # successful sign-in. During the cutover window, zero logins for two hours

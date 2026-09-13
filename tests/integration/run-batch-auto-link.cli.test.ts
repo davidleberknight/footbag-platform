@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3110');
@@ -30,11 +31,12 @@ describe('runBatchAutoLinkJob (cutover entry point)', () => {
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
-      const row = db.prepare(`
-        SELECT status FROM system_job_runs
-        WHERE job_name = 'SYS_Batch_Auto_Link'
-        ORDER BY started_at DESC LIMIT 1
-      `).get() as { status: string } | undefined;
+      // This file runs the job once, so its name identifies the run. Asserting
+      // that names a second run instead of choosing between two at random.
+      const row = theOnlyRow<{ status: string }>(
+        db,
+        rowPin('system_job_runs', `job_name = 'SYS_Batch_Auto_Link'`),
+      );
       expect(row?.status).toBe('succeeded');
     } finally {
       db.close();

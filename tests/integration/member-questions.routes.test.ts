@@ -16,6 +16,7 @@ import {
   insertWorkQueueItem,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 import { expectCsrfReject } from '../fixtures/expectCsrfReject';
 
 const { dbPath } = setTestEnv('3164');
@@ -81,12 +82,16 @@ function ask(queueItemId: string, over: Record<string, string> = {}): request.Te
     });
 }
 
+// The per-case cleanup empties the table, so one send leaves one row and no
+// ordering is needed to say which. Asserting that names a second send instead of
+// quietly choosing between two rows sharing a send stamp.
 function messageRow(): Record<string, unknown> | undefined {
   const conn = readDb();
-  const row = conn.prepare('SELECT * FROM member_messages ORDER BY sent_at DESC LIMIT 1')
-    .get() as Record<string, unknown> | undefined;
-  conn.close();
-  return row;
+  try {
+    return theOnlyRow<Record<string, unknown>>(conn, rowPin('member_messages', '1 = 1'));
+  } finally {
+    conn.close();
+  }
 }
 
 function outboxRows(): Array<{ subject: string; body_text: string | null }> {

@@ -12,6 +12,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertClub, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3081');
 
@@ -190,6 +191,18 @@ describe('assign', () => {
     expect(refused.status).toBe(422);
     expect(refused.text).toContain('cap-override');
 
+    // Five assignments above this one already wrote `club.admin_leader_assigned`
+    // rows for this club, and only the override carries the reason asserted
+    // below. Pin the row by taking what this request adds: the five share a
+    // millisecond-resolution created_at, so ordering by it picks one of the six
+    // arbitrarily whichever tiebreaker follows.
+    const assignAudit = rowPin(
+      'audit_entries',
+      `action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
+      [clubId],
+    );
+    const beforeOverride = snapshotIds(db, assignAudit);
+
     const allowed = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
@@ -198,9 +211,11 @@ describe('assign', () => {
     expect(allowed.status).toBe(303);
     expect(leaders(clubId)).toHaveLength(6);
 
-    const audit = db.prepare(
-      `SELECT metadata_json FROM audit_entries WHERE action_type = 'club.admin_leader_assigned' AND entity_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
-    ).get(clubId) as { metadata_json: string };
+    const audit = oneRowAddedSince<{ metadata_json: string }>(
+      db,
+      assignAudit,
+      beforeOverride,
+    );
     expect(JSON.parse(audit.metadata_json).cap_override_reason).toBe('Large active club; board approved.');
   });
 });

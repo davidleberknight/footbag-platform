@@ -24,6 +24,7 @@ import {
   createTestSessionJwt,
   completeOnboarding,
 } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-claim-hp-${Date.now()}.db`);
 
@@ -48,6 +49,16 @@ const CLAIMER_NAME = 'David Mockingbird';
 const OTHER_ID     = 'hpc-other';
 const OTHER_SLUG   = 'hpc_other';
 const OTHER_NAME   = 'Unrelated Smith';
+
+// Three cases below have this member attempt a different blocked claim, so the
+// ledger accumulates rows that differ only in the fields each case asserts on.
+// Each case takes the row its own attempt added: the ledger stamp is
+// millisecond-resolution and its id is random, so no ordering separates them.
+const blockedClaimAudit = rowPin(
+  'audit_entries',
+  `action_type = 'claim.historical_person_blocked' AND actor_member_id = ?`,
+  [OTHER_ID],
+);
 
 // HP with no legacy_member_id back-link (scenario D).
 const HP_NO_LEGACY = 'hp-d-scenario-001';
@@ -435,12 +446,16 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
 
 describe('POST /history/:personId/claim/confirm — tier grant invariant', () => {
   it('scenario D (HP-only, HoF) — CLAIMER_ID receives a tier2 legacy.claim_tier_grant', () => {
-    const grant = testDb.prepare(`
-      SELECT change_type, old_tier_status, new_tier_status, reason_code
-      FROM member_tier_grants
-      WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'
-      ORDER BY created_at DESC LIMIT 1
-    `).get(CLAIMER_ID) as Record<string, unknown> | undefined;
+    // A claim grants this member their tier exactly once, so the member and the
+    // reason together identify the row without reference to when it was written.
+    const grant = theOnlyRow<Record<string, unknown>>(
+      testDb,
+      rowPin(
+        'member_tier_grants',
+        `member_id = ? AND reason_code = 'legacy.claim_tier_grant'`,
+        [CLAIMER_ID],
+      ),
+    );
     expect(grant).toBeDefined();
     expect(grant!.new_tier_status).toBe('tier2');
     expect(grant!.old_tier_status).toBe('tier0');
@@ -450,11 +465,14 @@ describe('POST /history/:personId/claim/confirm — tier grant invariant', () =>
   it('scenario E (HP+legacy, HoF+BAP) — claimer receives a tier2 legacy.claim_tier_grant', () => {
     // scenario E inserts its claimer with slug 'scenario_e'. Look up by slug.
     const memberId = (testDb.prepare(`SELECT id FROM members WHERE slug = 'scenario_e'`).get() as { id: string }).id;
-    const grant = testDb.prepare(`
-      SELECT new_tier_status, reason_code FROM member_tier_grants
-      WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'
-      ORDER BY created_at DESC LIMIT 1
-    `).get(memberId) as Record<string, unknown> | undefined;
+    const grant = theOnlyRow<Record<string, unknown>>(
+      testDb,
+      rowPin(
+        'member_tier_grants',
+        `member_id = ? AND reason_code = 'legacy.claim_tier_grant'`,
+        [memberId],
+      ),
+    );
     expect(grant).toBeDefined();
     expect(grant!.new_tier_status).toBe('tier2');
   });
@@ -488,6 +506,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       hof_member: 1, bap_member: 0,
     });
     const app = createApp();
+    const before = snapshotIds(testDb, blockedClaimAudit);
     const res = await request(app)
       .post(`/history/${surnameMismatchHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
@@ -498,15 +517,12 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     // rather than as an impersonation attempt on the strength of a name. This
     // record carries no legacy account, so there is no date to weigh and
     // nothing is settled either way.
-    const row = testDb.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'claim.historical_person_blocked'
-          AND actor_member_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1`,
-    ).get(OTHER_ID) as { metadata_json: string } | undefined;
-    expect(row).toBeDefined();
-    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    const row = oneRowAddedSince<{ metadata_json: string }>(
+      testDb,
+      blockedClaimAudit,
+      before,
+    );
+    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
     expect(meta.person_id).toBe(surnameMismatchHp);
     expect(meta.reason).toBe('surname_mismatch');
     expect(meta.dob_comparison).toBe('no_legacy_account');
@@ -529,20 +545,18 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       legacy_member_id: legacyId, hof_member: 0, bap_member: 0,
     });
     const app = createApp();
+    const before = snapshotIds(testDb, blockedClaimAudit);
     const res = await request(app)
       .post(`/history/${corroboratedHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
 
-    const row = testDb.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'claim.historical_person_blocked'
-          AND actor_member_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1`,
-    ).get(OTHER_ID) as { metadata_json: string } | undefined;
-    expect(row).toBeDefined();
-    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    const row = oneRowAddedSince<{ metadata_json: string }>(
+      testDb,
+      blockedClaimAudit,
+      before,
+    );
+    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
     expect(meta.person_id).toBe(corroboratedHp);
     expect(meta.dob_comparison).toBe('identical');
     expect(meta.assessment).toBe('corroborated');
@@ -561,19 +575,18 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       legacy_member_id: legacyId, hof_member: 0, bap_member: 0,
     });
     const app = createApp();
+    const before = snapshotIds(testDb, blockedClaimAudit);
     const res = await request(app)
       .post(`/history/${contradictedHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
 
-    const row = testDb.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'claim.historical_person_blocked'
-          AND actor_member_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1`,
-    ).get(OTHER_ID) as { metadata_json: string } | undefined;
-    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    const row = oneRowAddedSince<{ metadata_json: string }>(
+      testDb,
+      blockedClaimAudit,
+      before,
+    );
+    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
     expect(meta.person_id).toBe(contradictedHp);
     expect(meta.dob_comparison).toBe('mismatch');
     expect(meta.assessment).toBe('contradicted');

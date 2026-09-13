@@ -15,6 +15,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3062');
 
@@ -23,6 +24,14 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const MEMBER_ID   = 'edit-val-001';
 const MEMBER_SLUG = 'edit_validator';
+
+// The profile-update rows this member has accumulated. Several cases save the
+// same member, so each one takes the row its own save added.
+const profileAudit = rowPin(
+  'audit_entries',
+  `action_type = 'member.profile_updated' AND entity_id = ?`,
+  [MEMBER_ID],
+);
 const LINKED_ID   = 'edit-val-linked';
 const LINKED_SLUG = 'edit_val_linked';
 
@@ -436,40 +445,30 @@ describe('mass-assignment / overposting guard', () => {
 
 describe('profile update writes an audit row', () => {
   it('POST /members/:slug/edit appends member.profile_updated with field names (no PII values)', async () => {
-    // Pin the ledger position before the save and read only what follows it,
-    // the same way the single-field case below does. Ordering by timestamp and
-    // taking the newest row is not enough: the block above this one saves the
-    // same member three times, and under a loaded parallel run this assertion
-    // has read one of those rows instead of its own and failed on a field list
-    // belonging to a different save. A position is exact where an ordering is
-    // only usually right.
+    // Take the row this save adds rather than the newest one. The block above
+    // saves the same member three times, and under a loaded parallel run this
+    // assertion has read one of those instead of its own and failed on a field
+    // list belonging to a different save. The helper also names it when a save
+    // writes none or several, rather than letting that surface later as a
+    // confusing field-list mismatch.
     const before = new BetterSqlite3(dbPath, { readonly: true });
-    const priorMax = (before.prepare(
-      `SELECT COALESCE(MAX(rowid), 0) AS m FROM audit_entries
-        WHERE action_type = 'member.profile_updated' AND entity_id = ?`,
-    ).get(MEMBER_ID) as { m: number }).m;
+    const beforeIds = snapshotIds(before, profileAudit);
     before.close();
 
     const res = await postEdit({ bio: 'Audited bio', city: 'Auditville', phone: '555-0000' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const rows = db.prepare(
-      `SELECT action_type, category, actor_type, actor_member_id, entity_type, entity_id, metadata_json
-         FROM audit_entries
-        WHERE action_type = 'member.profile_updated' AND entity_id = ? AND rowid > ?
-        ORDER BY rowid`,
-    ).all(MEMBER_ID, priorMax) as Array<{
+    const row = oneRowAddedSince<{
       action_type: string; category: string; actor_type: string;
       actor_member_id: string; entity_type: string; entity_id: string;
       metadata_json: string;
-    }>;
+    }>(
+      db,
+      profileAudit,
+      beforeIds,
+    );
     db.close();
-
-    // Exactly one row, so a save that wrote none or several is named as such
-    // rather than surfacing later as a confusing field-list mismatch.
-    expect(rows).toHaveLength(1);
-    const row = rows[0];
 
     expect(row).toBeDefined();
     expect(row!.category).toBe('profile_change');
@@ -498,30 +497,25 @@ describe('profile update writes an audit row', () => {
     const baseline = await postEdit({ bio: 'Baseline bio', city: 'Baseville', phone: '555-0001' });
     expect(baseline.status, 'the baseline save must land before the single-field save').toBe(303);
 
-    // Pin the ledger position rather than ordering by timestamp. Both rows can
-    // share a created_at second, which leaves the tiebreak deciding which row
-    // the assertion reads.
+    // Take the row this save adds rather than ordering by timestamp. Both rows
+    // can share a stamp, which leaves the tiebreak deciding which one the
+    // assertion reads.
     const before = new BetterSqlite3(dbPath, { readonly: true });
-    const priorMax = (before.prepare(
-      `SELECT COALESCE(MAX(rowid), 0) AS m FROM audit_entries
-        WHERE action_type = 'member.profile_updated' AND entity_id = ?`,
-    ).get(MEMBER_ID) as { m: number }).m;
+    const beforeIds = snapshotIds(before, profileAudit);
     before.close();
 
     const res = await postEdit({ bio: 'Only the bio moved', city: 'Baseville', phone: '555-0001' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const rows = db.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'member.profile_updated' AND entity_id = ? AND rowid > ?
-        ORDER BY rowid`,
-    ).all(MEMBER_ID, priorMax) as Array<{ metadata_json: string }>;
+    const row = oneRowAddedSince<{ metadata_json: string }>(
+      db,
+      profileAudit,
+      beforeIds,
+    );
     db.close();
 
-    // Exactly one row, so a save that wrote none or several is named as such.
-    expect(rows).toHaveLength(1);
-    const meta = JSON.parse(rows[0].metadata_json) as { fields: string[] };
+    const meta = JSON.parse(row.metadata_json) as { fields: string[] };
     expect(meta.fields).toEqual(['bio']);
   });
 });

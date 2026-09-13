@@ -28,6 +28,7 @@ import {
   insertNameVariant,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3247');
 
@@ -69,12 +70,19 @@ function getTaskState(memberId: string, taskType: string): string | null {
   return row?.state ?? null;
 }
 
+// Each case mints its own member, who claims once, so the member identifies the
+// row outright. Asserting that beats ordering by a millisecond stamp broken by a
+// random ledger id, which would resolve a second claim at random.
 function claimAuditMetadata(memberId: string): Record<string, unknown> {
-  const row = db.prepare(
-    "SELECT metadata_json FROM audit_entries WHERE action_type = 'claim.legacy_account' AND actor_member_id = ? ORDER BY created_at DESC LIMIT 1",
-  ).get(memberId) as { metadata_json: string } | undefined;
-  expect(row, 'claim.legacy_account audit row').toBeTruthy();
-  return JSON.parse(row!.metadata_json);
+  const row = theOnlyRow<{ metadata_json: string }>(
+    db,
+    rowPin(
+      'audit_entries',
+      `action_type = 'claim.legacy_account' AND actor_member_id = ?`,
+      [memberId],
+    ),
+  );
+  return JSON.parse(row.metadata_json);
 }
 
 /**
@@ -307,11 +315,15 @@ describe('claim-time birth-date comparison in audit metadata', () => {
 
 describe('historical-record claim records the comparison and raises nothing', () => {
   function hpClaimMetadata(memberId: string): Record<string, unknown> {
-    const row = db.prepare(
-      "SELECT metadata_json FROM audit_entries WHERE action_type = 'claim.historical_person' AND actor_member_id = ? ORDER BY created_at DESC LIMIT 1",
-    ).get(memberId) as { metadata_json: string } | undefined;
-    expect(row, 'claim.historical_person audit row').toBeTruthy();
-    return JSON.parse(row!.metadata_json);
+    const row = theOnlyRow<{ metadata_json: string }>(
+      db,
+      rowPin(
+        'audit_entries',
+        `action_type = 'claim.historical_person' AND actor_member_id = ?`,
+        [memberId],
+      ),
+    );
+    return JSON.parse(row.metadata_json);
   }
 
   function memberHistoricalPersonId(memberId: string): string | null {

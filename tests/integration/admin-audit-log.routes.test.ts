@@ -4,6 +4,7 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertAuditEntry, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3134');
 
@@ -109,9 +110,13 @@ describe('GET /admin/audit-log', () => {
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log?member=${MEMBER_ID}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    const row = withDb((db) => db
-      .prepare(`SELECT actor_type, actor_member_id, entity_id, category FROM audit_entries WHERE action_type = 'audit.viewed' ORDER BY occurred_at DESC LIMIT 1`)
-      .get() as Record<string, unknown> | undefined);
+    // The per-case cleanup empties the ledger, so one view writes one row and
+    // the action type identifies it. Asserting that rather than taking the
+    // newest means a second write is named instead of silently chosen between.
+    const row = withDb((db) => theOnlyRow<Record<string, unknown>>(
+      db,
+      rowPin('audit_entries', `action_type = 'audit.viewed'`),
+    ));
     expect(row).toBeDefined();
     expect(row!.actor_type).toBe('admin');
     expect(row!.actor_member_id).toBe(ADMIN_ID);
@@ -267,9 +272,10 @@ describe('GET /admin/audit-log/export', () => {
     withDb((db) => insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID, category: 'auth' }));
     const app = createApp();
     await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
-    const row = withDb((db) => db
-      .prepare(`SELECT actor_type, actor_member_id, entity_id, metadata_json FROM audit_entries WHERE action_type = 'audit.exported' ORDER BY occurred_at DESC LIMIT 1`)
-      .get() as Record<string, unknown> | undefined);
+    const row = withDb((db) => theOnlyRow<Record<string, unknown>>(
+      db,
+      rowPin('audit_entries', `action_type = 'audit.exported'`),
+    ));
     expect(row).toBeDefined();
     expect(row!.actor_type).toBe('admin');
     expect(row!.actor_member_id).toBe(ADMIN_ID);

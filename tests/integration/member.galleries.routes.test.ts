@@ -55,6 +55,7 @@ import {
   createTestSessionJwt,
   insertMediaItem,
 } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const OWNER_ID    = 'member-mg-owner-001';
 const OWNER_SLUG  = 'mg_owner';
@@ -835,6 +836,13 @@ describe('gallery edit current-items display + uploadTags', () => {
     db.close();
   });
 
+  // Each upload below uses its own source filename, so the filename identifies
+  // the row outright. Asserting that beats ordering on the upload stamp, which
+  // ties to the millisecond and breaks on a random media id.
+  function mediaByFilename(db: BetterSqlite3.Database, filename: string): { id: string } {
+    return theOnlyRow<{ id: string }>(db, rowPin('media_items', 'source_filename = ?', [filename]));
+  }
+
   function findMediaTags(mediaId: string): string[] {
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
@@ -919,7 +927,7 @@ describe('gallery edit current-items display + uploadTags', () => {
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
-      const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('pixel.jpg') as { id: string } | undefined;
+      const row = mediaByFilename(db,'pixel.jpg') as { id: string } | undefined;
       expect(row).toBeTruthy();
       const tags = findMediaTags(row!.id);
       // Auto-stamped from gallery's non-#by_* criteria + merged with
@@ -949,7 +957,7 @@ describe('gallery edit current-items display + uploadTags', () => {
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
-      const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('bare.jpg') as { id: string } | undefined;
+      const row = mediaByFilename(db,'bare.jpg') as { id: string } | undefined;
       expect(row).toBeTruthy();
       const tags = findMediaTags(row!.id);
       // Empty uploadTags + auto-stamped criteria + auto #by_<slug>.
@@ -980,7 +988,7 @@ describe('gallery edit current-items display + uploadTags', () => {
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
-      const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('mid-edit.jpg') as { id: string } | undefined;
+      const row = mediaByFilename(db,'mid-edit.jpg') as { id: string } | undefined;
       expect(row).toBeTruthy();
       const tags = findMediaTags(row!.id);
       expect(tags).toContain('#edittag');

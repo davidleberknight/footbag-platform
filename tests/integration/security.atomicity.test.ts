@@ -17,6 +17,7 @@ import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
 import { resetRateLimitForTests } from '../../src/services/rateLimitService';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3083');
 
@@ -50,26 +51,46 @@ function readLegacy(): Record<string, unknown> {
 // the page (the sent state must not reflect the ownership-proof token). The
 // outbox row's recipient_member_id is the claiming member, so concurrent claims
 // of the same legacy account stay distinguishable.
-function claimTokenFromOutbox(claimingMemberId: string): string {
+// The claim mail a given member has been sent. Used to pin the row one issuing
+// request added, never to pick the most recent: a member is issued several
+// tokens over this file, including inside the repeat loop below, the outbox
+// stamp is millisecond-resolution and the outbox id is random, so ordering can
+// return an already-consumed token. That surfaces as a rejected confirm and
+// reads as an authorization bug rather than a test picking the wrong row.
+const outboxClaimMail = (memberId: string) =>
+  rowPin(
+    'outbox_emails',
+    `recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'`,
+    [memberId],
+  );
+
+function claimTokenFromOutbox(claimingMemberId: string, before: Set<string>): string {
   const db = new BetterSqlite3(dbPath, { readonly: true });
-  const row = db.prepare(
-    `SELECT body_text FROM outbox_emails
-     WHERE recipient_member_id = ? AND body_text LIKE '%/claim/confirm/%'
-     ORDER BY created_at DESC LIMIT 1`,
-  ).get(claimingMemberId) as { body_text: string | null } | undefined;
-  db.close();
-  const m = row?.body_text?.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+  let row: { body_text: string | null };
+  try {
+    row = oneRowAddedSince<{ body_text: string | null }>(
+      db,
+      outboxClaimMail(claimingMemberId),
+      before,
+    );
+  } finally {
+    db.close();
+  }
+  const m = row.body_text?.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
   if (!m) throw new Error(`no claim confirm link in outbox for member ${claimingMemberId}`);
   return m[1];
 }
 
 async function issueClaimToken(memberId: string, identifier: string): Promise<string> {
   const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
+  const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+  const before = snapshotIds(snapDb, outboxClaimMail(memberId));
+  snapDb.close();
   const postRes = await request(createApp())
     .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')
     .send({ identifier });
   expect(postRes.status).toBe(303);
-  return claimTokenFromOutbox(memberId);
+  return claimTokenFromOutbox(memberId, before);
 }
 
 // Clear outbox between tests so token-extraction picks this iteration's row.
@@ -447,13 +468,16 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
   it('consumeAndClaimLegacyInTx inside an outer transaction that throws → token un-consumed AND no merge persists', async () => {
     // Issue a token via the wizard for the fresh member/legacy pair.
     const agentReq = request.agent(createApp());
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeFresh = snapshotIds(snapDb, outboxClaimMail(FRESH_MEMBER_ID));
+    snapDb.close();
     const postRes = await agentReq
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', freshCookie())
       .type('form')
       .send({ identifier: FRESH_LEGACY_ID });
     expect(postRes.status).toBe(303);
-    const token = claimTokenFromOutbox(FRESH_MEMBER_ID);
+    const token = claimTokenFromOutbox(FRESH_MEMBER_ID, beforeFresh);
 
     expect(() => {
       dbMod.transaction(() => {
@@ -516,13 +540,16 @@ describe('consumeAndClaimLegacy — wrong-account guard', () => {
   it('member B submitting A\'s token is rejected; merge is not performed; token can still be consumed by A', async () => {
     const agentReq = request.agent(createApp());
     const aCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: A_MEMBER })}`;
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeA = snapshotIds(snapDb, outboxClaimMail(A_MEMBER));
+    snapDb.close();
     const postRes = await agentReq
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', aCookie)
       .type('form')
       .send({ identifier: WA_LEGACY });
     expect(postRes.status).toBe(303);
-    const tokenForA = claimTokenFromOutbox(A_MEMBER);
+    const tokenForA = claimTokenFromOutbox(A_MEMBER, beforeA);
 
     // B uses A's token. Service must reject without touching state.
     expect(() => svc.consumeAndClaimLegacy(B_MEMBER, tokenForA))

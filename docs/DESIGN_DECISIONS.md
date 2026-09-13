@@ -3512,6 +3512,18 @@ Decision:
 
 CloudFront is configured to serve custom error pages for server failures (5xx status codes). For GET/HEAD requests, when the Lightsail origin returns 500, 502, 503, or 504 errors (or is unreachable), CloudFront automatically displays a branded maintenance page stored in S3, informing users that the site is temporarily unavailable. State-changing requests (POST/PUT/DELETE) may instead fail with connection errors/timeouts and will not reliably receive the maintenance page.
 
+Scenarios this page covers:
+
+- Automatic, with no operator action: the origin returns 500, 502, 503 or 504, or is unreachable. This includes the readiness endpoint returning 503 when container memory crosses its threshold, and loss of the third-party DNS service that resolves the origin hostname.
+
+- Deliberate, by flipping the planned-maintenance flag: a schema migration that requires downtime, a container or resource change that requires a restart, and a security change with an expected brief interruption.
+
+- Incident stabilisation: raising the page while diagnosing is the sanctioned first move, because it costs nothing and buys unlimited time.
+
+- Disaster recovery: the four-hour host-restore objective assumes this page is served for the whole window, which is what makes four hours tolerable.
+
+One scenario it does not cover: the one-time migration notice shown during the go-live window. That is served per-hostname by the distribution's viewer-request function, so the preview hostname can keep serving the real platform while the public names show the notice. This page cannot do that, because it is reached through the default cache behaviour, which answers on every hostname at once.
+
 Rationale:
 
 Simplicity: Custom error pages provide graceful degradation during outages without a large maintenance burden. We assume a single-instance origin and accept occasional downtime as a trade-off for reduced complexity; availability is achieved through automated backups, rapid recovery procedures, and monitoring rather than redundant compute infrastructure.
@@ -3542,13 +3554,9 @@ Terraform Configuration: CloudFront distribution configured with error page resp
 
 Short cache TTL ensures error pages don't persist after recovery.
 
-S3 Bucket for Error Page: dedicated S3 bucket (footbag-error-pages) contains:
+S3 Bucket for Error Page: a dedicated per-environment maintenance bucket, named for the environment it serves, holding one object:
 
-- maintenance.html - Branded maintenance page with Footbag.org styling
-
-- error.css - Minimal styling
-
-- logo.png - Footbag logo
+- maintenance.html - Branded maintenance page with Footbag.org styling, self-contained. Its CSS is inline and every asset it needs travels with it, because it is served while the origin is down and anything fetched separately would be a second thing required to be working at the worst moment. Terraform places the object, so the fallback is always in position.
 
 CloudFront exit from maintenance is automatic. When Lightsail instance returns to health and responds with 2xx or 3xx status codes, CloudFront immediately resumes serving live content. No manual intervention required. Error page cache TTL of 10 seconds ensures stale error pages clear quickly after recovery. Restoring the origin may require admin intervention (restart/rollback/restore).
 

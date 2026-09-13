@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('4145');
 
@@ -34,12 +35,12 @@ function sleep(ms: number): Promise<void> {
 function rowFor(recipient: string): { status: string } | undefined {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
-    return db
-      .prepare(
-        `SELECT status FROM outbox_emails WHERE recipient_email = ?
-         ORDER BY created_at DESC LIMIT 1`,
-      )
-      .get(recipient) as { status: string } | undefined;
+    // Each case uses its own recipient address, so the address identifies the
+    // row and no ordering is needed to say which one is meant.
+    return theOnlyRow<{ status: string }>(
+      db,
+      rowPin('outbox_emails', 'recipient_email = ?', [recipient]),
+    );
   } finally {
     db.close();
   }

@@ -215,6 +215,9 @@ describe('startDonation: amount and note handling', () => {
     await paymentService.startDonation(M_PLAIN, 1000, null, false, '/x');
     const db = openDb();
     try {
+      // ordering-is-the-contract: rowid breaks every created_at tie and is
+      // strictly increasing per insert, so this does name the newest payment
+      // rather than an arbitrary one of a tied pair.
       const note = (id: string): string | null =>
         (db.prepare(
           'SELECT donation_note FROM payments WHERE member_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',

@@ -67,15 +67,27 @@ function writeTerraformStub(
   // A plan refused by the backend lock, reproduced as terraform emits it: the
   // 412 from the object store plus the Lock Info block, which carries the only
   // description of the holder the operator ever gets.
+  //
+  // The vertical bars matter and are not decoration. Terraform draws its errors
+  // inside a box and every line of the block carries that prefix, so a fixture
+  // written without it is a fixture the real output does not resemble. An
+  // earlier version of this stub omitted them, the parser was anchored on
+  // leading whitespace, and the whole block therefore parsed as empty against
+  // real terraform while passing here: the mode reported a lock held by nobody
+  // and refused to break the operator's own stale lock.
   const lockError = opts.lockHeldBy
     ? [
-        '  echo "Error: Error acquiring the state lock" >&2',
-        '  echo "api error PreconditionFailed: At least one of the pre-conditions you specified did not hold" >&2',
-        '  echo "Lock Info:" >&2',
-        '  echo "  ID:        db5207a9-4d80-8993-4c30-cdeb7e69020e" >&2',
-        `  echo "  Operation: ${opts.lockOperation ?? 'OperationTypePlan'}" >&2`,
-        `  echo "  Who:       ${opts.lockHeldBy}" >&2`,
-        `  echo "  Created:   ${opts.lockCreated ?? '2026-09-11 23:58:55.754432017 +0000 UTC'}" >&2`,
+        '  printf "\\033[31m╷\\033[0m\\n" >&2',
+        '  printf "\\033[31m│\\033[0m \\033[0m\\033[1mError: Error acquiring the state lock\\033[0m\\n" >&2',
+        '  printf "\\033[31m│\\033[0m \\033[0m\\n" >&2',
+        '  printf "\\033[31m│\\033[0m \\033[0mError message: operation error S3: PutObject, https response error\\n" >&2',
+        '  printf "\\033[31m│\\033[0m \\033[0mapi error PreconditionFailed: At least one of the pre-conditions you specified did not hold\\n" >&2',
+        '  printf "\\033[31m│\\033[0m \\033[0mLock Info:\\n" >&2',
+        '  printf "\\033[31m│\\033[0m \\033[0m  ID:        db5207a9-4d80-8993-4c30-cdeb7e69020e\\n" >&2',
+        `  printf "\\033[31m│\\033[0m \\033[0m  Operation: ${opts.lockOperation ?? 'OperationTypePlan'}\\n" >&2`,
+        `  printf "\\033[31m│\\033[0m \\033[0m  Who:       ${opts.lockHeldBy}\\n" >&2`,
+        `  printf "\\033[31m│\\033[0m \\033[0m  Created:   ${opts.lockCreated ?? '2026-09-11 23:58:55.754432017 +0000 UTC'}\\n" >&2`,
+        '  printf "\\033[31m╵\\033[0m\\n" >&2',
         '  exit 1',
       ].join('\n')
     : '';
@@ -230,6 +242,23 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
     });
   };
 
+  /**
+   * The same, with the operator attesting they killed the holding run. Carries
+   * --yes because the cases that get past the checks reach the typed word, which
+   * no test can answer; the refusal cases never reach it and are unaffected.
+   */
+  const breakRunAttested = (
+    opts: Parameters<typeof writeTerraformStub>[0],
+    procCount = '0',
+  ) => {
+    writeTerraformStub({ lockClearsAfterUnlock: true, ...opts });
+    return run(
+      ['--target', 'staging', '--break-stale-lock', '--i-killed-that-run', '--yes'],
+      true,
+      { TERRAFORM_APPLY_PROC_COUNT: procCount },
+    );
+  };
+
   it('refuses when the state is not locked at all, rather than unlocking blind', () => {
     const res = breakRun({});
     expect(res.exitCode).toBe(2);
@@ -264,6 +293,70 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toMatch(/under the 30-minute floor/);
     expect(calls()).not.toMatch(/force-unlock/);
+  });
+
+  it('names the waiver in the refusal, so the operator is not left guessing at it', () => {
+    const justNow = new Date(Date.now() - 60_000)
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d+Z$/, '.000000000 +0000 UTC');
+    const res = breakRun({ lockHeldBy: `someone@${thisHost}`, lockCreated: justNow });
+    expect(res.stderr).toMatch(/--i-killed-that-run/);
+    expect(res.stderr).toMatch(/waives the age floor only/);
+  });
+
+  it('waives the floor when the operator attests they killed the holding run', () => {
+    // The waiver is sound only because the two stronger checks already passed:
+    // the lock names this machine and nothing is running on it, so a live run
+    // would have to be invisible to both. The operator supplies the one fact the
+    // script cannot -- that the process is gone.
+    const justNow = new Date(Date.now() - 60_000)
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d+Z$/, '.000000000 +0000 UTC');
+    const res = breakRunAttested({ lockHeldBy: `someone@${thisHost}`, lockCreated: justNow });
+    expect(res.exitCode, res.stdout + res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/Three checks pass/);
+    expect(calls()).toMatch(/force-unlock/);
+  });
+
+  it('waives the floor and nothing else: another machine is still refused', () => {
+    const res = breakRunAttested({ lockHeldBy: 'julie@HER-LAPTOP', lockCreated: OLD });
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/not this machine/);
+    expect(calls()).not.toMatch(/force-unlock/);
+  });
+
+  it('waives the floor and nothing else: a running terraform is still refused', () => {
+    const justNow = new Date(Date.now() - 60_000)
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d+Z$/, '.000000000 +0000 UTC');
+    const res = breakRunAttested({ lockHeldBy: `someone@${thisHost}`, lockCreated: justNow }, '1');
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/terraform process\(es\) are running on this machine/);
+    expect(calls()).not.toMatch(/force-unlock/);
+  });
+
+  it('waives the floor and nothing else: an apply-held lock is still refused', () => {
+    const justNow = new Date(Date.now() - 60_000)
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d+Z$/, '.000000000 +0000 UTC');
+    const res = breakRunAttested({
+      lockHeldBy: `someone@${thisHost}`,
+      lockCreated: justNow,
+      lockOperation: 'OperationTypeApply',
+    });
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/not a plan/);
+    expect(calls()).not.toMatch(/force-unlock/);
+  });
+
+  it('still says four checks when the lock is genuinely old, not three', () => {
+    const res = breakRunAttested({ lockHeldBy: `someone@${thisHost}`, lockCreated: OLD });
+    expect(res.exitCode, res.stdout + res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/All four checks pass/);
   });
 
   it('refuses while a terraform is running on this machine', () => {

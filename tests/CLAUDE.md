@@ -64,6 +64,23 @@ tests/
                            test (or script it spawns) can reach live AWS
     machineIsolation.ts  ← the same, for the rest of the machine: home directory,
                            deployment-environment variable, media directories
+    rowPinning.ts        ← identify the row an action wrote, instead of ordering
+                           by a timestamp and taking the first result
+    freestyleDictionarySnapshot.json
+                         ← three views of the built dictionary -- tricks (975),
+                           modifiers (33), aliases (84) -- read by nine suites,
+                           unit and integration. A point-in-time dump with no
+                           recorded provenance and no regeneration command.
+
+                           Measured drift against the built database: 57 tricks
+                           added and none removed; modifiers unchanged in count
+                           but not in content; aliases 84 here against 532 there.
+                           Do not infer the query from the data and refresh it --
+                           that was tried and the inferred version fails the
+                           suites. Refreshing changes what nine suites assert
+                           against, so it belongs to the freestyle-dictionary
+                           maintainer. The evidence is recorded on the tracker
+                           card that owns stale generated-data fixtures.
   unit/
     *.test.ts            ← pure-function tests (no DB, no HTTP)
   integration/

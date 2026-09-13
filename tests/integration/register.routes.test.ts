@@ -16,6 +16,7 @@ import os from 'os';
 import path from 'path';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-register-${Date.now()}.db`);
 const TEST_ADMIN_FILE   = path.join(os.tmpdir(), `footbag-test-initial-admins-${Date.now()}.txt`);
@@ -720,6 +721,9 @@ describe('POST /register — initial-admin bootstrap', () => {
       // Verify the ledger row carries the bootstrap reason_code so a future
       // refactor cannot silently regress to the pre-unification "admin without
       // Tier 2" state.
+      // ordering-is-the-contract: tier-grant ids are UUIDv7, which increase with
+      // insertion, so this tiebreak names the newest grant rather than one of a
+      // tied pair at random.
       const tierGrantRow = db.prepare(
         `SELECT new_tier_status, reason_code FROM member_tier_grants
            WHERE member_id = ?
@@ -859,18 +863,26 @@ describe('POST /register — verify-email enqueue failure', () => {
       | { id: string; slug: string; login_email_normalized: string;
           password_hash: string | null; email_verified_at: string | null }
       | undefined;
-    const auditRow = db.prepare(
-      `SELECT action_type, category, actor_type, entity_id FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'auth.register_notification_failed'
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(member?.id ?? '') as
-      | { action_type: string; category: string; actor_type: string; entity_id: string }
-      | undefined;
-    const registerAudit = db.prepare(
-      `SELECT action_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'auth.register'
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(member?.id ?? '') as { action_type: string } | undefined;
+    // The address is unique to this case, so its member registers once: the
+    // member and action type identify each row without an ordering.
+    const auditRow = theOnlyRow<{
+      action_type: string; category: string; actor_type: string; entity_id: string;
+    }>(
+      db,
+      rowPin(
+        'audit_entries',
+        `entity_id = ? AND action_type = 'auth.register_notification_failed'`,
+        [member?.id ?? ''],
+      ),
+    );
+    const registerAudit = theOnlyRow<{ action_type: string }>(
+      db,
+      rowPin(
+        'audit_entries',
+        `entity_id = ? AND action_type = 'auth.register'`,
+        [member?.id ?? ''],
+      ),
+    );
     const outboxRows = db.prepare(
       `SELECT id FROM outbox_emails WHERE recipient_email = ?`,
     ).all(targetEmail) as Array<{ id: string }>;

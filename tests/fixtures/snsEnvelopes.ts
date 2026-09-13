@@ -10,6 +10,25 @@
  * The topic ARNs match the values the shared test environment configures, so an
  * envelope built with the defaults is one the feed accepts; a suite proving a
  * spoofed topic is refused passes its own.
+ *
+ * PROVENANCE, and the limit of what these prove. This shape is written from the
+ * provider's documentation, not captured from a delivery. Nobody here has held a
+ * real envelope against it. A real notification also carries Timestamp,
+ * SignatureVersion, Signature, SigningCertURL, UnsubscribeURL, and where the
+ * publisher sets them Subject and MessageAttributes; the alarm payload likewise
+ * carries AlarmArn, AWSAccountId, OldStateValue, Trigger and
+ * AlarmConfigurationUpdatedTimestamp beyond the keys built below.
+ *
+ * Those omissions are safe only for as long as nothing reads them, and the
+ * services driven by these builders do parse this JSON. So the claim above about
+ * the two transports delivering identical bodies is a reasonable belief rather
+ * than evidence: it has not been checked against a delivery either.
+ *
+ * When someone next has a real envelope in hand — the smoke tier reaches live
+ * SNS, so a run there is the natural moment — capture one and reconcile it here,
+ * structure untouched, in the manner tests/fixtures/stripeGoldenPayloads.ts sets
+ * out. Do not add the missing fields from memory: a fixture enlarged by
+ * guesswork reads as evidence while being exactly as unverified as this one.
  */
 
 export const SES_FEEDBACK_TEST_TOPIC = 'arn:aws:sns:us-east-1:000:t';

@@ -82,10 +82,18 @@ beforeEach(() => {
     '  fi',
     '  cp "$S3/${src#s3://}" "$dst"; exit $?',
     'fi',
-    // Honours --query the way the real CLI does: with it, a bare count; without
-    // it, the JSON envelope. The script's control flow reads this output as a
+    // With --query the real CLI returns a bare number, verified against
+    // `aws s3api list-objects-v2 --query 'length(Contents || \`[]\`)' --output
+    // text`, which is the only form the script uses. The script reads it as a
     // number, so a probe that lost its --query would silently stop promoting,
-    // and a stub that answered with a count regardless would hide that.
+    // and a stub answering with a count regardless would hide that: hence the
+    // branch.
+    //
+    // The no-query branch is a placeholder and not a claim. The real envelope
+    // carries IsTruncated, Contents with its nested keys, Name, Prefix, MaxKeys,
+    // EncodingType and KeyCount; this returns KeyCount alone. Nothing exercises
+    // that path, and if something ever does, capture the envelope rather than
+    // trusting this shape.
     'if [[ "$svc" == "s3api" && "$1" == "list-objects-v2" ]]; then',
     '  shift; bucket=""; prefix=""; hasquery=0',
     '  while (( $# )); do',

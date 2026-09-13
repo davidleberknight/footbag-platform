@@ -38,6 +38,11 @@ afterEach(() => {
   fs.rmSync(workDir, { recursive: true, force: true });
 });
 
+/** Where the aws stub records every call it received, one line per invocation. */
+function argsLogPath(): string {
+  return path.join(workDir, 'aws-args.log');
+}
+
 /**
  * Install an `aws` stub that replays one canned function output per host+uri.
  * The key is `<host><uri>`; anything unlisted answers as a pass-through, which
@@ -49,8 +54,12 @@ function stubAws(outputs: Record<string, string>): void {
     .map(([k, v]) => `  ${JSON.stringify(k)}) printf '%s' ${JSON.stringify(v)} ;;`)
     .join('\n');
   const script = `#!/usr/bin/env bash
-# Minimal aws stub: only the two subcommands this script calls.
+# Minimal aws stub: only the two subcommands this script calls. Every call is
+# logged so a test can pin which stage the script asked for, which is the
+# difference between checking the artifact viewers reach and checking the one
+# Terraform wrote before publishing.
 args="$*"
+printf '%s\\n' "$args" >> ${JSON.stringify(argsLogPath())}
 if [[ "$args" == *describe-function* ]]; then
   printf 'ETAGSTUB123'
   exit 0
@@ -69,7 +78,13 @@ if [[ "$args" == *test-function* ]]; then
   uri=$(grep -o '"uri": "[^"]*"' "$ev" | sed 's/.*: "//;s/"$//')
   case "\${host}\${uri}" in
 ${table}
-  *) printf '{"request":{"uri":"%s","method":"GET"}}' "$uri" ;;
+  # A pass-through, in the shape the real runtime returns it. Captured from
+  # \`aws cloudfront test-function --stage LIVE\` against the production
+  # apex-redirect function, which returns the whole request object rather than
+  # the two fields a hand-written fake would think to include. Nothing in the
+  # script parses querystring, headers or cookies today, but a fixture that
+  # claims to be the real shape and is not is how a parser bug hides.
+  *) printf '{"request":{"method":"GET","uri":"%s","querystring":{},"headers":{"host":{"value":"%s"}},"cookies":{}}}' "$uri" "$host" ;;
   esac
   exit 0
 fi
@@ -89,9 +104,15 @@ function run(args: string[]) {
   });
 }
 
-const NOTICE = '{"response":{"statusCode":503,"headers":{"retry-after":{"value":"86400"}}}}';
+// Generated responses, in the shape the real runtime returns them. The redirect
+// below is a verbatim capture from `aws cloudfront test-function --stage LIVE`
+// against the production apex-redirect function; the notice follows the same
+// shape, since it is the same runtime returning the same kind of object, and
+// cannot be captured live until the flag is on.
+const NOTICE =
+  '{"response":{"statusCode":503,"statusDescription":"Service Unavailable","headers":{"retry-after":{"value":"86400"},"cache-control":{"value":"no-store"}},"cookies":{}}}';
 const REDIRECT =
-  '{"response":{"statusCode":301,"headers":{"location":{"value":"https://www.footbag.org/events"}}}}';
+  '{"response":{"statusCode":301,"statusDescription":"Moved Permanently","headers":{"location":{"value":"https://www.footbag.org/events"}},"cookies":{}}}';
 
 describe('verify-cutover-notice.sh: invocation contract', () => {
   it('refuses to run without a mode', () => {
@@ -178,6 +199,23 @@ describe('verify-cutover-notice.sh: the same matrix after launch', () => {
     const res = run(['--function', '--expect-live']);
     expect(res.status).toBe(1);
     expect(res.stdout).toMatch(/expected pass-through to the platform, got a generated response/);
+  });
+});
+
+describe('verify-cutover-notice.sh: which artifact it checks', () => {
+  it('exercises the stage viewers reach, not the one written before publishing', () => {
+    // Terraform writes the function and then publishes it. A publish that did
+    // not land leaves the two stages holding different code, and a check that
+    // reads the unpublished one would report a pass on a notice no visitor can
+    // see. Both calls therefore name the published stage explicitly.
+    stubAws({ 'footbag.org/events': REDIRECT });
+    const res = run(['--function', '--expect-live']);
+    expect(res.status, res.stdout + res.stderr).toBe(0);
+
+    const calls = fs.readFileSync(argsLogPath(), 'utf-8');
+    expect(calls).toMatch(/describe-function.*--stage LIVE/);
+    expect(calls).toMatch(/test-function.*--stage LIVE/);
+    expect(calls).not.toContain('DEVELOPMENT');
   });
 });
 

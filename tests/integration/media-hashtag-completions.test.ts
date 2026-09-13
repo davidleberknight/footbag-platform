@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertTag, insertMediaItem } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 import { insertPersonaNamedGallery } from '../../src/testkit/personaRowBuilders';
 import { expectLoggedError } from '../setup-env';
 
@@ -75,20 +76,35 @@ describe('empty named gallery offers popular tags', () => {
 
 describe('daily hashtag-stats rebuild via the operations service', () => {
   it('records one succeeded system_job_runs row with the upsert count', async () => {
+    // started_at here comes from a fixed injected date and the run id is random,
+    // so once a second pass exists on that date no ordering names this one.
+    // Snapshot first and take what this pass added.
+    const beforeRuns = snapshotRebuildRuns();
     const result = await operationsPlatformService.runHashtagStatsRebuild(new Date('2026-06-15T12:00:00.000Z'));
     expect(result.rowsUpserted).toBeGreaterThanOrEqual(1);
 
     const probe = new BetterSqlite3(dbPath, { readonly: true });
-    const row = probe.prepare(`
-      SELECT status, details_json FROM system_job_runs
-      WHERE job_name = 'SYS_Rebuild_Hashtag_Stats'
-      ORDER BY started_at DESC LIMIT 1
-    `).get() as { status: string; details_json: string };
+    const row = oneRowAddedSince<{ status: string; details_json: string }>(
+      probe,
+      rebuildRuns,
+      beforeRuns,
+    );
     probe.close();
 
     expect(row.status).toBe('succeeded');
     expect(JSON.parse(row.details_json).rowsUpserted).toBe(result.rowsUpserted);
   });
+
+  const rebuildRuns = rowPin('system_job_runs', `job_name = 'SYS_Rebuild_Hashtag_Stats'`);
+
+  function snapshotRebuildRuns(): Set<string> {
+    const probe = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return snapshotIds(probe, rebuildRuns);
+    } finally {
+      probe.close();
+    }
+  }
 
   function countRebuildRuns(): number {
     const probe = new BetterSqlite3(dbPath, { readonly: true });
@@ -109,6 +125,7 @@ describe('daily hashtag-stats rebuild via the operations service', () => {
   it('a failed pass records a failed row with the error and logs it', async () => {
     expectLoggedError('SYS_Rebuild_Hashtag_Stats: failed');
     const before = countRebuildRuns();
+    const beforeRuns = snapshotRebuildRuns();
     await expect(
       operationsPlatformService.recordJobRun('SYS_Rebuild_Hashtag_Stats', () => {
         throw new Error('synthetic rebuild failure');
@@ -117,11 +134,11 @@ describe('daily hashtag-stats rebuild via the operations service', () => {
     expect(countRebuildRuns() - before).toBe(1);
 
     const probe = new BetterSqlite3(dbPath, { readonly: true });
-    const row = probe.prepare(`
-      SELECT status, last_error FROM system_job_runs
-      WHERE job_name = 'SYS_Rebuild_Hashtag_Stats' AND status = 'failed'
-      ORDER BY started_at DESC LIMIT 1
-    `).get() as { status: string; last_error: string };
+    const row = oneRowAddedSince<{ status: string; last_error: string }>(
+      probe,
+      rebuildRuns,
+      beforeRuns,
+    );
     probe.close();
     expect(row.status).toBe('failed');
     expect(row.last_error).toContain('synthetic rebuild failure');

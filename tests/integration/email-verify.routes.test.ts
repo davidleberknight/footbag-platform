@@ -13,6 +13,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3069');
 
@@ -36,13 +37,21 @@ beforeEach(() => {
   stub?.clear();
 });
 
+// Every case here registers under its own address, so the address identifies the
+// mail outright and no ordering is needed. Asserting that rather than taking the
+// newest means a case that ever sends two mails to one address is named as such
+// instead of quietly handing back whichever row won a timestamp tie.
 function tokenFromOutbox(email: string): string {
   const db = new BetterSqlite3(dbPath, { readonly: true });
-  const row = db.prepare(
-    `SELECT body_text FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at DESC LIMIT 1`,
-  ).get(email) as { body_text: string } | undefined;
-  db.close();
-  if (!row) throw new Error(`no outbox row for ${email}`);
+  let row: { body_text: string };
+  try {
+    row = theOnlyRow<{ body_text: string }>(
+      db,
+      rowPin('outbox_emails', 'recipient_email = ?', [email]),
+    );
+  } finally {
+    db.close();
+  }
   const match = row.body_text.match(/\/verify\/([A-Za-z0-9_-]+)/);
   if (!match) throw new Error(`no verify link in body for ${email}`);
   return match[1];
@@ -533,11 +542,16 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     const member = db.prepare(
       `SELECT id FROM members WHERE login_email_normalized = ?`,
     ).get(targetEmail) as { id: string } | undefined;
-    const auditRow = member ? db.prepare(
-      `SELECT action_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'auth.register_notification_failed'
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(member.id) as { action_type: string } | undefined : undefined;
+    // The address is unique to this case, so its member registers once and fails
+    // once; the member and action type identify the row without an ordering.
+    const auditRow = member ? theOnlyRow<{ action_type: string }>(
+      db,
+      rowPin(
+        'audit_entries',
+        `entity_id = ? AND action_type = 'auth.register_notification_failed'`,
+        [member.id],
+      ),
+    ) : undefined;
     db.close();
     expect(auditRow).toBeDefined();
   });
@@ -580,11 +594,16 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     const member = db.prepare(
       `SELECT id FROM members WHERE login_email_normalized = ?`,
     ).get(targetEmail) as { id: string } | undefined;
-    const auditRow = member ? db.prepare(
-      `SELECT action_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'auth.register_notification_failed'
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(member.id) as { action_type: string } | undefined : undefined;
+    // The address is unique to this case, so its member registers once and fails
+    // once; the member and action type identify the row without an ordering.
+    const auditRow = member ? theOnlyRow<{ action_type: string }>(
+      db,
+      rowPin(
+        'audit_entries',
+        `entity_id = ? AND action_type = 'auth.register_notification_failed'`,
+        [member.id],
+      ),
+    ) : undefined;
     db.close();
     expect(auditRow).toBeDefined();
   });
@@ -630,17 +649,23 @@ describe('email_verify token TTL honors system_config', () => {
       });
       expect(res.status).toBe(303);
 
+      // One registration under an address unique to this case, so one verify
+      // token and one mail. Both are identified by the address rather than by
+      // which was written last.
       const rdb = new BetterSqlite3(dbPath, { readonly: true });
-      const tok = rdb.prepare(`
-        SELECT t.issued_at, t.expires_at
-          FROM account_tokens t
-          JOIN members m ON m.id = t.member_id
-         WHERE m.login_email_normalized = ? AND t.token_type = 'email_verify'
-         ORDER BY t.issued_at DESC LIMIT 1
-      `).get(email) as { issued_at: string; expires_at: string };
-      const body = rdb.prepare(
-        `SELECT body_text FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at DESC LIMIT 1`,
-      ).get(email) as { body_text: string };
+      const tok = theOnlyRow<{ issued_at: string; expires_at: string }>(
+        rdb,
+        rowPin(
+          'account_tokens',
+          `member_id = (SELECT id FROM members WHERE login_email_normalized = ?)
+             AND token_type = 'email_verify'`,
+          [email],
+        ),
+      );
+      const body = theOnlyRow<{ body_text: string }>(
+        rdb,
+        rowPin('outbox_emails', 'recipient_email = ?', [email]),
+      );
       rdb.close();
 
       const diffHours =

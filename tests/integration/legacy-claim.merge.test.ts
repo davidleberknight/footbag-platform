@@ -24,6 +24,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -290,13 +291,17 @@ describe('claimLegacyAccount — HP-field carry-forward', () => {
 
     svc.claimLegacyAccount(memberId, legacyId);
 
+    // The scenario mints a fresh member who claims once, so the member
+    // identifies the row without reference to when it was written.
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(`
-      SELECT action_type, actor_member_id, entity_type, entity_id, metadata_json
-      FROM audit_entries
-      WHERE actor_member_id = ? AND action_type = 'claim.legacy_account'
-      ORDER BY occurred_at DESC LIMIT 1
-    `).get(memberId) as Record<string, unknown> | undefined;
+    const row = theOnlyRow<Record<string, unknown>>(
+      db,
+      rowPin(
+        'audit_entries',
+        `actor_member_id = ? AND action_type = 'claim.legacy_account'`,
+        [memberId],
+      ),
+    );
     db.close();
     expect(row).toBeDefined();
     expect(row!.entity_type).toBe('member');
@@ -314,13 +319,18 @@ describe('claimLegacyAccount — HP-field carry-forward', () => {
 
 describe('claimLegacyAccount — single tier grant per claim', () => {
   function readTierGrant(memberId: string): Record<string, unknown> | undefined {
+    // The section header above states the invariant this reads: exactly one
+    // grant per claim. Asserting it here is what makes a second one a failure
+    // rather than a silent choice between two.
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(`
-      SELECT change_type, old_tier_status, new_tier_status, reason_code
-      FROM member_tier_grants
-      WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'
-      ORDER BY created_at DESC LIMIT 1
-    `).get(memberId) as Record<string, unknown> | undefined;
+    const row = theOnlyRow<Record<string, unknown>>(
+      db,
+      rowPin(
+        'member_tier_grants',
+        `member_id = ? AND reason_code = 'legacy.claim_tier_grant'`,
+        [memberId],
+      ),
+    );
     db.close();
     return row;
   }

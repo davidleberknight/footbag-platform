@@ -44,6 +44,14 @@
 #   scripts/terraform-apply.sh --target staging --init
 #   scripts/terraform-apply.sh --target staging --init-upgrade
 #   scripts/terraform-apply.sh --target staging --break-stale-lock
+#   scripts/terraform-apply.sh --target staging --break-stale-lock --i-killed-that-run
+#
+# --i-killed-that-run waives the staleness floor, and nothing else, for an
+# operator who knows the holding process is gone because they stopped it. The
+# lock must still name this machine, have been taken by a plan, and find no
+# terraform running here, and the typed word is still required. It is spelled as
+# a statement rather than as --force so that using it is a claim about what you
+# did, not a way past a check you found inconvenient.
 #
 # The typed APPLY is asked for on production and on the shared tree, which holds
 # every environment's state. Staging applies without it: its data is meant to be
@@ -76,6 +84,12 @@ DO_INIT=0
 INIT_UPGRADE=0
 FROM_STEP=1
 BREAK_LOCK=0
+# Set by --i-killed-that-run: the operator attesting that the process holding
+# this lock is one they killed themselves. It waives the age floor and nothing
+# else, and only where the lock already names this machine and no terraform runs
+# here. See the age check for why that combination is safe and the floor is not
+# load-bearing there.
+KILLED_IT=0
 # A lock younger than this is not stale. Half an hour is longer than any plan or
 # apply in these trees takes, so a lock still held past it was left by a process
 # that is gone rather than one still working.
@@ -113,15 +127,37 @@ parse_lock_info() {
   # was not a lock at all.
   grep -q "Error acquiring the state lock" "$log" 2>/dev/null || return 1
 
-  LOCK_ID="$(sed -n 's/^[[:space:]]*ID:[[:space:]]*//p' "$log" | head -1)"
-  LOCK_OP="$(sed -n 's/^[[:space:]]*Operation:[[:space:]]*//p' "$log" | head -1)"
-  LOCK_WHO="$(sed -n 's/^[[:space:]]*Who:[[:space:]]*//p' "$log" | head -1)"
-  created="$(sed -n 's/^[[:space:]]*Created:[[:space:]]*//p' "$log" | head -1)"
+  # Two things sit between the start of the line and the field name, and the
+  # parser has to survive both. Terraform draws its errors inside a box, so each
+  # line of the Lock Info block carries a vertical bar; and it colours that box
+  # even when its output is going to a file rather than a terminal, so the real
+  # bytes are an escape sequence, the bar, another escape, then the field:
+  #
+  #   \033[31m│\033[0m \033[0m  Who:       user@host
+  #
+  # A pattern anchored on leading whitespace matches none of that, and every
+  # field comes back empty, which reads as a lock held by nobody. The escapes are
+  # stripped here rather than only suppressed at the call site, so the parser
+  # cannot be broken again by a caller that forgets -no-color.
+  local plain
+  plain="$(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$log")"
+
+  LOCK_ID="$(printf '%s\n' "$plain" | sed -n 's/^[│|[:space:]]*ID:[[:space:]]*//p' | head -1)"
+  LOCK_OP="$(printf '%s\n' "$plain" | sed -n 's/^[│|[:space:]]*Operation:[[:space:]]*//p' | head -1)"
+  LOCK_WHO="$(printf '%s\n' "$plain" | sed -n 's/^[│|[:space:]]*Who:[[:space:]]*//p' | head -1)"
+  created="$(printf '%s\n' "$plain" | sed -n 's/^[│|[:space:]]*Created:[[:space:]]*//p' | head -1)"
 
   # "2026-09-11 23:58:55.754432017 +0000 UTC" parses once the fractional seconds
   # and the trailing zone name are removed; the numeric offset is what date reads.
   LOCK_CREATED="$(printf '%s' "${created% UTC}" | sed 's/\.[0-9]*//')"
-  created_epoch="$(date -u -d "$LOCK_CREATED" +%s 2>/dev/null || true)"
+  # Guarded on emptiness first: `date -d ""` does not fail, it returns midnight
+  # today, so an unparsed timestamp would otherwise yield a plausible age of a
+  # few hours and sail past the staleness floor the negative value exists to
+  # enforce.
+  created_epoch=""
+  if [[ -n "$LOCK_CREATED" ]]; then
+    created_epoch="$(date -u -d "$LOCK_CREATED" +%s 2>/dev/null || true)"
+  fi
   now_epoch="$(date -u +%s)"
   if [[ -n "$created_epoch" ]]; then
     LOCK_AGE_SECS=$(( now_epoch - created_epoch ))
@@ -200,6 +236,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --break-stale-lock)
       BREAK_LOCK=1
+      shift
+      ;;
+    --i-killed-that-run)
+      KILLED_IT=1
       shift
       ;;
     --init)
@@ -306,7 +346,10 @@ if (( BREAK_LOCK )); then
   # -lock-timeout=0 so a held lock fails immediately instead of waiting.
   echo "Probing: a plan that fails on lock acquisition is the proof the lock is live."
   PROBE_STATUS=0
-  "$TF_BIN" -chdir="$TF_DIR" plan -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || PROBE_STATUS=$?
+  # -no-color because this output is parsed, not read: terraform colours its
+  # error box even when writing to a file. The parser strips escapes anyway, so
+  # this is the belt to that braces rather than the only defence.
+  "$TF_BIN" -chdir="$TF_DIR" plan -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || PROBE_STATUS=$?
 
   if (( PROBE_STATUS == 0 )); then
     echo "ERROR: the state is not locked, so there is nothing to break." >&2
@@ -355,11 +398,36 @@ if (( BREAK_LOCK )); then
     echo "         An unreadable timestamp is not an old lock." >&2
     exit 2
   fi
+  # The floor exists because a young lock is more likely a run still working. It
+  # is waivable, and only here, because by this point two stronger checks have
+  # already passed: the lock names THIS machine, and no terraform is running on
+  # it. A run cannot be alive under those two unless the process check missed it
+  # — a terraform inside a container, or one renamed — and neither of those would
+  # be recorded under this host's name in the first place, because terraform
+  # writes the lock's Who from the user and hostname it sees.
+  #
+  # So the floor is guarding a case the earlier checks have already excluded, and
+  # the operator who killed their own run holds a fact the script cannot: that
+  # the process is gone. They attest to it by name rather than by a flag that
+  # reads like a convenience. The typed word is still required afterwards.
   if (( LOCK_AGE_SECS < STALE_LOCK_MIN_AGE_SECS )); then
-    echo "REFUSED: the lock is $(( LOCK_AGE_SECS / 60 )) minutes old, under the $(( STALE_LOCK_MIN_AGE_SECS / 60 ))-minute floor." >&2
-    echo "         A lock this young is more likely a run still working than one that" >&2
-    echo "         died. Wait, then try again." >&2
-    exit 2
+    if (( KILLED_IT )); then
+      echo "The lock is $(( LOCK_AGE_SECS / 60 )) minutes old, under the $(( STALE_LOCK_MIN_AGE_SECS / 60 ))-minute floor, and you have"
+      echo "attested that you killed the run that took it. Accepted, because the lock"
+      echo "names this machine and no terraform is running on it: the only way it could"
+      echo "still be live is a process those two checks cannot see."
+      echo ""
+    else
+      echo "REFUSED: the lock is $(( LOCK_AGE_SECS / 60 )) minutes old, under the $(( STALE_LOCK_MIN_AGE_SECS / 60 ))-minute floor." >&2
+      echo "         A lock this young is more likely a run still working than one that" >&2
+      echo "         died. Wait, then try again." >&2
+      echo "" >&2
+      echo "         If you killed that run yourself, say so and this check is waived:" >&2
+      echo "             --break-stale-lock --i-killed-that-run" >&2
+      echo "         It waives the age floor only. The lock must still name this machine," >&2
+      echo "         have been taken by a plan, and find no terraform running here." >&2
+      exit 2
+    fi
   fi
   if (( LOCK_RUNNING > 0 )); then
     echo "REFUSED: ${LOCK_RUNNING} terraform process(es) are running on this machine, so a run" >&2
@@ -367,8 +435,17 @@ if (( BREAK_LOCK )); then
     exit 2
   fi
 
-  echo "All four checks pass: this machine's lock, taken by a plan, older than"
-  echo "$(( STALE_LOCK_MIN_AGE_SECS / 60 )) minutes, with no terraform running here. The run that took it is gone."
+  # Said accurately rather than uniformly: a waived floor is three checks and an
+  # attestation, not four checks, and a message claiming otherwise would be the
+  # same class of defect as the age this parser used to invent.
+  if (( KILLED_IT && LOCK_AGE_SECS < STALE_LOCK_MIN_AGE_SECS )); then
+    echo "Three checks pass: this machine's lock, taken by a plan, with no terraform"
+    echo "running here. The age floor is waived on your attestation that you killed"
+    echo "the run that took it."
+  else
+    echo "All four checks pass: this machine's lock, taken by a plan, older than"
+    echo "$(( STALE_LOCK_MIN_AGE_SECS / 60 )) minutes, with no terraform running here. The run that took it is gone."
+  fi
   echo ""
   if ! confirm_from_tty "Type 'APPLY' to remove lock ${LOCK_ID}: " "APPLY"; then
     echo "Aborted. The lock is untouched." >&2
@@ -388,7 +465,7 @@ if (( BREAK_LOCK )); then
   echo ""
   echo "Verifying the lock is gone rather than trusting the exit status."
   VERIFY_STATUS=0
-  "$TF_BIN" -chdir="$TF_DIR" plan -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || VERIFY_STATUS=$?
+  "$TF_BIN" -chdir="$TF_DIR" plan -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || VERIFY_STATUS=$?
   if parse_lock_info "$TF_PLAN_LOG"; then
     echo "ERROR: the state is still locked, now by ${LOCK_WHO} (${LOCK_ID})." >&2
     echo "       Something re-took it, or the unlock did not take effect." >&2

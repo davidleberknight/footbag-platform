@@ -135,6 +135,12 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
       '  *get-bucket-replication*)',
       ...replicationCase,
       '  *describe-alarms*)',
+      // One row stands in for the query's result. The real estate answers this
+      // query with four rows whose names carry a tier segment
+      // (footbag-production-snapshots-daily-replication-failed and siblings),
+      // which this does not reproduce. That is safe because the script only
+      // tests the result for emptiness and then prints it verbatim; it never
+      // reads a field or a name. If it ever parses one, capture the real rows.
       ...(o.alarms === 'present'
         ? ['    printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n" ;;']
         : ['    echo "" ;;']),

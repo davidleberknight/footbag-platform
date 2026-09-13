@@ -5,6 +5,7 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertWorkQueueItem, createTestSessionJwt } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3130');
 
@@ -253,11 +254,18 @@ describe('POST /admin/work-queue/:id/resolve', () => {
 
     // Services enqueue notification emails via the outbox table; the SES
     // adapter is never called directly from a service or controller.
-    const outboxRow = db
-      .prepare(`SELECT recipient_email, subject, body_text, idempotency_key FROM outbox_emails WHERE recipient_member_id = ? AND idempotency_key LIKE 'contact-request-resolve:%' ORDER BY created_at DESC LIMIT 1`)
-      .get(MEMBER_ID) as
-        | { recipient_email: string; subject: string; body_text: string; idempotency_key: string }
-        | undefined;
+    // The resolve enqueues under an idempotency key naming the queue row, so the
+    // key identifies the mail outright and no ordering is needed.
+    const outboxRow = theOnlyRow<{
+      recipient_email: string; subject: string; body_text: string; idempotency_key: string;
+    }>(
+      db,
+      rowPin(
+        'outbox_emails',
+        `recipient_member_id = ? AND idempotency_key LIKE 'contact-request-resolve:%'`,
+        [MEMBER_ID],
+      ),
+    );
     expect(outboxRow).toBeDefined();
     expect(outboxRow!.recipient_email).toBe('wq-member@example.com');
     expect(outboxRow!.subject).toContain('Corrected');

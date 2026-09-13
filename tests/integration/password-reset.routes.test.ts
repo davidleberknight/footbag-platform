@@ -9,6 +9,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
+import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3070');
 
@@ -348,13 +349,15 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
 
       // A high-priority audit row records the failure for operator review.
       const db = new BetterSqlite3(dbPath, { readonly: true });
-      const row = db.prepare(
-        `SELECT action_type, category, entity_type, entity_id FROM audit_entries
-         WHERE action_type = 'auth.password_reset_notification_failed'
-         ORDER BY created_at DESC LIMIT 1`,
-      ).get() as
-        | { action_type: string; category: string; entity_type: string; entity_id: string }
-        | undefined;
+      // This is the first case in the file to record that failure, so the action
+      // type identifies the row. Asserting it names a second writer rather than
+      // silently choosing between two.
+      const row = theOnlyRow<{
+        action_type: string; category: string; entity_type: string; entity_id: string;
+      }>(
+        db,
+        rowPin('audit_entries', `action_type = 'auth.password_reset_notification_failed'`),
+      );
       db.close();
       expect(row).toBeDefined();
       expect(row!.category).toBe('auth');
@@ -506,6 +509,18 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
       }),
     });
 
+    // An earlier case in this file records the same failure for the same member,
+    // and the ledger is append-only so the per-test cleanup cannot remove it.
+    // Pin the row this reset adds rather than reading the most recent one.
+    const notifyFailedAudit = rowPin(
+      'audit_entries',
+      `entity_id = ? AND action_type = 'auth.password_reset_notification_failed'`,
+      [MEMBER_ID],
+    );
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeFailure = snapshotIds(snapDb, notifyFailedAudit);
+    snapDb.close();
+
     const res = await request(app)
       .post(`/password/reset/${token}`)
       .type('form')
@@ -520,13 +535,11 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
     const verRow = db.prepare('SELECT password_version FROM members WHERE id=?')
       .get(MEMBER_ID) as { password_version: number };
     // The operator signal was recorded.
-    const auditRow = db.prepare(
-      `SELECT action_type, category, actor_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'auth.password_reset_notification_failed'
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(MEMBER_ID) as
-      | { action_type: string; category: string; actor_type: string }
-      | undefined;
+    const auditRow = oneRowAddedSince<{ action_type: string; category: string; actor_type: string }>(
+      db,
+      notifyFailedAudit,
+      beforeFailure,
+    );
     db.close();
 
     expect(verRow.password_version).toBe(2);
@@ -540,6 +553,13 @@ describe('Confirmation email for in-profile password change', () => {
   it('POST /members/:slug/edit/password enqueues a confirmation email', async () => {
     const app = createApp();
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 1 })}`;
+    // This address has been mailed earlier in the file, so take the mail this
+    // change enqueues rather than the newest one: the outbox stamp ties to the
+    // millisecond and the outbox id is random.
+    const memberMail = rowPin('outbox_emails', 'recipient_email = ?', [MEMBER_EMAIL]);
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeMail = snapshotIds(snapDb, memberMail);
+    snapDb.close();
     const res = await request(app)
       .post(`/members/${MEMBER_SLUG}/edit/password`)
       .set('Cookie', cookie)
@@ -552,9 +572,7 @@ describe('Confirmation email for in-profile password change', () => {
     expect(res.status).toBe(200);
     expect(countOutboxFor(MEMBER_EMAIL)).toBeGreaterThanOrEqual(1);
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(
-      `SELECT subject FROM outbox_emails WHERE recipient_email=? ORDER BY created_at DESC LIMIT 1`,
-    ).get(MEMBER_EMAIL) as { subject: string };
+    const row = oneRowAddedSince<{ subject: string }>(db, memberMail, beforeMail);
     db.close();
     expect(row.subject).toMatch(/password was changed/i);
   });

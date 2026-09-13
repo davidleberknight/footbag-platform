@@ -29,6 +29,7 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
 } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3095');
 
@@ -50,6 +51,17 @@ afterAll(() => cleanupTestDb(dbPath));
 
 function openRO(): BetterSqlite3.Database {
   return new BetterSqlite3(dbPath, { readonly: true });
+}
+
+// Runs of this job accumulate across the file and their ids are random, so each
+// case takes the run its own call produced rather than the newest.
+const autoLinkRuns = rowPin('system_job_runs', `job_name = 'SYS_Batch_Auto_Link'`);
+
+function snapshotAutoLinkRuns(): Set<string> {
+  const db = openRO();
+  try {
+    return snapshotIds(db, autoLinkRuns);
+  } finally { db.close(); }
 }
 
 function memberRow(id: string): Record<string, unknown> {
@@ -332,14 +344,17 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
   });
 
   it('writes a system_job_runs row tagged SYS_Batch_Auto_Link with the staging counter struct', async () => {
+    // Two cases in this file run the job, so take the run this call produced
+    // rather than the newest: run ids are random and started_at can tie.
+    const beforeRuns = snapshotAutoLinkRuns();
     await ops.operationsPlatformService.runBatchAutoLink();
 
     const db = openRO();
-    const row = db.prepare(`
-      SELECT status, details_json FROM system_job_runs
-      WHERE job_name = 'SYS_Batch_Auto_Link'
-      ORDER BY started_at DESC LIMIT 1
-    `).get() as { status: string; details_json: string };
+    const row = oneRowAddedSince<{ status: string; details_json: string }>(
+      db,
+      autoLinkRuns,
+      beforeRuns,
+    );
     db.close();
 
     expect(row.status).toBe('succeeded');
@@ -371,6 +386,7 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
         return orig.call(identity.identityAccessService, memberId);
       });
 
+    const beforeRuns = snapshotAutoLinkRuns();
     const result = await ops.operationsPlatformService.runBatchAutoLink();
 
     // The bad candidate is counted, nothing is staged for it, and the loop
@@ -383,11 +399,7 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
 
     // The job still records succeeded; one bad candidate does not abort it.
     const db = openRO();
-    const row = db.prepare(`
-      SELECT status FROM system_job_runs
-      WHERE job_name = 'SYS_Batch_Auto_Link'
-      ORDER BY started_at DESC LIMIT 1
-    `).get() as { status: string };
+    const row = oneRowAddedSince<{ status: string }>(db, autoLinkRuns, beforeRuns);
     db.close();
     expect(row.status).toBe('succeeded');
   });

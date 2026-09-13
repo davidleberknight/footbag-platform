@@ -180,6 +180,10 @@ describe('pausing and resuming', () => {
     // paused payments, and the question falls back to host access logs outside
     // the application entirely.
     run({ DB_FILE: dbFile, ACTION: 'pause', REASON: 'stop', ACTOR: 'mem-operator-7' });
+    // ordering-is-the-contract: system_config is unique on (config_key,
+    // effective_start_at), so for one key the ordering column cannot tie and the
+    // latest row is exactly defined. A second write in the same instant fails
+    // the constraint loudly rather than producing an ambiguous pair.
     const changedBy = withDb((db) => (db.prepare(
       `SELECT changed_by_member_id AS actor FROM system_config
         WHERE config_key = 'payments_paused' ORDER BY effective_start_at DESC LIMIT 1`,
@@ -189,6 +193,8 @@ describe('pausing and resuming', () => {
 
   it('leaves the operator unnamed rather than inventing one', () => {
     run({ DB_FILE: dbFile, ACTION: 'pause', REASON: 'stop' });
+    // ordering-is-the-contract: system_config is unique on (config_key,
+    // effective_start_at), so for one key the ordering column cannot tie.
     const changedBy = withDb((db) => (db.prepare(
       `SELECT changed_by_member_id AS actor FROM system_config
         WHERE config_key = 'payments_paused' ORDER BY effective_start_at DESC LIMIT 1`,

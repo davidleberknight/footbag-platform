@@ -28,6 +28,7 @@ import {
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3992');
 
@@ -78,13 +79,19 @@ function isPrimary(memberId: string, clubId: string): number {
   ).get(memberId, clubId) as { is_primary: number } | undefined;
   return row?.is_primary ?? -1;
 }
+// Each case seeds its own member, who leaves once, so the member identifies the
+// row. Asserting that beats ordering: the ledger stamp is millisecond-resolution
+// and its id is random, so a member who left twice would be resolved at random.
 function lastMemberLeftMetadata(memberId: string): Record<string, unknown> {
-  const row = db.prepare(
-    `SELECT metadata_json FROM audit_entries
-      WHERE actor_member_id = ? AND action_type = 'club.member_left'
-      ORDER BY created_at DESC, id DESC LIMIT 1`,
-  ).get(memberId) as { metadata_json: string } | undefined;
-  return row ? JSON.parse(row.metadata_json) : {};
+  const row = theOnlyRow<{ metadata_json: string }>(
+    db,
+    rowPin(
+      'audit_entries',
+      `actor_member_id = ? AND action_type = 'club.member_left'`,
+      [memberId],
+    ),
+  );
+  return JSON.parse(row.metadata_json);
 }
 function reactivateAudits(clubId: string): Array<{ metadata_json: string }> {
   return db.prepare(
