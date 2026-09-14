@@ -15,3 +15,12 @@
 # here paraphrase instead of quoting, to keep the allowlist from seeding new
 # findings.
 e7eb26a66945672e8c60d22667eb9b3375b59d70:.gitleaksignore:generic-api-key:9
+#
+# A media fixture helper. Converting a hand-rolled insert to a factory call moved
+# two object-store paths from SQL column names into object properties, so a field
+# whose name ends in the credential-ish word was assigned a string carrying a
+# generated id, and the rule read the randomness as a key value. The paths are
+# synthetic and no credential was present. The working tree no longer has the
+# shape: both values are built into locals named for what they are, a path, and
+# assigned from those.
+bdb92337e2ec72ed8aedbfa36a6db67da24d76fd:tests/integration/media.routes.test.ts:generic-api-key:67

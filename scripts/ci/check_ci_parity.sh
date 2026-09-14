@@ -91,8 +91,79 @@ for job in "${!COVERED_BY[@]}"; do
   fi
 done
 
+# =============================================================================
+# The same assertion for the fast pre-commit gate.
+#
+# The check above binds the workflow to the full runner. It does not bind the
+# workflow to `npm run test:pre-pr`, which is the gate the rules and the
+# onboarding guide actually tell an author to run before pushing, and which for a
+# long time was build, lint, conventions and vitest. A secret-scan failure
+# therefore could not be seen locally by anyone following the documented loop,
+# and was first visible as a red push. That is the same drift this file was
+# written to stop, one entry point over.
+#
+# A job here is either reachable from test:pre-pr or carries the reason it cannot
+# be. The bar for the fast loop is stricter than for the full runner: a gate
+# belongs here only if it is quick and needs nothing beyond the checkout, because
+# a slow or flaky gate in the pre-commit path gets skipped by hand, which is
+# worse than not claiming it.
+# =============================================================================
+
+PACKAGE_JSON="${REPO_ROOT}/package.json"
+[[ -f "$PACKAGE_JSON" ]] || { echo "  FAIL: missing $PACKAGE_JSON" >&2; exit 1; }
+
+PRE_PR="$(jq -r '.scripts["test:pre-pr"] // empty' "$PACKAGE_JSON")"
+if [[ -z "$PRE_PR" ]]; then
+  echo "  FAIL: package.json declares no test:pre-pr script, which the rules name as the pre-commit gate." >&2
+  exit 1
+fi
+
+# Workflow job -> the literal the pre-PR script must contain to speak for it.
+declare -A PRE_PR_COVERED_BY=(
+  [typecheck]="npm run build"
+  [lint]="npm run lint"
+  [conventions]="assert_conventions.sh"
+  [secret-scan]="secret_scan.sh"
+  [unit-tests]="npm test"
+  [integration-tests]="npm test"
+  [harness]="EXCLUDED: gates the AI harness configuration rather than application source, and is carried by the full runner"
+  [dependency-audit]="EXCLUDED: needs a live call to the registry audit endpoint, so a network hiccup would block every commit"
+  [coverage]="EXCLUDED: re-runs the whole instrumented suite, minutes on top of a loop with a sub-two-minute target"
+  [e2e]="EXCLUDED: needs browsers and a running stack"
+  [security-probes]="EXCLUDED: needs a running stack"
+  [terraform]="EXCLUDED: needs the terraform binary"
+  [legacy-pytest]="EXCLUDED: needs Python and the legacy data trees"
+  [db-load-smoke]="EXCLUDED: runs the loader, which is safe only in the clean room's throwaway worktree"
+  [freestyle-db-integrity]="EXCLUDED: same clean-room condition as the loader gate"
+  [codeql]="EXCLUDED: static analysis runs on GitHub's infrastructure and has no local form"
+  [dependency-review]="EXCLUDED: a pull-request-only GitHub action with no local form"
+  [ci-complete]="EXCLUDED: an aggregate of the jobs above, not a check of its own"
+)
+
+for job in "${JOBS[@]}"; do
+  mapping="${PRE_PR_COVERED_BY[$job]:-}"
+  if [[ -z "$mapping" ]]; then
+    echo "  FAIL: workflow job '${job}' is not reachable from test:pre-pr and is not listed as one that cannot be." >&2
+    echo "        Add it to the test:pre-pr script in package.json, or record why the fast loop cannot carry it." >&2
+    violations=$((violations + 1))
+    continue
+  fi
+  [[ "$mapping" == EXCLUDED:* ]] && continue
+  if [[ "$PRE_PR" != *"$mapping"* ]]; then
+    echo "  FAIL: workflow job '${job}' claims test:pre-pr carries it via '${mapping}', which that script does not run." >&2
+    violations=$((violations + 1))
+  fi
+done
+
+for job in "${!PRE_PR_COVERED_BY[@]}"; do
+  if ! printf '%s\n' "${JOBS[@]}" | grep -qx "$job"; then
+    echo "  FAIL: '${job}' is mapped in the pre-PR table but is no longer a job in ${WORKFLOW}." >&2
+    violations=$((violations + 1))
+  fi
+done
+
 if (( violations > 0 )); then
   echo "[ci-parity] FAIL (${violations})" >&2
   exit 1
 fi
-echo "[ci-parity] pass (${#JOBS[@]} workflow jobs, each with a local gate or a recorded reason)"
+echo "[ci-parity] pass (${#JOBS[@]} workflow jobs, each with a local gate and a pre-PR gate or a recorded reason)"

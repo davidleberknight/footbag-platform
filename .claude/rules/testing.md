@@ -38,7 +38,18 @@ Widen to the full suite when what changed is shared rather than local:
 - any signature a test calls directly
 - any run on a working tree carrying work that is not yours
 
-The full suite (`npm run test:pre-pr`) is the commit and PR gate, always. Targeted runs verify a change; only the full run verifies the tree.
+`./run_all_tests.sh --full` is the commit and PR gate, always: it is the local run that matches the
+push gate, and it carries what a vitest run cannot — the dependency audit, the harness self-check,
+the generated-content check, the secret scan, the browser tier, and terraform validation. Passing the
+tests is not the same as passing the gate, and a secret scan is the case that proves it: a finding
+there is invisible to every vitest tier and first shows up as a red push.
+
+`npm run test:pre-pr` is the fast loop beneath it — build, lint, the conventions gate, the secret
+scan, and the vitest tiers — for the check before a commit rather than before a push. Every
+continuous-integration job is reachable from one of those two or carries a written reason it cannot
+be, and `scripts/ci/check_ci_parity.sh` fails the build if that stops holding, in both directions.
+
+Targeted runs verify a change; only a full run verifies the tree.
 
 ## What "edge cases" means
 

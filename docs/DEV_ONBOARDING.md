@@ -411,7 +411,7 @@ The suite is split:
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`. A few files drive committed command-line scripts as subprocesses, so the legacy-data Python dependencies must be importable by the `python3` on your path (`legacy_data/requirements.txt`).
 - `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state; a developer granted AWS access configures that workstation profile per DEVOPS_GUIDE.md (private GitHub repo), "Operator-workstation staging readiness smoke test".
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
-- `npm run test:pre-pr`; pre-PR gate; build + conventions check + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. Run before pushing.
+- `npm run test:pre-pr`; the fast pre-commit loop; build + lint + conventions check + secret scan + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. `./run_all_tests.sh --full` is the gate that matches the push; run this one before a commit.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.

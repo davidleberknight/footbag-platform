@@ -1,0 +1,9 @@
+#!/bin/sh
+# Refuse a commit that carries a secret.
+#
+# A thin entry point on purpose: the scan, the scanner discovery, and the guidance
+# printed when it fires all live in the shared script, so there is one place to
+# read and one place to correct.
+#
+# Deliberate override: git commit --no-verify
+exec ./scripts/ci/secret_scan.sh --staged --skip-ok

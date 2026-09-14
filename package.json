@@ -31,7 +31,7 @@
     "test:pentest:heavy": "bash scripts/pentest/run-heavy.sh",
     "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**' --coverage",
     "test:mutation": "stryker run",
-    "test:pre-pr": "npm run build && npm run lint && bash scripts/ci/assert_conventions.sh && npm test",
+    "test:pre-pr": "npm run build && npm run lint && bash scripts/ci/assert_conventions.sh && bash scripts/ci/secret_scan.sh --skip-ok && npm test",
     "test:all": "npm run build && npm run lint && bash scripts/ci/assert_conventions.sh && npm test && npm run test:smoke && npm run test:e2e"
   },
   "dependencies": {

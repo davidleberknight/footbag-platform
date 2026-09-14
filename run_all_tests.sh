@@ -665,19 +665,12 @@ gate_smoke() {
   npm run test:smoke
 }
 
-# Secret scan, matching CI's gitleaks job. Uses the local gitleaks CLI when
-# present, falls back to the dockerized scanner, and SKIPs when neither is
-# available (CI still enforces it on every push).
+# Secret scan, matching CI's gitleaks job. The scan itself lives in a script of
+# its own so the pre-PR npm gate reaches the same check rather than a copy of it;
+# that script returns 77 when no scanner is installed, which this runner reports
+# as SKIP.
 gate_secret_scan() {
-  if command -v gitleaks >/dev/null 2>&1; then
-    gitleaks detect --source . --config .gitleaks.toml --no-banner
-  elif command -v docker >/dev/null 2>&1; then
-    docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
-      detect --source /repo --config /repo/.gitleaks.toml --no-banner
-  else
-    echo "  gitleaks and docker both absent — skipping (CI's secret-scan job covers it)."
-    return 77
-  fi
+  bash scripts/ci/secret_scan.sh
 }
 
 # Dependency audit (audit-ci --moderate). A genuine moderate-or-higher advisory

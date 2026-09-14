@@ -178,6 +178,114 @@ expect "$H" 'git log --oneline -- src/app.ts' defer
 expect "$H" 'env git add -A' deny
 expect "$H" 'GIT_AUTHOR_NAME=x git commit -m x' deny
 
+# Creating a branch is the case a verb list missed: none of add/commit/push/pull
+# names it, and all four spellings of it write to the repository.
+expect "$H" 'git checkout -b test-quality-card-325' deny
+expect "$H" 'git switch -c feature' deny
+expect "$H" 'git branch feature' deny
+expect "$H" 'git branch -d feature' deny
+expect "$H" 'git branch -m old new' deny
+expect "$H" 'git worktree add /tmp/w feature' deny
+
+# The rest of the write surface: history rewriting, working-tree destruction,
+# ref creation, remote reconfiguration, and the stash.
+expect "$H" 'git merge main' deny
+expect "$H" 'git rebase -i main' deny
+expect "$H" 'git cherry-pick abc123' deny
+expect "$H" 'git revert HEAD' deny
+expect "$H" 'git reset --hard origin/main' deny
+expect "$H" 'git restore src/app.ts' deny
+expect "$H" 'git checkout -- src/app.ts' deny
+expect "$H" 'git clean -fd' deny
+expect "$H" 'git rm -r src' deny
+expect "$H" 'git mv a b' deny
+expect "$H" 'git tag v1.0.0' deny
+expect "$H" 'git tag -d v1.0.0' deny
+expect "$H" 'git remote add origin git@github.com:o/r.git' deny
+expect "$H" 'git remote set-url origin git@github.com:o/r.git' deny
+expect "$H" 'git stash' deny
+expect "$H" 'git stash pop' deny
+expect "$H" 'git submodule update --init' deny
+expect "$H" 'git config user.email me@example.com' deny
+expect "$H" 'git update-ref refs/heads/main abc123' deny
+expect "$H" 'git filter-branch --tree-filter x HEAD' deny
+expect "$H" 'git apply /tmp/p.patch' deny
+expect "$H" 'git am /tmp/p.patch' deny
+
+# The listing forms of the same dual-mode verbs still read, so the gate does not
+# cost the working reads it is not there to stop.
+expect "$H" 'git branch -vv' defer
+expect "$H" 'git branch --list' defer
+expect "$H" 'git branch --show-current' defer
+expect "$H" 'git branch --merged main' defer
+expect "$H" 'git tag -l' defer
+expect "$H" "git tag -l 'v1.*'" defer
+expect "$H" 'git remote -v' defer
+expect "$H" 'git remote show origin' defer
+expect "$H" 'git stash list' defer
+expect "$H" 'git worktree list' defer
+expect "$H" 'git submodule status' defer
+expect "$H" 'git reflog' defer
+expect "$H" 'git config --get user.email' defer
+expect "$H" 'git fetch origin' defer
+expect "$H" 'git show HEAD --stat' defer
+expect "$H" 'git rev-parse HEAD' defer
+
+# Wrappers and alternate spellings of the binary reach the same git; a verb the
+# gate cannot resolve (behind a variable or a substitution) is denied rather than
+# guessed, which is the fail-closed direction for a security gate.
+expect "$H" 'bash -c "git commit -m x"' deny
+expect "$H" 'sh -c "git push"' deny
+expect "$H" 'xargs git commit' deny
+expect "$H" '/usr/bin/git push' deny
+expect "$H" 'command git commit -m x' deny
+expect "$H" 'git $VERB' deny
+expect "$H" 'git' deny
+
+# A wrapper that takes an argument of its own puts a token between itself and the
+# verb, and a wrapper list that stops at the first unrecognised token lets the
+# command straight through. All four of these reached the shell before the strip
+# loop learned to skip flags and numbers.
+expect "$H" 'timeout 5 git commit -m x' deny
+expect "$H" 'bash --login -c "git commit -m x"' deny
+expect "$H" 'setsid git push' deny
+expect "$H" 'xargs -I{} git commit -m x' deny
+
+# The plumbing writes objects, refs and working-tree files just as the porcelain
+# does, and listing only the everyday spellings repeats the original mistake one
+# layer down.
+expect "$H" 'git hash-object -w f' deny
+expect "$H" 'git write-tree' deny
+expect "$H" 'git symbolic-ref HEAD refs/heads/x' deny
+expect "$H" 'git read-tree HEAD' deny
+expect "$H" 'git checkout-index -a' deny
+expect "$H" 'git pack-refs --all' deny
+
+# The GitHub CLI reaches the same repository over the API. Tracker operations are
+# the sanctioned exception and keep working; repository state does not.
+expect "$H" 'gh pr create --title x --body y' deny
+expect "$H" 'gh pr merge 5' deny
+expect "$H" 'gh pr checkout 5' deny
+expect "$H" 'gh repo create foo' deny
+expect "$H" 'gh repo fork' deny
+expect "$H" 'gh release create v1.0.0' deny
+expect "$H" 'gh workflow run ci.yml' deny
+expect "$H" 'gh run rerun 123' deny
+expect "$H" 'gh secret set FOO' deny
+expect "$H" 'gh api -X POST repos/o/r/git/refs' deny
+expect "$H" 'gh api repos/o/r/git/refs -f ref=refs/heads/x' deny
+expect "$H" 'gh issue delete 5' deny
+expect "$H" 'gh pr list --state open' defer
+expect "$H" 'gh pr view 5' defer
+expect "$H" 'gh run view 34899558882' defer
+expect "$H" 'gh repo view' defer
+expect "$H" 'gh auth status' defer
+expect "$H" 'gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open' defer
+expect "$H" 'gh issue view 325 -R "$FOOTBAG_PRIVATE_REPO"' defer
+expect "$H" 'gh issue comment -R "$FOOTBAG_PRIVATE_REPO" 325 --body x' defer
+expect "$H" 'gh issue close -R "$FOOTBAG_PRIVATE_REPO" 325' defer
+expect "$H" 'gh api repos/o/r/commits --jq ".[0].sha"' defer
+
 H=guard-db-destructive.sh
 
 # Writable or destructive SQLite must ask; read-only queries must defer.
