@@ -327,6 +327,17 @@ describe('POST /admin/media-flags/:mediaId/delete', () => {
     expect(auditFor(ITEM_RACE)).toHaveLength(auditBefore);
     expect(outboxTo(UPLOADER_EMAIL)).toHaveLength(mailBefore);
     expect(mediaRow(ITEM_RACE).moderation_reason).toBe('Removed on review.');
+
+    // The decision itself was a success, so it reads as one; what must not
+    // happen is every outcome on this page sharing a single treatment, which
+    // is what it did before the message vocabulary landed.
+    const flash = ((res.headers['set-cookie'] as unknown as string[]) ?? [])
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const page = await request(createApp())
+      .get('/admin/media-flags')
+      .set('Cookie', [admin(), flash].filter(Boolean).join('; '));
+    expect(page.text).toContain('<div class="form-success-banner" role="status">That item was already hidden.');
   });
 });
 

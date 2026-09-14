@@ -6,7 +6,13 @@
       <div class="form-success-banner" role="status">{{page.notice}}</div>
     {{/if}}
     {{#if content.clubActionNotice}}
-      <p class="notice mb-6" role="status">{{content.clubActionNotice}}</p>
+      {{#if content.clubActionNotice.isSuccess}}
+        <div class="form-success-banner" role="status">{{content.clubActionNotice.text}}</div>
+      {{else if content.clubActionNotice.isRefusal}}
+        <div class="form-error-banner" role="alert">{{content.clubActionNotice.text}}</div>
+      {{else}}
+        <p class="form-notice" role="status">{{content.clubActionNotice.text}}</p>
+      {{/if}}
     {{/if}}
     <div class="profile-layout">
 

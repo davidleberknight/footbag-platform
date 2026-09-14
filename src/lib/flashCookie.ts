@@ -37,6 +37,10 @@ export const FLASH_KIND = {
   WORK_QUEUE_PARKED: 'work_queue_parked',
   MEMBER_QUESTION_ANSWERED: 'member_question_answered',
   CLUB_ACTION: 'club_action',
+  // A Tier 2 or Tier 3 member's vouch for Active Player status. The payload is
+  // the outcome code the member service turns back into a sentence, so the
+  // wording lives with the profile that shows it rather than in a cookie.
+  VOUCH_RESULT: 'vouch_result',
   PROFILE_UPDATED: 'profile_updated',
   RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',
   RECONCILIATION_RESOLVED: 'reconciliation_resolved',

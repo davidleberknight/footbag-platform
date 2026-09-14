@@ -15,8 +15,14 @@
 <div class="wrapper">
   <div class="club-detail">
 
-    {{#if page.notice}}
-    <p class="notice" role="status">{{page.notice}}</p>
+    {{#if content.actionNotice}}
+      {{#if content.actionNotice.isSuccess}}
+        <div class="form-success-banner" role="status">{{content.actionNotice.text}}</div>
+      {{else if content.actionNotice.isRefusal}}
+        <div class="form-error-banner" role="alert">{{content.actionNotice.text}}</div>
+      {{else}}
+        <p class="form-notice" role="status">{{content.actionNotice.text}}</p>
+      {{/if}}
     {{/if}}
 
     {{#if content.club.isInactive}}

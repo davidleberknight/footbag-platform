@@ -4,16 +4,22 @@ import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
+import {
+  outcomeNotice,
+  outcomePayload,
+  type OutcomeNoticeView,
+  type OutcomeTone,
+} from '../lib/outcomeNotice';
 
 // Every club action redirects here and leaves its outcome in the flash cookie,
 // so the club page is the surface that has to consume it. Taken once and
 // cleared, because a notice that survived a reload would tell a visitor an
 // action happened that did not happen on this request.
-function takeActionNotice(req: Request, res: Response): string | null {
+function takeActionNotice(req: Request, res: Response): OutcomeNoticeView | null {
   const flash = readFlash(req);
   if (flash?.kind !== FLASH_KIND.CLUB_ACTION) return null;
   clearFlash(res, req);
-  return flash.payload ?? null;
+  return outcomeNotice(flash.payload);
 }
 
 /**
@@ -79,7 +85,7 @@ export const clubController = {
         country:     str(req.body.country),
         externalUrl: str(req.body.external_url),
       });
-      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club updated.');
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club updated.'));
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -146,7 +152,7 @@ export const clubController = {
 
       switch (result.branch) {
         case 'created':
-          writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club created.');
+          writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club created.'));
           res.redirect(303, `/clubs/${encodeURIComponent(result.clubKey)}`);
           return;
         case 'already_leader':
@@ -185,11 +191,11 @@ export const clubController = {
         return;
       }
       if (result.branch === 'cap_reached') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are already in 2 clubs. Leave one before joining another.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are already in 2 clubs. Leave one before joining another.'));
       } else if (result.branch === 'already_member') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are already a member of this club.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('info', 'You are already a member of this club.'));
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, `Joined as your ${result.branch === 'joined_primary' ? 'primary' : 'secondary'} club.`);
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', `Joined as your ${result.branch === 'joined_primary' ? 'primary' : 'secondary'} club.`));
       }
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
@@ -218,9 +224,9 @@ export const clubController = {
       }
 
       if (result.branch === 'not_member') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a member of this club.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are not a member of this club.'));
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Left club.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Left club.'));
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {
@@ -233,9 +239,9 @@ export const clubController = {
       const result = clubService.swapPrimaryAffiliation(req.user!.userId);
 
       if (result.branch === 'not_enough_clubs') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You need two clubs to swap primary.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You need two clubs to swap primary.'));
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Primary club swapped.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Primary club swapped.'));
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {
@@ -264,9 +270,9 @@ export const clubController = {
       }
 
       if (result.branch === 'not_leader') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a co-leader of this club.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are not a co-leader of this club.'));
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Stepped down from co-leading this club.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Stepped down from co-leading this club.'));
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {
@@ -279,16 +285,20 @@ export const clubController = {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
       const result = clubService.volunteerToCoLeadClub(req.user!.userId, clubId);
 
-      const messages: Record<string, string> = {
-        volunteered:        'You are now a co-leader of this club.',
-        club_not_found:     'Club not found.',
-        not_member:         'Join this club before volunteering to co-lead it.',
-        not_eligible:       'Co-leading requires Tier 1 benefits (Tier 1+ or an active Active Player period).',
-        already_coleader:   'You already co-lead this club.',
-        coleads_other_club: 'You already co-lead another club. Clubs are local groups, so you lead your own club and are a guest at any other. To lead this one instead, step down at your club first.',
-        cap_reached:        'This club already has the maximum of 5 co-leaders.',
+      // Each branch carries its own tone: only one of them is the act
+      // happening, one is the member already holding what they asked for, and
+      // the rest are refusals that must not read like either.
+      const messages: Record<string, [OutcomeTone, string]> = {
+        volunteered:        ['ok',   'You are now a co-leader of this club.'],
+        club_not_found:     ['no',   'Club not found.'],
+        not_member:         ['no',   'Join this club before volunteering to co-lead it.'],
+        not_eligible:       ['no',   'Co-leading requires Tier 1 benefits (Tier 1+ or an active Active Player period).'],
+        already_coleader:   ['info', 'You already co-lead this club.'],
+        coleads_other_club: ['no',   'You already co-lead another club. Clubs are local groups, so you lead your own club and are a guest at any other. To lead this one instead, step down at your club first.'],
+        cap_reached:        ['no',   'This club already has the maximum of 5 co-leaders.'],
       };
-      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, messages[result.branch] ?? 'Could not volunteer.');
+      const outcome = messages[result.branch] ?? (['no', 'Could not volunteer.'] as [OutcomeTone, string]);
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload(outcome[0], outcome[1]));
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
@@ -301,15 +311,16 @@ export const clubController = {
       const inviteeKey = String(req.body?.member_key ?? '');
       const result = clubService.inviteToCoLeadClub(req.user!.userId, clubId, inviteeKey);
 
-      const messages: Record<string, string> = {
-        sent:             'Invitation sent.',
-        not_leader:       'Only a co-leader can invite members to co-lead.',
-        member_not_found: 'No member found with that id or username.',
-        not_member:       'That member must join the club before they can be invited to co-lead.',
-        already_coleader: 'That member already co-leads this club.',
-        no_email:         'That member has no contact email on file.',
+      const messages: Record<string, [OutcomeTone, string]> = {
+        sent:             ['ok',   'Invitation recorded. It goes to that member by email.'],
+        not_leader:       ['no',   'Only a co-leader can invite members to co-lead.'],
+        member_not_found: ['no',   'No member found with that id or username.'],
+        not_member:       ['no',   'That member must join the club before they can be invited to co-lead.'],
+        already_coleader: ['info', 'That member already co-leads this club.'],
+        no_email:         ['no',   'That member has no contact email on file.'],
       };
-      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, messages[result.branch] ?? 'Could not send the invitation.');
+      const outcome = messages[result.branch] ?? (['no', 'Could not send the invitation.'] as [OutcomeTone, string]);
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload(outcome[0], outcome[1]));
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
@@ -322,11 +333,11 @@ export const clubController = {
       const result = clubService.markClubInactive(req.user!.userId, clubId);
 
       if (result.branch === 'not_leader') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Only club leaders can mark a club inactive.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'Only club leaders can mark a club inactive.'));
       } else if (result.branch === 'already_inactive') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'This club is already inactive.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('info', 'This club is already inactive.'));
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club marked inactive.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club marked inactive.'));
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {
@@ -340,11 +351,11 @@ export const clubController = {
       const result = clubService.reactivateClub(req.user!.userId, clubId);
 
       if (result.branch === 'not_leader') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Only club leaders can reactivate a club.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'Only club leaders can reactivate a club.'));
       } else if (result.branch === 'already_active') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'This club is already active.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('info', 'This club is already active.'));
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club reactivated.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club reactivated.'));
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {
@@ -363,12 +374,12 @@ export const clubController = {
         return;
       }
       if (result.branch === 'invalid_format') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Invalid hashtag format.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'Invalid hashtag format.'));
         res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
         return;
       }
       if (result.branch === 'tag_conflict') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'That hashtag is already taken.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'That hashtag is already taken.'));
         res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
         return;
       }

@@ -2,6 +2,15 @@
 
 <div class="wrapper">
   <section>
+    {{#if content.vouchNotice}}
+      {{#if content.vouchNotice.isSuccess}}
+        <div class="form-success-banner" role="status">{{content.vouchNotice.text}}</div>
+      {{else if content.vouchNotice.isRefusal}}
+        <div class="form-error-banner" role="alert">{{content.vouchNotice.text}}</div>
+      {{else}}
+        <p class="form-notice" role="status">{{content.vouchNotice.text}}</p>
+      {{/if}}
+    {{/if}}
     {{#if content.avatarThumbUrl}}
     <div class="text-center mb-4">
       <img src="{{content.avatarThumbUrl}}" alt="{{content.displayName}}" class="profile-avatar-img" />
@@ -81,6 +90,16 @@
         <h2 class="profile-section-heading">Competitive Results <span class="section-count">{{content.eventGroups.length}} events</span></h2>
       {{/if}}
       {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
+    </div>
+    {{/if}}
+
+    {{#if content.vouch}}
+    <div class="profile-section">
+      <h2 class="profile-section-heading">Vouch for Active Player Status</h2>
+      <p>{{content.vouch.explanation}}</p>
+      <form method="post" action="{{content.vouch.href}}">
+        <button type="submit" class="btn btn-primary">{{content.vouch.label}}</button>
+      </form>
     </div>
     {{/if}}
 

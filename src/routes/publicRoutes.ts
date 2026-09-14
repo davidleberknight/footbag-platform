@@ -18,6 +18,7 @@ import { authController } from '../controllers/authController';
 import { memberOnboardingController } from '../controllers/memberOnboardingController';
 import { emailPreferenceController } from '../controllers/emailPreferenceController';
 import { memberAnnounceController } from '../controllers/memberAnnounceController';
+import { memberVouchController } from '../controllers/memberVouchController';
 import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
@@ -215,6 +216,12 @@ publicRouter.get('/members/:memberKey/delete',        requireMember, memberContr
 publicRouter.post('/members/:memberKey/delete',       requireMember, memberController.postDeleteAccount);
 publicRouter.post('/members/:memberKey/avatar',       requireMember, memberController.postAvatarUpload);
 publicRouter.post('/members/:memberKey/purchase-tier', requireMember, memberController.postPurchaseTier);
+// The Active Player vouch, and the one route under this prefix whose member key
+// is somebody else: the path names the member being vouched for, the signed-in
+// member is the voucher, and the handler's ownership check is inverted because
+// of it. The tier gate sits beside the member gate, as it does for the
+// organizer announcement above.
+publicRouter.post('/members/:memberKey/vouch', requireMember, requireTier2Plus(), memberVouchController.postVouch);
 publicRouter.get('/members/:memberKey/payments',       requireMember, paymentController.getPaymentHistory);
 publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
   requireMember, paymentController.postCancelRecurringDonation);

@@ -6,9 +6,7 @@
 </div>
 
 <div class="wrapper">
-  {{#if page.notice}}
-    <p class="form-notice" role="status">{{page.notice}}</p>
-  {{/if}}
+  {{> outcome-notice text=page.notice tone=page.noticeTone}}
 
   {{#unless content.hasItems}}
     <section>

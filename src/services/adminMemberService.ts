@@ -38,6 +38,7 @@ import { NotFoundError, ValidationError } from './serviceErrors';
 import { readIntConfig } from './configReader';
 import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 const LOOKUP_LIMIT = 25;
 const MIN_LOOKUP_QUERY = 2;
@@ -69,24 +70,27 @@ export type CorrectionOutcome =
   | 'slug_corrected'
   | 'slug_unchanged';
 
-const OUTCOME_NOTICE: Record<CorrectionOutcome, string> = {
-  name_corrected:   'The name has been corrected, and the change is recorded in the audit log.',
-  name_unchanged:   'Those are the names the record already held, so nothing changed.',
-  tier_changed:     'The membership tier has been changed, and the change is recorded in the audit log.',
-  tier_recorded:    'The member already held that tier. The reason is recorded in the tier ledger, and no email was sent.',
-  active_player_corrected: 'The Active Player expiry has been corrected, and the change is recorded in the audit log.',
-  active_player_ended:     'Active Player standing has ended, and the change is recorded in the audit log.',
-  active_player_unchanged: 'That is the expiry the record already held, so nothing changed.',
+// Each outcome carries its tone. A correction that landed and a correction that
+// found nothing to change are different events, and the page used to paint both
+// of them, plus the two refusals, in the same warning amber.
+const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
+  name_corrected:   ['ok',   'The name has been corrected, and the change is recorded in the audit log.'],
+  name_unchanged:   ['info', 'Those are the names the record already held, so nothing changed.'],
+  tier_changed:     ['ok',   'The membership tier has been changed, and the change is recorded in the audit log.'],
+  tier_recorded:    ['info', 'The member already held that tier. The reason is recorded in the tier ledger, and no email was sent.'],
+  active_player_corrected: ['ok',   'The Active Player expiry has been corrected, and the change is recorded in the audit log.'],
+  active_player_ended:     ['ok',   'Active Player standing has ended, and the change is recorded in the audit log.'],
+  active_player_unchanged: ['info', 'That is the expiry the record already held, so nothing changed.'],
   active_player_not_applicable:
-    'Active Player is a Tier 0 standing and this member holds a paid or governance tier, so the expiry was not changed.',
+    ['no', 'Active Player is a Tier 0 standing and this member holds a paid or governance tier, so the expiry was not changed.'],
   deceased_marked:
-    'The member is marked deceased. Their honours, media and competition results are untouched, and the platform will send them nothing.',
-  deceased_reverted: 'The deceased marking has been removed, and the reversal is recorded in the audit log.',
+    ['ok', 'The member is marked deceased. Their honours, media and competition results are untouched, and the platform will send them nothing.'],
+  deceased_reverted: ['ok', 'The deceased marking has been removed, and the reversal is recorded in the audit log.'],
   deceased_grace_elapsed:
-    'The window for reversing this marking has passed, so nothing was changed. Past that window the member\'s contact details are cleared, and full account deletion is the remaining path.',
+    ['no', 'The window for reversing this marking has passed, so nothing was changed. Past that window the member\'s contact details are cleared, and full account deletion is the remaining path.'],
   slug_corrected:
-    'The profile URL has been corrected and the uploader tag moved with it, so the member\'s media and galleries still resolve. The old URL no longer works.',
-  slug_unchanged: 'That is the profile URL the record already held, so nothing changed.',
+    ['ok', 'The profile URL has been corrected and the uploader tag moved with it, so the member\'s media and galleries still resolve. The old URL no longer works.'],
+  slug_unchanged: ['info', 'That is the profile URL the record already held, so nothing changed.'],
 };
 
 function isCorrectionOutcome(value: string): value is CorrectionOutcome {
@@ -532,7 +536,10 @@ export const adminMemberService = {
         sectionKey: '',
         pageKey:    'admin_member_record',
         title:      row.display_name,
-        notice:     outcomeNotice ?? recordNotice(row),
+        // A standing note about the account (deceased, deletion pending) is not
+        // an outcome, so it carries no tone and reads neutral.
+        notice:     outcomeNotice ? outcomeNotice[1] : recordNotice(row),
+        ...(outcomeNotice ? { noticeTone: outcomeNotice[0] } : {}),
       },
       navigation: {
         contextLinks: [{ label: 'Back to the Member Lookup', href: '/admin/members' }],

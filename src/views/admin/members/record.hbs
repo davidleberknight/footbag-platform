@@ -5,9 +5,7 @@
 </div>
 
 <div class="wrapper">
-  {{#if page.notice}}
-    <div class="notice notice-warn" role="status">{{page.notice}}</div>
-  {{/if}}
+  {{> outcome-notice text=page.notice tone=page.noticeTone}}
   {{#if content.errorMessage}}
     <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
   {{/if}}

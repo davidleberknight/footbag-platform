@@ -2742,7 +2742,7 @@ Impact:
 
 Decision:
 
-A box is a deliberate primitive, not the default way to group content. Enclosing chrome (border, tinted background, radius, accent bar) is reserved for notices, cards, empty states, and panels presenting technical notation. Ordinary sections are separated by heading, spacing, and rules. Where a callout does carry an accent bar, the bar takes one of three roles: neutral for an aside, the secondary accent for informational content, and the warning accent for a caveat.
+A box is a deliberate primitive, not the default way to group content. Enclosing chrome (border, tinted background, radius, accent bar) is reserved for notices, cards, empty states, and panels presenting technical notation. Ordinary sections are separated by heading, spacing, and rules. Where a callout does carry an accent bar, the bar takes one of three roles: neutral for an aside, the secondary accent for informational content, and the warning accent for a caveat. Those three roles govern a callout, which is part of the page and stays there. A message reporting the outcome of an action the reader just took is not a callout: it takes the message vocabulary in the view-layer rule instead, which fixes four tones and one class and aria role for each.
 
 Rationale:
 

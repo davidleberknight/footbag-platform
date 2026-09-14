@@ -47,8 +47,8 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     displayName: 'Tu Paid',
     tier: 'tier2',
     dimension: 'Tier ladder & admin',
-    purpose: 'Tier 2 member: full paid-tier benefits gate. Tier 2 standing is also what qualifies a member to vouch a Tier 0 member for Active Player, which is the tier\'s one capability with no surface yet.',
-    testingUsage: 'Act as a full Tier 2 member to confirm all paid-tier benefits and organizer-eligible surfaces open. Vouching is not reachable: the rule, the table and the confirmation email all exist, but nothing in the running site calls it, so this persona cannot exercise it until that surface lands.',
+    purpose: 'Tier 2 member: full paid-tier benefits gate. Tier 2 standing is also what qualifies a member to vouch a Tier 0 member for Active Player.',
+    testingUsage: 'Act as a full Tier 2 member to confirm all paid-tier benefits and organizer-eligible surfaces open. Use it to vouch for a Tier 0 member: the control sits on that member\'s profile page, grants or extends their Active Player status, and sends them a confirmation email readable on /dev/outbox.',
     payments: [
       { type: 'membership', status: 'succeeded', purchasedTier: 'tier1' },
       { type: 'membership', status: 'succeeded', purchasedTier: 'tier2' },

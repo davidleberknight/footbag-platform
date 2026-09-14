@@ -91,6 +91,40 @@ the global underline on links in running text is a colour-blind affordance, not 
 control's visible label names where it goes or what it does, per the truthful-controls rule in
 `template-conventions.md`.
 
+## Message vocabulary
+
+A message reporting what just happened is not a callout. It is the answer to the last request, it
+does not survive navigation, and its only job is to tell the reader which outcome occurred. Four
+tones cover every outcome the site has, and each fixes one class and one aria role:
+
+| Outcome | Tone | Class | Role |
+|---|---|---|---|
+| The thing asked for happened | success | `.form-success-banner` | `status` |
+| Nothing needed changing, and nothing was refused | informational | `.form-notice` | `status` |
+| A caution before an act, on a confirm page | warning | `.notice notice-warn` | `alert` |
+| The request was refused | refusal | `.form-error-banner` | `alert` |
+
+There is no fifth treatment and no page-local message class. A surface whose outcome fits none of
+the four is a design question to raise, never a licence to mint a class.
+
+An outcome that changed nothing because the desired state already held takes the informational
+tone, never success. Green claims the reader caused a change; where none happened, that is a false
+claim, and where the request was refused it is the opposite of the truth.
+
+One flash payload carrying several outcomes is the shape this rule exists to prevent. Where a
+controller or service can produce a success, a no-op and a refusal, the tone is decided where the
+message is chosen and travels with it: `outcomePayload` and `outcomeNotice` in
+`src/lib/outcomeNotice.ts` are the shared encoder, and the template branches on the shaped booleans
+rather than on a raw code.
+
+The aria role is correctness, not a guarantee. A message rendered server-side is present before page
+load completes, and screen readers do not announce a live region that was already there, so the role
+documents the message's urgency and nothing more.
+
+Before using a message class, check what it means on the surfaces that already use it. That a class
+is defined says nothing about whether it means what this outcome means, and the check the CSS
+vocabulary rule names below answers only the first question.
+
 ## Hashtag and dictionary-filter links
 
 Freestyle dictionary surfaces follow the href rule above with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-movement-system, movement-neighborhoods, by-dex, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name links to the trick detail page, and a separate "Detail" link resolves to the same page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens. The trick name links to the trick's detail page; the "Detail" link resolves to the same page, so the two controls agree the way the hashtag and Media do. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise. A "Media" link opens the same gallery as the hashtag and renders only when the trick has media, so media presence carries two agreeing signals rather than one. Name, hashtag, Detail, and Media stay four distinct controls. This four-control pattern is the trick

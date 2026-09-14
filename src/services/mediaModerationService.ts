@@ -80,6 +80,7 @@ import { runSqliteRead } from './sqliteRetry';
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 /** Which published conduct rule the reporter says the item breaks. */
 export type FlagReasonCode =
@@ -700,7 +701,11 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     },
 
     /** The takedown queue an administrator reads and decides from. */
-    getAdminMediaFlagsPage(opts?: { errorMessage?: string; noticeMessage?: string }): PageViewModel<AdminMediaFlagsContent> {
+    getAdminMediaFlagsPage(opts?: {
+      errorMessage?: string;
+      noticeMessage?: string;
+      noticeTone?: OutcomeTone;
+    }): PageViewModel<AdminMediaFlagsContent> {
       const rows = runSqliteRead('listOpenFlagsWithMedia', () =>
         mediaFlags.listOpenFlagsWithMedia.all(),
       ) as OpenFlagRow[];
@@ -779,7 +784,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           title:      'Flagged Media',
           intro:      'Media members have reported. Decide each item by removing it or closing the reports with no action.',
           ...(opts?.errorMessage ? { notice: opts.errorMessage } : {}),
-          ...(opts?.noticeMessage && !opts?.errorMessage ? { notice: opts.noticeMessage } : {}),
+          ...(opts?.noticeMessage && !opts?.errorMessage
+            ? { notice: opts.noticeMessage, ...(opts.noticeTone ? { noticeTone: opts.noticeTone } : {}) }
+            : {}),
         },
         navigation: { contextLinks: [{ label: 'Back to Admin', href: '/admin' }] },
         content: {

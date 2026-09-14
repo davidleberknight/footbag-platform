@@ -75,6 +75,11 @@ const ROUTES: readonly Row[] = [
   { name: 'avatar-upload',   method: 'post', path: `/members/${MEMBER_SLUG}/avatar`,        body: {}, requiresAuth: true },
   { name: 'contact-admin',   method: 'post', path: `/members/${MEMBER_SLUG}/contact-admin`, body: { subject: 'x', message: 'x' }, requiresAuth: true },
 
+  // The one member route whose key is another member: the Active Player vouch
+  // (requireMember + requireTier2Plus). The perimeter rejects it before either
+  // gate is consulted, which is what this row holds.
+  { name: 'vouch',           method: 'post', path: '/members/some_other_member/vouch',      body: {}, requiresAuth: true },
+
   // Tier-gated gallery surface (requireAuth + requireTier1Benefits).
   { name: 'gallery-create',  method: 'post', path: `/members/${MEMBER_SLUG}/galleries`,                body: { title: 'x' }, requiresAuth: true },
   { name: 'gallery-edit',    method: 'post', path: `/members/${MEMBER_SLUG}/galleries/g1/edit`,        body: { title: 'x' }, requiresAuth: true },

@@ -214,6 +214,25 @@ if [ -n "$form_class_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: an element that announces itself to assistive technology carries one of
+# the named message classes.
+# Reason: the message vocabulary in .claude/rules/view-layer.md fixes four tones
+# and one class each, after a rate-limit refusal shipped in the green success
+# banner and nothing caught it. This gate cannot judge whether a tone is honest
+# for a given sentence; what it does catch is a fifth treatment being born,
+# which is how three parallel message families grew in the first place. The
+# allowed set is the four message classes, the two field-level ones, and the
+# site-frame flash banner, which is the header strip rather than a page message.
+echo "[conventions] check: message classes on announcing elements in src/views/**"
+message_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"[^>]*role="(status|alert)"' src/views/ \
+  | grep -vE 'class="[^"]*(form-success-banner|form-notice|form-error-banner|notice-warn|form-field-error|form-field-warning|flash-banner|retirement-notice)' \
+  || true)
+if [ -n "$message_class_hits" ]; then
+  echo "$message_class_hits" >&2
+  echo "  FAIL: an element with role=status or role=alert must carry a named message class; see the message vocabulary in .claude/rules/view-layer.md" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: every font-family declaration in style.css resolves through the
 # --font-body / --font-mono tokens (or inherits), except inside @font-face
 # blocks, which by nature name the typeface they register.

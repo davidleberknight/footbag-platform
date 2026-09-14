@@ -3,6 +3,7 @@ import { emailLogService, type EmailLogQuery } from '../services/emailLogService
 import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 /** Trim a query value to a non-empty string, or undefined. */
 function str(v: unknown): string | undefined {
@@ -31,11 +32,16 @@ function returnPath(req: Request): string {
   return qs ? `/admin/email-log?${qs}` : '/admin/email-log';
 }
 
-/** What the administrator is told after a review, by outcome. */
-const REVIEW_NOTICES: Record<string, string> = {
-  reviewed:        'Message marked reviewed. It stays in the log and on the health page; it no longer waits on anyone.',
-  already_reviewed: 'That message was already reviewed, so nothing changed.',
-  not_reviewable:  'That message is not in a failed state, so there is nothing to review.',
+/**
+ * What the administrator is told after a review, by outcome, each with its own
+ * tone. One review can land three different ways and they used to render
+ * identically: a review that happened, one somebody else had already done, and
+ * a refusal on a message that was never in a failed state.
+ */
+const REVIEW_NOTICES: Record<string, [OutcomeTone, string]> = {
+  reviewed:         ['ok',   'Message marked reviewed. It stays in the log and on the health page; it no longer waits on anyone.'],
+  already_reviewed: ['info', 'That message was already reviewed, so nothing changed.'],
+  not_reviewable:   ['no',   'That message is not in a failed state, so there is nothing to review.'],
 };
 
 export const adminEmailLogController = {
@@ -48,7 +54,10 @@ export const adminEmailLogController = {
         : undefined;
       if (flash) clearFlash(res, req);
       const vm = emailLogService.getEmailLogPage(parseQuery(req));
-      if (notice) vm.page.notice = notice;
+      if (notice) {
+        vm.page.noticeTone = notice[0];
+        vm.page.notice = notice[1];
+      }
       res.render('admin/email-log/index', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'admin email-log controller');

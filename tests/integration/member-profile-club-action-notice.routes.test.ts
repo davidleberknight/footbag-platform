@@ -105,7 +105,7 @@ describe('a club action outcome on the member profile', () => {
     expect(shown.text).toContain('Primary club swapped.');
   });
 
-  it('renders a refusal in the neutral band, not the success one', async () => {
+  it('renders a refusal in the refusal treatment, not the success one', async () => {
     const carried = await swapPrimaryAs(ONE_CLUB);
 
     const shown = await request(createApp())
@@ -113,11 +113,27 @@ describe('a club action outcome on the member profile', () => {
       .set('Cookie', [cookieFor(ONE_CLUB), carried].join('; '));
 
     expect(shown.status).toBe(200);
-    expect(shown.text).toContain('<p class="notice mb-6" role="status">You need two clubs to swap primary.</p>');
-    // The green success treatment belongs to the profile-updated note, which
-    // nothing in this request wrote. A refusal wearing it would tell the
-    // member the opposite of what happened.
+    // A refused request reads as refused and is announced assertively. It used
+    // to render in the same flat grey line as "Primary club swapped.", which
+    // left the member no way to tell a denial from a completed act.
+    expect(shown.text).toContain(
+      '<div class="form-error-banner" role="alert">You need two clubs to swap primary.</div>',
+    );
     expect(shown.text).not.toContain('form-success-banner');
+  });
+
+  it('renders a completed club action in the success treatment', async () => {
+    const carried = await swapPrimaryAs(TWO_CLUB);
+
+    const shown = await request(createApp())
+      .get(`/members/${TWO_CLUB_SLUG}`)
+      .set('Cookie', [cookieFor(TWO_CLUB), carried].join('; '));
+
+    expect(shown.status).toBe(200);
+    expect(shown.text).toContain(
+      '<div class="form-success-banner" role="status">Primary club swapped.</div>',
+    );
+    expect(shown.text).not.toContain('form-error-banner');
   });
 
   it('takes the outcome once: the response that shows it clears it, and a reload does not repeat it', async () => {

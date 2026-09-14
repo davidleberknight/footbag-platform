@@ -43,7 +43,7 @@
     {{/if}}
 
     {{#if content.validationMessage}}
-      <p class="form-notice" role="alert">{{content.validationMessage}}</p>
+      <p class="form-error-banner" role="alert">{{content.validationMessage}}</p>
     {{/if}}
 
     {{#if (eq content.anchorSavedNotice 'saved')}}
@@ -60,7 +60,7 @@
     {{else if (eq content.anchorVerificationNotice 'verified')}}
       <p class="form-success-banner" role="status">Mailbox confirmed. Matches found through this address are treated as a stronger link to your old account.</p>
     {{else if (eq content.anchorVerificationNotice 'invalid')}}
-      <p class="form-notice" role="alert">That confirmation link is no longer valid. You can request a fresh one below.</p>
+      <p class="form-error-banner" role="alert">That confirmation link is no longer valid. You can request a fresh one below.</p>
     {{/if}}
 
     {{#if content.conflictPrompt}}

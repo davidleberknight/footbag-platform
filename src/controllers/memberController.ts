@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { nextPendingWizardHref } from '../middleware/auth';
-import { memberService, ProfileEditInput } from '../services/memberService';
+import { memberService, isVouchOutcome, ProfileEditInput, type VouchOutcome } from '../services/memberService';
+import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { getDefaultAccountDeletionService } from '../services/accountDeletionService';
 import { memberDataExportService } from '../services/memberDataExportService';
 import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
@@ -81,7 +82,7 @@ export const memberController = {
       try {
         const flash = readFlash(req);
         let profileNotice: string | undefined;
-        let clubActionNotice: string | undefined;
+        let clubActionNotice: OutcomeNoticeView | null | undefined;
         if (flash?.kind === FLASH_KIND.PROFILE_UPDATED) {
           profileNotice = flash.payload || 'Profile updated.';
           clearFlash(res, req);
@@ -92,7 +93,7 @@ export const memberController = {
           // payload turns out to be: a note left behind in the cookie surfaces
           // on the next club page the member opens, telling them something
           // happened there that happened somewhere else.
-          clubActionNotice = flash.payload ?? undefined;
+          clubActionNotice = outcomeNotice(flash.payload);
           clearFlash(res, req);
         }
         const query = typeof req.query.q === 'string' ? req.query.q : undefined;
@@ -112,14 +113,30 @@ export const memberController = {
     }
 
     try {
+      // The vouch the viewer has just given, if they came here from one. The
+      // payload is whatever was in the cookie, so it is narrowed before the
+      // service is asked to turn it into a sentence.
+      const flash = readFlash(req);
+      let vouchOutcome: VouchOutcome | undefined;
+      if (flash?.kind === FLASH_KIND.VOUCH_RESULT) {
+        vouchOutcome =
+          flash.payload && isVouchOutcome(flash.payload) ? flash.payload : undefined;
+        clearFlash(res, req);
+      }
       // Member enhancement keys off membership, not bare authentication: a
       // pending registrant reads this page as an anonymous visitor. The admin
       // flag lets operational surfaces keep linking to a pending account's
-      // profile, which is otherwise not-found for every viewer.
-      const publicVm = memberService.getMemberProfilePage(memberKey, {
-        authenticated: req.isMember,
-        admin: req.user?.role === 'admin',
-      });
+      // profile, which is otherwise not-found for every viewer. The viewer's
+      // member id decides only whether this page offers them the vouch.
+      const publicVm = memberService.getMemberProfilePage(
+        memberKey,
+        {
+          authenticated: req.isMember,
+          admin: req.user?.role === 'admin',
+          memberId: req.user?.userId ?? null,
+        },
+        vouchOutcome ? { vouchOutcome } : undefined,
+      );
       if (publicVm) {
         res.render('members/public-profile', publicVm);
         return;

@@ -7,6 +7,8 @@ export interface SeoMeta {
   noindex?: boolean;
 }
 
+import type { OutcomeTone } from '../lib/outcomeNotice';
+
 export interface PageMeta {
   sectionKey: string;
   pageKey: string;
@@ -14,6 +16,13 @@ export interface PageMeta {
   eyebrow?: string;
   intro?: string;
   notice?: string;
+  /**
+   * Which of the message tones `notice` carries, when it reports the outcome of
+   * something the reader just did. Omitted for a standing notice that reports
+   * no outcome, which renders informational. The vocabulary and the treatment
+   * each tone takes live in the view-layer rule.
+   */
+  noticeTone?: OutcomeTone;
 }
 
 export interface NavLink {

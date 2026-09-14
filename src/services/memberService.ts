@@ -15,6 +15,11 @@
  *   - Login / registration credential verification (IdentityAccessService)
  *   - Legacy-claim flow (IdentityAccessService)
  *   - Tier grants or ledger calculation (MembershipTieringService)
+ *   - Active Player rules (ActivePlayerService). `vouchForActivePlayer` is the
+ *     member-facing entry point for a Tier 2 or Tier 3 member's vouch: it
+ *     resolves the target slug, refuses a target with no profile, and delegates
+ *     the vouch itself unchanged. Every rule of the vouch, its rate limit, its
+ *     ledger rows and its confirmation email belong to that service.
  *   - Purge eligibility orchestration (OperationsPlatformService decides which
  *     members qualify and calls into the row-level primitives)
  *
@@ -61,6 +66,20 @@
  *     opted in (email_visibility 'members'); phone and WhatsApp render the
  *     same way, each gated by its own opt-in. Tier and Active Player badges
  *     are member-visible only.
+ *   - The Active Player vouch is the one control another member's profile
+ *     carries, and it renders only for a viewer who may use it: a signed-in
+ *     Tier 2 or Tier 3 member, on the profile of a Tier 0 member who is not
+ *     themselves and whose onboarding is finished. That is why
+ *     getMemberProfilePage takes the viewer's member id alongside the privacy
+ *     flags. Eligibility is read from the tier grant rather than from the tier
+ *     predicates, which grant an administrator every entitlement: the vouch
+ *     itself reads the grant and refuses anyone who holds none, and offering a
+ *     control that is then refused is the one thing this surface must not do.
+ *     A viewer who may not vouch is never shown the control, so the refusal
+ *     paths behind it are reached only by a crafted request. The outcome
+ *     returns as a code in the flash cookie and becomes here both the sentence
+ *     and the tone the page shows: green where the standing changed, neutral
+ *     where nothing needed changing, red where the rate limit refused.
  *   - A profile page exists only once its owner is a member. An account is
  *     pending until every onboarding task completes; getMemberProfilePage
  *     returns null for a pending target (indistinguishable from an unknown
@@ -132,13 +151,14 @@ import { PageViewModel, TierBenefitNotice } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
-import { getStatus as getActivePlayerStatus } from './activePlayerService';
+import { getStatus as getActivePlayerStatus, applyVouch } from './activePlayerService';
 import { memberActionService, type MemberActions } from './memberActionService';
 import { mayCreateClub, isTier2Plus, hasTier1Benefits } from './tierPredicates';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { countryNames, subdivisionsForCountry } from './countryUtils';
 import {
   regionRequiredForCountry,
@@ -385,7 +405,9 @@ export interface OwnProfileContent {
    *  page.notice because these messages are as often a refusal as a
    *  confirmation, so they render in the neutral band rather than the success
    *  one the profile-updated note owns. */
-  clubActionNotice?: string;
+  /** The outcome of a club action that redirected here, with its own tone:
+   *  a refusal must not wear the treatment that means the act succeeded. */
+  clubActionNotice?: OutcomeNoticeView | null;
 }
 
 /** A legacy account the member has claimed. Display-only: a member who believes
@@ -499,6 +521,135 @@ export interface ProfileClubView {
   href: string;
 }
 
+/**
+ * The vouch control on another member's profile. Present only for a viewer who
+ * may actually give the vouch: a signed-in Tier 2 or Tier 3 member looking at a
+ * Tier 0 member who is not themselves. Null for everyone else, because a member
+ * is never handed a control and then refused when they use it.
+ */
+export interface VouchActionView {
+  /** Where the form posts. */
+  href: string;
+  /** The submit button's label. */
+  label: string;
+  /** What the vouch does, read before the click rather than after it. */
+  explanation: string;
+}
+
+/**
+ * The outcome of a vouch, as the profile page reports it back to the voucher.
+ *
+ * The tone is shaped here rather than left to the template, and it is not
+ * decoration: the site's green banner means the thing you asked for happened,
+ * and a vouch has three different endings. It granted or extended a standing;
+ * or nothing needed changing, which is neither a success nor a refusal; or it
+ * was refused outright by the rate limit, which the page must not dress as a
+ * success when the request was answered 429.
+ */
+export interface VouchNoticeView {
+  text: string;
+  /** The member's standing changed: the green banner. */
+  isSuccess: boolean;
+  /** The vouch was refused: the red banner, announced assertively. */
+  isRefusal: boolean;
+}
+
+/**
+ * What a vouch did, as a code rather than a sentence. It travels from the POST
+ * to the profile page that follows it in the flash cookie, and the wording is
+ * rebuilt here, so the sentence lives with the surface that shows it instead of
+ * in a cookie.
+ */
+export type VouchOutcome =
+  | 'granted'
+  | 'extended'
+  | 'no_change'
+  | 'not_tier0'
+  | 'rate_limited';
+
+const VOUCH_OUTCOMES = new Set<string>([
+  'granted', 'extended', 'no_change', 'not_tier0', 'rate_limited',
+]);
+
+/** Narrows an untrusted flash payload to an outcome this service can shape. */
+export function isVouchOutcome(value: string): value is VouchOutcome {
+  return VOUCH_OUTCOMES.has(value);
+}
+
+/**
+ * Whether this member may give a vouch, tested the way the vouch itself tests
+ * it: the paid tier the member actually holds, with no administrator
+ * short-circuit. The tier predicates grant an administrator every tier
+ * entitlement, on the governance rule that an administrator holds Tier 2 or
+ * above; ActivePlayerService reads the tier grant instead and refuses anyone
+ * who does not. Using the predicate here would render the control to an
+ * administrator the vouch would then refuse, which is the one thing the surface
+ * must never do. Where the governance rule holds, the two agree.
+ */
+function holdsVouchingTier(memberId: string): boolean {
+  const tier = getTierStatus(memberId).tier_status;
+  return tier === 'tier2' || tier === 'tier3';
+}
+
+// One idea per sentence, and no claim the code does not keep. An administrator
+// can correct a standing that should not have been given, so the promise here
+// is that the voucher has no undo of their own, which is the part that is true.
+const VOUCH_EXPLANATION =
+  'You hold Tier 2 or Tier 3 membership, so you can vouch for this member to give them Active ' +
+  'Player status. Active Player status carries Tier 1 benefits and a place on the Official IFPA ' +
+  'Roster while it is current. It never changes their membership tier. Vouching takes effect at ' +
+  'once and notifies them by email. You cannot undo it yourself once it is given.';
+
+// The wording the user story fixes for a target the status does not apply to.
+const VOUCH_NOT_TIER0_NOTICE =
+  'No change needed - Active Player status applies only to Tier 0 members.';
+
+const VOUCH_RATE_LIMITED_NOTICE =
+  'You have reached the limit for vouches in a short period. Please try again later.';
+
+/**
+ * The sentence a voucher reads on the profile they land back on. The date comes
+ * from the target's standing as it is now rather than from the vouch, so the
+ * no-change case can state the later expiry that made the vouch redundant.
+ */
+function vouchOutcomeNotice(
+  outcome: VouchOutcome,
+  displayName: string,
+  targetId: string,
+): VouchNoticeView {
+  if (outcome === 'not_tier0') {
+    return { text: VOUCH_NOT_TIER0_NOTICE, isSuccess: false, isRefusal: false };
+  }
+  if (outcome === 'rate_limited') {
+    return { text: VOUCH_RATE_LIMITED_NOTICE, isSuccess: false, isRefusal: true };
+  }
+  const expiresAt = getActivePlayerStatus(targetId).active_player_expires_at;
+  // A granted or extended standing always carries a date. Nothing legitimate
+  // reaches here without one, so the dateless form states the outcome alone
+  // rather than printing an empty date.
+  if (!expiresAt) return { text: 'Vouch recorded.', isSuccess: true, isRefusal: false };
+  const on = formatDateDisplay(expiresAt, { style: 'long' });
+  if (outcome === 'granted') {
+    return {
+      text: `Vouch recorded. ${displayName} has Active Player status until ${on}.`,
+      isSuccess: true,
+      isRefusal: false,
+    };
+  }
+  if (outcome === 'extended') {
+    return {
+      text: `Vouch recorded. ${displayName} now has Active Player status until ${on}.`,
+      isSuccess: true,
+      isRefusal: false,
+    };
+  }
+  return {
+    text: `No change needed. ${displayName} already has Active Player status until ${on}.`,
+    isSuccess: false,
+    isRefusal: false,
+  };
+}
+
 // What an anonymous viewer sees on the HoF/BAP exception is the honor record,
 // not the profile: display name, country, avatar, honor badges, the historical
 // competition name, and the member-controlled competing-since year and
@@ -545,6 +696,11 @@ export interface PublicProfileContent {
   /** Thumbnail preview of the member's uploaded media, shown to authenticated
    *  viewers only; empty for the anonymous HoF/BAP render. */
   media: ProfileMediaView;
+  /** The Active Player vouch control, for a viewer who may give this member
+   *  one; null for every other viewer, the anonymous render included. */
+  vouch: VouchActionView | null;
+  /** How the vouch this viewer has just given went; null on a plain read. */
+  vouchNotice: VouchNoticeView | null;
 }
 
 export interface ProfileEditPageOptions {
@@ -1061,7 +1217,12 @@ export const memberService = {
 
   getOwnProfile(
     slug: string,
-    opts?: { query?: string; notice?: string; clubActionNotice?: string; ip?: string },
+    opts?: {
+      query?: string;
+      notice?: string;
+      clubActionNotice?: OutcomeNoticeView | null;
+      ip?: string;
+    },
   ): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
@@ -1129,10 +1290,18 @@ export const memberService = {
    * edit surfaces.
    * Returns null when the viewer may not see this member (caller 404s or
    * requires auth).
+   *
+   * The viewer's own member id is the one thing here that is not a privacy
+   * gate: it decides whether this page offers the Active Player vouch, which
+   * only a Tier 2 or Tier 3 member may give and only to a Tier 0 member who is
+   * not themselves. `vouchOutcome` is the result of the vouch the viewer has
+   * just given, carried across the redirect by the controller and rendered as
+   * the page notice.
    */
   getMemberProfilePage(
     slug: string,
-    viewer: { authenticated: boolean; admin?: boolean },
+    viewer: { authenticated: boolean; admin?: boolean; memberId?: string | null },
+    opts?: { vouchOutcome?: VouchOutcome },
   ): PageViewModel<PublicProfileContent> | null {
     const row = fetchMemberBySlug(slug);
     // A profile page exists only once its owner is a member: an account still
@@ -1174,12 +1343,30 @@ export const memberService = {
     const contactWhatsappHref = contactWhatsapp
       ? (whatsappDigits(contactWhatsapp) ? `https://wa.me/${whatsappDigits(contactWhatsapp)}` : null)
       : null;
-    const tierBadgeText = viewer.authenticated
-      ? TIER_BADGE_TEXT[getTierStatus(row.id).tier_status]
-      : null;
+    const tierStatus = getTierStatus(row.id).tier_status;
+    const tierBadgeText = viewer.authenticated ? TIER_BADGE_TEXT[tierStatus] : null;
     const isActivePlayer = viewer.authenticated
       ? getActivePlayerStatus(row.id).is_active_player === 1
       : false;
+
+    // Who may vouch, and for whom: a signed-in Tier 2 or Tier 3 member, for a
+    // Tier 0 member other than themselves. Active Player status applies to
+    // Tier 0 alone, so offering the control anywhere else would promise a
+    // change the vouch would refuse to make. The onboarding check is not
+    // redundant with the one above: an admin viewer is exempt from that early
+    // return and does reach a pending account's profile, and a pending account
+    // is not somebody a vouch can be given to.
+    const viewerMemberId = viewer.authenticated ? (viewer.memberId ?? null) : null;
+    const vouch: VouchActionView | null =
+      viewerMemberId && viewerMemberId !== row.id
+        && tierStatus === 'tier0' && memberOnboardingService.isOnboardingComplete(row.id)
+        && holdsVouchingTier(viewerMemberId)
+        ? {
+          href: `/members/${encodeURIComponent(slug)}/vouch`,
+          label: 'Vouch for This Member',
+          explanation: VOUCH_EXPLANATION,
+        }
+        : null;
 
     return {
       seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
@@ -1213,8 +1400,38 @@ export const memberService = {
         media:          viewer.authenticated
           ? buildMemberMediaView(row.id, slug)
           : { galleries: [], allMediaHref: null, hasContent: false },
+        vouch,
+        vouchNotice: opts?.vouchOutcome
+          ? vouchOutcomeNotice(opts.vouchOutcome, row.display_name, row.id)
+          : null,
       },
     };
+  },
+
+  /**
+   * A Tier 2 or Tier 3 member's vouch, given from the profile of the member it
+   * is for.
+   *
+   * The slug is resolved here rather than in the controller, and a target whose
+   * onboarding is unfinished is refused exactly as the profile read refuses it:
+   * an account with no profile for any viewer cannot be vouched for through
+   * one, and the not-found answer keeps a pending account unenumerable. Every
+   * rule of the vouch itself belongs to ActivePlayerService and is delegated to
+   * unchanged; what comes back is the outcome as a code, so the controller
+   * hands it to the flash cookie without reading domain state.
+   */
+  vouchForActivePlayer(voucherMemberId: string, targetSlug: string): VouchOutcome {
+    const row = fetchMemberBySlug(targetSlug);
+    if (!memberOnboardingService.isOnboardingComplete(row.id)) {
+      throw new NotFoundError(`Member not found: ${targetSlug}`);
+    }
+    const result = applyVouch(voucherMemberId, row.id, null);
+    if (result.status === 'granted') return 'granted';
+    if (result.status === 'extended') return 'extended';
+    // The two no-op reasons that mean the target is not Tier 0 read the same to
+    // the voucher: the one the pre-transaction check caught, and the one a tier
+    // upgrade landing mid-vouch caught inside it.
+    return result.reason === 'no_shorten' ? 'no_change' : 'not_tier0';
   },
 
   /**
@@ -1863,6 +2080,16 @@ const ACTIVE_PLAYER_CURRENT_EXPLANATION =
 // only a member who never has. Naming it to anyone else advertises a route that
 // would refuse them. The vouch is stated as something a Tier 2 or Tier 3 member
 // does, because it is theirs to give and not this member's to take.
+// Both tiers that may vouch say this, and they say it identically, so it lives
+// in one place. The point of the sentence is the route rather than the
+// capability: a vouch control sits on the profile of the member being vouched
+// for, so naming the capability alone tells a member they have it and not where
+// to use it. The search block it points at sits directly below the membership
+// block on the same page.
+const VOUCH_ROUTE_SENTENCE =
+  'You can also vouch for a Tier 0 member to give them Active Player status: find them with ' +
+  'the member search below, then use the vouch control on their profile.';
+
 function tierBenefitsBlurb(tier: MemberTier, hasEverHeldActivePlayer: boolean): string {
   switch (tier) {
     case 'tier0':
@@ -1872,9 +2099,9 @@ function tierBenefitsBlurb(tier: MemberTier, hasEverHeldActivePlayer: boolean): 
     case 'tier1':
       return 'You support the IFPA, are listed on the Official IFPA Roster, vote in IFPA elections, and can create clubs and basic events.';
     case 'tier2':
-      return 'You can create sanctioned events, request IFPA sponsorship, send community announcements, vouch for Tier 0 Active Player status, and access the Official IFPA Roster.';
+      return `You can create sanctioned events, request IFPA sponsorship, send community announcements, and access the Official IFPA Roster. ${VOUCH_ROUTE_SENTENCE}`;
     case 'tier3':
-      return 'You hold full IFPA governance authority and revert to your underlying membership tier when governance status ends.';
+      return `You hold full IFPA governance authority and revert to your underlying membership tier when governance status ends. ${VOUCH_ROUTE_SENTENCE}`;
   }
 }
 

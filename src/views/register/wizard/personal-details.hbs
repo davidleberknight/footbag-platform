@@ -12,7 +12,7 @@
       <p>Tell us where you live now and when you were born. These fields come first because we use them to find your old footbag.org records in the next step. The fields marked (required) must be filled in to save.</p>
 
       {{#if content.error}}
-        <p class="form-notice" role="alert">{{content.error}}</p>
+        <p class="form-error-banner" role="alert">{{content.error}}</p>
       {{/if}}
 
       <form method="POST" action="/register/wizard/personal_details/submit" class="form-block">

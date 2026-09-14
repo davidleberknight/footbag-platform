@@ -424,6 +424,7 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
     ['GET /edit', 'covered by the self-edit describe above, which also asserts the pending-registrant branch'],
     ['GET /:section', 'the unknown-section catch-all, which answers not-found on shape before ownership is reached'],
     ['GET /download/:token', 'the emailed data-export link, deliberately not an ownership cell: it carries no session because the single-use token is the authority, and the token decides whose data is served rather than the member key in the path. Its own suite proves an unissued token, a spent one and a second use are each refused'],
+    ['POST /vouch', 'the Active Player vouch, the one route under this prefix whose member key names the target rather than the signed-in member. A Tier 2 or Tier 3 member acting on somebody else\'s key is the feature, so a cross-owner 404 here would mean the surface does not work; the ownership check is inverted and answers 404 to a self-vouch instead. Its own suite proves the tier gate, the self-vouch, the unknown and pending targets, and the rate limit'],
   ]);
 
   type OwnedRoute = { method: 'get' | 'post'; path: string; hasResourceId: boolean };

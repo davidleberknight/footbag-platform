@@ -3,6 +3,7 @@ import { getDefaultMediaModerationService } from '../services/mediaModerationSer
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 function sendRateLimited(res: Response, err: RateLimitedError): void {
   if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
@@ -21,19 +22,23 @@ function renderWithError(res: Response, status: number, message: string): void {
  * files survived is the one outcome that still needs them, so it says so plainly
  * rather than reporting a clean removal.
  */
-const DECISION_NOTICES: Record<string, string> = {
-  deleted:            'The item is hidden and its stored files were removed.',
-  deleted_no_storage: 'The item is hidden, but its stored files could not be removed. Run Remove again to retry.',
-  no_action:          'The reports are closed and the item is unchanged.',
-  already_settled:    'Another administrator decided that item first, so nothing changed.',
-  already_hidden:     'That item was already hidden. The stored files were removed.',
-  already_hidden_no_storage: 'That item was already hidden, and its stored files still could not be removed.',
-  cleared:            'The report is cleared.',
-  retry_removed:      'The stored files are removed.',
-  retry_failed:       'The stored files still could not be removed. The item stays on the list below until they go.',
-  retry_not_needed:   'That item is visible, so it has no stored files owed.',
-  flagged:            'Your report was added.',
-  already_flagged:    'You have already reported that item, so nothing changed.',
+// Each decision carries its own tone. A moderation outcome that left the files
+// in place is not the same event as one that removed them, and an
+// administrator who arrived second changed nothing at all; rendering the three
+// identically is what this map exists to prevent.
+const DECISION_NOTICES: Record<string, [OutcomeTone, string]> = {
+  deleted:            ['ok',   'The item is hidden and its stored files were removed.'],
+  deleted_no_storage: ['no',   'The item is hidden, but its stored files could not be removed. Run Remove again to retry.'],
+  no_action:          ['ok',   'The reports are closed and the item is unchanged.'],
+  already_settled:    ['info', 'Another administrator decided that item first, so nothing changed.'],
+  already_hidden:     ['ok',   'That item was already hidden. The stored files were removed.'],
+  already_hidden_no_storage: ['no', 'That item was already hidden, and its stored files still could not be removed.'],
+  cleared:            ['ok',   'The report is cleared.'],
+  retry_removed:      ['ok',   'The stored files are removed.'],
+  retry_failed:       ['no',   'The stored files still could not be removed. The item stays on the list below until they go.'],
+  retry_not_needed:   ['info', 'That item is visible, so it has no stored files owed.'],
+  flagged:            ['ok',   'Your report was added.'],
+  already_flagged:    ['info', 'You have already reported that item, so nothing changed.'],
 };
 
 export const adminMediaFlagsController = {
@@ -47,7 +52,9 @@ export const adminMediaFlagsController = {
       if (flash) clearFlash(res, req);
       res.render(
         'admin/media-flags/index',
-        getDefaultMediaModerationService().getAdminMediaFlagsPage({ noticeMessage: notice }),
+        getDefaultMediaModerationService().getAdminMediaFlagsPage(
+          notice ? { noticeTone: notice[0], noticeMessage: notice[1] } : {},
+        ),
       );
     } catch (err) {
       handleControllerError(err, res, next, 'admin media flags controller');

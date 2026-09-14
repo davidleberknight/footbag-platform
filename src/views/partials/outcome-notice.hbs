@@ -1,0 +1,14 @@
+{{! The one way this site reports what just happened. Takes the message text
+    and its tone, and renders the treatment and the aria role the view-layer
+    rule fixes for that tone: green where the act happened, neutral where
+    nothing needed changing, red where it was refused. A notice with no tone
+    reports no outcome and reads neutral. }}
+{{#if text}}
+  {{#if (eq tone 'ok')}}
+    <div class="form-success-banner" role="status">{{text}}</div>
+  {{else if (eq tone 'no')}}
+    <div class="form-error-banner" role="alert">{{text}}</div>
+  {{else}}
+    <p class="form-notice" role="status">{{text}}</p>
+  {{/if}}
+{{/if}}

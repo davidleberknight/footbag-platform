@@ -137,6 +137,7 @@ import { whatsappDigits } from './memberService';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { appendAuditEntry } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
 import { getTierStatus, tierBadgeShort } from './membershipTieringService';
@@ -473,7 +474,9 @@ export interface ClubLeader {
  * submitted and why it was refused.
  */
 export interface ClubPageOptions {
-  notice?: string | null;
+  /** The outcome of the action that redirected here, carrying its own tone:
+   *  a refusal must not render in the treatment that means it worked. */
+  notice?: OutcomeNoticeView | null;
   editErrors?: Record<string, string> | null;
   editValues?: Record<string, string> | null;
 }
@@ -1533,7 +1536,6 @@ export class ClubService {
           sectionKey: 'clubs',
           pageKey: 'clubs_detail',
           title: club.name,
-          ...(opts?.notice ? { notice: opts.notice } : {}),
         },
         navigation: {
           breadcrumbs: [
@@ -1545,7 +1547,7 @@ export class ClubService {
             { label: `All clubs in ${club.country}`, href: `/clubs/${club.countrySlug}` },
           ],
         },
-        content: { club },
+        content: { club, actionNotice: opts?.notice ?? null },
       };
     });
   }
