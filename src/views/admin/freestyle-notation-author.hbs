@@ -12,11 +12,11 @@
 <div class="wrapper">
 
   {{#if content.saved}}
-  <p class="notice notice-info">Saved. The draft is listed under authored drafts until its trick is published.</p>
+  <p class="form-success-banner" role="status">Saved. The draft is listed under authored drafts until its trick is published.</p>
   {{/if}}
 
   {{#if content.hasErrors}}
-  <div class="form-error-banner">
+  <div class="form-error-banner" role="alert">
     {{#each content.errorList}}<p>{{this}}</p>{{/each}}
   </div>
   {{/if}}

@@ -13,6 +13,9 @@
       {{#if content.isInvalid}}
         <p class="form-error-banner" role="alert">That token was not accepted.</p>
       {{/if}}
+      {{#if content.isRateLimited}}
+        <p class="form-error-banner" role="alert">Too many attempts in a short time. Your token was not read. Please wait a little and try again.</p>
+      {{/if}}
       <p>If a System Administrator provisioned a bootstrap token for you, enter it below. The token works exactly once.</p>
       <form method="POST" action="/admin/bootstrap-claim" class="login-form">
         <div class="form-field">

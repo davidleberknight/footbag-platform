@@ -2,7 +2,7 @@
   <div>
     <h1>{{hero.heading}}</h1>
     {{#if hero.subheading}}<p>{{hero.subheading}}</p>{{/if}}
-    {{#if page.notice}}<div class="notice">{{page.notice}}</div>{{/if}}
+    {{> outcome-notice text=page.notice tone=page.noticeTone}}
   </div>
 </div>
 

@@ -17,12 +17,17 @@
 /** ok = it happened; info = nothing needed changing; no = refused. */
 export type OutcomeTone = 'ok' | 'info' | 'no';
 
+/**
+ * A message and the tone it takes, ready for the `outcome-notice` partial.
+ *
+ * The tone rides as the tone rather than as a pair of booleans so that one
+ * partial draws every outcome message on the site. A template that branches on
+ * its own is a second renderer of the same vocabulary, and a second renderer is
+ * what lets two surfaces drift apart.
+ */
 export interface OutcomeNoticeView {
   text: string;
-  /** The green treatment: the thing asked for happened. */
-  isSuccess: boolean;
-  /** The red treatment, announced assertively: the request was refused. */
-  isRefusal: boolean;
+  tone: OutcomeTone;
 }
 
 const PREFIX: Record<OutcomeTone, string> = { ok: 'o', info: 'i', no: 'n' };
@@ -42,8 +47,8 @@ export function outcomePayload(tone: OutcomeTone, text: string): string {
 export function outcomeNotice(payload: string | null | undefined): OutcomeNoticeView | null {
   if (!payload) return null;
   const marker = payload.slice(0, 2);
-  if (marker === 'o:') return { text: payload.slice(2), isSuccess: true, isRefusal: false };
-  if (marker === 'n:') return { text: payload.slice(2), isSuccess: false, isRefusal: true };
-  if (marker === 'i:') return { text: payload.slice(2), isSuccess: false, isRefusal: false };
-  return { text: payload, isSuccess: false, isRefusal: false };
+  if (marker === 'o:') return { text: payload.slice(2), tone: 'ok' };
+  if (marker === 'n:') return { text: payload.slice(2), tone: 'no' };
+  if (marker === 'i:') return { text: payload.slice(2), tone: 'info' };
+  return { text: payload, tone: 'info' };
 }

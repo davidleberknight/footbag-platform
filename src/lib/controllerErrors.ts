@@ -120,9 +120,20 @@ export function renderInvalidRequest(
 /**
  * A throttle hit rendered as a page. Callers set `Retry-After` from the error's
  * `retryAfterSeconds` before calling this.
+ *
+ * The body is not optional in practice. This used to render a heading over an
+ * empty page, so a visitor who tripped a limit was told a title and nothing
+ * about what had happened or what to do next; `detail` carries that, and the
+ * default says it for callers with nothing more specific to add.
  */
-export function renderRateLimited(res: Response, opts: { title: string }): void {
-  renderErrorPage(res, 429, opts.title, []);
+export function renderRateLimited(
+  res: Response,
+  opts: { title: string; detail?: string },
+): void {
+  renderErrorPage(res, 429, opts.title, [
+    opts.detail ??
+      'You have made too many attempts in a short time. Nothing was changed. Please wait a little and try again.',
+  ]);
 }
 
 /**

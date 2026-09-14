@@ -8,10 +8,10 @@
 <div class="wrapper">
   <section>
     {{#if content.saved}}
-    <p class="notice notice-info">Saved.</p>
+    <p class="form-success-banner" role="status">Saved.</p>
     {{/if}}
     {{#if content.hasErrors}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       {{#each content.errorList}}<p>{{this}}</p>{{/each}}
     </div>
     {{/if}}
@@ -49,7 +49,7 @@
 
     <h2 class="section-heading">Aliases</h2>
     {{#if content.hasAliasError}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       <p>{{content.aliasError}}</p>
     </div>
     {{/if}}
@@ -118,7 +118,7 @@
 
     <h2 class="section-heading">Sources</h2>
     {{#if content.hasSourceError}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       <p>{{content.sourceError}}</p>
     </div>
     {{/if}}
@@ -153,7 +153,7 @@
 
     <h2 class="section-heading">Modifier Links</h2>
     {{#if content.hasModifierError}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       <p>{{content.modifierError}}</p>
     </div>
     {{/if}}

@@ -2,16 +2,21 @@ import { Request, Response, NextFunction } from 'express';
 import { clubCleanupService } from '../services/clubCleanupService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { outcomeNotice, outcomePayload, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
 
 // An action that changed nothing has to say so. A resolve whose guarded write
 // matched no row means another admin acted first, and redirecting the same way
 // as a successful one tells the admin their decision landed when it did not.
-function takeActionNotice(req: Request, res: Response): string | null {
+//
+// The club-action flash is shared with the member-facing club surfaces, which
+// write their outcome tone into the payload. Decoding here is what keeps the
+// encoding off the page: read raw, it printed its own one-character prefix.
+function takeActionNotice(req: Request, res: Response): OutcomeNoticeView | null {
   const flash = readFlash(req);
   if (flash?.kind !== FLASH_KIND.CLUB_ACTION) return null;
   clearFlash(res, req);
-  return flash.payload ?? null;
+  return outcomeNotice(flash.payload);
 }
 
 export const adminClubCleanupController = {
@@ -147,7 +152,7 @@ export const adminClubCleanupController = {
       if (result.status === 'noop') {
         writeFlash(
           res, req, FLASH_KIND.CLUB_ACTION,
-          'Nothing changed: another administrator resolved this item first.',
+          outcomePayload('info', 'Nothing changed: another administrator resolved this item first.'),
         );
       }
       res.redirect(303, '/admin/club-cleanup');

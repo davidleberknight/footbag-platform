@@ -113,9 +113,14 @@ claim, and where the request was refused it is the opposite of the truth.
 
 One flash payload carrying several outcomes is the shape this rule exists to prevent. Where a
 controller or service can produce a success, a no-op and a refusal, the tone is decided where the
-message is chosen and travels with it: `outcomePayload` and `outcomeNotice` in
-`src/lib/outcomeNotice.ts` are the shared encoder, and the template branches on the shaped booleans
-rather than on a raw code.
+message is chosen and travels with it. Across a redirect that means the flash cookie, which
+`outcomePayload` and `outcomeNotice` in `src/lib/outcomeNotice.ts` encode and decode; on a page
+that renders its own outcome it means a tone field beside the sentence, either on the page
+envelope as `PageMeta.noticeTone` or on the content shape. Either way the page draws it through
+the `outcome-notice` partial, which is the one piece of markup that renders an action result. A
+template that writes its own branch on the tone is a second renderer of the same vocabulary, and
+two renderers are how two surfaces drift apart. The warning tone is the exception, because it
+reports no outcome: a caution before an act is written directly on the confirm page that shows it.
 
 The aria role is correctness, not a guarantee. A message rendered server-side is present before page
 load completes, and screen readers do not announce a live region that was already there, so the role

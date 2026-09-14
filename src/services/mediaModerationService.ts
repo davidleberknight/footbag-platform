@@ -783,7 +783,12 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           pageKey:    'admin-media-flags',
           title:      'Flagged Media',
           intro:      'Media members have reported. Decide each item by removing it or closing the reports with no action.',
-          ...(opts?.errorMessage ? { notice: opts.errorMessage } : {}),
+          // Every caller of the error path is a refusal: a decision rejected
+          // for its reason text, or one aimed at an item that is gone. Carried
+          // without a tone it rendered in the neutral treatment, which reads
+          // as a note about the page rather than as the request being turned
+          // down.
+          ...(opts?.errorMessage ? { notice: opts.errorMessage, noticeTone: 'no' as const } : {}),
           ...(opts?.noticeMessage && !opts?.errorMessage
             ? { notice: opts.noticeMessage, ...(opts.noticeTone ? { noticeTone: opts.noticeTone } : {}) }
             : {}),

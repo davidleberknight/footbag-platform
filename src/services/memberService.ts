@@ -546,13 +546,7 @@ export interface VouchActionView {
  * was refused outright by the rate limit, which the page must not dress as a
  * success when the request was answered 429.
  */
-export interface VouchNoticeView {
-  text: string;
-  /** The member's standing changed: the green banner. */
-  isSuccess: boolean;
-  /** The vouch was refused: the red banner, announced assertively. */
-  isRefusal: boolean;
-}
+export type VouchNoticeView = OutcomeNoticeView;
 
 /**
  * What a vouch did, as a code rather than a sentence. It travels from the POST
@@ -618,35 +612,32 @@ function vouchOutcomeNotice(
   targetId: string,
 ): VouchNoticeView {
   if (outcome === 'not_tier0') {
-    return { text: VOUCH_NOT_TIER0_NOTICE, isSuccess: false, isRefusal: false };
+    return { text: VOUCH_NOT_TIER0_NOTICE, tone: 'info' };
   }
   if (outcome === 'rate_limited') {
-    return { text: VOUCH_RATE_LIMITED_NOTICE, isSuccess: false, isRefusal: true };
+    return { text: VOUCH_RATE_LIMITED_NOTICE, tone: 'no' };
   }
   const expiresAt = getActivePlayerStatus(targetId).active_player_expires_at;
   // A granted or extended standing always carries a date. Nothing legitimate
   // reaches here without one, so the dateless form states the outcome alone
   // rather than printing an empty date.
-  if (!expiresAt) return { text: 'Vouch recorded.', isSuccess: true, isRefusal: false };
+  if (!expiresAt) return { text: 'Vouch recorded.', tone: 'ok' };
   const on = formatDateDisplay(expiresAt, { style: 'long' });
   if (outcome === 'granted') {
     return {
       text: `Vouch recorded. ${displayName} has Active Player status until ${on}.`,
-      isSuccess: true,
-      isRefusal: false,
+      tone: 'ok',
     };
   }
   if (outcome === 'extended') {
     return {
       text: `Vouch recorded. ${displayName} now has Active Player status until ${on}.`,
-      isSuccess: true,
-      isRefusal: false,
+      tone: 'ok',
     };
   }
   return {
     text: `No change needed. ${displayName} already has Active Player status until ${on}.`,
-    isSuccess: false,
-    isRefusal: false,
+    tone: 'info',
   };
 }
 
@@ -1249,7 +1240,9 @@ export const memberService = {
         sectionKey: 'members',
         pageKey: 'member_profile',
         title: 'My Profile',
-        ...(opts?.notice ? { notice: opts.notice } : {}),
+        // The only caller is the profile-updated flash, which reports an edit
+        // that was saved, so the notice takes the success tone.
+        ...(opts?.notice ? { notice: opts.notice, noticeTone: 'ok' as const } : {}),
       },
       navigation: {
         contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],

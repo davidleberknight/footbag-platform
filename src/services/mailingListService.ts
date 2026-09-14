@@ -48,6 +48,7 @@ import {
 import { appendAuditEntry } from './auditService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 500;
@@ -296,23 +297,30 @@ export interface MailingListDetailContent {
   statusOptions: Array<{ value: string; label: string }>;
   reasonMax: number;
   savedNotice: string;
-  hasSavedNotice: boolean;
+  savedNoticeTone?: OutcomeTone;
   fieldErrors: Record<string, string>;
   errorList: string[];
   hasErrors: boolean;
 }
 
 /** What each administrative outcome says on the page it redirects back to. */
-const DETAIL_NOTICES: Record<string, string> = {
-  created: 'List created. It is active and appears in the member subscription screen if members may manage it.',
-  saved: 'Saved.',
-  archived: 'List archived. Its subscriptions and its past sends are kept; it is no longer offered to members or to new sends.',
-  already_archived: 'This list was already archived, so nothing changed.',
-  adjusted: 'Subscription updated, and the change is recorded against you in the audit history.',
-  unchanged: 'Nothing changed: that member holds no subscription on this list, or it already had the status you chose.',
-  sent: 'Message queued for the list. It goes out in paced batches, and it is recorded under Broadcasts.',
-  already_sent: 'That message was already sent. Nothing went out a second time.',
-  no_recipients: 'Nothing was sent: this list resolved to no deliverable subscribers.',
+/**
+ * What each outcome says on the detail page it returns to, and the tone it
+ * takes. Nine outcomes share one field: five acts that happened, three that
+ * found the work already done, and one refusal. Rendered in a single treatment
+ * they were indistinguishable, so a send that reached nobody read exactly like
+ * a send that went out.
+ */
+const DETAIL_NOTICES: Record<string, [OutcomeTone, string]> = {
+  created:          ['ok',   'List created. It is active and appears in the member subscription screen if members may manage it.'],
+  saved:            ['ok',   'Saved.'],
+  archived:         ['ok',   'List archived. Its subscriptions and its past sends are kept; it is no longer offered to members or to new sends.'],
+  already_archived: ['info', 'This list was already archived, so nothing changed.'],
+  adjusted:         ['ok',   'Subscription updated, and the change is recorded against you in the audit history.'],
+  unchanged:        ['info', 'Nothing changed: that member holds no subscription on this list, or it already had the status you chose.'],
+  sent:             ['ok',   'Message queued for the list. It goes out in paced batches, and it is recorded under Broadcasts.'],
+  already_sent:     ['info', 'That message was already sent. Nothing went out a second time.'],
+  no_recipients:    ['no',   'Nothing was sent: this list resolved to no deliverable subscribers.'],
 };
 
 function audienceLabelOf(row: { recipient_source: string }): string {
@@ -460,7 +468,7 @@ export const mailingListService = {
     const isGroupBacked = row.recipient_source === 'group';
     const fieldErrors = opts.fieldErrors ?? {};
     const errorList = Object.values(fieldErrors);
-    const notice = opts.notice ? DETAIL_NOTICES[opts.notice] ?? '' : '';
+    const outcome = opts.notice ? DETAIL_NOTICES[opts.notice] : undefined;
 
     return {
       seo: { title: 'Mailing Lists', noindex: true },
@@ -506,8 +514,8 @@ export const mailingListService = {
           label: value.charAt(0).toUpperCase() + value.slice(1),
         })),
         reasonMax: REASON_MAX,
-        savedNotice: notice,
-        hasSavedNotice: notice.length > 0,
+        savedNotice: outcome ? outcome[1] : '',
+        ...(outcome ? { savedNoticeTone: outcome[0] } : {}),
         fieldErrors,
         errorList,
         hasErrors: errorList.length > 0,

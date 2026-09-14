@@ -2,7 +2,7 @@
   <div>
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
-    {{#if page.notice}}<div class="notice">{{page.notice}}</div>{{/if}}
+    {{> outcome-notice text=page.notice tone=page.noticeTone}}
   </div>
 </div>
 

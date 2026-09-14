@@ -56,6 +56,7 @@ import { readIntConfig } from './configReader';
 import { hit as rateLimitHit } from './rateLimitService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 const SUBJECT_MAX = 300;
 const BODY_MAX = 20000;
@@ -105,17 +106,22 @@ export interface ComposeContent {
   subjectMax: number;
   bodyMax: number;
   notice: string;
-  hasNotice: boolean;
+  noticeTone?: OutcomeTone;
   fieldErrors: Record<string, string>;
   errorList: string[];
   hasErrors: boolean;
 }
 
-/** What each send outcome says on the compose page it returns to. */
-const COMPOSE_NOTICES: Record<string, string> = {
-  sent: 'Queued. It goes out in paced batches over the next little while.',
-  already_sent: 'That message was already sent. Nothing went out a second time.',
-  no_recipients: 'Nothing was sent: nobody on this list has a deliverable address right now.',
+/**
+ * What each send outcome says on the compose page it returns to, and the tone
+ * it takes. One field used to carry all three, so a send that went out and a
+ * send that reached nobody read identically; the sender could not tell the
+ * message left from the message that did not.
+ */
+const COMPOSE_NOTICES: Record<string, [OutcomeTone, string]> = {
+  sent:          ['ok',   'Queued. It goes out in paced batches over the next little while.'],
+  already_sent:  ['info', 'That message was already sent. Nothing went out a second time.'],
+  no_recipients: ['no',   'Nothing was sent: nobody on this list has a deliverable address right now.'],
 };
 
 export interface BroadcastRowViewModel {
@@ -209,6 +215,7 @@ export const broadcastService = {
     const fieldErrors = opts.fieldErrors ?? {};
     const errorList = Object.values(fieldErrors);
     const submitted = opts.submitted;
+    const outcome = opts.notice ? COMPOSE_NOTICES[opts.notice] : undefined;
 
     return {
       seo: { title: 'Mailing Lists', noindex: true },
@@ -230,8 +237,8 @@ export const broadcastService = {
         hasRecipients: (summary?.subscribed_count ?? 0) > 0,
         subjectMax: SUBJECT_MAX,
         bodyMax: BODY_MAX,
-        notice: opts.notice ? COMPOSE_NOTICES[opts.notice] ?? '' : '',
-        hasNotice: Boolean(opts.notice && COMPOSE_NOTICES[opts.notice]),
+        notice: outcome ? outcome[1] : '',
+        ...(outcome ? { noticeTone: outcome[0] } : {}),
         fieldErrors,
         errorList,
         hasErrors: errorList.length > 0,

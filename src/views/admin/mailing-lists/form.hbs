@@ -12,7 +12,7 @@
 <div class="wrapper">
   <section>
     {{#if content.hasErrors}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       {{#each content.errorList}}<p>{{this}}</p>{{/each}}
     </div>
     {{/if}}

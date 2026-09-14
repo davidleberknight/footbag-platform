@@ -2,18 +2,8 @@
 
 <div class="wrapper">
   <section>
-    {{#if page.notice}}
-      <div class="form-success-banner" role="status">{{page.notice}}</div>
-    {{/if}}
-    {{#if content.clubActionNotice}}
-      {{#if content.clubActionNotice.isSuccess}}
-        <div class="form-success-banner" role="status">{{content.clubActionNotice.text}}</div>
-      {{else if content.clubActionNotice.isRefusal}}
-        <div class="form-error-banner" role="alert">{{content.clubActionNotice.text}}</div>
-      {{else}}
-        <p class="form-notice" role="status">{{content.clubActionNotice.text}}</p>
-      {{/if}}
-    {{/if}}
+    {{> outcome-notice text=page.notice tone=page.noticeTone}}
+    {{> outcome-notice text=content.clubActionNotice.text tone=content.clubActionNotice.tone}}
     <div class="profile-layout">
 
       <div class="profile-sidebar">

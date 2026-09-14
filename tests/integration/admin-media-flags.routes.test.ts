@@ -284,6 +284,25 @@ describe('POST /admin/media-flags/:mediaId/delete', () => {
     expect(res.status).toBe(422);
     expect(mediaRow(ITEM_RACE).moderation_status).toBe('active');
     expect(flagsFor(ITEM_RACE)[0].status).toBe('open');
+    // The re-render is the only thing the administrator sees, so it has to
+    // read as a refusal. Carried without a tone it rendered in the neutral
+    // treatment, indistinguishable from a note about the page itself.
+    expect(res.text).toContain('class="form-error-banner" role="alert"');
+    expect(res.text).not.toContain('form-success-banner');
+  });
+
+  it('refuses a decision on an item that no longer exists, in the refusal treatment', async () => {
+    const res = await request(createApp())
+      .post('/admin/media-flags/no_such_media_item/delete')
+      .set('Cookie', admin())
+      .type('form')
+      .send({ reason: 'Not acceptable under the standards.' });
+
+    expect(res.status).toBe(404);
+    expect(res.text).toContain(
+      '<div class="form-error-banner" role="alert">That media item no longer exists.</div>',
+    );
+    expect(res.text).not.toContain('form-success-banner');
   });
 
   it('persists only the decision fields when the body carries extras', async () => {

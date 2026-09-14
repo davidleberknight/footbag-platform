@@ -8,13 +8,11 @@
 <div class="wrapper">
   <section>
     {{#if content.hasErrors}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       {{#each content.errorList}}<p>{{this}}</p>{{/each}}
     </div>
     {{/if}}
-    {{#if content.hasNotice}}
-    <p class="notice notice-info">{{content.notice}}</p>
-    {{/if}}
+    {{> outcome-notice text=content.notice tone=content.noticeTone}}
 
     {{#if content.hasRecipients}}
     <p class="text-muted">{{content.recipientCount}} members currently receive these.</p>

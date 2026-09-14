@@ -562,7 +562,7 @@ export const memberController = {
         if (err.retryAfterSeconds) {
           res.setHeader('Retry-After', String(err.retryAfterSeconds));
         }
-        renderRateLimited(res, { title: err.message });
+        renderRateLimited(res, { title: 'Too Many Attempts', detail: err.message });
         return;
       }
       // Payment kill-switch (payments_paused) and any transient payment-service

@@ -38,6 +38,7 @@ import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 const REVIEW_NOTE_MAX = 300;
 
@@ -177,7 +178,16 @@ function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
 }
 
 export const emailLogService = {
-  getEmailLogPage(q: EmailLogQuery): PageViewModel<EmailLogContent> {
+  /**
+   * The log listing. `notice` is the outcome of whatever action redirected or
+   * re-rendered here, carried on the page envelope with its tone so the one
+   * message partial draws it; the caller decides the tone because only the
+   * caller knows which of the review's endings it is reporting.
+   */
+  getEmailLogPage(
+    q: EmailLogQuery,
+    notice?: [OutcomeTone, string],
+  ): PageViewModel<EmailLogContent> {
     const { filters, page } = normalize(q);
     const total = countOutboxLog(filters);
     const offset = (page - 1) * PAGE_SIZE;
@@ -192,7 +202,10 @@ export const emailLogService = {
 
     return {
       seo: { title: 'Email Log', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_email_log', title: 'Email Log' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_email_log', title: 'Email Log',
+        ...(notice ? { notice: notice[1], noticeTone: notice[0] } : {}),
+      },
       content: {
         entries: rows.map(shapeRow),
         hasEntries: rows.length > 0,

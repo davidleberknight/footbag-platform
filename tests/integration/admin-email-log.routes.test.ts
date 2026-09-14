@@ -299,6 +299,23 @@ describe('POST /admin/email-log/:id/review', () => {
     expect(outboxRow('el_rev_nonote').reviewed_at).toBeNull();
   });
 
+  // The 422 re-render used to carry no message of any kind, so a refused
+  // review looked exactly like a click that did nothing: same listing, same
+  // rows, no explanation anywhere on the page.
+  it('says why it refused a review with no note, in the refusal treatment', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_silent', status: 'dead_letter' }));
+    const res = await request(createApp())
+      .post('/admin/email-log/el_rev_silent/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note: '' });
+
+    expect(res.status).toBe(422);
+    expect(res.text).toContain(
+      '<div class="form-error-banner" role="alert">A note is required.</div>',
+    );
+    expect(res.text).not.toContain('form-success-banner');
+  });
+
   // The banner the administrator reads has to tell the two refusals apart: a
   // message already settled by a colleague is not the same as one the sender
   // may still deliver, and reporting either as the other misleads them about
@@ -326,9 +343,25 @@ describe('POST /admin/email-log/:id/review', () => {
     for (const id of ['el_rev_pending', 'el_rev_failed']) {
       const banner = await bannerAfterPost(id, 'Too early.');
       expect(banner, `${id} must report nothing to review`).toContain('not in a failed state');
+      // A refusal reads as a refusal. The words alone are not enough: rendered
+      // green they would tell the administrator their review landed.
+      expect(banner, `${id} must be refused in the refusal treatment`).toContain(
+        '<div class="form-error-banner" role="alert">That message is not in a failed state, so there is nothing to review.</div>',
+      );
+      expect(banner, `${id} must not claim success`).not.toContain('form-success-banner');
       expect(outboxRow(id).reviewed_at, `${id} must not be reviewable`).toBeNull();
       expect(auditRows(id)).toHaveLength(0);
     }
+  });
+
+  it('reports a review that landed in the success treatment', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_tone_ok', status: 'dead_letter' }));
+
+    const banner = await bannerAfterPost('el_rev_tone_ok', 'Address is dead; nothing to resend.');
+    expect(banner).toContain(
+      '<div class="form-success-banner" role="status">Message marked reviewed.',
+    );
+    expect(banner).not.toContain('form-error-banner');
   });
 
   it('tells an administrator reviewing a settled message that it was already reviewed', async () => {
@@ -340,6 +373,12 @@ describe('POST /admin/email-log/:id/review', () => {
 
     const banner = await bannerAfterPost('el_rev_settled', 'Second look.');
     expect(banner).toContain('already reviewed');
+    // Nothing changed, so neither the green nor the red treatment is honest.
+    expect(banner).toContain(
+      '<p class="form-notice" role="status">That message was already reviewed, so nothing changed.</p>',
+    );
+    expect(banner).not.toContain('form-success-banner');
+    expect(banner).not.toContain('form-error-banner');
   });
 
   it('offers the control on a message held for manual review as well', async () => {

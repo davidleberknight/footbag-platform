@@ -7,7 +7,7 @@
 
 <div class="wrapper">
   {{#if content.hasSavedMessage}}
-  <p class="notice notice-info">{{content.savedMessage}}</p>
+  <p class="form-success-banner" role="status">{{content.savedMessage}}</p>
   {{/if}}
 
   <section>
@@ -37,7 +37,7 @@
     {{/each}}
 
     {{#if content.hasPriceErrors}}
-    <div class="form-error-banner">
+    <div class="form-error-banner" role="alert">
       {{#each content.priceErrorList}}<p>{{this}}</p>{{/each}}
     </div>
     {{/if}}
@@ -101,7 +101,7 @@
   </section>
 
   {{#if content.hasErrors}}
-  <div class="form-error-banner mt-8">
+  <div class="form-error-banner mt-8" role="alert">
     {{#each content.errorList}}<p>{{this}}</p>{{/each}}
   </div>
   {{/if}}

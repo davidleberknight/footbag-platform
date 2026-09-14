@@ -430,7 +430,7 @@ export const paymentController = {
         if (err.retryAfterSeconds) {
           res.setHeader('Retry-After', String(err.retryAfterSeconds));
         }
-        renderRateLimited(res, { title: err.message });
+        renderRateLimited(res, { title: 'Too Many Attempts', detail: err.message });
         return;
       }
       handleControllerError(err, res, next, 'cancel recurring donation controller');

@@ -15,13 +15,22 @@ interface BootstrapClaimContent {
   // booleans only.
   isGranted: boolean;
   isInvalid: boolean;
+  isRateLimited: boolean;
 }
 
-function render(res: Response, result: 'granted' | 'invalid' | null, status = 200): void {
+function render(
+  res: Response,
+  result: 'granted' | 'invalid' | 'rate_limited' | null,
+  status = 200,
+): void {
   res.status(status).render('admin/bootstrap-claim', {
     seo:  { title: 'Administrator Bootstrap' },
     page: { sectionKey: '', pageKey: 'admin_bootstrap_claim', title: 'Administrator Bootstrap' },
-    content: { isGranted: result === 'granted', isInvalid: result === 'invalid' },
+    content: {
+      isGranted: result === 'granted',
+      isInvalid: result === 'invalid',
+      isRateLimited: result === 'rate_limited',
+    },
   } satisfies PageViewModel<BootstrapClaimContent>);
 }
 
@@ -41,7 +50,13 @@ export const adminBootstrapController = {
     } catch (err) {
       if (err instanceof RateLimitedError) {
         if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
-        render(res, 'invalid', 429);
+        // A throttle is not a verdict on the token. Answering it with the
+        // invalid-token page told the caller their token had been rejected
+        // when it had never been read. The uniform failure page exists to hide
+        // whether a bootstrap token was provisioned; saying "too many
+        // attempts" discloses only the caller's own rate, which the
+        // Retry-After header above already states.
+        render(res, 'rate_limited', 429);
         return;
       }
       next(err);

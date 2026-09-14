@@ -59,4 +59,30 @@ describe('POST /admin/bootstrap-claim — IP rate limiting', () => {
     expect(blocked.status).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
   });
+
+  // The throttle fires before the token is read, so blaming the token is a
+  // claim about input that was never examined. Saying "too many attempts"
+  // instead discloses only the caller's own rate, which the Retry-After header
+  // above already states, and nothing about whether a token was provisioned.
+  it('answers a throttle by naming the throttle, not by rejecting the token', async () => {
+    const app = createApp();
+
+    for (let i = 1; i <= 2; i++) {
+      await request(app)
+        .post('/admin/bootstrap-claim')
+        .set('Cookie', cookie())
+        .type('form')
+        .send({ token: 'anything' });
+    }
+
+    const blocked = await request(app)
+      .post('/admin/bootstrap-claim')
+      .set('Cookie', cookie())
+      .type('form')
+      .send({ token: 'anything' });
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.text).toContain('Too many attempts in a short time.');
+    expect(blocked.text).not.toContain('That token was not accepted.');
+  });
 });

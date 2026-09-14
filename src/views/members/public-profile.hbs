@@ -2,15 +2,7 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.vouchNotice}}
-      {{#if content.vouchNotice.isSuccess}}
-        <div class="form-success-banner" role="status">{{content.vouchNotice.text}}</div>
-      {{else if content.vouchNotice.isRefusal}}
-        <div class="form-error-banner" role="alert">{{content.vouchNotice.text}}</div>
-      {{else}}
-        <p class="form-notice" role="status">{{content.vouchNotice.text}}</p>
-      {{/if}}
-    {{/if}}
+    {{> outcome-notice text=content.vouchNotice.text tone=content.vouchNotice.tone}}
     {{#if content.avatarThumbUrl}}
     <div class="text-center mb-4">
       <img src="{{content.avatarThumbUrl}}" alt="{{content.displayName}}" class="profile-avatar-img" />

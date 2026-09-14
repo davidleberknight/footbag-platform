@@ -111,6 +111,7 @@ import { clubService } from './clubService';
 import { emailService } from './emailService';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { subdivisionsForCountry } from './countryUtils';
 
 // ---------------------------------------------------------------------------
@@ -638,8 +639,10 @@ export interface CleanupQueueFilter {
   sort?: string;
   // Carries the outcome of the action that redirected here, so an action that
   // did nothing says so. A resolve that lost a race to another admin is a
-  // no-op, and without this it is indistinguishable from one that applied.
-  actionNotice?: string | null;
+  // no-op, and without this it is indistinguishable from one that applied. The
+  // tone travels with the sentence: the same flash kind also carries successes
+  // and refusals written by the member-facing club surfaces.
+  actionNotice?: OutcomeNoticeView | null;
 }
 
 interface FilterOption {
@@ -1322,7 +1325,9 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
     seo: { title: 'Club Cleanup Queue' },
     page: {
       sectionKey: 'admin', pageKey: 'admin_club_cleanup', title: 'Club Cleanup Queue',
-      ...(filter?.actionNotice ? { notice: filter.actionNotice } : {}),
+      ...(filter?.actionNotice
+        ? { notice: filter.actionNotice.text, noticeTone: filter.actionNotice.tone }
+        : {}),
     },
     content: {
       itemGroups,

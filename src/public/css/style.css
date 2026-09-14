@@ -3231,17 +3231,14 @@ section.home-media { padding-top: 0; }
 }
 
 /* ── Notice ────────────────────────────────────────────────── */
+/* The warning tone of the message vocabulary, and the only surviving user of
+   `.notice`: a caution shown before an act, on a confirm page. The other
+   tones each take one class of their own (.form-success-banner,
+   .form-notice, .form-error-banner). */
 .notice {
   color: var(--text-muted);
   font-size: 0.9rem;
   margin-top: 8px;
-}
-.notice-info {
-  background: var(--info-bg);
-  color: var(--info-text);
-  border-left: 4px solid var(--info-accent);
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
 }
 .notice-warn {
   background: var(--warn-bg);
@@ -3414,7 +3411,6 @@ section.home-media { padding-top: 0; }
   border-radius: var(--radius-sm);
   padding: 12px 16px;
 }
-.review-card-alert { background: var(--warn-bg); border-color: var(--warn-accent); }
 .review-filter-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 14px 0; }
 .review-filter-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .section-meta { color: var(--text-muted); font-size: 0.9rem; font-weight: 400; margin-left: 8px; }

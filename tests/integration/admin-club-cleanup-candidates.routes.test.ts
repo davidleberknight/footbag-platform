@@ -202,6 +202,32 @@ describe('candidate demote and archive', () => {
     expect(countAudits(CANDIDATE_ID, 'admin.club_cleanup.candidate_demote')).toBe(1);
   });
 
+  // The queue shares its outcome cookie with the member-facing club surfaces,
+  // which encode the tone into the payload. Read without decoding, the page
+  // printed the encoding itself; read as a plain success, it would tell the
+  // administrator a decision landed that another administrator had already
+  // made.
+  it('reports a lost race as changing nothing, with no encoding on the page', async () => {
+    const app = createApp();
+    const post = await request(app)
+      .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'demote' });
+    expect(post.status).toBe(303);
+
+    const carried = (post.headers['set-cookie'] as unknown as string[]) ?? [];
+    const queue = await request(app)
+      .get('/admin/club-cleanup')
+      .set('Cookie', [adminCookie(), ...carried.map((c) => c.split(';')[0])]);
+
+    expect(queue.status).toBe(200);
+    expect(queue.text).toContain(
+      '<p class="form-notice" role="status">Nothing changed: another administrator resolved this item first.</p>',
+    );
+    expect(queue.text).not.toContain('form-success-banner');
+    expect(queue.text).not.toContain('i:Nothing changed');
+  });
+
   it('archive sets the terminal lifecycle state, audits, and removes the candidate from the queue', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)

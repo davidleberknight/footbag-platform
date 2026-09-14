@@ -53,12 +53,7 @@ export const adminEmailLogController = {
         ? REVIEW_NOTICES[String(flash.payload)] ?? undefined
         : undefined;
       if (flash) clearFlash(res, req);
-      const vm = emailLogService.getEmailLogPage(parseQuery(req));
-      if (notice) {
-        vm.page.noticeTone = notice[0];
-        vm.page.notice = notice[1];
-      }
-      res.render('admin/email-log/index', vm);
+      res.render('admin/email-log/index', emailLogService.getEmailLogPage(parseQuery(req), notice));
     } catch (err) {
       handleControllerError(err, res, next, 'admin email-log controller');
     }
@@ -80,7 +75,14 @@ export const adminEmailLogController = {
       res.redirect(303, returnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/email-log/index', emailLogService.getEmailLogPage(parseQuery(req)));
+        // The refusal has to say itself. Re-rendering the listing bare left the
+        // administrator looking at an unchanged page with no hint that the
+        // review was rejected, which reads exactly like a click that did
+        // nothing.
+        res.status(422).render(
+          'admin/email-log/index',
+          emailLogService.getEmailLogPage(parseQuery(req), ['no', err.message]),
+        );
         return;
       }
       handleControllerError(err, res, next, 'admin email-log controller');

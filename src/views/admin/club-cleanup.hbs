@@ -7,9 +7,7 @@
 
 <div class="wrapper">
   <section>
-    {{#if page.notice}}
-      <div class="notice notice-warn" role="status">{{page.notice}}</div>
-    {{/if}}
+    {{> outcome-notice text=page.notice tone=page.noticeTone}}
     <form method="GET" action="/admin/club-cleanup" class="cleanup-filter-form">
       <select name="category" class="cleanup-action-select" aria-label="Filter by category">
         <option value="">All categories</option>

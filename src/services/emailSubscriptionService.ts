@@ -46,6 +46,7 @@ import { readUnsubscribeToken } from '../lib/unsubscribeToken';
 import { appendAuditEntry } from './auditService';
 import { ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeTone } from '../lib/outcomeNotice';
 
 interface MemberSubscriptionRow {
   slug: string;
@@ -71,7 +72,7 @@ export interface EmailSubscriptionsContent {
   lists: EmailSubscriptionListViewModel[];
   hasLists: boolean;
   notice: string;
-  hasNotice: boolean;
+  noticeTone?: OutcomeTone;
   errorMessage: string;
   hasError: boolean;
 }
@@ -102,11 +103,16 @@ const STATE_EXPLANATIONS: Record<string, string> = {
   none: 'You are not receiving these.',
 };
 
-/** What each outcome says on the page the change returns to. */
-const SUBSCRIPTION_NOTICES: Record<string, string> = {
-  subscribed: 'Turned on. You will receive the next message sent to that list.',
-  unsubscribed: 'Turned off. You will not receive any further messages from that list.',
-  unchanged: 'That was already how it was set, so nothing changed.',
+/**
+ * What each outcome says on the page the change returns to, and the tone it
+ * takes. Turning a list on and turning it off are both changes the member
+ * asked for and got; a setting that already held changed nothing, and reporting
+ * that in the same treatment would claim an act that never happened.
+ */
+const SUBSCRIPTION_NOTICES: Record<string, [OutcomeTone, string]> = {
+  subscribed:   ['ok',   'Turned on. You will receive the next message sent to that list.'],
+  unsubscribed: ['ok',   'Turned off. You will not receive any further messages from that list.'],
+  unchanged:    ['info', 'That was already how it was set, so nothing changed.'],
 };
 
 export type UnsubscribeOutcome =
@@ -178,7 +184,7 @@ export const emailSubscriptionService = {
       };
     });
 
-    const notice = opts.notice ? SUBSCRIPTION_NOTICES[opts.notice] ?? '' : '';
+    const outcome = opts.notice ? SUBSCRIPTION_NOTICES[opts.notice] : undefined;
 
     return {
       seo: { title: 'Email Preferences', noindex: true },
@@ -192,8 +198,8 @@ export const emailSubscriptionService = {
         backHref: `/members/${memberKey}`,
         lists,
         hasLists: lists.length > 0,
-        notice,
-        hasNotice: notice.length > 0,
+        notice: outcome ? outcome[1] : '',
+        ...(outcome ? { noticeTone: outcome[0] } : {}),
         errorMessage: opts.errorMessage ?? '',
         hasError: (opts.errorMessage ?? '').length > 0,
       },

@@ -7,11 +7,9 @@
 
 <div class="wrapper">
   {{#if content.hasError}}
-  <div class="form-error-banner"><p>{{content.errorMessage}}</p></div>
+  <div class="form-error-banner" role="alert"><p>{{content.errorMessage}}</p></div>
   {{/if}}
-  {{#if content.hasNotice}}
-  <p class="notice notice-info">{{content.notice}}</p>
-  {{/if}}
+  {{> outcome-notice text=content.notice tone=content.noticeTone}}
 
   {{#if content.hasLists}}
   {{#each content.lists}}
