@@ -225,11 +225,46 @@ describe('provision-url-screening-key.sh — documented contract', () => {
   it('shreds the key file only after every destination has taken it', () => {
     // The vault is the only other copy, so shredding on a failed run costs the
     // operator a trip back to the console.
-    const shredCall = source.indexOf('shred_key_file\n');
+    // The LAST call is the one that ends a successful run. There is an earlier
+    // one in the interrupt handler, which is a different rule with its own
+    // cases below; finding the first would silently start asserting about that
+    // one instead.
+    const shredCall = source.lastIndexOf('shred_key_file\n');
     const putAt = source.indexOf('aws ssm put-parameter');
     expect(shredCall).toBeGreaterThan(putAt);
-    expect(source).not.toMatch(/trap .*shred/);
     expect(source).toMatch(/The key file is left in place so you can re-run/);
+  });
+
+  // An interrupt used to be the one way out of this script that left a live
+  // vendor key in a shared temp directory. The prompt path cannot be driven from
+  // a test, because it refuses without a controlling terminal by design, so the
+  // contract is read from the source the way the Dockerfile strip contract is.
+  // What matters is that the interrupt handler applies the same two rules the
+  // ordinary paths already follow rather than inventing a third.
+  describe('an interrupt leaves nothing behind that a clean run would not', () => {
+    it('handles INT and TERM, and deliberately not EXIT', () => {
+      // EXIT would fight the explicit decisions at the end of a successful run
+      // and after a failed write, both of which already choose correctly.
+      expect(source).toMatch(/^trap interrupt_key_file INT TERM$/m);
+      expect(source).not.toMatch(/^trap [^\n]*\bEXIT\b/m);
+    });
+
+    it('shreds only a file the script created from a prompt', () => {
+      // A file the operator supplied with --key-file is theirs. Destroying it
+      // because they pressed ctrl-c would be the script deleting somebody
+      // else's data.
+      expect(source).toMatch(/\(\(\s*PROMPTED_KEY_FILE\s*\)\)\s*&&\s*\(\(\s*!\s*KEY_REACHED_DESTINATION\s*\)\)/);
+    });
+
+    it('stops shredding once the key has reached an environment', () => {
+      // From that point the existing rule governs: the file stays so the run can
+      // be retried, because the vault is the only other copy.
+      const flagSet = source.indexOf('KEY_REACHED_DESTINATION=1');
+      const putAt = source.indexOf('aws ssm put-parameter');
+      expect(flagSet).toBeGreaterThan(putAt);
+      expect(source).toMatch(/Interrupted after the key reached at least one environment/);
+      expect(source).toMatch(/in place so you can re-run; delete it yourself/);
+    });
   });
 
   it('never prints the stored value, reporting only its length', () => {

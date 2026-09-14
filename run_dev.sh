@@ -17,7 +17,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Pin the env identity for the dev stack. config.footbagEnv (src/config/env.ts)
-# gates dev-only shortcuts on this value: the .local/initial-admins.txt reader,
+# gates dev-only shortcuts on this value: the initial-admin allowlist reader,
 # the Tier-2 invariant repair, the persona harness (seed + /dev/switch), and
 # the boot-time guards for the FOOTBAG_DEV_* env vars. Without this export the
 # dev shortcuts silently no-op. Staging/production set FOOTBAG_ENV via

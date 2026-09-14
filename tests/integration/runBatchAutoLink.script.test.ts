@@ -29,7 +29,7 @@ const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'
 let workDir: string;
 
 beforeEach(() => {
-  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'batch-auto-link-'));
+  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-batch-auto-link-'));
 });
 
 afterEach(() => {

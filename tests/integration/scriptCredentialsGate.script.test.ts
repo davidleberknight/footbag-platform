@@ -392,6 +392,86 @@ describe('the credential gate: forms only the current gate catches', () => {
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/no terminal guard/);
   });
+
+  // A file can no longer DESCRIBE a guard it does not have in a comment. These
+  // are the other two ways to say the same words without writing the guard.
+
+  it('is not exempted by the terminal device named inside a quoted string', () => {
+    const res = inFixtureRepo(script('echo "answer comes from /dev/tty"\nread -r answer'));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal guard/);
+  });
+
+  it('is not exempted by the terminal device named inside a usage heredoc', () => {
+    const res = inFixtureRepo(
+      script(
+        [
+          'usage() {',
+          '  cat <<EOF',
+          'Reads your confirmation from /dev/tty.',
+          'EOF',
+          '}',
+          'read -r answer',
+        ].join('\n'),
+      ),
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal guard/);
+  });
+
+  it('sees a backslash-escaped read, which is the same command to bash', () => {
+    const res = inFixtureRepo(script('\\read -r answer'));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal guard/);
+  });
+
+  it.each([
+    ['as the last element', 'SSH_OPTS=(-o BatchMode=yes -t)'],
+    // First element, so nothing precedes the flag but the opening bracket.
+    ['as the first element', 'SSH_OPTS=(-t -o BatchMode=yes)'],
+  ])('sees a terminal request hidden in an option array %s', (_label, assignment) => {
+    // The ban is on requesting a remote PTY at all. Spelling the flag in an
+    // array and expanding it later is the same request, one line further away.
+    const res = inFixtureRepo(
+      script(`${assignment}\nssh "\${SSH_OPTS[@]}" host uptime`),
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/requests a remote PTY/);
+    // The assignment is the line to change, so it is the line reported.
+    expect(res.stderr).toMatch(/SSH_OPTS=\(/);
+  });
+
+  it('leaves an options array alone when it never reaches an ssh invocation', () => {
+    // Both halves are required. A -t belonging to some other command is not
+    // this gate's business, and a check that cried wolf on those would get its
+    // findings waved through.
+    const res = inFixtureRepo(script('TAR_OPTS=(-t -v)\ntar "${TAR_OPTS[@]}" archive.tar'));
+    expect(res.exitCode).toBe(0);
+  });
+
+  it('does not accept a -k that sudo consumes as the prompt string', () => {
+    // `-p` takes the next word as its prompt, so here sudo never sees -k and
+    // reads the password with a cached timestamp still live, which is the exact
+    // failure -k exists to prevent.
+    const res = inFixtureRepo(script('sudo -S -p -k bash'));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/must pass -k/);
+  });
+
+  it('sees a stdin-fed writer that is not adjacent to its redirect', () => {
+    const res = inFixtureRepo(script('sudo -k -S -p "" cat - > /etc/thing'));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/stdin-consuming file writer/);
+  });
+
+  it.each([
+    ['a quoted inline assignment', 'docker compose exec -e "SESSION_SECRET=$s" web sh'],
+    ['the long option spelling', 'docker compose exec --env SESSION_SECRET="$s" web sh'],
+  ])('sees a secret inlined into a container environment with %s', (_label, line) => {
+    const res = inFixtureRepo(script(line));
+    expect(res.exitCode, `expected a refusal for: ${line}`).toBe(1);
+    expect(res.stderr).toMatch(/inlined into a container's environment/);
+  });
 });
 
 describe('the credential gate: properties that make the refusals worth having', () => {

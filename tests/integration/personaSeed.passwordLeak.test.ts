@@ -109,7 +109,7 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
     const fs = await import('node:fs');
     const os = await import('node:os');
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'personaseed-password-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-personaseed-password-'));
     const dbPath = path.join(tmpDir, 'footbag.db');
     const schema = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
     const db = new BetterSqlite3(dbPath);

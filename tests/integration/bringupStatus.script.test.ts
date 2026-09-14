@@ -38,7 +38,7 @@ function runScript(args: string[]): RunResult {
 
 let tmpDir: string;
 beforeAll(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'bringup-status-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'footbag-test-bringup-status-'));
 });
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });

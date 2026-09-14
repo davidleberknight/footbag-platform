@@ -48,7 +48,7 @@ const REQUIRED_COUNTS = [
 let workDir: string;
 
 beforeEach(() => {
-  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'snapshot-'));
+  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-snapshot-'));
 });
 
 afterEach(() => {

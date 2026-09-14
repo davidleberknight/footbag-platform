@@ -454,7 +454,7 @@ Persona contract:
 
 - Synthetic identities. Display names and email addresses are obviously test data (prefix `staging-test-` or equivalent), never resembling real member data.
 - Verified-status pre-seeded. Routine login does not depend on receiving an email.
-- Stored credentials. Passwords live in an approved secret channel (gitignored `.local/staging-personas.json`, or AWS Secrets Manager). Never committed.
+- Stored credentials. Passwords live in an approved secret channel (an operator-local file outside every checkout, or AWS Secrets Manager). Never committed.
 - Tier and role grants. Assigned through the persona seed pipeline (`reason_code` carries `dev_persona_seed.tier_grant` and similar markers) so the prod-cleanliness audit catches them.
 
 Reset semantics:
@@ -808,7 +808,7 @@ Test data is deterministic. The `uid()` counter pattern in `tests/fixtures/facto
 
 `.gitignore` covers:
 
-- `.local/` (including `initial-admins.txt`, `staging-personas.json`, and equivalent).
+- `.local/`, kept as a guard now that the operator-local inputs live in the maintainers' private operations checkout.
 - `tests/test-results/` (Playwright trace and screenshot output).
 - Any storage state file produced by Playwright auth setup.
 - `.env.local`, `.env.staging`, `.env.production` (real secrets never committed).

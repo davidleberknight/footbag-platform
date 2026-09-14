@@ -23,7 +23,7 @@ let listPath: string;
 const ORIGINAL_ENV_EMAILS = process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'initial-admin-test-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-initial-admin-'));
   listPath = path.join(tmpDir, 'admins.txt');
   delete process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS;
 });

@@ -108,7 +108,7 @@ beforeAll(async () => {
   // FH-owned writes from this suite (admin moderation tests, etc.)
   // would touch /curated/galleries/ in the repo. Redirect to a temp
   // dir so the suite never mutates the real /curated/ tree.
-  CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-routes-curated-'));
+  CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-mg-routes-curated-'));
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.setCuratedRootDirForTests(CURATED_TMP_ROOT);
 

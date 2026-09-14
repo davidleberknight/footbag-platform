@@ -30,8 +30,8 @@ import { Readable } from 'node:stream';
 import { Window } from 'happy-dom';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-curator-oversize-${Date.now()}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-oversize-'));
-const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-curated-oversize-'));
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-oversize-'));
+const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-curated-oversize-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;

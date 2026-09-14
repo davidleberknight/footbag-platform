@@ -389,7 +389,7 @@ describe('transcodeCuratorVideo', () => {
       const path = await import('node:path');
       const os = await import('node:os');
 
-      const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'video-test-'));
+      const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-video-'));
       const inputPath = path.join(tmpDir, 'in.mp4');
       try {
         const synth = spawnSync(

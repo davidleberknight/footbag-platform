@@ -1090,7 +1090,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.TURNSTILE_SITE_KEY = 'turnstile-site-key';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = '   ';
     // Empty/whitespace value is treated as unset (deploy pipeline writes an
-    // empty value when the workstation's .local/initial-admins.txt is empty;
+    // empty value when the workstation's initial-admin allowlist is empty;
     // that must not fail-fast a prod boot, only a non-empty value would).
     await expect(import('../../src/config/env')).resolves.toBeDefined();
   });

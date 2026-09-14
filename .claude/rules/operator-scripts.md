@@ -42,6 +42,17 @@ each is a real one.
 - **Cleanup is on a trap**, covering EXIT, INT and TERM, so an interrupt leaves nothing behind
   that a successful run would not have left.
 
+  One exception, and it is narrow: where whether to clean up depends on how far the run got, the
+  trap covers INT and TERM only and the ordinary exits keep deciding for themselves. A blanket EXIT
+  trap would override them, and the thing it would destroy is the thing a retry needs. The worked
+  example is the URL-screening key: a key file the script created from a prompt is shredded while
+  the key has reached no environment, because the operator never asked for that file to exist; once
+  it has reached one, the file stays so the run can be retried, because the vault is the only other
+  copy and destroying it over an unreachable second environment turns a retry into a trip back to
+  the vendor's console. An interrupt has to land on whichever of those two rules applies, which is
+  what the INT and TERM handler is for, and a file the operator supplied themselves is never touched
+  either way. Where cleanup is unconditional, which is almost everywhere, EXIT stays in the trap.
+
 ## Three invariants
 
 Each of these was violated by a script in this repository, and each failure was silent.

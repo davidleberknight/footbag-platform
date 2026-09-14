@@ -106,7 +106,7 @@ beforeAll(async () => {
   const mod = await import('../../src/app');
   createApp = mod.createApp;
 
-  CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-galleries-routes-'));
+  CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admin-galleries-routes-'));
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.setCuratedRootDirForTests(CURATED_TMP_ROOT);
 });

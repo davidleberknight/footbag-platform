@@ -29,7 +29,7 @@ const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'
 let workDir: string;
 
 beforeEach(() => {
-  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'media-integrity-'));
+  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-integrity-'));
 });
 
 afterEach(() => {

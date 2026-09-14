@@ -99,7 +99,7 @@ function runScript(opts: {
 
 let tmpDir: string;
 beforeAll(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'verify-env-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'footbag-test-verify-env-'));
 });
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });

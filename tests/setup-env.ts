@@ -62,7 +62,9 @@ process.env.SESSION_SECRET          ??= 'test-default-secret';
 process.env.JWT_SIGNER              ??= 'local';
 process.env.JWT_LOCAL_KEYPAIR_PATH  ??= path.join(
   os.tmpdir(),
-  `vitest-jwt-${workerTag}.pem`,
+  // Swept prefix: this is a real keypair path, and a worker killed before its
+  // teardown leaves the file behind. The session sweep is what reclaims it.
+  `footbag-test-jwt-${workerTag}.pem`,
 );
 process.env.SES_ADAPTER             ??= 'stub';
 // Arming switches are mandatory-explicit under prod-mode boots; 'armed' is

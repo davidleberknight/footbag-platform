@@ -171,7 +171,7 @@ describe('writeUrlSidecarFile', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'curated-url-sidecar-test-'));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-curated-url-sidecar-'));
   });
 
   afterEach(async () => {
@@ -200,7 +200,7 @@ describe('readUrlSidecarFile', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'curated-url-sidecar-read-'));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-curated-url-sidecar-read-'));
   });
 
   afterEach(async () => {
@@ -248,7 +248,7 @@ describe('deleteUrlSidecarFile', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'curated-url-sidecar-delete-'));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-curated-url-sidecar-delete-'));
   });
 
   afterEach(async () => {
@@ -274,7 +274,7 @@ describe('resolveSidecarForRow', () => {
   let categoryDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'curated-resolve-'));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-curated-resolve-'));
     categoryDir = path.join(tmpDir, 'freestyle_tricks');
     await fs.mkdir(categoryDir, { recursive: true });
   });

@@ -54,7 +54,7 @@ function runScript(args: string[], extraEnv: Record<string, string> = {}): RunRe
 
 let tmpDir: string;
 beforeAll(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'activate-payments-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'footbag-test-activate-payments-'));
 });
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });

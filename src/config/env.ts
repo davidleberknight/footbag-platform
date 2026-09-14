@@ -243,8 +243,10 @@ export interface AppConfig {
   // Operator-supplied initial-admin email list for the permanent dev/staging
   // register-allowlist bootstrap: each registering member whose email appears
   // here gets is_admin=1 plus an admin.dev_register_allowlist_grant audit row.
-  // Default is .local/initial-admins.txt (gitignored); production reads are
-  // refused at the helper level regardless of this value.
+  // The list carries maintainer email addresses, so it lives in the private
+  // operations checkout rather than this one, reached through the canonical
+  // repo-root symlink; production reads are refused at the helper level
+  // regardless of this value, and an absent file is an empty allowlist.
   initialAdminFile: string;
   // Value for Express's `trust proxy` setting. Hosts set the exact
   // X-Forwarded-For hop count of the proxy chain in front of the app
@@ -1202,7 +1204,9 @@ function loadConfig(): AppConfig {
     videoMaxBytes,
     ffmpegTimeoutSeconds,
     sseHeartbeatSeconds,
-    initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
+    initialAdminFile:
+      process.env.FOOTBAG_INITIAL_ADMIN_FILE ||
+      'footbag_private_repo/private_data/operator-local/initial-admins.txt',
     trustProxy,
     useCheapPasswordHash,
     paymentAdapter,

@@ -41,7 +41,7 @@ function runGate(envFile: string): RunResult {
 let tmpDir: string;
 let fileCounter = 0;
 beforeAll(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'validate-payments-boot-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'footbag-test-validate-payments-boot-'));
 });
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });

@@ -231,7 +231,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       // footbag-production must not proceed without the operator typing the
       // confirmation phrase. Test environment has no TTY, so the gate
       // refuses with a clear "no TTY available" recommendation.
-      const tmpFile = path.join(os.tmpdir(), `op-prod-${Date.now()}.txt`);
+      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
@@ -260,7 +260,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       // intake, so against footbag-production it must ride the same typed
       // confirmation as any other DB-touching deploy. The test environment has
       // no TTY, so the gate refuses before any host contact.
-      const tmpFile = path.join(os.tmpdir(), `op-prod-alldata-${Date.now()}.txt`);
+      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-alldata-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
@@ -298,7 +298,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       // the only thing left between this test and a real production database
       // replacement would be whichever preflight happens to fail on the machine
       // running the suite, which is not a safety property at all.
-      const tmpFile = path.join(os.tmpdir(), `op-prod-ack-${Date.now()}.txt`);
+      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-ack-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
@@ -337,7 +337,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       // the result depend on whether the target host happens to be reachable
       // from the machine running the suite, which is a property of the machine
       // rather than of the code.
-      const tmpFile = path.join(os.tmpdir(), `op-prod-k-${Date.now()}.txt`);
+      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-k-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
@@ -427,7 +427,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       // refused at the entry-point allowlist check, before the SSH-alias
       // resolve preflight ever runs. Substring patterns and typos cannot
       // sneak through.
-      const tmpFile = path.join(os.tmpdir(), `op-${Date.now()}.txt`);
+      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
         const r = run('bash', ['deploy_to_aws.sh', '-k'], {
@@ -601,7 +601,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
 
 describe('scripts/reset-local-db.sh preflight', () => {
   it('exits 1 with "MISSING:" + "Recommendation:" when the committed canonical_input is absent', () => {
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reset-local-db-'));
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-reset-local-db-'));
     try {
       // Minimal scaffold: the script, its cutover-guard dependency (a hard
       // dependency by design: the guard refuses to reset a post-cutover
@@ -644,7 +644,7 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
   it('canonical_only mode exits 1 with identity-lock guidance when v53 CSV missing', () => {
     // Run from a tmpdir with a minimal venv stub so the pipeline aborts at the
     // identity-lock guard rather than at venv setup.
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'run-pipeline-'));
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-run-pipeline-'));
     try {
       fs.mkdirSync(path.join(tmpRoot, '.venv', 'bin'), { recursive: true });
       // The pipeline installs requirements via `.venv/bin/pip` and then sources
@@ -691,8 +691,8 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
 // FOOTBAG_ENV is not 'development' or 'staging'. env.ts trips the same boot-
 // fail-fast at container start, but the script-level guard is the first line
 // of defense and prevents the value from ever landing on disk on a production
-// host. Loss of the guard would let a workstation with a non-empty
-// .local/initial-admins.txt accidentally seed admin emails on production.
+// host. Loss of the guard would let a workstation holding a non-empty
+// allowlist accidentally seed admin emails on production.
 
 describe('remote-half script production refusal guards (static-text)', () => {
   it.each([
@@ -770,24 +770,51 @@ describe('deploy provenance is recorded by both deploy paths (static-text)', () 
 //
 // The remote-half refusal above is the backstop, and it fires late: by the time
 // it runs, the release has been promoted and the host env file rewritten, so a
-// production deploy from a workstation holding a non-empty
-// .local/initial-admins.txt aborts with the declared state and the running state
-// disagreeing. Permanent contract: both wrappers stop reading the file at all
-// when the target is production, so the value is never sent and the backstop is
-// never reached in normal operation.
+// production deploy from a workstation holding a non-empty allowlist aborts with
+// the declared state and the running state disagreeing. Permanent contract: the
+// wrappers stop reading the file at all when the target is production, so the
+// value is never sent and the backstop is never reached in normal operation.
+//
+// The refusal lives in one shared library rather than in each wrapper, so the
+// two cannot drift apart. That is what these assertions read: the library holds
+// the production refusal and the path, and each wrapper reaches it by calling
+// the library rather than resolving the file itself.
 
 describe('deploy wrappers do not read the dev admin allowlist for production (static-text)', () => {
+  const LIB = 'scripts/lib/initial-admins.sh';
+
+  it('the shared resolver refuses the production target before reading anything', () => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, LIB), 'utf8');
+    // The refusal returns before the path is even built, so there is no read to
+    // make conditional and no way to reach the file on a production run.
+    expect(content).toMatch(
+      /if\s*\[\[\s*"\$remote"\s*==\s*"footbag-production"\s*\]\];\s*then\s*\n\s*return 0/,
+    );
+    const refusalAt = content.indexOf('footbag-production');
+    const pathAt = content.indexOf('initial-admins.txt', refusalAt);
+    expect(refusalAt).toBeGreaterThan(-1);
+    expect(pathAt).toBeGreaterThan(refusalAt);
+  });
+
+  it('the allowlist lives in the private operations checkout, not this one', () => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, LIB), 'utf8');
+    expect(content).toMatch(
+      /footbag_private_repo\/private_data\/operator-local\/initial-admins\.txt/,
+    );
+  });
+
   it.each([
     'scripts/deploy-rebuild.sh',
     'scripts/deploy-code.sh',
-  ])('%s clears the allowlist path when the target is production', (relPath) => {
+  ])('%s reaches the allowlist only through the shared resolver', (relPath) => {
     const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    expect(content).toMatch(/source "\$\{REPO_ROOT\}\/scripts\/lib\/initial-admins\.sh"/);
     expect(content).toMatch(
-      /if\s*\[\[\s*"\$REMOTE"\s*==\s*"footbag-production"\s*\]\];\s*then\s*\n\s*LOCAL_ADMIN_FILE=""/,
+      /INITIAL_ADMIN_EMAILS_CSV="\$\(resolve_initial_admin_emails_csv "\$REPO_ROOT" "\$REMOTE"\)"/,
     );
-    // The read itself must be conditional on the path still being set, or
-    // clearing it above achieves nothing.
-    expect(content).toMatch(/\[\[\s*-n\s*"\$LOCAL_ADMIN_FILE"\s*&&\s*-f\s*"\$LOCAL_ADMIN_FILE"\s*\]\]/);
+    // A wrapper that resolves the file itself has reintroduced the copy this
+    // library exists to remove, and with it the chance of the two diverging.
+    expect(content).not.toMatch(/initial-admins\.txt/);
   });
 });
 

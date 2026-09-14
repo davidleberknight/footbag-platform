@@ -683,7 +683,7 @@ describe('POST /register', () => {
 
 // ── Initial-admin bootstrap ───────────────────────────────────────────────────
 //
-// When the operator places `.local/initial-admins.txt` (path injectable via
+// When the operator places the initial-admin allowlist (path injectable via
 // FOOTBAG_INITIAL_ADMIN_FILE) listing one email per line, registering with a
 // listed email auto-grants is_admin=1 on the new row plus a
 // 'admin.dev_register_allowlist_grant' audit row. Listed emails not yet

@@ -98,6 +98,9 @@ PROD_LIVE_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-production-live-guard.sh"
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
 
+# shellcheck source=lib/initial-admins.sh
+source "${REPO_ROOT}/scripts/lib/initial-admins.sh"
+
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
 # for the rationale (verification against the pinned host-key file, fail-fast
 # on dead targets, keepalives across the long docker-save and rsync streams).
@@ -437,32 +440,12 @@ else
   send_images_to_host
 fi
 
-# Parse .local/initial-admins.txt into the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV
-# env var for the permanent dev/staging register-allowlist bootstrap; the remote
-# half refuses to write the value on production hosts. Same parsing rules as
-# src/dev-bootstrap/runtime.ts.
-#
-# Not read at all when the target is production. Production has its own
-# first-admin path, a single-use SSM token claimed after the deploy, so the
-# value has no legitimate use there. Reading it anyway made a production deploy
-# depend on whether this particular workstation happens to hold the file: the
-# remote half refused, correctly, and told the operator to empty a local file
-# before retrying. The refusal stays as the backstop; the wrapper simply stops
-# sending something production must never accept.
-INITIAL_ADMIN_EMAILS_CSV=""
-LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
-if [[ "$REMOTE" == "footbag-production" ]]; then
-  LOCAL_ADMIN_FILE=""
-fi
-if [[ -n "$LOCAL_ADMIN_FILE" && -f "$LOCAL_ADMIN_FILE" ]]; then
-  INITIAL_ADMIN_EMAILS_CSV=$(awk '
-    {
-      sub(/#.*$/, "")
-      gsub(/^[ \t]+|[ \t]+$/, "")
-      if (length($0) > 0) print tolower($0)
-    }
-  ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
-fi
+# The FOOTBAG_DEV_INITIAL_ADMIN_EMAILS value for the permanent dev/staging
+# register-allowlist bootstrap. The shared library owns the path, the parsing
+# rules and the production refusal; both deploy wrappers reach it the same way
+# so the two cannot drift apart. An empty value is a valid answer and clears the
+# env var on staging, so a stale list cannot survive the operator emptying it.
+INITIAL_ADMIN_EMAILS_CSV="$(resolve_initial_admin_emails_csv "$REPO_ROOT" "$REMOTE")"
 
 # Deploy provenance, same shape the code-only path records. This deploy rsyncs
 # the local working tree, not a tagged artifact, so the commit alone understates

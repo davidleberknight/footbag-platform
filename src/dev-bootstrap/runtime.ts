@@ -4,8 +4,9 @@
  * on the operator allowlist is granted is_admin=1 + a Tier 2 ledger row + an
  * audit row atomically, and then completes the normal email-verification step
  * before logging in. The allowlist comes from FOOTBAG_DEV_INITIAL_ADMIN_EMAILS
- * (staging, injected by the deploy pipeline) or the gitignored
- * `.local/initial-admins.txt` file (local dev).
+ * (staging, injected by the deploy pipeline) or, on local dev, from the
+ * allowlist file in the maintainers' private operations checkout, which is
+ * where it lives because it carries maintainer email addresses.
  *
  * This is the permanent dev/staging peer of the production first-admin
  * mechanism (the single-shot SSM-token claim at `/admin/bootstrap-claim`, owned
@@ -34,11 +35,12 @@ export interface InitialAdminEmailsOptions {
  * normalized emails. Two sources, in precedence order:
  *
  *   1. `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var (comma-separated). Populated
- *      by the deploy script on staging from `.local/initial-admins.txt`. When
+ *      by the deploy script on staging from the same allowlist file. When
  *      present and non-blank, this is the source.
- *   2. The file at `config.initialAdminFile` (default `.local/initial-admins.txt`).
- *      Plain text, one email per line. `#` introduces a line comment. Used on
- *      local dev where the file is reachable from process CWD.
+ *   2. The file at `config.initialAdminFile`, which defaults into the private
+ *      operations checkout through the canonical repo-root symlink. Plain text,
+ *      one email per line. `#` introduces a line comment. Used on local dev,
+ *      where the path is reachable from process CWD.
  *
  * Both sources trim and lowercase emails to match `login_email_normalized`.
  * Read on every call: the operator may edit the source between registrations
@@ -64,7 +66,7 @@ export function getInitialAdminEmails(
   // closed; this defense-in-depth backstop additionally refuses the
   // file-path fallback when FOOTBAG_ENV is unset or any value other than
   // dev/staging, closing the silent-failure mode where a misconfigured
-  // deploy without an explicit FOOTBAG_ENV could read .local/initial-admins.txt.
+  // deploy without an explicit FOOTBAG_ENV could read the allowlist file.
   if (footbagEnv !== 'development' && footbagEnv !== 'staging') {
     return new Set();
   }
@@ -103,7 +105,7 @@ interface ApplyDevStagingBootstrapAdminArgs {
 /**
  * Dev/staging-only first-admin provisioning. Called from registerMember after
  * the new members row is inserted. When the registrant's email matches the
- * allowlist (via env var or `.local/initial-admins.txt`), atomically:
+ * allowlist (via env var or the allowlist file), atomically:
  *
  *   - sets `is_admin = 1` on the new member
  *   - writes a Tier 2 grant ledger row (admin role requires Tier 2+)

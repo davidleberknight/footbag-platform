@@ -21,7 +21,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
 
 function tempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'precutover-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-precutover-'));
 }
 
 function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {}): void {

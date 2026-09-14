@@ -38,8 +38,8 @@ Account for every file in the coverage ledger as read, scoped-out, or not-applic
 doc that exists but is named nowhere in the run is itself a coverage gap. Standing
 scoped-out buckets, recorded with their reason rather than silently skipped: the
 `exploration/` working corpus (references INTO it from live docs still get the
-broken-reference check) and gitignored local-only files (`BUGS.md`, operator notes,
-`.local/`).
+broken-reference check) and gitignored local-only files (`BUGS.md`, operator notes, and the
+operator-local inputs, which now live in the maintainers' private operations checkout).
 
 `docs/DIAGRAMS.md` and `docs/GLOSSARY.md` are easy to skip and are exactly where stale
 "control X is present" claims hide. Read them; diagrams (including ASCII-art boxes and

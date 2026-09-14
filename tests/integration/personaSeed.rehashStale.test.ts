@@ -34,7 +34,7 @@ describe('persona seed runner: stale-hash self-heal', () => {
     const { seedPersona } = await import('../../src/testkit/personaFactory');
     const { CANONICAL_PERSONAS } = await import('../../src/testkit/canonicalPersonas');
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'personaseed-rehash-'));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-personaseed-rehash-'));
     dbPath = path.join(tmpDir, 'footbag.db');
     const schema = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
 

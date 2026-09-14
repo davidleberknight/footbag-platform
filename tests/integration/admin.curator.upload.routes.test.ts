@@ -16,12 +16,12 @@ import path from 'path';
 import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-${Date.now()}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-admin-'));
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-admin-'));
 // Curator photo + video uploads write to /curated/{category}/ in local-adapter
 // mode. Redirect that write to a temp directory so tests don't pollute the
 // repo's real /curated/. The url_reference describe block below further
 // overrides this for its scoped tests.
-const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-curated-admin-'));
+const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-curated-admin-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
@@ -672,7 +672,7 @@ describe('/admin/curator/upload — URL reference', () => {
 
   beforeAll(async () => {
     const svcMod = await import('../../src/services/curatorMediaService');
-    curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-url-ref-curated-'));
+    curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admin-url-ref-curated-'));
     fs.mkdirSync(path.join(curatedRoot, 'freestyle_tricks'), { recursive: true });
     svcMod.setCuratedRootDirForTests(curatedRoot);
   });

@@ -129,6 +129,61 @@ strip_comments() {
   grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true
 }
 
+# A shell file reduced to the part that executes: heredoc bodies dropped, the
+# contents of quoted strings blanked, then everything from the first remaining
+# `#` cut away.
+#
+# One definition of "is this code or is this text", because the question is
+# asked in more than one place and the two halves of the earlier comment hole
+# were exactly what happens when each place answers it separately. A file could
+# no longer DESCRIBE a guard it does not have in a comment, but it could still
+# do it in a usage heredoc or an `echo`, and every prompt in the file was then
+# exempt.
+#
+# Quotes are blanked rather than removed so column positions survive, and the
+# cut at `#` runs last so a `#` inside a string cannot truncate a real line.
+# Blanking can only ever remove a match, never invent one, so the direction of
+# any error is toward refusing rather than passing.
+normalize_shell_source() {
+  awk '
+    # Heredoc bodies are data the shell hands to another program, not commands.
+    # The delimiter may be quoted and may be indented with <<-.
+    heredoc != "" {
+      line = $0
+      sub(/^[ \t]+/, "", line)
+      if (line == heredoc) { heredoc = "" }
+      print ""
+      next
+    }
+    {
+      if (match($0, /<<-?[ \t]*"[^"]+"/) || match($0, /<<-?[ \t]*'"'"'[^'"'"']+'"'"'/) \
+          || match($0, /<<-?[ \t]*[A-Za-z_][A-Za-z0-9_]*/)) {
+        tag = substr($0, RSTART, RLENGTH)
+        sub(/^<<-?[ \t]*/, "", tag)
+        gsub(/["'"'"']/, "", tag)
+        # `<<<` is a here-string: one line of data, not a block, and the line it
+        # sits on is still code.
+        if (substr($0, RSTART, 3) != "<<<") { heredoc = tag }
+      }
+      out = ""
+      n = length($0)
+      q = ""
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (q == "") {
+          if (c == "\"" || c == "'"'"'") { q = c; out = out c; continue }
+          out = out c
+        } else {
+          if (c == q) { q = ""; out = out c; continue }
+          out = out " "
+        }
+      }
+      sub(/#.*$/, "", out)
+      print out
+    }
+  ' "$1"
+}
+
 # grep exits 0 on a match, 1 on no match, and 2 or more on a real error. Only
 # the first two are answers; anything else means the scan did not happen.
 # -H, always. Without it grep omits the filename when handed a single file, so
@@ -194,7 +249,10 @@ fi
 # this tree carries was the one name these two checks could not see.
 SECRET_NAME_RE='([A-Z_]*(SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)[A-Z_]*|[A-Z]+_PASS[A-Z_]*|[A-Z_]+_KEY[A-Z_]*)'
 
-hits=$(scan "(^|[[:space:]])-e[[:space:]]+${SECRET_NAME_RE}=." | strip_comments)
+# Both spellings of the flag, and an optional opening quote before the name:
+# `-e "SECRET=$s"` and `--env SECRET="$s"` put the value in argv exactly as the
+# bare form does, and quoting it changes nothing about who can read it.
+hits=$(scan "(^|[[:space:]])(-e|--env)[[:space:]]+[\"']?${SECRET_NAME_RE}=." | strip_comments)
 if [ -n "$hits" ]; then
   report "$hits" \
     "FAIL: a secret must not be inlined into a container's environment; it lands in argv" \
@@ -237,7 +295,15 @@ if [ -n "$sudo_stdin" ]; then
   # unrelated -k elsewhere on the line satisfying the check: `curl -k https://x
   # | sudo -S bash` passed the old version, as did a -c body containing
   # `make -k install`.
-  missing_k=$(printf '%s' "$sudo_stdin" \
+  # `-p` takes the NEXT word as its prompt string, whatever that word looks
+  # like, so `sudo -S -p -k bash` never passes -k to sudo at all: the password
+  # is read with a cached timestamp still live, which is the exact failure -k
+  # exists to prevent. Cut each `-p` and the word it consumes before looking for
+  # -k, so a swallowed flag cannot satisfy the check that requires it.
+  sudo_stdin_pless=$(printf '%s' "$sudo_stdin" \
+    | sed -E 's/-p[[:space:]]+("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)//g')
+
+  missing_k=$(printf '%s' "$sudo_stdin_pless" \
     | grep -vE '(^|[^[:alnum:]_-])(/[^[:space:]]*/)?sudo([[:space:]]+-[a-zA-Z]+([[:space:]]+([^-[:space:]][^[:space:]]*|"[^"]*"|'"'"'[^'"'"']*'"'"'))?)*[[:space:]]+-[a-zA-Z]*k' || true)
   if [ -n "$missing_k" ]; then
     report "$missing_k" \
@@ -248,7 +314,7 @@ if [ -n "$sudo_stdin" ]; then
 
   # 3b. ... must not hand that stdin to a file writer.
   writers=$(printf '%s' "$sudo_stdin" \
-    | grep -E '\|[[:space:]]*(sudo[[:space:]][^|]*)?(tee|dd)([[:space:]]|$)|sudo[^|]*[[:space:]](tee|dd)([[:space:]]|$)|sudo[^|]*[[:space:]]cat[[:space:]]*>|sudo[^|]*[[:space:]](sh|bash|zsh)[[:space:]]+-c[^|]*(>|[[:space:]](tee|dd|cat)[[:space:]])|sudo[^|]*/dev/stdin' || true)
+    | grep -E '\|[[:space:]]*(sudo[[:space:]][^|]*)?(tee|dd)([[:space:]]|$)|sudo[^|]*[[:space:]](tee|dd)([[:space:]]|$)|sudo[^|]*[[:space:]]cat[[:space:]]*(-[[:space:]]*)?>|sudo[^|]*[[:space:]](sh|bash|zsh)[[:space:]]+-c[^|]*(>|[[:space:]](tee|dd|cat)[[:space:]])|sudo[^|]*/dev/stdin' || true)
   if [ -n "$writers" ]; then
     report "$writers" \
       "FAIL: sudo -S must never feed a stdin-consuming file writer; the cached-credential" \
@@ -267,6 +333,51 @@ if [ -n "$hits" ]; then
     "FAIL: no ssh -t in scope; a privileged remote step goes through the wire pattern" \
     "      (password as stdin line 1 + printf %q assignments + cat-piped remote half" \
     "      into 'sudo -k -S -p \"\" bash'). Model: scripts/install-cwagent-staging.sh."
+fi
+
+# ── 4b. A terminal request assembled in an option array ──────────────────────
+# The check above reads one line at a time, so a -t placed in an options array
+# and expanded onto the ssh invocation later evades it while making exactly the
+# request the rule bans. It is one line further away, not one bit safer.
+#
+# Both halves are required before this reports anything: the flag has to sit in
+# an array assignment, AND that array's variable has to be expanded onto an ssh
+# invocation in the same file. An options array holding a -t that never reaches
+# ssh belongs to some other command, and a gate that cried wolf on those would
+# get its findings waved through, which is the failure this check cannot afford.
+array_offenders=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  # Read the file's code, so a -t inside a comment or a usage string is not an
+  # array element and an ssh expansion described in prose is not an invocation.
+  code=$(normalize_shell_source "$f")
+  ssh_arrays=$(printf '%s\n' "$code" \
+    | grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=\([^)]*\)' \
+    | grep -E '(^|[[:space:]]|\()-[a-zA-Z]*t[a-zA-Z]*([[:space:]]|\))' \
+    | grep -oE '[A-Za-z_][A-Za-z0-9_]*=' \
+    | tr -d '=' || true)
+  [ -n "$ssh_arrays" ] || continue
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    # The expansion is looked for in the raw file, not the normalized code,
+    # because normalization blanks the inside of quoted strings and the
+    # expansion is almost always written quoted. Comments count here for the
+    # same reason they count in the check above: a comment describing the
+    # interactive flow is how the superseded doctrine survived a revert once
+    # already.
+    grep -qE "\bssh\b[^|;&]*\\\$\{${v}\[@\]\}" "$f" || continue
+    # Report the assignment line, because that is the line to change.
+    hit=$(grep -nHE "^[[:space:]]*${v}=\(" "$f" || true)
+    array_offenders="${array_offenders}${hit}
+"
+  done <<< "$ssh_arrays"
+done < <(printf '%s\n' "${SH_FILES[@]}")
+
+if [ -n "$(printf '%s' "$array_offenders" | tr -d '[:space:]')" ]; then
+  report "$array_offenders" \
+    "FAIL: this options array carries a terminal-request flag and is expanded onto an ssh" \
+    "      invocation in the same file, which requests a remote PTY exactly as 'ssh -t' does." \
+    "      Drop the flag; a privileged remote step goes through the wire pattern instead."
 fi
 
 # ── 5. A prompt reading stdin with no terminal guard ─────────────────────────
@@ -293,7 +404,10 @@ fi
 # because a security check should over-match and be filtered, not under-match.
 # NOTE the anchor: this pattern is applied to raw file lines by the loop below,
 # not to `path:lineno:` scan output, so `^` is the start of the source line.
-PROMPT_RE='^[[:space:]]*(IFS=[^[:space:]]*[[:space:]]+)?read([[:space:]]+-[a-zA-Z]+)*[[:space:]]|[;&|(){}][[:space:]]*(IFS=[^[:space:]]*[[:space:]]+)?read([[:space:]]+-[a-zA-Z]+)*[[:space:]]|(^|[[:space:]])(if|then|else|elif|do|while|until|!|time|command|builtin)[[:space:]]+read([[:space:]]+-[a-zA-Z]+)*[[:space:]]'
+# The optional backslash is not decoration. `\read` suppresses alias and
+# function lookup and runs the builtin, so it is the same command to bash and a
+# different string to a pattern that does not expect it.
+PROMPT_RE='^[[:space:]]*(IFS=[^[:space:]]*[[:space:]]+)?\\?read([[:space:]]+-[a-zA-Z]+)*[[:space:]]|[;&|(){}][[:space:]]*(IFS=[^[:space:]]*[[:space:]]+)?\\?read([[:space:]]+-[a-zA-Z]+)*[[:space:]]|(^|[[:space:]])(if|then|else|elif|do|while|until|!|time|command|builtin)[[:space:]]+\\?read([[:space:]]+-[a-zA-Z]+)*[[:space:]]'
 # A guard must be present as CODE. Comments are stripped before it is looked
 # for, so a file cannot describe a guard it does not have. Three deliberate
 # narrowings over the previous version, each closing a false exemption:
@@ -335,7 +449,7 @@ while IFS= read -r f; do
   # no guard at all. A failed substitution yields no guard and therefore a
   # refusal, which is the safe direction.
   # -e, because the pattern begins with a dash and grep would read it as a flag.
-  if grep -qE -e "$GUARD_RE" <<< "$(sed -E 's/#.*$//' "$f")"; then
+  if grep -qE -e "$GUARD_RE" <<< "$(normalize_shell_source "$f")"; then
     continue
   fi
   prompt_offenders="${prompt_offenders}${hits_in_file}

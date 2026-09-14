@@ -60,6 +60,10 @@ KEY_FILE=""
 AWS_PROFILE_ARG=""
 KEEP_KEY_FILE=0
 PROMPTED_KEY_FILE=0
+# Set the moment the key lands in its first environment. It is what tells the
+# interrupt handler below which of the two cleanup rules applies, and it has to
+# be a global because the write loop's own list of destinations is local to it.
+KEY_REACHED_DESTINATION=0
 ACTION=""
 
 usage() {
@@ -196,6 +200,37 @@ shred_key_file() {
   shred -u "$KEY_FILE" 2>/dev/null || rm -f "$KEY_FILE" 2>/dev/null || true
 }
 
+# An interrupt between the prompt and either outcome used to leave a live vendor
+# key sitting in a shared temp directory with nothing to collect it. The two
+# cleanup rules above still decide what happens; this only makes them apply when
+# the operator presses ctrl-c rather than only when the script runs to an end.
+#
+# Which rule applies turns on whether the key has reached an environment yet.
+# Before it has, a file this script created from a prompt is a copy nobody asked
+# for and it is shredded. After it has, the rule above governs instead: the file
+# stays so the run can be retried, because the vault is the only other copy and
+# destroying it over an unreachable second environment turns a retry into a trip
+# back to the vendor's console.
+#
+# INT and TERM only, deliberately not EXIT: the ordinary paths already decide
+# this for themselves, and an EXIT trap would fight them.
+interrupt_key_file() {
+  trap '' INT TERM
+  if (( PROMPTED_KEY_FILE )) && (( ! KEY_REACHED_DESTINATION )) \
+     && [[ -n "$KEY_FILE" && -f "$KEY_FILE" ]]; then
+    shred_key_file
+    echo "" >&2
+    echo "Interrupted before the key reached any environment. The key file this script" >&2
+    echo "created was shredded; nothing was stored. Re-run to try again." >&2
+  elif (( KEY_REACHED_DESTINATION )); then
+    echo "" >&2
+    echo "Interrupted after the key reached at least one environment. ${KEY_FILE} is left" >&2
+    echo "in place so you can re-run; delete it yourself once every environment is keyed." >&2
+  fi
+  exit 130
+}
+trap interrupt_key_file INT TERM
+
 do_store() {
   local env param kms written=()
 
@@ -311,6 +346,7 @@ do_store() {
       exit 1
     fi
     written+=("$param")
+    KEY_REACHED_DESTINATION=1
     echo "Stored the key in ${param} (SecureString, ${kms})."
   done
 

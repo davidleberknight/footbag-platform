@@ -18,7 +18,7 @@ import { ValidationError } from '../../src/services/serviceErrors';
 let tmp: string;
 
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), 'curated-sidecar-test-'));
+  tmp = mkdtempSync(join(tmpdir(), 'footbag-test-curated-sidecar-'));
 });
 afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });

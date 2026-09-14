@@ -302,7 +302,7 @@ describe('writeGallerySidecarFile / readGallerySidecarFile', () => {
   let tmpRoot: string;
 
   beforeEach(async () => {
-    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'gallery-sidecar-'));
+    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-gallery-sidecar-'));
   });
 
   afterEach(async () => {
@@ -364,7 +364,7 @@ describe('deleteGallerySidecarFile', () => {
   let tmpRoot: string;
 
   beforeEach(async () => {
-    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'gallery-sidecar-del-'));
+    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-gallery-sidecar-del-'));
   });
 
   afterEach(async () => {

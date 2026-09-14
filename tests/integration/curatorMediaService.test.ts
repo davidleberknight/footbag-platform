@@ -622,7 +622,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
   let curatedRoot: string;
 
   beforeEach(async () => {
-    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'curator-edit-sidecar-'));
+    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-curator-edit-sidecar-'));
   });
 
   afterEach(async () => {
@@ -821,7 +821,7 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
   let curatedRoot: string;
 
   beforeEach(async () => {
-    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'curator-del-sidecar-'));
+    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-curator-del-sidecar-'));
   });
 
   afterEach(async () => {
@@ -909,7 +909,7 @@ describe('curatorMediaService.getMediaItem', () => {
   // sidecar contents, so a missing sidecar file is the expected state.
   let curatedRoot: string;
   beforeAll(async () => {
-    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'get-media-item-curated-'));
+    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-get-media-item-curated-'));
   });
   afterAll(async () => {
     await fsp.rm(curatedRoot, { recursive: true, force: true });
@@ -1122,7 +1122,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
   beforeEach(() => {
     // Mirrors repo state: only `freestyle_tricks/` pre-exists. Other
     // categories are created on demand by the auto-mkdir contract.
-    curatedRoot = mkdtempSync(join(tmpdir(), 'url-ref-curated-'));
+    curatedRoot = mkdtempSync(join(tmpdir(), 'footbag-test-url-ref-curated-'));
     mkdirSync(join(curatedRoot, 'freestyle_tricks'), { recursive: true });
   });
 
@@ -1447,7 +1447,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
 
 describe('curatorMediaService.listExistingCategories', () => {
   it('returns sorted list of subdirectory names under the curated root', async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'list-cat-test-'));
+    const tmp = mkdtempSync(join(tmpdir(), 'footbag-test-list-cat-'));
     try {
       mkdirSync(join(tmp, 'freestyle_tricks'));
       mkdirSync(join(tmp, 'demos_2026'));
@@ -1467,7 +1467,7 @@ describe('curatorMediaService.listExistingCategories', () => {
   });
 
   it('returns empty list when the curated root does not exist', async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'list-cat-empty-'));
+    const tmp = mkdtempSync(join(tmpdir(), 'footbag-test-list-cat-empty-'));
     rmSync(tmp, { recursive: true, force: true });
     const svc = svcModule.createCuratorMediaService({
       storage: makeStubStorage(),
@@ -1499,7 +1499,7 @@ describe('curatorMediaService.updateGallery', () => {
     ).run(galleryId, SYSTEM_ID, ts, ts);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-fh-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-fh-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1566,7 +1566,7 @@ describe('curatorMediaService.updateGallery', () => {
     ).run(galleryId, memberId, ts, memberId, ts, memberId);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-m-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-m-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1615,7 +1615,7 @@ describe('curatorMediaService.updateGallery', () => {
     ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-authz-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-authz-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1647,7 +1647,7 @@ describe('curatorMediaService.updateGallery', () => {
     ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-admin-mod-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-admin-mod-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1672,7 +1672,7 @@ describe('curatorMediaService.updateGallery', () => {
   });
 
   it('rejects unknown galleryId with NotFoundError', async () => {
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-404-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-404-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1700,7 +1700,7 @@ describe('curatorMediaService.createGallery', () => {
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-m-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-create-m-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1730,7 +1730,7 @@ describe('curatorMediaService.createGallery', () => {
 
   it('FH-owned: requires actorIsAdmin, requires suggestedId, writes sidecar', async () => {
     const galleryId = 'gallery_create_fh';
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-create-fh-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1777,7 +1777,7 @@ describe('curatorMediaService.createGallery', () => {
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-deny-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-create-fh-deny-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1807,7 +1807,7 @@ describe('curatorMediaService.createGallery', () => {
     }
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-forge-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-forge-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1826,7 +1826,7 @@ describe('curatorMediaService.createGallery', () => {
   });
 
   it('rejects FH-owned creation without suggestedId', async () => {
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-noid-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-create-fh-noid-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1853,7 +1853,7 @@ describe('curatorMediaService.createGallery', () => {
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-validate-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-validate-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1886,7 +1886,7 @@ describe('curatorMediaService.createGallery', () => {
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-conflict-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-conflict-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1923,7 +1923,7 @@ describe('curatorMediaService.createGallery', () => {
     insertMemberTierGrant(db, { member_id: ownerB, new_tier_status: 'tier1' });
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-slug-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-slug-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -1967,7 +1967,7 @@ describe('curatorMediaService.createGallery', () => {
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-noslug-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-noslug-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -2006,7 +2006,7 @@ describe('curatorMediaService.deleteGallery', () => {
     ).run(galleryId, tagId, ts);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-fh-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-fh-'));
     // Pre-create a sidecar to verify it gets unlinked.
     await fsp.mkdir(path.join(curatedRoot, 'galleries'), { recursive: true });
     await fsp.writeFile(path.join(curatedRoot, 'galleries', 'del_fh.json'), '{}');
@@ -2043,7 +2043,7 @@ describe('curatorMediaService.deleteGallery', () => {
     ).run(galleryId, memberId, ts, memberId, ts, memberId);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-m-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-m-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -2063,7 +2063,7 @@ describe('curatorMediaService.deleteGallery', () => {
   });
 
   it('rejects unknown gallery with NotFoundError', async () => {
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-404-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-404-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),
@@ -2095,7 +2095,7 @@ describe('curatorMediaService.deleteGallery', () => {
     ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
     db.close();
 
-    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-authz-'));
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-authz-'));
     try {
       const svc = svcModule.createCuratorMediaService({
         storage: makeStubStorage(),

@@ -12,7 +12,7 @@ import path from 'path';
 import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-avatar-${Date.now()}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-'));
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-avatar-'));
 
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).

@@ -59,7 +59,7 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 ## Enforcement
 
-`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k`, `sudo -S` feeding a stdin-consuming file writer, any `ssh -t` (or the long `RequestTTY` spelling), and a prompt-style read in a script carrying no terminal guard. Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy.
+`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard. The prompt and guard checks read a file's code only: comments, heredoc bodies and the inside of quoted strings are stripped first, so a file cannot describe a guard it does not have. Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy.
 
 Three properties of that gate are load-bearing, and each was absent once.
 

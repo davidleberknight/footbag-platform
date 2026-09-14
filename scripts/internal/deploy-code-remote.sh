@@ -1093,8 +1093,8 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET_PREVIOUS stripe_webhook_secret_previous
 fi
 
-# Update FOOTBAG_DEV_INITIAL_ADMIN_EMAILS from the workstation's
-# .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
+# Update FOOTBAG_DEV_INITIAL_ADMIN_EMAILS from the allowlist in the operator's
+# private operations checkout (passed via cat-pipe). Empty value clears
 # the var so removing an email from the file and redeploying correctly drops
 # admin from a future registration.
 #
@@ -1109,7 +1109,8 @@ fi
 if [[ -n "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" && "$FOOTBAG_ENV" != "development" && "$FOOTBAG_ENV" != "staging" ]]; then
   echo "ERROR: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev/staging-only but was passed with FOOTBAG_ENV=${FOOTBAG_ENV:-<unset>}." >&2
   echo "       Production first-admin uses a separate SSM-token claim path that requires no deploy-time env injection." >&2
-  echo "       Either empty .local/initial-admins.txt on this workstation before redeploying," >&2
+  echo "       Either empty footbag_private_repo/private_data/operator-local/initial-admins.txt" >&2
+  echo "       on this workstation before redeploying," >&2
   echo "       or use a workstation that does not have the file present." >&2
   exit 1
 fi

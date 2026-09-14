@@ -201,7 +201,7 @@ function b64urlDecodeJson(seg: string): Record<string, unknown> {
 describe('adapter-parity: JwtSigningAdapter (Local vs. KMS wire format)', () => {
   let tmpDir: string;
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-parity-'));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-jwt-parity-'));
   });
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
@@ -909,7 +909,7 @@ describe('adapter-parity: HttpReachabilityAdapter (Stub vs. Live vs. Disabled)',
 describe('adapter-parity: MediaStorageAdapter contract', () => {
   let tmpDir: string;
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'photo-parity-'));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-photo-parity-'));
   });
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
@@ -969,8 +969,8 @@ describe('local adapter: composite curated fallback lane', () => {
   let baseDir: string;
   let curatedDir: string;
   beforeEach(() => {
-    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-base-'));
-    curatedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-curated-'));
+    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-lane-base-'));
+    curatedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-lane-curated-'));
   });
   afterEach(() => {
     fs.rmSync(baseDir, { recursive: true, force: true });
@@ -1372,7 +1372,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
 
 describe('adapter-parity: VideoTranscodingAdapter contract', () => {
   function makeTinyMp4(): Buffer {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'video-parity-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-video-parity-'));
     const outPath = path.join(tmpDir, 'tiny.mp4');
     try {
       const r = spawnSync(

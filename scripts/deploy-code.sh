@@ -100,6 +100,9 @@ source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
 
+# shellcheck source=lib/initial-admins.sh
+source "${REPO_ROOT}/scripts/lib/initial-admins.sh"
+
 # SSH connection options. The host is verified against the operator's pinned
 # host-key file and an unrecognized key fails the deploy, which matters here
 # because the sudo password goes out as line one of the SSH stream. See
@@ -332,35 +335,12 @@ fi
 # root. Argv on every hop stays free of secrets. Layer DiffIDs are
 # space-separated sha256:[0-9a-f]{64} tokens and contain no shell metacharacters.
 
-# Parse .local/initial-admins.txt into the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV
-# env var for the permanent dev/staging register-allowlist bootstrap; the remote
-# half refuses to write it on production. Same parsing rules as
-# src/dev-bootstrap/runtime.ts: strip '#' comments, trim, lowercase, skip blank
-# lines. Empty/missing file produces an empty value, which clears the env var on
-# staging so a stale list cannot persist after the operator empties the file.
-#
-# Not read at all when the target is production. Production has its own
-# first-admin path, a single-use SSM token claimed after the deploy, so the
-# value has no legitimate use there. Reading it anyway made a production deploy
-# depend on whether this particular workstation happens to hold the file: the
-# remote half refused, correctly, but only after the release had been promoted
-# and the host env file rewritten, leaving the declared state and the running
-# state disagreeing. The refusal stays as the backstop; the wrapper simply stops
-# sending something production must never accept.
-INITIAL_ADMIN_EMAILS_CSV=""
-LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
-if [[ "$REMOTE" == "footbag-production" ]]; then
-  LOCAL_ADMIN_FILE=""
-fi
-if [[ -n "$LOCAL_ADMIN_FILE" && -f "$LOCAL_ADMIN_FILE" ]]; then
-  INITIAL_ADMIN_EMAILS_CSV=$(awk '
-    {
-      sub(/#.*$/, "")
-      gsub(/^[ \t]+|[ \t]+$/, "")
-      if (length($0) > 0) print tolower($0)
-    }
-  ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
-fi
+# The FOOTBAG_DEV_INITIAL_ADMIN_EMAILS value for the permanent dev/staging
+# register-allowlist bootstrap. The shared library owns the path, the parsing
+# rules and the production refusal; both deploy wrappers reach it the same way
+# so the two cannot drift apart. An empty value is a valid answer and clears the
+# env var on staging, so a stale list cannot survive the operator emptying it.
+INITIAL_ADMIN_EMAILS_CSV="$(resolve_initial_admin_emails_csv "$REPO_ROOT" "$REMOTE")"
 
 # Deploy provenance. This deploy rsyncs the local working tree, not a tagged
 # artifact, so the commit alone does not describe what is running: uncommitted

@@ -92,7 +92,7 @@ function writtenRows(key: string = PAYMENTS_KEY): { value_json: string; reason_t
 }
 
 beforeEach(() => {
-  workDir = mkdtempSync(join(tmpdir(), 'footbag-pause-'));
+  workDir = mkdtempSync(join(tmpdir(), 'footbag-test-pause-'));
   dbFile = join(workDir, 'footbag.db');
   const db = new BetterSqlite3(dbFile);
   db.exec(readFileSync(SCHEMA, 'utf8'));

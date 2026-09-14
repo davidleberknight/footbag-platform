@@ -14,7 +14,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-curator-async-${Date.now()}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-async-'));
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-async-'));
 const TEST_SECRET = 'a'.repeat(48);
 
 process.env.FOOTBAG_DB_PATH    = TEST_DB_PATH;

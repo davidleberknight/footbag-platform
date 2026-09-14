@@ -19,11 +19,11 @@ import path from 'path';
 import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-media-${Date.now()}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-admin-list-'));
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-admin-list-'));
 // Curator photo + video uploads write to /curated/{category}/ in local-adapter
 // mode. Redirect that write to a temp directory so tests don't pollute the
 // repo's real /curated/.
-const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-curator-media-curated-'));
+const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admin-curator-media-curated-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
@@ -436,7 +436,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
   let restoreFileLevelCuratedRoot: () => void;
 
   beforeAll(async () => {
-    curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-curator-routes-curated-'));
+    curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admin-curator-routes-curated-'));
     const svcMod = await import('../../src/services/curatorMediaService');
     svcMod.setCuratedRootDirForTests(curatedRoot);
     // Restore the file-level override (not null) so subsequent describes

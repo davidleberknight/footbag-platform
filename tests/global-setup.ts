@@ -1,8 +1,9 @@
 /**
  * Vitest globalSetup / globalTeardown.
  *
- * Collects abandoned `footbag-test-*` and `footbag-e2e-*` artifacts from
- * `os.tmpdir()` at session boundaries. Per-test `afterAll(() =>
+ * Collects this project's abandoned artifacts from `os.tmpdir()` at session
+ * boundaries: the test databases, the browser stack's scratch, and the scratch
+ * of the operator scripts the companion suites drive. Per-test `afterAll(() =>
  * cleanupTestDb(dbPath))` (from tests/fixtures/testDb.ts) and the
  * Playwright start-stack teardown handle the happy paths; this hook is
  * the safety net for worker timeouts / OOM / SIGKILL / WAL-checkpoint
@@ -29,7 +30,23 @@ import { readdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PREFIXES = ['footbag-test-', 'footbag-e2e-'];
+// Enumerated rather than "anything the project named", because a sweep that
+// owned the whole `footbag-` namespace in a shared directory would reach files
+// it was never told about. What the list has to cover is everything a run
+// abandons, and for a long time it did not: the two largest accumulations here
+// were not test suites at all but the arming script's host-env scratch, whose
+// own shred runs on a trap that a SIGKILL cannot, and the load check's report
+// directory, which nothing removed. Both are driven by companion suites, so
+// both are this sweep's business.
+//
+// New test scratch reaches `footbag-test-` through `tests/fixtures/scratchDir.ts`
+// rather than by spelling a prefix, so this list does not grow per suite.
+const PREFIXES = [
+  'footbag-test-',
+  'footbag-e2e-',
+  'footbag-arming-env',
+  'footbag-loadcheck',
+];
 
 export const MIN_AGE_MS = 2 * 60 * 60 * 1000;
 

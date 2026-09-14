@@ -69,4 +69,19 @@ describe('transient test-artifact sweep', () => {
     sweepFootbagTransientArtifacts();
     expect(existsSync(unrelated)).toBe(true);
   });
+
+  it('covers the scratch of the operator scripts the companion suites drive', () => {
+    // These leak in the one way a trap cannot cover. The arming script shreds
+    // its own host-env scratch on EXIT, INT and TERM, but the companion suites
+    // bound a synchronous spawn with SIGKILL, which runs no trap; and the load
+    // check's report directory is deliberately left behind for the operator to
+    // read. Both accumulated in the hundreds before this sweep covered them.
+    const staleArming = makeArtifact(`footbag-arming-env.${process.pid}sw`, MIN_AGE_MS * 2);
+    const freshArming = makeArtifact(`footbag-arming-env.${process.pid}fr`, 0);
+    const staleLoad = makeArtifact(`footbag-loadcheck-${process.pid}-sw`, MIN_AGE_MS * 2);
+    sweepFootbagTransientArtifacts();
+    expect(existsSync(staleArming)).toBe(false);
+    expect(existsSync(staleLoad)).toBe(false);
+    expect(existsSync(freshArming)).toBe(true);
+  });
 });

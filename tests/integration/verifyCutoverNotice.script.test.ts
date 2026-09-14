@@ -29,7 +29,7 @@ let workDir: string;
 let binDir: string;
 
 beforeEach(() => {
-  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cutover-notice-'));
+  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-cutover-notice-'));
   binDir = path.join(workDir, 'bin');
   fs.mkdirSync(binDir);
 });

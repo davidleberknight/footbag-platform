@@ -8,6 +8,7 @@ import {
   SignCommand,
   type KMSClient,
 } from '@aws-sdk/client-kms';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import {
   createLocalJwtAdapter,
   createKmsJwtAdapter,
@@ -17,11 +18,11 @@ import {
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-test-'));
+  tmpDir = createScratchDir('jwt');
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeScratch(tmpDir);
 });
 
 function makeLocalJwtAdapter(kid = 'test-kid'): JwtSigningAdapter {

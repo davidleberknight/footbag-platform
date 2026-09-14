@@ -236,6 +236,10 @@ BASE_URL="${BASE_URL%/}"
 DISTRIBUTION_ID="$("$TERRAFORM_BIN" -chdir="${REPO_ROOT}/terraform/staging" \
   output -raw cloudfront_distribution_id 2>/dev/null || true)"
 
+# The report outlives the run by design, because the operator reads it
+# afterwards, so it is not on the trap. It is reclaimed by the session sweep in
+# tests/global-setup.ts instead, which skips anything touched in the last two
+# hours: long enough to read, short enough that the reports do not accumulate.
 REPORT_DIR="$(mktemp -d -t footbag-loadcheck-XXXXXX)"
 
 # Reads back exactly what the alarm reads: OriginLatency at the alarm's p90,

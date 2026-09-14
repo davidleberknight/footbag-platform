@@ -19,7 +19,7 @@ import path from 'path';
 import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-mu-${Date.now()}-${process.pid}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-mu-media-'));
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-mu-media-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;

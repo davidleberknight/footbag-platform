@@ -409,6 +409,38 @@ for _machine_var in HOME FOOTBAG_ENV FOOTBAG_MEDIA_DIR FOOTBAG_CURATED_MEDIA_DIR
 done
 unset _machine_var
 
+# Rule: every temporary path a test builds carries the swept prefix.
+# Reason: the session sweep in tests/global-setup.ts is what reclaims scratch a
+# worker timeout, an out-of-memory kill or a SIGKILL leaves behind, and it
+# collects by prefix. A suite that picks its own name is invisible to it, and
+# what accumulates is invisible too until someone looks at the filesystem: 417
+# abandoned directories and a private key, once, and nearly four hundred entries
+# again before this check existed. tests/fixtures/scratchDir.ts builds a
+# conforming path for new code; this check is what keeps the next suite from
+# spelling its own.
+echo "[conventions] check: temp paths in tests carry the swept prefix"
+# What this reaches, stated plainly so nobody trusts it further than it goes: a
+# temp path built from `tmpdir()`. A hardcoded `/tmp/...` literal is not matched,
+# and that is deliberate rather than an oversight. Matching one fires on every
+# string that merely names a path without creating anything, and the tree has
+# those: a pure argument-builder is tested with `/tmp/in.mp4`. A check that
+# reports those gets its findings waved through, which costs more than the case
+# it would catch. The convention is still the convention; this catches the way
+# it actually gets broken.
+scratch_hits=$(grep -rnE --include='*.ts' "(tmpdir\(\),[[:space:]]*[\`'\"])" tests/ \
+  | grep -vE "[\`'\"]footbag-(test|e2e)-" \
+  | grep -v '^tests/fixtures/scratchDir\.ts:' \
+  | grep -v '^tests/global-setup\.ts:' \
+  | grep -v '^tests/unit/global-setup-sweep\.test\.ts:' \
+  || true)
+if [ -n "$scratch_hits" ]; then
+  echo "$scratch_hits" >&2
+  echo "  FAIL: a temp path a test builds must start with the swept 'footbag-test-' prefix," >&2
+  echo "        or the session sweep in tests/global-setup.ts never reclaims what a crash" >&2
+  echo "        strands. Use tests/fixtures/scratchDir.ts, or spell the prefix." >&2
+  violations=$((violations + 1))
+fi
+
 echo "[conventions] check: synchronous spawns in tests carry the shared bound"
 spawn_files=$(grep -rlE --include='*.ts' '(spawnSync|execFileSync|execSync)\(' tests/ \
   | grep -v '^tests/fixtures/spawnGuard\.ts$' \

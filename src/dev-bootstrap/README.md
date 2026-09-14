@@ -21,10 +21,14 @@ verifies their email (the SES stub captures the link; read it at `/dev/outbox`)
 before the account can log in.
 
 Allowlist source:
-- Local dev: the gitignored `.local/initial-admins.txt` file (one email per line;
-  `#` starts a comment), read from the process working directory.
+- Local dev: `footbag_private_repo/private_data/operator-local/initial-admins.txt`,
+  one email per line, `#` starts a comment, read from the process working
+  directory through the canonical repo-root symlink. It lives in the private
+  operations checkout because it carries maintainer email addresses; a developer
+  without that checkout gets an empty allowlist, which is a supported
+  configuration rather than an error.
 - Staging: the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var, which the deploy
-  pipeline parses from the same workstation file and writes to `/srv/footbag/env`.
+  pipeline parses from the same file and writes to `/srv/footbag/env`.
 
 ## Files
 
