@@ -12,7 +12,9 @@
  * mints the three CloudFront-* cookies the archive edge validates, scoped by
  * a custom policy to the archive base URL with expiry equal to the session
  * cookie's, so archive access and main-site access share one staleness
- * boundary. Clearing removes ALL FOUR with matching attributes: a signed-out
+ * boundary. That shared lifetime is administrator-configurable and is read here
+ * once per issue, from the same place the signed session token reads it.
+ * Clearing removes ALL FOUR with matching attributes: a signed-out
  * member on a shared machine must not retain working archive access for the
  * rest of the policy lifetime.
  *
@@ -23,10 +25,8 @@
  * depends on the transport of the host presenting them rather than on this one.
  */
 import { Request, Response } from 'express';
-import {
-  SESSION_COOKIE_NAME,
-  SESSION_COOKIE_MAX_AGE_MS,
-} from '../middleware/auth';
+import { SESSION_COOKIE_NAME } from '../middleware/auth';
+import { readSessionTtlSeconds } from '../services/configReader';
 import { config } from '../config/env';
 import { getCloudFrontSigningAdapter } from '../adapters/cloudFrontSigningAdapter';
 
@@ -48,6 +48,10 @@ export function issueSessionCookie(
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('Pragma', 'no-cache');
   const secure = isSecureRequest(req);
+  // Read once and reuse for all four cookies: two reads either side of a
+  // configuration change would issue a session and an archive grant that expire
+  // at different moments, which is the one thing this helper exists to prevent.
+  const maxAgeMs = readSessionTtlSeconds() * 1000;
   // Secure is unconditional and the path is stated rather than left to the
   // framework default, because a browser accepts the `__Host-` name only on a
   // Secure cookie whose path is exactly "/". Unconditional also means no signal
@@ -56,14 +60,14 @@ export function issueSessionCookie(
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: SESSION_COOKIE_MAX_AGE_MS,
+    maxAge: maxAgeMs,
     secure: true,
   });
 
   const signer = getCloudFrontSigningAdapter();
   if (signer && config.archiveUrl) {
     const expiresEpochSeconds = Math.floor(
-      (Date.now() + SESSION_COOKIE_MAX_AGE_MS) / 1000,
+      (Date.now() + maxAgeMs) / 1000,
     );
     const values = signer.signArchiveCookies(
       `${config.archiveUrl}/*`,
@@ -72,7 +76,7 @@ export function issueSessionCookie(
     const archiveOpts = {
       httpOnly: true,
       sameSite: 'lax' as const,
-      maxAge: SESSION_COOKIE_MAX_AGE_MS,
+      maxAge: maxAgeMs,
       secure,
       ...(config.archiveCookieDomain ? { domain: config.archiveCookieDomain } : {}),
     };

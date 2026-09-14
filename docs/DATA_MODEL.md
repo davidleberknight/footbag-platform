@@ -1232,8 +1232,6 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `media_edit_rate_limit_per_hour` | `15` | Max edits a member may make to their own media per hour |
 | `gallery_write_rate_limit_per_hour` | `30` | Max gallery creates, renames and deletes per member per hour |
 | `group_email_rate_limit_per_hour` | `30` | Maximum messages one member may post to one group per hour; an abuse ceiling set well above what a live debate needs |
-| `cross_region_backup_retention_days` | `90` | Object Lock retention (days) for cross-region DR S3 bucket |
-| `continuous_backup_interval_minutes` | `5` | Interval (minutes) between continuous SQLite backup runs |
 | `tier1_price_cents` | `1000` | Tier 1 IFPA Member dues ($10.00 USD default; stored as integer cents) |
 | `tier2_price_cents` | `5000` | Tier 2 IFPA Organizer Member dues ($50.00 USD default; stored as integer cents) |
 | `auto_link_staged_expiry_days` | `365` | Days an open staged auto-link candidate stays offerable before the expiry sweep resolves it |

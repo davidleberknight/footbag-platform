@@ -3345,8 +3345,6 @@ VALUES
 --   reconciliation_window_days      Lookback window the nightly reconciliation compares
 --   reconciliation_grace_minutes    Age a record must reach before reconciliation judges it
 --   reconciliation_summary_interval_days Cadence for reconciliation digest email
---   cross_region_backup_retention_days Object Lock retention for DR bucket
---   continuous_backup_interval_minutes Interval between SQLite backup runs
 --   outbox_retry_base_seconds       Base interval (seconds) for send-failure exponential backoff
 --   outbox_throttle_retry_seconds   Retry delay (seconds) when the provider throttles; consumes no attempt
 --   media_edit_rate_limit_per_hour  Max edits to a member's own media per hour
@@ -3944,24 +3942,6 @@ VALUES
    'work_queue_resolve_rate_limit_per_hour', '120',
    '2000-01-01T00:00:00.000Z',
    'Max work-queue resolutions per admin per hour (default: 120).',
-   NULL
-  ),
-
-  (
-   'seed-cross-region-backup-retention-days',
-   '2000-01-01T00:00:00.000Z',
-   'cross_region_backup_retention_days', '90',
-   '2000-01-01T00:00:00.000Z',
-   'Object Lock retention window in days for cross-region disaster-recovery S3 bucket (default: 90).',
-   NULL
-  ),
-
-  (
-   'seed-continuous-backup-interval-minutes',
-   '2000-01-01T00:00:00.000Z',
-   'continuous_backup_interval_minutes', '5',
-   '2000-01-01T00:00:00.000Z',
-   'Interval in minutes between continuous SQLite backup runs (default: 5).',
    NULL
   );
 

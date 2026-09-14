@@ -3640,8 +3640,6 @@ Seed these defaults into the database-backed configuration store during initial 
 - `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
 - `admin_inactivity_alert_days = 180 days` (days without a sign-in before an administrator is surfaced for recruitment follow-up, per `SYS_Detect_Admin_Loss`; valid `>= 1`)
 - `work_queue_resolve_rate_limit_per_hour = 120` (maximum work-queue resolutions per admin per hour)
-- `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
-- `continuous_backup_interval_minutes = 5` (interval in minutes between continuous SQLite backup runs)
 - `system_health_window_hours = 24` (the recent window, in hours, that the system-health view aggregates outbound-email and scheduled-job counts over, per `A_View_System_Health`; valid `1`–`8760`)
 
 ## 7.8 Monitoring and Audit
@@ -4104,7 +4102,7 @@ Success Criteria:
 
 ### SYS_Continuous_Database_Backup
 
-Access: This process runs under the system role on a configurable interval (default: every 5 minutes; see `continuous_backup_interval_minutes`).
+Access: This process runs under the system role on a fixed interval set by the host timer that invokes it (currently every 5 minutes). The cadence is operator configuration rather than an administrator-configurable parameter, because the timer is on the host and the application neither reads nor sets it.
 
 Story: The system continuously backs up the SQLite database to the primary S3 bucket so that recovery is possible with minimal data loss from common issues like corruption, bugs, or accidental deletion. This is the most frequently used recovery mechanism, and is separate from the continuous cross-region replication that copies those snapshots to a second region.
 

@@ -32,3 +32,18 @@ export function readHealthWindowHours(): number {
   const configured = readIntConfig('system_health_window_hours', 24);
   return Math.min(MAX_WINDOW_HOURS, Math.max(1, configured));
 }
+
+/**
+ * The session lifetime, in seconds. Every consumer of the session window reads
+ * it here rather than holding its own constant: the signed session token, the
+ * browser cookie that carries it, and the signed archive cookies issued beside
+ * it all have to expire together, because archive access is granted by the main
+ * site session and an archive cookie outliving the session would keep the
+ * archive open to someone who has signed out.
+ *
+ * Read per issue rather than at module load, so an administrator changing the
+ * value reaches the next sign-in without a redeploy.
+ */
+export function readSessionTtlSeconds(): number {
+  return readIntConfig('jwt_expiry_hours', 24) * 3600;
+}

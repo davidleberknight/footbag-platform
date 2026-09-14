@@ -26,8 +26,6 @@ import { memberOnboardingService } from '../services/memberOnboardingService';
  */
 export const SESSION_COOKIE_NAME = '__Host-footbag_session';
 
-export const SESSION_COOKIE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
 export interface SessionUser {
   userId: string;
   slug: string;

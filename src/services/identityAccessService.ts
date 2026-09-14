@@ -622,7 +622,8 @@ async function verifyMemberCredentials(
 }
 
 /**
- * Attempt a login: rate-limit by normalized email + client IP, then delegate
+ * Attempt a login: rate-limit by normalized email + client IP, with a lockout
+ * that outlasts the counting window once the ceiling is reached, then delegate
  * to credential verification. Throws RateLimitedError when the bucket is
  * exceeded; returns null on invalid credentials.
  */
@@ -634,8 +635,12 @@ async function attemptLogin(
   const normalized = normalizeEmail(email);
   const maxAttempts = readIntConfig('login_rate_limit_max_attempts', 10);
   const windowMinutes = readIntConfig('login_rate_limit_window_minutes', 15);
+  // The lockout that follows the ceiling, which outlasts the window that counted
+  // up to it. Without it the refusal lasts only the window's remainder, so an
+  // attacker who exhausts the attempts late in a window waits seconds.
+  const cooldownMinutes = readIntConfig('login_cooldown_minutes', 30);
   // Per (email, IP) bucket: throttles one attacker hammering one account.
-  const rl = rateLimitHit(`login:${normalized}:${ip}`, maxAttempts, windowMinutes);
+  const rl = rateLimitHit(`login:${normalized}:${ip}`, maxAttempts, windowMinutes, cooldownMinutes);
   // Per-account bucket independent of IP: caps distributed credential-stuffing of
   // a single account from many IPs, which the per-IP bucket cannot see. Always
   // hit so the count accrues on every attempt regardless of the per-IP outcome.

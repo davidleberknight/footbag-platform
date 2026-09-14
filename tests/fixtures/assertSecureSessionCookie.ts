@@ -16,12 +16,12 @@
  * from the HTTPS requirement for Secure cookies, so this holds in local
  * development too.
  *
- * Max-Age value mirrors `SESSION_COOKIE_MAX_AGE_MS` (24h) in
- * `src/middleware/auth.ts` — kept inline rather than imported so this
- * fixture stays side-effect free and does not pull `src/middleware/auth.ts`
- * (and its transitive db.ts open) into a test file's import graph before
- * `setTestEnv` runs. If the production value changes, this assertion fails
- * and the literal here is updated.
+ * Max-Age value mirrors the seeded default of the configured session lifetime
+ * (24h) — kept inline rather than read from `src/services/configReader.ts` so
+ * this fixture stays side-effect free and does not pull that module (and its
+ * transitive db.ts open) into a test file's import graph before `setTestEnv`
+ * runs. Suites that pin a non-default lifetime assert it themselves; if the
+ * seeded default changes, this assertion fails and the literal here is updated.
  */
 import { expect } from 'vitest';
 

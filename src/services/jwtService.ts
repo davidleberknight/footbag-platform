@@ -1,20 +1,18 @@
 /**
- * JWT service layer. Holds pure domain functions related to session JWTs.
- * Adapter interface and implementations live in `src/adapters/jwtSigningAdapter.ts`.
+ * JWT service layer. Holds the domain functions related to session JWTs, and
+ * owns the session-lifetime policy the adapter is handed; the adapter itself
+ * stays a pure signer. Adapter interface and implementations live in
+ * `src/adapters/jwtSigningAdapter.ts`.
  */
 import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
+import { readSessionTtlSeconds } from './configReader';
 
 /**
- * Session JWT default TTL in seconds. Service-layer policy owned here so the
- * adapter stays a pure signer.
- */
-export const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
-
-/**
- * Mints a session JWT for a signed-in member. Pure domain logic: takes
- * the member's identity fields and returns a JWT string. No HTTP
- * concerns (no cookies, no request/response). Controllers call this
- * and then set the cookie themselves.
+ * Mints a session JWT for a signed-in member: takes the member's identity
+ * fields and returns a JWT string, stamped with the configured session
+ * lifetime. No HTTP concerns (no cookies, no request/response). Controllers
+ * call this and then set the cookie themselves, with the same lifetime read
+ * from the same place.
  */
 export async function createSessionJwt(
   memberId: string,
@@ -25,5 +23,5 @@ export async function createSessionJwt(
     sub: memberId,
     role,
     passwordVersion,
-  }, DEFAULT_TTL_SECONDS);
+  }, readSessionTtlSeconds());
 }
