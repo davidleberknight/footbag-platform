@@ -18,10 +18,12 @@
  *   - Purge eligibility orchestration (OperationsPlatformService decides which
  *     members qualify and calls into the row-level primitives)
  *
- * The entry points that set deleted_at / is_deceased (member-facing deletion,
- * admin deceased marking) and member data export are separate surfaces, not
- * part of this service; it owns only the row-level purge primitives those
- * surfaces and the purge-eligibility scan invoke.
+ * The entry points that set deleted_at / is_deceased (AccountDeletionService for
+ * the member's own deletion, DeceasedMarkingService for an administrator
+ * recording a death) and member data export are separate surfaces, not part of
+ * this service; it owns only the row-level purge primitives those surfaces and
+ * the purge-eligibility scan invoke. It does shape their `/members/*` pages,
+ * because every page under that prefix is shaped here.
  *
  * Required patterns:
  *   - Member search uses the `members_searchable` view; never add WHERE clauses
@@ -110,7 +112,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
   assembleBirthDate,
@@ -406,6 +408,58 @@ export interface SearchBlockView {
   rateLimited: boolean;
   /** True when a search was performed (query was non-empty). */
   hasQuery: boolean;
+}
+
+/** Why a deletion attempt came back to the confirmation screen. */
+export type AccountDeletionNotice = 'administrator' | 'storage_failed' | 'already_deleted';
+
+// What the member reads when a deletion attempt does not go through. Each says
+// what stopped it and what to do next, because a refusal that names neither
+// reads as the site being broken.
+const ACCOUNT_DELETION_NOTICES: Record<AccountDeletionNotice, string> = {
+  administrator:
+    'Your account still holds the administrator role, and an administrator cannot remove their own role. '
+    + 'Ask another administrator to remove it, then delete your account.',
+  storage_failed:
+    'Some of your photos and videos could not be removed, so your account has not been deleted and you are still signed in. '
+    + 'Anything that was removed before the problem is permanently gone and does not come back. Please try again to finish.',
+  already_deleted:
+    'This account is already scheduled for deletion.',
+};
+
+/** The account-deletion confirmation screen. */
+export interface AccountDeletionContent {
+  memberKey: string;
+  formAction: string;
+  cancelHref: string;
+  /** How long the anonymising purge takes to reach the member's personal
+   *  details, which is what the screen tells them. It is retention information,
+   *  not a window to come back in: the site offers no restore. */
+  graceDays: number;
+  mediaCount: number;
+  hasMedia: boolean;
+  /** A gift still being given, which the member chooses to keep or end here. */
+  hasRecurringDonation: boolean;
+  /** An administrator is refused, and told where the role is handed over. */
+  isAdministrator: boolean;
+  adminRolesHref: string;
+  errorMessage: string | null;
+}
+
+/** The page a member lands on after asking for a copy of their data. */
+export interface DataExportRequestedContent {
+  loginEmail: string;
+  ttlHours: number;
+  profileHref: string;
+}
+
+/** The page a member lands on once the deletion has gone through. */
+export interface AccountDeletionDoneContent {
+  /** How long the anonymising purge takes to reach them, which is retention
+   *  information rather than a window to come back in: the site offers no
+   *  restore, and a member who needs one asks IFPA outside the platform. */
+  graceDays: number;
+  homeHref: string;
 }
 
 export interface ProfileEditContent extends OwnProfileContent, LocationPickers {
@@ -1159,6 +1213,81 @@ export const memberService = {
         media:          viewer.authenticated
           ? buildMemberMediaView(row.id, slug)
           : { galleries: [], allMediaHref: null, hasContent: false },
+      },
+    };
+  },
+
+  /**
+   * The confirmation a member reads before deleting their own account.
+   *
+   * It exists to make the irreversible parts visible before the fact: the media
+   * goes now and restoring does not bring it back, and a recurring gift is a
+   * separate decision the member makes here rather than discovering later. An
+   * administrator sees why they are refused and where the role is handed over,
+   * instead of a control that fails when they use it.
+   */
+  getAccountDeletionPage(
+    slug: string,
+    opts: { notice?: AccountDeletionNotice } = {},
+  ): PageViewModel<AccountDeletionContent> {
+    const row = fetchMemberBySlug(slug);
+    const isAdministrator = row.is_admin === 1;
+    const mediaCount = isAdministrator
+      ? 0
+      : account.listOwnedMediaForDeletion.all(row.id).length;
+    const hasRecurringDonation = isAdministrator
+      ? false
+      : recurringDonationSubscriptions.listActiveByMember.all(row.id).length > 0;
+    return {
+      seo:  { title: 'Delete Account', noindex: true },
+      page: { sectionKey: 'members', pageKey: 'member_delete_account', title: 'Delete Account' },
+      navigation: {
+        contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
+      },
+      content: {
+        memberKey:      slug,
+        formAction:     `/members/${slug}/delete`,
+        cancelHref:     `/members/${slug}`,
+        graceDays:      readIntConfig('member_cleanup_grace_days', 90),
+        mediaCount,
+        hasMedia:       mediaCount > 0,
+        hasRecurringDonation,
+        isAdministrator,
+        adminRolesHref: '/admin/admin-roles',
+        errorMessage:   opts.notice ? ACCOUNT_DELETION_NOTICES[opts.notice] : null,
+      },
+    };
+  },
+
+  /**
+   * What a member sees immediately after deleting their account. It is a page
+   * rather than a redirect because every member surface answers not-found for
+   * them from this moment, so there is nowhere to send them.
+   */
+  getAccountDeletionDonePage(graceDays: number): PageViewModel<AccountDeletionDoneContent> {
+    return {
+      seo:  { title: 'Account Deleted', noindex: true },
+      page: { sectionKey: 'members', pageKey: 'member_delete_account_done', title: 'Account Deleted' },
+      content: { graceDays, homeHref: '/' },
+    };
+  },
+
+  /** Shown after a member asks for their data. It says where the file went,
+   *  because the link goes to their mailbox rather than to this browser, and a
+   *  page that simply returned them to their profile would leave them waiting
+   *  for a download that is never going to start here. */
+  getDataExportRequestedPage(slug: string): PageViewModel<DataExportRequestedContent> {
+    const row = fetchMemberBySlug(slug);
+    return {
+      seo:  { title: 'Data Export Requested', noindex: true },
+      page: { sectionKey: 'members', pageKey: 'member_data_export_requested', title: 'Data Export Requested' },
+      navigation: {
+        contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
+      },
+      content: {
+        loginEmail: row.login_email,
+        ttlHours:   readIntConfig('data_export_link_expiry_hours', 72),
+        profileHref: `/members/${slug}`,
       },
     };
   },

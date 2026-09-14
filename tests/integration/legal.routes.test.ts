@@ -17,6 +17,7 @@
  *   - footer legal-link row is present on the page layout
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { loadRouteTable } from '../fixtures/routeTable';
 import request from 'supertest';
 
 import {
@@ -104,6 +105,23 @@ describe('GET /legal', () => {
     expect(res.text).toMatch(/session cookie/i);
     expect(res.text).toMatch(/members-only archive[^.]*access cookies/i);
     expect(res.text).toMatch(/one-time confirmation message/i);
+  });
+
+  it('promises self-service export and deletion, and the member tools the promise names exist', async () => {
+    const app = createApp();
+    const res = await request(app).get('/legal');
+    // The published page tells every visitor they can do these two things from
+    // their account tools. It said so for a long time while both controls were
+    // inert text on the profile, and nothing here noticed. The sentence and the
+    // routes behind it are pinned together, so removing either fails: a promise
+    // on a public legal page is only as true as the surface that answers it.
+    expect(res.text).toContain('download a complete copy of your personal data or delete your account at any time');
+
+    const routes = await loadRouteTable();
+    const deployed = new Set(routes.allRoutes.map((r) => `${r.method.toUpperCase()} ${r.path}`));
+    expect(deployed.has('POST /members/:memberKey/download')).toBe(true);
+    expect(deployed.has('GET /members/:memberKey/delete')).toBe(true);
+    expect(deployed.has('POST /members/:memberKey/delete')).toBe(true);
   });
 
   it('discloses the human-verification check and the pages it runs on', async () => {

@@ -94,7 +94,7 @@ General policy: services return a complete shape; controllers gate access (404 /
 
 ## File-header JSDoc
 
-High-stakes write-path services (identity, membership, payments, voting, active-player, member, event, club, media, curator) carry a file-header JSDoc block stating ownership boundary, required patterns, invariants preserved, transaction discipline, persistence, and side-effect categories (audit append, outbox enqueue, news emission, work-queue insert, alarm raise). Read-only services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) do not require this header; their service contract is obvious from method signatures.
+High-stakes write-path services (identity, account deletion, membership, payments, voting, active-player, member, event, club, media, curator) carry a file-header JSDoc block stating ownership boundary, required patterns, invariants preserved, transaction discipline, persistence, and side-effect categories (audit append, outbox enqueue, news emission, work-queue insert, alarm raise). Read-only services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) do not require this header; their service contract is obvious from method signatures.
 
 **Update obligation: when a service change touches any of those JSDoc sections, update the JSDoc block in the same change as the code.** Specifically, audit and revise the JSDoc when:
 - Ownership boundary shifts (service starts or stops owning a domain area, or delegates to a different service).

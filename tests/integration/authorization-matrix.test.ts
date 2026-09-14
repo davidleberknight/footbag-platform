@@ -207,6 +207,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/payments/health',
     '/admin/payments/reconciliation',
     '/admin/clubs/leadership',
+    '/admin/events/organizers',
     '/admin/club-cleanup',
     '/admin/curator/media',
     '/admin/curator/galleries',
@@ -422,6 +423,7 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
     ['GET ', 'the public profile page: readable by any signed-in member, so not an ownership cell'],
     ['GET /edit', 'covered by the self-edit describe above, which also asserts the pending-registrant branch'],
     ['GET /:section', 'the unknown-section catch-all, which answers not-found on shape before ownership is reached'],
+    ['GET /download/:token', 'the emailed data-export link, deliberately not an ownership cell: it carries no session because the single-use token is the authority, and the token decides whose data is served rather than the member key in the path. Its own suite proves an unissued token, a spent one and a second use are each refused'],
   ]);
 
   type OwnedRoute = { method: 'get' | 'post'; path: string; hasResourceId: boolean };

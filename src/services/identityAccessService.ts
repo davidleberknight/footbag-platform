@@ -114,7 +114,12 @@
  *     claim whose account transitively links to it, because that claim sets the
  *     same member-to-record link and folds the record's honors into the tier
  *     grant. Neither path can hand a living account a deceased person's identity.
- *   - Soft-deleted members within member_cleanup_grace_days get the restoration screen.
+ *   - A soft-deleted member is refused sign-in exactly as an unknown address is,
+ *     inside the grace period and after it. The platform offers no restore: a
+ *     member who deleted in error asks IFPA out of band, and an administrator
+ *     acts on the record. Nothing here distinguishes the two, deliberately, so
+ *     the login path cannot become a way to discover that an account once
+ *     existed.
  *   - Candidate staging never mutates live tables and never sends mail: a
  *     staged row plus its staged audit event commit in one transaction and
  *     nothing else happens until the member acts. Re-staging an open

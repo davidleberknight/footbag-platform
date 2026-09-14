@@ -3030,8 +3030,12 @@ CREATE INDEX idx_registrations_attended
 -- personal data export requests. Token plaintext is never persisted; only
 -- the SHA-256 hash is stored. Multiple outstanding tokens per member per type
 -- are allowed (single-use via used_at; validity requires used_at IS NULL AND now < expires_at).
--- A background cleanup job deletes expired or consumed tokens older than the
--- configured threshold (token_cleanup_threshold_days).
+-- The daily SYS_Cleanup_Expired_Tokens job deletes tokens that can no longer do
+-- anything, once they have been that way for longer than the configured
+-- threshold (token_cleanup_threshold_days): a spent token is aged from used_at,
+-- an unspent one from expires_at. The threshold, rather than deleting on the
+-- spot, is what leaves an operator a few days in which a member's report that a
+-- link did not work can still be answered from the row.
 CREATE TABLE account_tokens (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,

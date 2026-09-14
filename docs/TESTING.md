@@ -1132,7 +1132,7 @@ A charter references these dimensions by number.
 6. Anti-enumeration: exists versus not-exists equivalence (status, body, timing) on login, reset, verify, claim, and owner-scoped 404s.
 7. CSRF and Origin-pin: every state-changing verb refuses a foreign or absent Origin.
 8. Rate-limit: boundary at the limit and limit-plus-one; 429 with `Retry-After`; window reset.
-9. State-machine scenarios: each legal transition and each illegal-transition rejection across multi-step flows (onboarding, legacy claim, club cleanup, purchase, account deletion and restoration, vote lifecycle).
+9. State-machine scenarios: each legal transition and each illegal-transition rejection across multi-step flows (onboarding, legacy claim, club cleanup, purchase, account deletion and purge, vote lifecycle).
 10. Temporal and time: expiry boundaries (just before, at, just after); grace-window open versus elapsed; token TTL expiry and replay; sweep-driven expiry; open and close windows; calendar boundaries where relevant. Deterministic through an injected clock or runtime-relative offsets, never absolute years.
 11. Concurrency: simultaneous claims (constraint-loser rollback); double-submit; sole-owner handoff race; same-window collision.
 12. Idempotency: replaying the same key yields the same outcome (webhook, outbox, grant, consume-once token).
@@ -1158,7 +1158,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 ### 17.3 Charters: authentication and identity
 
-**M_Login** (dims 1, 3, 4, 6, 8, 13, 15). Valid credentials issue a session cookie with the correct attributes; a wrong password yields a generic failure; a registered-unverified account is blocked with a verification prompt; a deceased or soft-deleted account is rejected (grace-open offers restoration, grace-elapsed does not). Anti-enum: unknown email and wrong password are indistinguishable in body and timing. Rate-limit: repeated failures return 429 with `Retry-After`, and the window resets. Adversarial: injection, oversized, and unicode input in the email field. Audit: both failed and successful attempts are recorded.
+**M_Login** (dims 1, 3, 4, 6, 8, 13, 15). Valid credentials issue a session cookie with the correct attributes; a wrong password yields a generic failure; a registered-unverified account is blocked with a verification prompt; a deceased or soft-deleted account is rejected, on both sides of the grace boundary and indistinguishably from an unknown address, since no restore is offered. Anti-enum: unknown email and wrong password are indistinguishable in body and timing. Rate-limit: repeated failures return 429 with `Retry-After`, and the window resets. Adversarial: injection, oversized, and unicode input in the email field. Audit: both failed and successful attempts are recorded.
 
 **M_Verify_Email** (dims 1, 4, 6, 9, 10, 12, 13). A valid token verifies the account and runs the legacy auto-link; resend issues a fresh token. Time: an expired token is rejected and the account stays unverified. Single-use: a consumed token cannot be replayed. Anti-enum: invalid and expired tokens produce the same enumeration-safe outcome. Adversarial: malformed or oversized token segment.
 
@@ -1218,7 +1218,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_View_Payment_History** (dims 1, 2, 5, 14). Owner-only (cross-owner 404); shows the member's own payment ledger and no other member's data.
 
-**M_Delete_Account**, **M_Restore_Account**, and **M_Download_Data** (dims 1, 5, 9, 10, 14, 15). Self-service deletion enters a grace window: while open, login offers restoration; once elapsed, the account proceeds to purge. HoF and BAP members are preserved. Data export returns only the requesting member's own data. Time: the grace-window boundary (open versus elapsed).
+**M_Delete_Account** and **M_Download_Data** (dims 1, 5, 9, 10, 14, 15). Self-service deletion is permanent: the account is unreachable from the moment it is confirmed, and the grace window that follows is the interval before the anonymising purge rather than a way back. HoF and BAP members are preserved. Data export returns only the requesting member's own data. Time: the grace-window boundary (open versus elapsed).
 
 ### 17.7 Charters: payment and membership
 

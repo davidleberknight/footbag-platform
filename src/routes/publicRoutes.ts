@@ -207,6 +207,12 @@ publicRouter.get('/members/:memberKey/edit',          requireMember, memberContr
 publicRouter.post('/members/:memberKey/edit',         requireMember, memberController.postProfileEdit);
 publicRouter.get('/members/:memberKey/edit/password', requireMember, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireMember, memberController.postPasswordEdit);
+publicRouter.post('/members/:memberKey/download',     requireMember, memberController.postRequestDataExport);
+// The emailed download link. No member gate: the single-use token is the
+// authority, because the link is proof the member holds the verified mailbox.
+publicRouter.get('/members/:memberKey/download/:token', memberController.getDataExportDownload);
+publicRouter.get('/members/:memberKey/delete',        requireMember, memberController.getDeleteAccount);
+publicRouter.post('/members/:memberKey/delete',       requireMember, memberController.postDeleteAccount);
 publicRouter.post('/members/:memberKey/avatar',       requireMember, memberController.postAvatarUpload);
 publicRouter.post('/members/:memberKey/purchase-tier', requireMember, memberController.postPurchaseTier);
 publicRouter.get('/members/:memberKey/payments',       requireMember, paymentController.getPaymentHistory);

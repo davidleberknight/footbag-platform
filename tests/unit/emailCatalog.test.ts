@@ -49,6 +49,14 @@ const CATALOG: CatalogEntry[] = [
   { template: 'password_reset_confirm', services: ['identityAccessService'], samples: [
     { params: {}, variant: 'password_reset_confirm' },
   ] },
+  // The last message a leaving member gets, and the only one the platform
+  // addresses to an account it has just made unreachable.
+  { template: 'account_deletion_requested', services: ['accountDeletionService'], samples: [
+    { params: { memberName: 'A Member', graceDays: 90 }, variant: 'account_deletion_requested' },
+  ] },
+  { template: 'data_export_ready', services: ['memberDataExportService'], samples: [
+    { params: { memberName: 'A Member', downloadUrl: 'https://x/members/a/download/t', ttlHours: 72 }, variant: 'data_export_ready' },
+  ] },
   { template: 'mailbox_link_confirm', services: ['identityAccessService'], samples: [
     { params: { verifyUrl: 'https://x/anchors/verify/t', ttlHours: 24 }, variant: 'mailbox_link_confirm' },
   ] },

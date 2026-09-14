@@ -1,0 +1,67 @@
+{{! Account-deletion confirmation. States what goes now and cannot come back
+    before the member commits, and refuses an administrator with the reason. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    {{#if content.errorMessage}}
+      <p class="form-error-banner" role="alert">{{content.errorMessage}}</p>
+    {{/if}}
+
+    {{#if content.isAdministrator}}
+
+      <p class="notice notice-warn" role="alert">Your account holds the administrator role, so it cannot be deleted yet.</p>
+
+      <p class="text-muted">An administrator cannot remove their own role. Ask another administrator to remove yours, then come back here.</p>
+
+      <div class="form-actions">
+        <a href="{{content.adminRolesHref}}" class="btn btn-outline">Administrator Roles</a>
+        <a href="{{content.cancelHref}}" class="btn btn-outline">Back to Profile</a>
+      </div>
+
+    {{else}}
+
+      <p class="notice notice-warn" role="alert">Deleting your account is permanent. You cannot undo it, and you cannot sign in again.</p>
+
+      <p class="text-muted">You cannot sign up again with the same email address for {{content.graceDays}} days.</p>
+
+      <h2 class="profile-section-heading">Are You Sure</h2>
+
+      {{#if content.hasMedia}}
+        <p class="text-muted">Your {{content.mediaCount}} uploaded photos and videos, and your galleries, are deleted permanently.</p>
+      {{else}}
+        <p class="text-muted">Your galleries are deleted permanently.</p>
+      {{/if}}
+
+      <p class="text-muted">You are withdrawn from any event you have registered for that has not happened yet. Your past competition results stay on the site as part of the record.</p>
+
+      <p class="text-muted">Your personal details are erased within {{content.graceDays}} days.</p>
+
+      <form method="POST" action="{{content.formAction}}" class="form-block">
+        <input type="hidden" name="confirmed" value="1" />
+
+        {{#if content.hasRecurringDonation}}
+          <fieldset class="choice-fieldset">
+            <legend>Your recurring donation</legend>
+            <p class="text-muted fs-sm">You are giving IFPA a recurring donation. Tell us what to do with it.</p>
+            <label class="radio-label"><input type="radio" name="recurringDonation" value="cancel" checked /> End my recurring donation</label>
+            <label class="radio-label"><input type="radio" name="recurringDonation" value="keep" /> Keep giving, and leave my card being charged</label>
+          </fieldset>
+        {{/if}}
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Yes, Delete My Account</button>
+          <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+        </div>
+      </form>
+
+    {{/if}}
+
+  </section>
+</div>

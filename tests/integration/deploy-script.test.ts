@@ -1214,6 +1214,15 @@ describe('both remote halves verify the container AWS identity', () => {
     expect(content).toMatch(/GetCallerIdentityCommand/);
     expect(content).toMatch(/\*"assumed-role\/\$\{_expected_role\}\/"\*/);
   });
+
+  it.each(halves)('$file runs the check after the readiness poll', ({ content }) => {
+    // Asking a container that is not up yet fails the deploy for the wrong
+    // reason, and the half most exposed to that is the one this parity case
+    // exists to cover: it runs on a freshly bootstrapped host.
+    expect(content.indexOf('_stack_healthy == 0')).toBeLessThan(
+      content.indexOf('_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"'),
+    );
+  });
 });
 
 describe('deploy-code-remote.sh container AWS identity verification', () => {
@@ -1246,12 +1255,6 @@ describe('deploy-code-remote.sh container AWS identity verification', () => {
 
   it('fails the deploy rather than warning', () => {
     expect(block).toMatch(/exit 1/);
-  });
-
-  it('runs after the readiness poll, so it asks a container that is actually up', () => {
-    expect(content.indexOf('_stack_healthy == 0')).toBeLessThan(
-      content.indexOf('_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"'),
-    );
   });
 });
 

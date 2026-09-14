@@ -2,8 +2,10 @@
 # scripts/dns-ttl-preflight.sh -- the T-48h DNS TTL gate before the apex/www flip.
 #
 # The zone moves to Route 53 as go-live preparation and the operator applies every
-# record there through Terraform afterwards; nothing is hand-applied on any zone
-# and no DNS action at the cutover belongs to anyone else.
+# record there through Terraform from the move onward; no DNS action at the cutover
+# belongs to anyone else. Before the move the previous nameservers are still the
+# authoritative ones, and a preparation step needing a record ahead of the move has
+# it placed there by whoever operates them; that is outside this script's window.
 #
 # This script OBSERVES and never writes. The gate it serves asks for the 60-second
 # TTL on the apex and www to be seen coming out of the authoritative nameservers

@@ -989,7 +989,7 @@ Decision:
 
 User-facing "delete" operations follow one of three lifecycle patterns depending on the entity type:
 
-1. **Grace-period deletion with restore** (members only): sets a deleted_at timestamp. The account is immediately inaccessible but can be restored by the member during the configurable grace period. Database views for members filter WHERE deleted_at IS NULL, making this transparent to queries. After the grace period, a background job purges PII while retaining the anonymized row for referential integrity.
+1. **Grace-period deletion** (members only): sets a deleted_at timestamp. The account is immediately and permanently inaccessible; the platform offers the member no way to reverse it, and a member who deleted in error asks IFPA outside the platform. Database views for members filter WHERE deleted_at IS NULL, making this transparent to queries. After the grace period, a background job purges PII while retaining the anonymized row for referential integrity. The period exists so an administrator can reconcile audits and payments before the personal data is gone, not as a window for the member to return in.
 
 2. **Status-based archival** (clubs only): sets status = 'archived'. No deleted_at column is used. Club records are never removed from the database.
 
@@ -3043,7 +3043,7 @@ Impact:
 
 - Alerting: bounce rate at or above `bounce_rate_alarm_threshold_per_10k` and complaint rate at or above `complaint_rate_alarm_threshold_per_10k` (both in the user stories' configurable parameters, in ten-thousandths of messages sent) stop the bulk stream at the drain. The CloudWatch alarms under Monitoring and Alerting are a parallel signal on the provider's own account-level reputation metrics, with their own fixed thresholds; changing these values moves the drain halt and not those alarms.
 
-- Member soft-delete behavior for subscriptions and outbox: during the grace period, `MailingListSubscription` state (including `subscribed`, `unsubscribed`, `bounced`, and `complained` flags) is frozen and preserved. The soft-deleted member cannot change subscriptions because the account is inaccessible. New outbox entries are not enqueued for a soft-deleted member; queued entries addressed to them at the time of soft-delete are moved to `dead_letter` with reason `recipient_soft_deleted`. Missed sends during the grace period are not replayed.
+- Member soft-delete behavior for subscriptions and outbox: during the grace period, `MailingListSubscription` state (including `subscribed`, `unsubscribed`, `bounced`, and `complained` flags) is frozen and preserved. The soft-deleted member cannot change subscriptions because the account is inaccessible. New outbox entries are not enqueued for a soft-deleted member, with one exception: the message confirming the deletion itself, enqueued in the same transaction as the soft delete and addressed to the verified address read before it, because it is what tells the member what has happened and it is the last mail they receive. Queued entries addressed to them at the time of soft-delete are moved to `dead_letter` with reason `recipient_soft_deleted`. Missed sends during the grace period are not replayed.
 
 - On member-initiated restore within the grace period: subscription states resume exactly as they were at soft-delete time. Intent is preserved; no re-opt-in is required. Outbox enqueuing reactivates immediately. Bounce and complaint flags persist across soft-delete and restore because they are facts about the email address, not about member intent.
 

@@ -70,7 +70,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { health, systemJobRuns, systemConfig, workQueue, batchAutoLink, memberPurge, outbox, payments, transaction } from '../db/db';
+import { accountTokens, health, systemJobRuns, systemConfig, workQueue, batchAutoLink, memberPurge, outbox, payments, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
@@ -413,6 +413,33 @@ export class OperationsPlatformService {
    * so a failure leaves the existing stats in place; `recordJobRun` writes one
    * `system_job_runs` row per pass with the upsert count in `details_json`.
    */
+  /**
+   * SYS_Cleanup_Expired_Tokens. Deletes account tokens that can no longer do
+   * anything and have been that way for longer than the configured threshold.
+   *
+   * It reports the age of the oldest row it left behind as well as the number it
+   * removed, because a sweep that deletes a healthy number every night and still
+   * leaves a row from months ago is not working, and a count alone cannot say so.
+   */
+  async runExpiredTokenCleanup(
+    startTime?: Date,
+  ): Promise<{ deleted: number; oldestRemainingAgeDays: number | null }> {
+    return this.recordJobRun('SYS_Cleanup_Expired_Tokens', () => {
+      const now = startTime ?? new Date();
+      const thresholdDays = readIntConfig('token_cleanup_threshold_days', 7);
+      const cutoff = new Date(now.getTime() - thresholdDays * 86_400_000).toISOString();
+
+      const deleted = accountTokens.deleteSpentOlderThan.run(cutoff, cutoff).changes;
+      const oldest = accountTokens.oldestRemainingIssuedAt.get() as { oldest_issued_at: string | null };
+      const oldestRemainingAgeDays = oldest.oldest_issued_at
+        ? Math.floor((now.getTime() - Date.parse(oldest.oldest_issued_at)) / 86_400_000)
+        : null;
+
+      logger.info('token cleanup', { deleted, thresholdDays, oldestRemainingAgeDays });
+      return { deleted, oldestRemainingAgeDays };
+    }, startTime);
+  }
+
   async runHashtagStatsRebuild(
     startTime?: Date,
   ): Promise<{ rowsUpserted: number }> {

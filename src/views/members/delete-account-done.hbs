@@ -1,0 +1,26 @@
+{{! Shown once the deletion has gone through. There is no member page left to
+    redirect to, so this page is the receipt and the way back. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    <p class="notice notice-info" role="status">Your account is deleted and you are signed out.</p>
+
+    <p class="text-muted">This cannot be undone from the site, and you will not be able to sign in again.</p>
+
+    <p class="text-muted">Your photos, videos and galleries were deleted permanently. Event registrations that were withdrawn are not reinstated.</p>
+
+    <p class="text-muted">Your personal details are erased within {{content.graceDays}} days. Your past competition results stay on the site as part of the record.</p>
+
+    <div class="form-actions">
+      <a href="{{content.homeHref}}" class="btn btn-outline">Go to Home</a>
+    </div>
+
+  </section>
+</div>

@@ -1,0 +1,7 @@
+{
+  "templateKey": "account_deletion_requested",
+  "subjectTemplate": "Your IFPA Footbag account has been deleted",
+  "bodyTemplate": "Hi {memberName},\n\nYour IFPA Footbag account has been deleted, as you asked. You are signed out, your profile is no longer visible, and you will not be able to sign in again.\n\nYour photos, videos and galleries were deleted permanently. Event registrations you had for events that have not happened yet were withdrawn. Your past competition results stay on the site as part of the record.\n\nYour personal details are erased within {gracePhrase}. You cannot sign up again with the same email address for {gracePhrase}.\n\nIf you did not ask for this, or you deleted the account by mistake, reply to IFPA as soon as you can and say so. The site itself offers no way to undo a deletion.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

@@ -5124,6 +5124,80 @@ export const account = {
       version                  = version + 1
     WHERE id = ?
   `); },
+
+  // Whether the account may still be deleted by its own holder, read before
+  // anything irreversible happens. An administrator is refused: the platform
+  // does not let anyone drop their own administrator role, so an administrator
+  // who deleted their account would take the role out of reach of every screen
+  // that manages it while leaving the row behind. The honor flags ride along
+  // because they decide how much of the record keeps publishing afterwards.
+  get readForDeletionRequest() { return db.prepare(`
+    SELECT id, display_name, login_email, is_admin, is_system, is_hof, is_bap, deleted_at
+    FROM members
+    WHERE id = ?
+  `); },
+
+  // The soft delete itself. The grace expiry is stored for the administrator
+  // record to display; the purge scan recomputes its own cutoff from deleted_at
+  // and the configured window, so a later change to that window moves the real
+  // deadline and this column is a snapshot of what the member was told.
+  //
+  // The deleted_at IS NULL guard makes the write decide a double submit: the
+  // second one changes no row and the caller sees it did not win.
+  get softDeleteMember() { return db.prepare(`
+    UPDATE members
+    SET
+      deleted_at                = ?,
+      deleted_by                = ?,
+      deletion_requested_at     = ?,
+      deletion_grace_expires_at = ?,
+      updated_at                = ?,
+      updated_by                = 'member',
+      version                   = version + 1
+    WHERE id = ? AND deleted_at IS NULL
+  `); },
+
+  // Every media row the member uploaded, with the object keys deletion has to
+  // remove from storage. Unfiltered by moderation state or avatar flag on
+  // purpose: the member is taking all of it with them, including an item an
+  // administrator has hidden, whose bytes are still stored and still served to
+  // anyone holding their address.
+  get listOwnedMediaForDeletion() { return db.prepare(`
+    SELECT id, s3_key_thumb, s3_key_display
+    FROM media_items
+    WHERE uploader_member_id = ?
+    ORDER BY id
+  `); },
+
+  // The member's galleries, the default Personal Gallery included. Account
+  // deletion is the one path that may take the default one: the gallery-delete
+  // primitive refuses it because deleting it would strand a member who still
+  // has media to manage, and a member who is leaving has neither.
+  get listOwnedGalleryIdsForDeletion() { return db.prepare(`
+    SELECT id FROM member_galleries
+    WHERE owner_member_id = ?
+    ORDER BY id
+  `); },
+
+  // Events this member organizes that would have no organizer left once their
+  // account goes. The organizer row itself stays, so historical attribution
+  // survives the account the way a club leadership row does; what decides the
+  // matter is whether any other organizer still resolves to a live member.
+  get listEventsLosingLastOrganizer() { return db.prepare(`
+    SELECT eo.event_id AS event_id, e.title AS event_title
+    FROM event_organizers AS eo
+    INNER JOIN events AS e ON e.id = eo.event_id
+    WHERE eo.member_id = ?
+      AND NOT EXISTS (
+        SELECT 1
+        FROM event_organizers AS other
+        INNER JOIN members AS om ON om.id = other.member_id
+        WHERE other.event_id = eo.event_id
+          AND other.member_id <> eo.member_id
+          AND om.deleted_at IS NULL
+      )
+    ORDER BY eo.event_id
+  `); },
 };
 
 export const registration = {
@@ -5406,6 +5480,27 @@ export interface AccountTokenRow {
 }
 
 export const accountTokens = {
+  // The daily sweep. A token is swept once it can no longer do anything and has
+  // been that way for longer than the configured threshold: either it expired,
+  // or it was spent. The threshold rather than immediate deletion is what leaves
+  // an operator a few days in which a member's "that link did not work" can
+  // still be answered from the row.
+  //
+  // Every type is covered, not only the two the story names: a data-export link
+  // and a claim token age out on exactly the same terms, and a sweep that knew
+  // about some types and not others would quietly hoard the rest.
+  get deleteSpentOlderThan() { return db.prepare(`
+    DELETE FROM account_tokens
+    WHERE (used_at IS NOT NULL AND used_at <= ?)
+       OR (used_at IS NULL AND expires_at <= ?)
+  `); },
+
+  // The age of the oldest row the sweep chose to keep, so the job can say
+  // whether the table is draining or growing a tail it never reaches.
+  get oldestRemainingIssuedAt() { return db.prepare(`
+    SELECT MIN(issued_at) AS oldest_issued_at FROM account_tokens
+  `); },
+
   get insert() { return db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -5939,6 +6034,26 @@ export const outbox = {
         updated_by = 'system',
         version = version + 1
     WHERE id = ?
+  `); },
+
+  // Mail still queued to a member at the moment they delete their account. It
+  // is dead-lettered rather than left to drain, because the account is
+  // unreachable for the whole grace period and a message delivered into it
+  // would be one the member asked not to receive; nothing replays it if they
+  // come back. The body goes now, the addressing column stays, so the later
+  // erasure can still find the row. Distinct from the erasure-time scrub below,
+  // which clears the recipient address and subject of everything ever sent to
+  // them: this one is a delivery decision, that one is the erasure.
+  get deadLetterQueuedForMember() { return db.prepare(`
+    UPDATE outbox_emails
+    SET status = 'dead_letter',
+        last_error = 'recipient_soft_deleted',
+        body_text = NULL,
+        updated_at = ?,
+        updated_by = 'system',
+        version = version + 1
+    WHERE recipient_member_id = ?
+      AND status IN ('pending', 'sending')
   `); },
 
   // Crash recovery: a worker killed between markSending and markSent leaves
@@ -9829,8 +9944,10 @@ export const deceasedMarking = {
   `); },
 
   // Withdraw the member from events that have not happened yet. A completed
-  // event keeps its registration, because it is part of the historical record
-  // this marking exists to preserve.
+  // event keeps its registration, because that is a record of who was there and
+  // no later change to the member's account alters it. Both paths that end a
+  // member's participation read this: an administrator recording a death, and a
+  // member deleting their own account.
   get cancelUpcomingRegistrations() { return db.prepare(`
     UPDATE registrations
     SET status        = 'canceled',
@@ -10408,6 +10525,174 @@ export const candidateEvidence = {
   `); },
 };
 
+// The administrator's view of who runs an event, and the writes that change it.
+//
+// An organizer row outlives the member's account the way a club leadership row
+// does, so historical attribution survives; what decides whether an event has
+// anyone running it now is whether any of its organizers still resolves to a
+// live member. Every read here therefore joins members and filters the deleted,
+// rather than trusting the presence of a row.
+export const eventOrganizers = {
+  get findEvent() { return db.prepare(`
+    SELECT id, title, start_date, status FROM events WHERE id = ?
+  `); },
+
+  get listForEvent() { return db.prepare(`
+    SELECT eo.member_id, eo.role, eo.added_at, m.display_name, m.slug
+    FROM event_organizers AS eo
+    INNER JOIN members AS m ON m.id = eo.member_id
+    WHERE eo.event_id = ? AND m.deleted_at IS NULL
+    ORDER BY eo.role, eo.added_at, eo.member_id
+  `); },
+
+  get findRow() { return db.prepare(`
+    SELECT id, role FROM event_organizers WHERE event_id = ? AND member_id = ?
+  `); },
+
+  get insertRow() { return db.prepare(`
+    INSERT INTO event_organizers (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, role, added_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `); },
+
+  // Removing an organizer is a hard delete of the association row, which is the
+  // treatment every association row in this schema gets; the audit row is what
+  // records that it happened.
+  get deleteRow() { return db.prepare(`
+    DELETE FROM event_organizers WHERE event_id = ? AND member_id = ?
+  `); },
+
+  get countLiveForEvent() { return db.prepare(`
+    SELECT COUNT(*) AS c
+    FROM event_organizers AS eo
+    INNER JOIN members AS m ON m.id = eo.member_id
+    WHERE eo.event_id = ? AND m.deleted_at IS NULL
+  `); },
+
+  // Events an administrator has to find someone for. An event with organizer
+  // rows that all point at deleted accounts belongs here exactly as much as one
+  // with no rows at all.
+  get listEventsNeedingOrganizer() { return db.prepare(`
+    SELECT e.id, e.title, e.start_date, e.status
+    FROM events AS e
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM event_organizers AS eo
+      INNER JOIN members AS m ON m.id = eo.member_id
+      WHERE eo.event_id = e.id AND m.deleted_at IS NULL
+    )
+    ORDER BY e.start_date DESC, e.id
+  `); },
+};
+
+// Reads that exist only to answer a member asking for a copy of their own data.
+//
+// They are separate from the reads that serve pages because a page shows what a
+// visitor may see and an export owes the member everything the platform holds
+// about them. Every page-facing read of these tables filters something an export
+// must not lose: the member's own galleries read drops avatars and anything an
+// administrator has hidden, the subscriptions read drops lists the member cannot
+// manage, the clubs read drops affiliations they have left. Each statement below
+// is deliberately unfiltered on the member's own rows and deliberately selects
+// columns rather than star, so a column added later is a decision rather than an
+// accident.
+export const memberExport = {
+  get profile() { return db.prepare(`
+    SELECT
+      id, slug, real_name, display_name, given_names, family_name, bio,
+      city, region, country, street_address, postal_code,
+      login_email, email_verified_at, email_status,
+      phone, whatsapp, email_visibility, phone_visible, whatsapp_visible,
+      searchable, gender, show_gender, birth_date,
+      first_competition_year, show_first_competition_year, show_competitive_results,
+      ifpa_join_date, is_hof, hof_inducted_year, is_bap, bap_inducted_year,
+      is_board, is_admin, legacy_member_id, historical_person_id,
+      created_at, last_login_at
+    FROM members
+    WHERE id = ?
+  `); },
+
+  // Every affiliation the member has ever held, current or not, because an
+  // export that showed only current ones would omit clubs they belonged to.
+  get clubAffiliations() { return db.prepare(`
+    SELECT
+      mca.club_id, c.name AS club_name, c.status AS club_status,
+      mca.is_current, mca.is_primary, mca.is_contact, mca.source,
+      mca.created_at, mca.updated_at
+    FROM member_club_affiliations AS mca
+    INNER JOIN clubs AS c ON c.id = mca.club_id
+    WHERE mca.member_id = ?
+    ORDER BY mca.created_at, mca.club_id
+  `); },
+
+  get clubLeadership() { return db.prepare(`
+    SELECT cl.club_id, c.name AS club_name, cl.role, cl.created_at
+    FROM club_leaders AS cl
+    INNER JOIN clubs AS c ON c.id = cl.club_id
+    WHERE cl.member_id = ?
+    ORDER BY cl.created_at, cl.club_id
+  `); },
+
+  get registrations() { return db.prepare(`
+    SELECT
+      r.event_id, e.title AS event_title, e.start_date,
+      r.registered_at, r.registration_type, r.status,
+      r.cancel_reason, r.canceled_at, r.tshirt_size,
+      r.donation_amount_cents, r.attended_at
+    FROM registrations AS r
+    INNER JOIN events AS e ON e.id = r.event_id
+    WHERE r.member_id = ?
+    ORDER BY e.start_date, r.event_id
+  `); },
+
+  // Every subscription row the member holds, whatever the list is now. The
+  // member-facing screen shows only lists they may manage, so an archived list,
+  // an administrators-only list and a group-backed list are all invisible there
+  // and all still rows about this member.
+  get mailingListSubscriptions() { return db.prepare(`
+    SELECT
+      s.mailing_list_id, ml.name AS mailing_list_name, ml.status AS mailing_list_status,
+      s.status AS subscription_status, s.status_updated_at, s.created_at
+    FROM mailing_list_subscriptions AS s
+    INNER JOIN mailing_lists AS ml ON ml.slug = s.mailing_list_id
+    WHERE s.member_id = ?
+    ORDER BY s.mailing_list_id
+  `); },
+
+  // Unfiltered on purpose: an avatar is something the member uploaded, and an
+  // item an administrator has hidden is still theirs and still held.
+  get media() { return db.prepare(`
+    SELECT
+      id, media_type, source_filename, caption, uploaded_at,
+      width_px, height_px, mime_type, is_avatar, moderation_status,
+      video_platform, video_url, external_url
+    FROM media_items
+    WHERE uploader_member_id = ?
+    ORDER BY uploaded_at, id
+  `); },
+
+  get mediaTags() { return db.prepare(`
+    SELECT mt.media_id, mt.tag_display
+    FROM media_tags AS mt
+    INNER JOIN media_items AS mi ON mi.id = mt.media_id
+    WHERE mi.uploader_member_id = ?
+    ORDER BY mt.media_id, mt.tag_display
+  `); },
+
+  // Which votes the member took part in, and nothing about how they voted. The
+  // encrypted ballot envelope and the receipt-token hash are never selected
+  // here; the schema holds no plaintext receipt token at all, so participation
+  // is the whole of what this can return.
+  get voteParticipation() { return db.prepare(`
+    SELECT v.id AS vote_id, v.title AS vote_title, b.cast_at
+    FROM ballots AS b
+    INNER JOIN votes AS v ON v.id = b.vote_id
+    WHERE b.voter_member_id = ?
+    ORDER BY b.cast_at, v.id
+  `); },
+};
+
 // Member fields the payment flows read and write: the honor flags that supply a
 // blank donation's default note, and the member-level Stripe Customer identity a
 // recurring donation establishes.
@@ -10678,6 +10963,17 @@ export const recurringDonationSubscriptions = {
 
   get listActive() { return db.prepare(`
     SELECT * FROM recurring_donation_subscriptions_active
+    ORDER BY started_at
+  `); },
+
+  // One member's live recurring gifts. Read when they ask to delete their
+  // account, so the confirmation can offer the keep-or-cancel choice and the
+  // deletion knows what to cancel. The active view is the right surface here: a
+  // canceled row is a gift that already ended, and an unconfirmed one is a
+  // checkout nobody completed, so neither is something to ask about.
+  get listActiveByMember() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions_active
+    WHERE member_id = ?
     ORDER BY started_at
   `); },
 

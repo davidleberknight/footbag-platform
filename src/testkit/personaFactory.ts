@@ -347,9 +347,11 @@ export interface PersonaSpec {
   /** Marks the member deceased (login blocked, search-excluded, honors preserved on render). */
   isDeceased?: boolean;
   /**
-   * Soft-deletion lifecycle position. 'grace_open' is within the restoration
-   * window (login offers restore); 'grace_elapsed' is past the window, pre-purge
-   * (login permanently rejected). The boundary pair around member_cleanup_grace_days.
+   * Soft-deletion lifecycle position, the boundary pair around
+   * member_cleanup_grace_days. Both are refused at sign-in identically, because
+   * the platform offers no restore; what separates them is the purge. A
+   * 'grace_open' row is not yet eligible for the anonymising purge and a
+   * 'grace_elapsed' row is, which is the only behaviour that reads the boundary.
    */
   deletionState?: 'grace_open' | 'grace_elapsed';
   /** Standing honors. HoF/BAP are lifetime; Board is the Tier 3 governance flag. */
@@ -540,8 +542,8 @@ export function seedPersona(
   }
 
   // Soft-deletion lifecycle timestamps are relative to the seeding moment so the
-  // restoration window resolves correctly whenever the persona is loaded: an open
-  // grace is restorable on login, an elapsed one is past the window (pre-purge).
+  // grace boundary resolves correctly whenever the persona is loaded: an open
+  // grace is not yet purge-eligible, an elapsed one is (and neither can sign in).
   const deletionFields: {
     deleted_at?: string;
     deletion_requested_at?: string;

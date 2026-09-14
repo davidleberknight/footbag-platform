@@ -1,0 +1,7 @@
+{
+  "templateKey": "data_export_ready",
+  "subjectTemplate": "Your IFPA Footbag data export is ready",
+  "bodyTemplate": "Hi {memberName},\n\nYou asked for a copy of your personal data held by IFPA Footbag. Download it here:\n\n{downloadUrl}\n\nThe link works once and expires in {ttlPhrase}. If it expires before you use it, request the export again from your profile.\n\nThe file is JSON. It covers your profile, membership, email settings, clubs, event registrations, uploaded media, payment history and which votes you took part in. It does not include how you voted: the platform does not store that against your name.\n\nIf you did not ask for this, someone may have access to your account. Change your password and contact IFPA.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

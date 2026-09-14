@@ -187,10 +187,13 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
 
   it('every control on the page is live', async () => {
     const res = await getDashboard(T1_ID);
-    // Download My Data and Delete Account are the two knowingly-dead controls,
-    // held by the privacy work; nothing else on the page may be inert.
+    // Nothing on the profile may be inert. This test used to allow exactly two
+    // dead controls, Download My Data and Delete Account, while the privacy work
+    // was outstanding. Both are live, so the allowance is gone rather than
+    // reduced: a control that renders as text a member cannot click is a promise
+    // the page is not keeping.
     expect(res.text).not.toContain('Account Settings');
-    expect(res.text.match(/class="disabled"/g) ?? []).toHaveLength(2);
+    expect(res.text.match(/class="disabled"/g) ?? []).toHaveLength(0);
   });
 
   it('search section still renders and works (regression check)', async () => {

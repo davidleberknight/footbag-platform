@@ -1,0 +1,27 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section>
+    <div class="section-heading">
+      <h2>Needs an Organizer</h2>
+      <span class="section-count">{{content.events.length}}</span>
+    </div>
+    {{#unless content.hasEvents}}
+      <p class="text-muted">{{content.emptyMessage}}</p>
+    {{/unless}}
+    {{#each content.events}}
+      <div class="card">
+        <div class="card-title">{{title}}</div>
+        <p class="card-meta">{{startDate}}</p>
+        <a href="{{manageHref}}" class="btn btn-primary btn-sm">Manage Organizers</a>
+      </div>
+    {{/each}}
+  </section>
+
+  <p class="mt-4 text-muted">An event lands here when nobody who can run it is left, most often because its last organizer deleted their account. The event keeps running and stays published; what it has lost is the person who can enter its results.</p>
+</div>

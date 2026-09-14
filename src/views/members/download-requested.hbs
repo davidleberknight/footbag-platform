@@ -1,0 +1,24 @@
+{{! Shown after a member asks for their data. The file arrives by email, not in
+    this browser, so the page has to say so or the member waits for nothing. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    <p class="notice notice-info" role="status">We have emailed a download link to {{content.loginEmail}}.</p>
+
+    <p class="text-muted">The link works once and expires in {{content.ttlHours}} hours. If it expires before you use it, ask for the export again from your profile.</p>
+
+    <p class="text-muted">The file covers your profile, membership, email settings, clubs, event registrations, uploaded media, payment history and which votes you took part in. It does not include how you voted: the platform does not store that against your name.</p>
+
+    <div class="form-actions">
+      <a href="{{content.profileHref}}" class="btn btn-outline">Back to Profile</a>
+    </div>
+
+  </section>
+</div>

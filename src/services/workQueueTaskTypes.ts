@@ -391,6 +391,25 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     }],
   },
 
+  needs_organizer: {
+    label:            'Event without an organizer',
+    queueCategory:    'events',
+    entityTypes:      ['event'],
+    urgentAdminAlert: null,
+    evidence:         { kind: 'reason_text' },
+    // Raised when the last member organizing an event stops being one, which
+    // today means deleting their account. The event keeps running and stays
+    // published; what it loses is the person who can enter its results, so the
+    // matter is a reassignment rather than an emergency. It closes when an
+    // administrator hands the event to someone else on the page that owns that
+    // act, which is also the only place the reassignment can be recorded.
+    actions: [{
+      kind:  'elsewhere',
+      label: 'Assign an Organizer',
+      href:  '/admin/events/organizers',
+    }],
+  },
+
   reconciliation_discrepancy: {
     label:            'Payment reconciliation discrepancy',
     queueCategory:    'payments',

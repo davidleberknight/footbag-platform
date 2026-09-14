@@ -1,0 +1,57 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <section>
+    {{#if content.needsOrganizer}}<p class="badge">No organizer</p>{{/if}}
+
+    <div class="section-heading">
+      <h2>{{content.eventTitle}}</h2>
+      <span class="section-count">{{content.startDate}}</span>
+    </div>
+
+    {{#unless content.hasOrganizers}}
+      <p class="text-muted">Nobody is running this event. Assign someone below.</p>
+    {{/unless}}
+
+    {{#each content.organizers}}
+      <div class="card">
+        <div class="card-title">{{displayName}} <span class="badge">{{roleLabel}}</span></div>
+        <p class="card-meta">Added {{addedAt}}</p>
+        <form method="POST" action="{{../content.removeHref}}" class="form-block">
+          <input type="hidden" name="member_id" value="{{memberId}}" />
+          <div class="form-field">
+            <label for="remove_reason_{{memberId}}">Reason (required)</label>
+            <input id="remove_reason_{{memberId}}" name="reason" required maxlength="500" />
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Remove Organizer</button>
+        </form>
+      </div>
+    {{/each}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Assign an Organizer</h2></div>
+    <form method="POST" action="{{content.assignHref}}" class="form-block">
+      <div class="form-field">
+        <label for="assign_member">Member id or slug</label>
+        <input id="assign_member" name="member_key" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="assign_reason">Reason (required)</label>
+        <input id="assign_reason" name="reason" required maxlength="500" />
+      </div>
+      <button type="submit" class="btn btn-primary">Assign Organizer</button>
+    </form>
+    <p class="text-muted fs-sm">The first person assigned to an event with nobody running it becomes its organizer; anyone added afterwards co-organizes.</p>
+  </section>
+
+  <p class="mt-4"><a href="{{content.queueHref}}">Back to Events Needing an Organizer</a></p>
+</div>

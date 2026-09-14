@@ -683,8 +683,11 @@ describe('gender public visibility', () => {
 
 describe('GET /members/:memberKey/:section — stub pages', () => {
   // `password` is no longer a stub section — it has a real form at
-  // /members/:slug/edit/password.
-  const VALID_SECTIONS = ['media', 'settings', 'download', 'delete'];
+  // /members/:slug/edit/password. Nor are `download` and `delete`: deleting an
+  // account has its own confirmation page, and asking for a data export is a
+  // form submission rather than a page, so a bare GET of it is not a section at
+  // all. Both are asserted below rather than left to this loop.
+  const VALID_SECTIONS = ['media', 'settings'];
 
   it('unauthenticated → 302 to /login with returnTo', async () => {
     const app = createApp();
@@ -703,6 +706,24 @@ describe('GET /members/:memberKey/:section — stub pages', () => {
       expect(res.text).toContain('coming soon');
     });
   }
+
+  it('the account-deletion section is a real confirmation page, not a stub', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}/delete`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('coming soon');
+    expect(res.text).toContain('Deleting your account is permanent');
+  });
+
+  it('a bare data-export section is not a page: the request is a form submission', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}/download`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(404);
+  });
 
   it("another member's stub page → 404", async () => {
     const app = createApp();

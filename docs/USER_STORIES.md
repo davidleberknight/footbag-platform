@@ -856,7 +856,7 @@ Success Criteria:
 
 - Member can request account deletion from their profile page.
 - System explains the deletion consequences and the grace period before permanent deletion (account enters a grace-period deletion state; Administrator-configurable grace period length).
-- After confirmation, the account enters a deleted state; member cannot log in or use the site, except to restore the account within the grace period.
+- After confirmation, the account enters a deleted state and the member cannot log in or use the site again. The state is not a window to return in; it is the interval before the anonymising purge.
 - After deletion, member no longer appears in member search results or active member lists. The member row is retained so historical records (past event results, archives, and logs) keep their references intact. The retained row carries the placeholder name “Deleted Member”, which serves referential integrity alone.
 - **Person-link reversion:** When a member deletes their account, any historical person links (in event results and other historical surfaces) that were pointing to `/members/:slug` must revert to `/history/:personId`. The `personHref()` helper handles this automatically when `member_id` is cleared or the member row is soft-deleted. HoF and BAP honorees are the exception: their links are never cleared and their profile keeps publishing, so those links stay pointed at `/members/:slug`.
 - **Declared-anchor purge:** PII purge clears the member's declared former surnames and declared old emails (see M_Edit_Profile) alongside `members.historical_person_id` and `members.legacy_member_id`. Declared anchors are member-asserted personal data; they do not persist past the member's account.
@@ -865,30 +865,30 @@ Success Criteria:
 - Financial and audit records anonymized after the configured grace period. Transaction IDs retained for a configurable compliance period (default: 7 years).
 - Audit logs retain for a configurable compliance period (default: 7 years) with no personal identifiers (except member id).
 - Attempts to access the profile of a member in the deletion grace period show "Account not found" message, but this would be an exceptional error case, as links to deleted members should not be shown.
-- Media uploaded by the deleted member (photos, videos, and galleries) is deleted immediately and permanently at the deletion request (no soft delete for photo data). This media is NOT restored if the member reactivates within the grace period; restore brings back the account, profile, and club affiliations only.
-- Member receives email confirmation of the deletion request and information about how to restore the account during the grace period.
-- Member sees clear confirmation message before deletion that includes the configured grace period value (for example, this might be: 90 days), e.g.: "You can restore it within {gracePeriodDays} days by logging in. Your photos, videos, and galleries are permanently deleted now and are not restored if you reactivate."
-- Member sees success message after deletion that includes the admin-configured grace period value, e.g.: "Account deleted. You have {gracePeriodDays} days to restore by logging in. Your uploaded media has been permanently deleted and will not return if you restore."
+- Media uploaded by the deleted member (photos, videos, and galleries) is deleted immediately and permanently at the deletion request (no soft delete for photo data). The media is gone at the moment of the request and nothing brings it back.
+- Member receives email confirmation that the account is deleted, stating that the deletion is permanent, how long their personal details are held before erasure, how long the email address stays reserved, and that anyone who did not ask for this should contact IFPA.
+- Member sees a confirmation screen before deletion that asks whether they are sure and states plainly that deletion is permanent, that their photos, videos and galleries go now, that upcoming event registrations are withdrawn, that their personal details are erased within the configured grace period, and that the email address cannot be reused for that long.
+- Member sees a confirmation after deletion stating that the account is deleted, that it cannot be undone from the site, and how long their personal details are held before erasure.
 - If the member was the club's only co-leader, the club becomes leaderless, a tolerated state (see §5.1): the club persists and stays joinable, and surfaces on the low-priority "could use a leader" admin list (label "Needs Leader") as an opportunity, not a remediation obligation. If the member was the only event organizer, the event is added to the admin work queue with the "Needs Organizer" label for reassignment.
 - Photo deletion from S3 occurs synchronously during the account deletion request. If S3 deletion fails, the deletion request fails and the member account is NOT deleted (transactional consistency: the account is only marked deleted after all photos are confirmed removed from S3).
 - Named gallery records belonging to the deleted member are hard-deleted when the member's photos are deleted. Gallery rows have no downstream referential integrity concerns (they are leaf nodes). Gallery deletion is part of the same atomic operation as photo deletion.
 
 ### M_Restore_Account
 
-Access: Members whose accounts are within the deletion grace period can restore their account by logging in.
+Not offered. Account deletion is permanent from the member's side: there is no
+restore flow, no confirmation screen at sign-in, and no self-service way back.
+A member who deletes by mistake asks IFPA outside the platform, and an
+administrator decides what to do about it by hand.
 
-Story: As a member who has requested account deletion, I can log in within the grace period to restore my account so that I can reverse an accidental or regretted deletion.
+The grace period before the anonymising purge is retained for the reasons
+DESIGN_DECISIONS gives it, which are administrative rather than member-facing:
+it lets an administrator reconcile audits and payments before the personal data
+is gone. Members are told how long their details are held, never that the window
+is a way to come back.
 
-Success Criteria:
-
-- During the grace period, the login flow detects that valid credentials belong to an account in a deleted state (deleted_at IS NOT NULL, grace period not yet expired).
-- The system presents a restoration confirmation screen; not the normal dashboard; explaining the account is pending deletion and asking whether to restore it.
-- If the member confirms restoration, the system clears deleted_at, reinstates the account to active status, and logs the restoration in the audit log with actor, timestamp, and action type.
-- If the member dismisses the screen without confirming, they are not logged in and the account remains in its deleted state.
-- After restoration, the member is redirected to the normal post-login destination and sees a success message: "Your account has been restored."
-- The restoration confirmation screen and the post-restore success message state that uploaded media (photos, videos, galleries) was permanently deleted at deletion time and is not recovered by restore; the account, profile, and club affiliations are restored.
-- Restoration is only available within the configured grace period (member_cleanup_grace_days). After that period expires and PII has been purged, login is permanently rejected.
-- Restoration is audit-logged with member ID and timestamp.
+Two consequences the member-facing copy must state, because the platform enforces
+both: a deleted account cannot be signed in to again, and its email address
+cannot be used to register again until the purge releases it.
 
 ### M_Download_Data
 

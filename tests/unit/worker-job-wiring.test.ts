@@ -23,6 +23,7 @@ const DAILY_TICK_JOBS = [
   'runActivePlayerExpiryCheck',
   'runStagedCandidateExpiry',
   'runPiiPurgeScan',
+  'runExpiredTokenCleanup',
   'runHashtagStatsRebuild',
   'runAdminQueueDigest',
   'runStaleQueueEscalation',

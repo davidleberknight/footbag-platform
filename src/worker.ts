@@ -159,6 +159,16 @@ async function activePlayerExpiryLoop(): Promise<void> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+    // Spent and expired account tokens age out on the same daily tick. The
+    // member data export made this overdue: every request leaves a row, so
+    // without the sweep the table only grows.
+    try {
+      await operationsPlatformService.runExpiredTokenCleanup();
+    } catch (err) {
+      logger.error('worker: expired-token cleanup unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     // The hashtag-statistics full rebuild keeps the aggregated counts from
     // drifting away from the incremental updates; it is cheap and idempotent,
     // so it rides the same daily tick.

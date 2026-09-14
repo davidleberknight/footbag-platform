@@ -6,6 +6,7 @@ import { adminWorkQueueController } from '../controllers/adminWorkQueueControlle
 import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
+import { adminEventOrganizerController } from '../controllers/adminEventOrganizerController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminMemberController } from '../controllers/adminMemberController';
@@ -147,6 +148,12 @@ adminRouter.get('/broadcasts/:id',                    adminBroadcastController.d
 adminRouter.get('/email-templates',           adminEmailTemplateController.index);
 adminRouter.get('/email-templates/:key/edit', adminEmailTemplateController.edit);
 adminRouter.post('/email-templates/:key/edit', adminEmailTemplateController.update);
+// The literal queue path is registered before the :eventId segment, or an
+// administrator opening the queue asks for an event called "organizers".
+adminRouter.get('/events/organizers',                  adminEventOrganizerController.queue);
+adminRouter.get('/events/:eventId/organizers',         adminEventOrganizerController.detail);
+adminRouter.post('/events/:eventId/organizers/assign', adminEventOrganizerController.assign);
+adminRouter.post('/events/:eventId/organizers/remove', adminEventOrganizerController.remove);
 adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
 adminRouter.get('/clubs/:clubId/leadership',  adminClubLeadershipController.detail);
 adminRouter.post('/clubs/:clubId/leadership/assign',  adminClubLeadershipController.assign);

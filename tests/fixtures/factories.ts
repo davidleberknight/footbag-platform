@@ -1278,6 +1278,72 @@ export interface RegistrationOverrides {
   payment_id?: string | null;
 }
 
+// Row in account_tokens: a short-lived, single-use security token. Only the
+// hash is ever persisted, so the fixture writes a stand-in hash rather than
+// pretending to be the issuer.
+//
+// The overrides exist because the issuing service can only mint a token that is
+// live right now, and the states worth testing are the ones it cannot produce on
+// demand: one spent a month ago, one that expired unused, one still valid.
+export interface AccountTokenOverrides {
+  id?: string;
+  token_type?: 'email_verify' | 'password_reset' | 'data_export' | 'account_claim' | 'mailbox_link';
+  issued_at?: string;
+  expires_at?: string;
+  used_at?: string | null;
+  token_hash?: string;
+}
+
+export function insertAccountToken(
+  db: BetterSqlite3.Database,
+  memberId: string,
+  o: AccountTokenOverrides = {},
+): string {
+  const id = o.id ?? `tok-test-${uid()}`;
+  const issuedAt = o.issued_at ?? TS;
+  db.prepare(`
+    INSERT INTO account_tokens (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, token_type, token_hash, token_hash_version,
+      issued_at, expires_at, used_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?)
+  `).run(
+    id, issuedAt, SYS, issuedAt, SYS,
+    memberId,
+    o.token_type ?? 'email_verify',
+    o.token_hash ?? `hash-${id}`,
+    issuedAt,
+    o.expires_at ?? TS,
+    o.used_at ?? null,
+  );
+  return id;
+}
+
+// Row in event_organizers: the member or members who run an event. One member
+// may hold the 'organizer' role per event and any number may co-organize, both
+// enforced by unique indexes, so a fixture that wants a second person on an
+// event passes 'co-organizer'.
+export interface EventOrganizerOverrides {
+  id?: string;
+  role?: 'organizer' | 'co-organizer';
+}
+
+export function insertEventOrganizer(
+  db: BetterSqlite3.Database,
+  eventId: string,
+  memberId: string,
+  o: EventOrganizerOverrides = {},
+): string {
+  const id = o.id ?? `eorg-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO event_organizers (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, role, added_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `).run(id, TS, SYS, TS, SYS, eventId, memberId, o.role ?? 'organizer', TS);
+  return id;
+}
+
 export function insertRegistration(
   db: BetterSqlite3.Database,
   eventId: string,

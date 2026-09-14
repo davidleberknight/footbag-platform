@@ -2,10 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { nextPendingWizardHref } from '../middleware/auth';
 import { memberService, ProfileEditInput } from '../services/memberService';
+import { getDefaultAccountDeletionService } from '../services/accountDeletionService';
+import { memberDataExportService } from '../services/memberDataExportService';
 import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
-import { issueSessionCookie } from '../lib/sessionCookie';
+import { clearSessionCookie, issueSessionCookie } from '../lib/sessionCookie';
 import { ConflictError, RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
@@ -35,8 +37,6 @@ interface StubConfig {
 const STUB_SEGMENTS: Record<string, StubConfig> = {
   media:    { pageKey: 'member_media',    title: 'Share Media' },
   settings: { pageKey: 'member_settings', title: 'Account Settings' },
-  download: { pageKey: 'member_download', title: 'Download My Data' },
-  delete:   { pageKey: 'member_delete',   title: 'Delete Account' },
 };
 
 // Repeated form fields (e.g. three `link_label` inputs) arrive as an array;
@@ -160,6 +160,86 @@ export const memberController = {
     } catch (err) {
       if (err instanceof NotFoundError) { renderNotFound(res); return; }
       logger.error('member profile edit error', { error: err instanceof Error ? err.message : String(err) });
+      next(err);
+    }
+  },
+
+  /** POST /members/:memberKey/download */
+  postRequestDataExport(req: Request, res: Response, next: NextFunction): void {
+    if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
+    try {
+      const outcome = memberDataExportService.requestExport(req.user!.userId);
+      if (outcome.status !== 'sent') { renderNotFound(res); return; }
+      res.render('members/download-requested', memberService.getDataExportRequestedPage(req.params.memberKey));
+    } catch (err) {
+      if (err instanceof NotFoundError) { renderNotFound(res); return; }
+      next(err);
+    }
+  },
+
+  /** GET /members/:memberKey/download/:token
+   *  The emailed link, and no session required: holding the token is the proof
+   *  of mailbox control the design asks for. The token, not the member key in
+   *  the path, decides whose data is served. */
+  getDataExportDownload(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const consumed = memberDataExportService.consumeDownloadToken(String(req.params.token));
+      if (!consumed) { renderNotFound(res); return; }
+      const out = memberDataExportService.getExportBody(consumed.memberId);
+      res.setHeader('Content-Type', `${out.contentType}; charset=utf-8`);
+      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+      res.send(out.body);
+    } catch (err) {
+      if (err instanceof NotFoundError) { renderNotFound(res); return; }
+      next(err);
+    }
+  },
+
+  /** GET /members/:memberKey/delete */
+  getDeleteAccount(req: Request, res: Response, next: NextFunction): void {
+    if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
+    try {
+      res.render('members/delete-account', memberService.getAccountDeletionPage(req.params.memberKey));
+    } catch (err) {
+      if (err instanceof NotFoundError) { renderNotFound(res); return; }
+      next(err);
+    }
+  },
+
+  /** POST /members/:memberKey/delete */
+  async postDeleteAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
+    const memberKey = req.params.memberKey;
+    // The confirmation screen posts back to itself carrying the hidden field, so
+    // a bare POST is someone who has not read it yet and gets it now.
+    if (req.body.confirmed !== '1') {
+      res.render('members/delete-account', memberService.getAccountDeletionPage(memberKey));
+      return;
+    }
+    try {
+      const result = await getDefaultAccountDeletionService().requestAccountDeletion({
+        memberId: req.user!.userId,
+        recurringDonationChoice: req.body.recurringDonation === 'cancel' ? 'cancel' : 'keep',
+      });
+      if (result.status !== 'deleted') {
+        res.status(422).render(
+          'members/delete-account',
+          memberService.getAccountDeletionPage(memberKey, { notice: result.status === 'not_found' ? 'already_deleted' : result.status }),
+        );
+        return;
+      }
+      // No redirect and no flash: every member page now answers not-found for
+      // this visitor, so there is nowhere to send them. The cookie goes first so
+      // the browser is not left holding a session for an account that is gone.
+      clearSessionCookie(res, req);
+      res.render('members/delete-account-done', memberService.getAccountDeletionDonePage(result.graceDays));
+    } catch (err) {
+      if (err instanceof NotFoundError) { renderNotFound(res); return; }
+      if (err instanceof RateLimitedError) {
+        res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        renderRateLimited(res, { title: 'Too Many Attempts' });
+        return;
+      }
       next(err);
     }
   },

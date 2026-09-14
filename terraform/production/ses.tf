@@ -150,9 +150,9 @@ variable "ses_dmarc_policy" {
     DMARC policy stage for the _dmarc TXT record. The rollout is staged:
     monitor-only (none) with the report mailbox first, then quarantine once
     the sender list is confirmed and the aggregate reports run clean, then
-    reject. At the optional Route 53 handover, set this to the stage the
-    hand-applied zone record has already reached so Terraform reconciles
-    without regressing the policy.
+    reject. Where a DMARC record was already published by hand on the zone
+    before it moved here, set this to the stage that record had reached, so
+    Terraform reconciles onto it without regressing the policy.
   EOT
   type        = string
   default     = "none"
