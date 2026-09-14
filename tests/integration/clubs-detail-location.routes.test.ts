@@ -4,10 +4,11 @@
  * city that was never known. The club detail page must therefore render a
  * partial location without punctuation left dangling where the missing part was.
  *
- * The page previously assembled the line itself as city, region, country, so a
- * blank city rendered a leading comma before the country. It now uses the shared
- * location formatter, which drops absent parts and, when there is nothing
- * locating the club at all, says so in words instead of showing an empty line.
+ * The page renders through the shared location formatter rather than joining
+ * city, region and country itself: a hand-joined line leaves a leading comma
+ * before the country when the city is blank. The formatter drops absent parts
+ * and, when there is nothing locating the club at all, says so in words instead
+ * of showing an empty line.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

@@ -18,6 +18,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 import { join } from 'node:path';
 import { TRICKS_MOSAIC } from '../../src/content/freestyleTricksMosaic';
 
@@ -25,8 +26,7 @@ const SITE_DIR = join(process.cwd(), 'curated/site');
 const sidecars = readdirSync(SITE_DIR).filter((f) => /^mosaic-.*\.meta\.json$/.test(f));
 const clips = readdirSync(SITE_DIR).filter((f) => /^mosaic-.*\.mp4$/.test(f));
 
-const ffprobeAvailable =
-  spawnSync('ffprobe', ['-version'], { encoding: 'utf8', ...SPAWN_GUARD }).status === 0;
+const ffprobeAvailable = requireToolInCI('ffprobe');
 
 function clipDimensions(mp4: string): { w: number; h: number } | null {
   const r = spawnSync(

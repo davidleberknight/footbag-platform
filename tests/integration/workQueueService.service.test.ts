@@ -15,11 +15,14 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import {
+  insertMailingListSubscription,
+  insertMember,
+  insertMemberMessage,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4012');
 
-const TS = '2025-01-01T00:00:00.000Z';
 const ADMIN_A = 'wq_admin_a';
 const ADMIN_B = 'wq_admin_b';
 const ENTITY_MEMBER_ID = 'wq_entity_member';
@@ -31,12 +34,12 @@ let svc: typeof import('../../src/services/workQueueService').workQueueService;
 let ops: typeof import('../../src/services/operationsPlatformService').operationsPlatformService;
 
 function subscribeToAdminAlerts(subId: string, memberId: string): void {
-  testDb.prepare(`
-    INSERT INTO mailing_list_subscriptions (
-      id, created_at, created_by, updated_at, updated_by, version,
-      mailing_list_id, member_id, status, status_updated_at
-    ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, 'subscribed', ?)
-  `).run(subId, TS, TS, memberId, TS);
+  insertMailingListSubscription(testDb, {
+    id: subId,
+    list_slug: 'admin-alerts',
+    member_id: memberId,
+    status: 'subscribed',
+  });
 }
 
 function enqueueRoutine(entityId: string): string {
@@ -195,17 +198,15 @@ describe('workQueueService.escalateStaleQueueItems', () => {
     // advance, while the card on screen says it is waiting on the member.
     const id = enqueueRoutine(ENTITY_MEMBER_ID);
     testDb.prepare(`UPDATE work_queue_items SET opened_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`).run(id);
-    testDb.prepare(`
-      INSERT INTO member_messages (
-        id, created_at, created_by, updated_at, updated_by,
-        recipient_member_id, sender_admin_member_id, work_queue_item_id,
-        subject, body_text, expected_answer_kind, status, sent_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'acknowledge', 'sent', ?)
-    `).run(
-      'mmsg-stale-wait', '2020-01-02T00:00:00.000Z', ADMIN_A, '2020-01-02T00:00:00.000Z', ADMIN_A,
-      ENTITY_MEMBER_ID, ADMIN_A, id,
-      'Waiting on you', 'Could you confirm something for us?', '2020-01-02T00:00:00.000Z',
-    );
+    insertMemberMessage(testDb, {
+      id: 'mmsg-stale-wait',
+      recipient_member_id: ENTITY_MEMBER_ID,
+      sender_admin_member_id: ADMIN_A,
+      work_queue_item_id: id,
+      subject: 'Waiting on you',
+      body_text: 'Could you confirm something for us?',
+      expected_answer_kind: 'acknowledge',
+    });
 
     expect(svc.escalateStaleQueueItems().escalated).toBe(0);
 

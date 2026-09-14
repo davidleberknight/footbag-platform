@@ -6,6 +6,13 @@
  *   - factory default is 'junk' and round-trips through SQLite
  *   - all four valid values accepted and persisted unchanged
  *   - empty / NULL / out-of-enum rejected at INSERT time
+ *
+ * factory-cannot-express: the rejection cases write their rows as statements
+ * rather than through the shared candidate factory, and that is the point. The
+ * factory types
+ * classification to the enum, so it cannot produce the empty, NULL or
+ * out-of-enum value each of those cases needs the database to refuse. The
+ * statement is the subject of the assertion, not test data being seeded.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -63,6 +70,8 @@ describe('legacy_club_candidates.classification', () => {
 
   it('CHECK constraint rejects out-of-enum classification', () => {
     expect(() => {
+      // factory-cannot-express: the candidate factory types classification to the
+      // enum, so it cannot carry the value this case needs refused.
       db.prepare(`
         INSERT INTO legacy_club_candidates (
           id, legacy_club_key, display_name, classification,
@@ -74,6 +83,8 @@ describe('legacy_club_candidates.classification', () => {
 
   it('NOT NULL constraint rejects null classification', () => {
     expect(() => {
+      // factory-cannot-express: the factory always supplies a classification, so
+      // it cannot produce the NULL this case needs refused.
       db.prepare(`
         INSERT INTO legacy_club_candidates (
           id, legacy_club_key, display_name, classification,
@@ -85,6 +96,8 @@ describe('legacy_club_candidates.classification', () => {
 
   it('CHECK constraint rejects empty string classification', () => {
     expect(() => {
+      // factory-cannot-express: an empty classification is outside the factory's
+      // type, so only a statement can present it for refusal.
       db.prepare(`
         INSERT INTO legacy_club_candidates (
           id, legacy_club_key, display_name, classification,

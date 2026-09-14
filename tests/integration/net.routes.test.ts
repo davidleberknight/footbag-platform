@@ -36,6 +36,7 @@ import {
   insertNetTeam,
   insertNetTeamMember,
   insertNetTeamAppearance,
+  insertNetDisciplineGroup,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3095');
@@ -73,22 +74,16 @@ function setupDb(db: BetterSqlite3.Database): void {
   const disc3 = insertDiscipline(db, event3, { id: 'disc-net-test-conflict-2012', name: 'Footbag Net: Singles', discipline_category: 'net', team_type: 'doubles' });
 
   // net_discipline_group entries for discipline filter tests
-  db.prepare(`
-    INSERT INTO net_discipline_group
-      (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
-    VALUES (?, 'open_doubles', 'exact', 0, 0, '2025-01-01T00:00:00.000Z', 'test')
-  `).run('disc-net-test-open-2010');
-  db.prepare(`
-    INSERT INTO net_discipline_group
-      (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
-    VALUES (?, 'open_doubles', 'exact', 0, 0, '2025-01-01T00:00:00.000Z', 'test')
-  `).run('disc-net-test-open-2015');
+  insertNetDisciplineGroup(db, 'disc-net-test-open-2010', {
+    canonical_group: 'open_doubles', match_method: 'exact', review_needed: 0, conflict_flag: 0,
+  });
+  insertNetDisciplineGroup(db, 'disc-net-test-open-2015', {
+    canonical_group: 'open_doubles', match_method: 'exact', review_needed: 0, conflict_flag: 0,
+  });
   // conflict_flag test (disc3)
-  db.prepare(`
-    INSERT INTO net_discipline_group
-      (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
-    VALUES (?, 'uncategorized', 'pattern', 1, 1, '2025-01-01T00:00:00.000Z', 'test')
-  `).run('disc-net-test-conflict-2012');
+  insertNetDisciplineGroup(db, 'disc-net-test-conflict-2012', {
+    canonical_group: 'uncategorized', match_method: 'pattern', review_needed: 1, conflict_flag: 1,
+  });
 
   // Need result_entries for FK in net_team_appearance
   // Use a member + upload to satisfy the FK chain (results_upload_id is nullable, pass null directly)

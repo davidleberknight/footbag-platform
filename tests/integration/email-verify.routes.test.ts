@@ -11,7 +11,7 @@ import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
@@ -426,15 +426,11 @@ describe('POST /verify/resend', () => {
   it('verify resend rate limit is tunable via system_config_current', async () => {
     // Lower the bucket to 2 via system_config; the 3rd resend should not enqueue.
     const tuneDb = new BetterSqlite3(dbPath);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'verify_resend_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
-    `).run(
-      'test-verify-resend-rl-tune',
-      '2026-05-22T00:00:00.000Z',
-      '2026-05-22T00:00:00.000Z',
-    );
+    insertSystemConfig(tuneDb, {
+      config_key: 'verify_resend_rate_limit_max_attempts',
+      value_json: '2',
+      created_at: '2026-05-22T00:00:00.000Z',
+    });
     tuneDb.close();
     try {
       const TUNE_EMAIL = 'verify-resend-tunable@example.com';
@@ -476,15 +472,12 @@ describe('POST /verify/resend', () => {
     } finally {
       // Restore the platform default so later tests see 3/attempt.
       const restoreDb = new BetterSqlite3(dbPath);
-      restoreDb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'verify_resend_rate_limit_max_attempts', '3', ?, 'Test restore', NULL)
-      `).run(
-        'test-verify-resend-rl-restore',
-        '2026-05-22T00:00:01.000Z',
-        '2026-05-22T00:00:01.000Z',
-      );
+      insertSystemConfig(restoreDb, {
+        config_key: 'verify_resend_rate_limit_max_attempts',
+        value_json: '3',
+        created_at: '2026-05-22T00:00:01.000Z',
+        reason_text: 'Test restore',
+      });
       restoreDb.close();
     }
   });
@@ -632,12 +625,12 @@ describe('email_verify token TTL honors system_config', () => {
     // Override the seeded 24h with 48h. effective_start_at is "now" so
     // system_config_current selects it over the schema seed.
     const wdb = new BetterSqlite3(dbPath);
-    wdb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES ('b51-ttl-override', '2026-06-03T00:00:00.000Z', 'email_verify_expiry_hours', '48',
-              '2026-06-03T00:00:00.000Z', 'TTL test tunable', NULL)
-    `).run();
+    insertSystemConfig(wdb, {
+      config_key: 'email_verify_expiry_hours',
+      value_json: '48',
+      created_at: '2026-06-03T00:00:00.000Z',
+      reason_text: 'TTL test tunable',
+    });
     wdb.close();
     try {
       const email = 'ttl-config@example.com';
@@ -676,12 +669,12 @@ describe('email_verify token TTL honors system_config', () => {
       // system_config is append-only (DELETE is trigger-blocked), so restore the
       // 24h default by appending a later-effective override.
       const cdb = new BetterSqlite3(dbPath);
-      cdb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES ('b51-ttl-restore', '2026-06-03T00:00:01.000Z', 'email_verify_expiry_hours', '24',
-                '2026-06-03T00:00:01.000Z', 'TTL test restore', NULL)
-      `).run();
+      insertSystemConfig(cdb, {
+        config_key: 'email_verify_expiry_hours',
+        value_json: '24',
+        created_at: '2026-06-03T00:00:01.000Z',
+        reason_text: 'TTL test restore',
+      });
       cdb.close();
     }
   });

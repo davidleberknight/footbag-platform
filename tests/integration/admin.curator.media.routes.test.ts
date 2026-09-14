@@ -18,27 +18,23 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-media-${Date.now()}.db`);
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-admin-list-'));
 // Curator photo + video uploads write to /curated/{category}/ in local-adapter
 // mode. Redirect that write to a temp directory so tests don't pollute the
 // repo's real /curated/.
 const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admin-curator-media-curated-'));
 
-process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
-process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT              = '3098';
-process.env.NODE_ENV          = 'test';
-process.env.LOG_LEVEL         = 'error';
-process.env.PUBLIC_BASE_URL   = 'http://localhost:3098';
-process.env.SESSION_SECRET    = 'admin-curator-media-routes-test-secret';
 // This suite covers the shape a developer machine runs: the authoring tree is
 // writable, so a curator edit rewrites the sidecar next to updating the row.
-// The database-only shape every deployed host runs is pinned separately, in
+// setTestEnv turns ALLOW_CURATED_SIDECAR_WRITES on. The database-only shape
+// every deployed host runs is pinned separately, in
 // admin.curator.media.sidecars-off.routes.test.ts, because the flag is read
 // once per process.
-process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
+const { dbPath } = setTestEnv('4199');
+process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
+process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -46,10 +42,9 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
-import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource, insertSystemConfig } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 let resetImageProcessingAdapterForTests: () => void;
@@ -72,14 +67,13 @@ async function makeJpeg(): Promise<Buffer> {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'Curator Admin Media', login_email: 'admin-media@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Regular Member Media', login_email: 'member-media@example.com' });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky_media', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 
   // Inject the image adapter to run Sharp inline (no real worker process).
   const adapterMod = await import('../../src/adapters/imageProcessingAdapter');
@@ -116,9 +110,7 @@ afterAll(async () => {
   resetImageProcessingAdapterForTests();
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.resetCuratedRootDirForTests();
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
   try { fs.rmSync(TEST_CURATED_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
@@ -145,7 +137,7 @@ async function uploadPhotoViaRoute(caption: string, tags: string[]): Promise<str
   // build the caption to be unique, so it identifies the row on its own; the
   // assertion says so rather than leaning on an upload-time ordering that a
   // repeated caption would silently resolve at random.
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   let row: { id: string };
   try {
     row = theOnlyRow<{ id: string }>(db, rowPin('media_items', 'caption = ?', [caption]));
@@ -327,7 +319,7 @@ describe('POST /admin/curator/media/:id/edit', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/media');
 
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     const row = db.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(mediaId) as { caption: string };
     expect(row.caption).toBe(updatedCaption);
     db.close();
@@ -406,7 +398,7 @@ describe('POST /admin/curator/media/:id/delete', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/media');
 
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
     expect(row).toBeUndefined();
     const tagRows = db.prepare(`SELECT id FROM media_tags WHERE media_id = ?`).all(mediaId);
@@ -452,7 +444,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
   });
 
   function seedSidecarRow(slug: string): { mediaId: string; sidecarPath: string; sidecarFilename: string; videoUrl: string } {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     const videoUrl = `https://www.youtube.com/watch?v=ROUTE_${slug}`;
     const result = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
@@ -514,7 +506,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     // The edit re-attributes the clip to a different source, which has to be a
     // registered one: the column is a foreign key and the service rejects an
     // unknown id as fixable input rather than letting it reach the engine.
-    const sourceDb = new BetterSqlite3(TEST_DB_PATH);
+    const sourceDb = new BetterSqlite3(dbPath);
     insertMediaSource(sourceDb, 'src_route_edited');
     sourceDb.close();
     const app = createApp();
@@ -553,7 +545,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.headers.location).toBe('/admin/curator/media');
     expect(fs.existsSync(sidecarPath)).toBe(false);
 
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
     expect(row).toBeUndefined();
     db.close();
@@ -616,12 +608,11 @@ describe('admin curator state-change rate limit', () => {
 
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
-    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'curator_write_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-curator-write-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'curator_write_rate_limit_per_hour',
+      value_json: '2',
+    });
     tuneDb.close();
     try {
       const app = createApp();

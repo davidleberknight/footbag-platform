@@ -2,17 +2,16 @@
  * The difficulty-frontier note on the Freestyle Concepts page, and the doctrine
  * it has to agree with.
  *
- * The note used to call "Surging Ducking Paradox Blender" a close 8-ADD
- * contender. No such trick exists at any difficulty, and the repository already
- * carried a curator's ruling on that exact name: it is an outside-source name
- * for the 7-ADD Cheese Processor under the paradox-free reading, and it was
- * deliberately not adopted as an 8-ADD canonical. Two surfaces therefore said
- * opposite things about one name, and the prose was the newer and vaguer of the
- * two.
+ * The note names no 8-ADD contender, and that absence is the contract. The
+ * tempting candidate, "Surging Ducking Paradox Blender", is not a trick at any
+ * difficulty: the curated ruling holds it as an outside-source name for the
+ * 7-ADD Cheese Processor under the paradox-free reading, deliberately not
+ * adopted as an 8-ADD canonical. Prose naming it would put two surfaces in
+ * contradiction over one name.
  *
- * The correction is subtraction. Naming a different trick instead would have
- * been a fresh product judgement about which of the remaining 8-ADD tricks reads
- * as a contender, and the list was never exhaustive in the first place.
+ * Naming some other trick instead would be a fresh product judgement about
+ * which of the remaining 8-ADD tricks reads as a contender, and the list was
+ * never exhaustive, so the note stays subtractive.
  *
  * These pin the evidence rather than the wording: what the curated ruling says,
  * what the dictionary actually holds at the frontier, and that the surviving

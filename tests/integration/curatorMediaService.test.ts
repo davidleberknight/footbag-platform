@@ -7,7 +7,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertMemberTierGrant, insertCuratorUrlReference } from '../fixtures/factories';
+import {
+  insertMember,
+  insertMemberTierGrant,
+  insertCuratorUrlReference,
+  insertMediaSource,
+  insertVideoMediaItem,
+  insertMemberGallery,
+  insertFreeformTag,
+  insertGalleryCriterionTag,
+} from '../fixtures/factories';
 import sharp from 'sharp';
 import { promises as fsp } from 'fs';
 import path from 'path';
@@ -34,9 +43,7 @@ beforeAll(async () => {
   // FK target for url-reference rows that carry a sourceId (media_items.source_id
   // REFERENCES media_sources). In prod the seeder bootstraps these from CSV; the
   // test seeds the one the url-ref happy path uses.
-  db.prepare(
-    `INSERT INTO media_sources (source_id, source_name, source_type, url, creator) VALUES (?, ?, ?, NULL, NULL)`,
-  ).run('tt_youtube', 'Tricks of the Trade', 'youtube');
+  insertMediaSource(db, 'tt_youtube', { sourceName: 'Tricks of the Trade', sourceType: 'youtube' });
   // Admin Tier 2 required so the assertTier1Benefits defense-in-depth
   // check in curatorMediaService does not block admin-actor service
   // calls in this suite.
@@ -991,14 +998,19 @@ describe('curatorMediaService.getMediaItem', () => {
     const now = new Date().toISOString();
     const mediaId = `media_yt_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const ytVideoId = 'abc12345xyz';
-    db.prepare(`
-      INSERT INTO media_items (
-        id, created_at, created_by, updated_at, updated_by, version,
-        uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-        video_platform, video_id, video_url, thumbnail_url,
-        moderation_status
-      ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, NULL, ?, 'youtube', ?, ?, NULL, 'active')
-    `).run(mediaId, now, now, SYSTEM_ID, now, ytVideoId, `https://www.youtube.com/watch?v=${ytVideoId}`);
+    insertVideoMediaItem(db, {
+      id: mediaId,
+      uploader_member_id: SYSTEM_ID,
+      caption: null,
+      uploaded_at: now,
+      video_platform: 'youtube',
+      video_id: ytVideoId,
+      video_url: `https://www.youtube.com/watch?v=${ytVideoId}`,
+      thumbnail_url: null,
+      width_px: null,
+      height_px: null,
+      moderation_status: 'active',
+    });
     db.close();
 
     const item = await svc.getMediaItem(mediaId);
@@ -1015,14 +1027,19 @@ describe('curatorMediaService.getMediaItem', () => {
     const now = new Date().toISOString();
     const mediaId = `media_vimeo_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const stored = 'https://i.vimeocdn.com/video/777_640.jpg';
-    db.prepare(`
-      INSERT INTO media_items (
-        id, created_at, created_by, updated_at, updated_by, version,
-        uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-        video_platform, video_id, video_url, thumbnail_url,
-        moderation_status
-      ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, NULL, ?, 'vimeo', '777', 'https://vimeo.com/777', ?, 'active')
-    `).run(mediaId, now, now, SYSTEM_ID, now, stored);
+    insertVideoMediaItem(db, {
+      id: mediaId,
+      uploader_member_id: SYSTEM_ID,
+      caption: null,
+      uploaded_at: now,
+      video_platform: 'vimeo',
+      video_id: '777',
+      video_url: 'https://vimeo.com/777',
+      thumbnail_url: stored,
+      width_px: null,
+      height_px: null,
+      moderation_status: 'active',
+    });
     db.close();
 
     const item = await svc.getMediaItem(mediaId);
@@ -1492,11 +1509,10 @@ describe('curatorMediaService.updateGallery', () => {
     const ts = '2026-04-01T00:00:00Z';
     const galleryId = 'gallery_upd_fh';
     const db = openDb();
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'Pre Edit', '', 'upload_desc', ?, 'seed', ?, 'seed', 1)`,
-    ).run(galleryId, SYSTEM_ID, ts, ts);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: SYSTEM_ID, name: 'Pre Edit', description: '',
+      sort_order: 'upload_desc', created_at: ts,
+    });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-fh-'));
@@ -1559,11 +1575,10 @@ describe('curatorMediaService.updateGallery', () => {
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal-upd-m', login_email: 'gal-upd-m@example.com' });
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'My Gallery', '', 'upload_desc', ?, ?, ?, ?, 1)`,
-    ).run(galleryId, memberId, ts, memberId, ts, memberId);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: memberId, name: 'My Gallery', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: memberId,
+    });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-m-'));
@@ -1608,11 +1623,10 @@ describe('curatorMediaService.updateGallery', () => {
       insertMember(db, { id, slug, login_email: `${slug}@example.com` });
       insertMemberTierGrant(db, { member_id: id, new_tier_status: 'tier1' });
     }
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'Locked', '', 'upload_desc', ?, ?, ?, ?, 1)`,
-    ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: ownerId, name: 'Locked', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-authz-'));
@@ -1640,11 +1654,10 @@ describe('curatorMediaService.updateGallery', () => {
     const db = openDb();
     insertMember(db, { id: ownerId, slug: 'gal-upd-mod', login_email: 'gal-upd-mod@example.com' });
     insertMemberTierGrant(db, { member_id: ownerId, new_tier_status: 'tier1' });
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'Member Gallery', '', 'upload_desc', ?, ?, ?, ?, 1)`,
-    ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: ownerId, name: 'Member Gallery', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-admin-mod-'));
@@ -1989,21 +2002,17 @@ describe('curatorMediaService.deleteGallery', () => {
     const ts = '2026-04-03T00:00:00Z';
     const galleryId = 'gallery_del_fh';
     const db = openDb();
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'Del FH', '', 'upload_desc', ?, 'seed', ?, 'seed', 1)`,
-    ).run(galleryId, SYSTEM_ID, ts, ts);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: SYSTEM_ID, name: 'Del FH', description: '',
+      sort_order: 'upload_desc', created_at: ts,
+    });
     // Seed a tag link to verify cascade.
-    const tagId = `tag_del_fh_${Date.now()}`;
-    db.prepare(
-      `INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, version,
-                         tag_normalized, tag_display, is_standard, standard_type)
-       VALUES (?, ?, 'seed', ?, 'seed', 1, '#del_fh', '#del_fh', 0, NULL)`,
-    ).run(tagId, ts, ts);
-    db.prepare(
-      `INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by) VALUES (?, ?, ?, 'seed')`,
-    ).run(galleryId, tagId, ts);
+    const tagId = insertFreeformTag(db, {
+      id: `tag_del_fh_${Date.now()}`,
+      tag_normalized: '#del_fh',
+      tag_display: '#del_fh',
+    });
+    insertGalleryCriterionTag(db, galleryId, tagId);
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-fh-'));
@@ -2036,11 +2045,10 @@ describe('curatorMediaService.deleteGallery', () => {
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal-del-m', login_email: 'gal-del-m@example.com' });
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'Del Mine', '', 'upload_desc', ?, ?, ?, ?, 1)`,
-    ).run(galleryId, memberId, ts, memberId, ts, memberId);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: memberId, name: 'Del Mine', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: memberId,
+    });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-m-'));
@@ -2088,11 +2096,10 @@ describe('curatorMediaService.deleteGallery', () => {
       insertMember(db, { id, slug, login_email: `${slug}@example.com` });
       insertMemberTierGrant(db, { member_id: id, new_tier_status: 'tier1' });
     }
-    db.prepare(
-      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                     created_at, created_by, updated_at, updated_by, version)
-       VALUES (?, ?, 'Locked', '', 'upload_desc', ?, ?, ?, ?, 1)`,
-    ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: ownerId, name: 'Locked', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-del-authz-'));
@@ -2121,11 +2128,10 @@ describe('curatorMediaService.listGalleriesForOwner', () => {
     insertMember(db, { id: memberId, slug: 'gal-list-owner', login_email: 'gal-list-owner@example.com' });
     insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     for (const [id, name] of [[galleryId, 'Bravo'], [otherGalleryId, 'Alpha']] as const) {
-      db.prepare(
-        `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                       created_at, created_by, updated_at, updated_by, version)
-         VALUES (?, ?, ?, '', 'upload_desc', ?, ?, ?, ?, 1)`,
-      ).run(id, memberId, name, ts, memberId, ts, memberId);
+      insertMemberGallery(db, {
+        id, owner_member_id: memberId, name, description: '',
+        sort_order: 'upload_desc', created_at: ts, created_by: memberId,
+      });
     }
     db.close();
 

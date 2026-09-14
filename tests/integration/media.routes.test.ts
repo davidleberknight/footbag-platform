@@ -14,7 +14,18 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import {
+  insertMember,
+  insertFreeformTag,
+  insertMediaItem,
+  insertVideoMediaItem,
+  insertMediaSource,
+  attachMediaTag,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
+  insertGalleryExcludeTag,
+  insertGalleryExternalLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3127');
 
@@ -47,25 +58,18 @@ interface PhotoOverrides {
 function insertPhoto(db: BetterSqlite3.Database, o: PhotoOverrides = {}): string {
   const id = o.id ?? `media_photo_${Math.random().toString(36).slice(2, 12)}`;
   const uploader = o.uploader_member_id ?? SYSTEM_ID;
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, 'photo', ?, ?, ?,
-              ?, ?, 1000, 600,
-              ?)
-  `).run(
-    id, TS, TS,
-    uploader, o.is_avatar ?? 0, o.caption === undefined ? null : o.caption,
-    o.uploaded_at ?? TS,
-    o.s3_key_thumb ?? `${uploader}/detached/${id}-thumb.jpg`,
-    o.s3_key_display ?? `${uploader}/detached/${id}-display.jpg`,
-    o.moderation_status ?? 'active',
-  );
-  return id;
+  return insertMediaItem(db, {
+    id,
+    uploader_member_id: uploader,
+    is_avatar: o.is_avatar ?? 0,
+    caption: o.caption === undefined ? null : o.caption,
+    uploaded_at: o.uploaded_at ?? TS,
+    s3_key_thumb: o.s3_key_thumb ?? `${uploader}/detached/${id}-thumb.jpg`,
+    s3_key_display: o.s3_key_display ?? `${uploader}/detached/${id}-display.jpg`,
+    width_px: 1000,
+    height_px: 600,
+    moderation_status: o.moderation_status ?? 'active',
+  });
 }
 
 interface VideoOverrides {
@@ -103,42 +107,50 @@ function insertVideo(db: BetterSqlite3.Database, o: VideoOverrides = {}): string
   }
   // If source_id is set, ensure the parent media_sources row exists (FK).
   if (o.source_id) {
-    db.prepare(`
-      INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
-      VALUES (?, ?, 'youtube', NULL, NULL)
-    `).run(o.source_id, o.source_id);
+    insertMediaSource(db, o.source_id, { sourceName: o.source_id, sourceType: 'youtube' });
   }
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      video_platform, video_id, video_url, thumbnail_url,
-      width_px, height_px,
-      moderation_status, source_id
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, 'video', 0, ?, ?,
-              ?, ?, ?, ?,
-              1280, 720,
-              ?, ?)
-  `).run(
-    id, TS, TS,
-    uploader, o.caption === undefined ? null : o.caption,
-    o.uploaded_at ?? TS,
-    platform, videoId, videoUrl, thumbUrl,
-    o.moderation_status ?? 'active',
-    o.source_id ?? null,
-  );
-  return id;
+  return insertVideoMediaItem(db, {
+    id,
+    uploader_member_id: uploader,
+    caption: o.caption === undefined ? null : o.caption,
+    uploaded_at: o.uploaded_at ?? TS,
+    video_platform: platform,
+    video_id: videoId,
+    video_url: videoUrl,
+    thumbnail_url: thumbUrl,
+    width_px: 1280,
+    height_px: 720,
+    moderation_status: o.moderation_status ?? 'active',
+    source_id: o.source_id ?? null,
+  });
 }
 
-function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, tagDisplay: string): void {
-  const id = `mtag_${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
+// The tag row decides what lands on the media_tags row, exactly as the
+// production tagging path does. The display the caller names is therefore not
+// an input, and rather than ignore it, this checks it: a call site that names a
+// display the tag row does not carry is a call site whose author believed
+// something false about the fixture, and that is worth failing on rather than
+// silently discarding.
+function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, expectedDisplay: string): void {
+  const row = db.prepare('SELECT tag_display FROM tags WHERE id = ?').get(tagId) as
+    | { tag_display: string }
+    | undefined;
+  if (row?.tag_display !== expectedDisplay) {
+    throw new Error(
+      `attachTag: tag ${tagId} carries ${row?.tag_display ?? 'no row'}, caller named ${expectedDisplay}`,
+    );
+  }
+  attachMediaTag(db, mediaId, tagId);
+}
+
+// Create the tag only when it is absent, so a caller may name the same tag more
+// than once without tripping the unique index on the normalized form.
+function ensureFreeformTag(db: BetterSqlite3.Database, id: string, display: string): string {
+  const existing = db
+    .prepare(`SELECT id FROM tags WHERE tag_normalized = ?`)
+    .get(display) as { id: string } | undefined;
+  if (existing) return existing.id;
+  return insertFreeformTag(db, { id, tag_normalized: display, tag_display: display });
 }
 
 // Helper: tag a media item with all three FH-gallery criteria tags so
@@ -153,12 +165,14 @@ function insertNamedGallery(
   db: BetterSqlite3.Database,
   o: { id: string; ownerId: string; name: string; description?: string; isDefault?: 0 | 1; createdAt?: string },
 ): void {
-  db.prepare(`
-    INSERT INTO member_galleries (
-      id, created_at, created_by, updated_at, updated_by, version,
-      owner_member_id, name, description, is_default
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?, ?)
-  `).run(o.id, o.createdAt ?? TS, TS, o.ownerId, o.name, o.description ?? '', o.isDefault ?? 0);
+  insertMemberGallery(db, {
+    id: o.id,
+    created_at: o.createdAt ?? TS,
+    owner_member_id: o.ownerId,
+    name: o.name,
+    description: o.description ?? '',
+    is_default: o.isDefault ?? 0,
+  });
 }
 
 function insertGalleryCriteria(
@@ -167,10 +181,7 @@ function insertGalleryCriteria(
   tagIds: string[],
 ): void {
   for (const tid of tagIds) {
-    db.prepare(`
-      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'admin-act-as')
-    `).run(galleryId, tid, TS);
+    insertGalleryCriterionTag(db, galleryId, tid);
   }
 }
 
@@ -185,22 +196,16 @@ beforeAll(async () => {
   insertMember(db, { id: SYSTEM_ID, slug: 'media_system', is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
   insertMember(db, { id: MEMBER_ID, slug: 'media_regular', display_name: 'Regular Member' });
 
-  // Criteria tags for the FH-owned named gallery. Freeform (is_standard=0,
-  // standard_type=NULL) per schema.sql CHECK; the shared insertTag factory
-  // can't produce freeform tags so we inline the INSERT here.
-  const insertFreeformTag = (display: string): string => {
-    const id = `tag-test-${Math.random().toString(36).slice(2, 12)}`;
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(id, display, display, TS, TS);
-    return id;
-  };
-  CURATED_TAG_ID   = insertFreeformTag('#curated');
-  FREESTYLE_TAG_ID = insertFreeformTag('#freestyle');
-  TRICK_TAG_ID     = insertFreeformTag('#trick');
-  UNRANKED_TAG_ID  = insertFreeformTag('#unranked');
-  UNAVAILABLE_TAG_ID = insertFreeformTag('#unavailable_embed');
+  // Criteria tags for the FH-owned named gallery. Freeform rather than
+  // standard: a member-created tag auto-links neither a club nor an event
+  // gallery, which is what the curated set needs.
+  const freeform = (display: string): string =>
+    insertFreeformTag(db, { tag_normalized: display, tag_display: display });
+  CURATED_TAG_ID   = freeform('#curated');
+  FREESTYLE_TAG_ID = freeform('#freestyle');
+  TRICK_TAG_ID     = freeform('#trick');
+  UNRANKED_TAG_ID  = freeform('#unranked');
+  UNAVAILABLE_TAG_ID = freeform('#unavailable_embed');
 
   // FH-owned named gallery — the URL bookmark for the curated freestyle
   // tricks corpus. Mirrors what scripts/seed_fh_curator.py creates in
@@ -212,10 +217,7 @@ beforeAll(async () => {
     description: 'Reference videos for freestyle footbag tricks, curated by the IFPA.',
   });
   insertGalleryCriteria(db, FH_GALLERY_ID, [CURATED_TAG_ID, FREESTYLE_TAG_ID, TRICK_TAG_ID]);
-  db.prepare(`
-    INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
-    VALUES (?, ?, ?, 'admin-act-as')
-  `).run(FH_GALLERY_ID, UNRANKED_TAG_ID, TS);
+  insertGalleryExcludeTag(db, FH_GALLERY_ID, UNRANKED_TAG_ID);
 
   // Member-owned gallery with same criteria. Used to verify the hub +
   // detail anti-enumeration filter (FH-only).
@@ -349,11 +351,11 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     // folder resolves to a live, linked gallery. Use a gallery other than the
     // curated-tricks one, whose exact item count later named-gallery tests assert on.
     const db = openDb();
-    const pbtTagId = 'tag-test-passback-tutorials';
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#passback_tutorials', '#passback_tutorials', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(pbtTagId, TS, TS);
+    const pbtTagId = insertFreeformTag(db, {
+      id: 'tag-test-passback-tutorials',
+      tag_normalized: '#passback_tutorials',
+      tag_display: '#passback_tutorials',
+    });
     insertNamedGallery(db, {
       id: 'gallery_passback_tutorials',
       ownerId: SYSTEM_ID,
@@ -366,11 +368,11 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     attachTag(db, vid, pbtTagId, '#passback_tutorials');
 
     // Seed the Foundations gallery with one item so its folder card links.
-    const foundationsTagId = 'tag-test-foundations';
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#foundations', '#foundations', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(foundationsTagId, TS, TS);
+    const foundationsTagId = insertFreeformTag(db, {
+      id: 'tag-test-foundations',
+      tag_normalized: '#foundations',
+      tag_display: '#foundations',
+    });
     insertNamedGallery(db, {
       id: 'gallery_foundations_of_freestyle',
       ownerId: SYSTEM_ID,
@@ -537,22 +539,14 @@ describe('GET /media/:galleryId (named gallery)', () => {
 
   it('renders the shared empty-state copy when the gallery matches no media', async () => {
     const db = openDb();
-    const emptyTagId = 'tag-empty-state-001';
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(emptyTagId, '#emptygallerytag', '#emptygallerytag', TS, TS);
+    const emptyTagId = insertFreeformTag(db, {
+      id: 'tag-empty-state-001',
+      tag_normalized: '#emptygallerytag',
+      tag_display: '#emptygallerytag',
+    });
     const galleryId = 'gallery_empty_state_test';
-    db.prepare(`
-      INSERT INTO member_galleries (
-        id, created_at, created_by, updated_at, updated_by, version,
-        owner_member_id, name, description, is_default
-      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Empty Gallery', '', 0)
-    `).run(galleryId, TS, TS, SYSTEM_ID);
-    db.prepare(`
-      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'admin-act-as')
-    `).run(galleryId, emptyTagId, TS);
+    insertNamedGallery(db, { id: galleryId, ownerId: SYSTEM_ID, name: 'Empty Gallery' });
+    insertGalleryCriteria(db, galleryId, [emptyTagId]);
     db.close();
 
     const app = createApp();
@@ -566,17 +560,16 @@ describe('GET /media/:galleryId (named gallery)', () => {
 
   it('renders external links as "External URL: <clickable url>" with no icon and no curator label', async () => {
     const db = openDb();
-    db.prepare(`
-      INSERT INTO gallery_external_links (
-        id, created_at, created_by, updated_at, updated_by, version,
-        gallery_id, label, url, validated_at, quarantine_reason, sort_order
-      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Chinlone', ?, ?, NULL, 0)
-    `).run(
-      'lnk_wiki_chinlone',
-      TS, TS, FH_GALLERY_ID,
-      'https://en.wikipedia.org/wiki/Chinlone',
-      TS,
-    );
+    insertGalleryExternalLink(db, {
+      id: 'lnk_wiki_chinlone',
+      created_at: TS,
+      gallery_id: FH_GALLERY_ID,
+      label: 'Chinlone',
+      url: 'https://en.wikipedia.org/wiki/Chinlone',
+      validated_at: TS,
+      quarantine_reason: null,
+      sort_order: 0,
+    });
     db.close();
 
     const app = createApp();
@@ -614,27 +607,15 @@ describe('GET /media/:galleryId (named gallery)', () => {
     // (a) treated the member name as a hashtag and (b) rendered
     // green-on-green via the global `a { color: var(--primary) }` rule.
     const db = openDb();
-    const byMemberTagId = `tag-by-${Math.random().toString(36).slice(2, 12)}`;
-    const footbagsTagId = `tag-footbags-${Math.random().toString(36).slice(2, 12)}`;
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(byMemberTagId, '#by_media_regular', '#by_media_regular', TS, TS);
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(footbagsTagId, '#footbags', '#footbags', TS, TS);
+    const byMemberTagId = insertFreeformTag(db, {
+      tag_normalized: '#by_media_regular', tag_display: '#by_media_regular',
+    });
+    const footbagsTagId = insertFreeformTag(db, {
+      tag_normalized: '#footbags', tag_display: '#footbags',
+    });
     const galleryId = 'gallery_by_chip_test';
-    db.prepare(`
-      INSERT INTO member_galleries (
-        id, created_at, created_by, updated_at, updated_by, version,
-        owner_member_id, name, description, is_default
-      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Funky Footbags', '', 0)
-    `).run(galleryId, TS, TS, SYSTEM_ID);
-    db.prepare(`
-      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'admin-act-as'), (?, ?, ?, 'admin-act-as')
-    `).run(galleryId, byMemberTagId, TS, galleryId, footbagsTagId, TS);
+    insertNamedGallery(db, { id: galleryId, ownerId: SYSTEM_ID, name: 'Funky Footbags' });
+    insertGalleryCriteria(db, galleryId, [byMemberTagId, footbagsTagId]);
     db.close();
 
     const app = createApp();
@@ -659,22 +640,12 @@ describe('GET /media/:galleryId (named gallery)', () => {
 
   it('falls back to the raw #by_<slug> tag when the slug does not resolve to an active member', async () => {
     const db = openDb();
-    const ghostTagId = `tag-by-ghost-${Math.random().toString(36).slice(2, 12)}`;
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(ghostTagId, '#by_ghost_account', '#by_ghost_account', TS, TS);
+    const ghostTagId = insertFreeformTag(db, {
+      tag_normalized: '#by_ghost_account', tag_display: '#by_ghost_account',
+    });
     const galleryId = 'gallery_by_chip_ghost_test';
-    db.prepare(`
-      INSERT INTO member_galleries (
-        id, created_at, created_by, updated_at, updated_by, version,
-        owner_member_id, name, description, is_default
-      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Ghost Gallery', '', 0)
-    `).run(galleryId, TS, TS, SYSTEM_ID);
-    db.prepare(`
-      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'admin-act-as')
-    `).run(galleryId, ghostTagId, TS);
+    insertNamedGallery(db, { id: galleryId, ownerId: SYSTEM_ID, name: 'Ghost Gallery' });
+    insertGalleryCriteria(db, galleryId, [ghostTagId]);
     db.close();
 
     const app = createApp();
@@ -972,11 +943,10 @@ describe('GET /media/:galleryId (named gallery, continued)', () => {
     // Dedicated gallery + tag so the 101-item corpus cannot pollute the
     // FH-gallery expectations of other tests in this file.
     const db = openDb();
-    const capTagId = `tag-test-capstress`;
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#capstress', '#capstress', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(capTagId, TS, TS);
+    const capTagId = insertFreeformTag(db, {
+      id: 'tag-test-capstress',
+      tag_normalized: '#capstress', tag_display: '#capstress',
+    });
     insertNamedGallery(db, {
       id: 'gallery_cap_stress',
       ownerId: SYSTEM_ID,
@@ -1061,26 +1031,13 @@ describe('GET /media/:galleryId (named gallery, continued)', () => {
   it('honors the gallery\'s exclude-tag set by filtering matching items out', async () => {
     const db = openDb();
     // Create the exclude tag and a per-trick criteria tag.
-    db.prepare(`
-      INSERT OR IGNORE INTO tags (
-        id, created_at, created_by, updated_at, updated_by, version,
-        tag_normalized, tag_display
-      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
-    `).run('tag-test-excl', TS, TS, '#excluded_subset', '#excluded_subset');
-    db.prepare(`
-      INSERT OR IGNORE INTO tags (
-        id, created_at, created_by, updated_at, updated_by, version,
-        tag_normalized, tag_display
-      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
-    `).run('tag-trick-foo', TS, TS, '#foo', '#foo');
+    ensureFreeformTag(db, 'tag-test-excl', '#excluded_subset');
+    ensureFreeformTag(db, 'tag-trick-foo', '#foo');
 
     // Configure the FH-owned gallery to exclude items tagged
     // #excluded_subset. Items carrying every criteria tag AND any
     // exclude tag must be filtered out.
-    db.prepare(`
-      INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'admin-act-as')
-    `).run(FH_GALLERY_ID, 'tag-test-excl', TS);
+    insertGalleryExcludeTag(db, FH_GALLERY_ID, 'tag-test-excl');
 
     // Non-excluded row: carries criteria tags only, appears in gallery.
     const keepId = insertVideo(db, {
@@ -1182,15 +1139,14 @@ describe('GET /media/:galleryId/:mediaId (item detail) + grid linking', () => {
 
   beforeAll(() => {
     const db = openDb();
-    const detailTagId = 'tag-test-detailset';
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#detailset', '#detailset', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(detailTagId, TS, TS);
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#by_detail_uploader', '#by_detail_uploader', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run('tag-by-detail-uploader', TS, TS);
+    const detailTagId = insertFreeformTag(db, {
+      id: 'tag-test-detailset',
+      tag_normalized: '#detailset', tag_display: '#detailset',
+    });
+    insertFreeformTag(db, {
+      id: 'tag-by-detail-uploader',
+      tag_normalized: '#by_detail_uploader', tag_display: '#by_detail_uploader',
+    });
     insertMember(db, { id: 'member-detail-uploader', slug: 'detail_uploader', display_name: 'Detail Uploader' });
 
     insertNamedGallery(db, { id: GID, ownerId: SYSTEM_ID, name: 'Detail Set' });
@@ -1240,11 +1196,10 @@ describe('GET /media/:galleryId/:mediaId (item detail) + grid linking', () => {
     // A gallery whose criteria match exactly one item: the pager collapses
     // because Previous and Next would both resolve to that same item.
     const db = openDb();
-    const soloTagId = 'tag-test-soloset';
-    db.prepare(`
-      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#soloset', '#soloset', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(soloTagId, TS, TS);
+    const soloTagId = insertFreeformTag(db, {
+      id: 'tag-test-soloset',
+      tag_normalized: '#soloset', tag_display: '#soloset',
+    });
     insertNamedGallery(db, { id: 'gallery_solo', ownerId: SYSTEM_ID, name: 'Solo Set' });
     insertGalleryCriteria(db, 'gallery_solo', [soloTagId]);
     const soloItem = insertPhoto(db, { caption: 'solo-item', uploaded_at: '2026-07-04T00:00:00.000Z' });
@@ -1338,10 +1293,7 @@ describe('GET /media/:galleryId — browse-all handoff', () => {
   // Dedicated FH-owned galleries and tags so the handoff href is exact and
   // immune to the FH-gallery state other tests in this file accumulate.
   const insertFreeform = (db: BetterSqlite3.Database, id: string, display: string): void => {
-    db.prepare(`
-      INSERT OR IGNORE INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(id, display, display, TS, TS);
+    ensureFreeformTag(db, id, display);
   };
 
   beforeAll(() => {
@@ -1355,10 +1307,7 @@ describe('GET /media/:galleryId — browse-all handoff', () => {
     // Gallery with a topic criterion and an exclude criterion.
     insertNamedGallery(db, { id: 'gallery_handoff_001', ownerId: SYSTEM_ID, name: 'Handoff One' });
     insertGalleryCriteria(db, 'gallery_handoff_001', ['tag-h-topic']);
-    db.prepare(`
-      INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'admin-act-as')
-    `).run('gallery_handoff_001', 'tag-h-excl', TS);
+    insertGalleryExcludeTag(db, 'gallery_handoff_001', 'tag-h-excl');
 
     // Small, single-criterion gallery with no splitting tag: not worth a filter.
     insertNamedGallery(db, { id: 'gallery_handoff_quiet', ownerId: SYSTEM_ID, name: 'Handoff Quiet' });

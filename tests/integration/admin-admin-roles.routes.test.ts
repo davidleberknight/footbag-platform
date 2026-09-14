@@ -10,7 +10,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createMemberAtTier, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createMemberAtTier, createTestSessionJwt, insertMailingListSubscription } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3142');
 
@@ -63,8 +63,7 @@ beforeEach(() => {
   // grant/revoke targets a distinct member in a single run, so the per-entity
   // audit counts below stay exact without a reset.
   const subRow = (id: string, list: string, mid: string) =>
-    db.prepare(`INSERT INTO mailing_list_subscriptions (id, created_at, created_by, updated_at, updated_by, version, mailing_list_id, member_id, status, status_updated_at) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, 'subscribed', ?)`)
-      .run(id, TS, TS, list, mid, TS);
+    insertMailingListSubscription(db, { id, list_slug: list, member_id: mid });
   subRow('mls_admin2_alerts', 'admin-alerts', ADMIN2_ID);
   subRow('mls_admin2_other', 'all-members', ADMIN2_ID);
   db.close();

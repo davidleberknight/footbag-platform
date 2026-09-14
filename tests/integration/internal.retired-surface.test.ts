@@ -7,8 +7,8 @@
  * This file runs the case under a full production boot, because production is
  * the environment the retirement exists to protect and a valid production
  * baseline also proves the 404s reflect an absent route rather than a boot
- * failure. The dev-environment case, where the router used to mount, is
- * covered by the admin crawl in route-wiring.crawl.test.ts. The config
+ * failure. The dev-environment case is covered by the admin crawl in
+ * route-wiring.crawl.test.ts. The config
  * singleton freezes on the first importApp, so this file boots exactly one env.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

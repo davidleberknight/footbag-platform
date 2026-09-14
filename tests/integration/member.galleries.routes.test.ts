@@ -54,6 +54,9 @@ import {
   insertMemberTierGrant,
   createTestSessionJwt,
   insertMediaItem,
+  insertSystemConfig,
+  insertFreeformTag,
+  attachMediaTag,
 } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
@@ -881,21 +884,15 @@ describe('gallery edit current-items display + uploadTags', () => {
     db.pragma('foreign_keys = ON');
     const m = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'show.jpg', caption: null });
     // Tag the item with both criteria tags so it appears in the gallery.
-    const insertTag = db.prepare(
-      `INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, version, tag_normalized, tag_display, is_standard, standard_type) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, 0, NULL) ON CONFLICT(tag_normalized) DO NOTHING`,
-    );
     const findTagId = db.prepare(`SELECT id FROM tags WHERE tag_normalized = ?`);
     function tagId(display: string): string {
       const norm = display.toLowerCase();
-      insertTag.run(`tag_${norm.slice(1)}`, '2026-01-01', '2026-01-01', norm, display);
-      const row = findTagId.get(norm) as { id: string };
-      return row.id;
+      const existing = findTagId.get(norm) as { id: string } | undefined;
+      if (existing) return existing.id;
+      return insertFreeformTag(db, { id: `tag_${norm.slice(1)}`, tag_normalized: norm, tag_display: display });
     }
-    const insertMediaTag = db.prepare(
-      `INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)`,
-    );
-    insertMediaTag.run(`mt_${m}_by`, '2026-01-01', '2026-01-01', m, tagId(`#by_${OWNER_SLUG}`), `#by_${OWNER_SLUG}`);
-    insertMediaTag.run(`mt_${m}_pick`, '2026-01-01', '2026-01-01', m, tagId('#pickedup'), '#pickedup');
+    attachMediaTag(db, m, tagId(`#by_${OWNER_SLUG}`));
+    attachMediaTag(db, m, tagId('#pickedup'));
     db.close();
 
     const res = await request(createApp())
@@ -1024,11 +1021,10 @@ describe('POST /members/:memberKey/galleries — rate limit', () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
     const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'gallery_write_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-gallery-write-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    insertSystemConfig(tuneDb, {
+      config_key: 'gallery_write_rate_limit_per_hour',
+      value_json: '2',
+    });
     tuneDb.close();
     try {
       for (let i = 0; i < 2; i++) {

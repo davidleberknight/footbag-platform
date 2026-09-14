@@ -46,9 +46,17 @@ import {
   insertLegacyPersonClubAffiliation,
   insertNameVariant,
   insertGivenNameVariant,
+  insertPaymentStatusTransition,
+  insertActivePlayerReminderSent,
+  insertCandidateCleanupResolution,
+  insertClubCleanupClaim,
   createMemberAtTier,
   createTier0WithActivePlayer,
   createTier3WithUnderlying,
+  insertMemberDeclaredAnchor,
+  insertStripeEvent,
+  insertStripeWebhookFailure,
+  insertClubCleanupResolution,
 } from '../../src/testkit/personaRowBuilders';
 
 export {
@@ -80,9 +88,17 @@ export {
   insertLegacyPersonClubAffiliation,
   insertNameVariant,
   insertGivenNameVariant,
+  insertPaymentStatusTransition,
+  insertActivePlayerReminderSent,
+  insertCandidateCleanupResolution,
+  insertClubCleanupClaim,
   createMemberAtTier,
   createTier0WithActivePlayer,
   createTier3WithUnderlying,
+  insertMemberDeclaredAnchor,
+  insertStripeEvent,
+  insertStripeWebhookFailure,
+  insertClubCleanupResolution,
 };
 
 export type {
@@ -113,10 +129,18 @@ export type {
   LegacyPersonClubAffiliationOverrides,
   NameVariantOverrides,
   GivenNameVariantOverrides,
+  PaymentStatusTransitionOverrides,
+  ActivePlayerReminderSentOverrides,
+  CandidateCleanupResolutionOverrides,
+  ClubCleanupClaimOverrides,
   AuditEntryOverrides,
   CreateMemberAtTierOpts,
   CreateTier0WithActivePlayerOpts,
   CreateTier3WithUnderlyingOpts,
+  MemberDeclaredAnchorOverrides,
+  StripeEventOverrides,
+  StripeWebhookFailureOverrides,
+  ClubCleanupResolutionOverrides,
 } from '../../src/testkit/personaRowBuilders';
 
 const TS  = '2025-01-01T00:00:00.000Z';
@@ -307,6 +331,13 @@ export interface MediaItemOverrides {
   height_px?: number;
   source_filename?: string | null;
   caption?: string | null;
+  // Upload instant. Browse and gallery reads order on it, so a suite that
+  // pins an order sets it per item rather than letting every row share one
+  // timestamp.
+  uploaded_at?: string;
+  // Admin removal takes an item out of every public read while leaving the
+  // row in place, which is what a hidden-item test needs to seed.
+  moderation_status?: 'active' | 'removed_by_admin';
   // Tag displays to attach, for example `#by_<slug>`, which is what the
   // production upload path stamps and what every uploader-attribution read
   // resolves ownership from.
@@ -319,20 +350,77 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, source_filename, mime_type
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      s3_key_thumb, s3_key_display, width_px, height_px, source_filename, mime_type,
+      moderation_status
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, TS,
     o.uploader_member_id,
     o.is_avatar ?? 0,
     o.caption === undefined ? null : o.caption,
-    TS,
+    o.uploaded_at ?? TS,
     o.s3_key_thumb   ?? `test/thumb_${id}.jpg`,
     o.s3_key_display ?? `test/display_${id}.jpg`,
     o.width_px  ?? 800,
     o.height_px ?? 600,
     o.source_filename ?? null,
     'image/jpeg',
+    o.moderation_status ?? 'active',
+  );
+  attachMediaTags(db, id, o.tags ?? []);
+  return id;
+}
+
+// ── Video media item ─────────────────────────────────────────────────────────
+
+// A video row on any of the three platforms the grid renders. Each platform
+// carries a different combination of video_url and thumbnail_url (an object-store
+// clip has a poster and no page URL; a YouTube clip has a watch URL and a
+// derived thumbnail; a Vimeo clip has both), so the caller supplies the shape it
+// means to exercise rather than the factory guessing one.
+export interface VideoMediaItemOverrides {
+  id?: string;
+  uploader_member_id: string;
+  video_platform: 's3' | 'youtube' | 'vimeo';
+  video_id: string;
+  video_url?: string | null;
+  thumbnail_url?: string | null;
+  caption?: string | null;
+  uploaded_at?: string;
+  // A URL-reference row records no pixel dimensions, so null is a real value
+  // here rather than a missing one.
+  width_px?: number | null;
+  height_px?: number | null;
+  moderation_status?: 'active' | 'removed_by_admin';
+  // Provenance source the clip is attributed to. media_items.source_id is a
+  // foreign key, so the media_sources row must already exist; use
+  // insertMediaSource for it. NULL (the default) is an unattributed clip.
+  source_id?: string | null;
+  tags?: string[];
+}
+
+export function insertVideoMediaItem(db: BetterSqlite3.Database, o: VideoMediaItemOverrides): string {
+  const id = o.id ?? `media-video-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      width_px, height_px, moderation_status, source_id
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, TS,
+    o.uploader_member_id,
+    o.caption === undefined ? null : o.caption,
+    o.uploaded_at ?? TS,
+    o.video_platform,
+    o.video_id,
+    o.video_url      === undefined ? null : o.video_url,
+    o.thumbnail_url  === undefined ? null : o.thumbnail_url,
+    o.width_px  === undefined ? 1280 : o.width_px,
+    o.height_px === undefined ? 720  : o.height_px,
+    o.moderation_status ?? 'active',
+    o.source_id ?? null,
   );
   attachMediaTags(db, id, o.tags ?? []);
   return id;
@@ -462,6 +550,7 @@ export interface MemberSubmittedVideoOverrides {
   videoId: string;                 // YouTube id -> video_url
   source_id?: string | null;       // member submissions leave this NULL (default)
   id?: string;
+  caption?: string | null;         // default NULL, matching a bare URL submission
   moderation_status?: string;      // default 'active'
   tags?: string[];                 // tag displays to attach; none by default
 }
@@ -496,7 +585,7 @@ export function insertMemberSubmittedVideo(
   `).run(
     id, TS, TS,
     o.uploader_member_id,
-    null, TS,
+    o.caption === undefined ? null : o.caption, TS,
     o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
     sourceId, o.moderation_status ?? 'active',
   );
@@ -1292,6 +1381,9 @@ export interface AccountTokenOverrides {
   expires_at?: string;
   used_at?: string | null;
   token_hash?: string;
+  // The declared anchor a mailbox-link token proves control of; NULL for every
+  // other token type.
+  target_anchor_id?: string | null;
 }
 
 export function insertAccountToken(
@@ -1304,12 +1396,13 @@ export function insertAccountToken(
   db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, token_type, token_hash, token_hash_version,
+      member_id, target_anchor_id, token_type, token_hash, token_hash_version,
       issued_at, expires_at, used_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 1, ?, ?, ?)
   `).run(
     id, issuedAt, SYS, issuedAt, SYS,
     memberId,
+    o.target_anchor_id ?? null,
     o.token_type ?? 'email_verify',
     o.token_hash ?? `hash-${id}`,
     issuedAt,
@@ -1548,6 +1641,10 @@ export interface MemberGalleryOverrides {
   is_default?: number;
   sort_order?: string;
   created_at?: string;
+  /** The actor on the row. Defaults to the system actor; pass the owner's id for
+   *  a gallery the member created themselves. */
+  created_by?: string;
+  updated_by?: string;
 }
 
 // A named gallery (member or curator). Default is_default=0 so it appears on the
@@ -1555,13 +1652,18 @@ export interface MemberGalleryOverrides {
 // (foreign_keys are ON in the test DB).
 export function insertMemberGallery(db: BetterSqlite3.Database, o: MemberGalleryOverrides = {}): string {
   const id = o.id ?? `gallery_${uid()}`;
+  // A member's own gallery is created and updated by that member, not by the
+  // system, and a row a test creates should be a row the application could have
+  // created. Callers seeding a member-owned gallery pass the owner; the curator's
+  // own galleries keep the system actor, which is what the curator path writes.
+  const actor = o.created_by ?? SYS;
   db.prepare(`
     INSERT INTO member_galleries
       (id, created_at, created_by, updated_at, updated_by, version,
        owner_member_id, name, description, is_default, sort_order)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).run(
-    id, o.created_at ?? TS, SYS, o.created_at ?? TS, SYS,
+    id, o.created_at ?? TS, actor, o.created_at ?? TS, o.updated_by ?? actor,
     o.owner_member_id ?? `mem_${uid()}`,
     o.name ?? `Gallery ${id}`,
     o.description ?? '',
@@ -1583,6 +1685,88 @@ export function insertGalleryCriterionTag(
     INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
     VALUES (?, ?, ?, ?)
   `).run(galleryId, tagId, TS, SYS);
+}
+
+// One NOT-criterion on a named gallery: an item carrying this tag is kept out of
+// the gallery even when it satisfies every criterion tag.
+export function insertGalleryExcludeTag(
+  db: BetterSqlite3.Database,
+  galleryId: string,
+  tagId: string,
+): void {
+  db.prepare(`
+    INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
+    VALUES (?, ?, ?, ?)
+  `).run(galleryId, tagId, TS, SYS);
+}
+
+// An off-site link rendered beside a gallery. A link is publicly visible only
+// once intake has verified it (validated_at stamped) and it carries no
+// quarantine reason, so the default here is the verified, unquarantined row.
+export interface GalleryExternalLinkOverrides {
+  id?: string;
+  gallery_id: string;
+  label?: string;
+  url?: string;
+  validated_at?: string | null;
+  quarantine_reason?: string | null;
+  sort_order?: number;
+  created_at?: string;
+}
+
+export function insertGalleryExternalLink(
+  db: BetterSqlite3.Database,
+  o: GalleryExternalLinkOverrides,
+): string {
+  const id = o.id ?? `gallink-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO gallery_external_links (
+      id, created_at, created_by, updated_at, updated_by, version,
+      gallery_id, label, url, validated_at, quarantine_reason, sort_order
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, SYS, at, SYS,
+    o.gallery_id,
+    o.label ?? `Link ${id}`,
+    o.url   ?? `https://example.test/${id}`,
+    o.validated_at      === undefined ? at   : o.validated_at,
+    o.quarantine_reason === undefined ? null : o.quarantine_reason,
+    o.sort_order ?? 0,
+  );
+  return id;
+}
+
+// ── Media job (asynchronous curator video pipeline) ──────────────────────────
+
+// The row that tracks one admin-initiated video upload through sign, finalize,
+// transcode and publish. The admin who started it is what the status page
+// authorizes on, so it is required.
+export interface MediaJobOverrides {
+  id?: string;
+  admin_member_id: string;
+  kind?: 'curator_video';
+  state?: 'pending_upload' | 'pending_transcode' | 'processing' | 'succeeded' | 'failed' | 'abandoned';
+  created_at?: string;
+  created_by?: string;
+}
+
+export function insertMediaJob(db: BetterSqlite3.Database, o: MediaJobOverrides): string {
+  const id = o.id ?? `mj-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  const by = o.created_by ?? SYS;
+  db.prepare(`
+    INSERT INTO media_jobs (
+      id, created_at, created_by, updated_at, updated_by, version,
+      kind, state, admin_member_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+  `).run(
+    id, at, by, at, by,
+    o.kind  ?? 'curator_video',
+    o.state ?? 'pending_upload',
+    o.admin_member_id,
+  );
+  return id;
 }
 
 // ── Outbox email ───────────────────────────────────────────────────────────────

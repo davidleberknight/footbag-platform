@@ -43,6 +43,7 @@ import {
 import {
   insertMember,
   insertFreestyleTrick,
+  insertMemberGallery,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3175');
@@ -52,12 +53,11 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const TS = '2026-05-23T00:00:00.000Z';
 
 function insertGalleryRow(db: BetterSqlite3.Database, id: string, name: string, ownerId: string): void {
-  db.prepare(`
-    INSERT INTO member_galleries
-      (id, created_at, created_by, updated_at, updated_by, version,
-       owner_member_id, name, description, is_default, sort_order)
-    VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, '', 0, 'upload_desc')
-  `).run(id, TS, TS, ownerId, name);
+  insertMemberGallery(db, {
+    id, name, owner_member_id: ownerId,
+    description: '', is_default: 0, sort_order: 'upload_desc',
+    created_at: TS,
+  });
 }
 
 beforeAll(async () => {

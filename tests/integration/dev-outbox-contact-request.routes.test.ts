@@ -17,7 +17,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertMailingListSubscription } from '../fixtures/factories';
 
 // Imported dynamically in beforeAll, not statically: a static import would reach
 // src/config/env.ts and freeze config before this file's env overrides run.
@@ -83,12 +83,11 @@ beforeAll(async () => {
     login_email: ADMIN_EMAIL, is_admin: 1,
   });
   // Subscribe the admin to admin-alerts so the submit-side fan-out has a target.
-  db.prepare(`
-    INSERT INTO mailing_list_subscriptions (
-      id, created_at, created_by, updated_at, updated_by, version,
-      mailing_list_id, member_id, status, status_updated_at
-    ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, 'subscribed', ?)
-  `).run(`mls-${ADMIN_ID}`, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', ADMIN_ID, '2025-01-01T00:00:00.000Z');
+  insertMailingListSubscription(db, {
+    id: `mls-${ADMIN_ID}`,
+    list_slug: 'admin-alerts',
+    member_id: ADMIN_ID,
+  });
   db.close();
 
   createApp = await importApp();

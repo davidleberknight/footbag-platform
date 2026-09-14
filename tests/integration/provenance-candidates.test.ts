@@ -10,104 +10,86 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
+import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { insertHistoricalPerson, insertLegacyMember, insertNameVariant } from '../fixtures/factories';
 import { buildProvenanceCandidates } from '../../scripts/build-provenance-candidates';
 
-const DB_PATH = path.resolve(
-  os.tmpdir(),
-  `footbag-test-provenance-${Date.now()}-${process.pid}.db`,
-);
+const { dbPath } = setTestEnv('4204');
 
 function seed(db: BetterSqlite3.Database): void {
   const TS = '2025-01-01T00:00:00.000Z';
-  const SYS = 'system';
+
+  const legacy = (legacy_member_id: string, display_name: string): string =>
+    insertLegacyMember(db, {
+      legacy_member_id,
+      display_name,
+      // The matcher prefers real_name and falls back to display_name; these
+      // fixtures are mirror-derived rows that carry only the roster name.
+      real_name: null,
+      import_source: 'mirror',
+    });
 
   // HIGH / exact_normalized_unique: one HP, one legacy, exact match.
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-exact', 'Alex Tester', 'test');
-  db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-exact', 'Alex Tester', 'alex tester', TS);
+  insertHistoricalPerson(db, {
+    person_id: 'hp-exact', person_name: 'Alex Tester', source: 'test', country: null,
+  });
+  legacy('LM-exact', 'Alex Tester');
 
   // HIGH / variant_normalized_unique.
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-variant', 'René Dupont', 'test');
-  db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-variant', 'Rene Dupont', 'rene dupont', TS);
-  db.prepare(`INSERT INTO name_variants (canonical_normalized, variant_normalized, source, created_at)
-    VALUES (?, ?, 'mirror_mined', ?)`)
-    .run('rené dupont', 'rene dupont', TS);
+  insertHistoricalPerson(db, {
+    person_id: 'hp-variant', person_name: 'René Dupont', source: 'test', country: null,
+  });
+  legacy('LM-variant', 'Rene Dupont');
+  insertNameVariant(db, {
+    canonical_normalized: 'rené dupont',
+    variant_normalized: 'rene dupont',
+    source: 'mirror_mined',
+    created_at: TS,
+  });
 
   // MEDIUM / ambiguous_multiple_legacy_matches: one HP, two legacies with same name.
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-multi-legacy', 'Pat Common', 'test');
-  db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-multi-a', 'Pat Common', 'pat common', TS);
-  db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-multi-b', 'Pat Common', 'pat common', TS);
+  insertHistoricalPerson(db, {
+    person_id: 'hp-multi-legacy', person_name: 'Pat Common', source: 'test', country: null,
+  });
+  legacy('LM-multi-a', 'Pat Common');
+  legacy('LM-multi-b', 'Pat Common');
 
   // MEDIUM / ambiguous_multiple_hp_matches: two HPs share the same name,
   // both point at the same single legacy candidate.
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-share-a', 'Jordan Shared', 'test');
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-share-b', 'Jordan Shared', 'test');
-  db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-shared', 'Jordan Shared', 'jordan shared', TS);
+  insertHistoricalPerson(db, {
+    person_id: 'hp-share-a', person_name: 'Jordan Shared', source: 'test', country: null,
+  });
+  insertHistoricalPerson(db, {
+    person_id: 'hp-share-b', person_name: 'Jordan Shared', source: 'test', country: null,
+  });
+  legacy('LM-shared', 'Jordan Shared');
 
   // Unresolved: HP with no matching legacy name anywhere.
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-unresolved', 'Nobody Stranger', 'test');
+  insertHistoricalPerson(db, {
+    person_id: 'hp-unresolved', person_name: 'Nobody Stranger', source: 'test', country: null,
+  });
 
   // Already-linked HP — must be excluded because legacy_member_id IS NULL is the filter.
-  db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-existing', 'Already Linked', 'already linked', TS);
-  db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, legacy_member_id, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-prelinked', 'Already Linked', 'LM-existing', 'test');
+  legacy('LM-existing', 'Already Linked');
+  insertHistoricalPerson(db, {
+    person_id: 'hp-prelinked',
+    person_name: 'Already Linked',
+    legacy_member_id: 'LM-existing',
+    source: 'test',
+    country: null,
+  });
 }
 
 let db: BetterSqlite3.Database;
 
 beforeAll(() => {
-  if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
-  db = createTestDb(DB_PATH);
+  db = createTestDb(dbPath);
   seed(db);
 });
 
 afterAll(() => {
   db.close();
-  for (const ext of ['', '-wal', '-shm']) {
-    const p = DB_PATH + ext;
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  }
+  cleanupTestDb(dbPath);
 });
 
 describe('buildProvenanceCandidates', () => {

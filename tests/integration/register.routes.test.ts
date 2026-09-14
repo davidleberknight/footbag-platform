@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -18,27 +18,21 @@ import path from 'path';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
-const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-register-${Date.now()}.db`);
 const TEST_ADMIN_FILE   = path.join(os.tmpdir(), `footbag-test-initial-admins-${Date.now()}.txt`);
 
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
-process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
+const { dbPath } = setTestEnv('4194');
 process.env.FOOTBAG_INITIAL_ADMIN_FILE = TEST_ADMIN_FILE;
-process.env.PORT                     = '3004';
-process.env.NODE_ENV                 = 'test';
 // applyDevStagingBootstrapAdmin gates on FOOTBAG_ENV; the bootstrap suite
 // below exercises the dev/staging path, so the test process advertises
 // development to enable the allowlist behavior.
 process.env.FOOTBAG_ENV              = 'development';
-process.env.LOG_LEVEL                = 'error';
-process.env.PUBLIC_BASE_URL          = 'http://localhost:3004';
-process.env.SESSION_SECRET           = 'register-test-secret';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   // Pre-existing member for duplicate-email tests.
   insertMember(db, {
     id:          'member-existing-001',
@@ -49,14 +43,11 @@ beforeAll(async () => {
 
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
   try { fs.unlinkSync(TEST_ADMIN_FILE); } catch { /* ignore */ }
 });
 
@@ -124,7 +115,7 @@ describe('POST /register', () => {
     // to silent_duplicate, so DB state is the only signal that the write
     // path actually ran. Successful registration must enqueue a verification
     // email to the new member.
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const member = db.prepare(
       `SELECT id, slug, login_email_normalized, display_name_normalized,
               password_hash, email_verified_at
@@ -173,7 +164,7 @@ describe('POST /register', () => {
     expect(res.headers.location).toBe('/register/check-email');
     expect(res.text).not.toContain('already exists');
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     // No second member row was created for the duplicate email.
     const memberCount = db.prepare(
       `SELECT COUNT(*) AS c FROM members WHERE login_email_normalized = ?`,
@@ -270,7 +261,7 @@ describe('POST /register', () => {
       });
     expect(res.status).toBe(303);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare(
       'SELECT given_names, family_name, real_name FROM members WHERE login_email = ?',
     ).get('suharto@example.com') as
@@ -524,7 +515,7 @@ describe('POST /register', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare(
       `SELECT real_name, display_name_normalized
          FROM members WHERE login_email_normalized = ?`,
@@ -567,7 +558,7 @@ describe('POST /register', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const member = db.prepare(
       `SELECT slug FROM members WHERE login_email_normalized = ?`,
     ).get('slugtester@example.com') as { slug: string } | undefined;
@@ -590,7 +581,7 @@ describe('POST /register', () => {
       });
     expect(res.status).toBe(303);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const member = db.prepare(
       `SELECT slug FROM members WHERE login_email_normalized = ?`,
     ).get('autoslugger@example.com') as { slug: string } | undefined;
@@ -709,7 +700,7 @@ describe('POST /register — initial-admin bootstrap', () => {
       expect(res.status).toBe(303);
       expect(res.headers.location).toBe('/register/check-email');
 
-      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+      const db = new BetterSqlite3(dbPath, { readonly: true });
       const member = db.prepare(
         `SELECT id, is_admin FROM members WHERE login_email_normalized = ?`,
       ).get('bootstrap-admin@example.com') as { id: string; is_admin: number } | undefined;
@@ -764,7 +755,7 @@ describe('POST /register — initial-admin bootstrap', () => {
         });
       expect(res.status).toBe(303);
 
-      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+      const db = new BetterSqlite3(dbPath, { readonly: true });
       const member = db.prepare(
         `SELECT id, is_admin FROM members WHERE login_email_normalized = ?`,
       ).get('plain-member@example.com') as { id: string; is_admin: number } | undefined;
@@ -795,7 +786,7 @@ describe('POST /register — initial-admin bootstrap', () => {
       });
     expect(res.status).toBe(303);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const member = db.prepare(
       `SELECT id, is_admin FROM members WHERE login_email_normalized = ?`,
     ).get('no-file@example.com') as { id: string; is_admin: number } | undefined;
@@ -855,7 +846,7 @@ describe('POST /register — verify-email enqueue failure', () => {
 
     expect(res.status).toBe(503);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const member = db.prepare(
       `SELECT id, slug, login_email_normalized, password_hash, email_verified_at
          FROM members WHERE login_email_normalized = ?`,
@@ -920,7 +911,7 @@ describe('POST /register → /register/check-email', () => {
     // own verification email must not sit behind more pending rows than one
     // drain clears. Clearing the queue keeps this card render deterministic
     // regardless of how many prior registrations left mail queued.
-    const reset = new BetterSqlite3(TEST_DB_PATH);
+    const reset = new BetterSqlite3(dbPath);
     reset.prepare(`DELETE FROM outbox_emails WHERE status = 'pending'`).run();
     reset.close();
     // Use a fresh cookie jar with supertest agent so the redirect stays in-session.

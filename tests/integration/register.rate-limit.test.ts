@@ -12,6 +12,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
+import { insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -20,11 +21,10 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   // Lower the register bucket to 2 per window so the 3rd attempt is blocked.
-  db.prepare(`
-    INSERT INTO system_config
-      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-    VALUES (?, ?, 'register_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
-  `).run('test-register-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+  insertSystemConfig(db, {
+    config_key: 'register_rate_limit_max_attempts',
+    value_json: '2',
+  });
   db.close();
   createApp = await importApp();
 });

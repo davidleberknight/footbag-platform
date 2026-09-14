@@ -15,7 +15,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import {
+  insertMember,
+  insertFreeformTag as insertFreeformTagRow,
+  insertMediaItem,
+  insertVideoMediaItem,
+  attachMediaTag,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3142');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -31,27 +39,22 @@ function openDb(): BetterSqlite3.Database {
 }
 
 function insertFreeformTag(db: BetterSqlite3.Database, display: string): string {
-  const id = `tag-mix-${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-  `).run(id, display.toLowerCase(), display, TS, TS);
-  return id;
+  return insertFreeformTagRow(db, { tag_normalized: display.toLowerCase(), tag_display: display });
 }
 
 function insertPhoto(db: BetterSqlite3.Database, o: { id: string; caption?: string | null; uploaded_at?: string; uploader?: string }): string {
   const uploader = o.uploader ?? SYSTEM_ID;
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'photo', 0, ?, ?, ?, ?, 1000, 600, 'active')
-  `).run(
-    o.id, TS, TS, uploader, o.caption === undefined ? null : o.caption, o.uploaded_at ?? TS,
-    `${uploader}/detached/${o.id}-thumb.jpg`, `${uploader}/detached/${o.id}-display.jpg`,
-  );
-  return o.id;
+  return insertMediaItem(db, {
+    id: o.id,
+    uploader_member_id: uploader,
+    caption: o.caption === undefined ? null : o.caption,
+    uploaded_at: o.uploaded_at ?? TS,
+    s3_key_thumb: `${uploader}/detached/${o.id}-thumb.jpg`,
+    s3_key_display: `${uploader}/detached/${o.id}-display.jpg`,
+    width_px: 1000,
+    height_px: 600,
+    moderation_status: 'active',
+  });
 }
 
 function insertVideo(db: BetterSqlite3.Database, o: { id: string; platform: 's3' | 'youtube' | 'vimeo'; caption?: string | null; uploaded_at?: string; video_id?: string; uploader?: string }): string {
@@ -66,30 +69,32 @@ function insertVideo(db: BetterSqlite3.Database, o: { id: string; platform: 's3'
     videoId = o.video_id ?? (o.id.replace(/[^0-9]/g, '').slice(-8) || '12345678'); videoUrl = `https://vimeo.com/${videoId}`;
     thumbUrl = `https://i.vimeocdn.com/video/${videoId}_640.jpg`;
   }
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      video_platform, video_id, video_url, thumbnail_url, width_px, height_px, moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, 1280, 720, 'active')
-  `).run(o.id, TS, TS, uploader, o.caption === undefined ? null : o.caption, o.uploaded_at ?? TS, o.platform, videoId, videoUrl, thumbUrl);
-  return o.id;
-}
-
-function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, display: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?)
-  `).run(`mt_${Math.random().toString(36).slice(2, 12)}`, TS, TS, mediaId, tagId, display);
+  return insertVideoMediaItem(db, {
+    id: o.id,
+    uploader_member_id: uploader,
+    caption: o.caption === undefined ? null : o.caption,
+    uploaded_at: o.uploaded_at ?? TS,
+    video_platform: o.platform,
+    video_id: videoId,
+    video_url: videoUrl,
+    thumbnail_url: thumbUrl,
+    width_px: 1280,
+    height_px: 720,
+    moderation_status: 'active',
+  });
 }
 
 function insertGallery(db: BetterSqlite3.Database, o: { id: string; ownerId: string; name: string; sortOrder?: string; criteria: string[] }): void {
-  db.prepare(`
-    INSERT INTO member_galleries (id, created_at, created_by, updated_at, updated_by, version, owner_member_id, name, description, is_default, sort_order)
-    VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, '', 0, ?)
-  `).run(o.id, TS, TS, o.ownerId, o.name, o.sortOrder ?? 'upload_desc');
+  insertMemberGallery(db, {
+    id: o.id,
+    owner_member_id: o.ownerId,
+    name: o.name,
+    description: '',
+    is_default: 0,
+    sort_order: o.sortOrder ?? 'upload_desc',
+  });
   for (const tid of o.criteria) {
-    db.prepare(`INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by) VALUES (?, ?, ?, 'admin-act-as')`).run(o.id, tid, TS);
+    insertGalleryCriterionTag(db, o.id, tid);
   }
 }
 
@@ -113,13 +118,13 @@ beforeAll(async () => {
   const yt = insertVideo(db, { id: 'mix_video_yt', platform: 'youtube', caption: 'mix-yt-caption', video_id: 'YTMIX1234' });
   const vm = insertVideo(db, { id: 'mix_video_vm', platform: 'vimeo', caption: 'mix-vimeo-caption', video_id: '99887766' });
   const s3 = insertVideo(db, { id: 'mix_video_s3', platform: 's3', caption: 'mix-s3-caption' });
-  for (const m of [ph, phNull, yt, vm, s3]) attachTag(db, m, MIX_TAG, '#mixbrowse');
+  for (const m of [ph, phNull, yt, vm, s3]) attachMediaTag(db, m, MIX_TAG);
 
   // Sort set: 3 photos whose caption order is the reverse of their upload order.
   insertPhoto(db, { id: 'sort_03', caption: '03 third', uploaded_at: '2027-03-03T00:00:00.000Z' });
   insertPhoto(db, { id: 'sort_02', caption: '02 second', uploaded_at: '2027-02-02T00:00:00.000Z' });
   insertPhoto(db, { id: 'sort_01', caption: '01 first', uploaded_at: '2027-01-01T00:00:00.000Z' });
-  for (const id of ['sort_03', 'sort_02', 'sort_01']) attachTag(db, id, SORT_TAG, '#sortset');
+  for (const id of ['sort_03', 'sort_02', 'sort_01']) attachMediaTag(db, id, SORT_TAG);
   insertGallery(db, { id: 'gallery_sort_caption', ownerId: SYSTEM_ID, name: 'Caption Sorted', sortOrder: 'caption_asc', criteria: [SORT_TAG] });
   insertGallery(db, { id: 'gallery_sort_upload', ownerId: SYSTEM_ID, name: 'Upload Sorted', sortOrder: 'upload_desc', criteria: [SORT_TAG] });
 
@@ -127,14 +132,14 @@ beforeAll(async () => {
   const mp = insertPhoto(db, { id: 'memmix_photo', caption: 'mm-photo', uploader: MEMBER_ID });
   const mv1 = insertVideo(db, { id: 'memmix_yt', platform: 'youtube', caption: 'mm-yt', uploader: MEMBER_ID });
   const mv2 = insertVideo(db, { id: 'memmix_vm', platform: 'vimeo', caption: 'mm-vimeo', uploader: MEMBER_ID });
-  for (const m of [mp, mv1, mv2]) attachTag(db, m, MEMMIX_TAG, '#memmix');
+  for (const m of [mp, mv1, mv2]) attachMediaTag(db, m, MEMMIX_TAG);
   insertGallery(db, { id: 'gallery_member_mixed', ownerId: MEMBER_ID, name: 'My Mixed Set', criteria: [MEMMIX_TAG] });
 
   // Criteria re-eval: gallery starts on #crita; item A carries #crita, B carries #critb.
   insertPhoto(db, { id: 'crit_a_item', caption: 'crit-A-item' });
   insertPhoto(db, { id: 'crit_b_item', caption: 'crit-B-item' });
-  attachTag(db, 'crit_a_item', CRITA_TAG, '#crita');
-  attachTag(db, 'crit_b_item', CRITB_TAG, '#critb');
+  attachMediaTag(db, 'crit_a_item', CRITA_TAG);
+  attachMediaTag(db, 'crit_b_item', CRITB_TAG);
   insertGallery(db, { id: 'gallery_crit', ownerId: SYSTEM_ID, name: 'Criteria Set', criteria: [CRITA_TAG] });
 
   // Named gallery worth filtering: 5 curated + 1 member item under #famfilter,
@@ -144,11 +149,11 @@ beforeAll(async () => {
   for (let i = 1; i <= 5; i++) {
     const id = `fam_curated_${i}`;
     insertPhoto(db, { id, caption: `fam-curated-${i}` });
-    attachTag(db, id, FAM_TAG, '#famfilter');
-    attachTag(db, id, FAM_CURATED, '#curated');
+    attachMediaTag(db, id, FAM_TAG);
+    attachMediaTag(db, id, FAM_CURATED);
   }
   insertPhoto(db, { id: 'fam_member', caption: 'fam-member-clip', uploader: MEMBER_ID });
-  attachTag(db, 'fam_member', FAM_TAG, '#famfilter');
+  attachMediaTag(db, 'fam_member', FAM_TAG);
   insertGallery(db, { id: 'gallery_fam', ownerId: SYSTEM_ID, name: 'Family Filter Set', criteria: [FAM_TAG] });
   // A curated-by-definition gallery (criteria already include #curated), matching
   // the 5 curated fam items. Used to pin that a redundant ?tag=curated refine
@@ -158,8 +163,8 @@ beforeAll(async () => {
   // Mixed-set prev/next: one photo + one video in a named gallery.
   const np = insertPhoto(db, { id: 'nav_photo', caption: 'nav-photo' });
   const nv = insertVideo(db, { id: 'nav_video', platform: 'youtube', caption: 'nav-video', video_id: 'YTNAV999' });
-  attachTag(db, np, NAV_TAG, '#navmix');
-  attachTag(db, nv, NAV_TAG, '#navmix');
+  attachMediaTag(db, np, NAV_TAG);
+  attachMediaTag(db, nv, NAV_TAG);
   insertGallery(db, { id: 'gallery_nav', ownerId: SYSTEM_ID, name: 'Nav Set', criteria: [NAV_TAG] });
 
   db.close();

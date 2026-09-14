@@ -13,8 +13,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { planFixes, applyFixes } from '../../scripts/cleanup-club-data-cl1';
-
-const TS = '2026-01-01T00:00:00.000Z';
+import { insertClub, insertTag } from '../fixtures/factories';
 
 interface ClubSeed {
   id: string;
@@ -50,24 +49,24 @@ function freshDb(): BetterSqlite3.Database {
 }
 
 function seedClubs(db: BetterSqlite3.Database, seeds: ClubSeed[]): void {
-  const insTag = db.prepare(
-    `INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, version,
-                       tag_normalized, tag_display, is_standard, standard_type)
-     VALUES (@id, '${TS}', 'test', '${TS}', 'test', 1, @norm, @display, 1, 'club')`,
-  );
-  const insClub = db.prepare(
-    `INSERT INTO clubs (id, created_at, created_by, updated_at, updated_by, version,
-                         name, description, city, region, country,
-                         external_url, status, hashtag_tag_id)
-     VALUES (@id, '${TS}', 'test', '${TS}', 'test', 1,
-             @name, '', @city, NULL, @country,
-             @external_url, 'active', @tag_id)`,
-  );
   for (const seed of seeds) {
     const tagId = `tag_${seed.id.slice(-12)}`;
     const norm  = `#club_test_${seed.id.slice(-8)}`.toLowerCase();
-    insTag.run({ id: tagId, norm, display: norm });
-    insClub.run({ ...seed, tag_id: tagId });
+    insertTag(db, { id: tagId, tag_normalized: norm, tag_display: norm, standard_type: 'club' });
+    insertClub(db, {
+      id: seed.id,
+      hashtag_tag_id: tagId,
+      name: seed.name,
+      description: '',
+      city: seed.city,
+      region: null,
+      country: seed.country,
+      external_url: seed.external_url,
+      // The fixture rows model imported clubs whose URL has never been
+      // checked, which is what the cleanup script's URL fixes act on.
+      external_url_validated_at: null,
+      status: 'active',
+    });
   }
 }
 

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3064');
 
@@ -31,11 +31,10 @@ beforeAll(async () => {
 
   // Lower the per-IP cap to 2; the per-member cap stays at its default so the
   // IP bucket is the one that trips for a single member's burst of queries.
-  db.prepare(`
-    INSERT INTO system_config
-      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-    VALUES (?, ?, 'member_search_rate_limit_max_per_ip', '2', ?, 'Test tunable', NULL)
-  `).run('test-msearch-ip-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+  insertSystemConfig(db, {
+    config_key: 'member_search_rate_limit_max_per_ip',
+    value_json: '2',
+  });
 
   db.close();
   createApp = await importApp();

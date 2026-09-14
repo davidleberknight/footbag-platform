@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3093');
 
@@ -20,11 +20,10 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: 'rl-claimer', slug: 'rl_claimer', login_email: 'rl@example.com' });
   // Lower the per-IP bucket to 2 per window so the 3rd attempt is blocked.
-  db.prepare(`
-    INSERT INTO system_config
-      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-    VALUES (?, ?, 'bootstrap_claim_rate_limit_max_per_ip', '2', ?, 'Test tunable', NULL)
-  `).run('test-bootstrap-ip-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+  insertSystemConfig(db, {
+    config_key: 'bootstrap_claim_rate_limit_max_per_ip',
+    value_json: '2',
+  });
   db.close();
   createApp = await importApp();
 });

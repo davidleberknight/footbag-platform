@@ -252,8 +252,11 @@ describe('purged member', () => {
   it('profile returns 404 without auth', async () => {
     const app = createApp();
     const res = await request(app).get(`/members/${PURGED_SLUG}`);
-    // Either 302 (redirect to login) or 404; purged slug should not resolve
-    expect([302, 404]).toContain(res.status);
+    // A purged slug resolves to nothing, so an anonymous visitor meets the
+    // ordinary not-found page. Pinned: accepting a redirect as well would pass
+    // if the route ever started sending purged members to a sign-in prompt,
+    // which is itself a disclosure that the slug once existed.
+    expect(res.status).toBe(404);
   });
 
   it('profile returns 404 with auth', async () => {

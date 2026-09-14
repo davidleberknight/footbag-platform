@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, createTier0WithActivePlayer } from '../fixtures/factories';
+import { insertMember, createTier0WithActivePlayer, insertWorkQueueItem } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3074');
 const TS = '2025-01-01T00:00:00.000Z';
@@ -24,12 +24,15 @@ let memberService: typeof import('../../src/services/memberService').memberServi
 let _w = 0;
 function insertWorkItem(category: string, status: 'open' | 'resolved', priority: number): void {
   _w += 1;
-  db.prepare(`
-    INSERT INTO work_queue_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      queue_category, task_type, entity_type, entity_id, status, priority, opened_at
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'generic_task', 'member', ?, ?, ?, ?)
-  `).run(`wq-${_w}`, TS, TS, category, `ent-${_w}`, status, priority, TS);
+  insertWorkQueueItem(db, {
+    id: `wq-${_w}`,
+    queue_category: category,
+    task_type: 'generic_task',
+    entity_type: 'member',
+    entity_id: `ent-${_w}`,
+    status,
+    priority,
+  });
 }
 
 beforeAll(async () => {

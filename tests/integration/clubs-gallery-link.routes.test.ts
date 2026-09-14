@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertTag, insertClub, insertMediaItem } from '../fixtures/factories';
+import { insertMember, insertTag, insertClub, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3071');
 
@@ -44,12 +44,7 @@ beforeAll(async () => {
     uploader_member_id: uploaderId,
     caption: 'Portland jam session',
   });
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run('mt-portland-001', TS, TS, mediaId, tagIdWithMedia, '#club_portland');
+  attachMediaTag(db, mediaId, tagIdWithMedia);
 
   // Club WITHOUT media
   const tagIdNoMedia = insertTag(db, {

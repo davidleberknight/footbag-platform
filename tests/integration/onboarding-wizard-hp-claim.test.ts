@@ -302,7 +302,7 @@ describe('surname mismatch rejected', () => {
       .type('form')
       .send({});
 
-    expect([200, 422]).toContain(res.status);
+    expect(res.status).toBe(422);
 
     const member = getMember(memberId)!;
     expect(member.historical_person_id).toBeNull();

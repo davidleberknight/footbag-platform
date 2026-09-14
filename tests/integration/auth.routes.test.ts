@@ -1,46 +1,34 @@
 /**
  * Integration tests for DB-backed login.
  *
- * Covers: valid DB credentials, wrong password, unknown email, Footbag Hacky
- * login (login_email='footbag'), and DB member email + Footbag password (no
- * fallthrough — stub path is gone).
+ * Covers: valid DB credentials, wrong password, unknown email, the non-email
+ * dev stub identifier, a real member's email paired with the stub password
+ * (which must not authenticate anyone), the rate-limit ceiling at its seeded
+ * default, and the open-redirect defenses on returnTo.
  *
- * Uses a separate temp DB so it does not interfere with app.routes.test.ts.
- * Env vars are set before any module import so db.ts opens the test DB.
- * Passwords are hashed at test-setup time via argon2; no hash is stored in git.
+ * The two cases that lower a rate-limit ceiling live in their own file, because
+ * the ceiling is a row in an append-only config table: a case that tunes it
+ * changes what every later case in the same database reads, and cannot undo
+ * that except by appending a further row. Passwords are hashed at setup time
+ * via argon2; no hash is stored in git.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
-import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 import { insertMember } from '../fixtures/factories';
 
-const TEST_DB_PATH       = path.join(os.tmpdir(), 'footbag-test-auth-routes.db');
+const { dbPath } = setTestEnv('3002');
+
 const TEST_PASSWORD      = 'test-password-123';
 const TEST_MEMBER_EMAIL  = 'test-member@example.com';
 const FOOTBAG_PASSWORD   = process.env.STUB_PASSWORD!;
 
-// Set env vars BEFORE any module that reads them is imported.
-// JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
-process.env.FOOTBAG_DB_PATH  = TEST_DB_PATH;
-process.env.PORT             = '3002';
-process.env.NODE_ENV         = 'test';
-process.env.LOG_LEVEL        = 'error';
-process.env.PUBLIC_BASE_URL  = 'http://localhost:3002';
-process.env.SESSION_SECRET   = 'auth-test-secret';
-
 let app: Express.Application;
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-type AppModule = typeof import('../../src/app');
-
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   // Hash passwords at setup time — no hashes stored in git.
   const [testMemberHash, footbagHash] = await Promise.all([
     hashTestPassword(TEST_PASSWORD),
@@ -70,15 +58,11 @@ beforeAll(async () => {
 
   db.close();
 
-  const mod: AppModule = await import('../../src/app');
-  app = mod.createApp();
+  const createApp = await importApp();
+  app = createApp();
 });
 
-afterAll(() => {
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
-});
+afterAll(() => cleanupTestDb(dbPath));
 
 describe('POST /login — DB-backed auth', () => {
   it('valid DB credentials → 303 redirect and session cookie set', async () => {
@@ -179,102 +163,12 @@ describe('POST /login — DB-backed auth', () => {
     expect(blocked.headers['retry-after']).toBeDefined();
   });
 
-  it('login rate limit is tunable via system_config_current', async () => {
-    // Lower the bucket to 2 via system_config; the 3rd login attempt should 429.
-    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'login_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
-    `).run(
-      'test-login-rl-tune',
-      '2026-05-22T00:00:00.000Z',
-      '2026-05-22T00:00:00.000Z',
-    );
-    tuneDb.close();
-    try {
-      const TUNE_EMAIL = 'tune-test@example.com';
-      for (let i = 0; i < 2; i++) {
-        const ok = await request(app)
-          .post('/login')
-          .type('form')
-          .send({ email: TUNE_EMAIL, password: 'wrong-password' });
-        expect(ok.status).toBe(200);
-      }
-      const blocked = await request(app)
-        .post('/login')
-        .type('form')
-        .send({ email: TUNE_EMAIL, password: 'wrong-password' });
-      expect(blocked.status).toBe(429);
-      expect(blocked.headers['retry-after']).toBeDefined();
-    } finally {
-      // Restore the seeded default so the four returnTo tests below see 10/attempt.
-      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
-      restoreDb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'login_rate_limit_max_attempts', '10', ?, 'Test restore', NULL)
-      `).run(
-        'test-login-rl-restore',
-        '2026-05-22T00:00:01.000Z',
-        '2026-05-22T00:00:01.000Z',
-      );
-      restoreDb.close();
-    }
-  });
-
-  it('per-account login bucket engages independently of the per-(email,IP) bucket', async () => {
-    // Tune the per-account cap (3) below the per-(email,IP) cap (10) so the
-    // per-account bucket is the one that trips. Without a per-account bucket,
-    // all these single-IP attempts would stay under the 10-attempt per-(email,IP)
-    // limit and return 200; the 429 proves the account-scoped bucket exists and
-    // is enforced separately (it is keyed on the account only, not email+IP).
-    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'login_account_rate_limit_max_attempts', '3', ?, 'Test per-account bucket', NULL)
-    `).run(
-      'test-login-account-rl-tune',
-      '2026-05-22T00:00:02.000Z',
-      '2026-05-22T00:00:02.000Z',
-    );
-    tuneDb.close();
-    try {
-      const ACCOUNT_EMAIL = 'account-bucket-test@example.com';
-      for (let i = 0; i < 3; i++) {
-        const ok = await request(app)
-          .post('/login')
-          .type('form')
-          .send({ email: ACCOUNT_EMAIL, password: 'wrong-password' });
-        expect(ok.status, `attempt ${i + 1} under the per-account cap`).toBe(200);
-      }
-      const blocked = await request(app)
-        .post('/login')
-        .type('form')
-        .send({ email: ACCOUNT_EMAIL, password: 'wrong-password' });
-      expect(blocked.status).toBe(429);
-      expect(blocked.text).toContain('Too many failed login attempts');
-      expect(blocked.headers['retry-after']).toBeDefined();
-    } finally {
-      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
-      restoreDb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'login_account_rate_limit_max_attempts', '30', ?, 'Test restore', NULL)
-      `).run(
-        'test-login-account-rl-restore',
-        '2026-05-22T00:00:03.000Z',
-        '2026-05-22T00:00:03.000Z',
-      );
-      restoreDb.close();
-    }
-  });
 });
 
 describe('POST /login — returnTo open-redirect defenses (isSafePath)', () => {
-  // Footbag Hacky login is used so this suite does not collide with the
-  // rate-limit counter on TEST_MEMBER_EMAIL above.
+  // These sign in under the stub identifier rather than the member email,
+  // because the rate-limit case above deliberately exhausts that email's
+  // bucket and a shared bucket would turn every redirect assertion into a 429.
   const SAFE_DEFAULT = '/members/footbag_hacky';
 
   it('rejects protocol-scheme returnTo (http://evil.com) and falls back to the safe default', async () => {

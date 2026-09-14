@@ -1,11 +1,11 @@
 /**
  * What the one number on the clubs landing page counts.
  *
- * The page used to lead with a club total beside it. That total counted every
- * loaded row, including legacy entries nobody has confirmed still exist, so a
- * reader took it as the size of the active club network when it measured the
- * size of the archive. The country count does not have that problem: it is a
- * claim about the platform's own coverage, which the platform can make.
+ * The page shows a country count and no club total. A club total would count
+ * every loaded row, including legacy entries nobody has confirmed still exist,
+ * so a reader would take it as the size of the active club network when it
+ * measured the size of the archive. A country count does not have that problem:
+ * it is a claim about the platform's own coverage, which the platform can make.
  *
  * The definition is pinned here because it is easy to move by accident. A change
  * to what the load carries, or to which clubs the directory shows, would silently

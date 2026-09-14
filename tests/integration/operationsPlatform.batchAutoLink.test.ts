@@ -28,6 +28,8 @@ import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertMailingListSubscription,
+  insertNameVariant,
 } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
@@ -201,8 +203,11 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
 
   it('medium-confidence: stages with the asserted-identity floor tier and records the matched variant', async () => {
     const db = new BetterSqlite3(dbPath);
-    db.prepare(`INSERT INTO name_variants (canonical_normalized, variant_normalized, source)
-                VALUES (?, ?, 'admin_added')`).run('robert smith', 'bob smith');
+    insertNameVariant(db, {
+      canonical_normalized: 'robert smith',
+      variant_normalized: 'bob smith',
+      source: 'admin_added',
+    });
     db.close();
     const t = seedTriple({ prefix: 'med', memberRealName: 'Bob Smith', hpName: 'Robert Smith' });
 
@@ -228,13 +233,12 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
       display_name: 'Alerts Subscriber', login_email: `${SUBSCRIBER_ID}@example.com`,
       is_admin: 1,
     });
-    db.prepare(`
-      INSERT INTO mailing_list_subscriptions (
-        id, created_at, created_by, updated_at, updated_by, version,
-        mailing_list_id, member_id, status, status_updated_at
-      ) VALUES (?, '2025-01-01T00:00:00.000Z', 'system', '2025-01-01T00:00:00.000Z', 'system', 1,
-                'admin-alerts', ?, 'subscribed', '2025-01-01T00:00:00.000Z')
-    `).run(`mls-${SUBSCRIBER_ID}`, SUBSCRIBER_ID);
+    insertMailingListSubscription(db, {
+      id: `mls-${SUBSCRIBER_ID}`,
+      list_slug: 'admin-alerts',
+      member_id: SUBSCRIBER_ID,
+      status: 'subscribed',
+    });
     db.close();
     const t = seedTriple({
       prefix: 'low', memberRealName: 'Charlie Delta', hpName: 'Echo Foxtrot',

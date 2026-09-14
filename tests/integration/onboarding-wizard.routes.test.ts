@@ -877,7 +877,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
       const r = await request(app)
         .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')
         .send({ identifier: `garbage-rl-${stamp}-${i}` });
-      expect([303, 200]).toContain(r.status);
+      expect(r.status, `warm-up attempt ${i + 1} is under the rate limit`).toBe(303);
     }
     const res = await request(app)
       .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')

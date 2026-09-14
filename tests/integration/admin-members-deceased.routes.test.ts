@@ -20,6 +20,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertHistoricalPerson, insertEvent, createTestSessionJwt,
+  insertRegistration,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3431');
@@ -119,13 +120,7 @@ beforeAll(async () => {
   insertEvent(conn, { id: 'dm_event_future', title: 'Next Worlds', start_date: '2099-07-01', end_date: '2099-07-05' });
   insertEvent(conn, { id: 'dm_event_past', title: 'Past Worlds', start_date: '2019-07-01', end_date: '2019-07-05' });
   for (const [rid, eid] of [['dm_reg_future', 'dm_event_future'], ['dm_reg_past', 'dm_event_past']] as const) {
-    conn.prepare(`
-      INSERT INTO registrations (
-        id, created_at, created_by, updated_at, updated_by, version,
-        event_id, member_id, registered_at, registration_type, status
-      ) VALUES (?, '2026-01-01T00:00:00.000Z', 'seed', '2026-01-01T00:00:00.000Z', 'seed', 1,
-                ?, ?, '2026-01-01T00:00:00.000Z', 'competitor', 'confirmed')
-    `).run(rid, eid, PLAIN_ID);
+    insertRegistration(conn, eid, PLAIN_ID, { id: rid });
   }
 
   conn.close();

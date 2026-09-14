@@ -3,6 +3,11 @@
  * six hours of expiry receives a freshly-signed session cookie on the same
  * response; a younger token does not. No refresh tokens exist: an expired
  * token gets no cookie and the request lands unauthenticated.
+ *
+ * The refresh is an optimisation, never a precondition. When the signer is
+ * unavailable the request is still served on the token the member presented,
+ * because that token is valid until it expires and the next in-window request
+ * can retry the refresh.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -62,7 +67,34 @@ describe('sliding-session refresh window', () => {
     const res = await request(createApp())
       .get('/members/mem_refresh')
       .set('Cookie', `__Host-footbag_session=${expired}`);
-    expect([302, 303]).toContain(res.status);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/^\/login\?returnTo=/);
     expect(sessionCookies(res)).toHaveLength(0);
+  });
+
+  // A signing failure inside the refresh must never cost the member the request
+  // they made. The token they presented is still valid, so the right answer is
+  // to serve them on it and let the next in-window request retry the refresh;
+  // answering 500 would turn a transient signer blip into an outage for every
+  // member whose session happened to be near expiry.
+  it('serves the request on the presented token when re-signing fails', async () => {
+    const adapterMod = await import('../../src/adapters/jwtSigningAdapter');
+    const real = adapterMod.getJwtSigningAdapter();
+    adapterMod.setJwtSigningAdapterForTests({
+      signJwt: () => {
+        throw new Error('signing key unavailable');
+      },
+      verifyJwt: (token) => real.verifyJwt(token),
+    });
+    try {
+      const nearExpiry = createTestSessionJwt({ memberId: 'mem-refresh', ttlSeconds: 60 * 60 });
+      const res = await request(createApp())
+        .get('/members/mem_refresh')
+        .set('Cookie', `__Host-footbag_session=${nearExpiry}`);
+      expect(res.status).toBe(200);
+      expect(sessionCookies(res)).toHaveLength(0);
+    } finally {
+      adapterMod.resetJwtSigningAdapterForTests();
+    }
   });
 });

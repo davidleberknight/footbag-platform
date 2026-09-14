@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMailingListSubscription, insertMember } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3083');
 
@@ -107,13 +107,9 @@ describe('bounce and complaint notifications', () => {
 
   it("a permanent bounce flips the member's subscribed mailing-list rows to bounced", async () => {
     insertMember(db, { id: 'sf-sub', slug: 'sf_sub', login_email: 'subscriber@example.com' });
-    db.prepare(`
-      INSERT INTO mailing_list_subscriptions (
-        id, created_at, created_by, updated_at, updated_by, version,
-        mailing_list_id, member_id, status, status_updated_at
-      ) VALUES ('mls-sf-sub', '2026-01-01T00:00:00.000Z', 'system', '2026-01-01T00:00:00.000Z', 'system', 1,
-                'newsletter', 'sf-sub', 'subscribed', '2026-01-01T00:00:00.000Z')
-    `).run();
+    insertMailingListSubscription(db, {
+      id: 'mls-sf-sub', list_slug: 'newsletter', member_id: 'sf-sub', status: 'subscribed',
+    });
 
     feedback.processSnsMessage(bounceBody(['subscriber@example.com']));
 
@@ -144,13 +140,9 @@ describe('bounce and complaint notifications', () => {
 
   it("a complaint flips the member's subscribed mailing-list rows to complained", async () => {
     insertMember(db, { id: 'sf-csub', slug: 'sf_csub', login_email: 'csub@example.com' });
-    db.prepare(`
-      INSERT INTO mailing_list_subscriptions (
-        id, created_at, created_by, updated_at, updated_by, version,
-        mailing_list_id, member_id, status, status_updated_at
-      ) VALUES ('mls-sf-csub', '2026-01-01T00:00:00.000Z', 'system', '2026-01-01T00:00:00.000Z', 'system', 1,
-                'newsletter', 'sf-csub', 'subscribed', '2026-01-01T00:00:00.000Z')
-    `).run();
+    insertMailingListSubscription(db, {
+      id: 'mls-sf-csub', list_slug: 'newsletter', member_id: 'sf-csub', status: 'subscribed',
+    });
 
     feedback.processSnsMessage(complaintBody(['csub@example.com']));
 

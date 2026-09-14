@@ -16,6 +16,18 @@
  * exhaustively covered by tierPredicates.service.test.ts; this file confirms
  * the middleware composes that predicate correctly under realistic inputs
  * (admin short-circuit included).
+ *
+ * Why the middleware is called directly rather than through a route. The two
+ * branches this file exists for cannot be reached any other way. A null
+ * req.user never arrives at a gated route, because the membership guard runs
+ * first and redirects; it is reachable only if some future route mounts the
+ * tier guard alone, which is exactly the mistake the branch defends against. An
+ * administrator holding no tier grant is likewise unreachable through the
+ * persona-driven route matrix, because every administrator persona in the
+ * catalog also holds a paid tier, so the short-circuit would be satisfied by
+ * the tier rather than by the role and the test would prove nothing. Route-level
+ * coverage of these gates under real sessions belongs to the authorization
+ * matrix, and is not repeated here.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
@@ -84,6 +96,24 @@ function makeRes() {
   return { res, status, render };
 }
 
+/**
+ * A refusal is only a refusal if the visitor is shown one. Asserting merely
+ * that something rendered passes whether the guard served the error page, the
+ * page it was guarding, or a blank template, so every deny case here names the
+ * template and the status the view-model carries. What that page then says, and
+ * which control it offers, belongs to the error-helper suite; this only pins
+ * that the guard reached it.
+ */
+function expectForbiddenPage(render: ReturnType<typeof vi.fn>): void {
+  expect(render).toHaveBeenCalledTimes(1);
+  const [template, viewModel] = render.mock.calls[0] as [
+    string,
+    { content: { statusCode: number } },
+  ];
+  expect(template).toBe('errors/error');
+  expect(viewModel.content.statusCode).toBe(403);
+}
+
 function userOf(memberId: string, role: 'member' | 'admin' = 'member'): SessionUser {
   return { userId: memberId, slug: 'irrelevant', role };
 }
@@ -94,7 +124,7 @@ describe('requireTier1Benefits', () => {
     const next = vi.fn() as unknown as NextFunction;
     middlewareMod.requireTier1Benefits()(makeReq(null), res, next);
     expect(status).toHaveBeenCalledWith(403);
-    expect(render).toHaveBeenCalled();
+    expectForbiddenPage(render);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -103,7 +133,7 @@ describe('requireTier1Benefits', () => {
     const next = vi.fn() as unknown as NextFunction;
     middlewareMod.requireTier1Benefits()(makeReq(userOf(MEMBER_TIER0)), res, next);
     expect(status).toHaveBeenCalledWith(403);
-    expect(render).toHaveBeenCalled();
+    expectForbiddenPage(render);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -138,15 +168,16 @@ describe('requireTier2Plus', () => {
     const next = vi.fn() as unknown as NextFunction;
     middlewareMod.requireTier2Plus()(makeReq(null), res, next);
     expect(status).toHaveBeenCalledWith(403);
-    expect(render).toHaveBeenCalled();
+    expectForbiddenPage(render);
     expect(next).not.toHaveBeenCalled();
   });
 
   it('returns 403 for tier1 member', () => {
-    const { res, status } = makeRes();
+    const { res, status, render } = makeRes();
     const next = vi.fn() as unknown as NextFunction;
     middlewareMod.requireTier2Plus()(makeReq(userOf(MEMBER_TIER1)), res, next);
     expect(status).toHaveBeenCalledWith(403);
+    expectForbiddenPage(render);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -181,15 +212,16 @@ describe('requireTier3', () => {
     const next = vi.fn() as unknown as NextFunction;
     middlewareMod.requireTier3()(makeReq(null), res, next);
     expect(status).toHaveBeenCalledWith(403);
-    expect(render).toHaveBeenCalled();
+    expectForbiddenPage(render);
     expect(next).not.toHaveBeenCalled();
   });
 
   it('returns 403 for tier2 member', () => {
-    const { res, status } = makeRes();
+    const { res, status, render } = makeRes();
     const next = vi.fn() as unknown as NextFunction;
     middlewareMod.requireTier3()(makeReq(userOf(MEMBER_TIER2)), res, next);
     expect(status).toHaveBeenCalledWith(403);
+    expectForbiddenPage(render);
     expect(next).not.toHaveBeenCalled();
   });
 

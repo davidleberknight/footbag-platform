@@ -13,18 +13,14 @@ import os from 'os';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-curator-async-${Date.now()}.db`);
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-async-'));
 const TEST_SECRET = 'a'.repeat(48);
 
-process.env.FOOTBAG_DB_PATH    = TEST_DB_PATH;
+const { dbPath } = setTestEnv('4201');
 process.env.FOOTBAG_MEDIA_DIR  = TEST_MEDIA_DIR;
 process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT               = '3157';
-process.env.NODE_ENV           = 'test';
-process.env.LOG_LEVEL          = 'error';
-process.env.PUBLIC_BASE_URL    = 'http://localhost:3157';
-process.env.SESSION_SECRET     = 'admin-curator-async-test-secret';
 process.env.INTERNAL_EVENT_SECRET = TEST_SECRET;
 // Short heartbeat so a brief read-window catches at least the initial state.
 process.env.SSE_HEARTBEAT_SECONDS = '5';
@@ -33,8 +29,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertMediaItem } from '../fixtures/factories';
 
 let createApp: typeof import('../../src/app').createApp;
 let createMediaJobService: typeof import('../../src/services/mediaJobService').createMediaJobService;
@@ -61,13 +56,12 @@ function adminBCookie(): string {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_A, slug: 'async_admin_a', display_name: 'A', login_email: 'a@example.com', is_admin: 1 });
   insertMember(db, { id: ADMIN_B, slug: 'async_admin_b', display_name: 'B', login_email: 'b@example.com', is_admin: 1 });
   db.close();
 
-  const appMod = await import('../../src/app');
-  createApp = appMod.createApp;
+  createApp = await importApp();
   const svcMod = await import('../../src/services/mediaJobService');
   createMediaJobService = svcMod.createMediaJobService;
   const busMod = await import('../../src/services/jobEventBus');
@@ -93,14 +87,12 @@ beforeAll(async () => {
 
 afterAll(() => {
   if (resetTranscodeDispatchClientForTests) resetTranscodeDispatchClientForTests();
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
 beforeEach(() => {
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   db.prepare('DELETE FROM media_jobs').run();
   db.close();
   dispatchedJobs.length = 0;
@@ -128,14 +120,16 @@ function seedJob(adminId: string, state: 'pending_upload' | 'pending_transcode' 
   } else if (state === 'succeeded') {
     svc.claimForProcessing(id, '2099-01-01T00:30:00.000Z');
     // Insert a media item to satisfy the FK before marking succeeded.
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.prepare(`
-      INSERT INTO media_items (
-        id, created_at, created_by, updated_at, updated_by, version,
-        uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-        s3_key_thumb, s3_key_display, width_px, height_px, source_filename
-      ) VALUES (?, datetime('now'), 'test', datetime('now'), 'test', 1, ?, 'photo', 0, NULL, datetime('now'), 'k/thumb.jpg', 'k/display.jpg', 100, 100, NULL)
-    `).run(`media_${id.slice(-12)}`, adminId);
+    const db = new BetterSqlite3(dbPath);
+    insertMediaItem(db, {
+      id: `media_${id.slice(-12)}`,
+      uploader_member_id: adminId,
+      caption: null,
+      s3_key_thumb: 'k/thumb.jpg',
+      s3_key_display: 'k/display.jpg',
+      width_px: 100,
+      height_px: 100,
+    });
     db.close();
     svc.markSucceeded(id, `media_${id.slice(-12)}`);
   } else if (state === 'failed') {
@@ -563,7 +557,7 @@ describe('POST /admin/curator/upload/sign', () => {
     expect(typeof res.body.posterUrl).toBe('string');
     expect(typeof res.body.expiresAtIso).toBe('string');
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT * FROM media_jobs WHERE id = ?').get(res.body.jobId) as Record<string, unknown>;
     db.close();
     expect(row.state).toBe('pending_upload');
@@ -595,7 +589,7 @@ describe('POST /admin/curator/upload/finalize', () => {
       });
     expect(res.status).toBe(200);
     const jobId = res.body.jobId as string;
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT source_video_key, source_poster_key FROM media_jobs WHERE id = ?').get(jobId) as { source_video_key: string; source_poster_key: string };
     db.close();
     return { jobId, videoKey: row.source_video_key, posterKey: row.source_poster_key };
@@ -668,7 +662,7 @@ describe('POST /admin/curator/upload/finalize', () => {
     expect(res.body.error).toMatch(/too large/i);
     expect(dispatchedJobs).toHaveLength(0);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT state FROM media_jobs WHERE id = ?').get(jobId) as { state: string };
     db.close();
     expect(row.state).toBe('pending_upload');
@@ -704,7 +698,7 @@ describe('POST /admin/curator/upload/finalize', () => {
     expect(res.body.jobId).toBe(jobId);
     expect(res.body.statusUrl).toBe(`/admin/curator/upload/jobs/${encodeURIComponent(jobId)}`);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT state FROM media_jobs WHERE id = ?').get(jobId) as { state: string };
     db.close();
     expect(row.state).toBe('pending_transcode');

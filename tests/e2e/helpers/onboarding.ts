@@ -20,6 +20,7 @@ import {
   insertOnboardingTask,
   createMemberAtTier,
   createTestSessionJwt,
+  insertSystemConfig,
 } from '../../fixtures/factories';
 import {
   seedBrandNewPlayer as _seedBrandNewPlayer,
@@ -32,7 +33,6 @@ import {
 } from '../../fixtures/personas';
 
 const TS = '2025-01-01T00:00:00.000Z';
-const SYS = 'system';
 
 function rand(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -52,10 +52,19 @@ export function raiseClaimRateLimits(db: BetterSqlite3.Database): void {
   const now = new Date().toISOString();
   const keys = ['legacy_claim_init_rate_limit_max_per_ip', 'legacy_claim_init_rate_limit_max_per_member'];
   for (const key of keys) {
-    db.prepare(`
-      INSERT OR IGNORE INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, ?, '999', ?, 'e2e rate limit raise', NULL)
-    `).run(`sc-e2e-${key}`, now, key, now);
+    const id = `sc-e2e-${key}`;
+    // The original statement used OR IGNORE because this helper runs once per
+    // spec against a stack that may already carry the row; the lookup keeps that
+    // repeat-safe behaviour, which the factory does not provide.
+    const existing = db.prepare('SELECT 1 FROM system_config WHERE id = ?').get(id);
+    if (existing) continue;
+    insertSystemConfig(db, {
+      id,
+      created_at: now,
+      config_key: key,
+      value_json: '999',
+      reason_text: 'e2e rate limit raise',
+    });
   }
 }
 
@@ -275,13 +284,7 @@ export function seedMemberWithClubCards(
   // Pre-complete personal_details and legacy_claim so the wizard starts at
   // club_affiliations (both precede it and gate its rendering).
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
-  const taskId = `mot-${rand()}`;
-  db.prepare(`
-    INSERT INTO member_onboarding_tasks (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, task_type, state, completed_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'legacy_claim', 'completed', ?)
-  `).run(taskId, TS, SYS, TS, SYS, memberId, TS);
+  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
 
   return {
     memberId,
@@ -342,13 +345,7 @@ export function seedMemberWithLeadershipCard(
   // Pre-complete personal_details and legacy_claim so the wizard starts at
   // club_affiliations (both precede it and gate its rendering).
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
-  const taskId = `mot-ldr-${rand()}`;
-  db.prepare(`
-    INSERT INTO member_onboarding_tasks (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, task_type, state, completed_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'legacy_claim', 'completed', ?)
-  `).run(taskId, TS, SYS, TS, SYS, memberId, TS);
+  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
 
   return {
     memberId,

@@ -9,6 +9,14 @@
  *   - UNIQUE(member_id, task_type) blocks duplicates
  *   - FK to members(id) enforced
  *   - NOT NULL on created_by enforced (row-metadata convention)
+ *
+ * factory-cannot-express: rows here are written as statements rather than
+ * through the shared onboarding factory, and that is the point. The factory
+ * inserts with OR IGNORE, which
+ * swallows exactly the UNIQUE and CHECK failures these cases assert are thrown,
+ * and its enum types cannot express the invalid task_type and state values the
+ * refusal cases need. The statement is the subject of the assertion, not test
+ * data being seeded.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -42,6 +50,9 @@ function insertTask(
     created_by?: string | null;
   },
 ) {
+  // factory-cannot-express: the shared onboarding factory inserts with OR IGNORE,
+  // which swallows exactly the UNIQUE and CHECK failures these cases assert are
+  // thrown, and its enum types cannot carry the invalid task_type and state values.
   return db.prepare(`
     INSERT INTO member_onboarding_tasks (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -103,6 +114,9 @@ describe('member_onboarding_tasks schema', () => {
   });
 
   it('schema default for state is pending when the column is omitted', () => {
+    // factory-cannot-express: the point is what the SCHEMA supplies when the
+    // column is omitted, so the statement has to omit it. Every factory supplies
+    // a state, which would mean asserting the factory's default instead.
     db.prepare(`
       INSERT INTO member_onboarding_tasks (
         id, created_at, created_by, updated_at, updated_by, version,

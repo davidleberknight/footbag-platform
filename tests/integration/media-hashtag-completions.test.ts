@@ -8,13 +8,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertTag, insertMediaItem } from '../fixtures/factories';
+import { insertMember, insertTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 import { insertPersonaNamedGallery } from '../../src/testkit/personaRowBuilders';
 import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3073');
-const TS = '2025-01-01T00:00:00.000Z';
 
 let db: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -23,13 +22,6 @@ let mediaService: typeof import('../../src/services/mediaService').mediaService;
 let hashtagDiscoveryService: typeof import('../../src/services/hashtagDiscoveryService').hashtagDiscoveryService;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let operationsPlatformService: typeof import('../../src/services/operationsPlatformService').operationsPlatformService;
-
-function insertMediaTag(mediaId: string, tagId: string, tagDisplay: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, tagDisplay);
-}
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
@@ -41,8 +33,8 @@ beforeAll(async () => {
   const tagFreestyle = insertTag(db, { id: 'mhc-tag-fs', tag_normalized: '#freestyle', tag_display: '#Freestyle' });
   const mediaA = insertMediaItem(db, { uploader_member_id: memberA, caption: 'A' });
   const mediaB = insertMediaItem(db, { uploader_member_id: memberB, caption: 'B' });
-  insertMediaTag(mediaA, tagFreestyle, '#Freestyle');
-  insertMediaTag(mediaB, tagFreestyle, '#Freestyle');
+  attachMediaTag(db, mediaA, tagFreestyle);
+  attachMediaTag(db, mediaB, tagFreestyle);
 
   // An empty named gallery owned by member A (its sole criteria tag matches no
   // uploaded media, so the gallery renders empty).

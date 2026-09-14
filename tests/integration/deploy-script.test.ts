@@ -20,6 +20,7 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -40,8 +41,7 @@ function run(
   });
 }
 
-const HAS_DOCKER =
-  spawnSync('command', ['-v', 'docker'], { shell: true, ...SPAWN_GUARD }).status === 0;
+const HAS_DOCKER = requireToolInCI('docker', '--version');
 
 // The wrapper refuses to deploy at all without the maintainers' private checkout,
 // and a developer or CI machine legitimately has none, so a test that needs to

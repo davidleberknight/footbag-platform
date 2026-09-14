@@ -144,14 +144,10 @@ beforeAll(async () => {
   crossClubA = insertClub(db, { name: 'Cross-confirm Club A (existing current)' });
   crossClubB = insertClub(db, { name: 'Cross-confirm Club B (new claim)' });
   // Pre-existing is_current=1 primary affiliation at club A.
-  db.prepare(`
-    INSERT INTO member_club_affiliations (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, club_id, is_current, is_primary, is_contact, source
-    ) VALUES ('mca-pre-cross-confirm',
-              '2025-01-01T00:00:00.000Z', 'test', '2025-01-01T00:00:00.000Z', 'test', 1,
-              ?, ?, 1, 1, 0, 'admin')
-  `).run(MEMBER_CROSS_CLUB, crossClubA);
+  insertMemberClubAffiliation(db, MEMBER_CROSS_CLUB, crossClubA, {
+    id: 'mca-pre-cross-confirm',
+    is_current: 1, is_primary: 1, is_contact: 0, source: 'admin',
+  });
   const candCrossB = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',
     mapped_club_id: crossClubB,

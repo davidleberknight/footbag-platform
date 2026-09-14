@@ -51,6 +51,9 @@ function seed(key: string, value: string): string {
   ].join('\n');
 }
 
+// factory-cannot-express: this builds the TEXT of a schema file for the gate
+// under test to read. It is a fixture standing in for schema.sql, never a
+// statement this suite executes, so there is no row for a factory to create.
 function schemaWith(seeds: string[]): string {
   return ['INSERT OR IGNORE INTO system_config', '  VALUES', ...seeds, '  ;', ''].join('\n');
 }

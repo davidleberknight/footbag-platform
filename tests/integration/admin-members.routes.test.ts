@@ -17,6 +17,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, createMemberAtTier, createTestSessionJwt, insertPersonaNamedGallery,
+  insertActivePlayerGrant,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3421');
@@ -469,26 +470,36 @@ describe('the Active Player expiry correction', () => {
     // is not asking for a change, and must not silently move the standing.
     const grantedBy = 'am_untouched';
     db((conn) => {
-      conn.prepare(`
-        INSERT INTO members (
-          id, slug, created_at, created_by, updated_at, updated_by, version,
-          real_name, display_name, display_name_normalized, family_name, given_names,
-          login_email, login_email_normalized, email_verified_at, password_hash,
-          password_changed_at, bio, gender
-        ) VALUES (?, ?, '2026-01-01T00:00:00.000Z', 'seed', '2026-01-01T00:00:00.000Z', 'seed', 1,
-                  'Unt Ouched', 'Unt Ouched', 'unt ouched', 'Ouched', 'Unt',
-                  'am-untouched@example.com', 'am-untouched@example.com',
-                  '2026-01-01T00:00:00.000Z', 'x', '2026-01-01T00:00:00.000Z', '', 'undisclosed')
-      `).run(grantedBy, grantedBy);
+      insertMember(conn, {
+        id: grantedBy,
+        slug: grantedBy,
+        created_at: '2026-01-01T00:00:00.000Z',
+        real_name: 'Unt Ouched',
+        display_name: 'Unt Ouched',
+        family_name: 'Ouched',
+        given_names: 'Unt',
+        login_email: 'am-untouched@example.com',
+        email_verified_at: '2026-01-01T00:00:00.000Z',
+        password_hash: 'x',
+        bio: '',
+        gender: 'undisclosed',
+        city: null,
+        region: null,
+        country: null,
+        onboarding: 'none',
+      });
       // A grant written the way an organic one is: a mid-day moment, not an
       // end-of-day one.
-      conn.prepare(`
-        INSERT INTO active_player_grants (
-          id, created_at, created_by, member_id, actor_member_id, change_type,
-          old_active_player_expires_at, new_active_player_expires_at, reason_code
-        ) VALUES ('apg_untouched', '2026-01-01T00:00:00.000Z', 'seed', ?, NULL, 'grant',
-                  NULL, '2027-09-01T11:22:33.444Z', 'official_event_attendance')
-      `).run(grantedBy);
+      insertActivePlayerGrant(conn, {
+        id: 'apg_untouched',
+        created_at: '2026-01-01T00:00:00.000Z',
+        member_id: grantedBy,
+        actor_member_id: null,
+        change_type: 'grant',
+        old_active_player_expires_at: null,
+        new_active_player_expires_at: '2027-09-01T11:22:33.444Z',
+        reason_code: 'official_event_attendance',
+      });
     });
 
     const before = readAudit('active_player.admin_correction', grantedBy).length;

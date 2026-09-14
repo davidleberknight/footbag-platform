@@ -17,6 +17,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { seedAdmin, seedTier1Member } from '../fixtures/personas';
+import { insertWorkQueueItem } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
 
 /**
@@ -63,18 +64,19 @@ test('an administrator asks a member for their date of birth on a link-help requ
   // their old account in the wizard and asked for help linking it.
   const queueItemId = `wq-e2e-${rand()}`;
   const nowIso = new Date().toISOString();
-  db.prepare(`
-    INSERT INTO work_queue_items
-      (id, created_at, created_by, updated_at, updated_by, version,
-       queue_category, task_type, entity_type, entity_id, status, priority,
-       opened_at, reason_text, detail_text)
-    VALUES (?, ?, 'system', ?, 'system', 1, 'membership', 'member_link_help_request',
-            'member', ?, 'open', 5, ?, ?, ?)
-  `).run(
-    queueItemId, nowIso, nowIso, member.memberId, nowIso,
-    'The member asked for help linking their old account.',
-    'The member could not find their record in the wizard.',
-  );
+  insertWorkQueueItem(db, {
+    id: queueItemId,
+    created_at: nowIso,
+    opened_at: nowIso,
+    queue_category: 'membership',
+    task_type: 'member_link_help_request',
+    entity_type: 'member',
+    entity_id: member.memberId,
+    status: 'open',
+    priority: 5,
+    reason_text: 'The member asked for help linking their old account.',
+    detail_text: 'The member could not find their record in the wizard.',
+  });
   const outboxBefore =
     (db.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
   db.close();
@@ -179,14 +181,19 @@ test('the question is readable only by the member it was sent to', async ({ brow
 
   const queueItemId = `wq-e2e-${rand()}`;
   const nowIso = new Date().toISOString();
-  db.prepare(`
-    INSERT INTO work_queue_items
-      (id, created_at, created_by, updated_at, updated_by, version,
-       queue_category, task_type, entity_type, entity_id, status, priority,
-       opened_at, reason_text, detail_text)
-    VALUES (?, ?, 'system', ?, 'system', 1, 'membership', 'member_link_help_request',
-            'member', ?, 'open', 5, ?, ?, NULL)
-  `).run(queueItemId, nowIso, nowIso, member.memberId, nowIso, 'A link-help request was raised.');
+  insertWorkQueueItem(db, {
+    id: queueItemId,
+    created_at: nowIso,
+    opened_at: nowIso,
+    queue_category: 'membership',
+    task_type: 'member_link_help_request',
+    entity_type: 'member',
+    entity_id: member.memberId,
+    status: 'open',
+    priority: 5,
+    reason_text: 'A link-help request was raised.',
+    detail_text: null,
+  });
   db.close();
 
   const adminCtx = await createAuthenticatedContext(browser, baseURL!, admin);

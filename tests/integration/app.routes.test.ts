@@ -11,10 +11,7 @@ import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 import {
   insertMember,
@@ -38,25 +35,11 @@ const DRAFT_EVENT_KEY    = 'event_2026_draft_event';
 const ALICE_ID = 'person-alice-001';
 const BOB_ID   = 'person-bob-001';
 
-// pid + random suffix, matching setTestEnv's idiom: a fixed name collides
-// when two vitest invocations run this file concurrently on one machine
-// (createTestDb execs the schema unconditionally, so the second process
-// dies with "table tags already exists" before any test runs).
-const TEST_DB_PATH       = path.join(
-  os.tmpdir(),
-  `footbag-test-app-routes-${process.pid}-${Math.random().toString(36).slice(2, 10)}.db`,
-);
-
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
-process.env.FOOTBAG_DB_PATH         = TEST_DB_PATH;
-process.env.PORT                    = '3001';
-process.env.NODE_ENV                = 'test';
-process.env.LOG_LEVEL               = 'error';
-process.env.PUBLIC_BASE_URL         = 'http://localhost:3001';
-process.env.SESSION_SECRET          = 'test-secret-for-integration-tests';
+const { dbPath } = setTestEnv('4192');
 
-// Dynamic import after env is set so db.ts picks up TEST_DB_PATH.
+// Dynamic import after env is set so db.ts picks up the test database path.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
 import { createTestSessionJwt } from '../fixtures/factories';
@@ -72,7 +55,7 @@ function unprefixedAuthCookie(): string {
 }
 
 async function buildTestDatabase(): Promise<void> {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   // Footbag Hacky: test member with login_email='footbag' (non-email identifier).
   // Password comes from STUB_PASSWORD env var (local dev's gitignored .env, or
   // the per-run default set in tests/setup-env.ts). Never hardcoded in git.
@@ -257,14 +240,11 @@ async function buildTestDatabase(): Promise<void> {
 
 beforeAll(async () => {
   await buildTestDatabase();
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
-  for (const f of [TEST_DB_PATH, `${TEST_DB_PATH}-wal`, `${TEST_DB_PATH}-shm`]) {
-    if (fs.existsSync(f)) fs.unlinkSync(f);
-  }
+  cleanupTestDb(dbPath);
 });
 
 // ── Health routes ──────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3140');
 
@@ -29,36 +29,19 @@ let SPIKE_TAG_ID = '';
 let TUTORIAL_TAG_ID = '';
 let BY_REGULAR_TAG_ID = '';
 
-function insertFreeformTag(db: BetterSqlite3.Database, normalized: string, display: string): string {
-  const id = `tag-filter-${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-  `).run(id, normalized, display, TS, TS);
-  return id;
-}
-
 function insertPhoto(db: BetterSqlite3.Database, o: { id: string; uploader?: string; caption?: string; uploaded_at?: string }): string {
   const uploader = o.uploader ?? SYSTEM_ID;
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'photo', 0, ?, ?, ?, ?, 1000, 600, 'active')
-  `).run(
-    o.id, TS, TS, uploader, o.caption ?? null, o.uploaded_at ?? TS,
-    `${uploader}/detached/${o.id}-thumb.jpg`, `${uploader}/detached/${o.id}-display.jpg`,
-  );
-  return o.id;
-}
-
-function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, tagDisplay: string): void {
-  const id = `mtag_${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
+  return insertMediaItem(db, {
+    id: o.id,
+    uploader_member_id: uploader,
+    caption: o.caption ?? null,
+    uploaded_at: o.uploaded_at ?? TS,
+    s3_key_thumb: `${uploader}/detached/${o.id}-thumb.jpg`,
+    s3_key_display: `${uploader}/detached/${o.id}-display.jpg`,
+    width_px: 1000,
+    height_px: 600,
+    moderation_status: 'active',
+  });
 }
 
 beforeAll(async () => {
@@ -66,27 +49,27 @@ beforeAll(async () => {
   insertMember(db, { id: SYSTEM_ID, slug: 'filter_system', is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
   insertMember(db, { id: REGULAR_ID, slug: 'filter_regular', display_name: 'Filter Regular' });
 
-  BUTTERFLY_TAG_ID  = insertFreeformTag(db, '#butterfly', '#butterfly');
-  SPIKE_TAG_ID      = insertFreeformTag(db, '#spike', '#spike');
-  TUTORIAL_TAG_ID   = insertFreeformTag(db, '#tutorial', '#tutorial');
-  BY_REGULAR_TAG_ID = insertFreeformTag(db, '#by_filter_regular', '#by_filter_regular');
+  BUTTERFLY_TAG_ID  = insertFreeformTag(db, { tag_normalized: '#butterfly', tag_display: '#butterfly' });
+  SPIKE_TAG_ID      = insertFreeformTag(db, { tag_normalized: '#spike', tag_display: '#spike' });
+  TUTORIAL_TAG_ID   = insertFreeformTag(db, { tag_normalized: '#tutorial', tag_display: '#tutorial' });
+  BY_REGULAR_TAG_ID = insertFreeformTag(db, { tag_normalized: '#by_filter_regular', tag_display: '#by_filter_regular' });
 
   // butterfly + spike
   const both = insertPhoto(db, { id: 'media_filter_both_001', caption: 'photo-both', uploaded_at: '2027-01-03T00:00:00.000Z' });
-  attachTag(db, both, BUTTERFLY_TAG_ID, '#butterfly');
-  attachTag(db, both, SPIKE_TAG_ID, '#spike');
+  attachMediaTag(db, both, BUTTERFLY_TAG_ID);
+  attachMediaTag(db, both, SPIKE_TAG_ID);
   // butterfly + tutorial
   const tut = insertPhoto(db, { id: 'media_filter_tut_001', caption: 'photo-tut', uploaded_at: '2027-01-02T00:00:00.000Z' });
-  attachTag(db, tut, BUTTERFLY_TAG_ID, '#butterfly');
-  attachTag(db, tut, TUTORIAL_TAG_ID, '#tutorial');
+  attachMediaTag(db, tut, BUTTERFLY_TAG_ID);
+  attachMediaTag(db, tut, TUTORIAL_TAG_ID);
   // butterfly only
   const butOnly = insertPhoto(db, { id: 'media_filter_but_001', caption: 'photo-butonly', uploaded_at: '2027-01-01T00:00:00.000Z' });
-  attachTag(db, butOnly, BUTTERFLY_TAG_ID, '#butterfly');
+  attachMediaTag(db, butOnly, BUTTERFLY_TAG_ID);
   // butterfly + #by_filter_regular (the uploader marker co-occurs but must be
   // filtered out of the suggestion row).
   const byme = insertPhoto(db, { id: 'media_filter_byme_001', caption: 'photo-byme', uploader: REGULAR_ID, uploaded_at: '2027-01-04T00:00:00.000Z' });
-  attachTag(db, byme, BUTTERFLY_TAG_ID, '#butterfly');
-  attachTag(db, byme, BY_REGULAR_TAG_ID, '#by_filter_regular');
+  attachMediaTag(db, byme, BUTTERFLY_TAG_ID);
+  attachMediaTag(db, byme, BY_REGULAR_TAG_ID);
 
   db.close();
   createApp = await importApp();

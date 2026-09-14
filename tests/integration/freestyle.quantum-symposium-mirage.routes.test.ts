@@ -19,7 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3180');
@@ -37,12 +37,11 @@ beforeAll(async () => {
     aliases_json: '["backside symposium toe blur"]',
   });
   // Mirror loader 19's alias-table side effect
-  const insertAlias = db.prepare(`
-    INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, alias_origin_producer, created_at)
-    VALUES (?, ?, ?, ?, 'expert-additions', ?)
-  `);
-  insertAlias.run('backside_symposium_toe_blur', 'backside symposium toe blur', 'quantum_symposium_mirage', 'common', new Date().toISOString());
+  insertFreestyleTrickAlias(
+    db, 'backside_symposium_toe_blur', 'quantum_symposium_mirage',
+    'backside symposium toe blur',
+    { alias_type: 'common', alias_origin_producer: 'expert-additions' },
+  );
   db.close();
   createApp = await importApp();
 });

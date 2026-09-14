@@ -18,17 +18,12 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-mu-${Date.now()}-${process.pid}.db`);
-const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-mu-media-'));
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
-process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
+const { dbPath: TEST_DB_PATH } = setTestEnv('4205');
+const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-mu-media-'));
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
 process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT              = '3096';
-process.env.NODE_ENV          = 'test';
-process.env.LOG_LEVEL         = 'error';
-process.env.PUBLIC_BASE_URL   = 'http://localhost:3096';
-process.env.SESSION_SECRET    = 'member-upload-routes-test-secret';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -36,7 +31,6 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import {
@@ -44,6 +38,7 @@ import {
   completeOnboarding,
   insertMemberTierGrant,
   createTestSessionJwt,
+  insertSystemConfig,
 } from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mu-owner-001';
@@ -103,8 +98,7 @@ beforeAll(async () => {
 
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 
   // In-process Sharp pipeline injected at the HTTP-adapter boundary so the
   // suite runs without a real image worker. Mirrors the avatar suite.
@@ -155,9 +149,7 @@ afterAll(() => {
   resetImageProcessingAdapterForTests?.();
   resetVideoUrlVerifierForTests?.();
   resetRateLimitForTests?.();
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(TEST_DB_PATH);
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
@@ -516,15 +508,11 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
   it('photo upload rate limit is tunable via system_config_current', async () => {
     // M3: lower the bucket to 2 via system_config; the 3rd upload should 429.
     const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'photo_upload_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run(
-      'test-photo-rl-tune',
-      '2026-05-16T00:00:00.000Z',
-      '2026-05-16T00:00:00.000Z',
-    );
+    insertSystemConfig(tuneDb, {
+      config_key: 'photo_upload_rate_limit_per_hour',
+      value_json: '2',
+      created_at: '2026-05-16T00:00:00.000Z',
+    });
     tuneDb.close();
     try {
       const app = createApp();
@@ -546,15 +534,12 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     } finally {
       // Restore the platform-epoch seeded default so later tests see 10/hr.
       const restoreDb = new BetterSqlite3(TEST_DB_PATH);
-      restoreDb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'photo_upload_rate_limit_per_hour', '10', ?, 'Test restore', NULL)
-      `).run(
-        'test-photo-rl-restore',
-        '2026-05-16T00:00:01.000Z',
-        '2026-05-16T00:00:01.000Z',
-      );
+      insertSystemConfig(restoreDb, {
+        config_key: 'photo_upload_rate_limit_per_hour',
+        value_json: '10',
+        created_at: '2026-05-16T00:00:01.000Z',
+        reason_text: 'Test restore',
+      });
       restoreDb.close();
     }
   });
@@ -721,15 +706,11 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
   it('video submission rate limit is tunable via system_config_current', async () => {
     // M3: lower the bucket to 2 via system_config; the 3rd submission should 429.
     const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'video_submission_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run(
-      'test-video-rl-tune',
-      '2026-05-16T00:00:00.000Z',
-      '2026-05-16T00:00:00.000Z',
-    );
+    insertSystemConfig(tuneDb, {
+      config_key: 'video_submission_rate_limit_per_hour',
+      value_json: '2',
+      created_at: '2026-05-16T00:00:00.000Z',
+    });
     tuneDb.close();
     try {
       const app = createApp();
@@ -751,15 +732,12 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       expect(blocked.status).toBe(429);
     } finally {
       const restoreDb = new BetterSqlite3(TEST_DB_PATH);
-      restoreDb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'video_submission_rate_limit_per_hour', '5', ?, 'Test restore', NULL)
-      `).run(
-        'test-video-rl-restore',
-        '2026-05-16T00:00:01.000Z',
-        '2026-05-16T00:00:01.000Z',
-      );
+      insertSystemConfig(restoreDb, {
+        config_key: 'video_submission_rate_limit_per_hour',
+        value_json: '5',
+        created_at: '2026-05-16T00:00:01.000Z',
+        reason_text: 'Test restore',
+      });
       restoreDb.close();
     }
   });

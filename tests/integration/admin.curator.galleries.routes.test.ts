@@ -19,7 +19,16 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { createTestDb } from '../fixtures/testDb';
 
-import { insertMember, insertMemberTierGrant, insertMemberGallery, createTestSessionJwt } from '../fixtures/factories';
+import {
+  insertMember,
+  insertMemberTierGrant,
+  insertMemberGallery,
+  insertFreeformTag,
+  insertGalleryCriterionTag,
+  insertGalleryExcludeTag,
+  createTestSessionJwt,
+  insertSystemConfig,
+} from '../fixtures/factories';
 
 // FH-owned gallery edits via POST /admin/curator/galleries/:id/edit now
 // write a JSON sidecar to /curated/galleries/<slug>.json after the DB
@@ -50,13 +59,15 @@ function seedGalleryRow(
   description: string,
   sortOrder: 'upload_desc' | 'upload_asc' | 'caption_asc',
 ): void {
-  const ts = '2026-01-01T00:00:00Z';
-  db.prepare(
-    `INSERT INTO member_galleries (
-       id, owner_member_id, name, description, is_default, sort_order,
-       created_at, created_by, updated_at, updated_by, version
-     ) VALUES (?, ?, ?, ?, 0, ?, ?, 'seed', ?, 'seed', 1)`,
-  ).run(galleryId, SYSTEM_ID, name, description, sortOrder, ts, ts);
+  insertMemberGallery(db, {
+    id: galleryId,
+    owner_member_id: SYSTEM_ID,
+    name,
+    description,
+    is_default: 0,
+    sort_order: sortOrder,
+    created_at: '2026-01-01T00:00:00Z',
+  });
 }
 
 function seedTagAndLink(
@@ -66,19 +77,19 @@ function seedTagAndLink(
   table: 'member_gallery_tags' | 'member_gallery_exclude_tags',
 ): void {
   const norm = tagDisplay.toLowerCase();
-  const ts = '2026-01-01T00:00:00Z';
   let tagId = (db.prepare('SELECT id FROM tags WHERE tag_normalized = ?').get(norm) as { id: string } | undefined)?.id;
   if (!tagId) {
-    tagId = `tag_${Buffer.from(norm).toString('hex').slice(0, 24)}`;
-    db.prepare(
-      `INSERT INTO tags (
-         id, created_at, created_by, updated_at, updated_by, version,
-         tag_normalized, tag_display, is_standard, standard_type
-       ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, 0, NULL)`,
-    ).run(tagId, ts, ts, norm, tagDisplay);
+    tagId = insertFreeformTag(db, {
+      id: `tag_${Buffer.from(norm).toString('hex').slice(0, 24)}`,
+      tag_normalized: norm,
+      tag_display: tagDisplay,
+    });
   }
-  db.prepare(`INSERT INTO ${table} (gallery_id, tag_id, created_at, created_by) VALUES (?, ?, ?, 'seed')`)
-    .run(galleryId, tagId, ts);
+  if (table === 'member_gallery_tags') {
+    insertGalleryCriterionTag(db, galleryId, tagId);
+  } else {
+    insertGalleryExcludeTag(db, galleryId, tagId);
+  }
 }
 
 beforeAll(async () => {
@@ -716,11 +727,10 @@ describe('POST /admin/curator/galleries — curator write rate limit', () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
     const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'curator_write_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-gallery-write-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    insertSystemConfig(tuneDb, {
+      config_key: 'curator_write_rate_limit_per_hour',
+      value_json: '2',
+    });
     tuneDb.close();
     try {
       const app = createApp();

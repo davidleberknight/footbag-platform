@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertSystemConfig } from '../fixtures/factories';
 import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3202');
@@ -166,13 +166,18 @@ describe('operationsPlatformService.runPiiPurgeScan', () => {
     // Widen the deleted grace so nothing qualifies; tighten the deceased
     // grace so the previously inside-grace deceased account becomes due.
     const d = new BetterSqlite3(dbPath);
-    d.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES
-        ('test-del-grace', '2026-05-30T00:00:00.000Z', 'member_cleanup_grace_days', '200', '2026-05-30T00:00:00.000Z', 'Test grace override', NULL),
-        ('test-dec-grace', '2026-05-30T00:00:00.000Z', 'deceased_cleanup_grace_days', '1', '2026-05-30T00:00:00.000Z', 'Test grace override', NULL)
-    `).run();
+    insertSystemConfig(d, {
+      config_key: 'member_cleanup_grace_days',
+      value_json: '200',
+      created_at: '2026-05-30T00:00:00.000Z',
+      reason_text: 'Test grace override',
+    });
+    insertSystemConfig(d, {
+      config_key: 'deceased_cleanup_grace_days',
+      value_json: '1',
+      created_at: '2026-05-30T00:00:00.000Z',
+      reason_text: 'Test grace override',
+    });
     d.close();
 
     const result = await operationsPlatformService.runPiiPurgeScan({ now: NOW });

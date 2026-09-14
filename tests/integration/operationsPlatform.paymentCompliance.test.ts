@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertPayment } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3203');
 
@@ -24,22 +24,33 @@ function insertPaymentAt(
   id: string,
   createdAt: string,
   memberId: string | null,
-  opts: { paymentType?: string; descriptor?: string; donationNote?: string | null } = {},
+  opts: {
+    paymentType?: 'donation' | 'membership' | 'event_registration';
+    descriptor?: string;
+    donationNote?: string | null;
+  } = {},
 ): void {
   const paymentType = opts.paymentType ?? 'donation';
   const descriptor = opts.descriptor ?? 'A donation';
   const donationNote = opts.donationNote === undefined ? 'note from the member' : opts.donationNote;
   // A membership payment must carry a purchased tier (schema CHECK).
   const purchasedTierStatus = paymentType === 'membership' ? 'tier1' : null;
-  db.prepare(`
-    INSERT INTO payments (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, payment_type, amount_cents, currency, status, descriptor,
-      purchased_tier_status, donation_note, stripe_payment_intent_id, stripe_customer_id,
-      stripe_invoice_id, metadata_json
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, 500, 'USD', 'succeeded', ?,
-              ?, ?, ?, 'cus_x', ?, '{"ip":"1.2.3.4"}')
-  `).run(id, createdAt, createdAt, memberId, paymentType, descriptor, purchasedTierStatus, donationNote, `pi_${id}`, `in_${id}`);
+  insertPayment(db, {
+    id,
+    created_at: createdAt,
+    member_id: memberId,
+    payment_type: paymentType,
+    amount_cents: 500,
+    currency: 'USD',
+    status: 'succeeded',
+    descriptor,
+    purchased_tier_status: purchasedTierStatus,
+    donation_note: donationNote,
+    stripe_payment_intent_id: `pi_${id}`,
+    stripe_customer_id: 'cus_x',
+    stripe_invoice_id: `in_${id}`,
+    metadata_json: '{"ip":"1.2.3.4"}',
+  });
 }
 
 beforeAll(async () => {

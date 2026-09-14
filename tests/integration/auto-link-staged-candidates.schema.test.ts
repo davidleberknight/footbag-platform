@@ -4,6 +4,15 @@
  * partial unique index that makes one open row per member/target pair the
  * hard invariant (re-staging an open pair fails; staging again after the
  * pair resolved succeeds).
+ *
+ * factory-cannot-express: the local row builder below is deliberately NOT a
+ * shared factory. Every case
+ * here asserts that the table refuses a bad row, so the builder has to be able
+ * to construct one: an out-of-enum confidence, a resolved row with no
+ * resolved_at, a candidate naming neither target. A factory typed to the valid
+ * shape would make those rows unconstructable and the refusals unreachable. The
+ * loose value types are the subject of the assertions, not sloppiness about
+ * test data.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -41,6 +50,9 @@ function insertRow(overrides: Partial<Record<string, unknown>> = {}): void {
     resolved_at: null,
     ...overrides,
   };
+  // factory-cannot-express: every case here asserts the table refuses a bad row,
+  // so the builder has to be able to construct one. A factory typed to the valid
+  // shape would make those refusals unreachable.
   db.prepare(`
     INSERT INTO auto_link_staged_candidates (
       id, created_at, created_by, updated_at, updated_by, version,

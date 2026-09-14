@@ -144,7 +144,10 @@ describe('requireOriginPin', () => {
     const next = vi.fn() as unknown as NextFunction;
     requireOriginPin(makeReq('POST', '/login', { Origin: 'null' }), res, next);
     expect(status).toHaveBeenCalledWith(403);
-    expect(render).toHaveBeenCalled();
+    expect(render).toHaveBeenCalledWith('errors/error', expect.objectContaining({
+      seo: { title: 'Forbidden' },
+      content: expect.objectContaining({ statusCode: 403 }),
+    }));
     expect(next).not.toHaveBeenCalled();
   });
 

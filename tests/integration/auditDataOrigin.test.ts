@@ -70,6 +70,10 @@ describe('audit ledger data-origin stamp', () => {
   it('refuses a stamp outside the recorded vocabulary', () => {
     // The column is the only thing standing between a rehearsal and the real
     // ledger, so a value nobody has a rendering rule for must not persist.
+    //
+    // factory-cannot-express: the audit factory stamps a valid origin, so going
+    // through it could never produce the row this case needs the database to
+    // reject. The statement is what the assertion is about.
     expect(() =>
       db
         .prepare(

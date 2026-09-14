@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertActivePlayerVouch, insertMemberTierGrant } from '../fixtures/factories';
+import { insertMember, insertActivePlayerVouch, insertMemberTierGrant, insertSystemConfig } from '../fixtures/factories';
 import { assertAppendOnly } from '../fixtures/assertAppendOnly';
 import { isoDaysFromNow } from '../fixtures/clock';
 
@@ -40,10 +40,13 @@ const SEED_TS = '2024-01-01T00:00:00.000Z';
 
 beforeAll(() => {
   const db = createTestDb(dbPath);
-  db.prepare(
-    `INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run('sc-immutable-1', SEED_TS, 'test_immutable_key', '"v"', SEED_TS, 'immutability seed');
+  insertSystemConfig(db, {
+    id: 'sc-immutable-1',
+    created_at: SEED_TS,
+    config_key: 'test_immutable_key',
+    value_json: '"v"',
+    reason_text: 'immutability seed',
+  });
 
   insertMember(db, { id: 'apv-voucher' });
   insertMember(db, { id: 'apv-target' });

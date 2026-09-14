@@ -36,6 +36,93 @@ if [ -n "$hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: tests seed table data through the shared factories, never a hand-rolled
+# INSERT.
+# Reason: a factory writes the columns the production path writes and applies the
+# same normalization, so a row a test creates is a row the application could have
+# created. A hand-rolled insert drifts from both. It also drifts silently: a
+# column added to a table reaches every factory caller at once and reaches a
+# hand-rolled statement never, so the statement keeps seeding a shape the
+# application stopped producing and the test keeps passing. A sweep found ~270 of
+# these across 100 files, including one whose comment claimed a factory could not
+# produce freeform tags while that factory was exported two files away.
+#
+# Two exemptions, both mechanical, both narrow:
+#   - A suite that builds its own minimal fixture schema is inserting into that
+#     fixture, not into the application schema; the shared factory writes the
+#     production column set and would fail against it. Matched per TABLE: an
+#     insert is exempt where this file also creates that table by name. Not per
+#     file, because one suite carries the words CREATE TABLE inside a MySQL dump
+#     string and a whole-file test handed it blanket immunity.
+#   - A suite asserting that the database REFUSES a row cannot use a factory,
+#     because a factory typed to the valid shape cannot construct the invalid
+#     row. Those carry `factory-cannot-express: <why>` on the statement or in the
+#     few lines above it.
+#
+# The second exemption is deliberately per-statement and not per-file, matching
+# the ordering rule below. A file-level version of it shielded two ordinary
+# member seeds sitting in a schema suite whose other inserts were genuine
+# refusal probes: one real reason at the top bought immunity for everything
+# underneath, which is the failure this shape exists to prevent.
+#
+# A backtick-quoted table name is excluded: that is MySQL dump text in a legacy
+# fixture string, not a statement this database ever runs.
+#
+# The scan reports how many files it read, because a gate here fails closed and
+# says what it looked at, so a silently shrinking scope is visible rather than
+# reading as a clean pass. A scan that cannot run at all ends the script under
+# pipefail, which is what every other scanner-backed check in this file does.
+echo "[conventions] check: tests seed through factories, not hand-rolled INSERTs"
+insert_out=$(python3 - <<'PYEOF'
+import re, pathlib, sys
+
+# `INSERT OR IGNORE INTO` and `OR REPLACE` are the same statement carrying a
+# conflict clause. A first version of this check matched neither, which left a
+# hand-rolled seed of the application's config table sitting unseen in an
+# end-to-end helper.
+insert_re = re.compile(r'INSERT\s+(?:OR\s+[A-Z]+\s+)?INTO\s+([A-Za-z_][A-Za-z0-9_]*)', re.I)
+create_re = re.compile(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)', re.I)
+exempt_re = re.compile(r'factory-cannot-express:', re.I)
+
+scanned = 0
+for path in sorted(pathlib.Path('tests').rglob('*.ts')):
+    if str(path).startswith('tests/fixtures/'):
+        continue
+    scanned += 1
+    text = path.read_text(encoding='utf-8', errors='replace')
+    # The fixture-schema exemption is per TABLE, not per file. A file merely
+    # containing the words CREATE TABLE is not building a fixture: one suite
+    # carries them inside a MySQL dump string it feeds to a script, and a bare
+    # substring test handed that whole file immunity for a reason having nothing
+    # to do with the factories. Only a table this file actually creates is
+    # exempt, and only where it creates it.
+    fixture_tables = {m.group(1).lower() for m in create_re.finditer(text)}
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = insert_re.search(line)
+        if not m:
+            continue
+        if m.group(1).lower() in fixture_tables:
+            continue
+        # The marker sits on the statement or in the lines just above it, which
+        # is where the local builder's explanation lives.
+        window = lines[max(0, i - 8):i + 1]
+        if any(exempt_re.search(w) for w in window):
+            continue
+        print(f"{path}:{i + 1}: {line.strip()[:100]}")
+
+if scanned == 0:
+    print('scanned no files: the tests/**/*.ts scope matched nothing', file=sys.stderr)
+    sys.exit(2)
+print(f"[conventions]   scanned {scanned} test files", file=sys.stderr)
+PYEOF
+)
+if [ -n "$insert_out" ]; then
+  echo "$insert_out" >&2
+  echo "  FAIL: seed test data through tests/fixtures/factories.ts; add a factory if the table has none" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: work_queue_items inserts go only through src/services/workQueueService.ts.
 # Reason: Every work-queue item must fan out its admin-alerts notification in the
 # same step (USER_STORIES global rule: any task added to the work queue notifies
@@ -318,6 +405,126 @@ skip_hits=$(grep -rnE --include='*.ts' '(\.skip\(|\.todo\(|\bxit\()' tests/ \
 if [ -n "$skip_hits" ]; then
   echo "$skip_hits" >&2
   echo "  FAIL: committed skipped tests are forbidden; gate conditionally with skipIf or fix the test" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: the same, for the Python suites.
+# Reason: the testing rule's own scope covers legacy_data/tests/ and the mirror
+# suite, and a silent skip is a coverage regression nothing reports whatever the
+# language. The gate covered only TypeScript.
+#
+# What this does NOT flag, because those suites already solved it better than the
+# TypeScript side had: a skip paired with a fail under an environment declaration.
+# Those helpers skip on a developer machine that has no delivered dump or built
+# database, and fail outright when the run declares it owns one, which the runner
+# sets. That is the shape the rule wants.
+#
+# The pairing must be in the SAME FUNCTION as the skip, not merely in the same
+# file and not merely within a few lines. A file-wide search reads any
+# `pytest.fail(` as a guard, including one written for something else entirely --
+# a mock asserting a function was never called, say -- and an unconditional skip
+# elsewhere in the file then passes unexamined; two files in these suites already
+# carry such a `pytest.fail(`, so that hole is one edit from being real. A
+# fixed line window is no better: it crosses a `def` boundary in compact code,
+# which a test of this very check demonstrated. Python blocks are defined by
+# indentation, so the enclosing `def` is what scopes it. What remains forbidden:
+# an unconditional `@pytest.mark.skip`, and a `pytest.skip(` whose own function
+# contains no `pytest.fail(`.
+#
+# Reports its scope, for the same reason the insert check above does.
+echo "[conventions] check: committed skips in the Python suites"
+py_dirs="legacy_data/tests legacy_data/legacy_mirror/tests"
+py_mark_hits=$(grep -rnE --include='*.py' '@pytest\.mark\.skip\b' $py_dirs 2>/dev/null \
+  | grep -v 'skipif' || true)
+py_unguarded=$(PY_DIRS="$py_dirs" python3 - <<'PYEOF'
+import os, pathlib, re, sys
+
+skip_re = re.compile(r'pytest\.skip\(')
+fail_re = re.compile(r'pytest\.fail\(')
+def_re  = re.compile(r'^(\s*)(?:async\s+)?def\s')
+
+def enclosing_def(lines, i):
+    """Index range of the innermost `def` whose body contains line i.
+
+    Walks up for a `def` indented STRICTLY LESS than the skip line, which is what
+    "encloses" means; a first version took the nearest `def` above regardless,
+    so a skip sitting after a nested helper was attributed to the helper, and a
+    skip at module level after a guarded function inherited that function's
+    guard. The computed body is then checked to actually contain the line,
+    because a `def` above is not the same as a `def` around.
+    """
+    line_indent = len(lines[i]) - len(lines[i].lstrip())
+    for j in range(i - 1, -1, -1):
+        m = def_re.match(lines[j])
+        if not m:
+            continue
+        indent = len(m.group(1))
+        if indent >= line_indent:
+            continue
+        end = len(lines)
+        for k in range(j + 1, len(lines)):
+            stripped = lines[k].strip()
+            if not stripped or stripped.startswith('#'):
+                continue
+            if len(lines[k]) - len(lines[k].lstrip()) <= indent:
+                end = k
+                break
+        return (j, end, indent) if j < i < end else None
+    return None
+
+
+def guard_lines(lines, span):
+    """The enclosing def's own body, with any nested def's body left out.
+
+    A `pytest.fail` inside a nested helper is that helper's business, not a
+    guard on a skip in the function around it, so it must not exempt one.
+    """
+    start, end, indent = span
+    out = []
+    k = start + 1
+    while k < end:
+        m = def_re.match(lines[k])
+        if m and len(m.group(1)) > indent:
+            nested = len(m.group(1))
+            k += 1
+            while k < end:
+                s = lines[k].strip()
+                if s and not s.startswith('#') and \
+                   len(lines[k]) - len(lines[k].lstrip()) <= nested:
+                    break
+                k += 1
+            continue
+        out.append(lines[k])
+        k += 1
+    return out
+
+scanned = 0
+for root in os.environ['PY_DIRS'].split():
+    base = pathlib.Path(root)
+    if not base.is_dir():
+        continue
+    for path in sorted(base.rglob('*.py')):
+        scanned += 1
+        lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+        for i, line in enumerate(lines):
+            if not skip_re.search(line):
+                continue
+            span = enclosing_def(lines, i)
+            body = guard_lines(lines, span) if span else []
+            if any(fail_re.search(w) for w in body):
+                continue
+            print(f"{path}:{i + 1}: {line.strip()[:100]}")
+
+if scanned == 0:
+    print('scanned no files: the Python suite scope matched nothing', file=sys.stderr)
+    sys.exit(2)
+print(f"[conventions]   scanned {scanned} Python test files", file=sys.stderr)
+PYEOF
+)
+py_skip_hits=$(printf '%s\n%s\n' "$py_mark_hits" "$py_unguarded" | grep -v '^$' || true)
+if [ -n "$py_skip_hits" ]; then
+  echo "$py_skip_hits" >&2
+  echo "  FAIL: a Python skip must be guarded by a fail under the owns-the-input declaration" >&2
   violations=$((violations + 1))
 fi
 

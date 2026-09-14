@@ -19,7 +19,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3523');
 
@@ -28,13 +32,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('pixie',    'pixie',    'set', 1, 1, '', ?),
-      ('stepping', 'stepping', 'set', 1, 1, '', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_type: 'set', notes: '' });
+  insertFreestyleTrickModifier(db, { slug: 'stepping', modifier_type: 'set', notes: '' });
 
   // Each family needs at least three members (family view drops families below
   // the three-member minimum). The compound
@@ -68,13 +67,9 @@ beforeAll(async () => {
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES
-      ('smear',    'pixie', 1),
-      ('magellan', 'pixie', 1),
-      ('ripwalk',  'stepping', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'smear', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'magellan', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'ripwalk', 'stepping');
 
   db.close();
   createApp = await importApp();

@@ -25,7 +25,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3522');
 
@@ -34,13 +38,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('ducking',  'ducking',  'body', 1, 1, '', ?),
-      ('fairy',    'fairy',    'set',  1, 1, '', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_type: 'body', notes: '' });
+  insertFreestyleTrickModifier(db, { slug: 'fairy', modifier_type: 'set', notes: '' });
 
   // Base tricks (modifier targets + atoms)
   const tricks: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
@@ -64,13 +63,9 @@ beforeAll(async () => {
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES
-      ('ducking-guay', 'ducking', 1),
-      ('ducking-mirage', 'ducking', 1),
-      ('fairy-legover', 'fairy', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'ducking-guay', 'ducking');
+  insertFreestyleTrickModifierLink(db, 'ducking-mirage', 'ducking');
+  insertFreestyleTrickModifierLink(db, 'fairy-legover', 'fairy');
 
   db.close();
   createApp = await importApp();

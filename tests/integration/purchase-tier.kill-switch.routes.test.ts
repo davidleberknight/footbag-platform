@@ -6,7 +6,7 @@ process.env.PAYMENT_ADAPTER = 'stub';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { insertMember, createTestSessionJwt, completeOnboarding } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, completeOnboarding, insertSystemConfig } from '../fixtures/factories';
 
 const MEMBER_ID = 'killswitch-buyer-001';
 const MEMBER_SLUG = 'killswitch-buyer';
@@ -29,11 +29,14 @@ function setPaymentsPaused(paused: boolean): void {
   const effectiveAt = `2020-01-01T00:00:00.${String(toggleSeq).padStart(3, '0')}Z`;
   const db = new BetterSqlite3(dbPath);
   try {
-    db.prepare(
-      `INSERT INTO system_config
-         (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-       VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'payments_paused', ?, ?, 'Test toggle', NULL)`,
-    ).run(`cfg_test_payments_paused_${toggleSeq}`, paused ? '1' : '0', effectiveAt);
+    insertSystemConfig(db, {
+      id: `cfg_test_payments_paused_${toggleSeq}`,
+      config_key: 'payments_paused',
+      value_json: paused ? '1' : '0',
+      created_at: new Date().toISOString(),
+      effective_start_at: effectiveAt,
+      reason_text: 'Test toggle',
+    });
   } finally {
     db.close();
   }

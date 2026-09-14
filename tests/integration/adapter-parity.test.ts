@@ -86,13 +86,13 @@ import { processAvatar } from '../../src/lib/imageProcessing';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 import {
   detectVideoFormat,
   transcodeCuratorVideo,
 } from '../../src/lib/videoProcessing';
 
-const ffmpegAvailable =
-  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore', ...SPAWN_GUARD }).status === 0;
+const ffmpegAvailable = requireToolInCI('ffmpeg');
 
 // Shared shared-secret used by the auth header on web↔image-worker IPC.
 const TEST_INTERNAL_SECRET = 'test-internal-event-secret';

@@ -170,6 +170,6 @@ describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
       .type('form')
       .send({});
-    expect([403, 404]).toContain(res.status);
+    expect(res.status).toBe(403);
   });
 });

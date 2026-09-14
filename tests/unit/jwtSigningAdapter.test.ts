@@ -1,3 +1,15 @@
+/**
+ * The two session-JWT signers, held to one contract.
+ *
+ * The local signer reads a keypair from disk and the KMS signer calls AWS, and
+ * dev and staging each run one of them, so a token minted by either has to
+ * verify the same way and a refusal has to look the same from either. The KMS
+ * cases drive an injected fake client rather than the SDK package, which is the
+ * seam the adapter is built around.
+ *
+ * The session-lifetime policy is not here: the service above the adapter owns
+ * it, and hands the adapter a TTL.
+ */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
@@ -42,7 +54,7 @@ function decodeHeader(token: string): Record<string, unknown> {
   return JSON.parse(json);
 }
 
-describe('jwtService — LocalJwtAdapter', () => {
+describe('jwtSigningAdapter — local signer', () => {
   it('round-trips sign and verify', async () => {
     const signer = makeLocalJwtAdapter();
     const token = await signer.signJwt({ sub: 'm-1', passwordVersion: 3 });
@@ -121,7 +133,7 @@ describe('jwtService — LocalJwtAdapter', () => {
   });
 });
 
-describe('jwtService — KmsJwtAdapter (injected fake client)', () => {
+describe('jwtSigningAdapter — KMS signer (injected fake client)', () => {
   interface FakeKms {
     client: KMSClient;
     getPublicKeyCalls: () => number;

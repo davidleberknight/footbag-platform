@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertMemberGallery, insertGalleryExternalLink } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3125');
 
@@ -29,22 +29,29 @@ beforeAll(async () => {
   const memberId = insertMember(db);
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO member_galleries (
-      id, created_at, created_by, updated_at, updated_by, version,
-      owner_member_id, name, description, is_default, sort_order
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'Visibility Gallery', '', 0, 'upload_desc')
-  `).run(GALLERY_ID, now, memberId, now, memberId, memberId);
+  insertMemberGallery(db, {
+    id: GALLERY_ID,
+    created_at: now,
+    owner_member_id: memberId,
+    name: 'Visibility Gallery',
+    description: '',
+    is_default: 0,
+    sort_order: 'upload_desc',
+  });
 
-  const ins = db.prepare(`
-    INSERT INTO gallery_external_links (
-      id, created_at, created_by, updated_at, updated_by, version,
-      gallery_id, label, url, validated_at, quarantine_reason, sort_order
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-  `);
-  ins.run(ROW_VERIFIED, now, memberId, now, memberId, GALLERY_ID, 'Verified', VERIFIED_URL, now, null, 0);
-  ins.run(ROW_UNVERIFIED, now, memberId, now, memberId, GALLERY_ID, 'Unverified', UNVERIFIED_URL, null, null, 1);
-  ins.run(ROW_QUARANTINED, now, memberId, now, memberId, GALLERY_ID, 'Quarantined', QUARANTINED_URL, null, 'This URL is not allowed.', 2);
+  insertGalleryExternalLink(db, {
+    id: ROW_VERIFIED, created_at: now, gallery_id: GALLERY_ID,
+    label: 'Verified', url: VERIFIED_URL, validated_at: now, quarantine_reason: null, sort_order: 0,
+  });
+  insertGalleryExternalLink(db, {
+    id: ROW_UNVERIFIED, created_at: now, gallery_id: GALLERY_ID,
+    label: 'Unverified', url: UNVERIFIED_URL, validated_at: null, quarantine_reason: null, sort_order: 1,
+  });
+  insertGalleryExternalLink(db, {
+    id: ROW_QUARANTINED, created_at: now, gallery_id: GALLERY_ID,
+    label: 'Quarantined', url: QUARANTINED_URL, validated_at: null,
+    quarantine_reason: 'This URL is not allowed.', sort_order: 2,
+  });
   db.close();
 
   ({ media } = await import('../../src/db/db'));

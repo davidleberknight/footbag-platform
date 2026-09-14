@@ -15,7 +15,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-${Date.now()}.db`);
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-admin-'));
 // Curator photo + video uploads write to /curated/{category}/ in local-adapter
 // mode. Redirect that write to a temp directory so tests don't pollute the
@@ -23,17 +24,12 @@ const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media
 // overrides this for its scoped tests.
 const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-curated-admin-'));
 
-process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
+// Exercises the dev/local curator authoring flow, where the /curated/ sidecar
+// is written alongside the DB row (gated in the service on the
+// ALLOW_CURATED_SIDECAR_WRITES flag that setTestEnv turns on).
+const { dbPath } = setTestEnv('4200');
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
 process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT              = '3099';
-process.env.NODE_ENV          = 'test';
-process.env.LOG_LEVEL         = 'error';
-process.env.PUBLIC_BASE_URL   = 'http://localhost:3099';
-process.env.SESSION_SECRET    = 'admin-curator-routes-test-secret';
-// Exercises the dev/local curator authoring flow, where the /curated/ sidecar
-// is written alongside the DB row (gated on this flag in the service).
-process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -41,7 +37,6 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -76,18 +71,17 @@ function makeFakeMp4(): Buffer {
 }
 
 function openDb(): BetterSqlite3.Database {
-  return new BetterSqlite3(TEST_DB_PATH);
+  return new BetterSqlite3(dbPath);
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'Curator Admin', login_email: 'admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Regular Member', login_email: 'member@example.com' });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 
   // Inject the image adapter to run Sharp inline (no real worker process).
   const adapterMod = await import('../../src/adapters/imageProcessingAdapter');
@@ -137,9 +131,7 @@ afterAll(async () => {
   resetVideoTranscodingAdapterForTests();
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.resetCuratedRootDirForTests();
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
   try { fs.rmSync(TEST_CURATED_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });

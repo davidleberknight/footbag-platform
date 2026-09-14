@@ -4,9 +4,17 @@
  * Asserts the three-branch credential CHECK rejects malformed system rows
  * and accepts the well-formed alive-without-credentials shape, plus the
  * partial UNIQUE index enforces single-row.
+ *
+ * The malformed rows are written as statements rather than through the shared
+ * member factory because the factory enforces the same credential invariant in
+ * code, so it
+ * cannot emit the malformed combinations this file needs the database to
+ * refuse. The statement is the subject of the assertion, not test data being
+ * seeded.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { insertMember } from '../fixtures/factories';
 import type BetterSqlite3 from 'better-sqlite3';
 
 const { dbPath } = setTestEnv('3204');
@@ -22,6 +30,9 @@ function insertSystemMember(o: {
   passwordHash?: string | null;
   personalDataPurgedAt?: string | null;
 }): void {
+  // factory-cannot-express: the member factory enforces the same three-branch
+  // credential invariant in code, so it cannot emit the malformed combinations
+  // these cases need the CHECK constraint to refuse.
   db.prepare(`
     INSERT INTO members (
       id, slug, login_email, login_email_normalized, email_verified_at,
@@ -98,19 +109,11 @@ describe('ux_members_system partial UNIQUE', () => {
 describe('FH lookup cardinality', () => {
   it('COUNT(is_system=1) = 1 even when several non-system members coexist', () => {
     // 'sys-ok' is already present from the credential CHECK describe block.
-    // Insert two well-formed live (non-system) members alongside it.
-    insertSystemMember({
-      id: 'fh-card-live-1',
-      isSystem: 0,
-      loginEmail: 'live1@example.com',
-      passwordHash: '$argon2$live1',
-    });
-    insertSystemMember({
-      id: 'fh-card-live-2',
-      isSystem: 0,
-      loginEmail: 'live2@example.com',
-      passwordHash: '$argon2$live2',
-    });
+    // Two ordinary live members alongside it. These are well-formed rows the
+    // application could have written, so they come from the shared factory;
+    // only the malformed rows above need the local builder.
+    insertMember(db, { id: 'fh-card-live-1', login_email: 'live1@example.com' });
+    insertMember(db, { id: 'fh-card-live-2', login_email: 'live2@example.com' });
     const row = db.prepare(`SELECT COUNT(*) AS n FROM members WHERE is_system = 1`).get() as { n: number };
     expect(row.n).toBe(1);
   });

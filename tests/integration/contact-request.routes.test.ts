@@ -3,7 +3,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertMailingListSubscription } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3128');
@@ -48,18 +48,11 @@ beforeAll(async () => {
     is_admin:     1,
   });
   // Subscribe the admin to admin-alerts so the M2 fan-out has a target.
-  db.prepare(`
-    INSERT INTO mailing_list_subscriptions (
-      id, created_at, created_by, updated_at, updated_by, version,
-      mailing_list_id, member_id, status, status_updated_at
-    ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, 'subscribed', ?)
-  `).run(
-    `mls-${ADMIN_SUBSCRIBER_ID}`,
-    '2025-01-01T00:00:00.000Z',
-    '2025-01-01T00:00:00.000Z',
-    ADMIN_SUBSCRIBER_ID,
-    '2025-01-01T00:00:00.000Z',
-  );
+  insertMailingListSubscription(db, {
+    id: `mls-${ADMIN_SUBSCRIBER_ID}`,
+    list_slug: 'admin-alerts',
+    member_id: ADMIN_SUBSCRIBER_ID,
+  });
   db.close();
   createApp = await importApp();
 });

@@ -156,8 +156,14 @@ So, for every input the test does not itself create:
 - Write the file, stub the binary, pass the path, set the variable. A default that resolves to the
   developer's machine is not an input the test owns. `--signing-key` pointed at a temp file, a
   Terraform stub answering an output, `--key-dir` on a mkdtemp: those are the shapes.
-- A `skipIf` on an installed binary is not a guard, it is a silent pass. If the assertion matters,
-  make the tool available where the verdict is taken; if it does not, delete the case.
+- A `skipIf` on an installed binary is a local convenience and never an outcome where the verdict is
+  taken. Skipped locally it spares a developer who has no encoder; skipped on the runner it reports
+  green having executed nothing, which has happened here — sixteen encoder-gated cases once passed
+  that way. So make the tool available on the runner AND make its absence there fail: probe through
+  `requireToolInCI` in `tests/fixtures/toolAvailability.ts`, which returns availability for your
+  `skipIf` and throws when the tool is missing and `CI` is set. A provisioning step someone deletes
+  then fails the build instead of going quiet. If the assertion does not matter enough to provision
+  for, delete the case rather than gating it.
 - Never assert on a listing of a directory the machine might add to, and never grep the working tree
   when the claim is about what is checked in: `git grep` knows the difference.
 - The shared setup already denies credentials, the home directory, the deployment-environment

@@ -13,41 +13,49 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertFreestyleTrick, insertTtLesson } from '../fixtures/factories';
+import {
+  insertMember,
+  insertFreestyleTrick,
+  insertTtLesson,
+  insertFreeformTag,
+  attachMediaTag,
+  insertMediaSource,
+  insertMemberSubmittedVideo,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3141');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
-const TS = '2026-04-29T12:00:00.000Z';
 
+// Create the tag only when it is absent: the helper is called once per tagging,
+// and the same display is named many times across the seeded clips.
 function upsertTag(db: BetterSqlite3.Database, display: string): string {
   const normalized = display.toLowerCase();
-  const id = `tag-${normalized.replace(/[^a-z0-9]/g, '_')}`;
-  db.prepare(`
-    INSERT OR IGNORE INTO tags (id, created_at, created_by, updated_at, updated_by, version, tag_normalized, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?)
-  `).run(id, TS, TS, normalized, display);
-  return id;
+  const existing = db
+    .prepare(`SELECT id FROM tags WHERE tag_normalized = ?`)
+    .get(normalized) as { id: string } | undefined;
+  if (existing) return existing.id;
+  return insertFreeformTag(db, {
+    id: `tag-${normalized.replace(/[^a-z0-9]/g, '_')}`,
+    tag_normalized: normalized,
+    tag_display: display,
+  });
 }
 
 function attachTag(db: BetterSqlite3.Database, mediaId: string, display: string): void {
-  const tagId = upsertTag(db, display);
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, display);
+  attachMediaTag(db, mediaId, upsertTag(db, display));
 }
 
 // A member-uploaded YouTube clip: no curator source_id and no #curated tag,
 // carrying the trick slug plus the uploader marker.
 function insertMemberClip(db: BetterSqlite3.Database, o: { id: string; uploader: string; slug: string; bySlug: string; caption: string; videoId: string }): void {
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      video_platform, video_id, video_url, thumbnail_url, moderation_status
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'video', 0, ?, ?, 'youtube', ?, ?, NULL, 'active')
-  `).run(o.id, TS, TS, o.uploader, o.caption, TS, o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`);
+  insertMemberSubmittedVideo(db, {
+    id: o.id,
+    uploader_member_id: o.uploader,
+    caption: o.caption,
+    videoId: o.videoId,
+    moderation_status: 'active',
+  });
   attachTag(db, o.id, `#${o.slug}`);
   attachTag(db, o.id, `#by_${o.bySlug}`);
 }
@@ -61,10 +69,12 @@ beforeAll(async () => {
 
   // Seed the curator clip's media-source row with creator + URL so the
   // attribution join surfaces them (insertTtLesson's OR IGNORE keeps this row).
-  db.prepare(`
-    INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
-    VALUES ('tt_youtube', 'Tricks of the Trade', 'youtube', 'https://example.com/tt', 'Honza Weber')
-  `).run();
+  insertMediaSource(db, 'tt_youtube', {
+    sourceName: 'Tricks of the Trade',
+    sourceType: 'youtube',
+    url: 'https://example.com/tt',
+    creator: 'Honza Weber',
+  });
 
   // Curator clips (TT tutorial-tier, carry #curated). The first carries the
   // attribution source; several so the reference set is content-worthy (the

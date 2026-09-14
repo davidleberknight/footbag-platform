@@ -27,7 +27,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3415');
 
@@ -39,20 +43,13 @@ beforeAll(async () => {
   // ── Modifier registrations ────────────────────────────────────────
   // Mirror the production registry surface so the modifier-link grouping
   // has something to bucket against.
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('paradox',  'paradox',  'body', 1, 1, 'Cross-body hip-pivot during dex.', ?),
-      ('spinning', 'spinning', 'body', 1, 1, 'Back-spin entry.', ?),
-      ('ducking',  'ducking',  'body', 1, 1, 'Ducking dip during dex.', ?),
-      ('fairy',    'fairy',    'set',  1, 1, 'Fairy entry chassis.', ?),
-      ('stepping', 'stepping', 'set',  1, 1, 'Stepping leading-dex chassis.', ?),
-      ('quantum',  'quantum',  'set',  1, 1, 'Quantum entry chassis.', ?),
-      ('pixie',    'pixie',    'set',  1, 1, 'Pixie entry chassis.', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z',
-         '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z',
-         '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_type: 'body', notes: 'Cross-body hip-pivot during dex.' });
+  insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_type: 'body', notes: 'Back-spin entry.' });
+  insertFreestyleTrickModifier(db, { slug: 'ducking',  modifier_type: 'body', notes: 'Ducking dip during dex.' });
+  insertFreestyleTrickModifier(db, { slug: 'fairy',    modifier_type: 'set',  notes: 'Fairy entry chassis.' });
+  insertFreestyleTrickModifier(db, { slug: 'stepping', modifier_type: 'set',  notes: 'Stepping leading-dex chassis.' });
+  insertFreestyleTrickModifier(db, { slug: 'quantum',  modifier_type: 'set',  notes: 'Quantum entry chassis.' });
+  insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_type: 'set',  notes: 'Pixie entry chassis.' });
 
   // ── Canonical base tricks (modifier targets) ─────────────────────
   insertFreestyleTrick(db, {
@@ -84,10 +81,8 @@ beforeAll(async () => {
     operational_notation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('spinning-paradox-mirage', 'spinning', 1), ('spinning-paradox-mirage', 'paradox', 2)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'spinning-paradox-mirage', 'spinning', 1);
+  insertFreestyleTrickModifierLink(db, 'spinning-paradox-mirage', 'paradox', 2);
 
   // Fairy ecosystem representatives
   insertFreestyleTrick(db, {
@@ -104,10 +99,8 @@ beforeAll(async () => {
     operational_notation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('fairy-mirage', 'fairy', 1), ('fairy-butterfly', 'fairy', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'fairy-mirage', 'fairy', 1);
+  insertFreestyleTrickModifierLink(db, 'fairy-butterfly', 'fairy', 1);
 
   // Stepping ecosystem representative
   insertFreestyleTrick(db, {
@@ -117,10 +110,7 @@ beforeAll(async () => {
     operational_notation: 'CLIP > OP IN [DEX] (plant) > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('stepping-eggbeater', 'stepping', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'stepping-eggbeater', 'stepping', 1);
 
   // Quantum ecosystem representative
   insertFreestyleTrick(db, {
@@ -130,10 +120,7 @@ beforeAll(async () => {
     operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('quantum-mirage', 'quantum', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'quantum-mirage', 'quantum', 1);
 
   // Ducking ecosystem representative
   insertFreestyleTrick(db, {
@@ -161,22 +148,16 @@ beforeAll(async () => {
     operational_notation: 'SET > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('ducking-mirage', 'ducking', 1), ('ducking-legover', 'ducking', 1), ('ducking-butterfly', 'ducking', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'ducking-mirage', 'ducking', 1);
+  insertFreestyleTrickModifierLink(db, 'ducking-legover', 'ducking', 1);
+  insertFreestyleTrickModifierLink(db, 'ducking-butterfly', 'ducking', 1);
 
   // Outside the first-class roster: whirling (ruled a legitimate set; its
   // reference home is its Set Encyclopedia page, so it is never a first-class
   // modifier group) and backside (documented by no reference surface). Both
   // render only in the Other tracked groups band.
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('whirling', 'whirling', 'body', 1, 1, 'Intermediate whirl carried mid-chain.', ?),
-      ('backside', 'backside', 'body', 1, 1, 'Behind-the-body execution qualifier.', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrickModifier(db, { slug: 'whirling', modifier_type: 'body', notes: 'Intermediate whirl carried mid-chain.' });
+  insertFreestyleTrickModifier(db, { slug: 'backside', modifier_type: 'body', notes: 'Behind-the-body execution qualifier.' });
   insertFreestyleTrick(db, {
     slug: 'whirling-osis', canonical_name: 'whirling osis', adds: '5',
     base_trick: 'osis', trick_family: 'osis', category: 'compound',
@@ -191,10 +172,8 @@ beforeAll(async () => {
     operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('whirling-osis', 'whirling', 1), ('backside-mirage', 'backside', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'whirling-osis', 'whirling', 1);
+  insertFreestyleTrickModifierLink(db, 'backside-mirage', 'backside', 1);
 
   db.close();
   createApp = await importApp();

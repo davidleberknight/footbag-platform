@@ -24,8 +24,24 @@ import {
   insertLegacyClubCandidate,
   insertWorkQueueItem,
   insertMemberMessage,
+  insertClubLeader,
+  insertMemberDeclaredAnchor,
+  insertActivePlayerGrant,
+  insertPaymentStatusTransition,
+  insertActivePlayerReminderSent,
+  insertCandidateCleanupResolution,
+  insertClubCleanupClaim,
 } from '../../src/testkit/personaRowBuilders';
-import { insertOutboxEmail } from '../fixtures/factories';
+import {
+  insertOutboxEmail,
+  insertAccountToken,
+  insertClubViabilitySignal,
+  insertMediaItem,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
+  insertMediaJob,
+  insertActivePlayerVouch,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3097');
 
@@ -144,34 +160,31 @@ describe('refreshAllPersonas', () => {
     // must survive refresh; only the persona's membership rows go.
     insertClub(db, { id: 'club-real-keep-1' });
     insertMemberClubAffiliation(db, T1, 'club-real-keep-1');
-    db.prepare(
-      `INSERT INTO club_leaders
-         (id, created_at, created_by, updated_at, updated_by, version, club_id, member_id, role, added_at)
-       VALUES ('cl-real-1', ?, 'club_service', ?, 'club_service', 1, 'club-real-keep-1', ?, 'co-leader', ?)`,
-    ).run(TS, TS, T1, TS);
-    db.prepare(
-      `INSERT INTO club_viability_signals
-         (id, created_at, created_by, member_id, club_id, source_stage, activity_signal)
-       VALUES ('cvs-persona-1', ?, 'system', ?, 'club-real-keep-1', 'stage1b_affiliated', 'active')`,
-    ).run(TS, T1);
+    insertClubLeader(db, { id: 'cl-real-1', club_id: 'club-real-keep-1', member_id: T1 });
+    insertClubViabilitySignal(db, {
+      id: 'cvs-persona-1',
+      created_at: TS,
+      member_id: T1,
+      club_id: 'club-real-keep-1',
+      source_stage: 'stage1b_affiliated',
+      activity_signal: 'active',
+    });
 
     // Auth and identity flows: reset token, declared anchor, the anchor's
     // mailbox-link token, and a notification email.
-    db.prepare(
-      `INSERT INTO account_tokens
-         (id, created_at, created_by, updated_at, updated_by, version, member_id, token_type, token_hash, issued_at, expires_at)
-       VALUES ('tok-persona-1', ?, 'system', ?, 'system', 1, ?, 'password_reset', 'hash-1', ?, ?)`,
-    ).run(TS, TS, T1, TS, TS);
-    db.prepare(
-      `INSERT INTO member_declared_anchors
-         (id, created_at, created_by, updated_at, updated_by, version, member_id, anchor_type, anchor_value)
-       VALUES ('anchor-persona-1', ?, 'system', ?, 'system', 1, ?, 'old_email', 'old@example.com')`,
-    ).run(TS, TS, T1);
-    db.prepare(
-      `INSERT INTO account_tokens
-         (id, created_at, created_by, updated_at, updated_by, version, member_id, target_anchor_id, token_type, token_hash, issued_at, expires_at)
-       VALUES ('tok-persona-2', ?, 'system', ?, 'system', 1, ?, 'anchor-persona-1', 'mailbox_link', 'hash-2', ?, ?)`,
-    ).run(TS, TS, T1, TS, TS);
+    insertAccountToken(db, T1, {
+      id: 'tok-persona-1', token_type: 'password_reset', token_hash: 'hash-1',
+      issued_at: TS, expires_at: TS,
+    });
+    insertMemberDeclaredAnchor(db, {
+      id: 'anchor-persona-1', created_at: TS, member_id: T1,
+      anchor_type: 'old_email', anchor_value: 'old@example.com',
+    });
+    insertAccountToken(db, T1, {
+      id: 'tok-persona-2', target_anchor_id: 'anchor-persona-1',
+      token_type: 'mailbox_link', token_hash: 'hash-2',
+      issued_at: TS, expires_at: TS,
+    });
     insertOutboxEmail(db, { id: 'out-persona-1', recipient_member_id: T1, subject: 'Welcome' });
 
     // A purchase: the persona as audit ACTOR, the payment, and its append-only
@@ -185,23 +198,22 @@ describe('refreshAllPersonas', () => {
       entity_id: 'pay-persona-pst-1',
     });
     insertPayment(db, { id: 'pay-persona-pst-1', member_id: T1, status: 'pending' });
-    db.prepare(
-      `INSERT INTO payment_status_transitions
-         (id, created_at, created_by, payment_id, event_type, to_status, transition_at)
-       VALUES ('pst-persona-1', ?, 'system', 'pay-persona-pst-1', 'payment_intent.succeeded', 'succeeded', ?)`,
-    ).run(TS, TS);
+    insertPaymentStatusTransition(db, {
+      id: 'pst-persona-1', created_at: TS, payment_id: 'pay-persona-pst-1',
+      event_type: 'payment_intent.succeeded', to_status: 'succeeded', transition_at: TS,
+    });
 
     // Media flows: an uploaded photo and a created gallery.
-    db.prepare(
-      `INSERT INTO media_items
-         (id, created_at, created_by, updated_at, updated_by, version, uploader_member_id, media_type, uploaded_at, s3_key_thumb, s3_key_display)
-       VALUES ('media-persona-1', ?, 'system', ?, 'system', 1, ?, 'photo', ?, 'k/thumb.jpg', 'k/display.jpg')`,
-    ).run(TS, TS, T1, TS);
-    db.prepare(
-      `INSERT INTO member_galleries
-         (id, created_at, created_by, updated_at, updated_by, version, owner_member_id, name)
-       VALUES ('gal-persona-1', ?, 'system', ?, 'system', 1, ?, 'My Gallery')`,
-    ).run(TS, TS, T1);
+    insertMediaItem(db, {
+      id: 'media-persona-1',
+      uploader_member_id: T1,
+      uploaded_at: TS,
+      s3_key_thumb: 'k/thumb.jpg',
+      s3_key_display: 'k/display.jpg',
+    });
+    insertMemberGallery(db, {
+      id: 'gal-persona-1', created_at: TS, owner_member_id: T1, name: 'My Gallery',
+    });
 
     // Admin-persona surfaces: a work-queue item the persona resolved (about a
     // real entity, so the row must survive minus its resolver), one about the
@@ -255,18 +267,16 @@ describe('refreshAllPersonas', () => {
       work_queue_item_id: 'wq-resolved-1',
       subject: 'Hangs off an item that survives',
     });
-    db.prepare(
-      `INSERT INTO media_jobs
-         (id, created_at, created_by, updated_at, updated_by, version, kind, state, admin_member_id)
-       VALUES ('mj-persona-1', ?, ?, ?, ?, 1, 'curator_video', 'pending_upload', ?)`,
-    ).run(TS, T1, TS, T1, T1);
+    insertMediaJob(db, {
+      id: 'mj-persona-1', created_at: TS, created_by: T1,
+      kind: 'curator_video', state: 'pending_upload', admin_member_id: T1,
+    });
 
     // The expiry worker's reminder ledger (append-only, both guards).
-    db.prepare(
-      `INSERT INTO active_player_reminder_sent
-         (id, created_at, created_by, member_id, expires_at, offset_label, sent_at)
-       VALUES ('aprs-persona-1', ?, 'system', ?, ?, 'days_1', ?)`,
-    ).run(TS, T1, TS, TS);
+    insertActivePlayerReminderSent(db, {
+      id: 'aprs-persona-1', created_at: TS, member_id: T1,
+      expires_at: TS, offset_label: 'days_1', sent_at: TS,
+    });
 
     // Harness-origin switch audit row: NULL actor, persona entity. Piles up
     // one per /dev/switch unless the refresh cleans it.
@@ -289,20 +299,16 @@ describe('refreshAllPersonas', () => {
       .get() as { id: string; hashtag_tag_id: string };
     insertMember(db, { id: 'member-outsider-2', slug: 'outsider_2' });
     insertMemberClubAffiliation(db, 'member-outsider-2', personaClub.id, { id: 'mca-outsider-1' });
-    db.prepare(
-      `INSERT INTO active_player_grants
-         (id, created_at, created_by, member_id, change_type, new_active_player_expires_at, reason_code, related_club_id, related_club_affiliation_id)
-       VALUES ('apg-outsider-1', ?, 'system', 'member-outsider-2', 'grant', ?, 'club_join', ?, 'mca-outsider-1')`,
-    ).run(TS, TS, personaClub.id);
-    db.prepare(
-      `INSERT INTO member_galleries
-         (id, created_at, created_by, updated_at, updated_by, version, owner_member_id, name)
-       VALUES ('gal-outsider-1', ?, 'system', ?, 'system', 1, 'member-outsider-2', 'Outsider Gallery')`,
-    ).run(TS, TS);
-    db.prepare(
-      `INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-       VALUES ('gal-outsider-1', ?, ?, 'system')`,
-    ).run(personaClub.hashtag_tag_id, TS);
+    insertActivePlayerGrant(db, {
+      id: 'apg-outsider-1', created_at: TS, member_id: 'member-outsider-2',
+      change_type: 'grant', new_active_player_expires_at: TS, reason_code: 'club_join',
+      related_club_id: personaClub.id, related_club_affiliation_id: 'mca-outsider-1',
+    });
+    insertMemberGallery(db, {
+      id: 'gal-outsider-1', created_at: TS,
+      owner_member_id: 'member-outsider-2', name: 'Outsider Gallery',
+    });
+    insertGalleryCriterionTag(db, 'gal-outsider-1', personaClub.hashtag_tag_id);
 
     // Cleanup-queue rows a tester session can mint: a persona admin parking a
     // real candidate (its member FK would block the member delete), a park on a
@@ -310,11 +316,11 @@ describe('refreshAllPersonas', () => {
     // delete), the persona's claim marker on the real club, and an outsider's
     // claim on the persona club (that item is about to go).
     insertLegacyClubCandidate(db, { id: 'cand-real-keep-1', display_name: 'Real Keep Candidate', classification: 'onboarding_visible' });
-    db.prepare(
-      `INSERT INTO candidate_cleanup_resolutions
-         (id, created_at, created_by, candidate_id, predicate_name, resolution, parked_by_member_id, reason_text)
-       VALUES ('cdr-persona-1', ?, 'system', 'cand-real-keep-1', 'promotable_candidate', 'parked', ?, 'persona park')`,
-    ).run(TS, T1);
+    insertCandidateCleanupResolution(db, {
+      id: 'cdr-persona-1', created_at: TS, candidate_id: 'cand-real-keep-1',
+      predicate_name: 'promotable_candidate', resolution: 'parked',
+      parked_by_member_id: T1, reason_text: 'persona park',
+    });
     const personaCandidate = db
       .prepare(
         `SELECT legacy_club_candidate_id AS id FROM legacy_person_club_affiliations
@@ -327,21 +333,19 @@ describe('refreshAllPersonas', () => {
       )
       .get() as { id: string } | undefined;
     expect(personaCandidate).toBeDefined();
-    db.prepare(
-      `INSERT INTO candidate_cleanup_resolutions
-         (id, created_at, created_by, candidate_id, predicate_name, resolution, parked_by_member_id, reason_text)
-       VALUES ('cdr-personacand-1', ?, 'system', ?, 'promotable_candidate', 'parked', NULL, NULL)`,
-    ).run(TS, personaCandidate!.id);
-    db.prepare(
-      `INSERT INTO club_cleanup_claims
-         (id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at)
-       VALUES ('ccl-persona-1', ?, 'system', 'club', 'club-real-keep-1', ?, ?)`,
-    ).run(TS, T1, TS);
-    db.prepare(
-      `INSERT INTO club_cleanup_claims
-         (id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at)
-       VALUES ('ccl-outsider-1', ?, 'system', 'club', ?, 'member-outsider-2', ?)`,
-    ).run(TS, personaClub.id, TS);
+    insertCandidateCleanupResolution(db, {
+      id: 'cdr-personacand-1', created_at: TS, candidate_id: personaCandidate!.id,
+      predicate_name: 'promotable_candidate', resolution: 'parked',
+      parked_by_member_id: null, reason_text: null,
+    });
+    insertClubCleanupClaim(db, {
+      id: 'ccl-persona-1', created_at: TS, item_type: 'club',
+      item_id: 'club-real-keep-1', claimed_by_member_id: T1, claimed_at: TS,
+    });
+    insertClubCleanupClaim(db, {
+      id: 'ccl-outsider-1', created_at: TS, item_type: 'club',
+      item_id: personaClub.id, claimed_by_member_id: 'member-outsider-2', claimed_at: TS,
+    });
 
     const result = refreshAllPersonas(db);
     // Uploaded media's storage keys are returned so the refresh route can delete
@@ -524,11 +528,13 @@ describe('refreshAllPersonas', () => {
     expect(tierOf(T1)).toBe('tier2');
 
     // A vouch whose target is a persona member RESTRICTs the member delete mid-teardown.
-    db.prepare(
-      `INSERT INTO active_player_vouches
-         (id, created_at, created_by, voucher_member_id, target_member_id, vouched_at)
-       VALUES (?, ?, 'system', ?, ?, ?)`,
-    ).run('apv-block-1', '2026-01-01T00:00:00.000Z', T2, T1, '2026-01-01T00:00:00.000Z');
+    insertActivePlayerVouch(db, {
+      id: 'apv-block-1',
+      created_at: '2026-01-01T00:00:00.000Z',
+      voucher_member_id: T2,
+      target_member_id: T1,
+      vouched_at: '2026-01-01T00:00:00.000Z',
+    });
 
     expect(() => refreshAllPersonas(db)).toThrow();
 

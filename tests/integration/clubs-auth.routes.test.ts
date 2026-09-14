@@ -8,10 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 import {
   insertTag,
@@ -25,15 +22,8 @@ import {
   completeOnboarding,
 } from '../fixtures/factories';
 
-const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-clubs-auth-${Date.now()}.db`);
-
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
-process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
-process.env.PORT                     = '3002';
-process.env.NODE_ENV                 = 'test';
-process.env.LOG_LEVEL                = 'error';
-process.env.PUBLIC_BASE_URL          = 'http://localhost:3002';
-process.env.SESSION_SECRET           = 'test-secret-clubs-auth';
+const { dbPath } = setTestEnv('4193');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -43,7 +33,7 @@ function authCookie(): string {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   // Admin test-user for authCookie()
   insertMember(db, {
     id: 'test-user',
@@ -195,14 +185,11 @@ beforeAll(async () => {
   });
 
   db.close();
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
-  for (const f of [TEST_DB_PATH, `${TEST_DB_PATH}-wal`, `${TEST_DB_PATH}-shm`]) {
-    if (fs.existsSync(f)) fs.unlinkSync(f);
-  }
+  cleanupTestDb(dbPath);
 });
 
 describe('GET /clubs/club_evergreen — unauthenticated', () => {
@@ -334,7 +321,7 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
   });
 
   it('shows an opted-in member gender on the roster', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.prepare("UPDATE members SET gender = 'male', show_gender = 1 WHERE id = 'member-zephyr'").run();
     db.close();
     const app = createApp();
@@ -346,7 +333,7 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
   });
 
   it('hides roster gender when the member has not opted in', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.prepare("UPDATE members SET gender = 'male', show_gender = 0 WHERE id = 'member-zephyr'").run();
     db.close();
     const app = createApp();

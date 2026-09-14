@@ -31,7 +31,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3502');
 
@@ -41,20 +45,10 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Modifier registry (enough to drive ?view=modifier sections + Movement System)
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('paradox',  'paradox',  'body', 1, 1, '', ?),
-      ('spinning', 'spinning', 'body', 1, 1, '', ?),
-      ('ducking',  'ducking',  'body', 1, 1, '', ?),
-      ('fairy',    'fairy',    'set',  1, 1, '', ?),
-      ('pixie',    'pixie',    'set',  1, 1, '', ?),
-      ('quantum',  'quantum',  'set',  1, 1, '', ?),
-      ('stepping', 'stepping', 'set',  1, 1, '', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z',
-         '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z',
-         '2026-05-27T00:00:00.000Z');
+  const bodyModifiers = ['paradox', 'spinning', 'ducking'];
+  const setModifiers  = ['fairy', 'pixie', 'quantum', 'stepping'];
+  for (const slug of bodyModifiers) insertFreestyleTrickModifier(db, { slug, modifier_type: 'body', notes: '' });
+  for (const slug of setModifiers)  insertFreestyleTrickModifier(db, { slug, modifier_type: 'set',  notes: '' });
 
   // Representative tricks across the user's flagged set
   const tricks: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
@@ -73,16 +67,12 @@ beforeAll(async () => {
   for (const t of tricks) insertFreestyleTrick(db, t);
 
   // Modifier links so ?view=modifier has data to render
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES
-      ('fairy_mirage', 'fairy', 1),
-      ('quantum_mirage', 'quantum', 1),
-      ('fairy_legover', 'fairy', 1),
-      ('ducking_toe_stall', 'ducking', 1),
-      ('spinning_paradox_mirage', 'spinning', 1),
-      ('spinning_paradox_mirage', 'paradox', 2)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'fairy_mirage', 'fairy');
+  insertFreestyleTrickModifierLink(db, 'quantum_mirage', 'quantum');
+  insertFreestyleTrickModifierLink(db, 'fairy_legover', 'fairy');
+  insertFreestyleTrickModifierLink(db, 'ducking_toe_stall', 'ducking');
+  insertFreestyleTrickModifierLink(db, 'spinning_paradox_mirage', 'spinning');
+  insertFreestyleTrickModifierLink(db, 'spinning_paradox_mirage', 'paradox', 2);
 
   db.close();
   createApp = await importApp();

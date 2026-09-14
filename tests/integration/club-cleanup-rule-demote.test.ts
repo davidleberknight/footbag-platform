@@ -18,6 +18,7 @@ import {
   insertEvent,
   insertClubInsightNote,
   insertClubBootstrapLeader,
+  insertClubCleanupResolution,
 } from '../fixtures/factories';
 
 const MEMBER = 'rule-mem-1';
@@ -160,24 +161,22 @@ beforeAll(async () => {
   // An admin already said "not now" about this one.
   insertClub(db, { id: CLUB_PARKED, name: 'Parked Club' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED, classification: 'dormant' });
-  db.prepare(`
-    INSERT INTO club_cleanup_resolutions (
-      id, created_at, created_by, club_id, predicate_name, resolution,
-      parked_by_member_id, reason_text
-    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'parked', ?, 'Revisit later')
-  `).run('ccr-rule-parked', MEMBER, CLUB_PARKED, MEMBER);
+  insertClubCleanupResolution(db, {
+    id: 'ccr-rule-parked', created_at: '2026-01-01T00:00:00.000Z', created_by: MEMBER,
+    club_id: CLUB_PARKED, predicate_name: 'crowdsource_viability', resolution: 'parked',
+    parked_by_member_id: MEMBER, reason_text: 'Revisit later',
+  });
 
   // Parked, then a member said something afterwards. The rules can settle this
   // one, so it never rejoins the working queue: parking promised it would not
   // be lost, and the parked listing is the only place that promise can be kept.
   insertClub(db, { id: CLUB_PARKED_SETTLED, name: 'Parked Settled Club' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED_SETTLED, classification: 'dormant' });
-  db.prepare(`
-    INSERT INTO club_cleanup_resolutions (
-      id, created_at, created_by, club_id, predicate_name, resolution,
-      parked_by_member_id, reason_text
-    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'parked', ?, 'Revisit later')
-  `).run('ccr-rule-parked-settled', MEMBER, CLUB_PARKED_SETTLED, MEMBER);
+  insertClubCleanupResolution(db, {
+    id: 'ccr-rule-parked-settled', created_at: '2026-01-01T00:00:00.000Z', created_by: MEMBER,
+    club_id: CLUB_PARKED_SETTLED, predicate_name: 'crowdsource_viability', resolution: 'parked',
+    parked_by_member_id: MEMBER, reason_text: 'Revisit later',
+  });
   insertClubViabilitySignal(db, {
     member_id: MEMBER,
     club_id: CLUB_PARKED_SETTLED,
@@ -189,12 +188,11 @@ beforeAll(async () => {
   // working queue really does take it back and the parked listing lets it go.
   insertClub(db, { id: CLUB_PARKED_RETURNED, name: 'Parked Returned Club' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED_RETURNED, classification: 'pre_populate' });
-  db.prepare(`
-    INSERT INTO club_cleanup_resolutions (
-      id, created_at, created_by, club_id, predicate_name, resolution,
-      parked_by_member_id, reason_text
-    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'parked', ?, 'Revisit later')
-  `).run('ccr-rule-parked-returned', MEMBER, CLUB_PARKED_RETURNED, MEMBER);
+  insertClubCleanupResolution(db, {
+    id: 'ccr-rule-parked-returned', created_at: '2026-01-01T00:00:00.000Z', created_by: MEMBER,
+    club_id: CLUB_PARKED_RETURNED, predicate_name: 'crowdsource_viability', resolution: 'parked',
+    parked_by_member_id: MEMBER, reason_text: 'Revisit later',
+  });
   insertClubViabilitySignal(db, {
     member_id: MEMBER,
     club_id: CLUB_PARKED_RETURNED,
@@ -207,21 +205,21 @@ beforeAll(async () => {
   // speaking for it and the rules judge it afresh.
   insertClub(db, { id: CLUB_DEMOTED_REVIVED, name: 'Demoted Revived Club', status: 'active' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_DEMOTED_REVIVED, classification: 'dormant' });
-  db.prepare(`
-    INSERT INTO club_cleanup_resolutions (
-      id, created_at, created_by, club_id, predicate_name, resolution, reason_text
-    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'demoted', 'Looked finished')
-  `).run('ccr-rule-demoted-revived', ADMIN, CLUB_DEMOTED_REVIVED);
+  insertClubCleanupResolution(db, {
+    id: 'ccr-rule-demoted-revived', created_at: '2026-01-01T00:00:00.000Z', created_by: ADMIN,
+    club_id: CLUB_DEMOTED_REVIVED, predicate_name: 'crowdsource_viability',
+    resolution: 'demoted', reason_text: 'Looked finished',
+  });
 
   // A dismissal is a judgment about the flags, not about whether the club is
   // alive, so it is not released the same way.
   insertClub(db, { id: CLUB_DISMISSED_ACTIVE, name: 'Dismissed Active Club', status: 'active' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_DISMISSED_ACTIVE, classification: 'dormant' });
-  db.prepare(`
-    INSERT INTO club_cleanup_resolutions (
-      id, created_at, created_by, club_id, predicate_name, resolution, reason_text
-    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'dismissed', 'Reports not credible')
-  `).run('ccr-rule-dismissed-active', ADMIN, CLUB_DISMISSED_ACTIVE);
+  insertClubCleanupResolution(db, {
+    id: 'ccr-rule-dismissed-active', created_at: '2026-01-01T00:00:00.000Z', created_by: ADMIN,
+    club_id: CLUB_DISMISSED_ACTIVE, predicate_name: 'crowdsource_viability',
+    resolution: 'dismissed', reason_text: 'Reports not credible',
+  });
 
   // Archiving is terminal, and archiving does not clear a club's provisional
   // bootstrap rows. Without excluding archived clubs the stale-provisional

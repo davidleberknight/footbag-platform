@@ -19,7 +19,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3527');
 
@@ -28,14 +32,9 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('pixie',    'pixie',    'set',  1, 1, '', ?),
-      ('ducking',  'ducking',  'body', 1, 1, '', ?),
-      ('spinning', 'spinning', 'body', 1, 1, '', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_type: 'set', notes: '' });
+  insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_type: 'body', notes: '' });
+  insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_type: 'body', notes: '' });
 
   const tricks: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
     { slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage', category: 'dex', notation: 'MIRAGE', operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
@@ -49,13 +48,9 @@ beforeAll(async () => {
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES
-      ('pixie-illusion', 'pixie',    1),
-      ('ducking-whirl',  'ducking',  1),
-      ('spinning-whirl', 'spinning', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'pixie-illusion', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'ducking-whirl', 'ducking');
+  insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning');
 
   db.close();
   createApp = await importApp();

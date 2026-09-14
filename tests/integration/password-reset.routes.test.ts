@@ -7,7 +7,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
 
@@ -143,15 +143,11 @@ describe('POST /password/forgot', () => {
   it('password-forgot rate limit is tunable via system_config_current', async () => {
     // Lower the bucket to 2 via system_config; the 3rd request should not enqueue.
     const tuneDb = new BetterSqlite3(dbPath);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'password_reset_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
-    `).run(
-      'test-pwreset-rl-tune',
-      '2026-05-22T00:00:00.000Z',
-      '2026-05-22T00:00:00.000Z',
-    );
+    insertSystemConfig(tuneDb, {
+      config_key: 'password_reset_rate_limit_max_attempts',
+      value_json: '2',
+      created_at: '2026-05-22T00:00:00.000Z',
+    });
     tuneDb.close();
     try {
       // Seed a fresh verified member so the per-email bucket is unused and the
@@ -185,15 +181,12 @@ describe('POST /password/forgot', () => {
     } finally {
       // Restore the platform default so later tests see 5/attempt.
       const restoreDb = new BetterSqlite3(dbPath);
-      restoreDb.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'password_reset_rate_limit_max_attempts', '5', ?, 'Test restore', NULL)
-      `).run(
-        'test-pwreset-rl-restore',
-        '2026-05-22T00:00:01.000Z',
-        '2026-05-22T00:00:01.000Z',
-      );
+      insertSystemConfig(restoreDb, {
+        config_key: 'password_reset_rate_limit_max_attempts',
+        value_json: '5',
+        created_at: '2026-05-22T00:00:01.000Z',
+        reason_text: 'Test restore',
+      });
       restoreDb.close();
     }
   });

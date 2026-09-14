@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3067');
 
@@ -98,15 +98,12 @@ describe('OperationsPlatformService.runEmailWorker', () => {
     });
 
     const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'email_outbox_paused', '1', ?, 'Test pause', NULL)
-    `).run(
-      'ops-test-pause',
-      '2026-04-17T00:00:00.000Z',
-      '2026-04-17T00:00:00.000Z',
-    );
+    insertSystemConfig(db, {
+      config_key: 'email_outbox_paused',
+      value_json: '1',
+      created_at: '2026-04-17T00:00:00.000Z',
+      reason_text: 'Test pause',
+    });
     db.close();
 
     const result = await operationsPlatformService.runEmailWorker();
@@ -115,15 +112,12 @@ describe('OperationsPlatformService.runEmailWorker', () => {
 
     // Restore default for subsequent tests in this file.
     const db2 = new BetterSqlite3(dbPath);
-    db2.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'email_outbox_paused', '0', ?, 'Test unpause', NULL)
-    `).run(
-      'ops-test-unpause',
-      '2026-04-17T00:00:01.000Z',
-      '2026-04-17T00:00:01.000Z',
-    );
+    insertSystemConfig(db2, {
+      config_key: 'email_outbox_paused',
+      value_json: '0',
+      created_at: '2026-04-17T00:00:01.000Z',
+      reason_text: 'Test unpause',
+    });
     db2.close();
   });
 
@@ -204,15 +198,12 @@ describe('OperationsPlatformService.runEmailWorker', () => {
   it('logs outbox dead-letter with allowlisted metadata when retries exhausted', async () => {
     // Force max-retries=1 so the first failure trips dead-letter.
     const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'outbox_max_retry_attempts', '1', ?, 'Force dead-letter', NULL)
-    `).run(
-      'ops-test-max-retries',
-      '2026-04-20T00:00:00.000Z',
-      '2026-04-20T00:00:00.000Z',
-    );
+    insertSystemConfig(db, {
+      config_key: 'outbox_max_retry_attempts',
+      value_json: '1',
+      created_at: '2026-04-20T00:00:00.000Z',
+      reason_text: 'Force dead-letter',
+    });
     db.close();
 
     const errorSpy = vi.spyOn(logger, 'error');
@@ -232,15 +223,12 @@ describe('OperationsPlatformService.runEmailWorker', () => {
 
     // Restore default max-retries via a later-effective config row.
     const db2 = new BetterSqlite3(dbPath);
-    db2.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'outbox_max_retry_attempts', '5', ?, 'Restore default', NULL)
-    `).run(
-      'ops-test-max-retries-restore',
-      '2026-04-20T00:00:01.000Z',
-      '2026-04-20T00:00:01.000Z',
-    );
+    insertSystemConfig(db2, {
+      config_key: 'outbox_max_retry_attempts',
+      value_json: '5',
+      created_at: '2026-04-20T00:00:01.000Z',
+      reason_text: 'Restore default',
+    });
     db2.close();
 
     const deadCalls = errorSpy.mock.calls.filter(([msg]) => msg === 'outbox dead-letter');

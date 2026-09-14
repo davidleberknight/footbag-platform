@@ -47,7 +47,8 @@ function stub(): ReturnType<typeof secrets.getStubSecretsAdapterForTests> {
 describe('bootstrap claim', () => {
   it('requires sign-in', async () => {
     const res = await request(createApp()).get('/admin/bootstrap-claim');
-    expect([302, 303]).toContain(res.status);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/^\/login\?returnTo=/);
   });
 
   it('rejects a claim before any token is provisioned (non-revealing)', async () => {

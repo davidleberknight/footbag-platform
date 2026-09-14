@@ -1,9 +1,10 @@
 /**
  * Set Encyclopedia category intros: routes and rendering.
- * one-liners. The /freestyle/sets surface previously rendered six
- * bare h2 category headings with no inline framing. The curator-
- * authored intros already exist in SET_SUBTYPE_SPECS in
- * freestyleCanonicalSets.ts; the page surfaces them under each h2.
+ *
+ * Each category heading on the sets surface carries a one-line curator-authored
+ * intro beneath it, so a reader meets framing rather than a bare heading. The
+ * intros are authored once in the canonical set specs and surfaced here; these
+ * cases pin that the page renders them under their own heading.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

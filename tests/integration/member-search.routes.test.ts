@@ -15,6 +15,7 @@ import {
   insertActivePlayerGrant,
   createMemberAtTier,
   createTestSessionJwt,
+  insertSystemConfig,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3063');
@@ -103,11 +104,10 @@ beforeAll(async () => {
 
   // Lower the per-member search cap to 2 so a 3rd query in one test is throttled.
   // The per-IP cap stays at its default so the per-member bucket trips first.
-  db.prepare(`
-    INSERT INTO system_config
-      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-    VALUES (?, ?, 'member_search_rate_limit_max_per_member', '2', ?, 'Test tunable', NULL)
-  `).run('test-msearch-member-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+  insertSystemConfig(db, {
+    config_key: 'member_search_rate_limit_max_per_member',
+    value_json: '2',
+  });
 
   db.close();
   createApp = await importApp();

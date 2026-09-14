@@ -7,22 +7,11 @@
  * even though its distinct-member count is one.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertTag, insertMediaItem } from '../fixtures/factories';
+import { insertMember, insertTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3074');
-const TS = '2025-01-01T00:00:00.000Z';
-
-function insertMediaTag(db: BetterSqlite3.Database, id: string, mediaId: string, tagId: string, tagDisplay: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
-}
 
 let hashtagDiscoveryService: typeof import('../../src/services/hashtagDiscoveryService').hashtagDiscoveryService;
 
@@ -50,16 +39,16 @@ beforeAll(async () => {
   // Three system-uploaded items carry the curated tag (usage_count = 3).
   for (let i = 0; i < 3; i += 1) {
     const m = insertMediaItem(db, { uploader_member_id: curator, caption: `curated-${i}` });
-    insertMediaTag(db, `mt-cur-${i}`, m, tagCurated, '#passback_records');
+    attachMediaTag(db, m, tagCurated);
   }
   // Two items from two different members carry the community tag (usage_count = 2).
   const mA = insertMediaItem(db, { uploader_member_id: memberA, caption: 'a-combo' });
   const mB = insertMediaItem(db, { uploader_member_id: memberB, caption: 'b-combo' });
-  insertMediaTag(db, 'mt-a-combo', mA, tagCommunity, '#community_combo');
-  insertMediaTag(db, 'mt-b-combo', mB, tagCommunity, '#community_combo');
+  attachMediaTag(db, mA, tagCommunity);
+  attachMediaTag(db, mB, tagCommunity);
   // One item from a single member carries the personal tag, plus the #by_ tag.
-  insertMediaTag(db, 'mt-a-personal', mA, tagPersonal, '#my_private_tag');
-  insertMediaTag(db, 'mt-a-by', mA, tagBy, '#by_member_a');
+  attachMediaTag(db, mA, tagPersonal);
+  attachMediaTag(db, mA, tagBy);
 
   db.close();
 

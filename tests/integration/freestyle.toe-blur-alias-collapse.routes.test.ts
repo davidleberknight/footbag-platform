@@ -25,7 +25,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3167');
 
@@ -61,13 +61,12 @@ beforeAll(async () => {
     operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]',
   });
 
-  const insertAlias = db.prepare(`
-    INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, alias_origin_producer, created_at)
-    VALUES (?, ?, ?, ?, 'expert-additions', ?)
-  `);
-  insertAlias.run('toe-blur', 'toe blur', 'quantum-mirage', 'common', new Date().toISOString());
-  insertAlias.run('toe-butterfly', 'toe butterfly', 'quantum', 'common', new Date().toISOString());
+  insertFreestyleTrickAlias(db, 'toe-blur', 'quantum-mirage', 'toe blur', {
+    alias_type: 'common', alias_origin_producer: 'expert-additions',
+  });
+  insertFreestyleTrickAlias(db, 'toe-butterfly', 'quantum', 'toe butterfly', {
+    alias_type: 'common', alias_origin_producer: 'expert-additions',
+  });
   db.close();
   createApp = await importApp();
 });

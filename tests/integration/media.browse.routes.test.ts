@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3128');
 
@@ -39,49 +39,23 @@ function openDb(): BetterSqlite3.Database {
   return db;
 }
 
-function insertFreeformTag(db: BetterSqlite3.Database, normalized: string, display: string): string {
-  const id = `tag-browse-${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-  `).run(id, normalized, display, TS, TS);
-  return id;
-}
-
 function insertPhoto(
   db: BetterSqlite3.Database,
   o: { id: string; uploader?: string; caption?: string; uploaded_at?: string; is_avatar?: 0 | 1; moderation?: 'active' | 'removed_by_admin' },
 ): string {
   const uploader = o.uploader ?? SYSTEM_ID;
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, 'photo', ?, ?, ?,
-              ?, ?, 1000, 600,
-              ?)
-  `).run(
-    o.id, TS, TS,
-    uploader, o.is_avatar ?? 0, o.caption ?? null,
-    o.uploaded_at ?? TS,
-    `${uploader}/detached/${o.id}-thumb.jpg`,
-    `${uploader}/detached/${o.id}-display.jpg`,
-    o.moderation ?? 'active',
-  );
-  return o.id;
-}
-
-function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, tagDisplay: string): void {
-  const id = `mtag_${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
+  return insertMediaItem(db, {
+    id: o.id,
+    uploader_member_id: uploader,
+    is_avatar: o.is_avatar ?? 0,
+    caption: o.caption ?? null,
+    uploaded_at: o.uploaded_at ?? TS,
+    s3_key_thumb: `${uploader}/detached/${o.id}-thumb.jpg`,
+    s3_key_display: `${uploader}/detached/${o.id}-display.jpg`,
+    width_px: 1000,
+    height_px: 600,
+    moderation_status: o.moderation ?? 'active',
+  });
 }
 
 beforeAll(async () => {
@@ -89,46 +63,46 @@ beforeAll(async () => {
   insertMember(db, { id: SYSTEM_ID,  slug: 'browse_system',  is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
   insertMember(db, { id: REGULAR_ID, slug: 'browse_regular', display_name: 'Browse Regular' });
 
-  BUTTERFLY_TAG_ID  = insertFreeformTag(db, '#butterfly', '#butterfly');
-  SPIKE_TAG_ID      = insertFreeformTag(db, '#spike',     '#spike');
-  TUTORIAL_TAG_ID   = insertFreeformTag(db, '#tutorial',  '#tutorial');
-  MIXED_CASE_TAG_ID = insertFreeformTag(db, '#mixedcase', '#MixedCase');
-  BY_REGULAR_TAG_ID = insertFreeformTag(db, '#by_browse_regular', '#by_browse_regular');
+  BUTTERFLY_TAG_ID  = insertFreeformTag(db, { tag_normalized: '#butterfly', tag_display: '#butterfly' });
+  SPIKE_TAG_ID      = insertFreeformTag(db, { tag_normalized: '#spike',     tag_display: '#spike' });
+  TUTORIAL_TAG_ID   = insertFreeformTag(db, { tag_normalized: '#tutorial',  tag_display: '#tutorial' });
+  MIXED_CASE_TAG_ID = insertFreeformTag(db, { tag_normalized: '#mixedcase', tag_display: '#MixedCase' });
+  BY_REGULAR_TAG_ID = insertFreeformTag(db, { tag_normalized: '#by_browse_regular', tag_display: '#by_browse_regular' });
 
   // Item carrying butterfly + spike (matches AND-of-both queries).
   const both = insertPhoto(db, { id: 'media_browse_both_001', caption: 'photo-both-marker', uploaded_at: '2027-01-03T00:00:00.000Z' });
-  attachTag(db, both, BUTTERFLY_TAG_ID, '#butterfly');
-  attachTag(db, both, SPIKE_TAG_ID,     '#spike');
+  attachMediaTag(db, both, BUTTERFLY_TAG_ID);
+  attachMediaTag(db, both, SPIKE_TAG_ID);
 
   // Item carrying butterfly + tutorial (drops out when ?exclude=tutorial).
   const tut = insertPhoto(db, { id: 'media_browse_tut_001', caption: 'photo-tut-marker', uploaded_at: '2027-01-02T00:00:00.000Z' });
-  attachTag(db, tut, BUTTERFLY_TAG_ID, '#butterfly');
-  attachTag(db, tut, TUTORIAL_TAG_ID,  '#tutorial');
+  attachMediaTag(db, tut, BUTTERFLY_TAG_ID);
+  attachMediaTag(db, tut, TUTORIAL_TAG_ID);
 
   // Item carrying butterfly only.
   const butOnly = insertPhoto(db, { id: 'media_browse_but_001', caption: 'photo-butonly-marker', uploaded_at: '2027-01-01T00:00:00.000Z' });
-  attachTag(db, butOnly, BUTTERFLY_TAG_ID, '#butterfly');
+  attachMediaTag(db, butOnly, BUTTERFLY_TAG_ID);
 
   // Item carrying spike only.
   const spOnly = insertPhoto(db, { id: 'media_browse_sp_001', caption: 'photo-sponly-marker', uploaded_at: '2026-12-31T00:00:00.000Z' });
-  attachTag(db, spOnly, SPIKE_TAG_ID, '#spike');
+  attachMediaTag(db, spOnly, SPIKE_TAG_ID);
 
   // Mixed-case display: tag_display = '#MixedCase', tag_normalized = '#mixedcase'.
   const mc = insertPhoto(db, { id: 'media_browse_mc_001', caption: 'photo-mc-marker', uploaded_at: '2026-12-30T00:00:00.000Z' });
-  attachTag(db, mc, MIXED_CASE_TAG_ID, '#MixedCase');
+  attachMediaTag(db, mc, MIXED_CASE_TAG_ID);
 
   // is_avatar=1 row that also carries butterfly — must be excluded from results.
   const av = insertPhoto(db, { id: 'media_browse_avatar_001', caption: 'photo-avatar-marker', is_avatar: 1, uploaded_at: '2026-12-29T00:00:00.000Z' });
-  attachTag(db, av, BUTTERFLY_TAG_ID, '#butterfly');
+  attachMediaTag(db, av, BUTTERFLY_TAG_ID);
 
   // moderation_status=removed_by_admin row carrying butterfly — also excluded.
   const rm = insertPhoto(db, { id: 'media_browse_rm_001', caption: 'photo-removed-marker', moderation: 'removed_by_admin', uploaded_at: '2026-12-28T00:00:00.000Z' });
-  attachTag(db, rm, BUTTERFLY_TAG_ID, '#butterfly');
+  attachMediaTag(db, rm, BUTTERFLY_TAG_ID);
 
   // Item tagged #by_browse_regular — exercises the hero byMember lift.
   const byMem = insertPhoto(db, { id: 'media_browse_byme_001', caption: 'photo-by-marker', uploader: REGULAR_ID, uploaded_at: '2027-01-04T00:00:00.000Z' });
-  attachTag(db, byMem, BY_REGULAR_TAG_ID, '#by_browse_regular');
-  attachTag(db, byMem, BUTTERFLY_TAG_ID,  '#butterfly');
+  attachMediaTag(db, byMem, BY_REGULAR_TAG_ID);
+  attachMediaTag(db, byMem, BUTTERFLY_TAG_ID);
 
   db.close();
   createApp = await importApp();
@@ -353,7 +327,7 @@ describe('GET /media/browse — results mode', () => {
   it('escapes HTML in item captions', async () => {
     const db = openDb();
     const id = insertPhoto(db, { id: 'media_browse_xss_001', caption: '<script>alert("xss-browse-marker")</script>', uploaded_at: '2027-02-01T00:00:00.000Z' });
-    attachTag(db, id, BUTTERFLY_TAG_ID, '#butterfly');
+    attachMediaTag(db, id, BUTTERFLY_TAG_ID);
     db.close();
 
     const app = createApp();
@@ -373,7 +347,7 @@ describe('GET /media/browse — pagination', () => {
     for (let i = 0; i < 30; i++) {
       const id = `media_browse_bulk_${String(i).padStart(2, '0')}`;
       insertPhoto(db, { id, caption: `bulk-${i}`, uploaded_at: `2026-06-${String(i + 1).padStart(2, '0')}T00:00:00.000Z` });
-      attachTag(db, id, BUTTERFLY_TAG_ID, '#butterfly');
+      attachMediaTag(db, id, BUTTERFLY_TAG_ID);
     }
     db.close();
 

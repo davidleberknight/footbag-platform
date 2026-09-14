@@ -29,18 +29,14 @@ import os from 'os';
 import { Readable } from 'node:stream';
 import { Window } from 'happy-dom';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-curator-oversize-${Date.now()}.db`);
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-oversize-'));
 const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-curated-oversize-'));
 
-process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
+const { dbPath } = setTestEnv('4202');
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
 process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT              = '3101';
-process.env.NODE_ENV          = 'test';
-process.env.LOG_LEVEL         = 'error';
-process.env.PUBLIC_BASE_URL   = 'http://localhost:3101';
-process.env.SESSION_SECRET    = 'curator-oversize-test-secret';
 // The floor the configuration allows. The cap under test is the one the page
 // states and the refusal names, so pinning it here pins all three at once.
 process.env.VIDEO_MAX_BYTES   = String(1024 * 1024);
@@ -50,7 +46,6 @@ let createApp: typeof import('../../src/app').createApp;
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import { createTestDb } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
 const ADMIN_ID = 'admin-oversize-001';
@@ -85,7 +80,7 @@ function neverEndingOversizedBody(): Readable {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, {
     id: ADMIN_ID,
     slug: 'oversize_admin',
@@ -102,8 +97,7 @@ beforeAll(async () => {
   });
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 
   // The curated tree is the committed source of truth, so the service refuses
   // to touch disk until a test points it somewhere throwaway.
@@ -114,9 +108,7 @@ beforeAll(async () => {
 afterAll(async () => {
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.resetCuratedRootDirForTests();
-  for (const suffix of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(`${TEST_DB_PATH}${suffix}`); } catch { /* already gone */ }
-  }
+  cleanupTestDb(dbPath);
   fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true });
   fs.rmSync(TEST_CURATED_DIR, { recursive: true, force: true });
 });

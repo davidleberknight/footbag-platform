@@ -110,11 +110,13 @@ describe('POST /register race against slug UNIQUE constraint', () => {
       post('slug-race-b@example.com'),
     ]);
 
-    // Both succeed — slug retry resolves the collision.
-    expect([200, 303]).toContain(resA.status);
-    expect([200, 303]).toContain(resB.status);
-    expect(resA.status).not.toBe(500);
-    expect(resB.status).not.toBe(500);
+    // Both succeed: the bounded slug retry resolves the collision, so each
+    // registration reaches the same redirect a lone registration reaches.
+    // Pinned rather than allow-listed, because a run where one of them fell
+    // back to re-rendering the form would still be a collision the retry did
+    // not resolve.
+    expect(resA.status).toBe(303);
+    expect(resB.status).toBe(303);
 
     expect(countMembersByEmail('slug-race-a@example.com')).toBe(1);
     expect(countMembersByEmail('slug-race-b@example.com')).toBe(1);

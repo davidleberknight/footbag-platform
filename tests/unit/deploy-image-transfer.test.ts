@@ -9,8 +9,8 @@
  * the authority: a truncated stream makes `docker load` fail, and the remote
  * halves verify layer DiffIDs besides.
  *
- * The first case is the demonstrated failure: it reproduces the abort against
- * the pipeline shape the deploy scripts used to carry, then shows the helper
+ * The first case is the demonstrated failure: it reproduces the abort against a
+ * bare `save | ssh load` pipeline under pipefail, then shows the helper
  * surviving the same conditions.
  */
 import { describe, it, expect } from 'vitest';

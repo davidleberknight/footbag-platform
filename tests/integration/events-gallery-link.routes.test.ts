@@ -11,13 +11,18 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertTag, insertEvent, insertMediaItem } from '../fixtures/factories';
+import {
+  insertMember,
+  insertTag,
+  insertFreeformTag,
+  insertEvent,
+  insertMediaItem,
+  attachMediaTag,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3073');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
-
-const TS = '2025-01-01T00:00:00.000Z';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -45,12 +50,7 @@ beforeAll(async () => {
     uploader_member_id: uploaderId,
     caption: 'Test Open jam',
   });
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run('mt-event-testopen-001', TS, TS, mediaId, tagIdWithMedia, '#event_2025_testopen');
+  attachMediaTag(db, mediaId, tagIdWithMedia);
 
   // Event WITHOUT media.
   const tagIdNoMedia = insertTag(db, {
@@ -79,26 +79,17 @@ beforeAll(async () => {
     hashtag_tag_id: tagIdUnavail,
     status: 'completed',
   });
-  db.prepare(`
-    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type,
-      created_at, created_by, updated_at, updated_by, version)
-    VALUES ('tag-unavail-embed', '#unavailable_embed', '#unavailable_embed', 0, NULL,
-      ?, 'test', ?, 'test', 1)
-  `).run(TS, TS);
+  const tagIdUnavailEmbed = insertFreeformTag(db, {
+    id: 'tag-unavail-embed',
+    tag_normalized: '#unavailable_embed',
+    tag_display: '#unavailable_embed',
+  });
   const unavailMediaId = insertMediaItem(db, {
     uploader_member_id: uploaderId,
     caption: 'Unavailable clip',
   });
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run('mt-event-unavail-001', TS, TS, unavailMediaId, tagIdUnavail, '#event_2025_unavail');
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, 'tag-unavail-embed', '#unavailable_embed')
-  `).run('mt-event-unavail-002', TS, TS, unavailMediaId);
+  attachMediaTag(db, unavailMediaId, tagIdUnavail);
+  attachMediaTag(db, unavailMediaId, tagIdUnavailEmbed);
 
   db.close();
   createApp = await importApp();

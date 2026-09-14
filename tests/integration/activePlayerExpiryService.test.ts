@@ -24,6 +24,7 @@ import {
   insertMember,
   insertActivePlayerGrant,
   createMemberAtTier,
+  insertMailingListSubscription,
 } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
@@ -98,20 +99,12 @@ function seedMember(opts: SeedOpts = {}): { id: string; slug: string } {
       `).run('2025-01-01T00:00:00.000Z', id);
     }
     if (opts.subscribe_status) {
-      db.prepare(`
-        INSERT INTO mailing_list_subscriptions (
-          id, created_at, created_by, updated_at, updated_by, version,
-          mailing_list_id, member_id, status, status_updated_at
-        ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?)
-      `).run(
-        `mls-${id}`,
-        '2025-01-01T00:00:00.000Z',
-        '2025-01-01T00:00:00.000Z',
-        'active-player-reminders',
-        id,
-        opts.subscribe_status,
-        '2025-01-01T00:00:00.000Z',
-      );
+      insertMailingListSubscription(db, {
+        id: `mls-${id}`,
+        list_slug: 'active-player-reminders',
+        member_id: id,
+        status: opts.subscribe_status,
+      });
     }
   } finally {
     db.close();

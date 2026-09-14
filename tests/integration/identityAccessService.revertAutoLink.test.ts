@@ -16,7 +16,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import {
+  insertMember,
+  insertLegacyMember,
+  insertHistoricalPerson,
+  insertMemberTierGrant,
+  insertWorkQueueItem,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3094');
 
@@ -280,13 +286,17 @@ describe('identityAccessService.revertAutoLink', () => {
       .run(memberId, legacyId);
     // The administrator's own Big Add Posse grant, which stands on its own
     // ledger row rather than on the claim.
-    db.prepare(`
-      INSERT INTO member_tier_grants (
-        id, created_at, created_by, member_id, actor_member_id, change_type,
-        old_tier_status, new_tier_status, reason_code, reason_text
-      ) VALUES (?, '2026-02-01T00:00:00.000Z', 'seed', ?, ?, 'grant',
-                'tier0', 'tier2', 'honor.bap_tier2_grant', 'Big Add Posse induction, 2021')
-    `).run(nextId('mtg'), memberId, memberId);
+    insertMemberTierGrant(db, {
+      id: nextId('mtg'),
+      created_at: '2026-02-01T00:00:00.000Z',
+      member_id: memberId,
+      actor_member_id: memberId,
+      change_type: 'grant',
+      old_tier_status: 'tier0',
+      new_tier_status: 'tier2',
+      reason_code: 'honor.bap_tier2_grant',
+      reason_text: 'Big Add Posse induction, 2021',
+    });
     db.close();
 
     const result = svc.revertAutoLink(memberId, 'audit-split-honors', {
@@ -396,7 +406,6 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     disputedRecordHolders?: Record<string, string>;
   }): string {
     const id = nextId('wq');
-    const now = '2026-01-01T00:00:00.000Z';
     const payload = JSON.stringify({
       statement: 'That record is mine, not theirs.',
       is_dispute: opts.isDispute,
@@ -424,15 +433,18 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
       ...JSON.parse(payload) as Record<string, unknown>,
       disputed_record_holders: holders,
     });
-    db.prepare(`
-      INSERT INTO work_queue_items (
-        id, created_at, created_by, updated_at, updated_by, version,
-        queue_category, task_type, entity_type, entity_id,
-        status, priority, opened_at, reason_text
-      ) VALUES (?, ?, 'system', ?, 'system', 1,
-        'membership', 'member_link_help_request', 'member', ?,
-        'open', 5, ?, ?)
-    `).run(id, now, now, opts.entityId, now, payloadWithHolders);
+    insertWorkQueueItem(db, {
+      id,
+      queue_category: 'membership',
+      task_type: 'member_link_help_request',
+      entity_type: 'member',
+      entity_id: opts.entityId,
+      status: 'open',
+      priority: 5,
+      created_at: '2026-01-01T00:00:00.000Z',
+      opened_at: '2026-01-01T00:00:00.000Z',
+      reason_text: payloadWithHolders,
+    });
     db.close();
     return id;
   }

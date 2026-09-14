@@ -17,6 +17,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
   insertPayment, insertRecurringDonationSubscription, insertMediaItem, insertMediaFlag,
+  insertMemberDeclaredAnchor, insertWorkQueueItem,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -78,13 +79,14 @@ function seedClaimedMember(id: string, opts: { isHof?: 0 | 1 } = {}): { legacyId
   // Declared anchors that must vanish on purge.
   d.close;
   const d2 = db();
-  d2.prepare(`
-    INSERT INTO member_declared_anchors
-      (id, created_at, created_by, updated_at, updated_by, member_id, anchor_type, anchor_value)
-    VALUES
-      (?, '2026-01-01T00:00:00.000Z', ?, '2026-01-01T00:00:00.000Z', ?, ?, 'former_surname', 'maidenname'),
-      (?, '2026-01-01T00:00:00.000Z', ?, '2026-01-01T00:00:00.000Z', ?, ?, 'old_email', 'old@example.com')
-  `).run(`anch-1-${id}`, id, id, id, `anch-2-${id}`, id, id, id);
+  insertMemberDeclaredAnchor(d2, {
+    id: `anch-1-${id}`, created_at: '2026-01-01T00:00:00.000Z', created_by: id,
+    member_id: id, anchor_type: 'former_surname', anchor_value: 'maidenname',
+  });
+  insertMemberDeclaredAnchor(d2, {
+    id: `anch-2-${id}`, created_at: '2026-01-01T00:00:00.000Z', created_by: id,
+    member_id: id, anchor_type: 'old_email', anchor_value: 'old@example.com',
+  });
   d2.close();
   return { legacyId };
 }
@@ -218,17 +220,20 @@ describe('memberService.purgeAccountPII', () => {
   it('redacts member contact-request free text in work_queue_items on purge', () => {
     seedClaimedMember('purge-contact');
     const d = db();
-    d.prepare(`
-      INSERT INTO work_queue_items
-        (id, created_at, created_by, updated_at, updated_by, version,
-         queue_category, task_type, entity_type, entity_id,
-         status, priority, opened_at, reason_text, detail_text)
-      VALUES (?, ?, ?, ?, ?, 1, 'membership', 'member_contact_request', 'member', ?, 'open', 5, ?, ?, ?)
-    `).run(
-      'wq-purge-contact', '2026-01-01T00:00:00.000Z', 'purge-contact',
-      '2026-01-01T00:00:00.000Z', 'purge-contact', 'purge-contact',
-      '2026-01-01T00:00:00.000Z', 'Other: my secret message', 'my secret message in full',
-    );
+    insertWorkQueueItem(d, {
+      id: 'wq-purge-contact',
+      queue_category: 'membership',
+      task_type: 'member_contact_request',
+      entity_type: 'member',
+      entity_id: 'purge-contact',
+      status: 'open',
+      priority: 5,
+      created_at: '2026-01-01T00:00:00.000Z',
+      opened_at: '2026-01-01T00:00:00.000Z',
+      created_by: 'purge-contact',
+      reason_text: 'Other: my secret message',
+      detail_text: 'my secret message in full',
+    });
     d.close();
 
     expect(memberService.purgeAccountPII('purge-contact').status).toBe('purged');

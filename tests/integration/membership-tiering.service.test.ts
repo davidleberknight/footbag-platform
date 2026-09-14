@@ -709,18 +709,18 @@ describe('DB-level governance integrity guards', () => {
     const id = freshMember();
     const db = new BetterSqlite3(dbPath);
     expect(() =>
-      db
-        .prepare(
-          `INSERT INTO member_tier_grants (
-             id, created_at, created_by,
-             member_id, actor_member_id,
-             change_type,
-             old_tier_status, new_tier_status,
-             old_underlying_tier_status, new_underlying_tier_status,
-             reason_code
-           ) VALUES (?, ?, 'system', ?, ?, 'governance_set', 'tier1', 'tier3', NULL, NULL, 'test')`,
-        )
-        .run('mtg-bad-1', '2026-01-01T00:00:00.000Z', id, ADMIN_ID),
+      insertMemberTierGrant(db, {
+        id: 'mtg-bad-1',
+        created_at: '2026-01-01T00:00:00.000Z',
+        member_id: id,
+        actor_member_id: ADMIN_ID,
+        change_type: 'governance_set',
+        old_tier_status: 'tier1',
+        new_tier_status: 'tier3',
+        old_underlying_tier_status: null,
+        new_underlying_tier_status: null,
+        reason_code: 'test',
+      }),
     ).toThrow(/CHECK/i);
     db.close();
   });
@@ -729,18 +729,18 @@ describe('DB-level governance integrity guards', () => {
     const id = freshMember();
     const db = new BetterSqlite3(dbPath);
     expect(() =>
-      db
-        .prepare(
-          `INSERT INTO member_tier_grants (
-             id, created_at, created_by,
-             member_id, actor_member_id,
-             change_type,
-             old_tier_status, new_tier_status,
-             old_underlying_tier_status, new_underlying_tier_status,
-             reason_code
-           ) VALUES (?, ?, 'system', ?, ?, 'governance_removed', 'tier3', 'tier1', NULL, NULL, 'test')`,
-        )
-        .run('mtg-bad-2', '2026-01-01T00:00:00.000Z', id, ADMIN_ID),
+      insertMemberTierGrant(db, {
+        id: 'mtg-bad-2',
+        created_at: '2026-01-01T00:00:00.000Z',
+        member_id: id,
+        actor_member_id: ADMIN_ID,
+        change_type: 'governance_removed',
+        old_tier_status: 'tier3',
+        new_tier_status: 'tier1',
+        old_underlying_tier_status: null,
+        new_underlying_tier_status: null,
+        reason_code: 'test',
+      }),
     ).toThrow(/CHECK/i);
     db.close();
   });

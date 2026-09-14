@@ -13,23 +13,18 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-curator-sign-rl-${Date.now()}.db`);
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-sign-rl-'));
 
-process.env.FOOTBAG_DB_PATH    = TEST_DB_PATH;
+const { dbPath } = setTestEnv('4203');
 process.env.FOOTBAG_MEDIA_DIR  = TEST_MEDIA_DIR;
 process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT               = '3163';
-process.env.NODE_ENV           = 'test';
-process.env.LOG_LEVEL          = 'error';
-process.env.PUBLIC_BASE_URL    = 'http://localhost:3163';
-process.env.SESSION_SECRET     = 'admin-curator-sign-rate-limit-secret';
 process.env.INTERNAL_EVENT_SECRET = 'b'.repeat(48);
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
 import { insertMember, insertSystemConfig, createTestSessionJwt } from '../fixtures/factories';
 
 let createApp: typeof import('../../src/app').createApp;
@@ -54,7 +49,7 @@ function signBody(name: string) {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_A, slug: 'sign_rl_admin_a', display_name: 'A', login_email: 'signrl-a@example.com', is_admin: 1 });
   insertMember(db, { id: ADMIN_B, slug: 'sign_rl_admin_b', display_name: 'B', login_email: 'signrl-b@example.com', is_admin: 1 });
   // Two grants per actor, so the boundary is reachable in a test without
@@ -62,14 +57,11 @@ beforeAll(async () => {
   insertSystemConfig(db, { config_key: 'curator_write_rate_limit_per_hour', value_json: '2' });
   db.close();
 
-  const appMod = await import('../../src/app');
-  createApp = appMod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
@@ -101,7 +93,7 @@ describe('POST /admin/curator/upload/sign throttling', () => {
     expect(refused.body.videoUrl).toBeUndefined();
     expect(refused.body.posterUrl).toBeUndefined();
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const { n } = db
       .prepare('SELECT COUNT(*) AS n FROM media_jobs WHERE admin_member_id = ?')
       .get(ADMIN_B) as { n: number };

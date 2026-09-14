@@ -10,10 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 import {
   insertMember,
@@ -26,14 +23,7 @@ import {
 } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-claim-hp-${Date.now()}.db`);
-
-process.env.FOOTBAG_DB_PATH = TEST_DB_PATH;
-process.env.PORT            = '3097';
-process.env.NODE_ENV        = 'test';
-process.env.LOG_LEVEL       = 'error';
-process.env.PUBLIC_BASE_URL = 'http://localhost:3097';
-process.env.SESSION_SECRET  = 'claim-hp-test-secret';
+const { dbPath } = setTestEnv('4195');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -87,7 +77,7 @@ function otherCookie(): string {
 }
 
 beforeAll(async () => {
-  testDb = createTestDb(TEST_DB_PATH);
+  testDb = createTestDb(dbPath);
   insertMember(testDb, { id: CLAIMER_ID, slug: CLAIMER_SLUG,
     real_name: CLAIMER_NAME, display_name: CLAIMER_NAME,
     login_email: 'hpc-claimer@example.com', country: null,
@@ -176,15 +166,12 @@ beforeAll(async () => {
     is_deceased: 1,
   });
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
   testDb.close();
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
 });
 
 // ── GET /history/:personId/claim ─────────────────────────────────────────────

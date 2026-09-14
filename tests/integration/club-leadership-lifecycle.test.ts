@@ -233,10 +233,7 @@ describe('join/leave notification emails', () => {
     _n += 1;
     const leaderId = `cll-leader-${_n}`;
     insertMember(db, { id: leaderId, slug: `cll_leader_${_n}`, login_email: `${leaderId}@example.com` });
-    db.prepare(`
-      INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
-    `).run(`cll-cl-${_n}`, clubId, leaderId);
+    insertClubLeader(db, { id: `cll-cl-${_n}`, club_id: clubId, member_id: leaderId });
     return leaderId;
   }
 
@@ -341,10 +338,7 @@ describe('leader contact is member-visible by role', () => {
     clubKey = `club_visibility_${_n}`;
     const tagId = insertTag(db, { standard_type: 'club', tag_normalized: `#${clubKey}` });
     const clubId = insertClub(db, { id: `cll-vis-${_n}`, name: 'Visibility Club', hashtag_tag_id: tagId });
-    db.prepare(`
-      INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
-    `).run(`cll-cl-${_n}`, clubId, leaderId);
+    insertClubLeader(db, { id: `cll-cl-${_n}`, club_id: clubId, member_id: leaderId });
     insertClubBootstrapLeader(db, {
       club_id: clubId, legacy_member_id: `lm-vis-${_n}`, role: 'co-leader', status: 'provisional',
     });
@@ -426,10 +420,7 @@ describe('the could-use-a-co-leader queue lists only leaderless active clubs', (
   it('a club with a co-leader is reachable and absent; a leaderless one is listed', () => {
     const ledClubId = seedClub('active');
     const leaderId = seedMember();
-    db.prepare(`
-      INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
-    `).run(`cll-nc-${_n}`, ledClubId, leaderId);
+    insertClubLeader(db, { id: `cll-nc-${_n}`, club_id: ledClubId, member_id: leaderId });
     const leaderlessClubId = seedClub('active');
 
     const queue = leadershipSvc.getLeadershipQueuePage().content.needsLeader.map((c) => c.clubId);

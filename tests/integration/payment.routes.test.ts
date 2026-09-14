@@ -30,16 +30,25 @@ function cookie(memberId: string): string {
 
 function insertPaymentWithSession(
   db: BetterSqlite3.Database,
-  o: { id: string; memberId: string; sessionId: string; status: string },
+  o: {
+    id: string;
+    memberId: string;
+    sessionId: string;
+    status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
+  },
 ): void {
-  db.prepare(
-    `INSERT INTO payments (
-       id, created_at, created_by, updated_at, updated_by, version,
-       member_id, payment_type, amount_cents, currency, status, descriptor,
-       purchased_tier_status, stripe_checkout_session_id
-     ) VALUES (?, ?, 'system', ?, 'system', 1, ?, 'membership', 1000, 'USD', ?,
-       'Membership: Tier 1 IFPA Member', 'tier1', ?)`,
-  ).run(o.id, TS, TS, o.memberId, o.status, o.sessionId);
+  insertPayment(db, {
+    id: o.id,
+    created_at: TS,
+    member_id: o.memberId,
+    payment_type: 'membership',
+    amount_cents: 1000,
+    currency: 'USD',
+    status: o.status,
+    descriptor: 'Membership: Tier 1 IFPA Member',
+    purchased_tier_status: 'tier1',
+    stripe_checkout_session_id: o.sessionId,
+  });
 }
 
 beforeAll(async () => {

@@ -20,7 +20,12 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickAlias,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3525');
 
@@ -30,14 +35,9 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Modifiers in the Movement System axes + registered for By Modifier.
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
-    VALUES
-      ('pixie',    'pixie',    'set',  1, 1, '', ?),
-      ('ducking',  'ducking',  'body', 1, 1, '', ?),
-      ('spinning', 'spinning', 'body', 1, 1, '', ?)
-  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_type: 'set', notes: '' });
+  insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_type: 'body', notes: '' });
+  insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_type: 'body', notes: '' });
 
   // Base tricks (topology + family anchors) + modifier-linked compounds that
   // collectively populate every primary browse view.
@@ -50,13 +50,9 @@ beforeAll(async () => {
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
-  db.prepare(`
-    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES
-      ('pixie-illusion', 'pixie',    1),
-      ('ducking-whirl',  'ducking',  1),
-      ('spinning-whirl', 'spinning', 1)
-  `).run();
+  insertFreestyleTrickModifierLink(db, 'pixie-illusion', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'ducking-whirl', 'ducking');
+  insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning');
 
   // A display-eligible folk name on a modifier-linked compound in the larger
   // family, which is the one shape every browse view lists: the family view

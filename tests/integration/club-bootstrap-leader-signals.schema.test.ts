@@ -13,10 +13,9 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { createTestDb } from '../fixtures/testDb';
+import { createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertClub,
   insertClubBootstrapLeader,
@@ -41,6 +40,16 @@ const ALL_SIGNALS = [...STRUCTURAL_SIGNALS, ...MODIFIER_SIGNALS] as const;
 
 const TS = '2026-01-01T00:00:00.000Z';
 
+/**
+ * factory-cannot-express: deliberately NOT the shared factory, and the only
+ * reason is that this file
+ * exists to prove the table's own CHECK, UNIQUE and FOREIGN KEY constraints
+ * refuse bad rows. The factory types signal_type to the enum and is_present to
+ * 0 | 1, which is right everywhere else and makes the refusals here
+ * unreachable: a test that cannot construct an out-of-enum value cannot show
+ * the constraint rejecting one. The widened parameter types below are the
+ * subject of the assertions, not sloppiness about test data.
+ */
 function insertSignal(
   db: BetterSqlite3.Database,
   o: {
@@ -53,6 +62,9 @@ function insertSignal(
   },
 ): string {
   const id = o.id ?? `cbls-${Math.random().toString(36).slice(2)}`;
+  // factory-cannot-express: the factory types signal_type to the enum and
+  // is_present to 0 | 1, so it cannot construct the out-of-enum and out-of-range
+  // rows these cases need the CHECK constraints to refuse.
   db.prepare(`
     INSERT INTO club_bootstrap_leader_signals (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -91,10 +103,7 @@ describe('club_bootstrap_leader_signals schema', () => {
 
   afterEach(() => {
     db.close();
-    for (const ext of ['', '-wal', '-shm']) {
-      const p = dbPath + ext;
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-    }
+    cleanupTestDb(dbPath);
   });
 
   for (const sig of ALL_SIGNALS) {

@@ -14,7 +14,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson,
   insertOutboxEmail, insertMediaItem,
-  insertPayment, insertRecurringDonationSubscription,
+  insertPayment, insertRecurringDonationSubscription, insertMemberDeclaredAnchor,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3201');
@@ -90,13 +90,14 @@ function seedDeceasedClaimedMember(id: string): { legacyId: string } {
   d.close();
   identityAccessService.claimLegacyAccount(id, legacyId);
   const d2 = db();
-  d2.prepare(`
-    INSERT INTO member_declared_anchors
-      (id, created_at, created_by, updated_at, updated_by, member_id, anchor_type, anchor_value)
-    VALUES
-      (?, '2026-01-01T00:00:00.000Z', ?, '2026-01-01T00:00:00.000Z', ?, ?, 'former_surname', 'maidenname'),
-      (?, '2026-01-01T00:00:00.000Z', ?, '2026-01-01T00:00:00.000Z', ?, ?, 'old_email', 'old@example.com')
-  `).run(`anch-1-${id}`, id, id, id, `anch-2-${id}`, id, id, id);
+  insertMemberDeclaredAnchor(d2, {
+    id: `anch-1-${id}`, created_at: '2026-01-01T00:00:00.000Z', created_by: id,
+    member_id: id, anchor_type: 'former_surname', anchor_value: 'maidenname',
+  });
+  insertMemberDeclaredAnchor(d2, {
+    id: `anch-2-${id}`, created_at: '2026-01-01T00:00:00.000Z', created_by: id,
+    member_id: id, anchor_type: 'old_email', anchor_value: 'old@example.com',
+  });
   d2.close();
   return { legacyId };
 }

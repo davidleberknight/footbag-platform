@@ -23,39 +23,32 @@ import {
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
+  insertFreeformTag,
+  insertMediaItem,
+  attachMediaTag,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3141');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const SYSTEM_ID = 'media-exp-system-001';
-const TS = '2026-04-29T12:00:00.000Z';
 
 function insertTagRow(db: BetterSqlite3.Database, normalized: string): string {
-  const id = `tag-exp-${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-  `).run(id, normalized, normalized, TS, TS);
-  return id;
+  return insertFreeformTag(db, { tag_normalized: normalized, tag_display: normalized });
 }
 
 function insertPhoto(db: BetterSqlite3.Database, id: string, caption: string, uploadedAt: string): string {
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'photo', 0, ?, ?, ?, ?, 1000, 600, 'active')
-  `).run(id, TS, TS, SYSTEM_ID, caption, uploadedAt, `${SYSTEM_ID}/d/${id}-t.jpg`, `${SYSTEM_ID}/d/${id}-d.jpg`);
-  return id;
-}
-
-function attach(db: BetterSqlite3.Database, mediaId: string, tagId: string, display: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?)
-  `).run(`mtag_${Math.random().toString(36).slice(2, 12)}`, TS, TS, mediaId, tagId, display);
+  return insertMediaItem(db, {
+    id,
+    uploader_member_id: SYSTEM_ID,
+    caption,
+    uploaded_at: uploadedAt,
+    s3_key_thumb: `${SYSTEM_ID}/d/${id}-t.jpg`,
+    s3_key_display: `${SYSTEM_ID}/d/${id}-d.jpg`,
+    width_px: 1000,
+    height_px: 600,
+    moderation_status: 'active',
+  });
 }
 
 beforeAll(async () => {
@@ -65,7 +58,7 @@ beforeAll(async () => {
   const seed = (norm: string, mediaId: string, caption: string, when: string) => {
     const tagId = insertTagRow(db, norm);
     const m = insertPhoto(db, mediaId, caption, when);
-    attach(db, m, tagId, norm);
+    attachMediaTag(db, m, tagId);
   };
 
   // Set galleries (only the `#set_*` tag; no bare trick tag), for search expansion.

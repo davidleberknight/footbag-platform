@@ -176,11 +176,15 @@ The technique catalog is a vocabulary, not a checklist. Pick what fits the asser
 
 ### 4.5 Catastrophic-surface verification floor
 
-In addition to baseline coverage (§4.4) and STRIDE-aware threat coverage (§4.2), catastrophic-severity surfaces meet the following floor:
+**The floor itself is stated in `.claude/rules/testing.md` and not restated here**: for these surfaces it is the demonstrated-failure requirement, which is to say a test on a catastrophic surface is not done until the code it covers has been broken and the test seen to go red for that reason. That rule has a code anchor and this document does not, so it owns the definition; two definitions of one floor is how a surface comes to satisfy the weaker of them.
+
+What follows is the depth expected on top of that floor, not an alternative to it. In addition to baseline coverage (§4.4) and STRIDE-aware threat coverage (§4.2), catastrophic-severity surfaces carry:
 
 - ASVS Level 3 verification depth (per §3.4) for the categories that apply.
-- Every applicable item from the baseline adversarial list and per-route baseline in `.claude/rules/testing.md` is covered with no skip.
-- The canonical invariants -- anti-enumeration response equivalence (status code, body, timing within tolerance across input classes), CSRF presence on every state-changing verb, session cookie attribute completeness, and idempotency where the surface declares it -- are covered by scenario tests with shared assertion helpers in `tests/fixtures/`. The shared-helper shape keeps per-route assertions cheap (one line per route) while preserving the property: a future refactor that breaks an invariant fails the route's own test.
+- Every applicable item from the baseline adversarial list and per-route baseline in `.claude/rules/testing.md`, covered with no skip.
+- The canonical invariants -- anti-enumeration response equivalence, CSRF presence on every state-changing verb, session cookie attribute completeness, and idempotency where the surface declares it -- covered by scenario tests with shared assertion helpers in `tests/fixtures/`. The shared-helper shape keeps per-route assertions cheap (one line per route) while preserving the property: a future refactor that breaks an invariant fails the route's own test.
+
+  Anti-enumeration equivalence means the two responses are the same, compared whole under a normalization that redacts only what legitimately varies per request. It does not mean the same within a tolerance. A tolerance cannot fail: the login check was once a plus-or-minus five percent comparison of body *lengths*, and appending the submitted address to the refusal message -- a one-character difference in a multi-kilobyte page -- passed it. `tests/fixtures/normalizeAntiEnumerationBody.ts` is the shared helper and the shape to copy. Timing is a separate assertion with its own test, not a clause inside this one.
 
 Property-based testing (fast-check) and mutation testing (Stryker) are available techniques for catastrophic surfaces when a specific surface justifies the cost. They are not mandated per catastrophic surface. Selective adoption per §12.2 governs when and where they apply.
 
@@ -333,7 +337,7 @@ Outbound email is a layered surface: content, enqueue, transport drain, human in
 
 The five layers and what each owns:
 
-- *Content (unit + conformance).* Each email's subject and body are rendered from its committed template sidecar (seeded into `email_templates`), with a typed shaper computing the merge values and selecting the variant key. Unit tests cover the shaper catalog (every logical email shapes to its expected variant with exactly the declared merge fields) and the sidecar conformance gate (every registered variant has exactly one sidecar, every token declared and used); the render contract (token substitution, disabled-template suppression, missing-row failure) is pinned once over the email service. A test that asserts wording reads the sidecar through the shared render helper rather than restating body copy as a literal, per §15.2.
+- *Content (unit + conformance).* Each email's subject and body are rendered from its committed template sidecar (seeded into `email_templates`), with a typed shaper computing the merge values and selecting the variant key. Unit tests cover the shaper catalog (every logical email shapes to its expected variant with exactly the declared merge fields) and the sidecar conformance gate (every registered variant has exactly one sidecar, every token declared and used); the render contract (token substitution, disabled-template suppression, missing-row failure) is pinned once over the email service. A test that asserts wording reads the sidecar through the shared render helper rather than restating body copy as a literal, per the strategic anti-patterns in §15.1.
 - *Enqueue (integration).* For each email, a test asserts the triggering service method enqueues one `outbox_emails` row with the correct recipient, idempotency key, and the rendered template content; that guard and no-op paths enqueue nothing; and that a member with no deliverable address (absent login email, deceased, soft-deleted, or purged) is skipped without raising.
 - *Transport drain (integration).* `communicationService.processSendQueue` drains pending rows through `StubSesAdapter`, and the captured `sentMessages` carry the rendered message. The queue mechanics (retry with backoff, dead-letter at the retry ceiling, crash recovery, admin pause, scheduled deferral, and the `body_text` scrub after send) are exercised once over the shared path rather than per email.
 - *Human inspection (development and staging).* Captured mail is readable without a real inbox. Every email-gated login page renders the simulated-email card (§16.4) with the flow's captured message and its clickable link, and the `/dev/outbox` viewer lists every captured message for notifications that have no host page. The in-process stub and these viewers serve as the catch-all inbox; they need no extra process and run identically in CI.
@@ -925,7 +929,7 @@ Uncovered branches are also a read-targeting signal: they are where both the tes
 Property-based testing (fast-check) and mutation testing (Stryker) are not universal tier-promotion requirements. They are tools to reach for when a specific surface justifies the cost.
 
 - fast-check: useful for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Install and adopt on the slice that introduces the first property-shaped surface; do not pre-install for hypothetical future need.
-- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Adopted for the authorization guards on exactly that evidence, and scoped to them; widen one subtree at a time, only once the current scope holds its score. Never part of a quick loop, and the cost is hours rather than minutes: the run executes the whole suite once with coverage tracking before it tests a single mutant, which is about a quarter-hour on its own however little is mutated, and it then re-runs, per mutant, every test that executes the mutated line. A module on the request hot path is executed by most of the suite, so mutating one costs hours and re-measures the same tests thousands of times. Scope a sweep to the leaf modules of a subtree and leave the hot-path modules out of it; those are assessed by reading their branches and breaking a chosen few by hand, which answers the same question at a cost that fits inside a working session. Give the run the machine to itself: CPU contention produces timeout-based false kills, and a false kill inflates the score the run exists to measure.
+- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Adopted for the authorization guards on exactly that evidence, and scoped to them; widen one subtree at a time, only once the current scope holds its score. Never part of a quick loop, and the cost is hours rather than minutes: the run executes the whole suite once with coverage tracking before it tests a single mutant, which is about a quarter-hour on its own however little is mutated, and grows with the suite rather than with the scope, so that figure rises as the suite does. It then re-runs, per mutant, every test that executes the mutated line. A module on the request hot path is executed by most of the suite, so mutating one costs hours and re-measures the same tests thousands of times. Scope a sweep to the leaf modules of a subtree and leave the hot-path modules out of it; those are assessed by reading their branches and breaking a chosen few by hand, which answers the same question at a cost that fits inside a working session. Give the run the machine to itself: CPU contention produces timeout-based false kills, and a false kill inflates the score the run exists to measure.
 
 Decisions to adopt either tool, and the specific surface they target, are tracked in the maintainers' private tracker, not here.
 
@@ -952,7 +956,7 @@ No AI-written test lands without human review. The maintainer reviews every chan
 
 ### 13.3 The AI applies this document the same way a human does
 
-The AI applies the test-design principles (§4), risk classification (§3), the catastrophic-surface verification floor (§4.5), the coverage and selective tooling guidance (§12), and the strategic anti-patterns (§15.2) when writing tests. It does not skip steps because they are tedious; the steps exist to keep test quality high. It also does not invent ceremony beyond what this document and `.claude/rules/testing.md` require.
+The AI applies the test-design principles (§4), risk classification (§3), the catastrophic-surface verification floor (§4.5), the coverage and selective tooling guidance (§12), and the strategic anti-patterns (§15.1) when writing tests. It does not skip steps because they are tedious; the steps exist to keep test quality high. It also does not invent ceremony beyond what this document and `.claude/rules/testing.md` require.
 
 ---
 
@@ -964,7 +968,7 @@ The platform targets WCAG 2.1 AA as the baseline accessibility conformance level
 
 Accessibility testing is a named test layer, not an afterthought. The layer combines:
 
-- *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`, against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early. The axe scan today reaches the high-traffic anonymous public pages; the authenticated member and admin surfaces (member dashboard, profile edit, club edit, admin panels) are not yet axe-scanned and are the coverage to extend next — a member-only form is exactly where form-label and ARIA violations are likeliest to hide.
+- *Automated checks* via `@axe-core/playwright` (per the toolchain in §15.2.1) in the lightweight Playwright suite, tagged `@a11y`, against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early. The axe scan today reaches the high-traffic anonymous public pages; the authenticated member and admin surfaces (member dashboard, profile edit, club edit, admin panels) are not yet axe-scanned and are the coverage to extend next — a member-only form is exactly where form-label and ARIA violations are likeliest to hide.
 - *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that the post-deploy staging browser smoke check (`npm run test:e2e:smoke`) also covers, separate from the vitest staging-adapter smoke gate (§5.4).
 - *Manual audit* by the maintainer or an external accessibility reviewer periodically and before major launches. The third-party periodic pentest engagement (§9.4) may include accessibility scope.
 - *Deeper audit beyond automated coverage* (full keyboard-only journey, screen-reader flow validation, cognitive accessibility) is operator-invoked via the `browser-qa` skill.
@@ -979,7 +983,7 @@ Surfaces with user-facing UI carry accessibility assertions:
 - *Form labels and errors:* every form input has a programmatically associated label; error messages are programmatically associated with the input they describe.
 - *Focus management:* modal dialogs, wizards, and skip links handle focus correctly.
 
-These assertions are derived in the same playbook step (§4.4) as the security and functional assertions. The technique is automated checks (axe) plus manual audit where automated checks cannot verify (heuristic semantics, screen-reader flow).
+These assertions are derived from the same technique reference (§4.3) as the security and functional assertions. The technique is automated checks (axe) plus manual audit where automated checks cannot verify (heuristic semantics, screen-reader flow).
 
 ### 14.3 Explicit deferrals
 
@@ -996,7 +1000,7 @@ Deferral does not mean these test classes are unimportant. It means the strategy
 
 ## 15. Annexes
 
-### 15.2 Strategic anti-patterns
+### 15.1 Strategic anti-patterns
 
 Operational anti-patterns (no DB mocking, no framework mocking, no timestamp leakage, no global state leakage between files, no silent skips, no "tested manually," no tests on the dev DB) are enumerated in `.claude/rules/testing.md` and apply to every test. (The "tested manually" anti-pattern bars substituting a manual check for a required automated regression test; the operator-driven exploration this document prescribes is an additive layer whose findings land as regression tests.) This section adds the strategic anti-patterns that follow from the playbook discipline.
 
@@ -1017,9 +1021,9 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Blurring groups and committees into clubs.* Groups and committees (when implemented) are distinct from clubs per `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`. Tests preserve the distinction.
 - *Introducing a test-only HTTP endpoint outside `src/testkit/` or `src/dev-bootstrap/`.* Forbidden per §7.6.
 
-### 15.3 Tooling appendix
+### 15.2 Tooling appendix
 
-#### 15.3.1 Toolchain
+#### 15.2.1 Toolchain
 
 The platform's testing toolchain consists of:
 
@@ -1033,10 +1037,10 @@ The platform's testing toolchain consists of:
 - *Stryker (TypeScript).* Mutation testing: breaks a guard one edit at a time and reports whether any test notices, which is the measure coverage cannot give. Wired as an opt-in gate (`--with-mutation`, which no other flag implies, `--full` included), scoped to the authorization guards rather than the whole codebase, with its sandbox and report written outside the repository. Config in `stryker.config.json`; test selection in `vitest.mutation.config.ts`.
 - *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per §14.1, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
 - *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per §9.3. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per §9.6.
-- *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique selector per §4.4 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
+- *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique reference per §4.3 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
 - *Dependency vulnerability scanner.* `npm audit` is built in; a third-party scanner (Snyk, Socket, or equivalent) supplements with supply-chain signal. Integrated into the on-demand heavyweight pentest gate.
 
-#### 15.3.2 Tools explicitly not adopted
+#### 15.2.2 Tools explicitly not adopted
 
 - *Jest.* Vitest is the platform test runner. No Jest dependency.
 - *Cypress.* Playwright is the platform browser automation tool. No Cypress.

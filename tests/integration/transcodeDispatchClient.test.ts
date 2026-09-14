@@ -10,20 +10,12 @@
  */
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import path from 'path';
-import os from 'os';
-
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-dispatch-client-${Date.now()}.db`);
-
-process.env.FOOTBAG_DB_PATH = TEST_DB_PATH;
-process.env.NODE_ENV = 'test';
-process.env.LOG_LEVEL = 'error';
-process.env.SESSION_SECRET = 'transcode-dispatch-client-test-secret';
-process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import fs from 'fs';
-import { createTestDb } from '../fixtures/testDb';
+import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+
+const { dbPath } = setTestEnv('4191');
+process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
 
 let createTranscodeDispatchClient: typeof import('../../src/services/transcodeDispatchClient').createTranscodeDispatchClient;
 let TranscodeDispatchError: typeof import('../../src/services/transcodeDispatchClient').TranscodeDispatchError;
@@ -34,7 +26,7 @@ const heldResponses: http.ServerResponse[] = [];
 let answerImmediatelyWith: number | null = null;
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   db.close();
 
   server = http.createServer((_req, res) => {
@@ -59,9 +51,7 @@ afterAll(async () => {
     try { res.end(); } catch { /* already gone */ }
   }
   await new Promise<void>((resolve) => server.close(() => resolve()));
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
 });
 
 describe('transcode dispatch push', () => {

@@ -6,7 +6,7 @@ process.env.PAYMENT_ADAPTER = 'stub';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { insertMember, createTestSessionJwt, completeOnboarding } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, completeOnboarding, insertSystemConfig } from '../fixtures/factories';
 import { expectLoggedError } from '../setup-env';
 
 const MEMBER_ID = 'purchase-route-001';
@@ -308,11 +308,10 @@ describe('POST /members/:memberKey/purchase-tier — rate limit', () => {
       display_name: 'RL Purchaser', login_email: 'rl-purchaser@example.com',
     });
     completeOnboarding(seedDb, RL_ID);
-    seedDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'purchase_tier_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-purchase-tier-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    insertSystemConfig(seedDb, {
+      config_key: 'purchase_tier_rate_limit_per_hour',
+      value_json: '2',
+    });
     seedDb.close();
 
     const rlMod = await import('../../src/services/rateLimitService');

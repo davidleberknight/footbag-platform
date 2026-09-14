@@ -8,14 +8,15 @@
  *
  * Tests:
  *   A. Regression — importing src/db/db.ts against an empty (no-schema) DB
- *      does not throw. Pre-fix: throws SqliteError: no such table: events.
+ *      does not throw. A top-level prepare makes it throw
+ *      SqliteError: no such table: events.
  *   B. Invariant — zero db.prepare() calls happen during import. Catches any
  *      future regression that puts a top-level prepare back in the module.
  *   C. Happy path — getter access returns a working Statement.
  *   D. SQL validation — every getter on every exported statement group still
- *      parses against the current schema. Recovers the boot-time validation
- *      that eager prepares used to give for free, including dead-but-defined
- *      statements that no consumer test exercises.
+ *      parses against the current schema. A lazy prepare defers that check to
+ *      first use, so this is where it happens instead, including for
+ *      dead-but-defined statements that no consumer test exercises.
  *
  * Pattern: vi.resetModules() between cases + fresh dynamic import of
  * ../../src/db/db so each case sees its own FOOTBAG_DB_PATH override.

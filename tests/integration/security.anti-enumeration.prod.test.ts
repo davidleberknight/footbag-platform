@@ -13,6 +13,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
+import { normalizeAntiEnumerationBody } from '../fixtures/normalizeAntiEnumerationBody';
 
 const { dbPath } = setTestEnv('3089');
 
@@ -56,14 +57,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-/** Strip volatile input values (CSRF tokens, refills) and collapse whitespace;
- *  two anti-enumeration responses must match under this normalization. */
-function normalize(text: string): string {
-  return text
-    .replace(/value="[^"]*"/g, 'value="REDACTED"')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+const normalize = normalizeAntiEnumerationBody;
 
 describe('POST /password/forgot — production byte-identity for exists vs not-exists', () => {
   it('known and unknown addresses produce an identical normalized body', async () => {

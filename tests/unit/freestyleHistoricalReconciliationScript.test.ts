@@ -101,6 +101,9 @@ describe('what the script must not do', () => {
   });
 
   it('never writes a trick row itself', () => {
+    // factory-cannot-express: these are needles searched for in the script's
+    // own source, not statements this test runs. The dictionary is curator-owned
+    // and the script may only read it.
     for (const forbidden of ['INSERT INTO freestyle_tricks', 'UPDATE freestyle_tricks',
                              'DELETE FROM freestyle_tricks', 'trick_origin_producer =']) {
       expect(SCRIPT).not.toContain(forbidden);

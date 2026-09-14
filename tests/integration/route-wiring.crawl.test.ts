@@ -37,6 +37,7 @@ import {
   insertFreestyleTrickSourceLink,
   insertFreestyleRecord,
   insertConsecutiveKicksRecord,
+  insertMemberGallery,
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -167,12 +168,14 @@ beforeAll(async () => {
     'gallery_footbag_finland',
     'gallery_footbag_org',
   ]) {
-    db.prepare(`
-      INSERT INTO member_galleries (
-        id, created_at, created_by, updated_at, updated_by, version,
-        owner_member_id, name, description, is_default
-      ) VALUES (?, ?, 'test', ?, 'test', 1, 'crawl-fh-system', ?, '', 0)
-    `).run(galleryId, TS, TS, galleryId.replace(/_/g, ' '));
+    insertMemberGallery(db, {
+      id: galleryId,
+      created_at: TS,
+      owner_member_id: 'crawl-fh-system',
+      name: galleryId.replace(/_/g, ' '),
+      description: '',
+      is_default: 0,
+    });
   }
 
   // Seed the full canonical persona catalog so every /dev/switch link on

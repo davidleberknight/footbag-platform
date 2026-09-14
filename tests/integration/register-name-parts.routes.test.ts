@@ -2,10 +2,10 @@
  * A member's legal name is recorded as two parts rather than guessed from one
  * string.
  *
- * The surname is the private matching anchor every claim path gates on, and it
- * used to be derived by taking the last word of the full name. These tests pin
- * the names that guess gets wrong, and the one it refused outright: a member
- * whose legal name is a single word could not register at all.
+ * The surname is the private matching anchor every claim path gates on, so it
+ * is recorded rather than inferred. These tests pin the names that a
+ * last-word-of-the-full-name guess gets wrong, and the one such a guess refuses
+ * outright: a member whose legal name is a single word.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

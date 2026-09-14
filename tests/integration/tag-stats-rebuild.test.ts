@@ -7,20 +7,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertTag, insertMediaItem } from '../fixtures/factories';
-import type BetterSqlite3 from 'better-sqlite3';
+import { insertMember, insertTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3072');
-const TS = '2025-01-01T00:00:00.000Z';
-
-function insertMediaTag(db: BetterSqlite3.Database, id: string, mediaId: string, tagId: string, tagDisplay: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
-}
 
 let hashtagDiscoveryService: typeof import('../../src/services/hashtagDiscoveryService').hashtagDiscoveryService;
 
@@ -67,16 +56,16 @@ beforeAll(async () => {
   const mediaB1 = insertMediaItem(db, { uploader_member_id: memberB, caption: 'Photo B1' });
 
   // Member A tags freestyle on two photos, personal on one
-  insertMediaTag(db, 'mt-a1-freestyle', mediaA1, tagFreestyle, '#Freestyle');
-  insertMediaTag(db, 'mt-a2-freestyle', mediaA2, tagFreestyle, '#Freestyle');
-  insertMediaTag(db, 'mt-a1-personal', mediaA1, tagPersonal, '#my_private_tag');
+  attachMediaTag(db, mediaA1, tagFreestyle);
+  attachMediaTag(db, mediaA2, tagFreestyle);
+  attachMediaTag(db, mediaA1, tagPersonal);
 
   // Member B tags freestyle on one photo
-  insertMediaTag(db, 'mt-b1-freestyle', mediaB1, tagFreestyle, '#Freestyle');
+  attachMediaTag(db, mediaB1, tagFreestyle);
 
   // Both members use #by_ tag
-  insertMediaTag(db, 'mt-a1-by', mediaA1, tagBy, '#by_member_a');
-  insertMediaTag(db, 'mt-b1-by', mediaB1, tagBy, '#by_member_a');
+  attachMediaTag(db, mediaA1, tagBy);
+  attachMediaTag(db, mediaB1, tagBy);
 
   db.close();
 

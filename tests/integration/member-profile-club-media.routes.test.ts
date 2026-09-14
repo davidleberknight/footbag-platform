@@ -18,10 +18,12 @@ import {
   createMemberAtTier,
   completeOnboarding,
   createTestSessionJwt,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
+  attachMediaTag,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3209');
-const TS = '2025-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
@@ -34,25 +36,14 @@ const HOF_ID = 'mvp-hof-1';
 const HOF_SLUG = 'mvp_hof_1';
 
 function insertNamedGallery(d: BetterSqlite3.Database, id: string, ownerId: string, name: string): void {
-  d.prepare(`
-    INSERT INTO member_galleries (id, created_at, created_by, updated_at, updated_by, version,
-      owner_member_id, name, description, is_default, sort_order)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, '', 0, 'upload_desc')
-  `).run(id, TS, TS, ownerId, name);
-}
-
-function addGalleryCriteria(d: BetterSqlite3.Database, galleryId: string, tagId: string): void {
-  d.prepare(`
-    INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-    VALUES (?, ?, ?, 'test')
-  `).run(galleryId, tagId, TS);
-}
-
-function tagMedia(d: BetterSqlite3.Database, mediaId: string, tagId: string, display: string): void {
-  d.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(`mt_${mediaId}`, TS, TS, mediaId, tagId, display);
+  insertMemberGallery(d, {
+    id,
+    owner_member_id: ownerId,
+    name,
+    description: '',
+    is_default: 0,
+    sort_order: 'upload_desc',
+  });
 }
 
 beforeAll(async () => {
@@ -68,9 +59,9 @@ beforeAll(async () => {
   // A named gallery the owner created, matching both uploads (item count 2).
   const favesTag = insertTag(db, { id: 'tag-owner-faves', tag_normalized: '#owner_faves', tag_display: '#owner_faves' });
   insertNamedGallery(db, 'gallery-owner-faves', OWNER_ID, 'Funky Footbags');
-  addGalleryCriteria(db, 'gallery-owner-faves', favesTag);
-  tagMedia(db, m1, favesTag, '#owner_faves');
-  tagMedia(db, m2, favesTag, '#owner_faves');
+  insertGalleryCriterionTag(db, 'gallery-owner-faves', favesTag);
+  attachMediaTag(db, m1, favesTag);
+  attachMediaTag(db, m2, favesTag);
 
   createMemberAtTier(db, { id: VIEWER_ID, slug: VIEWER_SLUG, tier: 'tier1' });
   completeOnboarding(db, VIEWER_ID);

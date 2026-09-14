@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertSystemConfig, insertMailingListSubscription } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3066');
 
@@ -551,15 +551,12 @@ describe('processSendQueue', () => {
     });
     // Insert a later-effective system_config row setting paused=1.
     const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'email_outbox_paused', '1', ?, 'Test pause', NULL)
-    `).run(
-      'test-pause-row',
-      '2026-04-17T00:00:00.000Z',
-      '2026-04-17T00:00:00.000Z',
-    );
+    insertSystemConfig(db, {
+      config_key: 'email_outbox_paused',
+      value_json: '1',
+      created_at: '2026-04-17T00:00:00.000Z',
+      reason_text: 'Test pause',
+    });
     db.close();
     const res = await svc.processSendQueue();
     expect(res.paused).toBe(true);
@@ -568,15 +565,12 @@ describe('processSendQueue', () => {
     expect(row.status).toBe('pending');
     // Undo pause so other tests are unaffected.
     const db2 = new BetterSqlite3(dbPath);
-    db2.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'email_outbox_paused', '0', ?, 'Test unpause', NULL)
-    `).run(
-      'test-unpause-row',
-      '2026-04-17T00:00:01.000Z',
-      '2026-04-17T00:00:01.000Z',
-    );
+    insertSystemConfig(db2, {
+      config_key: 'email_outbox_paused',
+      value_json: '0',
+      created_at: '2026-04-17T00:00:01.000Z',
+      reason_text: 'Test unpause',
+    });
     db2.close();
   });
 
@@ -593,11 +587,12 @@ describe('processSendQueue', () => {
     db.prepare(`
       UPDATE outbox_emails SET status = 'sending', last_attempt_at = '2020-01-01T00:00:00.000Z' WHERE id = ?
     `).run(id!);
-    db.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES ('t13-pause', '2026-04-17T00:00:10.000Z', 'email_outbox_paused', '1', '2026-04-17T00:00:10.000Z', 'pause', NULL)
-    `).run();
+    insertSystemConfig(db, {
+      config_key: 'email_outbox_paused',
+      value_json: '1',
+      created_at: '2026-04-17T00:00:10.000Z',
+      reason_text: 'pause',
+    });
     db.close();
 
     const paused = await svc.processSendQueue();
@@ -609,11 +604,12 @@ describe('processSendQueue', () => {
     // Unpause: the next drain parks the stranded row for manual review (its
     // outcome is unknowable, so it is never silently re-sent).
     db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES ('t13-unpause', '2026-04-17T00:00:11.000Z', 'email_outbox_paused', '0', '2026-04-17T00:00:11.000Z', 'unpause', NULL)
-    `).run();
+    insertSystemConfig(db, {
+      config_key: 'email_outbox_paused',
+      value_json: '0',
+      created_at: '2026-04-17T00:00:11.000Z',
+      reason_text: 'unpause',
+    });
     db.close();
 
     const drained = await svc.processSendQueue();
@@ -655,19 +651,12 @@ describe('enqueue: mailing-list fan-out', () => {
       memberOverrides.email_verified_at = opts.emailVerifiedAt;
     }
     insertMember(db, memberOverrides);
-    db.prepare(`
-      INSERT INTO mailing_list_subscriptions (
-        id, created_at, created_by, updated_at, updated_by, version,
-        mailing_list_id, member_id, status, status_updated_at
-      ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, ?, ?)
-    `).run(
-      `mls-${opts.memberId}`,
-      '2025-01-01T00:00:00.000Z',
-      '2025-01-01T00:00:00.000Z',
-      opts.memberId,
-      opts.subStatus,
-      '2025-01-01T00:00:00.000Z',
-    );
+    insertMailingListSubscription(db, {
+      id: `mls-${opts.memberId}`,
+      list_slug: 'admin-alerts',
+      member_id: opts.memberId,
+      status: opts.subStatus,
+    });
     db.close();
   }
 

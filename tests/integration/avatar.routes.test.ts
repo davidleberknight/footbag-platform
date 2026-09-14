@@ -11,19 +11,15 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-avatar-${Date.now()}.db`);
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-avatar-'));
 
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
-process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
+const { dbPath } = setTestEnv('4196');
 process.env.FOOTBAG_MEDIA_DIR        = TEST_MEDIA_DIR;
 process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
-process.env.PORT                     = '3098';
-process.env.NODE_ENV                 = 'test';
-process.env.LOG_LEVEL                = 'error';
-process.env.PUBLIC_BASE_URL          = 'http://localhost:3098';
-process.env.SESSION_SECRET           = 'avatar-routes-test-secret';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -31,7 +27,6 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import {
@@ -41,7 +36,7 @@ import {
   type S3Client,
 } from '@aws-sdk/client-s3';
 
-import { insertMember, createTestSessionJwt, completeOnboarding } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, completeOnboarding, insertSystemConfig } from '../fixtures/factories';
 
 // imageProcessingAdapter imports config from env.ts, which freezes its
 // singleton on first import. Defer those module loads to beforeAll so that
@@ -62,7 +57,7 @@ function otherCookie(): string {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Avatar Owner',  login_email: 'avatarowner@example.com' });
   completeOnboarding(db, OWN_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Avatar Other', login_email: 'avatarother@example.com' });
@@ -70,8 +65,7 @@ beforeAll(async () => {
 
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 
   // Defer adapter module loads until after FOOTBAG_DB_PATH has been overridden
   // (these modules import src/config/env which freezes config on first import).
@@ -117,9 +111,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   resetImageProcessingAdapterForTests();
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
@@ -165,7 +157,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .attach('avatar', validJpeg, 'audited.jpg');
     expect(res.status).toBe(303);
 
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     let rows: Array<{ metadata_json: string }>;
     try {
       rows = db.prepare(
@@ -617,12 +609,11 @@ describe('POST /members/:memberKey/avatar -- rate limit', () => {
   it('member exceeding avatar-upload rate-limit -> 429 with Retry-After', async () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
-    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'avatar_upload_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-avatar-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'avatar_upload_rate_limit_per_hour',
+      value_json: '2',
+    });
     tuneDb.close();
     try {
       const app = createApp();

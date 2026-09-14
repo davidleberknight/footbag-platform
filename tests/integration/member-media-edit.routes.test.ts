@@ -14,17 +14,9 @@
  * Route ordering: /media/upload must match before /media/:mediaId/edit;
  * the controller also guards :mediaId === 'upload' defensively.
  */
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
-const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-member-media-edit-${Date.now()}.db`);
-process.env.FOOTBAG_DB_PATH = TEST_DB_PATH;
-process.env.PORT            = '3098';
-process.env.NODE_ENV        = 'test';
-process.env.LOG_LEVEL       = 'error';
-process.env.PUBLIC_BASE_URL = 'http://localhost:3098';
-process.env.SESSION_SECRET  = 'member-media-edit-routes-test-secret';
+const { dbPath } = setTestEnv('4197');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -32,7 +24,6 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
 
 import {
   insertMember,
@@ -41,6 +32,8 @@ import {
   createTestSessionJwt,
   insertMediaItem,
   insertTag,
+  attachMediaTag,
+  insertSystemConfig,
 } from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mme-owner-001';
@@ -55,7 +48,7 @@ function cookieFor(memberId: string): string {
 }
 
 function findMediaTags(mediaId: string): string[] {
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   try {
     const rows = db.prepare(
       `SELECT t.tag_display FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_display`,
@@ -65,7 +58,7 @@ function findMediaTags(mediaId: string): string[] {
 }
 
 function findMediaCaption(mediaId: string): string | null {
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   try {
     const row = db.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(mediaId) as { caption: string | null } | undefined;
     return row?.caption ?? null;
@@ -73,7 +66,7 @@ function findMediaCaption(mediaId: string): string | null {
 }
 
 function findMediaExternalUrl(mediaId: string): string | null {
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   try {
     const row = db.prepare(`SELECT external_url FROM media_items WHERE id = ?`).get(mediaId) as { external_url: string | null } | undefined;
     return row?.external_url ?? null;
@@ -81,7 +74,7 @@ function findMediaExternalUrl(mediaId: string): string | null {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, display_name: 'MME Owner' });
   completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'MME Other' });
@@ -95,18 +88,15 @@ beforeAll(async () => {
 
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
-  try { fs.unlinkSync(TEST_DB_PATH); } catch { /* ignore */ }
-  try { fs.unlinkSync(`${TEST_DB_PATH}-wal`); } catch { /* ignore */ }
-  try { fs.unlinkSync(`${TEST_DB_PATH}-shm`); } catch { /* ignore */ }
+  cleanupTestDb(dbPath);
 });
 
 function insertOwnerMedia(filename = 'mme-owner.jpg', caption: string | null = 'orig'): string {
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   db.pragma('foreign_keys = ON');
   try {
     return insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: filename, caption });
@@ -114,7 +104,7 @@ function insertOwnerMedia(filename = 'mme-owner.jpg', caption: string | null = '
 }
 
 function insertOtherMedia(filename = 'mme-other.jpg'): string {
-  const db = new BetterSqlite3(TEST_DB_PATH);
+  const db = new BetterSqlite3(dbPath);
   db.pragma('foreign_keys = ON');
   try {
     return insertMediaItem(db, { uploader_member_id: OTHER_ID, source_filename: filename, caption: null });
@@ -210,7 +200,7 @@ describe('member per-item media edit routes', () => {
   });
 
   it("GET tier-gated: tier-0 owner → 403 naming the benefit, not the generic wall", async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.pragma('foreign_keys = ON');
     const mediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0-get.jpg', caption: 'orig' });
     db.close();
@@ -226,7 +216,7 @@ describe('member per-item media edit routes', () => {
   it("POST tier-gated: tier-0 owner → 403 from requireTier1Benefits", async () => {
     // Insert a media row owned by the tier-0 member. POST must 403 at the
     // middleware before touching the service.
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.pragma('foreign_keys = ON');
     const mediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0.jpg', caption: 'orig' });
     db.close();
@@ -278,12 +268,11 @@ describe('member per-item media edit routes', () => {
   it('POST exceeding media-edit rate-limit → 429 with Retry-After', async () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
-    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'media_edit_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-media-edit-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'media_edit_rate_limit_per_hour',
+      value_json: '2',
+    });
     tuneDb.close();
     try {
       const mediaId = insertOwnerMedia('owner-rl.jpg');
@@ -310,27 +299,24 @@ describe('member per-item media edit routes', () => {
 
 describe('member per-item media delete route', () => {
   function rowExists(mediaId: string): boolean {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     try {
       return db.prepare('SELECT 1 FROM media_items WHERE id = ?').get(mediaId) !== undefined;
     } finally { db.close(); }
   }
 
   function attachTag(mediaId: string): string {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.pragma('foreign_keys = ON');
     try {
       const tagId = insertTag(db, {});
-      db.prepare(`
-        INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-        VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', 1, ?, ?, '#deltest')
-      `).run(`mtag-del-${mediaId}`, mediaId, tagId);
+      attachMediaTag(db, mediaId, tagId);
       return tagId;
     } finally { db.close(); }
   }
 
   function tagRowCount(mediaId: string): number {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     try {
       return (db.prepare('SELECT COUNT(*) AS n FROM media_tags WHERE media_id = ?').get(mediaId) as { n: number }).n;
     } finally { db.close(); }
@@ -351,7 +337,7 @@ describe('member per-item media delete route', () => {
     expect(rowExists(mediaId)).toBe(false);
     expect(tagRowCount(mediaId)).toBe(0);
 
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     try {
       const audit = db.prepare(
         `SELECT actor_member_id FROM audit_entries WHERE action_type = 'media.member_deleted' AND entity_id = ?`,
@@ -382,7 +368,7 @@ describe('member per-item media delete route', () => {
   });
 
   it('POST by a tier-0 owner -> 403 (delete controls require Tier 1 benefits), row intact', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.pragma('foreign_keys = ON');
     const mediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0-del.jpg', caption: null });
     db.close();
@@ -397,7 +383,7 @@ describe('member per-item media delete route', () => {
   });
 
   it('POST against an avatar row -> 404, row intact (avatar lifecycle belongs to avatar upload)', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.pragma('foreign_keys = ON');
     const avatarId = insertMediaItem(db, { uploader_member_id: OWNER_ID, is_avatar: 1, source_filename: 'owner-avatar.jpg', caption: null });
     db.close();

@@ -24,6 +24,7 @@ import {
   createMemberAtTier,
   createTestSessionJwt,
   completeOnboarding,
+  insertClubLeader,
 } from '../fixtures/factories';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -104,10 +105,7 @@ beforeAll(async () => {
   createMemberAtTier(db, { id: LEADER_ID, slug: LEADER_SLUG, tier: 'tier1' });
   completeOnboarding(db, LEADER_ID);
   const leaderClubId = insertClub(db, { name: 'Existing Leader Club', city: 'Portland', country: 'USA' });
-  db.prepare(`
-    INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, version, club_id, member_id, role, added_at)
-    VALUES ('cl-leader-test', ?, 'test', ?, 'test', 1, ?, ?, 'co-leader', ?)
-  `).run('2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z', leaderClubId, LEADER_ID, '2024-01-01T00:00:00.000Z');
+  insertClubLeader(db, { id: 'cl-leader-test', club_id: leaderClubId, member_id: LEADER_ID });
 
   // Capped member: already has 2 club affiliations
   createMemberAtTier(db, { id: CAPPED_ID, slug: CAPPED_SLUG, tier: 'tier1' });

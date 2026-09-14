@@ -18,6 +18,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
+import { normalizeAntiEnumerationBody } from '../fixtures/normalizeAntiEnumerationBody';
 
 const { dbPath } = setTestEnv('3082');
 
@@ -69,10 +70,11 @@ describe('POST /login — response shape identical for exists vs not-exists', ()
       .send({ email: UNKNOWN_EMAIL, password: 'WrongPass1!' });
 
     expect(knownWrongPw.status).toBe(unknownEmail.status);
-    // Same length within tolerance (tiny variations from cookies/etc OK).
-    const lenRatio = knownWrongPw.text.length / unknownEmail.text.length;
-    expect(lenRatio).toBeGreaterThan(0.95);
-    expect(lenRatio).toBeLessThan(1.05);
+    // Whole-body identity, not a length comparison: two pages of the same size
+    // can still differ in the words that leak, so a tolerance band cannot tell
+    // a non-revealing refusal from a revealing one.
+    expect(normalizeAntiEnumerationBody(knownWrongPw.text))
+      .toBe(normalizeAntiEnumerationBody(unknownEmail.text));
     // Both must use the same user-facing error phrase.
     expect(knownWrongPw.text).toContain('Invalid email or password. Please try again.');
     expect(unknownEmail.text).toContain('Invalid email or password. Please try again.');
@@ -89,9 +91,8 @@ describe('POST /login — response shape identical for exists vs not-exists', ()
       .type('form')
       .send({ email: UNVERIFIED_EMAIL, password: 'WrongPass1!' });
     expect(unverified.status).toBe(knownWrongPw.status);
-    const lenRatio = unverified.text.length / knownWrongPw.text.length;
-    expect(lenRatio).toBeGreaterThan(0.95);
-    expect(lenRatio).toBeLessThan(1.05);
+    expect(normalizeAntiEnumerationBody(unverified.text))
+      .toBe(normalizeAntiEnumerationBody(knownWrongPw.text));
     expect(unverified.text).toContain('Invalid email or password. Please try again.');
   });
 });

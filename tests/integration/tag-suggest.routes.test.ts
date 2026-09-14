@@ -15,21 +15,12 @@ import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
+  attachMediaTag,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3073');
-const TS = '2025-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
-
-function insertMediaTag(db: import('better-sqlite3').Database, id: string, mediaId: string, tagId: string, tagDisplay: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
-}
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -66,11 +57,11 @@ beforeAll(async () => {
   const m1 = insertMediaItem(db, { uploader_member_id: memberA });
   const m2 = insertMediaItem(db, { uploader_member_id: memberB });
 
-  insertMediaTag(db, 'mt-s-1', m1, tagFreestyle, '#Freestyle');
-  insertMediaTag(db, 'mt-s-2', m2, tagFreestyle, '#Freestyle');
-  insertMediaTag(db, 'mt-s-3', m1, tagTrick, '#Trick');
-  insertMediaTag(db, 'mt-s-4', m1, tagBy, '#by_suggest_a');
-  insertMediaTag(db, 'mt-s-5', m2, tagBy, '#by_suggest_a');
+  attachMediaTag(db, m1, tagFreestyle);
+  attachMediaTag(db, m2, tagFreestyle);
+  attachMediaTag(db, m1, tagTrick);
+  attachMediaTag(db, m1, tagBy);
+  attachMediaTag(db, m2, tagBy);
 
   // Ontology tags for the set/style expansion: a set/style term must surface its
   // set tag, concept tag, and the trick tags of tricks that carry it as a

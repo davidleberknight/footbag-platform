@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertClub, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertClub, createTestSessionJwt, insertClubBootstrapLeader } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3081');
@@ -63,7 +63,7 @@ describe('access', () => {
     const res = await request(createApp())
       .get('/admin/clubs/leadership')
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: member })}`);
-    expect([403, 404]).toContain(res.status);
+    expect(res.status).toBe(403);
   });
 });
 
@@ -102,11 +102,14 @@ describe('assign', () => {
     const clubId = seedClub();
     const memberId = seedMember();
     // A provisional bootstrap candidate that must be superseded.
-    db.prepare(`
-      INSERT INTO club_bootstrap_leaders
-        (id, created_at, created_by, updated_at, updated_by, club_id, legacy_member_id, role, status, confidence_score)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, 'LM-acl', 'leader', 'provisional', 0.8)
-    `).run(`acl-cbl-${_n}`, clubId);
+    insertClubBootstrapLeader(db, {
+      id: `acl-cbl-${_n}`,
+      club_id: clubId,
+      legacy_member_id: 'LM-acl',
+      role: 'leader',
+      status: 'provisional',
+      confidence_score: 0.8,
+    });
 
     const res = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)

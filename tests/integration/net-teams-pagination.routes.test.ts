@@ -14,7 +14,7 @@ import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry,
-  insertHistoricalPerson, insertNetTeam, insertNetTeamAppearance,
+  insertHistoricalPerson, insertNetTeam, insertNetTeamAppearance, insertNetDisciplineGroup,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3106');
@@ -28,10 +28,9 @@ beforeAll(async () => {
   const member = insertMember(db, { id: 'net-pg-member', slug: 'net_pg_member' });
   const event = insertEvent(db, { title: 'Net Pagination Cup', status: 'reg_open', start_date: '2012-06-01' });
   const disc = insertDiscipline(db, event, { id: 'disc-net-pg', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
-  db.prepare(`
-    INSERT INTO net_discipline_group (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
-    VALUES (?, 'open_doubles', 'exact', 0, 0, '2025-01-01T00:00:00.000Z', 'test')
-  `).run(disc);
+  insertNetDisciplineGroup(db, disc, {
+    canonical_group: 'open_doubles', match_method: 'exact', review_needed: 0, conflict_flag: 0,
+  });
   const upload = insertResultsUpload(db, event, member);
 
   for (let i = 0; i < TEAM_COUNT; i++) {

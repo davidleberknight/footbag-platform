@@ -4,7 +4,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertWorkQueueItem, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertWorkQueueItem, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3130');
@@ -494,11 +494,11 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
     const tuneDb = new BetterSqlite3(dbPath);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-wq-resolve-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    insertSystemConfig(tuneDb, {
+      config_key: 'work_queue_resolve_rate_limit_per_hour',
+      value_json: '2',
+      created_at: '2026-05-22T00:00:00.000Z',
+    });
     tuneDb.close();
     try {
       const app = createApp();
@@ -550,11 +550,12 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
   // counts do not carry over.
   beforeAll(() => {
     const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '120', ?, 'Test ceiling', NULL)
-    `).run('test-pay-resolve-ceiling', '2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.000Z');
+    insertSystemConfig(db, {
+      config_key: 'work_queue_resolve_rate_limit_per_hour',
+      value_json: '120',
+      created_at: '2026-06-01T00:00:00.000Z',
+      reason_text: 'Test ceiling',
+    });
     db.close();
   });
   beforeEach(async () => {
@@ -790,11 +791,11 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     rlMod.resetRateLimitForTests();
     const tuneDb = new BetterSqlite3(dbPath);
     // A later effective date than the ceiling row makes this the current value.
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '1', ?, 'Test tunable', NULL)
-    `).run('test-pay-resolve-rl', '2026-06-02T00:00:00.000Z', '2026-06-02T00:00:00.000Z');
+    insertSystemConfig(tuneDb, {
+      config_key: 'work_queue_resolve_rate_limit_per_hour',
+      value_json: '1',
+      created_at: '2026-06-02T00:00:00.000Z',
+    });
     tuneDb.close();
     try {
       const app = createApp();
@@ -820,11 +821,12 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
       // Append-only config: restore the high ceiling with a still-later row
       // rather than deleting, so any later test runs unthrottled.
       const restore = new BetterSqlite3(dbPath);
-      restore.prepare(`
-        INSERT INTO system_config
-          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-        VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '120', ?, 'Test restore', NULL)
-      `).run('test-pay-resolve-restore', '2026-06-03T00:00:00.000Z', '2026-06-03T00:00:00.000Z');
+      insertSystemConfig(restore, {
+        config_key: 'work_queue_resolve_rate_limit_per_hour',
+        value_json: '120',
+        created_at: '2026-06-03T00:00:00.000Z',
+        reason_text: 'Test restore',
+      });
       restore.close();
     }
   });

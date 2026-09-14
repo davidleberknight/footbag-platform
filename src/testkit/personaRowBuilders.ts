@@ -319,6 +319,10 @@ export interface LegacyMemberOverrides {
   is_hof?: 0 | 1;
   is_bap?: 0 | 1;
   legacy_is_admin?: 0 | 1;
+  // Paid-tier history derived from the legacy billing records. Both default to
+  // 0, the state of a row the derivation has not marked.
+  legacy_ever_paid_tier2?: 0 | 1;
+  legacy_ever_paid_tier1_lifetime?: 0 | 1;
   import_source?: string | null;
   claimed_by_member_id?: string | null;
   claimed_at?: string | null;
@@ -343,9 +347,10 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
       bio, birth_date, street_address, postal_code,
       ifpa_join_date, first_competition_year,
       is_hof, is_bap, legacy_is_admin,
+      legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime,
       import_source, imported_at,
       version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(legacy_member_id) DO UPDATE SET
       legacy_user_id = excluded.legacy_user_id,
       legacy_email = excluded.legacy_email,
@@ -366,6 +371,8 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
       is_hof = excluded.is_hof,
       is_bap = excluded.is_bap,
       legacy_is_admin = excluded.legacy_is_admin,
+      legacy_ever_paid_tier2 = excluded.legacy_ever_paid_tier2,
+      legacy_ever_paid_tier1_lifetime = excluded.legacy_ever_paid_tier1_lifetime,
       import_source = excluded.import_source,
       imported_at = excluded.imported_at
   `).run(
@@ -392,6 +399,8 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
     o.is_hof ?? 0,
     o.is_bap ?? 0,
     o.legacy_is_admin ?? 0,
+    o.legacy_ever_paid_tier2 ?? 0,
+    o.legacy_ever_paid_tier1_lifetime ?? 0,
     o.import_source ?? 'test',
     TS,
   );
@@ -767,6 +776,9 @@ export interface PaymentOverrides {
   stripe_checkout_session_id?: string | null;
   stripe_subscription_id?: string | null;
   stripe_invoice_id?: string | null;
+  /** The provider's customer handle carried on the payment, which a retention
+   *  purge has to clear. Null by default, as on a row that never had one. */
+  stripe_customer_id?: string | null;
   recurring_subscription_id?: string | null;
   donation_note?: string | null;
   metadata_json?: string;
@@ -791,9 +803,10 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
       status, descriptor,
       purchased_tier_status,
       stripe_payment_intent_id, stripe_checkout_session_id, stripe_subscription_id,
-      stripe_invoice_id, recurring_subscription_id, donation_note, metadata_json,
+      stripe_invoice_id, stripe_customer_id,
+      recurring_subscription_id, donation_note, metadata_json,
       provider_livemode
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, createdAt, createdAt,
     o.member_id ?? null,
@@ -807,6 +820,7 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     o.stripe_checkout_session_id ?? null,
     o.stripe_subscription_id ?? null,
     o.stripe_invoice_id ?? null,
+    o.stripe_customer_id ?? null,
     o.recurring_subscription_id ?? null,
     o.donation_note ?? null,
     o.metadata_json ?? '{}',
@@ -1205,6 +1219,13 @@ export interface WorkQueueItemOverrides {
   priority?: number;
   reason_text?: string | null;
   detail_text?: string | null;
+  /** When the item was raised, for a caller whose surface reports how long it
+   *  has been waiting. Defaults to the shared fixture timestamp. */
+  created_at?: string;
+  opened_at?: string;
+  /** The actor on the row. Defaults to the system actor; pass a member id for an
+   *  item that member's own action raised. */
+  created_by?: string;
   /** Set both together to mint an already-resolved item. */
   resolved_at?: string | null;
   resolved_by_member_id?: string | null;
@@ -1219,6 +1240,11 @@ export function insertWorkQueueItem(
   o: WorkQueueItemOverrides,
 ): string {
   const id = o.id ?? `wq-test-${uid()}`;
+  const createdAt = o.created_at ?? TS;
+  // An item a member's own action raised was not raised by the system. Callers
+  // seeding one on behalf of a member pass the actor; the default covers the
+  // items the platform raises for itself.
+  const actor = o.created_by ?? SYS;
   db.prepare(`
     INSERT INTO work_queue_items
       (id, created_at, created_by, updated_at, updated_by, version,
@@ -1227,14 +1253,14 @@ export function insertWorkQueueItem(
        parked_at, parked_by_member_id, park_reason)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
+    id, createdAt, actor, createdAt, actor,
     o.queue_category ?? 'membership',
     o.task_type ?? 'member_link_help_request',
     o.entity_type ?? 'member',
     o.entity_id,
     o.status ?? 'open',
     o.priority ?? 5,
-    TS,
+    o.opened_at ?? createdAt,
     o.reason_text ?? null,
     o.detail_text ?? null,
     o.resolved_at ?? null,
@@ -1551,4 +1577,300 @@ export function insertGivenNameVariant(
     o.long_form_normalized,
     o.created_at ?? TS,
   );
+}
+
+// ── Payment status transition ─────────────────────────────────────────────────
+
+// Append-only row in the payment's status ledger. UPDATE and DELETE are blocked
+// by triggers, so a fixture seeds the state it wants rather than editing one.
+export interface PaymentStatusTransitionOverrides {
+  id?: string;
+  payment_id: string;
+  event_type?: string;
+  from_status?: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded' | null;
+  to_status?: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
+  transition_at?: string;
+  created_at?: string;
+  stripe_event_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  transition_reason_text?: string | null;
+  correlation_key?: string | null;
+}
+
+export function insertPaymentStatusTransition(
+  db: BetterSqlite3.Database,
+  o: PaymentStatusTransitionOverrides,
+): string {
+  const id = o.id ?? `pst-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO payment_status_transitions (
+      id, created_at, created_by,
+      payment_id, stripe_event_id, stripe_payment_intent_id,
+      event_type, from_status, to_status, transition_at,
+      transition_reason_text, correlation_key
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, SYS,
+    o.payment_id,
+    o.stripe_event_id ?? null,
+    o.stripe_payment_intent_id ?? null,
+    o.event_type ?? 'payment_intent.succeeded',
+    o.from_status === undefined ? null : o.from_status,
+    o.to_status ?? 'succeeded',
+    o.transition_at ?? at,
+    o.transition_reason_text ?? null,
+    o.correlation_key ?? null,
+  );
+  return id;
+}
+
+// ── Active Player expiry-reminder ledger ──────────────────────────────────────
+
+// Dedup marker the expiry worker writes once per reminder it enqueues. Unique on
+// (member_id, expires_at, offset_label), and append-only: UPDATE and DELETE are
+// blocked by triggers.
+export interface ActivePlayerReminderSentOverrides {
+  id?: string;
+  member_id: string;
+  expires_at?: string;
+  offset_label?: 'days_1' | 'days_2' | 'day_of';
+  sent_at?: string;
+  created_at?: string;
+}
+
+export function insertActivePlayerReminderSent(
+  db: BetterSqlite3.Database,
+  o: ActivePlayerReminderSentOverrides,
+): string {
+  const id = o.id ?? `aprs-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO active_player_reminder_sent (
+      id, created_at, created_by, member_id, expires_at, offset_label, sent_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, SYS,
+    o.member_id,
+    o.expires_at ?? at,
+    o.offset_label ?? 'days_1',
+    o.sent_at ?? at,
+  );
+  return id;
+}
+
+// ── Cleanup-queue resolution / claim ──────────────────────────────────────────
+
+// An admin's park-or-dismiss ruling on one cleanup-queue predicate about a
+// candidate. Unique on (candidate_id, predicate_name). A parked ruling records
+// who parked it; a dismissal need not.
+export interface CandidateCleanupResolutionOverrides {
+  id?: string;
+  candidate_id: string;
+  predicate_name?: string;
+  resolution?: 'parked' | 'dismissed';
+  parked_by_member_id?: string | null;
+  reason_text?: string | null;
+  created_at?: string;
+}
+
+export function insertCandidateCleanupResolution(
+  db: BetterSqlite3.Database,
+  o: CandidateCleanupResolutionOverrides,
+): string {
+  const id = o.id ?? `cdr-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO candidate_cleanup_resolutions (
+      id, created_at, created_by,
+      candidate_id, predicate_name, resolution, parked_by_member_id, reason_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, o.created_at ?? TS, SYS,
+    o.candidate_id,
+    o.predicate_name ?? 'promotable_candidate',
+    o.resolution ?? 'parked',
+    o.parked_by_member_id === undefined ? null : o.parked_by_member_id,
+    o.reason_text === undefined ? null : o.reason_text,
+  );
+  return id;
+}
+
+// The "claimed by Admin X" hint another admin sees on a cleanup-queue item. One
+// claim per item; it coordinates rather than locks.
+export interface ClubCleanupClaimOverrides {
+  id?: string;
+  item_type?: 'club' | 'candidate';
+  item_id: string;
+  claimed_by_member_id: string;
+  claimed_at?: string;
+  created_at?: string;
+}
+
+export function insertClubCleanupClaim(
+  db: BetterSqlite3.Database,
+  o: ClubCleanupClaimOverrides,
+): string {
+  const id = o.id ?? `ccl-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO club_cleanup_claims (
+      id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, SYS,
+    o.item_type ?? 'club',
+    o.item_id,
+    o.claimed_by_member_id,
+    o.claimed_at ?? at,
+  );
+  return id;
+}
+
+// ── Member declared anchor ────────────────────────────────────────────────────
+
+// A former surname or an old email address the member has declared, so a claim
+// matched through it can be recognised. An account purge deletes these rows.
+export interface MemberDeclaredAnchorOverrides {
+  id?: string;
+  member_id: string;
+  anchor_type?: 'former_surname' | 'old_email';
+  anchor_value?: string;
+  created_at?: string;
+  created_by?: string;
+  verified_via_link_click_at?: string | null;
+  verification_token_id?: string | null;
+}
+
+export function insertMemberDeclaredAnchor(
+  db: BetterSqlite3.Database,
+  o: MemberDeclaredAnchorOverrides,
+): string {
+  const id = o.id ?? `anch-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  const by = o.created_by ?? SYS;
+  db.prepare(`
+    INSERT INTO member_declared_anchors (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, anchor_type, anchor_value,
+      verified_via_link_click_at, verification_token_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, by, at, by,
+    o.member_id,
+    o.anchor_type  ?? 'former_surname',
+    o.anchor_value ?? 'maidenname',
+    o.verified_via_link_click_at ?? null,
+    o.verification_token_id ?? null,
+  );
+  return id;
+}
+
+// ── Stripe event (webhook idempotency claim) ─────────────────────────────────
+
+// The row the webhook writes once it has processed a delivery. The payments
+// health view reads the newest processed_at to tell whether deliveries are
+// still arriving, so a caller that cares about silence passes its own stamps.
+export interface StripeEventOverrides {
+  event_id?: string;
+  event_type?: string;
+  created_at?: string;
+  stripe_created?: string;
+  processed_at?: string;
+}
+
+export function insertStripeEvent(
+  db: BetterSqlite3.Database,
+  o: StripeEventOverrides = {},
+): string {
+  const eventId = o.event_id ?? `evt_${uid()}`;
+  const at = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO stripe_events (event_id, created_at, event_type, stripe_created, processed_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    eventId,
+    at,
+    o.event_type     ?? 'payment_intent.succeeded',
+    o.stripe_created ?? at,
+    o.processed_at   ?? at,
+  );
+  return eventId;
+}
+
+// ── Stripe webhook failure counter ───────────────────────────────────────────
+
+// Rejected deliveries are counted per five-minute bucket per reason rather than
+// recorded one row per delivery, so recording a failure increments the bucket
+// in place exactly as the webhook endpoint does. Returns the bucket key.
+export interface StripeWebhookFailureOverrides {
+  bucket_start?: string;
+  reason?: 'signature' | 'recoverable' | 'error';
+  first_seen_at?: string;
+  last_seen_at?: string;
+  last_event_type?: string | null;
+  last_event_id?: string | null;
+  expires_at?: string;
+}
+
+export function insertStripeWebhookFailure(
+  db: BetterSqlite3.Database,
+  o: StripeWebhookFailureOverrides = {},
+): string {
+  const bucketStart = o.bucket_start ?? TS;
+  const seenAt = o.first_seen_at ?? TS;
+  db.prepare(`
+    INSERT INTO stripe_webhook_failures
+      (bucket_start, reason, failure_count, first_seen_at, last_seen_at,
+       last_event_type, last_event_id, expires_at)
+    VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+    ON CONFLICT(bucket_start, reason) DO UPDATE SET failure_count = failure_count + 1
+  `).run(
+    bucketStart,
+    o.reason ?? 'signature',
+    seenAt,
+    o.last_seen_at ?? seenAt,
+    o.last_event_type ?? null,
+    o.last_event_id ?? null,
+    o.expires_at ?? TS,
+  );
+  return bucketStart;
+}
+
+// ── Club cleanup resolution ──────────────────────────────────────────────────
+
+// An administrator's verdict on one club-cleanup queue item: dismissed,
+// parked, demoted or archived. A parked row carries who parked it, which is
+// what the parked listing annotates.
+export interface ClubCleanupResolutionOverrides {
+  id?: string;
+  club_id: string;
+  predicate_name?: string;
+  resolution?: 'dismissed' | 'parked' | 'demoted' | 'archived';
+  parked_by_member_id?: string | null;
+  reason_text?: string | null;
+  created_at?: string;
+  created_by?: string;
+}
+
+export function insertClubCleanupResolution(
+  db: BetterSqlite3.Database,
+  o: ClubCleanupResolutionOverrides,
+): string {
+  const id = o.id ?? `ccr-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO club_cleanup_resolutions (
+      id, created_at, created_by, club_id, predicate_name, resolution,
+      parked_by_member_id, reason_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.created_at ?? TS,
+    o.created_by ?? SYS,
+    o.club_id,
+    o.predicate_name ?? 'crowdsource_viability',
+    o.resolution ?? 'parked',
+    o.parked_by_member_id ?? null,
+    o.reason_text ?? null,
+  );
+  return id;
 }

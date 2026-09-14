@@ -16,7 +16,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createMemberAtTier, createTestSessionJwt } from '../fixtures/factories';
+import {
+  insertMember,
+  createMemberAtTier,
+  createTestSessionJwt,
+  insertFreeformTag,
+  insertMediaItem,
+  attachMediaTag,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3131');
 
@@ -56,47 +63,22 @@ function openDb(): BetterSqlite3.Database {
   return db;
 }
 
-function insertFreeformTag(db: BetterSqlite3.Database, normalized: string, display: string): string {
-  const id = `tag-item-${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-  `).run(id, normalized, display, TS, TS);
-  return id;
-}
-
 function insertPhoto(
   db: BetterSqlite3.Database,
   o: { id: string; uploader?: string; caption?: string; uploaded_at?: string },
 ): string {
   const uploader = o.uploader ?? SYSTEM_ID;
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, 'photo', 0, ?, ?,
-              ?, ?, 1000, 600,
-              'active')
-  `).run(
-    o.id, TS, TS,
-    uploader, o.caption ?? null, o.uploaded_at ?? TS,
-    `${uploader}/detached/${o.id}-thumb.jpg`,
-    `${uploader}/detached/${o.id}-display.jpg`,
-  );
-  return o.id;
-}
-
-function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, tagDisplay: string): void {
-  const id = `mtag_${Math.random().toString(36).slice(2, 12)}`;
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
+  return insertMediaItem(db, {
+    id: o.id,
+    uploader_member_id: uploader,
+    caption: o.caption ?? null,
+    uploaded_at: o.uploaded_at ?? TS,
+    s3_key_thumb: `${uploader}/detached/${o.id}-thumb.jpg`,
+    s3_key_display: `${uploader}/detached/${o.id}-display.jpg`,
+    width_px: 1000,
+    height_px: 600,
+    moderation_status: 'active',
+  });
 }
 
 beforeAll(async () => {
@@ -113,20 +95,20 @@ beforeAll(async () => {
   });
   insertMember(db, { id: VIEWER_ID, slug: 'item_viewer', display_name: 'Item Viewer' });
 
-  WRAP_TAG_ID = insertFreeformTag(db, '#wrapset', '#wrapset');
-  SOLO_TAG_ID = insertFreeformTag(db, '#soloset', '#soloset');
-  BY_REGULAR_TAG_ID = insertFreeformTag(db, '#by_item_regular', '#by_item_regular');
+  WRAP_TAG_ID = insertFreeformTag(db, { tag_normalized: '#wrapset', tag_display: '#wrapset' });
+  SOLO_TAG_ID = insertFreeformTag(db, { tag_normalized: '#soloset', tag_display: '#soloset' });
+  BY_REGULAR_TAG_ID = insertFreeformTag(db, { tag_normalized: '#by_item_regular', tag_display: '#by_item_regular' });
 
   insertPhoto(db, { id: ITEM_A, caption: 'wrap-item-a', uploaded_at: '2026-07-01T00:00:00.000Z' });
   insertPhoto(db, { id: ITEM_B, caption: 'wrap-item-b', uploaded_at: '2026-07-02T00:00:00.000Z', uploader: REGULAR_ID });
   insertPhoto(db, { id: ITEM_C, caption: 'wrap-item-c', uploaded_at: '2026-07-03T00:00:00.000Z' });
-  for (const id of [ITEM_A, ITEM_B, ITEM_C]) attachTag(db, id, WRAP_TAG_ID, '#wrapset');
+  for (const id of [ITEM_A, ITEM_B, ITEM_C]) attachMediaTag(db, id, WRAP_TAG_ID);
   // The middle item is attributed to a real member, exercising uploader gating.
-  attachTag(db, ITEM_B, BY_REGULAR_TAG_ID, '#by_item_regular');
+  attachMediaTag(db, ITEM_B, BY_REGULAR_TAG_ID);
 
   // One-item set under its own tag.
   insertPhoto(db, { id: SOLO, caption: 'solo-item', uploaded_at: '2026-07-04T00:00:00.000Z' });
-  attachTag(db, SOLO, SOLO_TAG_ID, '#soloset');
+  attachMediaTag(db, SOLO, SOLO_TAG_ID);
 
   db.close();
   createApp = await importApp();
@@ -216,8 +198,8 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     const db = openDb();
     const extras: string[] = [];
     for (let i = 0; i < 13; i += 1) {
-      const tagId = insertFreeformTag(db, `#capset${i}`, `#capset${i}`);
-      attachTag(db, ITEM_C, tagId, `#capset${i}`);
+      const tagId = insertFreeformTag(db, { tag_normalized: `#capset${i}`, tag_display: `#capset${i}` });
+      attachMediaTag(db, ITEM_C, tagId);
       extras.push(`capset${i}`);
     }
     db.close();

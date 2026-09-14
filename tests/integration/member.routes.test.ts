@@ -14,10 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { createTestDb } from '../fixtures/testDb';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 import {
   insertMember,
@@ -25,18 +22,12 @@ import {
   insertHistoricalPerson,
   createTestSessionJwt,
   completeOnboarding,
+  insertSystemConfig,
 } from '../fixtures/factories';
-
-const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-member-profile-${Date.now()}.db`);
 
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
-process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
-process.env.PORT                     = '3003';
-process.env.NODE_ENV                 = 'test';
-process.env.LOG_LEVEL                = 'error';
-process.env.PUBLIC_BASE_URL          = 'http://localhost:3003';
-process.env.SESSION_SECRET           = 'member-profile-test-secret';
+const { dbPath } = setTestEnv('4198');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -61,7 +52,7 @@ function linkedCookie(): string {
 }
 
 beforeAll(async () => {
-  const db = createTestDb(TEST_DB_PATH);
+  const db = createTestDb(dbPath);
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Test Member',  login_email: 'testmember@example.com' });
   completeOnboarding(db, OWN_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member', login_email: 'othermember@example.com' });
@@ -85,14 +76,11 @@ beforeAll(async () => {
 
   db.close();
 
-  const mod = await import('../../src/app');
-  createApp = mod.createApp;
+  createApp = await importApp();
 });
 
 afterAll(() => {
-  for (const ext of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
-  }
+  cleanupTestDb(dbPath);
 });
 
 // ── GET /members ───────────────────────────────────────────────────────────────
@@ -153,7 +141,7 @@ describe('GET /members/:memberKey — profile view', () => {
     expect(hidden.status).toBe(200);
     expect(hidden.text).not.toContain('testmember@example.com');
 
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.prepare("UPDATE members SET email_visibility = 'members' WHERE id = ?").run(OWN_ID);
     db.close();
     try {
@@ -163,7 +151,7 @@ describe('GET /members/:memberKey — profile view', () => {
       expect(shown.status).toBe(200);
       expect(shown.text).toContain('testmember@example.com');
     } finally {
-      const restore = new BetterSqlite3(TEST_DB_PATH);
+      const restore = new BetterSqlite3(dbPath);
       restore.prepare("UPDATE members SET email_visibility = 'private' WHERE id = ?").run(OWN_ID);
       restore.close();
     }
@@ -174,7 +162,7 @@ describe('GET /members/:memberKey — profile view', () => {
     const anon = await request(app).get(`/members/${OWN_SLUG}`);
     expect(anon.status).toBe(302);
 
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.prepare("UPDATE members SET is_hof = 1, email_visibility = 'members' WHERE id = ?").run(OTHER_ID);
     db.close();
     try {
@@ -193,7 +181,7 @@ describe('GET /members/:memberKey — profile view', () => {
       expect(authed.text).toContain('othermember@example.com');
       expect(authed.text).toContain('badge-tier');
     } finally {
-      const restore = new BetterSqlite3(TEST_DB_PATH);
+      const restore = new BetterSqlite3(dbPath);
       restore.prepare("UPDATE members SET is_hof = 0, email_visibility = 'private' WHERE id = ?").run(OTHER_ID);
       restore.close();
     }
@@ -219,7 +207,7 @@ describe('GET /members/:memberKey — profile view', () => {
   });
 
   it('shows "Competing since {year}" on the profile when first_competition_year is set', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET first_competition_year = 2010, show_first_competition_year = 1 WHERE id = ?').run(OWN_ID);
     db.close();
     try {
@@ -230,7 +218,7 @@ describe('GET /members/:memberKey — profile view', () => {
       expect(res.status).toBe(200);
       expect(res.text).toContain('Competing since 2010');
     } finally {
-      const restore = new BetterSqlite3(TEST_DB_PATH);
+      const restore = new BetterSqlite3(dbPath);
       restore.prepare('UPDATE members SET first_competition_year = NULL, show_first_competition_year = 0 WHERE id = ?').run(OWN_ID);
       restore.close();
     }
@@ -246,7 +234,7 @@ describe('GET /members/:memberKey — profile view', () => {
   });
 
   it('a history-only claimant (historical-person link, no legacy account) shows the historical name and HoF induction year', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     const CASEC_ID = 'member-casec';
     const CASEC_SLUG = 'member_casec';
     const hp = insertHistoricalPerson(db, {
@@ -272,7 +260,7 @@ describe('GET /members/:memberKey — profile view', () => {
   });
 
   it('shows the IFPA Board line on a board member profile', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     const BOARD_ID = 'member-board';
     const BOARD_SLUG = 'member_board';
     insertMember(db, {
@@ -386,7 +374,7 @@ describe('GET /members/:memberKey/edit — edit form', () => {
   // three parts they can change, not as a fixed line they must write in about.
   it('offers the stored date of birth as three editable parts', async () => {
     const app = createApp();
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run('1990-03-15', OWN_ID);
     db.close();
     try {
@@ -400,7 +388,7 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       expect(res.text).toContain('<option value="3" selected>March</option>');
       expect(res.text).toContain('value="1990"');
     } finally {
-      const restore = new BetterSqlite3(TEST_DB_PATH);
+      const restore = new BetterSqlite3(dbPath);
       restore.prepare('UPDATE members SET birth_date = NULL WHERE id = ?').run(OWN_ID);
       restore.close();
     }
@@ -508,7 +496,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
   // sends an unrecognized value must leave the existing value intact rather
   // than clearing it (the control is not re-confirmed on every unrelated save).
   function genderOf(id: string): string | null {
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
       const row = db.prepare('SELECT gender FROM members WHERE id = ?').get(id) as { gender: string | null } | undefined;
       return row ? row.gender : null;
@@ -517,7 +505,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     }
   }
   function setGender(id: string, gender: string | null): void {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     try {
       db.prepare('UPDATE members SET gender = ? WHERE id = ?').run(gender, id);
     } finally {
@@ -567,12 +555,11 @@ describe('POST /members/:memberKey/edit — save profile', () => {
   it('member exceeding profile-edit rate-limit → 429 with Retry-After', async () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
-    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
-    tuneDb.prepare(`
-      INSERT INTO system_config
-        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-      VALUES (?, ?, 'profile_edit_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
-    `).run('test-profile-edit-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'profile_edit_rate_limit_per_hour',
+      value_json: '2',
+    });
     tuneDb.close();
     try {
       const app = createApp();
@@ -602,7 +589,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
 
 describe('gender public visibility', () => {
   function setGenderCols(id: string, gender: string | null, showGender: 0 | 1): void {
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     try {
       db.prepare('UPDATE members SET gender = ?, show_gender = ? WHERE id = ?').run(gender, showGender, id);
     } finally {
@@ -638,7 +625,7 @@ describe('gender public visibility', () => {
     // A HoF member profile is reachable anonymously; gender stays member-only.
     const hofId = 'member-gender-hof';
     const hofSlug = 'gender_hof_member';
-    const db = new BetterSqlite3(TEST_DB_PATH);
+    const db = new BetterSqlite3(dbPath);
     try {
       insertMember(db, {
         id: hofId, slug: hofSlug, display_name: 'Gender Hof',
@@ -663,7 +650,7 @@ describe('gender public visibility', () => {
       .type('form')
       .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978', gender: 'male', showGender: '1' });
     expect(res.status).toBe(303);
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT gender, show_gender FROM members WHERE id = ?').get(OWN_ID) as { gender: string; show_gender: number };
     db.close();
     expect(row.gender).toBe('male');

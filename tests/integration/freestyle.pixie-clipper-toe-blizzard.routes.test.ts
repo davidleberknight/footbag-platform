@@ -21,7 +21,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3165');
@@ -70,17 +70,9 @@ beforeAll(async () => {
   });
   // toe-blizzard alias of quantum-illusion in the aliases table (loader 19
   // inserts both aliases_json AND a freestyle_trick_aliases row).
-  const insertAlias = db.prepare(`
-    INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, alias_origin_producer, created_at)
-    VALUES (?, ?, ?, ?, 'expert-additions', ?)
-  `);
-  insertAlias.run(
-    'toe_blizzard',
-    'toe-blizzard',
-    'quantum_illusion',
-    'common',
-    new Date().toISOString(),
+  insertFreestyleTrickAlias(
+    db, 'toe_blizzard', 'quantum_illusion', 'toe-blizzard',
+    { alias_type: 'common', alias_origin_producer: 'expert-additions' },
   );
   db.close();
   createApp = await importApp();

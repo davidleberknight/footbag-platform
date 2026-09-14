@@ -415,9 +415,11 @@ describe('mass-assignment / overposting guard', () => {
       email_verified_at: '2000-01-01T00:00:00.000Z',
       email_status: 'verified',
     });
-    // The whitelisted field saves; the extras are ignored (a field-by-field
-    // contract), so the request is not a server error.
-    expect([303, 422]).toContain(res.status);
+    // The whitelisted field saves and the extras are ignored: a field-by-field
+    // contract, so the handler accepts the request rather than rejecting the
+    // whole body. Pinned to the one status it issues, because "either accepted
+    // or rejected" is satisfied by both a working whitelist and a broken one.
+    expect(res.status).toBe(303);
 
     // Not one protected column moved.
     const after = readMember();

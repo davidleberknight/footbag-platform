@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 import {
   buildFfmpegArgs,
   detectVideoFormat,
@@ -20,8 +21,7 @@ import {
   type VideoTranscodeTuning,
 } from '../../src/lib/videoProcessing';
 
-const ffmpegAvailable =
-  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore', ...SPAWN_GUARD }).status === 0;
+const ffmpegAvailable = requireToolInCI('ffmpeg');
 
 describe('detectVideoFormat', () => {
   it('detects mp4 by ftyp atom at offset 4', () => {

@@ -16,6 +16,16 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import {
+  insertAuditEntry,
+  insertClub,
+  insertClubBootstrapLeader,
+  insertHistoricalPerson,
+  insertLegacyClubCandidate,
+  insertLegacyMember,
+  insertNameVariant,
+  insertTag,
+} from '../fixtures/factories';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
@@ -31,96 +41,74 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
   // Minimum legacy_members fixture: real_name + country + import_source +
   // honor flag + a derived paid-tier flag so G1-G6 pass (the honors gate
   // requires the paid-tier derivation to have populated).
-  const lmInsert = db.prepare(`
-    INSERT INTO legacy_members (
-      legacy_member_id, legacy_user_id, legacy_email,
-      real_name, display_name, display_name_normalized,
-      city, region, country,
-      bio, birth_date, street_address, postal_code,
-      ifpa_join_date, first_competition_year,
-      is_hof, is_bap, legacy_is_admin,
-      legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime,
-      import_source, imported_at,
-      version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, '', NULL, NULL, NULL, NULL, NULL, ?, ?, 0, ?, ?, 'mirror', '2025-01-01T00:00:00.000Z', 1)
-  `);
   for (let i = 1; i <= 5; i++) {
-    lmInsert.run(
-      `legmem-${i}`, `legacy-user-${i}`, `legacy${i}@example.com`,
-      `Player ${i}`, `Player ${i}`, `player ${i}`,
-      'TestCity', 'US',
-      i === 1 ? 1 : 0,  // is_hof on row 1 (honors-only fallback signal)
-      i === 2 ? 1 : 0,  // is_bap on row 2
-      i === 1 ? 1 : 0,  // ever-paid Tier 2 on row 1 (paid-tier derivation signal)
-      i === 3 ? 1 : 0,  // Tier 1 lifetime on row 3
-    );
+    insertLegacyMember(db, {
+      legacy_member_id: `legmem-${i}`,
+      legacy_user_id: `legacy-user-${i}`,
+      legacy_email: `legacy${i}@example.com`,
+      real_name: `Player ${i}`,
+      display_name: `Player ${i}`,
+      city: 'TestCity',
+      region: null,
+      country: 'US',
+      bio: '',
+      is_hof: i === 1 ? 1 : 0,  // honors-only fallback signal on row 1
+      is_bap: i === 2 ? 1 : 0,
+      legacy_ever_paid_tier2: i === 1 ? 1 : 0,  // paid-tier derivation signal
+      legacy_ever_paid_tier1_lifetime: i === 3 ? 1 : 0,
+      import_source: 'mirror',
+    });
   }
 
   // Minimum legacy_club_candidates fixture for G7.
-  const lccInsert = db.prepare(`
-    INSERT INTO legacy_club_candidates (
-      id, created_at, created_by, updated_at, updated_by, version,
-      legacy_club_key, display_name, classification, confidence_score
-    ) VALUES (?, '2025-01-01T00:00:00.000Z', 'system', '2025-01-01T00:00:00.000Z', 'system', 1,
-              ?, ?, 'pre_populate', ?)
-  `);
-  lccInsert.run('lcc-1', 'test_club_a', 'Test Club A', 0.9);
-  lccInsert.run('lcc-2', 'test_club_b', 'Test Club B', 0.6);
+  insertLegacyClubCandidate(db, {
+    id: 'lcc-1', legacy_club_key: 'test_club_a', display_name: 'Test Club A',
+    classification: 'pre_populate', confidence_score: 0.9,
+  });
+  insertLegacyClubCandidate(db, {
+    id: 'lcc-2', legacy_club_key: 'test_club_b', display_name: 'Test Club B',
+    classification: 'pre_populate', confidence_score: 0.6,
+  });
 
   // Minimum club_bootstrap_leaders fixture for G8. Requires a clubs row
   // (FK club_id) and a tags row (FK hashtag_tag_id on clubs).
-  db.prepare(`
-    INSERT INTO tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      tag_normalized, tag_display, is_standard, standard_type
-    ) VALUES ('tag-club-1', '2025-01-01T00:00:00.000Z', 'system',
-              '2025-01-01T00:00:00.000Z', 'system', 1,
-              '#test_club', '#test_club', 1, 'club')
-  `).run();
-  db.prepare(`
-    INSERT INTO clubs (
-      id, created_at, created_by, updated_at, updated_by, version,
-      name, city, country, status, hashtag_tag_id
-    ) VALUES ('club-1', '2025-01-01T00:00:00.000Z', 'system',
-              '2025-01-01T00:00:00.000Z', 'system', 1,
-              'Test Club', 'Testville', 'US', 'active', 'tag-club-1')
-  `).run();
+  insertTag(db, {
+    id: 'tag-club-1', tag_normalized: '#test_club', tag_display: '#test_club',
+    standard_type: 'club',
+  });
+  insertClub(db, {
+    id: 'club-1', hashtag_tag_id: 'tag-club-1', name: 'Test Club',
+    description: '', city: 'Testville', country: 'US', status: 'active',
+  });
   // lcc-1 maps to the bootstrapped club (after the clubs FK target exists)
   // so the leader-coverage gate sees a covered pre-populate club; lcc-2
   // stays unmapped (defers to leadership path 2).
   db.prepare(`UPDATE legacy_club_candidates SET mapped_club_id = 'club-1' WHERE id = 'lcc-1'`).run();
-  db.prepare(`
-    INSERT INTO club_bootstrap_leaders (
-      id, created_at, created_by, updated_at, updated_by, version,
-      club_id, legacy_member_id, role, status, confidence_score
-    ) VALUES ('cbl-1', '2025-01-01T00:00:00.000Z', 'system',
-              '2025-01-01T00:00:00.000Z', 'system', 1,
-              'club-1', 'legmem-1', 'leader', 'provisional', 0.85)
-  `).run();
+  insertClubBootstrapLeader(db, {
+    id: 'cbl-1', club_id: 'club-1', legacy_member_id: 'legmem-1',
+    role: 'leader', status: 'provisional', confidence_score: 0.85,
+  });
 
   // The permanent showcase event tag + Footbag Hacky historical person the
   // SHOWCASE-PRESENCE gate requires to be present before cutover.
-  db.prepare(`
-    INSERT INTO tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      tag_normalized, tag_display, is_standard, standard_type
-    ) VALUES ('tag-beaver', '2025-01-01T00:00:00.000Z', 'system',
-              '2025-01-01T00:00:00.000Z', 'system', 1,
-              '#event_2025_beaver_open', '#event_2025_beaver_open', 1, 'event')
-  `).run();
-  db.prepare(`
-    INSERT INTO historical_persons (person_id, person_name, source_scope)
-    VALUES ('hp-footbag-hacky', 'Footbag Hacky', 'CANONICAL')
-  `).run();
+  insertTag(db, {
+    id: 'tag-beaver',
+    tag_normalized: '#event_2025_beaver_open',
+    tag_display: '#event_2025_beaver_open',
+    standard_type: 'event',
+  });
+  insertHistoricalPerson(db, {
+    person_id: 'hp-footbag-hacky', person_name: 'Footbag Hacky', country: null,
+  });
 
   // Optional name_variants seed (omit for the red-path test to fail G11).
   if (opts.withNameVariants !== false) {
-    const nvInsert = db.prepare(`
-      INSERT INTO name_variants (canonical_normalized, variant_normalized, source)
-      VALUES (?, ?, 'mirror_mined')
-    `);
     for (let i = 1; i <= 260; i++) {
-      nvInsert.run(`canonical ${i}`, `variant ${i}`);
+      insertNameVariant(db, {
+        canonical_normalized: `canonical ${i}`,
+        variant_normalized: `variant ${i}`,
+        source: 'mirror_mined',
+      });
     }
   }
 
@@ -401,10 +389,15 @@ describe('gate scripts that had no red path of their own', () => {
     expect(clean.stdout).toContain('OK: zero dev-shortcut rows present.');
 
     const db = new BetterSqlite3(dbPath);
-    db.prepare(
-      `INSERT INTO audit_entries (id, created_at, created_by, occurred_at, actor_type, action_type, entity_type, entity_id)
-       VALUES ('audit-leak-1', '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'system', 'testkit.persona_seed', 'member', 'member-x')`,
-    ).run();
+    insertAuditEntry(db, {
+      id: 'audit-leak-1',
+      created_by: 'test',
+      occurred_at: '2026-01-01T00:00:00.000Z',
+      actor_type: 'system',
+      action_type: 'testkit.persona_seed',
+      entity_type: 'member',
+      entity_id: 'member-x',
+    });
     db.close();
     const r = runGate('scripts/audit-dev-shortcuts.sh');
     expect(r.status).not.toBe(0);

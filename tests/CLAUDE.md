@@ -13,8 +13,10 @@ operational conventions layer: tooling, factories, layout.
 - **Browser** (`tests/e2e/`): Playwright against a local throwaway stack.
 - **Dev** (`tests/dev/`): the development-only persona crawl.
 
-Vitest runs all of them. `npm test` is unit plus integration; the other three tiers are excluded
-from it and each gates on its own environment variable.
+`npm test` is unit plus integration, and the other three tiers are excluded from it. Vitest runs
+four of the five: smoke and dev gate on their own environment variable (`RUN_STAGING_SMOKE`,
+`RUN_PERSONA_CRAWL`). Browser is Playwright, not vitest, and gates on being a separate runner
+(`npm run test:e2e`) rather than on a variable.
 
 ## Test data: factories only
 

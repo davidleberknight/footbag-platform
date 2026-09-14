@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { createTestDb } from '../fixtures/testDb';
+import { insertHistoricalPerson, insertLegacyMember } from '../fixtures/factories';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -26,25 +27,30 @@ function freshDb(): BetterSqlite3.Database {
 }
 
 function seedCommon(db: BetterSqlite3.Database): void {
-  const TS = '2025-01-01T00:00:00.000Z';
-  const insLegacy = db.prepare(`INSERT INTO legacy_members
-    (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
-    VALUES (?, ?, ?, 'mirror', ?, 1)`);
-  const insHp = db.prepare(`INSERT INTO historical_persons
-    (person_id, person_name, legacy_member_id, source, source_scope, event_count, placement_count)
-    VALUES (?, ?, ?, 'test', 'CANONICAL', 0, 0)`);
+  const insLegacy = (legacy_member_id: string, display_name: string): string =>
+    insertLegacyMember(db, {
+      legacy_member_id,
+      display_name,
+      // Mirror-derived rows carry the roster name only; the legal name stays unset.
+      real_name: null,
+      import_source: 'mirror',
+    });
+  const insHp = (person_id: string, person_name: string, legacy_member_id: string | null): string =>
+    insertHistoricalPerson(db, {
+      person_id, person_name, legacy_member_id, source: 'test', country: null,
+    });
 
-  insLegacy.run('LM-clean',    'Clean Target',   'clean target', TS);
-  insLegacy.run('LM-claimed',  'Claimed Target', 'claimed target', TS);
-  insLegacy.run('LM-unique-a', 'Unique A',       'unique a',     TS);
-  insLegacy.run('LM-unique-b', 'Unique B',       'unique b',     TS);
+  insLegacy('LM-clean',    'Clean Target');
+  insLegacy('LM-claimed',  'Claimed Target');
+  insLegacy('LM-unique-a', 'Unique A');
+  insLegacy('LM-unique-b', 'Unique B');
 
-  insHp.run('hp-clean',         'Clean HP',         null);
-  insHp.run('hp-has-link',      'Already Linked',   'LM-unique-b');  // HP already linked
-  insHp.run('hp-claim-target',  'Claimed Owner',    'LM-claimed');   // holds LM-claimed
-  insHp.run('hp-for-a',         'For Unique A',     null);
-  insHp.run('hp-contends',      'Contender',        null);           // will try to claim LM-claimed
-  insHp.run('hp-missing-lm',    'Bad Target',       null);
+  insHp('hp-clean',         'Clean HP',         null);
+  insHp('hp-has-link',      'Already Linked',   'LM-unique-b');  // HP already linked
+  insHp('hp-claim-target',  'Claimed Owner',    'LM-claimed');   // holds LM-claimed
+  insHp('hp-for-a',         'For Unique A',     null);
+  insHp('hp-contends',      'Contender',        null);           // will try to claim LM-claimed
+  insHp('hp-missing-lm',    'Bad Target',       null);
 }
 
 let db: BetterSqlite3.Database;

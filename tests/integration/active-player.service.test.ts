@@ -23,6 +23,7 @@ import {
   insertMemberClubAffiliation,
   insertActivePlayerGrant,
   insertMemberTierGrant,
+  insertSystemConfig,
 } from '../fixtures/factories';
 import { renderSidecarTemplate } from '../fixtures/testDb';
 
@@ -42,21 +43,14 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ACTOR_ID, slug: 'ap_actor', is_admin: 1 });
   // Seed the system_config keys the service reads.
-  const cfg = db.prepare(`
-    INSERT INTO system_config (
-      id, created_at,
-      config_key, value_json, effective_start_at, reason_text
-    ) VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  cfg.run('cfg-apdays', '2025-01-01T00:00:00.000Z',
-    'active_player_duration_days', '730',
-    '2025-01-01T00:00:00.000Z', 'seed');
-  cfg.run('cfg-vouchmax', '2025-01-01T00:00:00.000Z',
-    'vouch_rate_limit_max_per_hour', '5',
-    '2025-01-01T00:00:00.000Z', 'seed');
-  cfg.run('cfg-vouchwin', '2025-01-01T00:00:00.000Z',
-    'vouch_rate_limit_window_minutes', '60',
-    '2025-01-01T00:00:00.000Z', 'seed');
+  const seedCfg = (config_key: string, value_json: string) => insertSystemConfig(db, {
+    config_key, value_json,
+    created_at: '2025-01-01T00:00:00.000Z',
+    reason_text: 'seed',
+  });
+  seedCfg('active_player_duration_days', '730');
+  seedCfg('vouch_rate_limit_max_per_hour', '5');
+  seedCfg('vouch_rate_limit_window_minutes', '60');
   db.close();
   aps = await import('../../src/services/activePlayerService');
   dbMod = await import('../../src/db/db');

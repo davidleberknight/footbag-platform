@@ -49,6 +49,34 @@ output "route53_name_servers" {
   value       = aws_route53_zone.primary.name_servers
 }
 
+# The zone's own apex NS set, declared here for one reason: to lower its TTL.
+#
+# Route 53 creates this record set together with the hosted zone, at a TTL of
+# 172800 -- two days -- and that TTL is what bounds a reversal of the delegation
+# change. Arriving at Route 53 converges in about 75 minutes, bounded by the
+# registry's 3600 and the legacy zone's 720. Leaving again is bounded by this
+# record instead: a resolver that took the nameserver set from this zone rather
+# than from the registry holds it for two days, so a revert made shortly after
+# the move would take that long to reach everyone. Lowering it ahead of the move
+# makes the reversal window minutes, and the whole of its effect lands after
+# delegation arrives, so applying it early costs nothing.
+#
+# allow_overwrite is true here, and this is the one record in the tree where it
+# belongs. Everywhere else the flag would hide a collision with a record applied
+# by hand, which is why the infrastructure rule forbids it. No such collision is
+# possible here: Route 53 creates this set itself with the zone, it always
+# exists, and Terraform cannot declare it any other way. The values written back
+# are the zone's own assigned nameservers, so an apply changes the TTL and
+# nothing else -- confirm that in the plan before applying.
+resource "aws_route53_record" "apex_ns" {
+  zone_id         = aws_route53_zone.primary.zone_id
+  name            = var.domain_name
+  type            = "NS"
+  ttl             = 300
+  records         = aws_route53_zone.primary.name_servers
+  allow_overwrite = true
+}
+
 locals {
   zone_id = aws_route53_zone.primary.zone_id
 

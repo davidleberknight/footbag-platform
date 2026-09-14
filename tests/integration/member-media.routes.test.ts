@@ -19,10 +19,14 @@ import {
   insertMediaItem,
   insertFreestyleTrick,
   createTestSessionJwt,
+  insertFreeformTag,
+  attachMediaTag,
+  insertMemberSubmittedVideo,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3211');
-const TS = '2025-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -45,22 +49,18 @@ function ensureTag(db: BetterSqlite3.Database, display: string): string {
   const normalized = display.toLowerCase();
   const existing = tagIds.get(normalized);
   if (existing) return existing;
-  const id = `tag-${normalized.replace(/[^a-z0-9]/g, '_')}`;
-  db.prepare(`
-    INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, version, tag_normalized, tag_display)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?)
-  `).run(id, TS, TS, normalized, display);
+  const id = insertFreeformTag(db, {
+    id: `tag-${normalized.replace(/[^a-z0-9]/g, '_')}`,
+    tag_normalized: normalized,
+    tag_display: display,
+  });
   tagIds.set(normalized, id);
   return id;
 }
 
 function tagMedia(db: BetterSqlite3.Database, mediaId: string, ...displays: string[]): void {
   for (const display of displays) {
-    const tagId = ensureTag(db, display);
-    db.prepare(`
-      INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-      VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-    `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, display);
+    attachMediaTag(db, mediaId, ensureTag(db, display));
   }
 }
 
@@ -68,34 +68,29 @@ function insertYouTube(
   db: BetterSqlite3.Database,
   o: { id: string; uploader_member_id: string; caption: string; videoId: string },
 ): string {
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      video_platform, video_id, video_url, thumbnail_url, moderation_status
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'video', 0, ?, ?, 'youtube', ?, ?, NULL, 'active')
-  `).run(
-    o.id, TS, TS, o.uploader_member_id, o.caption, TS,
-    o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
-  );
-  return o.id;
+  return insertMemberSubmittedVideo(db, {
+    id: o.id,
+    uploader_member_id: o.uploader_member_id,
+    caption: o.caption,
+    videoId: o.videoId,
+    moderation_status: 'active',
+  });
 }
 
 function insertGallery(
   db: BetterSqlite3.Database,
   o: { id: string; ownerId: string; name: string; isDefault: 0 | 1; criteria: string[] },
 ): void {
-  db.prepare(`
-    INSERT INTO member_galleries (id, created_at, created_by, updated_at, updated_by, version,
-      owner_member_id, name, description, is_default, sort_order)
-    VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, '', ?, 'upload_desc')
-  `).run(o.id, TS, TS, o.ownerId, o.name, o.isDefault);
+  insertMemberGallery(db, {
+    id: o.id,
+    owner_member_id: o.ownerId,
+    name: o.name,
+    description: '',
+    is_default: o.isDefault,
+    sort_order: 'upload_desc',
+  });
   for (const display of o.criteria) {
-    const tagId = ensureTag(db, display);
-    db.prepare(`
-      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-      VALUES (?, ?, ?, 'test')
-    `).run(o.id, tagId, TS);
+    insertGalleryCriterionTag(db, o.id, ensureTag(db, display));
   }
 }
 

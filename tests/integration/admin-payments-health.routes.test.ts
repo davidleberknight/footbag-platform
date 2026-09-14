@@ -20,6 +20,8 @@ import {
   insertMember,
   insertPayment,
   insertSystemConfig,
+  insertStripeEvent,
+  insertStripeWebhookFailure,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -68,18 +70,22 @@ function rejectionCountFor(html: string, reasonLabel: string): number {
   return Number(match![1]);
 }
 
-function recordFailure(reason: string, opts: { bucket?: string; count?: number } = {}): void {
+function recordFailure(
+  reason: 'signature' | 'recoverable' | 'error',
+  opts: { bucket?: string; count?: number } = {},
+): void {
   const bucket = opts.bucket ?? new Date(Math.floor(Date.now() / 300000) * 300000).toISOString();
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + 90 * 86400000).toISOString();
   withDb((db) => {
     for (let i = 0; i < (opts.count ?? 1); i += 1) {
-      db.prepare(`
-        INSERT INTO stripe_webhook_failures
-          (bucket_start, reason, failure_count, first_seen_at, last_seen_at, last_event_type, last_event_id, expires_at)
-        VALUES (?, ?, 1, ?, ?, NULL, NULL, ?)
-        ON CONFLICT(bucket_start, reason) DO UPDATE SET failure_count = failure_count + 1
-      `).run(bucket, reason, now, now, expires);
+      insertStripeWebhookFailure(db, {
+        bucket_start: bucket,
+        reason,
+        first_seen_at: now,
+        last_seen_at: now,
+        expires_at: expires,
+      });
     }
   });
 }
@@ -180,19 +186,25 @@ describe('webhook rejection counts', () => {
 
 describe('webhook silence', () => {
   it('warns when nothing has been processed for a long time', async () => {
-    withDb((db) => db.prepare(
-      `INSERT INTO stripe_events (event_id, created_at, event_type, stripe_created, processed_at)
-       VALUES ('evt_old', ?, 'payment_intent.succeeded', ?, ?)`,
-    ).run(HOURS_AGO(200), HOURS_AGO(200), HOURS_AGO(200)));
+    withDb((db) => insertStripeEvent(db, {
+      event_id: 'evt_old',
+      created_at: HOURS_AGO(200),
+      event_type: 'payment_intent.succeeded',
+      stripe_created: HOURS_AGO(200),
+      processed_at: HOURS_AGO(200),
+    }));
     const html = await healthPage();
     expect(html).toContain('Nothing has been processed for more than');
   });
 
   it('does not warn when a delivery landed recently', async () => {
-    withDb((db) => db.prepare(
-      `INSERT INTO stripe_events (event_id, created_at, event_type, stripe_created, processed_at)
-       VALUES ('evt_fresh', ?, 'payment_intent.succeeded', ?, ?)`,
-    ).run(HOURS_AGO(1), HOURS_AGO(1), HOURS_AGO(1)));
+    withDb((db) => insertStripeEvent(db, {
+      event_id: 'evt_fresh',
+      created_at: HOURS_AGO(1),
+      event_type: 'payment_intent.succeeded',
+      stripe_created: HOURS_AGO(1),
+      processed_at: HOURS_AGO(1),
+    }));
     const html = await healthPage();
     expect(html).not.toContain('Nothing has been processed for more than');
   });

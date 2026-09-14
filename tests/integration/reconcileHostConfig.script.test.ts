@@ -28,6 +28,7 @@ import { join } from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { insertSystemConfig } from '../fixtures/factories';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/reconcile-host-config-remote.sh');
 const SCHEMA = join(process.cwd(), 'database/schema.sql');
@@ -58,12 +59,13 @@ function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
 
 /** Layers a later-effective row, the way the local builder used to. */
 function overrideTo(value: string): void {
-  withDb((db) => db.prepare(`
-    INSERT INTO system_config
-      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
-    VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?, ?,
-            strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'a developer-only override', NULL)
-  `).run(`cfg_test_${value}`, KEY, value));
+  withDb((db) => insertSystemConfig(db, {
+    id: `cfg_test_${value}`,
+    created_at: new Date().toISOString(),
+    config_key: KEY,
+    value_json: value,
+    reason_text: 'a developer-only override',
+  }));
 }
 
 function effectiveValue(): string | undefined {

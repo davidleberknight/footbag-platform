@@ -18,6 +18,7 @@ import {
   insertLegacyPersonClubAffiliation,
   insertMemberClubAffiliation,
   insertOnboardingTask,
+  insertMemberTierGrant,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -725,13 +726,18 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       id: TIER1_MEMBER, slug: 'wiz_clubaff_tier1',
       login_email: 'wiz-tier1@example.com', legacy_member_id: TIER1_LM,
     });
-    testDb.prepare(`
-      INSERT INTO member_tier_grants
-        (id, created_at, created_by, member_id, actor_member_id, change_type,
-         old_tier_status, new_tier_status, old_underlying_tier_status, new_underlying_tier_status, reason_code)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', ?, NULL, 'grant',
-              'tier0', 'tier1', NULL, NULL, 'test.tier_grant')
-    `).run('wiz-tier1-grant', TIER1_MEMBER);
+    insertMemberTierGrant(testDb, {
+      id: 'wiz-tier1-grant',
+      created_at: '2026-01-01T00:00:00.000Z',
+      member_id: TIER1_MEMBER,
+      actor_member_id: null,
+      change_type: 'grant',
+      old_tier_status: 'tier0',
+      new_tier_status: 'tier1',
+      old_underlying_tier_status: null,
+      new_underlying_tier_status: null,
+      reason_code: 'test.tier_grant',
+    });
     const clubId = insertClub(testDb, { name: 'Tier1 Wizard Club' });
     // Existing co-leader so the confirmed membership does not surface a path-2 offer.
     insertMember(testDb, { id: 'wiz-tier1-coleader', slug: 'wiz_tier1_coleader', login_email: 'wiz-tier1-co@example.com' });

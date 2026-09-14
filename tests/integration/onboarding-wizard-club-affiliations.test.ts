@@ -26,6 +26,7 @@ import {
   insertClub,
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
+  insertMemberClubAffiliation,
   type ClubBootstrapLeaderSignalType,
 } from '../fixtures/factories';
 
@@ -476,14 +477,10 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, legacy_member_id: 'lm-d1' });
     const clubX = insertClub(db, { name: 'D1 Club X (pre-existing current)' });
     const clubY = insertClub(db, { name: 'D1 Club Y (new claim)' });
-    // Direct insert of the pre-existing is_current=1 primary affiliation at clubX.
-    db.prepare(`
-      INSERT INTO member_club_affiliations (
-        id, created_at, created_by, updated_at, updated_by, version,
-        member_id, club_id, is_current, is_primary, is_contact, source
-      ) VALUES ('mca-d1-pre', '2025-01-01T00:00:00.000Z', 'test', '2025-01-01T00:00:00.000Z', 'test', 1,
-                ?, ?, 1, 1, 0, 'admin')
-    `).run(memberId, clubX);
+    // The pre-existing is_current=1 primary affiliation at clubX.
+    insertMemberClubAffiliation(db, memberId, clubX, {
+      id: 'mca-d1-pre', is_current: 1, is_primary: 1, is_contact: 0, source: 'admin',
+    });
     const candidateY = seedCandidate(db, {
       clubId: clubY,
       legacyMemberId: 'lm-d1',

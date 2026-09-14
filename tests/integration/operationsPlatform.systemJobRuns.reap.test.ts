@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { insertSystemJobRun } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -53,12 +54,13 @@ function readById(rowId: string): JobRunRow | undefined {
 function insertStaleRunning(rowId: string, jobName: string, startedAt: string): void {
   const db = new BetterSqlite3(dbPath);
   try {
-    db.prepare(
-      `INSERT INTO system_job_runs (
-         id, created_at, created_by, updated_at, updated_by, version,
-         job_name, started_at, status, details_json
-       ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, 'running', '{}')`,
-    ).run(rowId, startedAt, startedAt, jobName, startedAt);
+    insertSystemJobRun(db, {
+      id: rowId,
+      job_name: jobName,
+      started_at: startedAt,
+      status: 'running',
+      details_json: '{}',
+    });
   } finally {
     db.close();
   }

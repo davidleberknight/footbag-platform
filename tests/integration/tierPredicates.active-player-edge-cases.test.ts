@@ -1,10 +1,12 @@
 /**
- * AP edge-state coverage for hasTier1Benefits.
+ * Active-Player edge-state coverage for the tier predicate hasTier1Benefits.
  *
- * Complementary to active-player.service.test.ts (which covers the AP
- * service contract: applyAttendance / applyVouch / applyClubJoinInTx /
- * applyExpiry behaviors, idempotency, no-shorten, rate limits, etc.).
- * This file pins the predicate-side: given a member's full AP ledger
+ * Named for the predicate module it exercises, not the Active-Player service:
+ * the service contract (applyAttendance / applyVouch / applyClubJoinInTx /
+ * applyExpiry, idempotency, no-shorten, rate limits) is
+ * active-player.service.test.ts, and this file never imports it.
+ *
+ * This file pins the predicate side: given a member's full AP ledger
  * (grant / extend / end / expire rows) plus tier, does hasTier1Benefits
  * return the expected boolean? It exists because the predicate is the
  * load-bearing surface for the requireTier1Benefits middleware and the
