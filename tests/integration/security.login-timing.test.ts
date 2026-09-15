@@ -9,12 +9,14 @@
  * After the fix, the absent-email branch performs a phantom argon2.verify
  * against a constant dummy hash. Both branches now incur argon2 cost.
  *
- * This test asserts a behavioural floor: both branches take meaningful
- * wall-clock time (>= 30 ms, well below argon2's normal 100-300 ms range)
- * AND the absent-email branch is in the same order of magnitude as the
+ * This test asserts a behavioural floor with no fixed millisecond constant:
+ * one argon2 verify is measured in this process as a baseline, and both
+ * branches must cost at least three quarters of it, so the floor scales with
+ * the machine and with whatever else the suite is running beside it. The
+ * absent-email branch must also stay in the same order of magnitude as the
  * present-email branch (ratio within 4x). A regression that re-introduces
- * the immediate return on the absent-email branch would drop absent-email
- * timing to <5 ms (no argon2 work), failing both assertions.
+ * the immediate return on the absent-email branch does no argon2 work at
+ * all, so it fails both assertions on any machine at any load.
  *
  * Anti-enumeration contract: existing and non-existing accounts must be
  * indistinguishable from the outside.
@@ -27,11 +29,15 @@ import { insertMember } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3094');
 
-// This test asserts a wall-clock floor (>30 ms) and a present/absent ratio, so
-// it must run at production argon2 cost: under the suite's cheap profile the
-// stored-hash verify (strong) and the dummy-hash verify (cheap) would diverge
-// and break both assertions. Force strong for this file only; per-file forked
-// isolation keeps it from leaking to other suites.
+// This file must run at production argon2 cost. The absent-email branch
+// verifies against a dummy hash built through the app's own hashing helper,
+// which reads the cheap-cost switch frozen into config at import, while the
+// present-email branch verifies a hash this file builds with argon2 directly
+// and therefore always pays full cost. Configured cheap, the absent branch
+// returns in no time and the floor fails for a reason that looks like
+// flakiness. So force strong before the app graph is imported, and assert it
+// in beforeAll rather than trusting it: the runner uses a worker-thread pool,
+// and a precondition that is checked names itself when it breaks.
 process.env.FOOTBAG_CHEAP_PASSWORD_HASH = '0';
 
 const KNOWN_EMAIL = 'timing-test-known@example.com';
@@ -40,6 +46,22 @@ const WRONG_PASSWORD = 'definitely-not-the-real-password';
 const KNOWN_PASSWORD = 'CorrectPassword123!';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+let argonBaselineMs: number;
+
+// The floor, measured rather than hardcoded: one argon2 verify at the cost
+// the login path pays, timed in this process under whatever load the run
+// has. A constant would be a statement about the author's machine.
+async function measureArgonBaselineMs(): Promise<number> {
+  const probe = await argon2.hash('baseline-probe');
+  const samples: number[] = [];
+  for (let i = 0; i < 3; i += 1) {
+    const start = Date.now();
+    await argon2.verify(probe, 'wrong-password');
+    samples.push(Date.now() - start);
+  }
+  samples.sort((a, b) => a - b);
+  return samples[1];
+}
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -54,6 +76,12 @@ beforeAll(async () => {
   });
   db.close();
   createApp = await importApp();
+  const { config } = await import('../../src/config/env');
+  expect(
+    config.useCheapPasswordHash,
+    'precondition: this file must run at production argon2 cost, or the absent-email floor means nothing',
+  ).toBe(false);
+  argonBaselineMs = await measureArgonBaselineMs();
 }, 30000);
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -74,9 +102,13 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
 
     const absentTime = await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
-    // Floor: any login that bypasses argon2 returns in <5 ms. argon2 hash
-    // verification is at least ~30 ms even on fast machines.
-    expect(absentTime).toBeGreaterThan(30);
+    // Floor: a login that bypasses argon2 pays only the HTTP round trip, while
+    // one that does the work pays that plus a full verify, so three quarters of
+    // the measured baseline sits between the two outcomes at any load.
+    expect(
+      absentTime,
+      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
+    ).toBeGreaterThan((argonBaselineMs * 3) / 4);
   }, 15000);
 
   it('absent-email and present-email-wrong-password login wall-clock are in the same order of magnitude', async () => {
@@ -97,9 +129,15 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     const presentMedian = presentSamples[Math.floor(N / 2)];
     const absentMedian  = absentSamples[Math.floor(N / 2)];
 
-    // Both medians should be well above the no-argon2 floor.
-    expect(presentMedian).toBeGreaterThan(30);
-    expect(absentMedian).toBeGreaterThan(30);
+    // Both medians sit above the same measured floor as the case above.
+    expect(
+      presentMedian,
+      `present-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
+    ).toBeGreaterThan((argonBaselineMs * 3) / 4);
+    expect(
+      absentMedian,
+      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
+    ).toBeGreaterThan((argonBaselineMs * 3) / 4);
 
     // Ratio bound: neither path should be >4x the other. Generous tolerance
     // accommodates CI jitter; tightening risks flake. The bug would push

@@ -173,6 +173,32 @@ So, for every input the test does not itself create:
 `scripts/ci/run_clean_room.sh` is how you check: it runs the suite in a throwaway worktree with an
 empty home and no ambient environment, which is what the runner has.
 
+### The timing half
+
+The same rule reaches the assertions whose verdict the machine's speed decides. An assertion
+pinned to the single outcome an idle machine produced is not a contract: where the choice
+between two legitimate outcomes is scheduling-dependent, the test is green alone and red in the
+full run, and the tempting fix is to weaken it.
+
+The shape that taught this: a query 100,000 characters long is refused at the HTTP layer either
+with a status or by the server destroying the socket, and which one lands depends on how loaded
+the machine is. The test accepted only a status, so it passed on an idle laptop and failed under
+the full parallel suite. The contract is "refused at the HTTP layer, never a 5xx", and the fix
+asserts that, treating the connection-level refusal as one of the legitimate outcomes
+(`tests/integration/freestyle.search-adversarial.routes.test.ts`):
+
+```typescript
+const outcome = await oversizedRequest(path, q);
+if (outcome.kind === 'connection-refused') continue;
+expect(outcome.status, `${path} must not 5xx on ${q.length} chars`).toBeLessThan(500);
+```
+
+Two more of the same family. A fixed millisecond floor or ceiling standing in for "the code did
+the work" is a statement about the author's machine: measure the work's own cost in the same run
+and compare against that, as `tests/integration/security.login-timing.test.ts` does. And a
+per-test timeout calibrated against a file running alone is covered by the test-budget rule in
+`.claude/rules/testing.md`.
+
 ## Step 6: Prove each test can fail
 
 A test that has never failed has never been shown to test anything. Before a test is done,

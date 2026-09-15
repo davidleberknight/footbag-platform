@@ -762,7 +762,7 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       .set('Cookie', adminCookie())
       .type('form')
       .send({ name: 'Moderated', description: '', sortOrder: 'upload_desc', criteriaTags: '#m', excludeTags: '' });
-    expect([303, 200]).toContain(res.status);
+    expect(res.status, 'the admin curator gallery edit redirects on success').toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const row = db.prepare('SELECT name FROM member_galleries WHERE id = ?').get(id) as { name: string };
