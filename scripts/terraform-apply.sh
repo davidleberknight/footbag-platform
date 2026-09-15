@@ -283,6 +283,26 @@ if [[ ! -d "$TF_DIR" ]]; then
   exit 1
 fi
 
+# What an operator needs in this directory before a plan will run, and what to do
+# when it is not there. Two values files, both reached by a gitignored symlink into
+# the maintainers' private operations checkout, and they are not equally available.
+#
+# terraform.tfvars is committed in that checkout, so a clone carries it and wiring
+# the symlink is the whole job. secrets.auto.tfvars is gitignored on both sides and
+# carries the one variable the staging and production trees declare sensitive, the
+# CloudWatch alarm destination, which is the AWS account's operations mailbox rather
+# than an ordinary contact address. No clone carries that file. Each operator creates
+# it in the private checkout at mode 600 and writes the single assignment, taking the
+# address from the credential vault's operations-mailbox entry; the vault holds no
+# entry for the file itself, by an explicit ruling, so there is nothing to restore.
+#
+# Create it before wiring the link, because a link wired first points at nothing.
+# Terraform loads any *.auto.tfvars in the working directory on its own, so a dangling
+# link fails on the unreadable path and an absent one falls through to a complaint
+# about a variable with no value. Neither failure names the file as something the
+# operator was supposed to author, which is why it is stated here. The shared tree
+# declares nothing sensitive and needs no secrets file at all.
+
 if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
   echo "SYNTHETIC: terraform='$TF_BIN' -- this run proves nothing about the estate." >&2
 fi
