@@ -75,9 +75,10 @@
      anchored target on the site scrolls to this offset, so the heading a
      reader followed the link to is the first thing they see rather than
      something already hidden behind the header. The value must exceed the
-     header's real height, which is not one number: the nav row wraps at the
-     768px breakpoint and the header grows, so the override below matches it.
-     Measured against the rendered header, with a small gap on top. */
+     header's real height, which is not one number: the nav row wraps as the
+     viewport narrows and the header grows with it, so the two overrides below
+     step the value up to match. Measured against the rendered header, with a
+     small gap on top. */
   --anchor-offset: 100px;
 
   /* Hashtag token. A trick's hashtag is a link exactly when the trick has
@@ -305,11 +306,24 @@
   --composite-mauve: #5e3a55;
 }
 
-/* At and below the 768px breakpoint the header's nav row wraps to a second
-   line and the header grows by about 40px, so a deep-linked target needs the
-   larger clearance or it lands behind the taller header. */
+/* The header's nav row wraps as the viewport narrows and the header grows with
+   it, so the clearance a deep-linked target needs is not one number. Measured
+   against the rendered header: one row and 92px above 768px, two rows and 133px
+   from 481px to 768px, three rows and 174px across the common phone range. Each
+   value below clears the tallest header its band contains, with a small gap on
+   top.
+
+   Below 321px the nav takes a fourth row and the header reaches 215px, which
+   this value does not cover; widths that narrow are rare enough that covering
+   them would cost every phone above them 30px of dead space on every jump. A
+   header of one fixed height would retire this whole ladder, which is what the
+   dropped nav-collapse work would have done. */
 @media (max-width: 768px) {
   :root { --anchor-offset: 145px; }
+}
+
+@media (max-width: 480px) {
+  :root { --anchor-offset: 185px; }
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
@@ -390,6 +404,33 @@ code {
 
 section { padding: 40px 0; }
 section + section { border-top: 1px solid var(--border); }
+
+/* ── Skip link ──────────────────────────────────────────────── */
+/* Hidden by a transform rather than a negative offset: a negative offset can
+   widen the document, and the phone-width suite asserts no horizontal overflow
+   at 390px. Fixed rather than absolute so it is visible wherever the reader has
+   scrolled to. It sits above the sticky header's stacking level and below the
+   club map tooltip's, the only two it can meet. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 150;
+  padding: 8px 16px;
+  background: var(--bg);
+  color: var(--primary-ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* Same clearance every other anchored target uses, so the skip target lands
+   below the sticky header rather than underneath it. */
+#main-content { scroll-margin-top: var(--anchor-offset); }
 
 /* ── Header ─────────────────────────────────────────────────── */
 .site-header {
@@ -6967,9 +7008,12 @@ a.trick-hero-meta-chip--media:hover {
 .glossary-az-letter {
   padding: 12px 0 4px;
   border-top: 1px solid var(--border);
-  /* Same clearance as the site's other anchored targets, so a letter jump
-     lands below the sticky header instead of underneath it. */
-  scroll-margin-top: 80px;
+  /* Reads the shared clearance property, like every other anchored target, so
+     a letter jump lands below the sticky header instead of underneath it. This
+     rule and the entry rule below carried a hardcoded 80px under a comment
+     claiming that parity, which they did not have: the shared value is 100px,
+     so both landed 12px behind the header even on a desktop. */
+  scroll-margin-top: var(--anchor-offset);
 }
 .glossary-az-letter-heading {
   margin: 0;
@@ -6977,7 +7021,7 @@ a.trick-hero-meta-chip--media:hover {
 }
 .glossary-az-entry {
   max-width: 72ch;
-  scroll-margin-top: 80px;
+  scroll-margin-top: var(--anchor-offset);
 }
 /* Aliases ride on the term line in the muted colour and normal weight, so a
    reader scanning the left edge still sees one bold term per entry. */

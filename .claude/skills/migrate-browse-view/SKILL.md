@@ -157,8 +157,8 @@ Do **not** touch:
 - Any rule shared across browse views
 
 Use `var(--anchor-offset)` for a group's `scroll-margin-top`, never a literal. The site header is
-sticky and its height changes at the 768px breakpoint, so a literal offset lands the heading behind
-the header at one width or the other.
+sticky and its height steps up twice as the viewport narrows and the nav row wraps, so a literal
+offset lands the heading behind the header at one width or another.
 
 If the new CSS exceeds ~40 lines, the change is probably reshaping the row: that is out of scope.
 

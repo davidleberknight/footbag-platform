@@ -19,6 +19,13 @@
 </head>
 <body class="page-{{currentSection}}">
 
+  {{! First control in the document, hidden until focused: the header nav is
+      fourteen to sixteen tab stops on every page, and without this a keyboard
+      or switch user crosses all of them before reaching content. The main
+      element takes tabindex="-1" so activating this moves focus, not just the
+      viewport; without it the next Tab returns to the top of the nav. }}
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
   <header class="site-header">
     <div class="wrapper">
       <a href="/" class="site-logo">IFPA <span>Footbag Worldwide</span></a>
@@ -48,7 +55,7 @@
     </div>
   </header>
 
-  <main>
+  <main id="main-content" tabindex="-1">
     {{#if flashLoggedIn}}
       <div class="flash-banner flash-login" role="status">You are now logged in.</div>
     {{/if}}

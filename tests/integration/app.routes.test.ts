@@ -626,6 +626,26 @@ describe('GET /', () => {
     expect(nav).toMatch(/>Media</);
   });
 
+  it('opens the document with a skip link pointing at the main element', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    const skipAt = res.text.indexOf('class="skip-link"');
+    const headerAt = res.text.indexOf('class="site-header"');
+    expect(skipAt).toBeGreaterThan(-1);
+    // It only helps if it precedes the nav it exists to skip past.
+    expect(skipAt).toBeLessThan(headerAt);
+    expect(res.text).toContain('href="#main-content"');
+    expect(res.text).toContain('Skip to content');
+  });
+
+  it('gives the main element the id and tabindex the skip link needs', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    // Without tabindex the browser moves the viewport but not focus, so the
+    // next Tab returns to the top of the nav and the skip link achieves nothing.
+    expect(res.text).toContain('<main id="main-content" tabindex="-1">');
+  });
+
   it('includes promoted Sideline card linking to /sideline', async () => {
     const app = createApp();
     const res = await request(app).get('/');

@@ -47,7 +47,7 @@ Templates may use these registered helpers from `src/app.ts`:
 
 Class names live in `src/public/css/style.css`. Every class used in a template must have a corresponding rule there. Before finishing any template change, grep `style.css` for each class you introduced; an unknown class fails nothing at build or test time and renders silently unstyled, so this check is manual and mandatory. Do not invent class names by analogy with other frameworks (`btn-secondary` is a Bootstrap name, not ours). Shared classes used across pages:
 
-- Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`.
+- Site frame: `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`.
 - Hero: `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`.
 - Sections / cards / badges / buttons: `.section-heading`, `.card`, `.card-title`, `.card-meta`, `.badge`, `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`.
 - Spacing utilities (1 unit = 4px): `.mt-1` through `.mt-10`, `.mb-2` through `.mb-8`.

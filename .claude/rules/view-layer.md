@@ -52,6 +52,9 @@ empty state, and notice / coming-soon block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 
+The site frame opens with a skip link, hidden until focused, that moves keyboard focus past the
+header navigation to the main element; it is the only public control that is invisible at rest.
+
 A **queue row** (`.admin-queue-row`) is one line naming a queue, its count as a badge, and an
 optional second line carrying an age or a split of that count, linking to the queue it counts. It is
 the primitive for a page listing many queues at once, where a card each would bury the counts in
