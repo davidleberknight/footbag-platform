@@ -32,12 +32,13 @@ const M_DECLINE_AGAIN = 'sm-decline-again';
 const M_EXPIRE_LATE = 'sm-expire-late';
 const M_SIGNUP = 'sm-signup';
 const M_OVERCHARGE = 'sm-overcharge';
+const M_SETTLE_TWICE = 'sm-settle-twice';
 
 const MEMBERS = [
   M_RETRY, M_ABANDON, M_LATE_FAIL,
   M_SUB_PAID, M_SUB_FAILED, M_SUB_UPDATED, M_SUB_PAUSED, M_SUB_ORDER,
   M_SUB_RETRY, M_SUB_LATE,
-  M_DECLINE_AGAIN, M_EXPIRE_LATE, M_SIGNUP, M_OVERCHARGE,
+  M_DECLINE_AGAIN, M_EXPIRE_LATE, M_SIGNUP, M_OVERCHARGE, M_SETTLE_TWICE,
 ];
 
 beforeAll(async () => {
@@ -238,6 +239,38 @@ describe('a declined card inside an open checkout', () => {
       const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
         { status: string };
       expect(payment.status).toBe('canceled');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('books one payment when two distinct settlement events report the same charge', async () => {
+    // Not the event-id duplicate guard: each of these carries its own event id,
+    // so the claim succeeds both times and the row's own status is the only
+    // thing standing between one donation and two. The provider does raise a
+    // second settlement event for one charge, and booking it twice would credit
+    // the member money nobody paid.
+    const { paymentService, stub } = await services();
+    const { paymentId, sessionId } = await startCheckout(M_SETTLE_TWICE);
+
+    const first = stub.buildSignedStubWebhookEvent(sessionId);
+    expect(paymentService.handleWebhook(first.rawBody, first.signature))
+      .toEqual({ outcome: 'processed' });
+
+    const second = stub.buildSignedStubWebhookEvent(sessionId);
+    expect(second.rawBody).not.toBe(first.rawBody);
+    expect(paymentService.handleWebhook(second.rawBody, second.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    const db = openDb();
+    try {
+      const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      expect(payment.status).toBe('succeeded');
+      const transitions = db.prepare(
+        "SELECT COUNT(*) AS c FROM payment_status_transitions WHERE payment_id = ? AND to_status = 'succeeded'",
+      ).get(paymentId) as { c: number };
+      expect(transitions.c).toBe(1);
     } finally {
       db.close();
     }

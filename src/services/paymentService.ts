@@ -69,6 +69,18 @@
  *     cancellation sets cancel_at_period_end at Stripe and records the intent
  *     locally, and the local status becomes canceled only when
  *     customer.subscription.deleted arrives. No platform-side schedule exists.
+ *     Mirroring runs both ways: the cancel-at-period-end flag and a paused
+ *     collection are read off the provider's own update event, because the
+ *     Dashboard sets both as readily as this platform does and neither moves the
+ *     status or the amount. A change comparison watching only those two dropped
+ *     them, which left a gift reading as ending while the provider renewed it,
+ *     and a paused gift reading as collecting normally.
+ *   - A renewal's payment row records the payment intent that settled its
+ *     invoice, read from the invoice's own payments list. Nothing in the
+ *     donation flow needs it, but a refund arrives as a charge carrying only its
+ *     intent, and the charge has no invoice reference at the pinned API version:
+ *     without it no refund of a recurring donation could ever be attributed to
+ *     the charge it reversed.
  *   - Locally, canceled is terminal. Events can still arrive against an ended
  *     subscription (a final invoice settling or failing late, a Dashboard edit),
  *     and none of them revives it: the row keeps its canceled status and its
@@ -208,6 +220,18 @@
  *     re-pointed). A partial unique index
  *     allows only one pending membership payment per member; a concurrent
  *     double-submit fails with ConflictError.
+ *   - Because that index makes one unresolved membership checkout block every
+ *     later attempt, an unfinished checkout is bounded at both ends: the session
+ *     is created with an expiry of an hour or two rather than the provider's
+ *     day-long default, and reaching the cancel page expires it at the provider
+ *     outright. Neither writes a status: the expiry event still resolves the
+ *     row, as every other status change here does. The expiry is anchored to the
+ *     clock hour rather than the moment of the call because it travels under an
+ *     idempotency key, and the provider rejects a reused key whose body changed.
+ *   - Checkout offers card-backed methods only. Fulfilment is keyed to the
+ *     payment intent's settlement event, and a method that settles days after
+ *     the buyer finishes the checkout has no path here: it would leave the row
+ *     pending with reconciliation agreeing, since both sides read unsettled.
  *   - Tier grant applied ONLY in the webhook success branch. Membership tier
  *     never changes from controller code; the tier change is keyed to the
  *     Stripe-confirmed event id.
@@ -2602,6 +2626,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
   const { row: sub, stripeSubscriptionId } = found;
   const obj = eventObject(event);
   const invoiceId = typeof obj.id === 'string' ? obj.id : null;
+  const chargePaymentIntentId = invoicePaymentIntentId(obj);
 
   // An invoice that collected nothing moved no money, so there is no charge to
   // book and no receipt to send. It is recorded rather than retried, because
@@ -2684,6 +2709,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       sub.stripe_customer_id,
       stripeSubscriptionId,
       invoiceId,
+      chargePaymentIntentId,
       sub.id,
       // Read off the invoice event itself: a renewal is booked with no checkout
       // session behind it, so the event is the only place the mode is carried.
@@ -3001,6 +3027,33 @@ function handleSubscriptionDeleted(event: StripeWebhookEvent): WebhookOutcome {
   return { outcome: 'processed' };
 }
 
+/**
+ * The payment intent that settled an invoice, read from the invoice's own
+ * payments list.
+ *
+ * A renewal is booked from the invoice, so its payment row used to carry an
+ * invoice id and no intent id at all. That mattered later, at refund time: a
+ * refund arrives as a charge carrying its payment intent and nothing else, and
+ * the charge object has no invoice reference at the API version this codebase
+ * pins. With no intent id on the row there was nothing to match on, so every
+ * refund of a recurring donation landed in the unattributable pile and the
+ * member's history went on showing the charge as settled.
+ *
+ * The top-level `payment_intent` field the invoice used to carry was removed;
+ * the payments list is where the provider surfaces it now, and an invoice
+ * settled in one attempt carries exactly one entry.
+ */
+function invoicePaymentIntentId(obj: Record<string, unknown>): string | null {
+  const payments = (obj.payments as { data?: unknown } | undefined)?.data;
+  if (!Array.isArray(payments)) return null;
+  for (const entry of payments) {
+    const payment = (entry as { payment?: unknown } | undefined)?.payment;
+    const id = stripeIdFrom((payment as { payment_intent?: unknown } | undefined)?.payment_intent);
+    if (id !== null) return id;
+  }
+  return null;
+}
+
 function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
   const found = loadSubscription(subscriptionEventSubscriptionId(event));
   if (!found) {
@@ -3052,7 +3105,32 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
       ? rawAmount
       : sub.amount_cents;
 
-  if (nextStatus === sub.status && nextAmount === sub.amount_cents) {
+  // The provider's dashboard can set or clear this as readily as the member can
+  // on their own page, and neither direction moves the status or the amount. A
+  // change comparison that looked only at those two swallowed it: an
+  // administrator un-cancelling left the row reading "ending after this period"
+  // while the provider went on renewing and charging, and one setting it left
+  // the flag clear, so the eventual deletion was reported to administrators as
+  // the provider exhausting its retries rather than as the cancellation it was.
+  const rawCancelAtPeriodEnd = obj.cancel_at_period_end;
+  const nextCancelAtPeriodEnd =
+    typeof rawCancelAtPeriodEnd === 'boolean'
+      ? (rawCancelAtPeriodEnd ? 1 : 0)
+      : sub.is_cancel_at_period_end;
+
+  // Collection paused at the provider is not one of the statuses it reports: the
+  // subscription keeps reading active while collecting nothing. The `paused`
+  // status exists for a different situation entirely, a trial ending with no
+  // payment method, which this platform never creates, so watching only for that
+  // meant the pause an administrator actually performs was invisible.
+  const collectionPaused = obj.pause_collection !== null && obj.pause_collection !== undefined;
+
+  if (
+    nextStatus === sub.status &&
+    nextAmount === sub.amount_cents &&
+    nextCancelAtPeriodEnd === sub.is_cancel_at_period_end &&
+    !collectionPaused
+  ) {
     return recordIdempotentNoop(event, 'duplicate');
   }
   // A Dashboard edit that ends the subscription is recorded by the deleted
@@ -3062,8 +3140,9 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
   const now = new Date().toISOString();
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
-    subsDb.updateAmountAndStatus.run(
-      nextAmount, nextStatus, now, event.id, event.createdAt, now, 'payment_service', sub.id,
+    subsDb.updateMirroredState.run(
+      nextAmount, nextStatus, nextCancelAtPeriodEnd, now,
+      event.id, event.createdAt, now, 'payment_service', sub.id,
     );
     recordSubscriptionTransition({
       subscriptionId: sub.id,
@@ -3098,6 +3177,9 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
       old_amount_cents: sub.amount_cents,
       new_amount_cents: nextAmount,
       stripe_status: typeof rawStatus === 'string' ? rawStatus : null,
+      old_cancel_at_period_end: sub.is_cancel_at_period_end,
+      new_cancel_at_period_end: nextCancelAtPeriodEnd,
+      collection_paused: collectionPaused,
     },
   });
 
@@ -3105,7 +3187,12 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
   // state that tells the two apart. Raising it keeps a donation that has quietly
   // stopped paying from reading as an ordinary dunning problem that Stripe will
   // resolve on its own.
-  if (rawStatus === 'paused') {
+  //
+  // Both shapes reach here. The provider's `paused` status covers a trial that
+  // ended without a payment method; `pause_collection` is what an administrator
+  // pausing collection in the dashboard actually sets, and it leaves the status
+  // reading active.
+  if (rawStatus === 'paused' || collectionPaused) {
     workQueueService.enqueue({
       actorId: 'system',
       queueCategory: 'payments',
@@ -3304,6 +3391,41 @@ function getPaymentSuccessPage(
       continueHref,
     },
   };
+}
+
+/**
+ * Closes the provider-side checkout a member walked away from.
+ *
+ * Landing on the cancel page is the clearest signal there is that the member is
+ * not going to pay, but the provider does not know that: the session stays open
+ * until its own expiry, and the local row stays pending behind it. For a
+ * membership that is not cosmetic. One pending membership row per member is a
+ * database constraint, so until the row resolves every further attempt is
+ * refused with a message naming an action the member cannot take.
+ *
+ * Expiring the session makes the provider send the expiry event, and that event
+ * is what resolves the row. Nothing here writes to the database: the local
+ * status still moves only in response to a webhook, as it does everywhere else
+ * in this service.
+ *
+ * Best-effort on purpose, and it never throws. A session the provider already
+ * expired or already completed is not a failure the member can act on, and they
+ * are looking at a page that has nothing to do with it. The session's own expiry
+ * and the nightly reconciliation sweep are both still behind this.
+ */
+async function releaseAbandonedCheckout(payment: PaymentRow | null): Promise<void> {
+  if (!payment || payment.status !== 'pending' || !payment.stripe_checkout_session_id) return;
+  try {
+    await getPaymentAdapter().expireCheckoutSession(payment.stripe_checkout_session_id);
+  } catch (err) {
+    // Warn rather than error: this is a convenience, not a guarantee, and an
+    // error here would raise an operational alarm for a member changing their
+    // mind.
+    logger.warn('could not expire an abandoned checkout session', {
+      paymentId: payment.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 function getPaymentCancelPage(
@@ -3893,6 +4015,7 @@ export const paymentService = {
   getCheckoutPage,
   getPaymentSuccessPage,
   getPaymentCancelPage,
+  releaseAbandonedCheckout,
   getPaymentHistoryPage,
   getDonationSuccessPage,
   getSubscriptionCheckoutPage,

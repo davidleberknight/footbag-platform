@@ -38,12 +38,13 @@ const M_RENEWAL_CURRENCY = 'don-renewal-ccy';
 const M_LATE_ON_ENDED = 'don-late-on-ended';
 const M_UPDATE_ON_ENDED = 'don-update-on-ended';
 const M_DESCRIPTOR = 'don-descriptor';
+const M_RENEWAL_REFUND = 'don-renewal-refund';
 const ALL_MEMBERS = [
   M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
   M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
   M_PROMOTE, M_LEDGER, M_EXPIRE, M_EXPIRE_AGAIN,
   M_OUT_OF_ORDER_SUCCESS, M_RENEWAL_CURRENCY,
-  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED, M_DESCRIPTOR,
+  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED, M_DESCRIPTOR, M_RENEWAL_REFUND,
 ];
 
 beforeAll(async () => {
@@ -987,6 +988,101 @@ describe('customer.subscription.updated', () => {
     expect(readSubscription(subscriptionId)!.amount_cents).toBe(4000);
     expect(countRows(
       "SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions WHERE recurring_subscription_id = ? AND lifecycle_event_code = 'updated'",
+      subscriptionId,
+    )).toBe(1);
+  });
+
+  it('attributes a refund of a renewal charge to the row that charge booked', async () => {
+    // A renewal is settled from an invoice, so its payment row used to carry an
+    // invoice id and no payment intent. A refund arrives as a charge carrying
+    // only its intent, and the charge has no invoice reference at the API
+    // version this codebase pins, so there was nothing to match on: every
+    // refund of a recurring donation went to the unattributable pile and the
+    // member's history kept showing the charge as settled. The row now records
+    // the intent the invoice reports as having settled it.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_RENEWAL_REFUND, {
+      amountCents: 2500,
+    });
+
+    const invoice = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_succeeded', {
+      amountCents: 2500, paymentIntentId: 'pi_renewal_refund_1',
+    });
+    expect(paymentService.handleWebhook(invoice.rawBody, invoice.signature)).toEqual({
+      outcome: 'processed',
+    });
+
+    const refund = stub.buildSignedStubRefundEvent(sessionId, {
+      amountCents: 2500, refundedAmountCents: 2500, paymentIntentId: 'pi_renewal_refund_1',
+    });
+    expect(paymentService.handleWebhook(refund.rawBody, refund.signature)).toEqual({
+      outcome: 'processed',
+    });
+
+    const db = openDb();
+    try {
+      const charge = db.prepare(
+        'SELECT status FROM payments WHERE recurring_subscription_id = ?',
+      ).get(subscriptionId) as Record<string, unknown>;
+      expect(charge.status).toBe('refunded');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('mirrors a cancellation set in the Stripe dashboard, which moves neither status nor amount', async () => {
+    // Nothing else about the subscription changes, so a comparison that watched
+    // only status and amount discarded this as a duplicate. The consequence was
+    // not cosmetic: the eventual deletion then reached administrators described
+    // as the provider exhausting its retries, rather than as the cancellation an
+    // administrator had asked for.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_PLAIN, { amountCents: 2500 });
+
+    const updated = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated', {
+      amountCents: 2500, cancelAtPeriodEnd: true,
+    });
+    expect(paymentService.handleWebhook(updated.rawBody, updated.signature)).toEqual({ outcome: 'processed' });
+    expect(readSubscription(subscriptionId)!.is_cancel_at_period_end).toBe(1);
+  });
+
+  it('mirrors an un-cancellation made in the Stripe dashboard', async () => {
+    // The dangerous direction. Left unmirrored, the member's page keeps saying
+    // the gift is ending while the provider renews it and charges their card.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_OTHER, { amountCents: 2500 });
+
+    const canceled = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated', {
+      amountCents: 2500, cancelAtPeriodEnd: true,
+    });
+    expect(paymentService.handleWebhook(canceled.rawBody, canceled.signature)).toEqual({ outcome: 'processed' });
+    expect(readSubscription(subscriptionId)!.is_cancel_at_period_end).toBe(1);
+
+    const restored = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated', {
+      amountCents: 2500, cancelAtPeriodEnd: false,
+    });
+    expect(paymentService.handleWebhook(restored.rawBody, restored.signature)).toEqual({ outcome: 'processed' });
+    expect(readSubscription(subscriptionId)!.is_cancel_at_period_end).toBe(0);
+  });
+
+  it('raises a work item when collection is paused in the dashboard, which leaves the status active', async () => {
+    // The provider's own `paused` status covers a trial ending without a payment
+    // method, which this platform never creates, so watching for it alone meant
+    // the pause an administrator actually performs was invisible: the gift went
+    // on reading as active while collecting nothing.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_UPDATE_AGAIN, { amountCents: 2500 });
+
+    const paused = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated', {
+      amountCents: 2500, collectionPaused: true,
+    });
+    expect(paymentService.handleWebhook(paused.rawBody, paused.signature)).toEqual({ outcome: 'processed' });
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'recurring_donation_paused' AND entity_id = ?",
       subscriptionId,
     )).toBe(1);
   });

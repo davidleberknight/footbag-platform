@@ -105,6 +105,11 @@ async function svc() {
   return (await import('../../src/services/paymentReconciliationService')).paymentReconciliationService;
 }
 
+async function windowFor(now: Date, previousRunAt: string | null) {
+  const mod = await import('../../src/services/paymentReconciliationService');
+  return mod.reconciliationWindow(now, previousRunAt);
+}
+
 async function stub() {
   const mod = await import('../../src/adapters/paymentAdapter');
   mod.getPaymentAdapter();
@@ -330,12 +335,165 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     expect(issueTypes()).toContain('payment_status_mismatch');
   });
 
-  it('leaves a pending checkout with no provider intent alone, because the provider defers creating one', async () => {
+  it('leaves a pending checkout with no provider intent alone while it is still in flight', async () => {
+    // An hour old: past the grace window, still inside the provider's session
+    // lifetime, so the member may yet be on the payment page.
     seed((db) => {
       insertPayment(db, {
-        id: 'pay-inflight', member_id: MEMBER, created_at: IN_WINDOW,
+        id: 'pay-inflight', member_id: MEMBER, created_at: '2026-07-20T02:00:00.000Z',
         status: 'pending', amount_cents: 2500, stripe_payment_intent_id: null,
       });
+    });
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.issuesRaised).toBe(0);
+  });
+
+  it('reports a pending checkout still carrying no provider intent long after the session expired', async () => {
+    // The same row a day and a half later. Either nobody completed the checkout
+    // or it settled and the delivery was lost; from here those are the same
+    // shape, and the second one is money that moved. Leaving it alone was how a
+    // paid donation could sit unrecorded with nothing raised anywhere.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-stranded', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'pending', amount_cents: 2500, stripe_payment_intent_id: null,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toEqual(['payment_missing_at_provider']);
+  });
+
+  it('reports a provider-settled intent whose local row never left pending', async () => {
+    // The lost-webhook case in live mode. The provider mints the intent when the
+    // buyer pays, so the row starts with a null intent id and only the
+    // settlement event fills it in. Lose that one delivery and the two sides sit
+    // here disagreeing, joined only by the correlation key the platform stamped
+    // on the intent. Matching on the key alone and calling the row "recorded"
+    // reported nothing at all.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-lost-webhook', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'pending', amount_cents: 5000, stripe_payment_intent_id: null,
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_settled', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: 'pay-lost-webhook',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    // The forward pass reports the unresolved checkout; the reverse pass reports
+    // that the provider has settled it. Both are true and an administrator needs
+    // the second one, which is the one that says money moved.
+    expect(issueTypes().sort()).toEqual(['payment_missing_at_provider', 'payment_status_mismatch']);
+  });
+
+  it('reports a full refund the provider made that the local payment never recorded', async () => {
+    // The blind spot this pass exists for. A refund never moves the payment
+    // intent off succeeded, so to every other comparison here a refunded payment
+    // and an unrefunded one are identical: both sides read settled, the money is
+    // gone, and the books say otherwise with nothing raised.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-refunded-away', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_refunded_away',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_refunded_away', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_away', paymentIntentId: 'pi_refunded_away', amountCents: 5000,
+      currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toEqual(['refund_missing_locally']);
+  });
+
+  it('stays silent on a partial refund, which deliberately leaves the payment settled', async () => {
+    // The row not moving for a partial refund is the documented contract: the
+    // status machine is monotonic and refunded is terminal. Reporting it here
+    // would raise a discrepancy on every partial refund handled correctly.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-part-refunded', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_part_refunded',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_part_refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_part', paymentIntentId: 'pi_part_refunded', amountCents: 1500,
+      currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+    });
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.issuesRaised).toBe(0);
+  });
+
+  it('adds partial refunds up, so two that together return the whole charge are reported', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-twice-refunded', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_twice_refunded',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_twice_refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_half_1', paymentIntentId: 'pi_twice_refunded', amountCents: 2500,
+      currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_half_2', paymentIntentId: 'pi_twice_refunded', amountCents: 2500,
+      currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toEqual(['refund_missing_locally']);
+  });
+
+  it('ignores a refund that did not succeed, which returned no money', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-failed-refund', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_failed_refund',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_failed_refund', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_failed', paymentIntentId: 'pi_failed_refund', amountCents: 5000,
+      currency: 'USD', status: 'failed', createdAt: IN_WINDOW,
+    });
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.issuesRaised).toBe(0);
+  });
+
+  it('stays silent when the refund is already recorded locally', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-refund-known', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'refunded', amount_cents: 5000, stripe_payment_intent_id: 'pi_refund_known',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_refund_known', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_known', paymentIntentId: 'pi_refund_known', amountCents: 5000,
+      currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
     });
     const result = await (await svc()).runReconciliation({ now: NOW });
     expect(result.issuesRaised).toBe(0);
@@ -1571,6 +1729,28 @@ describe('purging resolved issues on the daily tick', () => {
 
     expect(result).toEqual({ deleted: 0, issuesDeleted: 0, failureCountersDeleted: 0 });
     expect(issueTypes()).toHaveLength(1);
+  });
+});
+
+describe('reconciliation window', () => {
+  it('reaches back the configured span on an ordinary night', async () => {
+    const window = await windowFor(NOW, '2026-07-19T03:00:00.000Z');
+    expect(window.createdAfter).toBe('2026-07-13T03:00:00.000Z');
+    expect(window.createdBefore).toBe(NOW.toISOString());
+  });
+
+  it('reaches back to the last successful run when the job has been down longer than that span', async () => {
+    // Without this the window is a fixed span from wall clock, so an outage
+    // longer than it leaves a period no later run ever looks at again: not
+    // retried, not reported, and recoverable only by someone noticing. The
+    // provider's ledger would be the only record of what happened in there.
+    const window = await windowFor(NOW, '2026-06-20T03:00:00.000Z');
+    expect(window.createdAfter).toBe('2026-06-20T03:00:00.000Z');
+  });
+
+  it('falls back to the configured span when no run has ever succeeded', async () => {
+    const window = await windowFor(NOW, null);
+    expect(window.createdAfter).toBe('2026-07-13T03:00:00.000Z');
   });
 });
 

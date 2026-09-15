@@ -791,7 +791,7 @@ Append-only ledger recording that an Active Player expiry notice was sent to a m
 
 #### Display name and slug
 
-`display_name` and the derived slug are permanent to the member post-registration; an administrator can correct either, with a mandatory reason and an audit row. Both constraints are application-enforced at registration and key on the member's recorded `family_name`. The display name must end with it, so a member whose family name is several words is held to the whole of it. The slug is held to that name's final word instead, because a profile URL carries no spaces and a family name of several words could never be contained in one, which would leave the member no slug they could choose. Imported `legacy_members` rows are exempt.
+`display_name` and the derived slug are permanent to the member post-registration; an administrator can correct either, with a mandatory reason and an audit row. Both constraints are application-enforced at registration and key on the member's recorded `family_name`. The display name must end with it, so a member whose family name is several words is held to the whole of it. The slug is held to that name's final word instead, because a profile URL carries no spaces and a family name of several words could never be contained in one, which would leave the member no slug they could choose. The containment comparison folds the family name and the slug alike to letters and digits, because a slug carries nothing else; a family name that folds to nothing, having no Latin form, is exempt from the rule, and its owner supplies the slug at registration rather than receiving a generated one. Imported `legacy_members` rows are exempt.
 
 #### Legal name
 
@@ -1169,7 +1169,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `ballot_retention_days` | `2555` | Ballot retention window (~7 years) |
 | `audit_retention_days` | `2555` | Audit log retention window (~7 years) |
 | `reconciliation_expiry_days` | `90` | Resolved reconciliation issue TTL |
-| `reconciliation_window_days` | `7` | Lookback window the nightly reconciliation pass compares |
+| `reconciliation_window_days` | `7` | Lookback window the nightly reconciliation passes compare; the window reaches further back when the last successful run is older than this, so an outage leaves no unexamined period |
 | `reconciliation_grace_minutes` | `30` | Age a record must reach before reconciliation judges it; minimum 1 |
 | `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker (DD §5.4) |
 | `payments_paused` | `0` | `1` = operator kill-switch halting new membership purchases and donations; the application reads it and has no write path to it, and an operator script sets it |

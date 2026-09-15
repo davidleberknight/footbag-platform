@@ -20,6 +20,7 @@ const OWNER_ID = `member_persona_${OWNER}`;
 const OTHER_ID = `member_persona_${OTHER}`;
 const OWNER_SESSION = 'cs_test_owner_session';
 const OTHER_SESSION = 'cs_test_other_session';
+const OPEN_SESSION = 'cs_test_open_session';
 const TS = '2024-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -64,6 +65,7 @@ beforeAll(async () => {
   // Session-backed rows for the success and cancel pages.
   insertPaymentWithSession(db, { id: 'pay-ok', memberId: OWNER_ID, sessionId: OWNER_SESSION, status: 'succeeded' });
   insertPaymentWithSession(db, { id: 'pay-other', memberId: OTHER_ID, sessionId: OTHER_SESSION, status: 'failed' });
+  insertPaymentWithSession(db, { id: 'pay-open', memberId: OWNER_ID, sessionId: OPEN_SESSION, status: 'pending' });
   db.close();
   createApp = await importApp();
 });
@@ -121,6 +123,35 @@ describe('GET /payments/cancel', () => {
   it('404s when the session belongs to another member', async () => {
     const res = await request(createApp()).get(`/payments/cancel?session_id=${OTHER_SESSION}`).set('Cookie', cookie(OWNER_ID));
     expect(res.status).toBe(404);
+  });
+
+  it('closes the still-open session at the provider, which is what frees the next purchase', async () => {
+    // Reaching this page is the clearest signal a member is not going to pay,
+    // and the provider has no way to know it. Until the session closes, the
+    // pending row stands, and one pending membership row per member is a
+    // database constraint: every further attempt is refused with a message
+    // naming an action the member cannot take.
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    const adapter = getPaymentAdapter() as unknown as {
+      expiredCheckoutSessionsForTests(): string[];
+    };
+    const res = await request(createApp())
+      .get(`/payments/cancel?session_id=${OPEN_SESSION}`)
+      .set('Cookie', cookie(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(adapter.expiredCheckoutSessionsForTests()).toContain(OPEN_SESSION);
+  });
+
+  it('leaves a settled payment alone, since there is no open session to close', async () => {
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    const adapter = getPaymentAdapter() as unknown as {
+      expiredCheckoutSessionsForTests(): string[];
+    };
+    const res = await request(createApp())
+      .get(`/payments/cancel?session_id=${OWNER_SESSION}`)
+      .set('Cookie', cookie(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(adapter.expiredCheckoutSessionsForTests()).not.toContain(OWNER_SESSION);
   });
 });
 

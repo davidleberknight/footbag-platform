@@ -101,9 +101,14 @@ describe('the two parts are recorded as given', () => {
     expect(readByEmail(email)!.family_name).toBe("O'Brien");
   });
 
+  // The profile URL is supplied because a name with no Latin form cannot
+  // produce one, and registration says so rather than inventing an address.
+  // What this case is about is the two name parts surviving as recorded.
   it('accepts a name written in a non-Latin script', async () => {
     const email = 'non-latin@example.com';
-    expect((await register({ givenNames: '世界', familyName: '你好', email })).status).toBe(303);
+    expect((await register({
+      givenNames: '世界', familyName: '你好', slug: 'ni_hao', email,
+    })).status).toBe(303);
     const row = readByEmail(email)!;
     expect(row.given_names).toBe('世界');
     expect(row.family_name).toBe('你好');
@@ -238,5 +243,111 @@ describe('the two rules that key on the surname read the recorded part', () => {
     });
     expect(bad.status).toBe(422);
     expect(bad.text).toContain('must contain your family name');
+  });
+
+  // A profile URL holds only lowercase letters, digits and underscores, so a
+  // family name carrying an apostrophe or a hyphen can never appear in one
+  // literally. Both sides fold to that alphabet before the comparison, or the
+  // rule refuses every address these members could type.
+  it('accepts a chosen profile URL carrying a family name with an apostrophe', async () => {
+    const email = 'slug-apostrophe@example.com';
+    const res = await register({
+      givenNames: 'Fiona', familyName: "O'Brien", slug: 'fiona_obrien', email,
+    });
+    expect(res.status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('fiona_obrien');
+  });
+
+  it('accepts an apostrophe surname spelled across the underscore', async () => {
+    const email = 'slug-apostrophe-split@example.com';
+    const res = await register({
+      givenNames: 'Sean', familyName: "O'Brien", slug: 'sean_o_brien', email,
+    });
+    expect(res.status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('sean_o_brien');
+  });
+
+  it('accepts a chosen profile URL carrying a hyphenated family name', async () => {
+    const email = 'slug-hyphen@example.com';
+    const res = await register({
+      givenNames: 'Alex', familyName: 'Smith-Jones', slug: 'alex_smith_jones', email,
+    });
+    expect(res.status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('alex_smith_jones');
+  });
+
+  it('still refuses a profile URL that drops a punctuated family name', async () => {
+    const res = await register({
+      givenNames: 'Sean', familyName: "O'Brien", slug: 'just_sean',
+      email: 'slug-apostrophe-bad@example.com',
+    });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must contain your family name');
+    expect(readByEmail('slug-apostrophe-bad@example.com')).toBeUndefined();
+  });
+});
+
+/**
+ * A family name written in Han, Cyrillic, Hangul or any other non-Latin script
+ * has no spelling a profile URL can carry, so the rule tying the address to the
+ * name cannot apply to it. The member chooses their own address instead, and
+ * registration says so rather than handing them an unreadable permanent one.
+ */
+describe('a family name with no Latin form', () => {
+  it('accepts any well-formed profile URL the member chooses', async () => {
+    const email = 'han-slug@example.com';
+    const res = await register({
+      givenNames: '世界', familyName: '你好', slug: 'wang_wei', email,
+    });
+    expect(res.status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('wang_wei');
+  });
+
+  it('accepts one for a Cyrillic family name too', async () => {
+    const email = 'cyrillic-slug@example.com';
+    const res = await register({
+      givenNames: 'Борис', familyName: 'Иванов', slug: 'boris_ivanov', email,
+    });
+    expect(res.status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('boris_ivanov');
+  });
+
+  it('refuses a blank profile URL and says why, rather than assigning random characters', async () => {
+    const email = 'han-blank-slug@example.com';
+    const res = await register({ givenNames: '世界', familyName: '你好', email });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Please choose your profile URL');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  it('leaves the generated default alone for a Latin-named member', async () => {
+    const email = 'latin-blank-slug@example.com';
+    expect((await register({
+      givenNames: 'Greta', familyName: 'Lindqvist', email,
+    })).status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('greta_lindqvist');
+  });
+
+  // The relaxation lifts the family-name rule and nothing else: a member whose
+  // name cannot be checked against their address must not thereby gain an
+  // address every other member is refused.
+  it('still refuses a profile URL claiming a role the member does not hold', async () => {
+    const email = 'han-reserved-slug@example.com';
+    const res = await register({
+      givenNames: '世界', familyName: '你好', slug: 'support', email,
+    });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('reserved');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  it('still refuses a profile URL that is not a well-formed address', async () => {
+    const email = 'han-bad-slug@example.com';
+    const res = await register({
+      givenNames: '世界', familyName: '你好', slug: 'ni hao!', email,
+    });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('lowercase letters, numbers, and underscores');
+    expect(readByEmail(email)).toBeUndefined();
   });
 });

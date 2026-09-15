@@ -1698,7 +1698,11 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       listCalls: { endpoint: string; params: import('../../src/adapters/paymentAdapter').StripeListParams }[];
       intentPageIndex: number;
       sessionOptions: (import('../../src/adapters/paymentAdapter').StripeRequestOptions | undefined)[];
-    } = { sessions: [], subscriptionUpdates: [], listCalls: [], intentPageIndex: 0, sessionOptions: [] };
+      expiredSessions: string[];
+    } = {
+      sessions: [], subscriptionUpdates: [], listCalls: [], intentPageIndex: 0,
+      sessionOptions: [], expiredSessions: [],
+    };
     const client: import('../../src/adapters/paymentAdapter').StripeClientLike = {
       checkout: {
         sessions: {
@@ -1711,6 +1715,16 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
               payment_intent: sessionOverrides.payment_intent === undefined ? 'pi_fake_123' : sessionOverrides.payment_intent,
             };
           },
+          async expire(id) {
+            captured.expiredSessions.push(id);
+            return { id, url: null, payment_intent: null };
+          },
+        },
+      },
+      refunds: {
+        async list(params) {
+          captured.listCalls.push({ endpoint: 'refunds', params });
+          return { data: ledger.refunds, has_more: false };
         },
       },
       subscriptions: {
@@ -1744,6 +1758,16 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
 
   // Provider-side records the live adapter's list methods read.
   const ledger = {
+    refunds: [
+      {
+        id: 're_a',
+        payment_intent: 'pi_a',
+        amount: 2500,
+        currency: 'usd',
+        status: 'succeeded',
+        created: 1700000200,
+      },
+    ],
     intentPages: [
       [{ id: 'pi_a', amount: 2500, currency: 'usd', status: 'succeeded', created: 1700000000 }],
       [{ id: 'pi_b', amount: 1000, currency: 'usd', status: 'canceled', created: 1700000100 }],
@@ -2206,6 +2230,75 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     expect(captured.subscriptionUpdates).toEqual([
       { id: 'sub_live_42', params: { cancel_at_period_end: true } },
     ]);
+  });
+
+  it('live listRefunds maps the provider refund into the ledger summary shape', async () => {
+    // Read because a refund marks nothing else: it never moves the payment
+    // intent off succeeded, so without this list a refunded payment and an
+    // unrefunded one are the same record to every other comparison.
+    const { adapter } = makeLive();
+    const refunds = await adapter.listRefunds({
+      createdAfter: '2023-11-14T00:00:00.000Z',
+      createdBefore: '2023-11-16T00:00:00.000Z',
+    });
+    expect(refunds).toEqual([
+      {
+        id: 're_a',
+        paymentIntentId: 'pi_a',
+        amountCents: 2500,
+        currency: 'USD',
+        status: 'succeeded',
+        createdAt: new Date(1700000200 * 1000).toISOString(),
+      },
+    ]);
+  });
+
+  it('live expireCheckoutSession closes the session at the provider', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.expireCheckoutSession('cs_abandoned_1');
+    expect(captured.expiredSessions).toEqual(['cs_abandoned_1']);
+  });
+
+  it('both checkout modes pin the payment methods, so the provider dashboard cannot widen them', async () => {
+    // A method that settles days after the buyer finishes the checkout has no
+    // path through this platform: it fulfils on the payment intent's settlement
+    // event, and such a payment would sit pending with reconciliation agreeing.
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    await adapter.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-1',
+      paymentId: 'pay-parity-9',
+      amountCents: 2500,
+      currency: 'USD',
+      descriptor: 'Recurring donation',
+      comment: null,
+      successUrl: 'https://footbag.org/payments/success?session_id={CHECKOUT_SESSION_ID}',
+      cancelUrl: 'https://footbag.org/payments/cancel?session_id={CHECKOUT_SESSION_ID}',
+    });
+    for (const params of captured.sessions) {
+      expect(params.payment_method_types).toEqual(['card']);
+    }
+  });
+
+  it('bounds the checkout session lifetime, and keeps it stable across a retry under the same idempotency key', async () => {
+    // The pending row a checkout holds is what blocks a member's next membership
+    // purchase, so the session cannot be left to the provider's day-long
+    // default. The expiry is anchored to the clock hour rather than the moment
+    // of the call: it travels under an idempotency key, and the provider rejects
+    // a reused key whose body changed, which a wall-clock expiry would do on
+    // every retry.
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    const [first, second] = captured.sessions;
+    expect(first.expires_at).toBe(second.expires_at);
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const lifetime = (first.expires_at ?? 0) - nowSeconds;
+    // The provider's own bounds are 30 minutes to 24 hours; the bucketing puts
+    // this between one and two hours.
+    expect(lifetime).toBeGreaterThan(30 * 60);
+    expect(lifetime).toBeLessThanOrEqual(2 * 60 * 60);
   });
 
   it('live adapter resolves the API key once and reuses the client', async () => {

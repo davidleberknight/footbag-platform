@@ -135,6 +135,14 @@
  *     (MAX) and are order-independent.
  *   - Auto-link revert is idempotent: a second revert returns
  *     `already_reverted` without state change.
+ *   - No member is given a permanent public profile address that carries
+ *     nothing of their name. The address must contain the recorded family
+ *     name, folded on both sides to the letters and digits a URL can hold. A
+ *     family name with no Latin form folds to nothing, so that rule cannot
+ *     apply to it and any well-formed address is accepted instead; in exchange
+ *     registration refuses a blank one from that member, because neither random
+ *     characters nor a machine romanisation should become the permanent public
+ *     spelling of somebody's name.
  *
  * Transaction discipline:
  *   - Multi-write paths (claim merge, password reset + version bump, register + audit)
@@ -231,7 +239,7 @@ function normalizeEmail(email: string): string {
 
 import { slugify } from './slugify';
 import {
-  assembleFullName, matchReservedNameWord, memberSurnameKey, memberSurnameCompareKey,
+  assembleFullName, latinFold, matchReservedNameWord, memberSurnameKey, memberSurnameCompareKey,
   stripAccents, surnameKey, surnameKeyMatchesName,
 } from './nameUtils';
 import { normalizeImportedLocation } from './memberLocationRules';
@@ -246,7 +254,11 @@ import type { SelectOption } from './memberService';
 function generateUniqueSlug(displayName: string): string {
   const base = slugify(displayName);
   if (!base) {
-    // Fallback for names that produce empty slugs (e.g. all non-ASCII).
+    // Backstop only. Registration refuses a blank profile URL when the display
+    // name carries no Latin letter, so a member whose name cannot produce a
+    // readable address supplies their own rather than reaching this. An
+    // unreadable address is permanent, so this is a last resort, never a
+    // default anyone is given.
     const fallback = `member_${randomUUID().slice(0, 8)}`;
     return fallback;
   }
@@ -912,8 +924,20 @@ function validateSlug(
   // never be contained in one and every slug the member tried would be refused.
   // The rule is held to the family name's final word, which is satisfiable and
   // still ties the public address to the name.
-  const slugSurname = surnameKey(registrantSurnameKey);
-  if (slugSurname && !slug.includes(slugSurname)) {
+  //
+  // Both sides fold to letters and digits before the comparison, because a slug
+  // holds nothing else. Unfolded, the rule refuses every slug a member named
+  // O'Brien or Smith-Jones could type: the apostrophe and the hyphen survive
+  // into the surname key and no valid slug can carry either. Folding the slug
+  // as well makes o_brien as good as obrien.
+  //
+  // A family name written in Han, Cyrillic, Hangul or any other non-Latin
+  // script folds to nothing and the rule does not apply, because no profile URL
+  // can contain any spelling of it and holding the member to one leaves them no
+  // address they could ever choose. The reserved-word rule, the pattern and
+  // uniqueness still stand.
+  const slugSurname = latinFold(surnameKey(registrantSurnameKey));
+  if (slugSurname && !latinFold(slug).includes(slugSurname)) {
     throw new ValidationError('Profile URL must contain your family name.');
   }
 }
@@ -999,6 +1023,19 @@ async function registerMember(
   const userProvidedSlug = trimmedSlug !== '';
   if (userProvidedSlug) {
     validateSlug(trimmedSlug, registrantSurnameKey);
+  } else if (!/[a-z]/.test(slugify(trimmedDisplayName))) {
+    // A display name written wholly in a non-Latin script reduces to nothing a
+    // profile URL could carry, so there is no address to derive from it and the
+    // member supplies their own. Random characters would be unreadable and
+    // permanent, and a machine romanisation would freeze a spelling of their
+    // name that they may not use themselves into a permanent public address.
+    // Names are single-script and a display name ends with the recorded family
+    // name, so a display name with no Latin letter is exactly the member whose
+    // family name has no Latin form. Every other registrant may still leave
+    // this blank and take the generated default.
+    throw new ValidationError(
+      'Please choose your profile URL. It can only use lowercase letters a to z, digits and underscores, so we cannot make one from your name for you.',
+    );
   }
 
   if (!trimmedEmail) {

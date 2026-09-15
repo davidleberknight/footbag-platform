@@ -118,6 +118,23 @@ export function surnameKey(name: string | null | undefined): string {
   return stripAccents(extractSurname(name)).toLowerCase();
 }
 
+/**
+ * Reduce a name to the characters a profile URL is able to carry.
+ *
+ * A profile URL holds lowercase Latin letters, digits and underscores, so any
+ * comparison between a name and a URL has to fold both sides to that alphabet
+ * or it compares a name against a shape that cannot express it. An apostrophe
+ * or a hyphen in a family name survives every other fold and no valid URL can
+ * contain one.
+ *
+ * Empty for a name with no Latin form at all, which is the signal that no
+ * comparison against a profile URL is possible for it.
+ */
+export function latinFold(name: string | null | undefined): string {
+  if (!name) return '';
+  return stripAccents(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 // Words nobody may carry as their own name or profile URL, because each one
 // asserts a position the person does not hold. A member's display name is
 // public attribution wherever their uploads appear, so a name reading as an

@@ -205,7 +205,7 @@ export const paymentController = {
    * GET /payments/cancel
    * Renders the canceled/failed payment landing page with US-mandated text.
    */
-  getPaymentCancel(req: Request, res: Response, next: NextFunction): void {
+  async getPaymentCancel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const sessionId =
         typeof req.query.session_id === 'string' ? req.query.session_id : '';
@@ -225,6 +225,11 @@ export const paymentController = {
         renderNotFound(res);
         return;
       }
+      // Arriving here says the member is not paying, which the provider has no
+      // way to know. Closing the session frees the pending row that would
+      // otherwise block their next attempt. Best-effort inside the service, so
+      // it cannot fail this render.
+      await paymentService.releaseAbandonedCheckout(payment);
       const continueHref = safeReturnTo(req.query.returnTo, `/members/${user.slug}`);
       res.render(
         'payments/cancel',

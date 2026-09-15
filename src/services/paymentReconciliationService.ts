@@ -32,6 +32,18 @@
  *   - A record is left alone until it is older than the delivery grace period.
  *     A webhook and a ledger read do not land at the same instant, so judging a
  *     record seconds old reports two systems catching up as a disagreement.
+ *     An unfinished checkout gets a longer allowance than that, because the
+ *     provider's session outlives the grace window by hours; past that
+ *     allowance it is reported, since a checkout nobody completed and a
+ *     settlement whose delivery was lost look identical from here and only one
+ *     of them is free to ignore.
+ *   - A local row carrying no provider intent id is not evidence the money never
+ *     moved. The provider mints the intent when the buyer pays and its id
+ *     reaches the row only on the settlement event, so a lost delivery leaves a
+ *     settled intent beside a row still reading pending, joined only by the
+ *     correlation key this platform stamped on the intent. Finding the row by
+ *     that key is not the same as the payment being recorded, and the two
+ *     statuses are compared rather than assumed to agree.
  *   - A locally refunded payment whose provider intent still reads settled is
  *     agreement, not a mismatch: the provider records a reversal separately and
  *     never moves the original intent off succeeded.
@@ -41,7 +53,9 @@
  *   - Reads are windowed. Subscriptions are compared as current state, because a
  *     subscription created years ago is still live; intents and invoices are
  *     compared over a bounded window so the pass does not re-walk the whole
- *     ledger nightly.
+ *     ledger nightly. The window reaches back to the last successful run when
+ *     that is older than the configured span, so an outage longer than the span
+ *     does not leave a period that no later run ever examines again.
  *   - Every raised issue also enters the admin work queue in the `payments`
  *     category, so a discrepancy reaches the dashboard rather than waiting for
  *     someone to open the reconciliation page.
@@ -162,13 +176,14 @@ import {
   getPaymentAdapter,
   type LedgerWindow,
   type StripeInvoiceSummary,
+  type StripeRefundSummary,
   type StripePaymentIntentSummary,
   type StripeSubscriptionSummary,
 } from '../adapters/paymentAdapter';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-/** The discrepancy classes both passes can raise. Each names what disagrees, in
+/** The discrepancy classes the passes can raise. Each names what disagrees, in
  *  the direction it disagrees, so an administrator reading the queue knows which
  *  side to investigate first. */
 export type ReconciliationIssueType =
@@ -182,7 +197,8 @@ export type ReconciliationIssueType =
   | 'invoice_charge_missing_locally'
   | 'invoice_charge_amount_mismatch'
   | 'duplicate_provider_charge'
-  | 'subscription_checkout_unresolved';
+  | 'subscription_checkout_unresolved'
+  | 'refund_missing_locally';
 
 /** One discrepancy as the run's report names it: enough to read without the
  *  issue-type vocabulary and to reach the issue and the payment it concerns. */
@@ -300,6 +316,14 @@ const RECONCILIATION_WINDOW_DEFAULT_DAYS = 7;
  *  legitimately exists on one side only; classifying it immediately reports the
  *  gap between two systems catching up as a discrepancy. */
 const RECONCILIATION_GRACE_DEFAULT_MINUTES = 30;
+/** How long after creation an unfinished checkout stops reading as in flight.
+ *  The provider's session expires an hour after it is minted, so a row still
+ *  unresolved well past that is not a member deciding: it is a settlement or an
+ *  expiry that never arrived. Deliberately not the grace window above, which is
+ *  minutes and exists only to let an in-flight event land before anything is
+ *  compared. Using the grace window here instead reported every checkout a
+ *  member walked away from half an hour ago, which is ordinary behaviour. */
+const STALE_CHECKOUT_MINUTES = 120;
 const RECONCILIATION_EXPIRY_DEFAULT_DAYS = 90;
 const DIGEST_INTERVAL_DEFAULT_DAYS = 30;
 const RESOLUTION_NOTE_MAX_CHARS = 2000;
@@ -423,10 +447,23 @@ function mapProviderSubscriptionStatus(status: string): string | null {
   }
 }
 
-export function reconciliationWindow(now: Date): LedgerWindow {
+/**
+ * The ledger span this run compares.
+ *
+ * The configured number of days back, or back to the last successful run when
+ * that is older. Without the second clause the window is a fixed span from wall
+ * clock, so an outage longer than it leaves a gap no later run ever looks at
+ * again: the period is not retried, not reported, and not recoverable except by
+ * someone noticing. The provider's own ledger is the only record of what
+ * happened in there, which is exactly the situation this service exists to
+ * avoid.
+ */
+export function reconciliationWindow(now: Date, previousRunAt: string | null = null): LedgerWindow {
   const days = readIntConfig('reconciliation_window_days', RECONCILIATION_WINDOW_DEFAULT_DAYS);
+  const defaultStart = new Date(now.getTime() - days * DAY_MS).toISOString();
   return {
-    createdAfter: new Date(now.getTime() - days * DAY_MS).toISOString(),
+    createdAfter:
+      previousRunAt !== null && previousRunAt < defaultStart ? previousRunAt : defaultStart,
     createdBefore: now.toISOString(),
   };
 }
@@ -435,7 +472,7 @@ export function reconciliationWindow(now: Date): LedgerWindow {
 
 export const paymentReconciliationService = {
   /**
-   * Runs both comparison passes over the reconciliation window and records every
+   * Runs every comparison pass over the reconciliation window and records each
    * disagreement as an outstanding issue.
    *
    * Nothing here writes to `payments` or to a subscription. A mismatch means the
@@ -444,15 +481,16 @@ export const paymentReconciliationService = {
    */
   async runReconciliation(opts: { now?: Date } = {}): Promise<ReconciliationRunResult> {
     const now = opts.now ?? new Date();
-    const window = reconciliationWindow(now);
     const adapter = getPaymentAdapter();
 
     // Read before this run is recorded as succeeded, so "since the previous
-    // pass" means the pass before this one.
+    // pass" means the pass before this one. It also decides how far back the
+    // window reaches, so it is read before the window is computed.
     const previous = systemJobRuns.lastSuccessAt.get(RECONCILIATION_JOB_NAME) as
       | { last_success: string | null }
       | undefined;
     const previousRunAt = previous?.last_success ?? null;
+    const window = reconciliationWindow(now, previousRunAt);
 
     // Only rows of the mode the credential is in can be found at the provider;
     // a rehearsal row compared against a live ledger reads as missing money for
@@ -489,17 +527,22 @@ export const paymentReconciliationService = {
         .map((r) => r.stripe_subscription_id),
     );
 
-    const [providerIntents, providerSubscriptions, providerInvoices] = await Promise.all([
-      adapter.listPaymentIntents(window),
-      adapter.listSubscriptions(),
-      adapter.listInvoices(window),
-    ]);
+    const [providerIntents, providerSubscriptions, providerInvoices, providerRefunds] =
+      await Promise.all([
+        adapter.listPaymentIntents(window),
+        adapter.listSubscriptions(),
+        adapter.listInvoices(window),
+        adapter.listRefunds(window),
+      ]);
 
     const graceMinutes = readIntConfig(
       'reconciliation_grace_minutes',
       RECONCILIATION_GRACE_DEFAULT_MINUTES,
     );
     const graceCutoff = new Date(now.getTime() - graceMinutes * MINUTE_MS).toISOString();
+    const staleCheckoutCutoff = new Date(
+      now.getTime() - STALE_CHECKOUT_MINUTES * MINUTE_MS,
+    ).toISOString();
 
     // A recurring checkout writes its row before the redirect and something is
     // expected to resolve it: the created event promotes it, or the expiry
@@ -510,8 +553,13 @@ export const paymentReconciliationService = {
     // of). That ambiguity is exactly what a human needs to look at, and it is
     // invisible everywhere else because unresolved rows are filtered out of the
     // active view, the member's history, and the comparison above.
+    //
+    // Judged against the stale-checkout cutoff rather than the grace window: an
+    // abandoned checkout is unresolved for as long as the provider's session
+    // lives, so the grace window reported every member who closed the tab that
+    // evening, and nothing auto-resolves those rows once they are raised.
     const staleIncomplete = subsDb.listStaleIncomplete.all(
-      graceCutoff,
+      staleCheckoutCutoff,
     ) as LocalSubscriptionRow[];
 
     // Every customer the provider is billing on a subscription, taken from the
@@ -525,9 +573,16 @@ export const paymentReconciliationService = {
     );
 
     const drafts: IssueDraft[] = [
-      ...comparePayments(localPayments, providerIntents, subscriptionCustomerIds, graceCutoff),
+      ...comparePayments(
+        localPayments,
+        providerIntents,
+        subscriptionCustomerIds,
+        graceCutoff,
+        staleCheckoutCutoff,
+      ),
       ...compareSubscriptions(localSubscriptions, providerSubscriptions),
       ...compareInvoices(localPayments, providerInvoices, mirroredSubscriptionIds, graceCutoff),
+      ...compareRefunds(localPayments, providerRefunds, graceCutoff),
       ...flagDuplicateCharges(localPayments),
       ...flagUnresolvedCheckouts(staleIncomplete),
     ];
@@ -1145,6 +1200,7 @@ const ISSUE_TYPE_LABELS: Record<ReconciliationIssueType, string> = {
   invoice_charge_amount_mismatch: 'Renewal amount or currency disagrees',
   duplicate_provider_charge: 'The same member appears charged twice for the same thing',
   subscription_checkout_unresolved: 'Recurring checkout never resolved either way',
+  refund_missing_locally: 'Provider refunded a payment this platform still shows as settled',
 };
 
 export interface AdminPaymentQuery {
@@ -1963,6 +2019,9 @@ function comparePayments(
    *  own settlement vehicle, which the invoice pass owns. */
   subscriptionCustomerIds: Set<string>,
   graceCutoff: string,
+  /** When an unfinished checkout stops reading as in flight. Longer than the
+   *  grace window, because the provider's session outlives it. */
+  staleCheckoutCutoff: string,
 ): IssueDraft[] {
   const drafts: IssueDraft[] = [];
   const providerById = new Map(provider.map((p) => [p.id, p]));
@@ -1977,8 +2036,20 @@ function comparePayments(
     const withinGrace = payment.created_at >= graceCutoff;
     // A pending row with no intent id yet is a checkout in flight, not a
     // discrepancy: the provider legitimately defers intent creation.
+    //
+    // It stops being in flight, though. In live mode the intent is minted when
+    // the buyer pays and its id reaches the row only on the settlement event,
+    // so a row still in this state long after the provider's session expired is
+    // one of two things: a checkout nobody completed, or a payment that settled
+    // and whose delivery was lost. Those are indistinguishable from here and
+    // the second one is money, so the pass says so rather than choosing. The
+    // reverse pass below catches the settled case whenever the intent is inside
+    // the window; this catches it when the intent is older than the window and
+    // there is nothing left to compare against.
     if (!intentId) {
-      if (payment.status !== 'pending' && !withinGrace) {
+      const staleUnresolved =
+        payment.status === 'pending' && payment.created_at < staleCheckoutCutoff;
+      if ((payment.status !== 'pending' || staleUnresolved) && !withinGrace) {
         drafts.push({
           issueType: 'payment_missing_at_provider',
           paymentId: payment.id,
@@ -1986,7 +2057,9 @@ function comparePayments(
           stripeSubscriptionId: null,
           stripeInvoiceId: null,
           details: {
-            reason: 'settled payment carries no provider payment intent',
+            reason: staleUnresolved
+              ? 'checkout never resolved: no provider payment intent long after the session expired'
+              : 'settled payment carries no provider payment intent',
             local_status: payment.status,
             amount_cents: payment.amount_cents,
             currency: payment.currency,
@@ -2067,14 +2140,52 @@ function comparePayments(
   for (const intent of provider) {
     if (matchedProviderIds.has(intent.id)) continue;
     if (intent.platformPaymentId !== null) {
-      // Ours, and already recorded: the money reached a local row even though
-      // this intent id never got written onto it. A settled row with no intent
-      // id is the forward pass's finding, not this one's. Looked up by id
+      // Ours by the key this platform stamped on the intent. Looked up by id
       // rather than against the windowed set, because the provider may defer
       // creating the intent until the buyer actually pays, so a checkout opened
       // just before the window can settle just inside it and its row would
       // otherwise read as absent.
-      if (paymentsDb.findById.get(intent.platformPaymentId)) continue;
+      //
+      // Finding the row is not the same as the money being recorded. The intent
+      // id reaches the row only when the settlement event arrives, so a lost
+      // delivery leaves a settled intent beside a row still reading pending,
+      // with this correlation key as the only thread between them. Treating the
+      // row's mere existence as "already recorded" is what let a paid donation
+      // sit unrecorded forever: the tier ungranted, the receipt unsent, and the
+      // nightly digest reporting clean.
+      const row = paymentsDb.findById.get(intent.platformPaymentId) as
+        | LocalPaymentRow
+        | undefined;
+      if (row) {
+        const mapped = mapIntentStatusToLocal(intent.status);
+        // A refund leaves the intent on `succeeded` while the row reads
+        // `refunded`; the two agree despite the different words, as in the
+        // forward pass.
+        const refundedLocally = row.status === 'refunded' && mapped === 'succeeded';
+        if (
+          mapped !== null &&
+          mapped !== row.status &&
+          !refundedLocally &&
+          intent.createdAt < graceCutoff
+        ) {
+          drafts.push({
+            issueType: 'payment_status_mismatch',
+            paymentId: row.id,
+            stripePaymentIntentId: intent.id,
+            stripeSubscriptionId: null,
+            stripeInvoiceId: null,
+            details: {
+              reason: 'the provider settled a payment whose local row never left pending',
+              local_status: row.status,
+              provider_status: intent.status,
+              provider_status_as_local: mapped,
+              amount_cents: intent.amountCents,
+              currency: intent.currency,
+            },
+          });
+        }
+        continue;
+      }
     } else if (subscriptionCustomerIds.has(intent.customerId ?? '')) {
       // Not ours by metadata, and it belongs to a customer the provider is
       // billing on a subscription: this is a subscription cycle's own
@@ -2152,6 +2263,80 @@ function flagUnresolvedCheckouts(stale: LocalSubscriptionRow[]): IssueDraft[] {
 }
 
 /** Pass 2a: local subscriptions against provider subscriptions. */
+/**
+ * Refunds the provider recorded against payments this platform still shows as
+ * settled.
+ *
+ * This pass exists because a refund leaves no mark anywhere else in the
+ * provider's ledger. It never moves the payment intent off `succeeded`, so to
+ * every other comparison here a refunded payment and an unrefunded one are the
+ * same record. A refund issued in the provider's dashboard whose event was lost
+ * was therefore invisible for good: both sides read settled, the money was gone,
+ * and the books said otherwise with nothing raised.
+ *
+ * Totals are compared rather than presence, because the payment row deliberately
+ * does not move for a partial refund: that case is audited and queued for an
+ * administrator instead, and reporting it here would raise a discrepancy on
+ * every partial refund the platform handled correctly. Only a refunded total
+ * that has reached the whole charge should have left the row `refunded`.
+ */
+function compareRefunds(
+  local: LocalPaymentRow[],
+  refunds: StripeRefundSummary[],
+  graceCutoff: string,
+): IssueDraft[] {
+  const drafts: IssueDraft[] = [];
+  const localByIntentId = new Map(
+    local
+      .filter((p) => p.stripe_payment_intent_id !== null)
+      .map((p) => [p.stripe_payment_intent_id as string, p]),
+  );
+
+  // Summed per intent: two partial refunds that together return the whole charge
+  // are a full refund, and the row should have reached `refunded` just as it
+  // would from one.
+  const returnedByIntent = new Map<string, { cents: number; latestAt: string; ids: string[] }>();
+  for (const refund of refunds) {
+    if (refund.paymentIntentId === null) continue;
+    // Only a succeeded refund returned money. A pending or failed one moving the
+    // row would be the reverse of the bug this pass exists for.
+    if (refund.status !== 'succeeded') continue;
+    const entry = returnedByIntent.get(refund.paymentIntentId)
+      ?? { cents: 0, latestAt: refund.createdAt, ids: [] };
+    entry.cents += refund.amountCents;
+    if (refund.createdAt > entry.latestAt) entry.latestAt = refund.createdAt;
+    entry.ids.push(refund.id);
+    returnedByIntent.set(refund.paymentIntentId, entry);
+  }
+
+  for (const [intentId, returned] of returnedByIntent) {
+    const payment = localByIntentId.get(intentId);
+    // A refund against a payment this platform has no row for is the payments
+    // pass's finding, not this one's: raising it here would report one gap twice.
+    if (!payment) continue;
+    if (payment.status === 'refunded') continue;
+    if (returned.cents < payment.amount_cents) continue;
+    if (returned.latestAt >= graceCutoff) continue;
+    drafts.push({
+      issueType: 'refund_missing_locally',
+      paymentId: payment.id,
+      stripePaymentIntentId: intentId,
+      stripeSubscriptionId: null,
+      stripeInvoiceId: null,
+      details: {
+        reason: 'the provider returned the full charge and the local payment still reads settled',
+        local_status: payment.status,
+        amount_cents: payment.amount_cents,
+        currency: payment.currency,
+        refunded_cents: returned.cents,
+        provider_refund_ids: returned.ids,
+      },
+    });
+  }
+
+  return drafts;
+}
+
 function compareSubscriptions(
   local: LocalSubscriptionRow[],
   provider: StripeSubscriptionSummary[],

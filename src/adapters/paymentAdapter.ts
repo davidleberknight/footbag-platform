@@ -156,6 +156,26 @@ export interface StripeInvoiceSummary {
   createdAt: string;
 }
 
+/**
+ * One refund as the ledger comparison needs it.
+ *
+ * A refund is the one money movement with no other trace in the provider's
+ * ledger: it never moves the payment intent off `succeeded`, so a comparison
+ * that reads only intents, subscriptions and invoices sees a refunded payment
+ * and an unrefunded one as identical. That is why this list exists at all.
+ */
+export interface StripeRefundSummary {
+  id: string;
+  /** The intent the refunded charge belongs to; null for a charge the provider
+   *  did not create from one, which this platform never originates. */
+  paymentIntentId: string | null;
+  amountCents: number;
+  currency: string;
+  /** Stripe's own refund status. Only a succeeded refund returned money. */
+  status: string;
+  createdAt: string;
+}
+
 // ── Adapter interface ────────────────────────────────────────────────────────
 
 export interface PaymentAdapter {
@@ -163,6 +183,21 @@ export interface PaymentAdapter {
   createSubscriptionCheckoutSession(opts: SubscriptionCheckoutOpts): Promise<CheckoutSessionResult>;
   constructWebhookEvent(rawBody: string | Buffer, signature: string): StripeWebhookEvent;
   cancelSubscriptionAtPeriodEnd(stripeSubscriptionId: string): Promise<void>;
+  /**
+   * Closes an unfinished checkout session at the provider.
+   *
+   * Called when the buyer comes back from the payment page without paying. The
+   * session would otherwise stay open until its own expiry, holding the local
+   * row pending, and for a membership that row is what stops the member from
+   * starting another purchase. Expiring it makes the provider send the expiry
+   * event, which is what actually resolves the row; nothing here writes to the
+   * database.
+   *
+   * Best-effort by contract: a session the provider has already expired, or
+   * already completed, is not an error the caller can act on, and the buyer is
+   * looking at a page that has nothing to do with it.
+   */
+  expireCheckoutSession(sessionId: string): Promise<void>;
   /**
    * The mode of the credential this process currently holds, taken from the
    * key's own prefix rather than from configuration: 'live', 'test', or
@@ -179,6 +214,9 @@ export interface PaymentAdapter {
   listPaymentIntents(window: LedgerWindow): Promise<StripePaymentIntentSummary[]>;
   listSubscriptions(): Promise<StripeSubscriptionSummary[]>;
   listInvoices(window: LedgerWindow): Promise<StripeInvoiceSummary[]>;
+  /** Every refund the provider recorded in the window. Read because a refund
+   *  leaves no mark on any other object the reconciliation compares. */
+  listRefunds(window: LedgerWindow): Promise<StripeRefundSummary[]>;
 }
 
 // ── Stub adapter (programmable, used in dev/staging/test) ────────────────────
@@ -236,6 +274,18 @@ export interface StubSubscriptionEventOpts {
   amountCents?: number;
   /** The Stripe subscription status carried by an updated event. */
   status?: string;
+  /** Whether the provider reports the subscription as ending at the period end.
+   *  Real Stripe always carries this field on a subscription, in both
+   *  directions, because the dashboard can set and clear it as readily as this
+   *  platform can; the stub emits it for the same reason. */
+  cancelAtPeriodEnd?: boolean;
+  /** Whether the provider reports collection as paused. Set on a subscription
+   *  whose collection an administrator paused in the dashboard, which leaves the
+   *  status reading active while nothing is collected. */
+  collectionPaused?: boolean;
+  /** The intent that settled a renewal invoice, so a test can refund that exact
+   *  charge afterwards. Defaults to a fresh stub id. */
+  paymentIntentId?: string;
   /** The invoice's billing reason: `subscription_create` for the first invoice
    *  raised at signup, `subscription_cycle` for a renewal. Defaults to a
    *  renewal, which is the case a test usually means. */
@@ -263,6 +313,10 @@ export interface StubRefundEventOpts {
   /** Emits the charge with no payment-intent reference, as the provider does for
    *  a charge it did not create from one. */
   omitPaymentIntent?: boolean;
+  /** The intent the refunded charge belongs to; defaults to the session's own.
+   *  A renewal is settled by a different intent from the signup checkout, so
+   *  refunding one takes naming it. */
+  paymentIntentId?: string;
 }
 
 /** The account-level money events that belong to no single checkout session:
@@ -321,6 +375,10 @@ export interface StubPaymentAdapter extends PaymentAdapter {
   removeLedgerSubscription(id: string): void;
   setLedgerInvoice(summary: StripeInvoiceSummary): void;
   removeLedgerInvoice(id: string): void;
+  setLedgerRefund(summary: StripeRefundSummary): void;
+  removeLedgerRefund(id: string): void;
+  /** Every session the cancel path asked the provider to close, in order. */
+  expiredCheckoutSessionsForTests(): string[];
   buildSignedStubWebhookEvent(
     sessionId: string,
     opts?: StubCheckoutEventOpts,
@@ -353,6 +411,20 @@ function newStubId(prefix: string): string {
 // ledger keeps the member's full text, since only the outbound copy is bounded.
 const PRODUCT_NAME_MAX_CHARS = 250;
 const METADATA_VALUE_MAX_BYTES = 500;
+const HOUR_MS = 3_600_000;
+/**
+ * The payment methods a checkout may offer.
+ *
+ * Pinned rather than left to the provider's dashboard, which would otherwise
+ * decide it. This platform fulfils on the settlement event for the payment
+ * intent and has no handling for a method that settles days after the buyer
+ * finishes the checkout: such a payment would sit pending forever, with
+ * reconciliation agreeing because both sides read the same unsettled status.
+ * `card` also carries the wallet methods that ride on a card, which is what the
+ * receipts, the member's payment history, and the failed-renewal notice all
+ * already assume they are describing.
+ */
+const CHECKOUT_PAYMENT_METHOD_TYPES = ['card'] as const;
 
 /** Reads the platform's own correlation key out of a provider object's
  *  metadata. Present on every intent this platform originated (stamped at
@@ -591,6 +663,26 @@ function buildStubSubscriptionEventObject(
           customer: session.stripeCustomerId,
           amount_paid: settled ? amountCents : 0,
           currency: session.currency.toLowerCase(),
+          // Where the provider surfaces the intent that settled the invoice,
+          // since the top-level payment_intent field was removed. A settled
+          // invoice carries one entry; an unpaid one carries none, which is why
+          // this is emitted only on the settled shapes. Without it the renewal's
+          // payment row has no intent id, and a later refund of that charge
+          // arrives as a charge carrying only an intent, so nothing can match.
+          ...(settled
+            ? {
+                payments: {
+                  data: [
+                    {
+                      payment: {
+                        type: 'payment_intent',
+                        payment_intent: opts.paymentIntentId ?? newStubId('pi_stub'),
+                      },
+                    },
+                  ],
+                },
+              }
+            : {}),
           // NO invoice-level metadata. The provider does not copy a
           // subscription's metadata onto its invoices, so emitting it here would
           // be the stub inventing a field production never sends — and a handler
@@ -613,6 +705,11 @@ function buildStubSubscriptionEventObject(
           id: session.stripeSubscriptionId,
           customer: session.stripeCustomerId,
           status: opts.status ?? 'active',
+          // Both emitted whatever their value, because real Stripe does. A stub
+          // that omitted them let a handler which never read them keep passing
+          // its tests while the dashboard's pause and un-cancel went unmirrored.
+          cancel_at_period_end: opts.cancelAtPeriodEnd ?? false,
+          pause_collection: opts.collectionPaused ? { behavior: 'void' } : null,
           items: { data: [{ price: { unit_amount: amountCents } }] },
           metadata: meta,
         },
@@ -654,7 +751,9 @@ function buildStubRefundEventObject(
     data: {
       object: {
         id: newStubId('ch_stub'),
-        ...(opts.omitPaymentIntent ? {} : { payment_intent: session.paymentIntentId }),
+        ...(opts.omitPaymentIntent
+          ? {}
+          : { payment_intent: opts.paymentIntentId ?? session.paymentIntentId }),
         ...(opts.omitAmounts ? {} : { amount: amountCents, amount_refunded: refunded }),
         currency: session.currency.toLowerCase(),
         metadata: { ...session.metadata, paymentId: session.paymentId },
@@ -758,6 +857,8 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
   const ledgerIntents = new Map<string, StripePaymentIntentSummary>();
   const ledgerSubscriptions = new Map<string, StripeSubscriptionSummary>();
   const ledgerInvoices = new Map<string, StripeInvoiceSummary>();
+  const ledgerRefunds = new Map<string, StripeRefundSummary>();
+  const expiredCheckoutSessions: string[] = [];
   let nextOutcome: StubOutcome = 'success';
   let reportedMode: 'live' | 'test' | 'unknown' = 'test';
 
@@ -901,6 +1002,8 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       ledgerIntents.clear();
       ledgerSubscriptions.clear();
       ledgerInvoices.clear();
+      ledgerRefunds.clear();
+      expiredCheckoutSessions.length = 0;
       nextOutcome = 'success';
       reportedMode = 'test';
     },
@@ -922,6 +1025,12 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
     removeLedgerInvoice(id) {
       ledgerInvoices.delete(id);
     },
+    setLedgerRefund(summary) {
+      ledgerRefunds.set(summary.id, summary);
+    },
+    removeLedgerRefund(id) {
+      ledgerRefunds.delete(id);
+    },
     async listPaymentIntents(window) {
       return [...ledgerIntents.values()].filter((i) => inWindow(i.createdAt, window));
     },
@@ -930,6 +1039,9 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
     },
     async listInvoices(window) {
       return [...ledgerInvoices.values()].filter((i) => inWindow(i.createdAt, window));
+    },
+    async listRefunds(window) {
+      return [...ledgerRefunds.values()].filter((r) => inWindow(r.createdAt, window));
     },
     async createCheckoutSession(opts) {
       return recordOneTime(opts);
@@ -1006,6 +1118,18 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
     async cancelSubscriptionAtPeriodEnd(_stripeSubscriptionId) {
       // Stub no-op. The real implementation will set
       // subscription.cancel_at_period_end = true on the Stripe Subscription.
+    },
+    async expireCheckoutSession(sessionId) {
+      // The simulation already synthesises checkout.session.expired through its
+      // own cancel outcome, which is the event this call exists to make the
+      // provider send, so there is no second session state to close here. The
+      // call is recorded rather than dropped: whether the cancel page reaches
+      // the provider at all is the thing worth asserting, and a silent no-op
+      // would let that wiring be removed with every test still passing.
+      expiredCheckoutSessions.push(sessionId);
+    },
+    expiredCheckoutSessionsForTests() {
+      return [...expiredCheckoutSessions];
     },
   };
 }
@@ -1113,6 +1237,12 @@ export interface StripeCheckoutSessionCreateParams {
   mode: 'payment' | 'subscription';
   client_reference_id: string;
   customer?: string;
+  /** Pinned so the provider's dashboard cannot widen what a checkout offers to a
+   *  method that settles days later, which this platform has no path for. */
+  payment_method_types?: string[];
+  /** Unix seconds. Bounds how long an unfinished checkout holds its pending row,
+   *  which for a membership is what blocks the member from buying again. */
+  expires_at?: number;
   line_items: Array<{
     quantity: number;
     price_data: {
@@ -1186,6 +1316,18 @@ export interface StripeInvoiceLike {
   created: number;
 }
 
+/** A refund as the ledger list returns it. The provider declares `status` as
+ *  nullable, so a refund whose status cannot be read is carried as unknown
+ *  rather than assumed to have returned money. */
+export interface StripeRefundLike {
+  id: string;
+  payment_intent?: string | { id: string } | null;
+  amount: number;
+  currency: string;
+  status?: string | null;
+  created: number;
+}
+
 export interface StripeClientLike {
   checkout: {
     sessions: {
@@ -1193,6 +1335,7 @@ export interface StripeClientLike {
         params: StripeCheckoutSessionCreateParams,
         options?: StripeRequestOptions,
       ): Promise<StripeCheckoutSessionLike>;
+      expire(id: string): Promise<StripeCheckoutSessionLike>;
     };
   };
   subscriptions: {
@@ -1204,6 +1347,9 @@ export interface StripeClientLike {
   };
   invoices: {
     list(params: StripeListParams): Promise<StripeListPage<StripeInvoiceLike>>;
+  };
+  refunds: {
+    list(params: StripeListParams): Promise<StripeListPage<StripeRefundLike>>;
   };
 }
 
@@ -1327,6 +1473,30 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
     }
   }
 
+  /**
+   * When a checkout session should stop being open, as a Unix timestamp.
+   *
+   * A session left to the provider's default lives a full day, and while it
+   * lives the local row stays pending. For a membership that is not cosmetic:
+   * one pending membership row per member is a database constraint, so a member
+   * who changes their mind on the payment page cannot buy anything until the
+   * session expires, and the message they get names an action they have no way
+   * to take.
+   *
+   * Anchored to the top of the clock hour rather than to the moment of the call,
+   * because this value travels under an idempotency key. The key exists so a
+   * retried create returns the original session instead of opening a second one,
+   * and the provider rejects a reused key whose request body has changed, which
+   * a wall-clock expiry would change on every retry. Bucketing makes it stable
+   * for every retry inside the same hour. The resulting lifetime is between one
+   * and two hours: comfortably above the provider's thirty-minute floor, and far
+   * below the day it would otherwise be.
+   */
+  function checkoutExpiresAt(now: Date): number {
+    const topOfHour = Math.floor(now.getTime() / HOUR_MS) * HOUR_MS;
+    return Math.floor((topOfHour + 2 * HOUR_MS) / 1000);
+  }
+
   function extractPaymentIntentId(session: StripeCheckoutSessionLike): string | null {
     // Stripe may defer PaymentIntent creation until the buyer submits
     // payment, so a fresh session can carry null here. The webhook handler
@@ -1346,6 +1516,8 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
         const session = await stripe.checkout.sessions.create({
           mode: 'payment',
           client_reference_id: opts.paymentId,
+          payment_method_types: [...CHECKOUT_PAYMENT_METHOD_TYPES],
+          expires_at: checkoutExpiresAt(new Date()),
           ...(opts.stripeCustomerId ? { customer: opts.stripeCustomerId } : {}),
           line_items: [
             {
@@ -1397,6 +1569,8 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
         const session = await stripe.checkout.sessions.create({
           mode: 'subscription',
           client_reference_id: opts.paymentId,
+          payment_method_types: [...CHECKOUT_PAYMENT_METHOD_TYPES],
+          expires_at: checkoutExpiresAt(new Date()),
           ...(opts.stripeCustomerId ? { customer: opts.stripeCustomerId } : {}),
           line_items: [
             {
@@ -1462,6 +1636,12 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
       });
     },
 
+    async expireCheckoutSession(sessionId) {
+      return withClient(async (stripe) => {
+        await stripe.checkout.sessions.expire(sessionId);
+      });
+    },
+
     async listPaymentIntents(window) {
       return withClient(async (stripe) => {
         const raw = await drainList<StripePaymentIntentLike>(
@@ -1519,6 +1699,25 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
             createdAt: new Date(inv.created * 1000).toISOString(),
           };
         });
+      });
+    },
+
+    async listRefunds(window) {
+      return withClient(async (stripe) => {
+        const raw = await drainList<StripeRefundLike>(
+          (params) => stripe.refunds.list(params),
+          windowParams(window),
+        );
+        return raw.map((refund) => ({
+          id: refund.id,
+          paymentIntentId: typeof refund.payment_intent === 'string'
+            ? refund.payment_intent
+            : refund.payment_intent?.id ?? null,
+          amountCents: refund.amount,
+          currency: refund.currency.toUpperCase(),
+          status: refund.status ?? 'unknown',
+          createdAt: new Date(refund.created * 1000).toISOString(),
+        }));
       });
     },
   };

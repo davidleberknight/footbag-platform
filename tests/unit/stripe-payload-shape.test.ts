@@ -194,3 +194,76 @@ describe('Subscription, Charge and Checkout Session fields the handlers read', (
     expect(declaresObjectField(sessions, 'customer')).toBe(true);
   });
 });
+
+describe('Fields carrying money, which are the ones a wrong read costs real money', () => {
+  it('payment intent exposes the settled amount the booking prefers, and its currency', () => {
+    // The booking reads amount_received before falling back to amount, because
+    // the two differ on a partial capture and the received figure is the money
+    // that actually moved. A currency read that silently returned undefined
+    // would book a real charge under the platform default.
+    const intents = objectInterfaceBody(typeSource('PaymentIntents'), 'PaymentIntent');
+    expect(declaresObjectField(intents, 'amount_received')).toBe(true);
+    expect(declaresObjectField(intents, 'amount')).toBe(true);
+    expect(declaresObjectField(intents, 'currency')).toBe(true);
+  });
+
+  it('charge and invoice each still declare their own currency', () => {
+    // Both are read when a refund or a renewal is booked. Currency is part of
+    // the amount, not a label beside it.
+    expect(declaresObjectField(objectInterfaceBody(typeSource('Charges'), 'Charge'), 'currency'))
+      .toBe(true);
+    expect(declaresObjectField(objectInterfaceBody(typeSource('Invoices'), 'Invoice'), 'currency'))
+      .toBe(true);
+  });
+
+  it('invoice exposes the payments list the renewal booking reads its intent from', () => {
+    // The renewal's payment row takes its payment intent from here, and that id
+    // is the only thing a later refund of that charge can be matched on: the
+    // charge a refund arrives with carries no invoice reference at this version.
+    // If this list moves, every recurring-donation refund silently becomes
+    // unattributable again.
+    const invoices = typeSource('Invoices');
+    expect(invoices).toContain('payments?: ApiList<InvoicePayment>');
+    expect(
+      objectInterfaceBody(typeSource('InvoicePayments'), 'InvoicePayment'),
+    ).toMatch(/payment: InvoicePayment\.Payment/);
+    expect(typeSource('InvoicePayments')).toMatch(/payment_intent\?: string \| PaymentIntent/);
+  });
+
+  it('refund exposes everything the reconciliation refund pass compares', () => {
+    // This object was absent from this file entirely until the pass that reads
+    // it existed. A refund is the one money movement leaving no other trace in
+    // the provider's ledger, so these five fields are the whole evidence base
+    // for noticing a refund the platform never recorded.
+    const refunds = objectInterfaceBody(typeSource('Refunds'), 'Refund');
+    expect(declaresObjectField(refunds, 'payment_intent')).toBe(true);
+    expect(declaresObjectField(refunds, 'amount')).toBe(true);
+    expect(declaresObjectField(refunds, 'currency')).toBe(true);
+    expect(declaresObjectField(refunds, 'status')).toBe(true);
+    expect(declaresObjectField(refunds, 'created')).toBe(true);
+  });
+
+  it('refunds are listable, which is how the reconciliation reads them at all', () => {
+    expect(typeSource('Refunds')).toMatch(
+      /list\(params\?: RefundListParams, options\?: RequestOptions\): ApiListPromise<Refund>;/,
+    );
+  });
+});
+
+describe('Subscription fields the dashboard can change behind the platform', () => {
+  const subscriptions = objectInterfaceBody(typeSource('Subscriptions'), 'Subscription');
+
+  it('exposes the status and metadata the mirror keys on', () => {
+    expect(declaresObjectField(subscriptions, 'status')).toBe(true);
+    expect(declaresObjectField(subscriptions, 'metadata')).toBe(true);
+  });
+
+  it('exposes the cancellation flag and the collection pause the mirror reads', () => {
+    // Both are set from the provider's dashboard as readily as from this
+    // platform, and neither moves the status or the amount. A mirror that did
+    // not read them showed a gift as ending while the provider went on charging
+    // it, and showed a paused gift as collecting normally.
+    expect(declaresObjectField(subscriptions, 'cancel_at_period_end')).toBe(true);
+    expect(declaresObjectField(subscriptions, 'pause_collection')).toBe(true);
+  });
+});

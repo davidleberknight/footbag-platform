@@ -27,6 +27,7 @@ const ADMIN_ID = 'sl_admin';
 const MOVER_ID = 'sl_mover';
 const HOLDER_ID = 'sl_holder';
 const PLAIN_ID = 'sl_plain';
+const NO_LATIN_ID = 'sl_no_latin';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -77,6 +78,12 @@ beforeAll(async () => {
   insertMember(conn, {
     id: PLAIN_ID, slug: 'percy_plain', display_name: 'Percy Plain', real_name: 'Percy Plain',
     given_names: 'Percy', family_name: 'Plain', login_email: 'sl-plain@example.com',
+  });
+  // A member whose family name has no Latin form, carrying the unreadable
+  // address that used to be the only one such a member could ever hold.
+  insertMember(conn, {
+    id: NO_LATIN_ID, slug: 'member_9f8e7d6c', display_name: '世界 你好', real_name: '世界 你好',
+    given_names: '世界', family_name: '你好', login_email: 'sl-no-latin@example.com',
   });
 
   // A gallery whose criteria tag is this member's uploader tag: exactly the
@@ -163,6 +170,27 @@ describe('correcting a profile URL', () => {
       expect(res.status, label).toBe(422);
     }
     expect(slugOf(PLAIN_ID)).toBe('percy_plain');
+  });
+
+  // The rule tying an address to the family name cannot be met by a name with
+  // no Latin form, so it does not apply to one. Without that, an administrator
+  // could not move this member off their unreadable address either, because the
+  // correction runs the same rules registration does.
+  it('moves a member whose family name has no Latin form onto a readable address', async () => {
+    const res = await correctSlug(NO_LATIN_ID, 'wang_wei');
+    expect(res.status).toBe(303);
+    expect(slugOf(NO_LATIN_ID)).toBe('wang_wei');
+  });
+
+  it('still holds that member to every other rule', async () => {
+    for (const [label, slug] of [
+      ['a reserved site word', 'ifpa_wei'],
+      ['punctuation',          'wang-wei!'],
+      ['too short',            'w'],
+    ] as Array<[string, string]>) {
+      expect((await correctSlug(NO_LATIN_ID, slug)).status, label).toBe(422);
+    }
+    expect(slugOf(NO_LATIN_ID)).toBe('wang_wei');
   });
 
   it('refuses a correction with no reason', async () => {

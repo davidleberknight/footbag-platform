@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  assembleFullName, memberSurnameKey, surnameKey, surnameKeyMatchesName,
+  assembleFullName, latinFold, memberSurnameKey, surnameKey, surnameKeyMatchesName,
 } from '../../src/services/nameUtils';
 
 describe('assembleFullName', () => {
@@ -125,5 +125,38 @@ describe('surnameKeyMatchesName', () => {
     expect(surnameKeyMatchesName('', 'Jane Footbagger')).toBe(false);
     expect(surnameKeyMatchesName('footbagger', null)).toBe(false);
     expect(surnameKeyMatchesName('', null)).toBe(false);
+  });
+});
+
+/**
+ * A profile URL holds lowercase Latin letters, digits and underscores, so a
+ * name is folded to that alphabet before it is compared against one.
+ */
+describe('latinFold', () => {
+  it('drops the punctuation that a profile URL cannot carry', () => {
+    expect(latinFold("o'brien")).toBe('obrien');
+    expect(latinFold('smith-jones')).toBe('smithjones');
+    expect(latinFold('van der berg')).toBe('vanderberg');
+  });
+
+  it('folds accents to their Latin base rather than dropping the letter', () => {
+    expect(latinFold('Müller')).toBe('muller');
+    expect(latinFold('López')).toBe('lopez');
+  });
+
+  it('keeps digits, because a profile URL may carry them', () => {
+    expect(latinFold('smith2')).toBe('smith2');
+  });
+
+  it('is empty for a name with no Latin form, which is the signal it cannot be compared', () => {
+    expect(latinFold('你好')).toBe('');
+    expect(latinFold('Иванов')).toBe('');
+    expect(latinFold('김')).toBe('');
+  });
+
+  it('is empty for a missing name, so two absent names never compare equal', () => {
+    expect(latinFold('')).toBe('');
+    expect(latinFold(null)).toBe('');
+    expect(latinFold(undefined)).toBe('');
   });
 });

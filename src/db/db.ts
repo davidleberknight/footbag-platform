@@ -10989,14 +10989,18 @@ export const payments = {
   // the succeeded transition writes a status-transition row like every other
   // status change. The invoice id is a column rather than metadata because it is
   // the row's identity against the provider and is matched on by reconciliation.
+  // The payment intent is recorded too, read off the invoice's payments list,
+  // because a refund arrives as a charge carrying only its intent: without it
+  // no refund of a recurring donation could ever be attributed to its row.
   get insertSubscriptionChargePayment() { return db.prepare(`
     INSERT INTO payments (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, payment_type, amount_cents, currency,
       status, descriptor, donation_note, metadata_json,
       stripe_customer_id, stripe_subscription_id, stripe_invoice_id,
+      stripe_payment_intent_id,
       recurring_subscription_id, provider_livemode
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?, ?, ?, ?, ?)
   `); },
 };
 
@@ -11194,10 +11198,15 @@ export const recurringDonationSubscriptions = {
 
   // An administrator can change the amount or status in the Stripe Dashboard;
   // customer.subscription.updated mirrors whatever Stripe now reports.
-  get updateAmountAndStatus() { return db.prepare(`
+  // Everything a provider-reported change can move on the mirror. The
+  // cancel-at-period-end flag is here rather than only on the member's own
+  // cancellation path because the provider's dashboard can set or clear it too,
+  // and a mirror that only ever learns about it from this platform's own writes
+  // shows "ending after this period" while the provider goes on renewing.
+  get updateMirroredState() { return db.prepare(`
     UPDATE recurring_donation_subscriptions
-    SET amount_cents = ?, status = ?, status_updated_at = ?, last_stripe_event_id = ?,
-        last_stripe_event_created = ?,
+    SET amount_cents = ?, status = ?, is_cancel_at_period_end = ?, status_updated_at = ?,
+        last_stripe_event_id = ?, last_stripe_event_created = ?,
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },

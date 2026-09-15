@@ -3,9 +3,10 @@
  * cases in register.routes.test.ts do not cover.
  *
  * Intent (M_Register): a password outside the allowed length is rejected before
- * any account is created, and every member receives a unique slug even when the
- * display name contains no slug-able ASCII (a non-Latin name must still onboard
- * with a stable, unique identifier rather than an empty or colliding slug).
+ * any account is created, and every member onboards with a readable permanent
+ * profile address. A name written wholly in a non-Latin script yields nothing a
+ * profile URL can carry, so registration asks that member for one instead of
+ * inventing an unreadable address they could never replace.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import originRequest from '../fixtures/supertestWithOrigin';
@@ -68,11 +69,9 @@ describe('registration validation boundaries', () => {
     expect(slugForEmail(email), 'no member row was created').toBeUndefined();
   });
 
-  it('issues a unique fallback slug when the display name has no slug-able ASCII', async () => {
+  it('asks for a profile URL when the display name yields none, rather than inventing one', async () => {
     const email = 'nonascii@example.com';
     const res = await register({
-      // Real name and display name match (no slug-able ASCII), so the surname
-      // rule is skipped and the empty-slug fallback path is what onboards them.
       givenNames: '你好', familyName: '世界',
       displayName: '你好 世界',
       slug: '',
@@ -80,10 +79,23 @@ describe('registration validation boundaries', () => {
       password: 'a-valid-password',
       confirmPassword: 'a-valid-password',
     });
-    expect(res.status, 'non-ASCII registration succeeds').toBe(303);
-    const slug = slugForEmail(email);
-    expect(slug, 'a fallback slug was generated').toBeDefined();
-    expect(slug, 'fallback slug is the unique member_<hex> form').toMatch(/^member_[0-9a-f]{8}$/);
+    expect(res.status, 'the registration is refused').toBe(422);
+    expect(res.text, 'the refusal asks for the address').toContain('Please choose your profile URL');
+    expect(slugForEmail(email), 'no member row was created').toBeUndefined();
+  });
+
+  it('onboards that member once they supply one', async () => {
+    const email = 'nonascii-chosen@example.com';
+    const res = await register({
+      givenNames: '你好', familyName: '世界',
+      displayName: '你好 世界',
+      slug: 'ni_hao_shijie',
+      email,
+      password: 'a-valid-password',
+      confirmPassword: 'a-valid-password',
+    });
+    expect(res.status, 'the chosen address is accepted').toBe(303);
+    expect(slugForEmail(email)).toBe('ni_hao_shijie');
   });
 });
 
