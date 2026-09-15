@@ -873,6 +873,47 @@ describe('admin review: separation of duties', () => {
     expect(requester.historical_person_id).toBeNull();
   });
 
+  // A revert settles nothing and answers nobody: the requester's own link is
+  // still undecided, so the item stays open and no mail goes out. The page has
+  // to say that rather than reporting a resolution and an email reply, which is
+  // what it did while the revert borrowed the ordinary resolve message.
+  it('tells the administrator the request is still open, and claims no email', async () => {
+    const holderId = seedRequester();
+    const requesterId = seedRequester('Still Open Record');
+    const personId = insertHistoricalPerson(db, {
+      person_id: 'hp-banner-truth', person_name: 'Still Open Record', hof_member: 1,
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?').run(personId, holderId);
+
+    await request(createApp())
+      .post(`/members/${slugFor(requesterId)}/contact-admin`)
+      .set('Cookie', cookieFor(requesterId))
+      .type('form')
+      .send({ category: 'identity_link_issue', message: 'Someone else holds my record.' });
+    const item = openItems(requesterId)[0];
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_historical_person_id: personId, reason: 'Evidence favours the requester.' });
+    expect(res.status).toBe(303);
+
+    const flash = res.headers['set-cookie']!.toString().split(';')[0]!;
+    const landing = await request(createApp())
+      .get('/admin/work-queue')
+      .set('Cookie', `${adminCookie()}; ${flash}`);
+
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Claim reverted.');
+    expect(landing.text).toContain('still needs you to approve or reject the link');
+    expect(landing.text).not.toContain('email reply dispatched');
+    expect(landing.text).not.toContain('Item resolved');
+
+    // And the item really is still open, which is what the banner now promises.
+    expect(openItems(requesterId).map((i) => i.id)).toContain(item.id);
+  });
+
   it('cannot reach an unrelated member: the old holder-id body field is inert', async () => {
     const bystanderId = seedRequester();
     const requesterId = seedRequester();

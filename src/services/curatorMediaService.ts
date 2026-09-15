@@ -100,6 +100,21 @@
  *   - Member-gallery form uploads carry user-supplied `uploadTags` (never
  *     auto-stamped from gallery criteria); auto-applied tags are exactly
  *     `#by_<slug>` (member) and `#curated` (FH-owned).
+ *   - An administrator writing to a gallery that belongs to another member is
+ *     moderation rather than authoring, and obeys the correction rules: it takes
+ *     a mandatory reason, records each changed value before and after, writes no
+ *     ledger row when nothing moved, and tells the owner. The name and the
+ *     description are that member's own words, so the administrator's only move
+ *     on them is to clear them: the new values are derived from the clear flags
+ *     and whatever the request carried in those two fields is discarded, which
+ *     makes a rewrite impossible rather than merely refused. Ordering and the
+ *     tag sets are structure, not words, and an administrator may set them.
+ *     A cleared name becomes a neutral placeholder, numbered where the owner
+ *     already holds one, because the column is NOT NULL and unique per owner.
+ *   - A tag an administrator has retired is refused at the one resolve-or-create
+ *     lookup every tag application runs through, for media tags and for both
+ *     gallery tag sets. The retired tag's row survives so its normalized form
+ *     stays reserved, which is exactly why this lookup has to refuse it.
  *
  * Persistence:
  *   media_items, media_tags, tags, audit_entries, members, member_galleries,
@@ -110,7 +125,11 @@
  *   source of truth).
  *
  * Side effects:
- *   - audit_entries append per upload or gallery mutation
+ *   - audit_entries append per upload or gallery mutation, including
+ *     `media.member_gallery_moderated` when an administrator acts on a gallery
+ *     another member owns
+ *   - outbox enqueue of the gallery owner's notice on that moderation, after the
+ *     transaction commits so a rolled-back change cannot announce itself
  *
  * Service shape: factory `createCuratorMediaService(deps)`. Deps include
  * MediaStorageAdapter, ImageProcessingAdapter, and VideoTranscodingAdapter (the
@@ -165,6 +184,7 @@ import {
 import { writeSidecar } from '../lib/curatorSidecar';
 import { promises as fsp } from 'fs';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { normalizeLineEndings } from '../lib/multilineText';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
@@ -173,6 +193,7 @@ import { hasTier1Benefits } from './tierPredicates';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
+import { emailService } from './emailService';
 
 export const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = config.videoMaxBytes;
@@ -572,7 +593,9 @@ function validateCaption(caption: string | null): void {
 
 // The single FH/admin uploader marker. Auto-applied by every curator
 // upload + edit path; rejected from caller input so it cannot be set
-// by hand. Stored as a standard tag (is_standard=1, standard_type='curator').
+// by hand. Stored as a freeform tag, because the standardized namespace covers
+// only the club and event hashtags and the schema's own check would refuse any
+// other standard type.
 export const CURATED_TAG = '#curated';
 
 // Member-uploader namespace. `#by_<slug>` is auto-applied on every
@@ -582,6 +605,26 @@ export const CURATED_TAG = '#curated';
 // remains an ordinary tag any user may apply (mentions, pre-tagging
 // unsigned/historical persons).
 export const UPLOADER_TAG_PREFIX = '#by_';
+
+// The name a cleared gallery takes when an administrator moderates a member's
+// own. The column is NOT NULL and unique per owner, so a cleared name can be
+// neither empty nor a repeat of another of the same member's galleries. The
+// number is disambiguation between two cleared galleries, not a name anybody
+// chose, and it is what stops a second clear failing on the unique index and
+// leaving abusive words standing.
+const CLEARED_GALLERY_NAME = 'Gallery';
+const CLEARED_NAME_LIMIT = 200;
+const MAX_MODERATION_REASON = 500;
+
+/** How each gallery field is named in the ledger and in the owner's notice. */
+const GALLERY_FIELD_PHRASE: Record<string, string> = {
+  name:          "the gallery's name",
+  description:   "the gallery's description",
+  sortOrder:     'the order its items appear in',
+  criteriaTags:  'which hashtags decide what the gallery shows',
+  excludeTags:   'which hashtags it leaves out',
+  externalLinks: 'the links beside it',
+};
 
 function validateTags(tags: string[]): void {
   for (const tag of tags) {
@@ -663,6 +706,33 @@ function defaultFindSystemMemberId(): string | null {
   return row?.id ?? null;
 }
 
+// The one place a retired tag could come back. Retirement detaches an abusive
+// tag from every media item and gallery criterion that named it, but leaves the
+// tags row standing so its normalized form stays reserved; this lookup would
+// otherwise find that row and hand the word straight back to the next member
+// who types it. Every other tag surface reads through media_tags or tag_stats,
+// which retirement emptied, so closing it here closes it everywhere.
+function resolveTagIdOrCreate(
+  normalized: string,
+  display: string,
+  now: string,
+  field: string,
+): string {
+  const existing = mediaTagsDb.findTagByNormalized.get(normalized) as
+    | { id: string; retired_at: string | null }
+    | undefined;
+  if (existing) {
+    if (existing.retired_at !== null) {
+      const message = `The hashtag ${display} is no longer available.`;
+      throw new ValidationError(message, { fieldErrors: { [field]: message } });
+    }
+    return existing.id;
+  }
+  const tagId = newTagId();
+  mediaTagsDb.insertTag.run(tagId, now, now, normalized, display);
+  return tagId;
+}
+
 function applyTags(mediaId: string, tags: string[], now: string): string[] {
   const tagIds: string[] = [];
   // Tags are matched case-insensitively on the lowercased form; the original
@@ -675,14 +745,7 @@ function applyTags(mediaId: string, tags: string[], now: string): string[] {
     if (seen.has(normalized)) continue;
     seen.add(normalized);
 
-    const existing = mediaTagsDb.findTagByNormalized.get(normalized) as { id: string } | undefined;
-    let tagId: string;
-    if (existing) {
-      tagId = existing.id;
-    } else {
-      tagId = newTagId();
-      mediaTagsDb.insertTag.run(tagId, now, now, normalized, tag);
-    }
+    const tagId = resolveTagIdOrCreate(normalized, tag, now, 'tags');
     mediaTagsDb.insertMediaTag.run(newMediaTagId(), now, now, mediaId, tagId, tag);
     tagIds.push(tagId);
   }
@@ -930,6 +993,15 @@ export interface CuratorGalleryEditView {
   // criteria the service refuses to change. The edit form reads this to present
   // those parts as fixed rather than offering inputs that would be rejected.
   isDefault: boolean;
+  // Whose gallery this is. The admin curator surface serves two cohorts through
+  // one URL: Footbag Hacky's own galleries, which an administrator authors, and
+  // a member's, where an administrator is moderating somebody else's record and
+  // may remove the words but never rewrite them. The surface has to know which
+  // one it is looking at, and the owner's name is what the moderation form
+  // shows so an administrator can see whose words these are.
+  isSystemOwned: boolean;
+  ownerMemberId: string;
+  ownerDisplayName: string;
   criteriaTags: string[];   // tag-display strings e.g. '#curated'
   // Pre-shaped display string for the owner-facing edit form: criteriaTags
   // joined by space with the auto-applied `#by_<slug>` uploader tag
@@ -1066,6 +1138,21 @@ export interface CuratorGalleryUpdateInput {
   actorIsAdmin: boolean;
   galleryId: string;
   updates: CuratorGalleryUpdates;
+  /**
+   * The administrator's mandatory reason, on the moderation door only: an
+   * administrator acting on a gallery that belongs to another member. An
+   * owner's own edit of their own gallery carries none, and neither does an
+   * administrator authoring Footbag Hacky's.
+   */
+  reason?: string;
+  /**
+   * Which of the member's own words come off, on the moderation door only.
+   * The two fields are the member's writing, so the administrator's control is
+   * a clear rather than an edit box: the service derives the new values from
+   * these flags and discards whatever the request carried, which makes a
+   * rewrite impossible rather than merely refused.
+   */
+  moderation?: { clearName: boolean; clearDescription: boolean };
 }
 
 export interface CuratorGalleryCreateInput {
@@ -2282,7 +2369,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): CuratorGalleryEditView {
       return runSqliteRead('getGalleryForEdit', () => {
         const g = media.getNamedGalleryById.get(galleryId) as
-          | { id: string; name: string; description: string; sort_order: GallerySortOrderValue; owner_member_id: string; is_default: number }
+          | {
+            id: string; name: string; description: string;
+            sort_order: GallerySortOrderValue; owner_member_id: string;
+            is_default: number; is_system: number; owner_display_name: string;
+          }
           | undefined;
         if (!g) {
           throw new NotFoundError(`gallery ${galleryId} not found`);
@@ -2357,6 +2448,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           description: g.description,
           sortOrder: g.sort_order,
           isDefault: g.is_default === 1,
+          isSystemOwned: g.is_system === 1,
+          ownerMemberId: g.owner_member_id,
+          ownerDisplayName: g.owner_display_name,
           criteriaTags: criteriaTagDisplays,
           criteriaTagsDisplayString: criteriaTagDisplays
             .filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX))
@@ -2389,13 +2483,36 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const validated = await validateGalleryUpdates(updates);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
-        | { id: string; owner_member_id: string; is_system: number; is_default: number; owner_slug: string }
+        | {
+          id: string; owner_member_id: string; is_system: number; is_default: number;
+          owner_slug: string; name: string; description: string;
+          sort_order: GallerySortOrderValue; owner_display_name: string;
+        }
         | undefined;
       if (!existing) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      // Moderation of a member's own gallery, as distinct from an owner editing
+      // their own and from an administrator authoring Footbag Hacky's. It is a
+      // write onto somebody else's record, so it takes a mandatory reason and
+      // records every changed value before and after. The name and the
+      // description are that member's own words: the administrator's only move
+      // on them is to take them off, so the new values come from the clear
+      // flags and whatever the request carried in those two fields is dropped.
+      const isModeration = actorIsAdmin
+        && existing.is_system === 0
+        && existing.owner_member_id !== actorMemberId;
+      let moderationReason = '';
+      if (isModeration) {
+        moderationReason = requireModerationReason(input.reason);
+        validated.name = input.moderation?.clearName
+          ? clearedGalleryName(existing.owner_member_id, galleryId)
+          : existing.name;
+        validated.description = input.moderation?.clearDescription ? '' : existing.description;
+      }
 
       assertPersonalGalleryIsIntact(existing.is_default === 1, {
         name: validated.name,
@@ -2436,6 +2553,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       const now = new Date().toISOString();
 
+      // The tag sets and the external links are rewritten delete-then-insert,
+      // so their prior values have to be read before the rewrite runs or they
+      // are gone by the time anything could record them. Only the moderation
+      // door needs them, and only it pays for the reads.
+      const changed = isModeration
+        ? galleryChangesFor(galleryId, existing, validated)
+        : [];
+
       transaction(() => {
         media.updateMemberGalleryMetadata.run(
           validated.name,
@@ -2447,22 +2572,53 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
         rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
         rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
-        appendAuditEntry({
-          actionType: existing.is_system === 1
-            ? 'media.curated_gallery_updated'
-            : 'media.member_gallery_updated',
-          category: 'media',
-          actorType: actorIsAdmin ? 'admin' : 'member',
-          actorMemberId,
-          entityType: 'gallery',
-          entityId: galleryId,
-          metadata: {
-            galleryId,
-            ownerMemberId: existing.owner_member_id,
-            isSystem: existing.is_system === 1,
-          },
-        });
+        if (isModeration) {
+          // No row when nothing moved. A ledger entry saying an administrator
+          // acted on a member's gallery, listing no change, is a false record
+          // of an intervention that did not happen.
+          if (changed.length > 0) {
+            appendAuditEntry({
+              actionType:    'media.member_gallery_moderated',
+              category:      'media',
+              actorType:     'admin',
+              actorMemberId,
+              entityType:    'gallery',
+              entityId:      galleryId,
+              reasonText:    moderationReason,
+              metadata: {
+                galleryId,
+                ownerMemberId: existing.owner_member_id,
+                fields: changed.map((c) => c.field),
+                before: Object.fromEntries(changed.map((c) => [c.field, c.before])),
+                after:  Object.fromEntries(changed.map((c) => [c.field, c.after])),
+              },
+            });
+          }
+        } else {
+          appendAuditEntry({
+            actionType: existing.is_system === 1
+              ? 'media.curated_gallery_updated'
+              : 'media.member_gallery_updated',
+            category: 'media',
+            actorType: actorIsAdmin ? 'admin' : 'member',
+            actorMemberId,
+            entityType: 'gallery',
+            entityId: galleryId,
+            metadata: {
+              galleryId,
+              ownerMemberId: existing.owner_member_id,
+              isSystem: existing.is_system === 1,
+            },
+          });
+        }
       });
+
+      if (isModeration && changed.length > 0) {
+        notifyGalleryOwnerOfModeration(
+          existing.owner_member_id, existing.owner_display_name,
+          galleryId, existing.name, changed, moderationReason, now,
+        );
+      }
 
       if (existing.is_system === 1) {
         await writeFhGallerySidecar({
@@ -3155,7 +3311,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const m = `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`;
       throw new ValidationError(m, { fieldErrors: { name: m } });
     }
-    const description = (updates.description ?? '').trim();
+    // Line endings collapsed before anything compares this against what is
+    // stored: a browser sends a textarea's line breaks as CRLF whatever value
+    // it was given, and the column holds LF, so a description posted back with
+    // no edit would otherwise read as a change the administrator did not make.
+    const description = normalizeLineEndings(updates.description ?? '').trim();
     if (description.length > GALLERY_DESCRIPTION_MAX_LEN) {
       const m = `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`;
       throw new ValidationError(m, { fieldErrors: { description: m } });
@@ -3263,7 +3423,116 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   // (no AuthorizationError class exists in serviceErrors.ts; reusing
   // ValidationError matches the existing convention for actor-permission
   // failures in this service file).
-  function authorizeGalleryActor(
+  function clearedGalleryName(ownerMemberId: string, galleryId: string): string {
+  for (let n = 1; n <= CLEARED_NAME_LIMIT; n += 1) {
+    const candidate = n === 1 ? CLEARED_GALLERY_NAME : `${CLEARED_GALLERY_NAME} ${n}`;
+    const held = media.findMemberGalleryByOwnerAndName.get(ownerMemberId, candidate) as
+      | { id: string }
+      | undefined;
+    if (!held || held.id === galleryId) return candidate;
+  }
+  throw new ValidationError(
+    'This member already holds too many cleared galleries for another to be named.',
+  );
+}
+
+function requireModerationReason(raw: string | undefined): string {
+  const reason = (raw ?? '').trim();
+  if (!reason) {
+    throw new ValidationError('Enter the reason for this change to a member\'s gallery.', {
+      fieldErrors: { reason: 'Enter the reason for this change to a member\'s gallery.' },
+    });
+  }
+  if (reason.length > MAX_MODERATION_REASON) {
+    throw new ValidationError(
+      `The reason must be ${MAX_MODERATION_REASON} characters or fewer.`,
+      { fieldErrors: { reason: `The reason must be ${MAX_MODERATION_REASON} characters or fewer.` } },
+    );
+  }
+  return reason;
+}
+
+interface GalleryFieldChange {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
+
+/**
+ * What an administrator's write to a member's gallery actually changed, read
+ * before the write so the delete-then-insert rewrites have not yet destroyed
+ * the prior tag sets and links. Tag sets and link sets are compared as sorted
+ * lists, because reordering the same set is not a change anybody made.
+ */
+function galleryChangesFor(
+  galleryId: string,
+  existing: { name: string; description: string; sort_order: GallerySortOrderValue },
+  validated: {
+    name: string; description: string; sortOrder: GallerySortOrderValue;
+    criteriaTags: string[]; excludeTags: string[];
+    externalLinks: Array<{ label: string; url: string }>;
+  },
+): GalleryFieldChange[] {
+  const priorCriteria = (media.listFhNamedGalleryTags.all(galleryId) as Array<{ tag_display: string }>)
+    .map((t) => t.tag_display);
+  const priorExcludes = (media.listFhNamedGalleryExcludeTags.all(galleryId) as Array<{ tag_display: string }>)
+    .map((t) => t.tag_display);
+  const priorLinks = (media.listGalleryExternalLinks.all(galleryId) as Array<{ label: string; url: string }>)
+    .map((l) => `${l.label} ${l.url}`);
+
+  const sorted = (values: string[]): string[] => [...values].sort();
+  const linkText = (links: Array<{ label: string; url: string }>): string[] =>
+    links.map((l) => `${l.label} ${l.url}`);
+
+  const changed: GalleryFieldChange[] = [];
+  const note = (field: string, before: unknown, after: unknown): void => {
+    if (JSON.stringify(before) !== JSON.stringify(after)) changed.push({ field, before, after });
+  };
+  note('name', existing.name, validated.name);
+  note('description', existing.description, validated.description);
+  note('sortOrder', existing.sort_order, validated.sortOrder);
+  note('criteriaTags', sorted(priorCriteria), sorted(validated.criteriaTags));
+  note('excludeTags', sorted(priorExcludes), sorted(validated.excludeTags));
+  note('externalLinks', sorted(priorLinks), sorted(linkText(validated.externalLinks)));
+  return changed;
+}
+
+function describeGalleryChanges(changed: GalleryFieldChange[]): string {
+  const phrases = changed.map((c) => GALLERY_FIELD_PHRASE[c.field] ?? c.field);
+  if (phrases.length === 1) return phrases[0]!;
+  return `${phrases.slice(0, -1).join(', ')} and ${phrases[phrases.length - 1]!}`;
+}
+
+/**
+ * Tell the member an administrator acted on their gallery. Every other
+ * administrative correction on somebody else's record writes to the person
+ * whose record it is, and this is one. The idempotency key carries the instant
+ * so a second act on the same gallery is a second message rather than a
+ * suppressed duplicate.
+ */
+function notifyGalleryOwnerOfModeration(
+  ownerMemberId: string,
+  ownerDisplayName: string,
+  galleryId: string,
+  galleryName: string,
+  changed: GalleryFieldChange[],
+  reason: string,
+  sentAt: string,
+): void {
+  emailService.sendToMember({
+    template: 'gallery_moderated_member',
+    params: {
+      memberName:  ownerDisplayName,
+      galleryName,
+      whatChanged: describeGalleryChanges(changed),
+      note:        reason,
+    },
+    memberId: ownerMemberId,
+    idempotencyKey: `gallery-moderated:${galleryId}:${sentAt}`,
+  });
+}
+
+function authorizeGalleryActor(
     actorMemberId: string,
     actorIsAdmin: boolean,
     ownerMemberId: string,
@@ -3291,16 +3560,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const normalized = tag.toLowerCase();
       if (seenCriteria.has(normalized)) continue;
       seenCriteria.add(normalized);
-      const existingTag = mediaTagsDb.findTagByNormalized.get(normalized) as
-        | { id: string }
-        | undefined;
-      let tagId: string;
-      if (existingTag) {
-        tagId = existingTag.id;
-      } else {
-        tagId = newTagId();
-        mediaTagsDb.insertTag.run(tagId, now, now, normalized, tag);
-      }
+      const tagId = resolveTagIdOrCreate(normalized, tag, now, 'criteriaTags');
       media.insertMemberGalleryTag.run(galleryId, tagId, now, actorMemberId);
     }
 
@@ -3310,16 +3570,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const normalized = tag.toLowerCase();
       if (seenExclude.has(normalized)) continue;
       seenExclude.add(normalized);
-      const existingTag = mediaTagsDb.findTagByNormalized.get(normalized) as
-        | { id: string }
-        | undefined;
-      let tagId: string;
-      if (existingTag) {
-        tagId = existingTag.id;
-      } else {
-        tagId = newTagId();
-        mediaTagsDb.insertTag.run(tagId, now, now, normalized, tag);
-      }
+      const tagId = resolveTagIdOrCreate(normalized, tag, now, 'excludeTags');
       media.insertMemberGalleryExcludeTag.run(galleryId, tagId, now, actorMemberId);
     }
   }

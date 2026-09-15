@@ -1433,6 +1433,51 @@ Impact:
 
 - Voting is version-two scope, so the ballot that reads the voting marker is not built at launch. The marker is recorded in v1 regardless: who holds a vote on the board is part of the board's record whether or not the platform is yet the place a vote is cast.
 
+## 2.13 Administrator Correction of Member-generated Data
+
+Decision:
+
+An administrator can correct any member-generated record that the person who wrote it cannot put right themselves. The purpose-built surface is the remedy wherever one exists: a member edits their own profile, a co-leader edits their own club, an organizer edits their own event, and an administrator does not duplicate those. Being all-powerful is not the same as holding an edit box for every column, and a field whose only administrative case is that somebody might mistype it does not get one.
+
+An administrator path is owed where one of six things is true, and not otherwise:
+
+- The member cannot act. They have died, they cannot reach their own account, or the role that would act is vacant. A club with no co-leader is the worked example: the leaderless state is tolerated by design, the club still lists publicly with its details, and there is nobody left to correct them.
+- The member is not permitted to act. The field is locked because its consequences reach past the person holding it. A display name and a profile URL are permanent after registration, a membership tier is a grant rather than a preference, Active Player standing is conferred by other people's vouches and attendance, and honours, director standing and the administrator role itself are never self-served.
+- The thing is shared and belongs to nobody. A club's hashtag is nobody's to fix, so no member can fix it for themselves.
+- The content is public and harmful and the act is removal rather than rewriting. This is moderation, and it reaches an author who is present and unwilling as readily as one who is gone.
+- A dispute between members needs a neutral decision. A report sets a reporter against an uploader, and an identity claim sets two members against one record.
+- The platform itself left the row wrong. That is repair rather than correction, and it touches no member-generated data.
+
+Every administrative write onto somebody else's record carries an audit row recording each changed field's value before and after, the administrator's identity, and the timestamp, and a mandatory reason wherever the act has more than one possible motive. The reason exists to make the write reviewable, so an act with exactly one motive collects none: marking a member deceased is the case, where a required note about a named person's death would be stored where no erasure path can reach it and read back nowhere. An act whose motive a reviewer could not otherwise guess always collects one.
+
+No administrator is the judge of their own case. Where an administrator would be both the subject of a decision and the person taking it, the platform refuses and says another administrator must review it: approving one's own legacy-identity help request, resolving one's own identity dispute, revoking one's own administrator role, settling a contact request one filed about one's own record, and deciding a report against one's own upload. A small administrative team makes this more necessary rather than less, because the alternative is a privileged role with no check on it at all. The bar is on being the subject, not on having touched the item: an administrator who reports an abusive item and then decides it is doing one act in two steps, which is the designed moderation path.
+
+The administrator corrects facts and removes content, and does not rewrite another person's words while leaving those words attributed to that person. A bio, a club note, a report's reason text, an answer to a question, a sent announcement, and a donation comment are the member's own voice; editing one and leaving the attribution standing is a misrepresentation rather than a correction. Removal, withdrawal, and redaction are available for every one of them, each with its own reason and audit row, so nothing is beyond reach.
+
+Four classes sit outside this decision for structural reasons rather than as limits on administrative authority:
+
+- Append-only ledgers, whose immutability is enforced by trigger pairs at the database: the audit log, the erasure log, the payment and subscription status transitions, and the Active Player vouch. A ledger records what happened, so the remedy for a wrong entry is a later entry, and where the entry had an effect, that effect is corrected on the record it landed on.
+- Payment records, corrected through reconciliation, because the payment provider rather than this platform holds the truth of what money moved.
+- Imported historical data, corrected at its source and rebuilt, because a correction made in the application is destroyed by the next load.
+- Vote and ballot records, which carry their own integrity model.
+
+Rationale:
+
+- The administrative team is small and has no database access as an operating assumption. Every data problem arising from ordinary use must have a remedy inside the application, or it has no remedy at all. The member's own surface is that remedy wherever they can reach it, and an administrator path covers only the cases they cannot.
+- A correction made on someone else's behalf is reviewable and reversible only from a trail that says what the value actually was. That is why administrative corrections record values, not just field names, departing from the ordinary audit rule.
+- The authorship limit is what keeps the trail honest. A record that has been corrected says so; a sentence rewritten under its author's name does not.
+
+Trade-offs:
+
+- On a field the member can reach, an administrator has no answer to an ordinary mistake except to tell the member. That is accepted. The alternative costs a second write path and its tests on every column, to fix something the person who wrote it can fix in a minute.
+- Recording a member's former value in an immutable ledger means it outlives an erasure that clears it everywhere else. That is the accepted cost of accountability for administrative action, and it is why the exception stays with administrative corrections rather than widening to a member's own edits of their own record.
+
+Impact:
+
+- A feature that gives a member, leader, or organizer a new field is complete when that person can maintain it themselves. It owes an administrator surface only where one of the six tests applies, and where one does, the feature carries that surface rather than deferring it.
+- Correction surfaces live in the ordinary trees under the established admin naming, behind the admin gate, per the internal-only subtree decision.
+- Each correction previews before it writes, and the confirmation names the reason and every changed value.
+
 # 3. Security, Authentication, and Sessions
 
 ## 3.1 Password Hashing

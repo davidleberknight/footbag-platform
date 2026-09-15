@@ -171,6 +171,7 @@ each release contains is §1.3.
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
+    - [A_Retire_Tag](#a_retire_tag)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
     - [A_Manage_Curated_Gallery](#a_manage_curated_gallery)
     - [A_Browse_Freestyle_Content](#a_browse_freestyle_content)
@@ -2746,7 +2747,7 @@ Success Criteria:
 - Auditing on this surface records the writes: every correction appends an audit row naming the administrator, the member, the reason, and each value before and after. Opening the member record is an administrator surface read and is treated as every other administrator surface read is.
 - Admin can change membership tier from the member detail view to any of the three membership tiers: `tier0`, `tier1`, `tier2` (using canonical database string values). Director standing (`tier3`) is not set here: it is governance standing rather than a membership tier, and it is conferred in one place, through `A_Grant_HoF_BAP_Board_Status`, which also records the tier the member returns to and sets the board badge. Active Player status is managed separately from membership tier.
 - Admin can correct the Active Player expiry date when needed for exceptional remediation, with mandatory reason and audit logging.
-- Admin should not edit member-editable fields (email, city, country, club affiliation) via this interface; members must edit these themselves, except in the case of a member death. Display name corrections require admin action (contact IFPA).
+- The member's own profile is the ordinary path for every field they can edit themselves, and an administrator does not use this surface for routine editing on a member's behalf. An administrator can correct any of those fields when the member cannot: a data bug, a member who has died, an account whose holder can no longer reach it, or a value the member's own surface will not accept. Every such correction carries a mandatory reason and an audit row with the value before and after. The member's bio is their own words: an administrator can clear it but does not rewrite it. Display name corrections require admin action (contact IFPA).
 - Event results and other data fields that could be buggy can also be edited via this interface, but will require additional UI support.
 - Mandatory reason field for manual adjustment (typically: payment issue resolution, complimentary access, error correction).
 - Confirmation dialog before applying with member name, old tier, new tier, and reason.
@@ -2840,6 +2841,23 @@ Success Criteria:
 - Reassignment restores normal club management capabilities when a leadership gap was the blocking issue.
 - When resolving leadership for a bootstrapped club, the system marks the relevant `club_bootstrap_leaders` row as superseded.
 - All admin leadership actions are audit-logged with actor identity, timestamp, before/after values, and reason text; the audit trail is the canonical history and cannot be edited by admins.
+
+### A_Correct_Club_Data
+
+Access: Only admins can correct a club's own content outside its co-leaders' own tools.
+
+Story: As an administrator, I can correct a club's details and its hashtag where its co-leaders cannot, so that a club nobody is left to maintain is not stuck with details nobody can fix. A club with no co-leader is the case this exists for: the leaderless state is tolerated by design and the club still lists publicly. A club with active co-leaders maintains itself, and an administrator does not edit it on their behalf.
+
+Success Criteria:
+
+- Admin can find any club by id, hashtag, or part of its name or city, including the inactive and archived clubs the public directory does not list.
+- Admin can correct a club's name, description, city, region, country and external URL. Every value is held to the rules a co-leader's own edit is held to, including the resolution of a region against whichever country the row will carry once the edit lands, and the block on two clubs sharing an exact name within one country.
+- Admin can move the club's hashtag, which is also the address its public page sits at. Media already carrying the hashtag moves with it; the old address stops working and nothing redirects from it, and the confirmation says so before the move happens.
+- Every correction requires a reason entered by the admin, previews before it writes, and writes an audit row carrying the before and after values, the admin's identity, the timestamp, and the reason. The row records that an administrator made it, distinct from a co-leader's own edit of the same fields.
+- Every correction emails the club's current co-leaders, naming the club, what changed, and the admin's reason, and nothing else. A club with no co-leader is a tolerated state: the correction still applies, and there is simply nobody to tell.
+- A submission that would change nothing writes nothing and says so, rather than recording a correction that did not happen.
+- Corrections appear in the normal public and member-facing views immediately, with no separate publication step.
+- Purpose-built surfaces remain the ordinary path: a co-leader edits their own club, leadership rosters go through `A_Reassign_Club_Leader`, viability and archival go through `A_Periodic_Club_Cleanup`, and member records go through `A_Override_Member_Data`. This story is the backstop for what those do not reach.
 
 ### A_Reassign_Event_Organizer
 
@@ -2993,7 +3011,43 @@ Success Criteria:
 - All actions append to immutable audit log with actor, reason, and affected mediaId.
 - System emails uploader with decision.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
-- Moderation reaches a member's named gallery, not only individual items: an admin can edit a member-owned gallery — its name, description, item ordering, and criteria and exclude tag sets — through the same admin gallery URL that manages Footbag Hacky's own. This is moderation of a member's media, not curation; curation is an admin adding or editing Footbag Hacky's own media as the system member, specified in A_Upload_Curated_Media and A_Manage_Curated_Gallery. Deleting a member-owned gallery is not a moderation action and returns 404 there; removing a member's media is done per item through the takedown decision above. Every such edit appends an audit row naming the acting admin and the affected gallery.
+- Moderation reaches a member's named gallery, not only individual items: an admin can act on a member-owned gallery through the same admin gallery URL that manages Footbag Hacky's own. The gallery's name and description are the member's own words, so an admin clears an abusive one rather than rewriting it under their name; the item ordering and the criteria and exclude tag sets are structure rather than words, and an admin may set them. This is moderation of a member's media, not curation; curation is an admin adding or editing Footbag Hacky's own media as the system member, specified in A_Upload_Curated_Media and A_Manage_Curated_Gallery. Deleting a member-owned gallery is not a moderation action and returns 404 there; removing a member's media is done per item through the takedown decision above. Every such act takes a mandatory reason and appends an audit row naming the acting admin, the affected gallery, and each changed value before and after.
+
+### A_Retire_Tag
+
+Access: Only admins can retire a hashtag. There is no member-facing control, and a
+retirement cannot be undone from the site.
+
+Story: As an admin, I can retire an abusive freeform hashtag so that it stops appearing
+anywhere on the site and cannot be typed back in.
+
+Success Criteria:
+
+- A freeform hashtag is public, any member can invent one, and it rides on other members'
+  uploads. Retirement is moderation of harmful public content, not vocabulary management:
+  the platform imposes no taxonomy on freeform tags and still does not. Renaming and
+  merging tags are out of scope.
+- An admin looks a tag up by the text members see. The preview shows the tag as displayed,
+  how many media items carry it, how many member galleries name it in their criteria or
+  exclude lists, and a caution band, because the act is irreversible.
+- Retiring takes a mandatory reason and, in one transaction, removes the tag from every
+  media item carrying it, removes it from every gallery criteria and exclude list naming
+  it, deletes its usage record, and marks the tag row retired with the acting admin and
+  the time.
+- The media items themselves are untouched. Only the tag comes off. A member's caption,
+  links and files are their own words and are not this act's business.
+- A retired tag is gone from browse, from every popular and alphabetical index, from tag
+  chips and from autocomplete, and cannot be applied again: an upload or gallery edit
+  naming one is refused with a field error.
+- Standard tags are refused. A club's or event's hashtag is its address, its permanence is
+  a separate stated rule, and correcting one is done on the club surface.
+- The platform's own attribution tags are refused: the per-uploader tag and the curated
+  marker are generated by the platform, not authored by a member.
+- One audit row per retirement records the acting admin, the mandatory reason, the tag as
+  stored and as displayed, and how many media items and gallery criteria were detached.
+- No member is emailed. The takedown decision writes to a member when their own item is
+  removed; here every item survives, what comes off is a shared word that was never any one
+  member's, and the message would have to quote the abusive tag to make sense.
 
 ### A_Upload_Curated_Media
 

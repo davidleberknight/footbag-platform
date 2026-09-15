@@ -77,14 +77,18 @@ export const clubController = {
     try {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
       const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-      await clubService.editClubContent(req.user!.userId, clubId, {
-        name:        str(req.body.name),
-        description: str(req.body.description),
-        city:        str(req.body.city),
-        region:      str(req.body.region),
-        country:     str(req.body.country),
-        externalUrl: str(req.body.external_url),
-      });
+      await clubService.editClubContent(
+        clubId,
+        {
+          name:        str(req.body.name),
+          description: str(req.body.description),
+          city:        str(req.body.city),
+          region:      str(req.body.region),
+          country:     str(req.body.country),
+          externalUrl: str(req.body.external_url),
+        },
+        { kind: 'leader', memberId: req.user!.userId },
+      );
       writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club updated.'));
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
@@ -368,8 +372,10 @@ export const clubController = {
     const newSlug = String(req.body.newSlug ?? '');
     try {
       const clubId = clubService.resolveClubIdByKey(clubKey);
-      const result = clubService.updateClubHashtag(clubId, newSlug, req.user!.userId);
-      if (result.branch === 'not_leader') {
+      const result = clubService.updateClubHashtag(
+        clubId, newSlug, { kind: 'leader', memberId: req.user!.userId },
+      );
+      if (result.branch === 'not_leader' || result.branch === 'not_found') {
         renderNotFound(res);
         return;
       }

@@ -1,0 +1,7 @@
+{
+  "templateKey": "media_removed_member",
+  "subjectTemplate": "One of your footbag.org media items has been removed",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has removed one of your media items. Your account, your membership and the rest of your media are unchanged.\n\nAdministrator's note:\n{note}\n\nIf you believe this was decided in error, submit a contact request from your profile edit page.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

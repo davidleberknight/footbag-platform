@@ -1,0 +1,111 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> outcome-notice text=page.notice tone=page.noticeTone}}
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <div class="event-meta-row">
+    {{#each content.identifyingFacts}}<span>{{this}}</span>{{/each}}
+    {{#each content.stateLabels}}<span class="badge badge-tier">{{this}}</span>{{/each}}
+  </div>
+
+  <p><a href="{{content.publicHref}}">View the public club page</a></p>
+
+  <section>
+    <div class="section-heading"><h2>Club Details</h2></div>
+    <dl class="trick-structural-facts-list">
+      {{#each content.details}}
+        <dt>{{label}}</dt><dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Co-leaders</h2></div>
+    {{#if content.hasLeaders}}
+      <p class="text-muted fs-sm">These are the members told when a correction is made here.</p>
+      {{#each content.leaders}}
+        <div class="card">
+          <div class="card-title">{{displayName}} <span class="badge">{{roleLabel}}</span></div>
+          <p class="m-0 mt-1"><a href="{{recordHref}}">Open their member record</a></p>
+        </div>
+      {{/each}}
+    {{else}}
+      <p class="text-muted">This club has no co-leader. A correction made here reaches nobody by email, because there is nobody to tell.</p>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Corrections</h2></div>
+    <p class="text-muted fs-sm">Every correction is shown for review before anything is written, takes a reason, is recorded in this club's audit history, and is emailed to its co-leaders.</p>
+
+    <details class="admin-action-disclosure">
+      <summary>Correct the Club's Details</summary>
+      <p class="text-muted fs-sm">The club's own co-leaders are the ordinary path for these fields. Every value is held to the rules their own form applies, including that two clubs never share an exact name within one country.</p>
+      <form method="POST" action="{{content.contentAction}}" class="form-block">
+        <div class="form-field">
+          <label for="club_name">Club name</label>
+          <input type="text" id="club_name" name="name" value="{{content.form.name}}" maxlength="150" required />
+        </div>
+        <div class="form-field">
+          <label for="club_description">Description</label>
+          <textarea id="club_description" name="description" rows="4" maxlength="2000">{{content.form.description}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="club_city">City</label>
+          <input type="text" id="club_city" name="city" value="{{content.form.city}}" required />
+        </div>
+        <div class="form-field">
+          <label for="club_region">Region or state</label>
+          <input type="text" id="club_region" name="region" value="{{content.form.region}}" />
+        </div>
+        <div class="form-field">
+          <label for="club_country">Country</label>
+          <input type="text" id="club_country" name="country" value="{{content.form.country}}" required />
+        </div>
+        <div class="form-field">
+          <label for="club_external_url">Website (verified before it appears publicly; leave blank to remove)</label>
+          <input type="text" id="club_external_url" name="external_url" value="{{content.form.externalUrl}}" maxlength="2048" />
+        </div>
+        <div class="form-field">
+          <label for="content_reason">Reason (required)</label>
+          <input type="text" id="content_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Club Correction</button>
+      </form>
+    </details>
+
+    <details class="admin-action-disclosure">
+      <summary>Correct the Club's Hashtag</summary>
+      <p class="text-muted fs-sm">The hashtag is the club's address as well as its tag, so the club's page moves with it and every photo already carrying the hashtag follows. The old address stops working and nothing redirects from it, so any link already shared will lead nowhere.</p>
+      <form method="POST" action="{{content.hashtagAction}}" class="form-block">
+        <div class="form-field">
+          <label for="hashtag_slug">Hashtag, without the #club_ in front of it</label>
+          <input type="text" id="hashtag_slug" name="hashtag_slug" value="{{content.form.hashtagSlug}}" maxlength="64" required />
+        </div>
+        <div class="form-field">
+          <label for="hashtag_reason">Reason (required)</label>
+          <input type="text" id="hashtag_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Hashtag Correction</button>
+      </form>
+    </details>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Related Administrator Pages</h2></div>
+    {{#each content.elsewhereLinks}}
+      <p><a href="{{href}}">{{label}}</a></p>
+    {{/each}}
+  </section>
+
+  {{#each navigation.contextLinks}}
+    <p class="mt-4"><a href="{{href}}" class="btn btn-outline">{{label}}</a></p>
+  {{/each}}
+</div>

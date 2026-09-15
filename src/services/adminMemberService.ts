@@ -6,9 +6,11 @@
  * itself: each correction is resolved and validated here, previewed with
  * nothing written, and committed by the service that owns the data. The name
  * correction goes to IdentityAccessService, the tier change and the honor and
- * governance flags to MembershipTieringService, and the Active Player expiry
- * to ActivePlayerService. Keeping the writes there is what stops this surface
- * becoming a second home for member rules.
+ * governance flags to MembershipTieringService, the Active Player expiry to
+ * ActivePlayerService, and the profile-picture removal to MediaModerationService,
+ * which owns every takedown whether or not a report led to it. Keeping the
+ * writes there is what stops this surface becoming a second home for member
+ * rules.
  *
  * Audience: admin only. The record sits at the internal-and-admin-only
  * sensitivity level and may therefore show the member's owner-and-admin-private
@@ -24,7 +26,7 @@
  * Reading a record writes nothing. The corrections each write one audit row
  * through their owning service.
  */
-import { account } from '../db/db';
+import { account, media } from '../db/db';
 import {
   adminOverride, getTierStatus, tierBadgeShort, type MemberTier,
 } from './membershipTieringService';
@@ -33,7 +35,10 @@ import {
   getStatus as getActivePlayerStatus,
 } from './activePlayerService';
 import { identityAccessService } from './identityAccessService';
+import { memberService, type ProfileEditInput } from './memberService';
 import { deceasedMarkingService } from './deceasedMarkingService';
+import { buildAvatarUrl } from './avatarService';
+import { getDefaultMediaModerationService } from './mediaModerationService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { readIntConfig } from './configReader';
 import { formatDateDisplay } from './dateFormat';
@@ -68,7 +73,11 @@ export type CorrectionOutcome =
   | 'deceased_reverted'
   | 'deceased_grace_elapsed'
   | 'slug_corrected'
-  | 'slug_unchanged';
+  | 'slug_unchanged'
+  | 'avatar_removed'
+  | 'avatar_removed_storage_pending'
+  | 'profile_corrected'
+  | 'profile_unchanged';
 
 // Each outcome carries its tone. A correction that landed and a correction that
 // found nothing to change are different events, and the page used to paint both
@@ -91,6 +100,13 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   slug_corrected:
     ['ok', 'The profile URL has been corrected and the uploader tag moved with it, so the member\'s media and galleries still resolve. The old URL no longer works.'],
   slug_unchanged: ['info', 'That is the profile URL the record already held, so nothing changed.'],
+  avatar_removed:
+    ['ok', 'The profile picture has been removed, its stored files are deleted, and the member has been told. They can upload another.'],
+  profile_corrected:
+    ['ok', "The member's profile details have been corrected, and every changed value is recorded in the audit log."],
+  profile_unchanged: ['info', 'Those are the details the record already held, so nothing changed.'],
+  avatar_removed_storage_pending:
+    ['ok', 'The profile picture has been removed and the member has been told. Its stored files could not be deleted and the failure is logged for an operator; the member\'s next upload writes over them.'],
 };
 
 function isCorrectionOutcome(value: string): value is CorrectionOutcome {
@@ -142,6 +158,14 @@ interface AdminMemberRow {
   birth_date: string | null;
   phone: string | null;
   whatsapp: string | null;
+  bio: string | null;
+  email_visibility: string;
+  phone_visible: number;
+  whatsapp_visible: number;
+  first_competition_year: number | null;
+  show_competitive_results: number;
+  show_first_competition_year: number;
+  show_gender: number;
   searchable: number;
   is_admin: number;
   is_system: number;
@@ -215,10 +239,53 @@ export interface AdminMemberRecordContent {
     tierOptions: TierOption[];
     activePlayerExpiryDate: string;
   };
+  /**
+   * The member's current profile details, so the correction form opens on what
+   * the record holds rather than on blanks that would wipe it.
+   */
+  profileForm: {
+    city: string;
+    region: string;
+    country: string;
+    phone: string;
+    whatsapp: string;
+    birthDay: string;
+    birthMonth: string;
+    birthYear: string;
+    /** Pre-shaped with the current value marked, so the template selects
+     *  nothing itself and never compares a stored code. */
+    emailVisibilityOptions: Array<{ value: string; label: string; selected: boolean }>;
+    genderOptions: Array<{ value: string; label: string; selected: boolean }>;
+    firstCompetitionYear: string;
+    phoneVisible: boolean;
+    whatsappVisible: boolean;
+    searchable: boolean;
+    showCompetitiveResults: boolean;
+    showFirstCompetitionYear: boolean;
+    showGender: boolean;
+    /** `slot` is the one-based position the labels name, computed here because
+     *  a template does no arithmetic. */
+    links: Array<{ slot: number; label: string; url: string }>;
+  };
+  /**
+   * False once the account is deleted or its personal data purged. Deletion is
+   * final: the member opens a new account and an administrator links it out of
+   * band. Offering a correction form on one of those records would let an
+   * administrator write personal data back onto a record the platform has
+   * already promised to have erased.
+   */
+  canCorrectProfile: boolean;
+  profileAction: string;
   nameAction: string;
   slugAction: string;
   tierAction: string;
   activePlayerAction: string;
+  /**
+   * Whether this member has a picture to take down. The control is absent when
+   * there is none, rather than offered and then refused.
+   */
+  hasAvatar: boolean;
+  avatarRemoveAction: string;
   /** Which of the two deceased controls this record offers, and where it posts. */
   isDeceasedMarked: boolean;
   deceasedMarkAction: string;
@@ -260,6 +327,19 @@ export interface AdminMemberConfirmContent {
    * one motive and collects nothing to show here.
    */
   reason: string | null;
+  /**
+   * One sentence of caution, present only on the corrections that cannot be
+   * taken back by repeating them. The reversible ones carry none deliberately:
+   * an amber band on every confirmation is an amber band an administrator stops
+   * reading, and then it is worth nothing on the three that need it.
+   */
+  caution?: string;
+  /**
+   * Present only where the thing being decided is an image. An administrator
+   * asked to destroy a picture has to be able to see which picture, and a
+   * confirmation that names it in words alone cannot tell two of them apart.
+   */
+  previewImage?: { src: string; alt: string };
   hiddenFields: HiddenField[];
   confirmAction: string;
   confirmLabel: string;
@@ -386,6 +466,175 @@ function requireReason(raw: string): string {
     throw new ValidationError(`The reason must be ${MAX_REASON} characters or fewer.`);
   }
   return reason;
+}
+
+/**
+ * Whether this record's profile may be corrected at all.
+ *
+ * A deleted account is gone: the member opens a new one and an administrator
+ * links it out of band, rather than the old record being edited back to life.
+ * A purged account has had its personal data erased, and a correction that
+ * filled those fields in again would undo an erasure the platform has already
+ * carried out. Neither is a validation failure to report; the control is simply
+ * not offered, and the write refuses if one is crafted anyway.
+ */
+function profileIsCorrectable(row: AdminMemberRow): boolean {
+  return row.deleted_at === null && row.personal_data_purged_at === null && row.slug !== null;
+}
+
+/** The same rule at the write, so a crafted submission cannot reach past it. */
+function requireCorrectableProfile(row: AdminMemberRow): void {
+  if (row.personal_data_purged_at !== null) {
+    throw new ValidationError(
+      "This account's personal data has been erased. Correcting it would write that data back, so "
+      + 'there is nothing to correct here.',
+    );
+  }
+  if (row.deleted_at !== null) {
+    throw new ValidationError(
+      'This account is deleted. A member who wants to come back opens a new account and asks an '
+      + 'administrator to link it, rather than this record being edited back into use.',
+    );
+  }
+  if (!row.slug) {
+    throw new ValidationError('This member has no profile URL, so there is no profile to correct.');
+  }
+}
+
+/**
+ * The correction form's starting values: what the record holds right now.
+ *
+ * Every field is prefilled because the write is a whole-profile replace, as the
+ * member's own save is. A form opening on blanks would clear the fields an
+ * administrator did not mean to touch.
+ */
+function profileFormFor(row: AdminMemberRow): AdminMemberRecordContent['profileForm'] {
+  const parts = memberService.getBirthDateParts(row.id);
+  return {
+    city:                 row.city ?? '',
+    region:               row.region ?? '',
+    country:              row.country ?? '',
+    phone:                row.phone ?? '',
+    whatsapp:             row.whatsapp ?? '',
+    birthDay:             parts.day,
+    birthMonth:           parts.month,
+    birthYear:            parts.year,
+    emailVisibilityOptions: [
+      { value: 'private', label: 'Nobody' },
+      { value: 'members', label: 'Signed-in members' },
+    ].map((o) => ({ ...o, selected: o.value === row.email_visibility })),
+    genderOptions: [
+      { value: 'undisclosed', label: 'Undisclosed' },
+      { value: 'female', label: 'Female' },
+      { value: 'male', label: 'Male' },
+    ].map((o) => ({ ...o, selected: o.value === (row.gender ?? 'undisclosed') })),
+    firstCompetitionYear: row.first_competition_year === null ? '' : String(row.first_competition_year),
+    phoneVisible:            row.phone_visible === 1,
+    whatsappVisible:         row.whatsapp_visible === 1,
+    searchable:              row.searchable === 1,
+    showCompetitiveResults:  row.show_competitive_results === 1,
+    showFirstCompetitionYear: row.show_first_competition_year === 1,
+    showGender:              row.show_gender === 1,
+    links: memberService.listMemberLinks(row.id)
+      .map((l, i) => ({ slot: i + 1, label: l.label, url: l.url })),
+  };
+}
+
+/** Plain names for the profile fields, so a confirmation reads as English. */
+const PROFILE_FIELD_LABEL: Record<string, string> = {
+  city: 'City',
+  region: 'Region',
+  country: 'Country',
+  phone: 'Phone',
+  whatsapp: 'WhatsApp',
+  birthDate: 'Date of birth',
+  emailVisibility: 'Who can see the contact email',
+  phoneVisible: 'Phone shown to members',
+  whatsappVisible: 'WhatsApp shown to members',
+  searchable: 'Listed in member search',
+  firstCompetitionYear: 'First competition year',
+  showCompetitiveResults: 'Competition results shown',
+  showFirstCompetitionYear: 'First competition year shown',
+  showGender: 'Gender shown to members',
+  gender: 'Gender',
+  links: 'Links',
+};
+
+/**
+ * A stored value as a confirmation screen should read it. The flags are stored
+ * as 0 and 1 and an administrator is being asked to approve a change, so they
+ * are shown as the words they mean rather than as the digits they are.
+ */
+function displayFieldValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '(none)';
+  if (value === 0) return 'No';
+  if (value === 1) return 'Yes';
+  if (Array.isArray(value)) return value.length > 0 ? value.join('; ') : '(none)';
+  return String(value);
+}
+
+/**
+ * The whole submission, carried across the confirmation so the commit writes
+ * exactly what was previewed rather than re-reading a form the administrator
+ * has since left.
+ */
+function profileHiddenFields(input: ProfileEditInput, reason: string): HiddenField[] {
+  const fields: HiddenField[] = [
+    { name: 'city', value: input.city },
+    { name: 'region', value: input.region },
+    { name: 'country', value: input.country },
+    { name: 'phone', value: input.phone },
+    { name: 'whatsapp', value: input.whatsapp },
+    { name: 'birthDay', value: input.birthDay },
+    { name: 'birthMonth', value: input.birthMonth },
+    { name: 'birthYear', value: input.birthYear },
+    { name: 'emailVisibility', value: input.emailVisibility },
+    { name: 'gender', value: input.gender },
+    { name: 'firstCompetitionYear', value: input.firstCompetitionYear },
+  ];
+  // A checkbox posts nothing when unticked, so each flag is carried as its
+  // resolved value rather than by its presence, which is what a hidden field
+  // cannot express.
+  for (const [name, value] of [
+    ['phoneVisible', input.phoneVisible],
+    ['whatsappVisible', input.whatsappVisible],
+    ['searchable', input.searchable],
+    ['showCompetitiveResults', input.showCompetitiveResults],
+    ['showFirstCompetitionYear', input.showFirstCompetitionYear],
+    ['showGender', input.showGender],
+  ] as const) {
+    const resolved = Array.isArray(value) ? value[value.length - 1] : value;
+    fields.push({ name, value: resolved === '1' ? '1' : '0' });
+  }
+  // Repeated names rather than indexed ones, matching the member's own form, so
+  // one request assembler reads both and there is no second naming convention
+  // for the same submission.
+  for (const link of input.links) {
+    fields.push({ name: 'link_label', value: link.label });
+    fields.push({ name: 'link_url', value: link.url });
+  }
+  fields.push({ name: 'reason', value: reason });
+  return fields;
+}
+
+/**
+ * The picture currently on the member's profile, or null.
+ *
+ * Read from the member's own pointer rather than from the avatar media row,
+ * because a taken-down picture keeps its row: the row carries the reason and
+ * the decision, and the takedown detaches it by clearing this pointer. Asking
+ * the media table instead would report a removed picture as still present, and
+ * offer an administrator a control that refuses.
+ */
+function currentAvatar(memberId: string): { id: string; s3_key_thumb: string } | null {
+  const pointer = account.findMemberAvatarPointer.get(memberId) as
+    | { avatar_media_id: string | null }
+    | undefined;
+  if (!pointer?.avatar_media_id) return null;
+  const row = media.getExistingAvatarMediaId.get(memberId) as
+    | { id: string; s3_key_thumb: string }
+    | undefined;
+  return row && row.id === pointer.avatar_media_id ? row : null;
 }
 
 /**
@@ -619,7 +868,12 @@ export const adminMemberService = {
         nameAction:         `/admin/members/${row.id}/name`,
         slugAction:         `/admin/members/${row.id}/slug`,
         tierAction:         `/admin/members/${row.id}/tier`,
+        profileForm:        profileFormFor(row),
+        canCorrectProfile:  profileIsCorrectable(row),
+        profileAction:      `/admin/members/${row.id}/profile`,
         activePlayerAction: `/admin/members/${row.id}/active-player`,
+        hasAvatar:          currentAvatar(row.id) !== null,
+        avatarRemoveAction: `/admin/members/${row.id}/avatar/remove`,
         isDeceasedMarked:     row.is_deceased === 1,
         deceasedMarkAction:   `/admin/members/${row.id}/deceased`,
         deceasedRevertAction: `/admin/members/${row.id}/deceased/revert`,
@@ -787,6 +1041,8 @@ export const adminMemberService = {
       changes,
       hasChanges:      changes.length > 0,
       noChangeMessage: changes.length > 0 ? null : 'That is the profile URL the record already holds. Nothing would change.',
+      caution: 'This cannot be undone by correcting it back: the old address stops resolving the '
+        + 'moment this is applied, and every link already shared to it is dead from then on.',
       reason,
       hiddenFields: [
         { name: 'slug',   value: slug },
@@ -854,6 +1110,13 @@ export const adminMemberService = {
         changes,
         hasChanges:      true,
         noChangeMessage: null,
+        // Only the marking cautions. Removing one is the reversal itself, and
+        // it refuses rather than half-succeeding once the window has passed.
+        ...(reverting ? {} : {
+          caution: `This is reversible for ${deceasedGraceDays()} days and not after. Past that `
+            + "window the member's contact details are cleared, and full account deletion is the "
+            + 'only remaining path.',
+        }),
         reason:          null,
         hiddenFields:    [],
         confirmAction: reverting
@@ -907,8 +1170,8 @@ export const adminMemberService = {
       displayName: row.display_name,
       slugLabel:   displayOrDash(row.slug),
       summary: 'A correction is the one path that may move an expiry earlier, which is how a '
-        + 'standing granted in error is taken back. Active Player is a Tier 0 status, and the '
-        + 'member is not emailed about this correction.',
+        + 'standing granted in error is taken back. Active Player is a Tier 0 status. The member '
+        + 'is emailed that their standing was corrected, and told the reason you give here.',
       changes,
       hasChanges:      changes.length > 0,
       noChangeMessage: changes.length > 0 ? null : 'That is the expiry the record already holds. Nothing would change.',
@@ -921,6 +1184,148 @@ export const adminMemberService = {
       confirmLabel:  'Yes, Correct the Expiry',
       cancelHref:    recordHref(row.id),
     });
+  },
+
+  /**
+   * Preview a correction of the member's profile details. Nothing is written.
+   *
+   * The rules are the member's own: the same validation runs on the same path,
+   * so a correction cannot set a value the member's own surface would refuse,
+   * and the confirmation cannot promise a change the commit would decline.
+   */
+  async previewProfileCorrection(
+    memberId: string,
+    input: ProfileEditInput,
+    rawReason: string,
+  ): Promise<PageViewModel<AdminMemberConfirmContent>> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    requireCorrectableProfile(row);
+
+    const moved = await memberService.updateOwnProfile(
+      row.slug!, input, { kind: 'administrator', memberId: 'preview', reason }, { preview: true },
+    );
+    const changes: ChangeRow[] = moved.map((c) => ({
+      label:  PROFILE_FIELD_LABEL[c.field] ?? c.field,
+      before: displayFieldValue(c.before),
+      after:  displayFieldValue(c.after),
+    }));
+
+    return confirmEnvelope('Confirm: Correct the Profile Details', {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary: "The member's own profile is the ordinary path for these fields, and this surface is "
+        + 'the backstop for when they cannot use it. Every value here passes the same rules their '
+        + 'own form applies. Their written biography is not touched: it is their words, and clearing '
+        + 'it is a separate action.',
+      changes,
+      hasChanges:      changes.length > 0,
+      noChangeMessage: changes.length > 0 ? null : 'Those are the details the record already holds. Nothing would change.',
+      reason,
+      hiddenFields: profileHiddenFields(input, reason),
+      confirmAction: `/admin/members/${row.id}/profile/confirm`,
+      confirmLabel:  'Yes, Correct the Details',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  /** Commit a profile correction through the service that owns the member. */
+  async applyProfileCorrection(
+    actorId: string,
+    memberId: string,
+    input: ProfileEditInput,
+    rawReason: string,
+  ): Promise<CorrectionOutcome> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    requireCorrectableProfile(row);
+
+    const moved = await memberService.updateOwnProfile(
+      row.slug!, input, { kind: 'administrator', memberId: actorId, reason },
+    );
+    return moved.length > 0 ? 'profile_corrected' : 'profile_unchanged';
+  },
+
+  /** Preview a profile-picture removal. Nothing is written. */
+  previewAvatarRemoval(
+    memberId: string,
+    rawReason: string,
+  ): PageViewModel<AdminMemberConfirmContent> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    const avatar = currentAvatar(row.id);
+    if (!avatar) {
+      throw new ValidationError('This member has no profile picture to remove.');
+    }
+
+    // The before-and-after of a removal is a presence, not a value: there is no
+    // copy of the image to put in a ledger, so what the row records is that one
+    // was there and is not any more.
+    const changes: ChangeRow[] = [{
+      label:  'Profile picture',
+      before: 'Set by the member',
+      after:  'Removed',
+    }];
+
+    return confirmEnvelope('Confirm: Remove the Profile Picture', {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary: 'The picture comes off the profile and its stored files are deleted. The account, '
+        + 'the membership and everything else on the record are untouched, and the member is '
+        + 'emailed the reason you give here. They can upload another, so this stops a picture '
+        + 'rather than a person.',
+      changes,
+      hasChanges:      true,
+      noChangeMessage: null,
+      caution: 'This cannot be undone. The stored files are deleted, and only the member can put a '
+        + 'picture back by uploading a new one.',
+      reason,
+      previewImage: {
+        // Through the avatar service's own address builder, so this screen
+        // resolves the picture exactly as the profile does, under whichever
+        // storage adapter is configured.
+        src: buildAvatarUrl(avatar.s3_key_thumb, avatar.id) ?? '',
+        // Short deliberately. The line above already names whose record this
+        // is, and an object missing from storage renders its alt text inside
+        // the thumbnail's box: a sentence there overflows and makes the
+        // decision screen look broken at the moment it must look trustworthy.
+        alt: 'Current profile picture',
+      },
+      hiddenFields: [{ name: 'reason', value: reason }],
+      confirmAction: `/admin/members/${row.id}/avatar/remove/confirm`,
+      confirmLabel:  'Yes, Remove the Picture',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  /**
+   * Commit a profile-picture removal through the takedown every removed item
+   * goes through. This surface is the second door onto that one act, not a
+   * second way of performing it: an administrator standing on a member's record
+   * has no report in front of them, and that is the only difference.
+   */
+  async applyAvatarRemoval(
+    actorId: string,
+    memberId: string,
+    rawReason: string,
+  ): Promise<CorrectionOutcome> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    const avatar = currentAvatar(row.id);
+    if (!avatar) {
+      throw new ValidationError('This member has no profile picture to remove.');
+    }
+    const result = await getDefaultMediaModerationService().decideDelete({
+      mediaId: avatar.id,
+      adminMemberId: actorId,
+      reason,
+    });
+    if (result.status !== 'decided') {
+      throw new ValidationError('That picture has already been taken down.');
+    }
+    return result.storageRemoved ? 'avatar_removed' : 'avatar_removed_storage_pending';
   },
 
   /** Commit an Active Player expiry correction through the ledger's owner. */

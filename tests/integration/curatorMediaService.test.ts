@@ -1647,7 +1647,11 @@ describe('curatorMediaService.updateGallery', () => {
     }
   });
 
-  it('admin can edit a member-owned gallery (moderation path)', async () => {
+  // An administrator acting on a gallery another member made is moderation, not
+  // authoring. The name and the description are that member's own words, so the
+  // administrator's only move on them is to take them off: a posted replacement
+  // is dropped rather than written under the member's name.
+  it('clears a member-owned gallery rather than rewriting it', async () => {
     const ts = '2026-04-01T03:00:00Z';
     const ownerId = 'member-gal-upd-admin-mod';
     const galleryId = 'gallery_m_updmod01';
@@ -1655,7 +1659,7 @@ describe('curatorMediaService.updateGallery', () => {
     insertMember(db, { id: ownerId, slug: 'gal-upd-mod', login_email: 'gal-upd-mod@example.com' });
     insertMemberTierGrant(db, { member_id: ownerId, new_tier_status: 'tier1' });
     insertMemberGallery(db, {
-      id: galleryId, owner_member_id: ownerId, name: 'Member Gallery', description: '',
+      id: galleryId, owner_member_id: ownerId, name: 'Member Gallery', description: 'Words of mine.',
       sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
     });
     db.close();
@@ -1671,14 +1675,139 @@ describe('curatorMediaService.updateGallery', () => {
         actorMemberId: ADMIN_ID,
         actorIsAdmin: true,
         galleryId,
-        updates: { name: 'Moderated', description: '', sortOrder: 'upload_desc', criteriaTags: ['#m'], excludeTags: [] },
+        updates: { name: 'Moderated', description: 'Rewritten by an admin.', sortOrder: 'upload_desc', criteriaTags: ['#m'], excludeTags: [] },
+        reason: 'The name repeats a slur aimed at another player.',
+        moderation: { clearName: true, clearDescription: true },
       });
       const db2 = openDb();
-      const row = db2.prepare(`SELECT name FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
-      expect(row.name).toBe('Moderated');
+      const row = db2.prepare(`SELECT name, description FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
+      expect(row.name).toBe('Gallery');
+      expect(row.description).toBe('');
       db2.close();
       // Member-owned: no sidecar even when admin is the actor.
       await expect(fsp.access(path.join(curatedRoot, 'galleries'))).rejects.toThrow();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the member\'s words when the administrator clears neither', async () => {
+    const ts = '2026-04-01T03:00:00Z';
+    const ownerId = 'member-gal-upd-admin-keep';
+    const galleryId = 'gallery_m_updmod02';
+    const db = openDb();
+    insertMember(db, { id: ownerId, slug: 'gal-upd-keep', login_email: 'gal-upd-keep@example.com' });
+    insertMemberTierGrant(db, { member_id: ownerId, new_tier_status: 'tier1' });
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: ownerId, name: 'Park Sessions', description: 'Evenings at the park.',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-admin-keep-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await svc.updateGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        galleryId,
+        updates: { name: 'Something Else', description: 'Something else again.', sortOrder: 'upload_asc', criteriaTags: ['#m'], excludeTags: [] },
+        reason: 'Re-ordering a series that reads backwards.',
+        moderation: { clearName: false, clearDescription: false },
+      });
+      const db2 = openDb();
+      const row = db2.prepare(`SELECT name, description, sort_order FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
+      expect(row.name).toBe('Park Sessions');
+      expect(row.description).toBe('Evenings at the park.');
+      // Ordering is structure rather than words, so an administrator may set it.
+      expect(row.sort_order).toBe('upload_asc');
+      db2.close();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a moderation write with no reason', async () => {
+    const ts = '2026-04-01T03:00:00Z';
+    const ownerId = 'member-gal-upd-admin-noreason';
+    const galleryId = 'gallery_m_updmod03';
+    const db = openDb();
+    insertMember(db, { id: ownerId, slug: 'gal-upd-nr', login_email: 'gal-upd-nr@example.com' });
+    insertMemberTierGrant(db, { member_id: ownerId, new_tier_status: 'tier1' });
+    insertMemberGallery(db, {
+      id: galleryId, owner_member_id: ownerId, name: 'Held Name', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-admin-nr-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.updateGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        galleryId,
+        updates: { name: 'Held Name', description: '', sortOrder: 'upload_desc', criteriaTags: ['#m'], excludeTags: [] },
+        moderation: { clearName: true, clearDescription: false },
+      })).rejects.toThrow(/reason/i);
+      const db2 = openDb();
+      const row = db2.prepare(`SELECT name FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
+      expect(row.name).toBe('Held Name');
+      db2.close();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('numbers a second cleared gallery rather than colliding with the first', async () => {
+    const ts = '2026-04-01T03:00:00Z';
+    const ownerId = 'member-gal-upd-admin-two';
+    const db = openDb();
+    insertMember(db, { id: ownerId, slug: 'gal-upd-two', login_email: 'gal-upd-two@example.com' });
+    insertMemberTierGrant(db, { member_id: ownerId, new_tier_status: 'tier1' });
+    insertMemberGallery(db, {
+      id: 'gallery_m_two_a', owner_member_id: ownerId, name: 'First Bad Name', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
+    insertMemberGallery(db, {
+      id: 'gallery_m_two_b', owner_member_id: ownerId, name: 'Second Bad Name', description: '',
+      sort_order: 'upload_desc', created_at: ts, created_by: ownerId,
+    });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-upd-admin-two-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      for (const galleryId of ['gallery_m_two_a', 'gallery_m_two_b']) {
+        await svc.updateGallery({
+          actorMemberId: ADMIN_ID,
+          actorIsAdmin: true,
+          galleryId,
+          updates: { name: 'x', description: '', sortOrder: 'upload_desc', criteriaTags: ['#m'], excludeTags: [] },
+          reason: 'Both names are abusive.',
+          moderation: { clearName: true, clearDescription: false },
+        });
+      }
+      const db2 = openDb();
+      const names = (db2.prepare(
+        `SELECT name FROM member_galleries WHERE owner_member_id = ? ORDER BY name, id`,
+      ).all(ownerId) as Array<{ name: string }>).map((r) => r.name);
+      db2.close();
+      // ordering-is-the-contract: the assertion is the set of names, sorted so
+      // the comparison is stable; neither row is identified by its position.
+      expect(names).toEqual(['Gallery', 'Gallery 2']);
     } finally {
       await fsp.rm(curatedRoot, { recursive: true, force: true });
     }

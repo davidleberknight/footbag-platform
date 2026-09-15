@@ -6,8 +6,15 @@
  *   - Processing to thumb + display variants via the image-processing adapter
  *   - Atomic avatar swap: prior avatar row deleted and the new one inserted,
  *     tagged `#by_<slug>`, and audited in one transaction
+ *   - The address a stored avatar is served from, which every reader resolves
+ *     through `buildAvatarUrl` rather than turning a storage key into a URL by
+ *     hand: the storage adapter differs before and after go-live.
  *
  * Does not own:
+ *   - Taking a picture down. That is a moderation act, and
+ *     MediaModerationService owns it, whether an administrator reached it from
+ *     a report or from the member's record. A second removal path here would
+ *     hide the row one way and delete it another, and the two would drift.
  *   - Image transformation internals (ImageProcessingAdapter)
  *   - Storage/CDN mechanics (MediaStorageAdapter)
  *   - Non-avatar member media (CuratorMediaService) or avatar rendering
@@ -23,7 +30,7 @@
  *   - Per-member upload throttle (config-tunable, admin-exempt).
  *
  * Persistence:
- *   media_items, media_tags, tags, audit_entries.
+ *   media_items, media_tags, tags, audit_entries, members.avatar_media_id.
  *
  * Side effects:
  *   - audit_entries append (media.member_uploaded, mediaType avatar)
@@ -67,6 +74,20 @@ export function getDefaultAvatarService(): ReturnType<typeof createAvatarService
     storage: getMediaStorageAdapter(),
     imageProcessor: getImageProcessingAdapter(),
   });
+}
+
+/**
+ * The address a stored avatar is served from, with a cache-bust version tied to
+ * the media item id. Lives here because this service owns the avatar's whole
+ * lifecycle, and every reader of one has to agree on the address: the storage
+ * adapter differs before and after go-live, so the key is never turned into a
+ * URL by hand, and the version suffix is the only thing that makes a replaced
+ * picture visible through a browser or edge cache.
+ */
+export function buildAvatarUrl(thumbKey: string | null, mediaId: string | null): string | null {
+  if (!thumbKey) return null;
+  const base = getMediaStorageAdapter().constructURL(thumbKey);
+  return mediaId ? `${base}?v=${encodeURIComponent(mediaId)}` : base;
 }
 
 export function createAvatarService(deps: AvatarServiceDeps) {

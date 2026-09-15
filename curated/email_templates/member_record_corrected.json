@@ -1,0 +1,7 @@
+{
+  "templateKey": "member_record_corrected",
+  "subjectTemplate": "An IFPA administrator has corrected something on your footbag.org record",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has corrected {whatChanged} on your account. Nothing else about your membership has changed.\n\nAdministrator's note:\n{note}\n\nYou can see your record by logging in to footbag.org and opening your profile. If you believe this was corrected in error, submit a contact request from your profile edit page.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

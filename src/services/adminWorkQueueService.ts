@@ -57,6 +57,14 @@
  *   - A row is refused when its entity type is not one its task type declares:
  *     acting on it would record a decision about a record the type does not
  *     describe.
+ *   - A row is refused when the administrator settling it is the member it is
+ *     about, on any task type that declares itself self-action barred. A member
+ *     can file a contact request about their own record and an administrator is
+ *     a member, so without this an administrator approves a change to their own
+ *     record with nobody else in the loop. Whether the bar applies is a declared
+ *     property of the task type, beside the one saying whether the member is
+ *     answered, so a new type answers the question rather than inheriting an
+ *     answer nobody chose.
  *   - Per-member open-request cap is 3, counted across every request the member
  *     raised themselves (contact requests and link-help requests alike) and
  *     freed as each is answered; the 4th open submission throws
@@ -535,6 +543,10 @@ export interface WorkQueueContent {
   /** A question has just been put to the member, confirmed on the re-render so
    *  the administrator knows it went and does not send a second. */
   memberAskedFlag: boolean;
+  /** A dispute upheld and the wrongly-held claim stripped. Its own flag because
+   *  a revert resolves nothing and answers nobody: the request is still open,
+   *  waiting on an approval or a rejection, and the banner has to say so. */
+  claimRevertedFlag: boolean;
   /**
    * The kinds of answer a question can ask for, as value-and-label pairs.
    *
@@ -973,6 +985,15 @@ async function resolveDecidedItem(
   // on it would write a decision about a record the type does not describe.
   if (!requireWorkQueueDescriptor(row.task_type).entityTypes.includes(row.entity_type)) {
     throw new ValidationError('Unexpected entity type on queue row.');
+  }
+  // An administrator may not settle an item that is about them. On a type an
+  // administrator can raise themselves, deciding it too would mean approving a
+  // change to their own record with nobody else in the loop; the legacy-identity
+  // help path refuses the same thing for the same reason.
+  if (action.selfActionBarred && row.entity_id === input.adminMemberId) {
+    throw new ValidationError(
+      'You cannot resolve a request about your own record. Another administrator must review it.',
+    );
   }
 
   const nowIso = new Date().toISOString();
@@ -1444,6 +1465,7 @@ export const adminWorkQueueService = {
     memberAskedFlag?: boolean;
     parkedFlag?: boolean;
     unparkedFlag?: boolean;
+    claimRevertedFlag?: boolean;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
@@ -1466,6 +1488,7 @@ export const adminWorkQueueService = {
     memberAskedFlag?: boolean;
     parkedFlag?: boolean;
     unparkedFlag?: boolean;
+    claimRevertedFlag?: boolean;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
@@ -1527,6 +1550,7 @@ export const adminWorkQueueService = {
         claimedFlag: opts.claimedFlag ?? false,
         claimNoopFlag: opts.claimNoopFlag ?? false,
         memberAskedFlag: opts.memberAskedFlag ?? false,
+        claimRevertedFlag: opts.claimRevertedFlag ?? false,
         answerKindOptions: ANSWER_KIND_OPTIONS,
         errorMessage: opts.errorMessage ?? null,
       },

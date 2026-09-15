@@ -18,6 +18,13 @@
   {{#if content.resolvedQuietFlag}}
     <p class="form-success-banner" role="status">Item resolved.</p>
   {{/if}}
+  {{! A revert strips a wrongly-held claim and settles nothing else: the
+      requester's own link is still undecided, so the item stays open and
+      nobody has been written to. The banner says both, rather than borrowing
+      the resolve message and claiming a resolution and an email. }}
+  {{#if content.claimRevertedFlag}}
+    <p class="form-success-banner" role="status">Claim reverted. This request is still open, and still needs you to approve or reject the link.</p>
+  {{/if}}
   {{#if content.reviewedFlag}}
     <p class="form-success-banner" role="status">Item marked reviewed.</p>
   {{/if}}

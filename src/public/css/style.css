@@ -3250,6 +3250,20 @@ section.home-media { padding-top: 0; }
   object-fit: cover;
   flex-shrink: 0;
 }
+/* A frame for an avatar shown on a decision screen. An image whose stored
+   object is missing renders its alt text in place of the picture, and a broken
+   image cannot clip its own alt text, so the bounding has to come from a parent
+   box. Without it the words spill out of the circle and shove the rows beneath
+   them around, which makes the screen look broken at the moment it has to look
+   trustworthy. */
+.avatar-preview-frame {
+  display: inline-block;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--border);
+}
 .avatar-edit-placeholder {
   width: 80px;
   height: 80px;

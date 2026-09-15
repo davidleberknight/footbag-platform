@@ -120,18 +120,22 @@
  *   member_messages (every question addressed to the member has its subject, body and note redacted on PII purge and deceased scrub),
  *   club_insight_notes (note text cleared on PII purge and deceased scrub; the row stays so the club evidence trail keeps its shape),
  *   outbox (recipient address, subject and rendered body scrubbed on PII purge and deceased scrub),
+ *   email_archives (the sender's member id cleared on PII purge only; the subject, the body and the identity it was sent under are the record of what went out in IFPA's name and are never touched, and a deceased member's account still exists so the deceased scrub leaves the link alone),
  *   historical_persons (read-only; surfaced in member search via the public-player
  *   name index, so search spans both live members and imported historical identities).
  *
  * Side effects:
  *   - audit_entries append (profile/PII mutations and member-search queries)
+ *   - outbox_emails enqueue: the notice telling a member an administrator
+ *     corrected their profile, sent after the commit and carrying what changed
+ *     and why but never the values
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
   assembleBirthDate,
@@ -146,7 +150,8 @@ import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { buildAvatarUrl } from './avatarService';
+import { emailService } from './emailService';
 import { PageViewModel, TierBenefitNotice } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
@@ -835,17 +840,6 @@ function resolveHistoricalName(row: MemberProfileRow): string | null {
     : null;
 }
 
-/**
- * Build an avatar URL with a cache-bust version tied to the media item id.
- * The media_id is a fresh UUID on every upload (see avatarService.uploadAvatar),
- * so downstream caches (browser, CloudFront) invalidate immediately after upload
- * while keeping the URL stable between uploads.
- */
-function buildAvatarUrl(thumbKey: string | null, mediaId: string | null): string | null {
-  if (!thumbKey) return null;
-  const base = getMediaStorageAdapter().constructURL(thumbKey);
-  return mediaId ? `${base}?v=${encodeURIComponent(mediaId)}` : base;
-}
 
 function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
   return {
@@ -1092,6 +1086,12 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // member-authored free text too. The text clears; the row stays, so the
     // club evidence trail keeps its shape without keeping their words.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    // Anything they broadcast in IFPA's name stays exactly as it was sent,
+    // subject, body and sending identity alike: it is a record of what went out,
+    // and a group-backed list's archive is the group's own discussion, which a
+    // departure does not unwrite. What goes is the link back to them, so an
+    // erased account is no longer identifiable as its author.
+    const archivesUnlinked = emailArchives.clearSenderForMember.run(now, memberId);
     // Every message the platform addressed to them: the address, the rendered
     // body, and the subject, which several templates fill with their name.
     const outboxRows = outbox.scrubForMember.run(
@@ -1116,6 +1116,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
         anchors_deleted:              anchors.changes,
         club_insight_notes_cleared:   insightNotes.changes,
         outbox_rows_scrubbed:         outboxRows.changes,
+        email_archives_unlinked:      archivesUnlinked.changes,
       },
     });
 
@@ -1567,11 +1568,27 @@ export const memberService = {
     };
   },
 
-  async updateOwnProfile(slug: string, input: ProfileEditInput): Promise<void> {
+  /**
+   * Returns the fields this write moves, each with its value before and after.
+   *
+   * `preview` runs every rule and every comparison and then stops without
+   * writing, which is what the administrator's confirmation screen renders. It
+   * is the same code path as the commit rather than a second one, so a
+   * confirmation can never promise a change the commit would refuse.
+   */
+  async updateOwnProfile(
+    slug: string,
+    input: ProfileEditInput,
+    actor: ProfileWriteActor = { kind: 'self' },
+    opts: { preview?: boolean } = {},
+  ): Promise<ProfileFieldChange[]> {
     const row = fetchMemberBySlug(slug);
     // Per-member edit throttle; admins are exempt. Hit before validation so
-    // invalid submissions count against the bucket too.
-    if (row.is_admin !== 1) {
+    // invalid submissions count against the bucket too. An administrator
+    // correcting somebody else's record is not throttled either: the throttle
+    // exists to bound one member's own editing, and the correction is already
+    // bounded by being an administrator act that writes a reason.
+    if (actor.kind === 'self' && row.is_admin !== 1) {
       const max = readIntConfig('profile_edit_rate_limit_per_hour', 20);
       const rl = rateLimitHit(`profile-edit:${row.id}`, max, 60);
       if (!rl.allowed) {
@@ -1581,7 +1598,11 @@ export const memberService = {
         );
       }
     }
-    const bio         = normalizeText(input.bio);
+    // A member's own words are not rewritable by anybody else, so an
+    // administrator's correction carries the stored bio through untouched
+    // rather than accepting one. Clearing it is its own act with its own
+    // reason; there is no path here that puts new prose under their name.
+    const bio         = actor.kind === 'self' ? normalizeText(input.bio) : (row.bio ?? '');
     const city        = normalizeText(input.city) || null;
     const region      = normalizeText(input.region) || null;
     const country     = normalizeText(input.country) || null;
@@ -1668,14 +1689,18 @@ export const memberService = {
     const validatedLinks = await validateMemberLinks(input.links);
 
     // Compared before the write, while the stored values are still readable.
-    const changedFields = changedProfileFields(row, buildMemberLinksView(row.id), {
+    const priorLinks = buildMemberLinksView(row.id);
+    const writeValues: ProfileWriteValues = {
       bio, city: location.city, region: location.region, country: location.country,
       phone, whatsapp, birthDate,
       emailVisibility: emailVis, phoneVisible, whatsappVisible, searchable,
       firstCompetitionYear: location.firstCompetitionYear, showCompetitiveResults: showResults,
       showFirstCompetitionYear: showYear, showGender, gender: genderValue,
       links: validatedLinks,
-    });
+    };
+    const changes = profileFieldChanges(row, priorLinks, writeValues);
+    const changedFields = changes.map((c) => c.field);
+    if (opts.preview) return changes;
 
     const now = new Date().toISOString();
     transaction(() => {
@@ -1697,6 +1722,11 @@ export const memberService = {
         showGender,
         genderValue,
         now,
+        // Who actually made the change. The member's own save says so; an
+        // administrator's correction says which administrator, because a row
+        // stamped 'member' after somebody else edited it is simply false about
+        // its own history.
+        actor.kind === 'self' ? 'member' : actor.memberId,
         row.id,
       );
       // Replace-all: links are re-validated on every save, so the prior set is
@@ -1711,8 +1741,43 @@ export const memberService = {
           i,
         );
       });
-      auditProfileUpdate(row.id, changedFields);
+      if (actor.kind === 'self') {
+        auditProfileUpdate(row.id, changedFields);
+      } else if (changes.length > 0) {
+        // A correction made on somebody else's behalf records the values, not
+        // just which fields moved: it is reviewable and reversible only from a
+        // trail that says what the value actually was. A member editing their
+        // own record keeps recording field names alone, which is why the two
+        // branches write different rows rather than one shared one.
+        //
+        // A correction that moves nothing writes nothing, rather than recording
+        // a change that did not happen. An administrator re-confirming the
+        // values already on file is not an event.
+        appendAuditEntry({
+          actionType:    'member.profile_corrected',
+          category:      'profile_change',
+          actorType:     'admin',
+          actorMemberId: actor.memberId,
+          entityType:    'member',
+          entityId:      row.id,
+          reasonText:    actor.reason,
+          metadata: {
+            fields: changedFields,
+            before: Object.fromEntries(changes.map((c) => [c.field, c.before])),
+            after:  Object.fromEntries(changes.map((c) => [c.field, c.after])),
+          },
+        });
+      }
     });
+
+    // After the commit, so a rolled-back correction cannot announce itself, and
+    // only when something moved. A correction is a past event on somebody's own
+    // record, which is what the notification rule sends by mail: the dashboard
+    // carries obligations the platform is waiting on, and this is not one.
+    if (actor.kind === 'administrator' && changes.length > 0) {
+      notifyRecordCorrected(row, describeProfileChanges(changedFields), actor.reason);
+    }
+    return changes;
   },
 
   /**
@@ -1736,6 +1801,16 @@ export const memberService = {
    * Keyed by member id rather than slug, because the callers that need it are
    * mid-onboarding surfaces holding the id from the session.
    */
+  /**
+   * The member's external links, in slot order. Exposed because the
+   * administrator's correction form has to open on the set the record already
+   * holds: the write replaces the whole set, so a form that did not carry them
+   * would silently drop every link it did not show.
+   */
+  listMemberLinks(memberId: string): MemberLinkView[] {
+    return buildMemberLinksView(memberId);
+  },
+
   getBirthDateParts(memberId: string): BirthDateParts {
     const row = account.findBirthDateById.get(memberId) as { birth_date: string | null } | undefined;
     return splitBirthDateParts(row?.birth_date);
@@ -2326,6 +2401,23 @@ function buildMemberLinksView(memberId: string): MemberLinkView[] {
 // form always renders the full set of inputs up to the cap.
 // The values a profile save is about to write, in the shape they will be
 // stored, so they can be compared against what is already there.
+/**
+ * Who is performing a profile write. Made explicit rather than inferred,
+ * because the act is the same and only the authority and the accountability
+ * differ: a member editing their own record is throttled and records field
+ * names, and an administrator correcting somebody else's supplies a reason,
+ * records the values, and may not touch the member's own prose.
+ */
+export type ProfileWriteActor =
+  | { kind: 'self' }
+  | { kind: 'administrator'; memberId: string; reason: string };
+
+interface ProfileFieldChange {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
+
 interface ProfileWriteValues {
   bio: string;
   city: string | null;
@@ -2352,14 +2444,69 @@ interface ProfileWriteValues {
 // answers nothing: it records all of them as changed on every save. Only names
 // are produced, never values, so the trail stays free of the personal data it
 // exists to make traceable.
-function changedProfileFields(
+/**
+ * Plain-English names for the profile fields, for the notice the member reads.
+ * Deliberately not the audit row's field keys: a member should not have to
+ * recognise a column name to understand what was corrected on their own record.
+ */
+const PROFILE_CHANGE_PHRASE: Record<string, string> = {
+  city: 'your city',
+  region: 'your region',
+  country: 'your country',
+  phone: 'your phone number',
+  whatsapp: 'your WhatsApp number',
+  birthDate: 'your date of birth',
+  emailVisibility: 'who can see your contact email',
+  phoneVisible: 'whether your phone is shown to members',
+  whatsappVisible: 'whether your WhatsApp is shown to members',
+  searchable: 'whether you appear in member search',
+  firstCompetitionYear: 'your first competition year',
+  showCompetitiveResults: 'whether your competition results are shown',
+  showFirstCompetitionYear: 'whether your first competition year is shown',
+  showGender: 'whether your gender is shown to members',
+  gender: 'your gender',
+  links: 'your links',
+};
+
+/** "your city", "your city and your phone number", "your city, your region and …". */
+function describeProfileChanges(fields: string[]): string {
+  const phrases = fields.map((f) => PROFILE_CHANGE_PHRASE[f] ?? f);
+  if (phrases.length === 1) return phrases[0]!;
+  return `${phrases.slice(0, -1).join(', ')} and ${phrases[phrases.length - 1]!}`;
+}
+
+/**
+ * Tell a member that an administrator corrected their record.
+ *
+ * Best-effort and after the commit: a delivery problem must never unwind a
+ * correction that has already been made. The values themselves are not sent,
+ * only what changed and why, because the address on file may be exactly what
+ * was wrong.
+ */
+function notifyRecordCorrected(row: { id: string; display_name: string }, whatChanged: string, reason: string): void {
+  emailService.sendToMember({
+    template: 'member_record_corrected',
+    params:   { memberName: row.display_name, whatChanged, note: reason },
+    memberId: row.id,
+    idempotencyKey: `member-record-corrected:${row.id}:${new Date().toISOString()}`,
+  });
+}
+
+/**
+ * Each field this write moves, with the value before and the value after.
+ *
+ * The member's own edit needs only the names; an administrator's correction
+ * needs the values for its audit row. One comparison serves both, so the two
+ * can never disagree about what changed.
+ */
+function profileFieldChanges(
   row: MemberProfileRow,
   priorLinks: MemberLinkView[],
   next: ProfileWriteValues,
-): string[] {
-  const changed: string[] = [];
+): ProfileFieldChange[] {
+  const changed: ProfileFieldChange[] = [];
   const compare = (name: string, before: unknown, after: unknown): void => {
-    if (before !== after) changed.push(name);
+    if (before !== after) changed.push({ field: name, before, after });
   };
   compare('bio', row.bio ?? '', next.bio);
   compare('city', row.city ?? null, next.city);
@@ -2384,7 +2531,13 @@ function changedProfileFields(
   const sameLinks =
     priorLinks.length === next.links.length &&
     priorLinks.every((l, i) => l.label === next.links[i].label && l.url === next.links[i].url);
-  if (!sameLinks) changed.push('links');
+  if (!sameLinks) {
+    changed.push({
+      field:  'links',
+      before: priorLinks.map((l) => `${l.label} ${l.url}`),
+      after:  next.links.map((l) => `${l.label} ${l.url}`),
+    });
+  }
   return changed;
 }
 

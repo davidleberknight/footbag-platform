@@ -17,7 +17,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
   insertPayment, insertRecurringDonationSubscription, insertMediaItem, insertMediaFlag,
-  insertMemberDeclaredAnchor, insertWorkQueueItem,
+  insertMemberDeclaredAnchor, insertWorkQueueItem, insertEmailArchive,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -319,6 +319,53 @@ describe('memberService.purgeAccountPII', () => {
       expect(row.reason_text, row.task_type).toBe('(removed on account erasure)');
       expect(row.detail_text, row.task_type).toBeNull();
     }
+  });
+
+  // What a member broadcast in IFPA's name is a record of what went out, and on
+  // a group-backed list it is the group's own discussion, so erasure leaves the
+  // message standing and takes only the link back to its author. Both halves
+  // matter: clearing nothing leaves an erased member identifiable as the author
+  // of everything they sent, and clearing the words would unwrite a record and
+  // a conversation other people took part in.
+  it('unlinks the member from what they broadcast, and leaves the message itself as sent', () => {
+    seedClaimedMember('purge-archive');
+    const d0 = db();
+    const other = 'purge-archive-bystander';
+    insertMember(d0, { id: other, slug: 'purge_archive_other', login_email: `${other}@example.com` });
+    insertEmailArchive(d0, {
+      id: 'ea-erased', sender_member_id: 'purge-archive',
+      from_identity: 'Dana Example via announce@footbag.org',
+      subject: 'Worlds is open for registration',
+      body_text: 'Body of the announcement exactly as it went out.',
+    });
+    insertEmailArchive(d0, {
+      id: 'ea-bystander', sender_member_id: other,
+      subject: 'A message from somebody else',
+    });
+    d0.close();
+
+    expect(memberService.purgeAccountPII('purge-archive').status).toBe('purged');
+
+    const d = db();
+    const erased = d.prepare(
+      'SELECT sender_member_id, from_identity, subject, body_text FROM email_archives WHERE id = ?',
+    ).get('ea-erased') as {
+      sender_member_id: string | null; from_identity: string | null;
+      subject: string; body_text: string;
+    };
+    const bystander = d.prepare(
+      'SELECT sender_member_id FROM email_archives WHERE id = ?',
+    ).get('ea-bystander') as { sender_member_id: string | null };
+    d.close();
+
+    expect(erased.sender_member_id).toBeNull();
+    // Byte-identical to what was archived: the subject, the body and the
+    // identity it was sent under are the record, not the member's personal data.
+    expect(erased.subject).toBe('Worlds is open for registration');
+    expect(erased.body_text).toBe('Body of the announcement exactly as it went out.');
+    expect(erased.from_identity).toBe('Dana Example via announce@footbag.org');
+    // Nobody else's authorship is touched.
+    expect(bystander.sender_member_id).toBe(other);
   });
 
   it('scrubs every outbound message addressed to the member, keeping only the member link', () => {

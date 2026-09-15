@@ -178,7 +178,8 @@
  *     registration, reset, password-change confirmation, claim email, resend,
  *     mailbox-control link to a declared old email, and the reply telling a
  *     member their link request was answered, which carries the decision and,
- *     on a refusal, the administrator's reason)
+ *     on a refusal, the administrator's reason, and the notice telling a member
+ *     an administrator corrected their recorded name or their profile address)
  *   - operational-error audit + alarm when that reply cannot be enqueued after
  *     the resolve has committed (support.help_request_resolve_notification_failed)
  *   - work_queue_items insert (member_link_help_request intake with
@@ -5999,6 +6000,10 @@ function correctMemberNames(
       metadata:      { fields: changedFields, before, after },
     });
   });
+  // After the commit, and without the values: the recorded name is what a
+  // member is identified by, so a correction to it is the case where the
+  // address on file is most likely to be wrong too.
+  notifyRecordCorrected(memberId, names.displayName, 'the name on your account', reason);
   return { status: 'corrected' as const, changedFields };
 }
 
@@ -6010,6 +6015,23 @@ function correctMemberNames(
  * the rules refuse is refused before they are asked to confirm it, the same way
  * the name correction behaves.
  */
+/**
+ * Tell a member an administrator corrected their record. Best-effort and after
+ * the commit, so a delivery problem never unwinds a correction already made.
+ * Carries what changed and why, never the values: the address on file may be
+ * exactly what was wrong.
+ */
+function notifyRecordCorrected(
+  memberId: string, displayName: string, whatChanged: string, reason: string,
+): void {
+  emailService.sendToMember({
+    template: 'member_record_corrected',
+    params:   { memberName: displayName, whatChanged, note: reason },
+    memberId,
+    idempotencyKey: `member-record-corrected:${memberId}:${new Date().toISOString()}`,
+  });
+}
+
 function previewMemberSlug(memberId: string, requestedSlug: string): string {
   const row = account.findMemberForAdminRecord.get(memberId) as
     | { slug: string | null; is_system: number; personal_data_purged_at: string | null }
@@ -6073,6 +6095,7 @@ function correctMemberSlug(
     | {
         id: string;
         slug: string | null;
+        display_name: string;
         is_system: number;
         personal_data_purged_at: string | null;
       }
@@ -6149,6 +6172,14 @@ function correctMemberSlug(
         },
       });
 
+      // The consequence is named because it is the one the member bears: every
+      // link they have already shared to the old address stops resolving the
+      // moment this lands, and nothing redirects from it.
+      notifyRecordCorrected(
+        memberId, row.display_name,
+        'your profile address, so links you have already shared to the old one no longer work',
+        reason,
+      );
       return { status: 'corrected' as const, before, after: slug, mediaTagsMoved };
     });
   } catch (err) {

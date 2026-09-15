@@ -137,7 +137,7 @@
 
     <details class="admin-action-disclosure">
       <summary>Correct the Active Player Expiry</summary>
-      <p class="text-muted fs-sm">Active Player is a Tier 0 standing. Leave the date blank to end the standing, which is how one granted in error is taken back. The member is not emailed about this correction.</p>
+      <p class="text-muted fs-sm">Active Player is a Tier 0 standing. Leave the date blank to end the standing, which is how one granted in error is taken back. The member is emailed that their standing was corrected, and told the reason you give.</p>
       <form method="POST" action="{{content.activePlayerAction}}" class="form-block">
         <div class="form-field">
           <label for="expires_on">Runs to the end of this date</label>
@@ -150,6 +150,120 @@
         <button type="submit" class="btn btn-primary">Review the Expiry Correction</button>
       </form>
     </details>
+
+    {{#if content.canCorrectProfile}}
+    <details class="admin-action-disclosure">
+      <summary>Correct the Profile Details</summary>
+      <p class="text-muted fs-sm">The member's own profile is the ordinary path for these fields. Use this when they cannot: a data bug, a member who has died, or an account whose holder can no longer reach it. Every value passes the same rules their own form applies, and the whole set is written, so leave a field as it stands unless you mean to change it. Their written biography is not shown here, because it is their words.</p>
+      <form method="POST" action="{{content.profileAction}}" class="form-block">
+        <div class="form-field">
+          <label for="p_city">City</label>
+          <input type="text" id="p_city" name="city" value="{{content.profileForm.city}}" maxlength="64" />
+        </div>
+        <div class="form-field">
+          <label for="p_region">Region</label>
+          <input type="text" id="p_region" name="region" value="{{content.profileForm.region}}" maxlength="64" />
+        </div>
+        <div class="form-field">
+          <label for="p_country">Country</label>
+          <input type="text" id="p_country" name="country" value="{{content.profileForm.country}}" maxlength="64" />
+        </div>
+        <div class="form-field">
+          <label for="p_birth_day">Date of birth: day</label>
+          <input type="text" id="p_birth_day" name="birthDay" value="{{content.profileForm.birthDay}}" maxlength="2" inputmode="numeric" />
+        </div>
+        <div class="form-field">
+          <label for="p_birth_month">Date of birth: month</label>
+          <input type="text" id="p_birth_month" name="birthMonth" value="{{content.profileForm.birthMonth}}" maxlength="2" inputmode="numeric" />
+        </div>
+        <div class="form-field">
+          <label for="p_birth_year">Date of birth: year</label>
+          <input type="text" id="p_birth_year" name="birthYear" value="{{content.profileForm.birthYear}}" maxlength="4" inputmode="numeric" />
+        </div>
+        <div class="form-field">
+          <label for="p_gender">Gender</label>
+          <select id="p_gender" name="gender">
+            {{#each content.profileForm.genderOptions}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="p_phone">Phone</label>
+          <input type="text" id="p_phone" name="phone" value="{{content.profileForm.phone}}" maxlength="40" />
+        </div>
+        <div class="form-field">
+          <label for="p_whatsapp">WhatsApp</label>
+          <input type="text" id="p_whatsapp" name="whatsapp" value="{{content.profileForm.whatsapp}}" maxlength="40" />
+        </div>
+        <div class="form-field">
+          <label for="p_first_year">First competition year</label>
+          <input type="text" id="p_first_year" name="firstCompetitionYear" value="{{content.profileForm.firstCompetitionYear}}" maxlength="4" inputmode="numeric" />
+        </div>
+        <div class="form-field">
+          <label for="p_email_vis">Who can see the contact email</label>
+          <select id="p_email_vis" name="emailVisibility">
+            {{#each content.profileForm.emailVisibilityOptions}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="p_phone_vis">Show the phone to members</label>
+          <input type="checkbox" id="p_phone_vis" name="phoneVisible" value="1" {{#if content.profileForm.phoneVisible}}checked{{/if}} />
+        </div>
+        <div class="form-field">
+          <label for="p_whatsapp_vis">Show WhatsApp to members</label>
+          <input type="checkbox" id="p_whatsapp_vis" name="whatsappVisible" value="1" {{#if content.profileForm.whatsappVisible}}checked{{/if}} />
+        </div>
+        <div class="form-field">
+          <label for="p_searchable">List in member search</label>
+          <input type="checkbox" id="p_searchable" name="searchable" value="1" {{#if content.profileForm.searchable}}checked{{/if}} />
+        </div>
+        <div class="form-field">
+          <label for="p_show_results">Show competition results</label>
+          <input type="checkbox" id="p_show_results" name="showCompetitiveResults" value="1" {{#if content.profileForm.showCompetitiveResults}}checked{{/if}} />
+        </div>
+        <div class="form-field">
+          <label for="p_show_year">Show the first competition year</label>
+          <input type="checkbox" id="p_show_year" name="showFirstCompetitionYear" value="1" {{#if content.profileForm.showFirstCompetitionYear}}checked{{/if}} />
+        </div>
+        <div class="form-field">
+          <label for="p_show_gender">Show gender to members</label>
+          <input type="checkbox" id="p_show_gender" name="showGender" value="1" {{#if content.profileForm.showGender}}checked{{/if}} />
+        </div>
+        {{#each content.profileForm.links}}
+          <div class="form-field">
+            <label for="p_link_label_{{@index}}">Link {{slot}}: what it is called</label>
+            <input type="text" id="p_link_label_{{@index}}" name="link_label" value="{{label}}" maxlength="60" />
+          </div>
+          <div class="form-field">
+            <label for="p_link_url_{{@index}}">Link {{slot}}: address</label>
+            <input type="text" id="p_link_url_{{@index}}" name="link_url" value="{{url}}" maxlength="300" />
+          </div>
+        {{/each}}
+        <div class="form-field">
+          <label for="p_reason">Reason (required)</label>
+          <input type="text" id="p_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Profile Correction</button>
+      </form>
+    </details>
+    {{/if}}
+
+    {{#if content.hasAvatar}}
+      <details class="admin-action-disclosure">
+        <summary>Remove the Profile Picture</summary>
+        <p class="text-muted fs-sm">The picture comes off the profile and its stored files are deleted. The account, the membership and everything else on the record are untouched, and the member is emailed the reason you give. They can upload another.</p>
+        <form method="POST" action="{{content.avatarRemoveAction}}" class="form-block">
+          <div class="form-field">
+            <label for="avatar_reason">Reason (required)</label>
+            <input type="text" id="avatar_reason" name="reason" maxlength="500" required />
+          </div>
+          <button type="submit" class="btn btn-outline">Review Removing the Picture</button>
+        </form>
+      </details>
+    {{/if}}
 
     {{#if content.isDeceasedMarked}}
       <details class="admin-action-disclosure">

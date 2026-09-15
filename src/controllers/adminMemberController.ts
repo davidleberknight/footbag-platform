@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { adminMemberService } from '../services/adminMemberService';
+import type { ProfileEditInput } from '../services/memberService';
 import { NotFoundError, ValidationError, ConflictError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
@@ -8,6 +9,50 @@ const CONTEXT = 'admin member controller';
 
 function bodyValue(req: Request, field: string): string {
   return String(req.body?.[field] ?? '');
+}
+
+function bodyArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v ?? ''));
+  if (value === undefined || value === null) return [];
+  return [String(value)];
+}
+
+/**
+ * The submitted profile, in the shape the member service takes.
+ *
+ * The field names are the member's own form's, deliberately: one submission
+ * shape means one assembler and one set of names for the same fields, whichever
+ * surface posted them. The biography is absent because an administrator never
+ * supplies one; the service carries the stored text through untouched.
+ */
+function profileInputFrom(req: Request): ProfileEditInput {
+  const labels = bodyArray(req.body?.link_label);
+  const urls   = bodyArray(req.body?.link_url);
+  const links: Array<{ label: string; url: string }> = [];
+  for (let i = 0; i < Math.max(labels.length, urls.length); i += 1) {
+    links.push({ label: labels[i] ?? '', url: urls[i] ?? '' });
+  }
+  return {
+    bio:                      '',
+    city:                     bodyValue(req, 'city'),
+    region:                   bodyValue(req, 'region'),
+    country:                  bodyValue(req, 'country'),
+    phone:                    bodyValue(req, 'phone'),
+    whatsapp:                 bodyValue(req, 'whatsapp'),
+    emailVisibility:          bodyValue(req, 'emailVisibility') || 'private',
+    phoneVisible:             bodyValue(req, 'phoneVisible'),
+    whatsappVisible:          bodyValue(req, 'whatsappVisible'),
+    searchable:               bodyValue(req, 'searchable'),
+    firstCompetitionYear:     bodyValue(req, 'firstCompetitionYear'),
+    birthDay:                 bodyValue(req, 'birthDay'),
+    birthMonth:               bodyValue(req, 'birthMonth'),
+    birthYear:                bodyValue(req, 'birthYear'),
+    showCompetitiveResults:   bodyValue(req, 'showCompetitiveResults'),
+    showFirstCompetitionYear: bodyValue(req, 'showFirstCompetitionYear'),
+    showGender:               bodyValue(req, 'showGender'),
+    gender:                   bodyValue(req, 'gender'),
+    links,
+  };
 }
 
 /**
@@ -221,6 +266,62 @@ export const adminMemberController = {
     try {
       const outcome = adminMemberService.applyActivePlayerCorrection(
         req.user!.userId, memberId, bodyValue(req, 'expires_on'), bodyValue(req, 'reason'),
+      );
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/profile */
+  async previewProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const memberId = req.params['memberId'] ?? '';
+    try {
+      res.render('admin/members/confirm', await adminMemberService.previewProfileCorrection(
+        memberId, profileInputFrom(req), bodyValue(req, 'reason'),
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/profile/confirm */
+  async confirmProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const memberId = req.params['memberId'] ?? '';
+    try {
+      const outcome = await adminMemberService.applyProfileCorrection(
+        req.user!.userId, memberId, profileInputFrom(req), bodyValue(req, 'reason'),
+      );
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/avatar/remove */
+  previewAvatarRemoval(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    try {
+      res.render('admin/members/confirm', adminMemberService.previewAvatarRemoval(
+        memberId, bodyValue(req, 'reason'),
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/avatar/remove/confirm */
+  async confirmAvatarRemoval(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const memberId = req.params['memberId'] ?? '';
+    try {
+      const outcome = await adminMemberService.applyAvatarRemoval(
+        req.user!.userId, memberId, bodyValue(req, 'reason'),
       );
       writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
       res.redirect(303, `/admin/members/${memberId}`);

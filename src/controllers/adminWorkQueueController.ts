@@ -40,6 +40,7 @@ export const adminWorkQueueController = {
       let memberAskedFlag = false;
       let parkedFlag = false;
       let unparkedFlag = false;
+      let claimRevertedFlag = false;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
         // A payments-task resolve (and a contact resolve with no member email)
         // notified nobody, so the page confirms it without the email banner.
@@ -51,6 +52,9 @@ export const adminWorkQueueController = {
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_MEMBER_ASKED) {
         memberAskedFlag = true;
+        clearFlash(res, req);
+      } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_CLAIM_REVERTED) {
+        claimRevertedFlag = true;
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_PARKED) {
         parkedFlag = flash.payload === 'parked';
@@ -73,6 +77,7 @@ export const adminWorkQueueController = {
         memberAskedFlag,
         parkedFlag,
         unparkedFlag,
+        claimRevertedFlag,
         // The deep link the story specifies: a matter that needs the member's
         // own answer names itself here, and its composer opens already drafted.
         askItemId: typeof req.query.ask === 'string' ? req.query.ask : null,
@@ -319,7 +324,7 @@ export const adminWorkQueueController = {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'Nobody currently holds that record, so there is no claim to revert.' }));
         return;
       }
-      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, req.params['id'] ?? '');
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIM_REVERTED, '');
       res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {

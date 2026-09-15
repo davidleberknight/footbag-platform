@@ -114,6 +114,16 @@ export type WorkQueueAction =
       auditCategory: string;
       /** True where the decision is answered to the member by email. */
       notifiesSubject: boolean;
+      /**
+       * True where the item's subject may not be the administrator who settles
+       * it. An administrator who can both raise an item and decide it has no
+       * check on them at all, which is the same reasoning that keeps an
+       * administrator from approving their own legacy-identity help request or
+       * revoking their own role. Declared here rather than branched on inside
+       * the resolver, so a new task type answers the question rather than
+       * inheriting an answer nobody chose.
+       */
+      selfActionBarred: boolean;
     }
   | {
       kind: 'act';
@@ -231,6 +241,10 @@ function paymentsTask(label: string, entityTypes: readonly string[]): WorkQueueT
       // No email: the row points at a provider-side record, and any
       // member-facing message went out when the underlying event was recorded.
       notifiesSubject: false,
+      // These are raised by the reconciliation and webhook paths against a
+      // provider record, never filed by a member about themselves, so there is
+      // no self-raised item for an administrator to settle in their own favour.
+      selfActionBarred: false,
     }],
   };
 }
@@ -252,6 +266,12 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
       auditActionType: 'support.contact_request_resolved',
       auditCategory:   'support',
       notifiesSubject: true,
+      // Any member can file one of these about their own record, an
+      // administrator included, and the decisions include correcting the record
+      // it is about. An administrator who filed it and then settled it would be
+      // approving their own change with nobody else in the loop, which is the
+      // same hole the legacy-identity help path already closes.
+      selfActionBarred: true,
     }],
   },
 

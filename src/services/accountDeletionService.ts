@@ -7,8 +7,8 @@
  *     decision, the hard deletion of the member's media and galleries, the
  *     withdrawal from upcoming events, the stopping of queued mail, the
  *     work-queue item for an event left with no organizer, the soft-delete write
- *     and its audit row, and the one message that tells the member the restore
- *     window exists.
+ *     and its audit row, and the one message that tells the member what was
+ *     deleted and how long their personal details are held before erasure.
  *
  * Does not own:
  *   - Row-level PII clearing after the grace period (MemberService owns
@@ -16,8 +16,10 @@
  *   - Purge eligibility (OperationsPlatformService decides who has aged out).
  *   - The confirmation and result pages (MemberService shapes every
  *     `/members/*` page).
- *   - Restoring an account inside the window (IdentityAccessService, which owns
- *     the credential path the restore branch hangs off).
+ *   - Bringing a deleted account back. Deletion is permanent from the member's
+ *     side: there is no restore flow anywhere, and the grace period before the
+ *     purge exists so an administrator can reconcile audits and payments, not
+ *     as a way back. A member who deleted by mistake asks IFPA off the platform.
  *
  * Required patterns:
  *   - Storage is removed before the row that points at it, item by item, and the
@@ -223,7 +225,8 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         // because the member-resolving send path reads the active view and would
         // find nothing here. This is the deliberate exception to the rule that a
         // soft-deleted member is enqueued nothing: it is the message telling
-        // them the restore window exists, and it is the last one they get.
+        // them what was deleted and how long their details are held, and it is
+        // the last one they get. It offers no way back, because there is none.
         if (row.login_email) {
           emailService.send({
             template: 'account_deletion_requested',

@@ -32,6 +32,12 @@ export const FLASH_KIND = {
   WORK_QUEUE_REVIEWED: 'work_queue_reviewed',
   WORK_QUEUE_CLAIMED: 'work_queue_claimed',
   WORK_QUEUE_MEMBER_ASKED: 'work_queue_member_asked',
+  // A dispute upheld and the wrongly-held claim stripped. Its own kind rather
+  // than the resolve one, because a revert settles nothing: the requester's own
+  // link is still undecided, so the item stays open by design and no answer has
+  // gone to anybody. Sharing the resolve kind is what made the page report a
+  // resolution and an email that never happened.
+  WORK_QUEUE_CLAIM_REVERTED: 'work_queue_claim_reverted',
   // An item set aside, or taken back out of the parked listing. The payload
   // distinguishes the two so one banner kind covers both directions.
   WORK_QUEUE_PARKED: 'work_queue_parked',
@@ -48,6 +54,14 @@ export const FLASH_KIND = {
   // outcome code the member service turns back into a sentence, so the wording
   // lives with the surface rather than in a cookie.
   MEMBER_RECORD_CORRECTED: 'member_record_corrected',
+  // An administrator's correction on a club record. The payload is the outcome
+  // code the admin club service turns back into a sentence, so the wording
+  // lives with the surface rather than in a cookie.
+  CLUB_RECORD_CORRECTED: 'club_record_corrected',
+  // An administrator retiring an abusive hashtag. The payload is the outcome
+  // code the admin tag service turns back into a sentence, so the wording lives
+  // with the surface rather than in a cookie.
+  TAG_RETIRED: 'tag_retired',
   ALARM_ACKNOWLEDGED: 'alarm_acknowledged',
   // A second administrator submitting the same acknowledgment, or one submitting
   // it after the condition cleared, changed nothing and must not be told they

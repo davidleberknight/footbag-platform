@@ -214,6 +214,61 @@ describe('POST /admin/work-queue/:id/claim', () => {
   });
 });
 
+describe('an administrator is not the judge of a request about themselves', () => {
+  // Any member can file a contact request about their own record, an
+  // administrator included, and the decisions include correcting that record.
+  // Settling one's own is approving a change to one's own record with nobody
+  // else in the loop, which the legacy-identity help path already refuses.
+  it('refuses a resolve by the administrator the request is about', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, ADMIN_ID, ADMIN_SLUG);
+
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'Approving my own correction.' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('your own record');
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const row = db
+        .prepare('SELECT status FROM work_queue_items WHERE id = ?')
+        .get(queueId) as { status: string };
+      expect(row.status).toBe('open');
+      const audit = db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM audit_entries"
+          + " WHERE action_type = 'support.contact_request_resolved' AND entity_id = ?",
+        )
+        .get(ADMIN_ID) as { n: number };
+      expect(audit.n).toBe(0);
+    } finally { db.close(); }
+  });
+
+  it('lets a second administrator resolve the same request', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, ADMIN_ID, ADMIN_SLUG);
+
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', admin2Cookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'Checked and corrected.' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const row = db
+        .prepare('SELECT status, resolved_by_member_id FROM work_queue_items WHERE id = ?')
+        .get(queueId) as { status: string; resolved_by_member_id: string };
+      expect(row.status).toBe('resolved');
+      expect(row.resolved_by_member_id).toBe(ADMIN2_ID);
+    } finally { db.close(); }
+  });
+});
+
 describe('POST /admin/work-queue/:id/resolve', () => {
   it('admin resolves → 303 + queue row resolved + audit + email enqueued via outbox', async () => {
     const app = createApp();

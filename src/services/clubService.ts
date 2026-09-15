@@ -4,6 +4,11 @@
  * Owns:
  *   - Club lifecycle: create (with standard hashtag reservation), edit,
  *     activate/deactivate, archive
+ *   - The one write onto a club's own content and its hashtag, whoever performs
+ *     it: a co-leader editing the club they lead, and an administrator
+ *     correcting a club its leaders cannot or will not put right. The authority
+ *     is an argument, not a second implementation, so the field rules cannot
+ *     drift between the two doors onto the same act.
  *   - Candidate promotion: a legacy club candidate becomes a live clubs row
  *     (admin override or wizard confirmation; ClubCleanupService and
  *     MemberOnboardingService delegate here)
@@ -107,8 +112,10 @@
  *   - audit_entries append
  *   - outbox_emails enqueue (join/leave notifications to the member and
  *     current club leaders; co-leader invitations to a nominated member;
- *     co-leader-volunteered notifications to existing leaders; best-effort
- *     after the affiliation commit)
+ *     co-leader-volunteered notifications to existing leaders; an
+ *     administrator's correction of a club's content or hashtag to every
+ *     current co-leader, since they are a flat equal set with no first among
+ *     them; best-effort after the commit)
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -137,6 +144,7 @@ import { whatsappDigits } from './memberService';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { normalizeLineEndings } from '../lib/multilineText';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { appendAuditEntry } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
@@ -493,6 +501,51 @@ export interface ClubEditForm {
   errors: Record<string, string>;
   // Pre-shaped so the template renders the error summary without counting keys.
   hasErrors: boolean;
+}
+
+/**
+ * Who is writing a club's own content, and under what authority.
+ *
+ * A co-leader edits the club they lead. An administrator corrects a club whose
+ * leaders cannot or will not put it right, and says why: the reason is what
+ * makes a correction made on somebody else's behalf reviewable afterwards.
+ * Carrying the authority in the argument is what lets one implementation serve
+ * both, so the validation, the region resolution and the duplicate-name block
+ * can never disagree between the two doors onto the same act.
+ */
+export type ClubWriteActor =
+  | { kind: 'leader'; memberId: string }
+  | { kind: 'administrator'; memberId: string; reason: string };
+
+/** One field a club write moved, with the value before and the value after. */
+export interface ClubFieldChange {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
+
+/**
+ * How each club field is named to a co-leader being told it was corrected.
+ *
+ * The stored column names are the platform's words, not theirs, and a notice
+ * saying `external_url` moved tells a reader less than one saying the club's
+ * website did.
+ */
+const CLUB_CHANGE_PHRASE: Record<string, string> = {
+  name:         "the club's name",
+  description:  "the club's description",
+  city:         "the club's city",
+  region:       "the club's region",
+  country:      "the club's country",
+  external_url: "the club's website address",
+  hashtag:      "the club's hashtag, which is the address its page sits at",
+};
+
+/** "the club's city", "the club's city and its country", and so on. */
+function describeClubChanges(changed: ClubFieldChange[]): string {
+  const phrases = changed.map((c) => CLUB_CHANGE_PHRASE[c.field] ?? c.field);
+  if (phrases.length === 1) return phrases[0]!;
+  return `${phrases.slice(0, -1).join(', ')} and ${phrases[phrases.length - 1]!}`;
 }
 
 export interface PublicClubDetail extends PublicClubSummary {
@@ -2625,15 +2678,35 @@ export class ClubService {
   }
 
   /**
-   * A club leader or co-leader (an authoritative editor) edits their own
-   * club's information directly, with no approval gate. A field the
-   * submission omits is left alone, so a partial form never blanks the rest
-   * of the row. External URLs pass URL verification before touching the live
-   * row; a failed verification changes nothing and surfaces the validator's
-   * error.
+   * A club's own information is written here, whoever writes it.
+   *
+   * A club leader or co-leader (an authoritative editor) edits their own club
+   * directly, with no approval gate. An administrator corrects a club its
+   * leaders cannot or will not put right, naming a reason. The act is the same
+   * act, so it is one implementation with the actor made explicit: the field
+   * rules, the region resolution and the per-country duplicate-name block
+   * cannot drift apart between the two doors onto it.
+   *
+   * A field the submission omits is left alone, so a partial form never blanks
+   * the rest of the row. External URLs pass URL verification before touching
+   * the live row; a failed verification changes nothing and surfaces the
+   * validator's error.
+   *
+   * The actors differ in four ways and no others. The leadership check binds a
+   * co-leader alone. A co-leader's submission that would move nothing is a
+   * mistake worth naming, so it is refused, while an administrator's is a
+   * preview that found nothing to change and comes back empty. An
+   * administrator's write records the reason and says 'admin' in the ledger.
+   * And an administrator's write tells the club's co-leaders what changed,
+   * because a correction is a past event on a record they are responsible for.
+   *
+   * With `preview` set every rule runs and nothing is written, which is what
+   * lets an administrator's confirmation screen show the same before and after
+   * the commit will record.
+   *
+   * Returns the fields the write moved, in the order the form presents them.
    */
   async editClubContent(
-    actorMemberId: string,
     clubId: string,
     input: {
       name?: string;
@@ -2643,7 +2716,9 @@ export class ClubService {
       country?: string;
       externalUrl?: string;
     },
-  ): Promise<void> {
+    actor: ClubWriteActor,
+    opts: { preview?: boolean } = {},
+  ): Promise<ClubFieldChange[]> {
     const club = clubContent.findClubContentForEdit.get(clubId) as
       | {
           id: string;
@@ -2656,14 +2731,15 @@ export class ClubService {
         }
       | undefined;
     if (!club) throw new NotFoundError('Club not found.');
-    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-      | { id: string }
-      | undefined;
-    if (!leadership) {
-      throw new ValidationError("Only the club's leaders can edit club content directly.");
+    if (actor.kind === 'leader') {
+      const leadership = clubLeaders.memberInClubLeadership.get(clubId, actor.memberId) as
+        | { id: string }
+        | undefined;
+      if (!leadership) {
+        throw new ValidationError("Only the club's leaders can edit club content directly.");
+      }
     }
 
-    const changes: Record<string, { before: unknown; after: unknown }> = {};
     const fieldErrors: Record<string, string> = {};
 
     const name = input.name?.trim();
@@ -2728,26 +2804,46 @@ export class ClubService {
         }
         normalizedUrl = validated.normalizedUrl;
       }
-      changes.external_url = { before: club.external_url, after: normalizedUrl };
     }
-    const description = input.description?.trim();
+    // Line endings are collapsed before the comparison below, because a browser
+    // sends a textarea's line breaks as CRLF whatever value it was given while
+    // the column holds LF. Without this a multi-line description posted back
+    // with no edit never equals what is stored: the confirmation reports a
+    // change nobody made, committing it writes an audit row claiming a change
+    // no reader can see, and the "nothing to update" refusal cannot fire.
+    const description = normalizeLineEndings(input.description)?.trim();
 
-    if (name !== undefined && name !== club.name) changes.name = { before: club.name, after: name };
-    if (description !== undefined && description !== club.description) {
-      changes.description = { before: club.description, after: description };
-    }
-    if (city !== undefined && city !== club.city) changes.city = { before: club.city, after: city };
-    if (storedRegion !== undefined && storedRegion !== club.region) {
-      changes.region = { before: club.region, after: storedRegion };
-    }
-    if (country !== undefined && country !== club.country) {
-      changes.country = { before: club.country, after: country };
+    // In the order the edit form presents them, because this list is what the
+    // administrator's confirmation screen reads back before committing, and a
+    // review screen whose rows arrive in an order nobody chose is harder to
+    // check than one that follows the form.
+    const changed: ClubFieldChange[] = [];
+    const note = (field: string, before: unknown, after: unknown): void => {
+      if (before !== after) changed.push({ field, before, after });
+    };
+    note('name', club.name, name ?? club.name);
+    note('description', club.description, description ?? club.description);
+    note('city', club.city, city ?? club.city);
+    note('region', club.region, storedRegion !== undefined ? storedRegion : club.region);
+    note('country', club.country, country ?? club.country);
+    if (normalizedUrl !== undefined) {
+      note('external_url', club.external_url, normalizedUrl);
     }
 
-    if (Object.keys(changes).length === 0) {
+    // A co-leader who submits the form unchanged has made a mistake worth
+    // naming. An administrator who does is looking at a preview that found
+    // nothing to correct, which is an answer rather than a failure, so that
+    // door comes back empty and the surface says so.
+    if (changed.length === 0 && actor.kind === 'leader') {
       throw new ValidationError('Nothing to update.');
     }
+    if (opts.preview || changed.length === 0) return changed;
 
+    const actorMemberId = actor.memberId;
+    const changes = Object.fromEntries(
+      changed.map((c) => [c.field, { before: c.before, after: c.after }]),
+    );
+    const urlMoved = changed.some((c) => c.field === 'external_url');
     const now = new Date().toISOString();
     transaction(() => {
       clubContent.updateClubProfile.run(
@@ -2760,20 +2856,85 @@ export class ClubService {
         actorMemberId,
         clubId,
       );
-      if (normalizedUrl !== undefined) {
+      if (urlMoved) {
         clubContent.updateClubExternalUrl.run(
-          normalizedUrl, normalizedUrl ? now : null, now, actorMemberId, clubId,
+          normalizedUrl ?? null, normalizedUrl ? now : null, now, actorMemberId, clubId,
         );
       }
-      appendAuditEntry({
-        actionType:    'club.content_edited',
-        category:      'club',
-        actorType:     'member',
-        actorMemberId,
-        entityType:    'club',
-        entityId:      clubId,
-        reasonText:    null,
-        metadata:      { changes },
+      // A club's details carry no personal data and a club row is never erased,
+      // so both doors record each changed field's value before and after. What
+      // separates them is authority: an administrator acting on somebody else's
+      // club says so in the ledger and says why, and a correction with no
+      // reason on it cannot be reviewed afterwards.
+      appendAuditEntry(actor.kind === 'administrator'
+        ? {
+          actionType:    'club.content_corrected',
+          category:      'club',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'club',
+          entityId:      clubId,
+          reasonText:    actor.reason,
+          metadata:      { changes },
+        }
+        : {
+          actionType:    'club.content_edited',
+          category:      'club',
+          actorType:     'member',
+          actorMemberId,
+          entityType:    'club',
+          entityId:      clubId,
+          reasonText:    null,
+          metadata:      { changes },
+        });
+    });
+
+    // After the commit, so a rolled-back correction cannot announce itself. A
+    // correction is a past event on a record the co-leaders are responsible
+    // for, which is what the notification rule sends by mail; the dashboard
+    // carries obligations the platform is waiting on, and this is not one.
+    if (actor.kind === 'administrator') {
+      this.notifyLeadersOfCorrection(
+        clubId,
+        club.name,
+        describeClubChanges(changed),
+        actor.reason,
+      );
+    }
+    return changed;
+  }
+
+  /**
+   * Tell a club's current co-leaders that an administrator corrected the club
+   * they lead, and what was corrected.
+   *
+   * Every current co-leader is written to rather than one of them: they are a
+   * flat equal set with no first among them, so there is no co-leader the
+   * others could be expected to hear it from. A club with none is a tolerated
+   * state, and then there is simply nobody to tell.
+   */
+  private notifyLeadersOfCorrection(
+    clubId: string,
+    clubName: string,
+    whatChanged: string,
+    reason: string,
+  ): void {
+    const leaders = clubLeaders.listCurrentLeadersForClubPage.all(clubId) as Array<{
+      member_id: string;
+      display_name: string;
+    }>;
+    const sentAt = new Date().toISOString();
+    leaders.forEach((leader) => {
+      emailService.sendToMember({
+        template: 'club_record_corrected',
+        params:   {
+          leaderName: leader.display_name,
+          clubName,
+          whatChanged,
+          note: reason,
+        },
+        memberId: leader.member_id,
+        idempotencyKey: `club-record-corrected:${clubId}:${leader.member_id}:${sentAt}`,
       });
     });
   }
@@ -3103,19 +3264,41 @@ export class ClubService {
     return { branch: 'reactivated' };
   }
 
+  /**
+   * Move the club's hashtag, which is also the address its public page sits at.
+   *
+   * A co-leader moves their own club's hashtag; an administrator corrects one
+   * that is wrong, naming a reason. One tag row is renamed in place, so every
+   * media item already carrying the hashtag follows it rather than being left
+   * pointing at a tag nobody uses.
+   *
+   * The old address dies at that moment and nothing redirects from it, which is
+   * why the administrator's door previews first: a link already shared to the
+   * old address stops working, and that is worth seeing before it happens
+   * rather than after.
+   *
+   * A club nobody can find is told apart from a club the actor does not lead,
+   * because an administrator reaching a club by id needs the difference and a
+   * co-leader must not have it: collapsing the two is what keeps the member
+   * path from answering whether a club id exists.
+   */
   updateClubHashtag(
     clubId: string,
     newSlug: string,
-    actorMemberId: string,
+    actor: ClubWriteActor,
+    opts: { preview?: boolean } = {},
   ):
-    | { branch: 'updated'; newClubKey: string }
+    | { branch: 'updated'; newClubKey: string; oldTag: string; newTag: string }
     | { branch: 'not_leader' }
+    | { branch: 'not_found' }
     | { branch: 'tag_conflict' }
     | { branch: 'invalid_format' } {
-    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-      | { id: string; role: 'leader' | 'co-leader' } | undefined;
-    if (!leadership) {
-      return { branch: 'not_leader' };
+    if (actor.kind === 'leader') {
+      const leadership = clubLeaders.memberInClubLeadership.get(clubId, actor.memberId) as
+        | { id: string; role: 'leader' | 'co-leader' } | undefined;
+      if (!leadership) {
+        return { branch: 'not_leader' };
+      }
     }
 
     const normalized = slugifyForTag(newSlug);
@@ -3130,12 +3313,23 @@ export class ClubService {
     const club = clubs.findByIdWithHashtag.get(clubId) as
       | { club_id: string; name: string; hashtag_tag_id: string; tag_normalized: string }
       | undefined;
-    if (!club) return { branch: 'not_leader' };
+    if (!club) return actor.kind === 'leader' ? { branch: 'not_leader' } : { branch: 'not_found' };
 
     if (existing && existing.id !== club.hashtag_tag_id) {
       return { branch: 'tag_conflict' };
     }
 
+    const moved = {
+      branch: 'updated' as const,
+      // The hashtag IS the public URL key, so the old /clubs/:key slug is dead
+      // after this write; callers must redirect to the new key.
+      newClubKey: `club_${normalized}`,
+      oldTag: club.tag_normalized,
+      newTag: tagNormalized,
+    };
+    if (opts.preview) return moved;
+
+    const actorMemberId = actor.memberId;
     const now = new Date().toISOString();
 
     transaction(() => {
@@ -3143,20 +3337,38 @@ export class ClubService {
         tagNormalized, tagDisplay, now, actorMemberId, club.hashtag_tag_id,
       );
 
-      appendAuditEntry({
-        actionType: 'club.hashtag_updated',
-        category: 'club_lifecycle',
-        actorType: 'member',
-        actorMemberId,
-        entityType: 'club',
-        entityId: clubId,
-        metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
-      });
+      appendAuditEntry(actor.kind === 'administrator'
+        ? {
+          actionType: 'club.hashtag_corrected',
+          category: 'club_lifecycle',
+          actorType: 'admin',
+          actorMemberId,
+          entityType: 'club',
+          entityId: clubId,
+          reasonText: actor.reason,
+          metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
+        }
+        : {
+          actionType: 'club.hashtag_updated',
+          category: 'club_lifecycle',
+          actorType: 'member',
+          actorMemberId,
+          entityType: 'club',
+          entityId: clubId,
+          metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
+        });
     });
 
-    // The hashtag IS the public URL key, so the old /clubs/:key slug is dead
-    // after this write; callers must redirect to the new key.
-    return { branch: 'updated', newClubKey: `club_${normalized}` };
+    if (actor.kind === 'administrator') {
+      this.notifyLeadersOfCorrection(
+        clubId,
+        club.name,
+        describeClubChanges([{ field: 'hashtag', before: club.tag_normalized, after: tagNormalized }]),
+        actor.reason,
+      );
+    }
+
+    return moved;
   }
 }
 

@@ -49,6 +49,8 @@ const ITEM_RACE = 'media_af_race';
 const ITEM_ADMIN_FLAG = 'media_af_adminflag';
 const ITEM_PATTERN = 'media_af_pattern';
 const ITEM_FILES_OWED = 'media_af_files_owed';
+const ITEM_AVATAR = 'media_af_avatar';
+const ITEM_ADMIN_OWN = 'media_af_adminown';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
@@ -143,6 +145,40 @@ beforeAll(async () => {
   // No report of its own: it exists for the administrator-raised report.
   insertMediaItem(db, { id: ITEM_ADMIN_FLAG, uploader_member_id: UPLOADER_ID, caption: 'Admin raised', tags: ['#by_af_uploader'] });
 
+  // Uploaded by the administrator themselves, and reported by somebody else.
+  // Deciding it would make them both the subject and the judge.
+  insertMediaItem(db, {
+    id: ITEM_ADMIN_OWN, uploader_member_id: ADMIN_ID, caption: 'The admin\'s own upload',
+    tags: ['#by_af_admin'],
+  });
+  insertMediaFlag(db, {
+    media_id: ITEM_ADMIN_OWN,
+    reporter_member_id: REPORTER_ID,
+    reason_code: 'illegal_or_harassing',
+    reason_text: 'Reported against the administrator.',
+    reported_at: new Date().toISOString(),
+  });
+  insertWorkQueueItem(db, {
+    id:             `wq_af_${ITEM_ADMIN_OWN}`,
+    queue_category: 'media',
+    task_type:      'media_flag_review',
+    entity_type:    'media_item',
+    entity_id:      ITEM_ADMIN_OWN,
+    status:         'open',
+    priority:       0,
+    reason_text:    'A member reported this media item for review.',
+  });
+
+  // A profile picture, which reaches this queue only when an administrator
+  // raises the report: no public surface offers one for reporting.
+  insertMediaItem(db, {
+    id: ITEM_AVATAR,
+    uploader_member_id: MEMBER_ID,
+    is_avatar: 1,
+    caption: null,
+    tags: ['#by_af_member'],
+  });
+
   // A takedown whose stored files outlived it: hidden, no open reports left,
   // and one open card saying the bytes are still there.
   insertMediaItem(db, {
@@ -169,6 +205,31 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
+
+describe('an administrator is not the judge of their own upload', () => {
+  it('refuses Remove on an item the deciding administrator uploaded', async () => {
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_ADMIN_OWN}/delete`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({ reason: 'Deciding my own case.' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('your own upload');
+    expect(mediaRow(ITEM_ADMIN_OWN).moderation_status).toBe('active');
+    expect(flagsFor(ITEM_ADMIN_OWN).map((f) => f.status)).toEqual(['open']);
+  });
+
+  it('refuses No Action on the same item, so neither direction is self-served', async () => {
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_ADMIN_OWN}/no-action`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({ reason: 'Clearing my own case.' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('your own upload');
+    expect(flagsFor(ITEM_ADMIN_OWN).map((f) => f.status)).toEqual(['open']);
+  });
+});
 
 describe('the admin gate', () => {
   it('redirects an unauthenticated visitor from the queue', async () => {
@@ -545,5 +606,112 @@ describe('POST /admin/media-flags/:mediaId/flag', () => {
       .type('form')
       .send({ reason_text: 'No code given.' });
     expect(res.status).toBe(422);
+  });
+});
+
+/**
+ * A profile picture is decidable here like any other item, with one difference
+ * that matters: the profile renders it through the member's own avatar pointer
+ * rather than through a read that filters on moderation status, so hiding the
+ * row is not enough to take it off the profile.
+ */
+describe('a profile picture in the takedown queue', () => {
+  function avatarPointer(memberId: string): string | null {
+    const db = readDb();
+    const row = db.prepare('SELECT avatar_media_id FROM members WHERE id = ?')
+      .get(memberId) as { avatar_media_id: string | null };
+    db.close();
+    return row.avatar_media_id;
+  }
+
+  it('is not reportable by a member, who has no surface offering one', async () => {
+    const res = await request(createApp())
+      .post(`/media/item/${ITEM_AVATAR}/flag`)
+      .set('Cookie', cookieFor(REPORTER_ID, 'member'))
+      .type('form')
+      .send({ reason_code: 'illegal_or_harassing', reason_text: 'Crafted report.' });
+    expect(res.status).toBe(404);
+    expect(flagsFor(ITEM_AVATAR)).toHaveLength(0);
+  });
+
+  it('reaches the queue when an administrator raises the report', async () => {
+    expect(avatarPointer(MEMBER_ID)).toBe(ITEM_AVATAR);
+
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_AVATAR}/flag`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({ reason_code: 'illegal_or_harassing', reason_text: 'Impersonates another player.' });
+    expect(res.status).toBe(303);
+
+    expect(flagsFor(ITEM_AVATAR)).toHaveLength(1);
+    expect(queueFor(ITEM_AVATAR).map((q) => q.status)).toEqual(['open']);
+  });
+
+  it('comes off the profile when the decision is Remove, not only out of the queue', async () => {
+    const res = await request(createApp())
+      .post(`/admin/media-flags/${ITEM_AVATAR}/delete`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({ reason: 'Impersonates another player.' });
+    expect(res.status).toBe(303);
+
+    expect(mediaRow(ITEM_AVATAR).moderation_status).toBe('removed_by_admin');
+    // The assertion this whole case exists for: hiding the row alone would
+    // leave the picture rendering on the member's profile.
+    expect(avatarPointer(MEMBER_ID)).toBeNull();
+
+    expect(flagsFor(ITEM_AVATAR).map((f) => f.status)).toEqual(['resolved']);
+    // And out of the avatar slot, which only one row per member may hold. The
+    // row survives with its reports; it is simply not their picture any more.
+    const stillFlagged = readDb();
+    const avatarFlag = stillFlagged
+      .prepare('SELECT is_avatar FROM media_items WHERE id = ?')
+      .get(ITEM_AVATAR) as { is_avatar: number };
+    stillFlagged.close();
+    expect(avatarFlag.is_avatar).toBe(0);
+    expect(queueFor(ITEM_AVATAR).map((q) => q.status)).toEqual(['resolved']);
+    expect(auditFor(ITEM_AVATAR).map((a) => a.action_type)).toContain('media.deleted');
+  });
+
+  /**
+   * The member is told they may upload another, so this is the ordinary next
+   * step rather than an edge case. It must not cost the decision its evidence:
+   * media_flags cascades on the media row, so deleting the decided picture to
+   * make room would take the reports that justified the decision with it.
+   */
+  it('lets the member upload a replacement without destroying the decision or its reports', async () => {
+    const replacement = 'media_af_avatar_2';
+    const writer = new BetterSqlite3(dbPath);
+    try {
+      insertMediaItem(writer, {
+        id: replacement,
+        uploader_member_id: MEMBER_ID,
+        is_avatar: 1,
+        caption: null,
+        tags: ['#by_af_member'],
+      });
+    } finally {
+      writer.close();
+    }
+
+    const conn = readDb();
+    const decided = conn
+      .prepare('SELECT id, is_avatar, moderation_status FROM media_items WHERE id = ?')
+      .get(ITEM_AVATAR) as { id: string; is_avatar: number; moderation_status: string };
+    const flags = conn
+      .prepare('SELECT COUNT(*) AS n FROM media_flags WHERE media_id = ?')
+      .get(ITEM_AVATAR) as { n: number };
+    const pointer = conn
+      .prepare('SELECT avatar_media_id FROM members WHERE id = ?')
+      .get(MEMBER_ID) as { avatar_media_id: string | null };
+    conn.close();
+
+    // The decided row is still there, still hidden, still carrying its report.
+    expect(decided.moderation_status).toBe('removed_by_admin');
+    expect(decided.is_avatar).toBe(0);
+    expect(flags.n).toBe(1);
+    // And the new picture is the one the profile shows.
+    expect(pointer.avatar_media_id).toBe(replacement);
   });
 });

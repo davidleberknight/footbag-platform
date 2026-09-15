@@ -815,9 +815,11 @@ export const adminCuratorController = {
         const g = svc.getGalleryForEdit(galleryId);
         const currentItems = g.currentItems;
         const currentItemsTruncated = g.currentItemsTruncated;
+        const moderation = moderationViewFor(g, req.user!.userId);
+        const title = galleryEditTitle(moderation);
         res.render('admin/curator/galleries/edit', {
-          seo: { title: 'Edit Curator Gallery' },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+          seo: { title, noindex: true },
+          page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title },
           formAction: `/admin/curator/galleries/${galleryId}/edit`,
           gallery: {
             id: g.id,
@@ -831,6 +833,8 @@ export const adminCuratorController = {
           currentItemsTruncated,
           uploadTags: g.criteriaTags.join(' '),
           externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
+          isFhOwned: g.isSystemOwned,
+          moderation,
         });
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -867,14 +871,23 @@ export const adminCuratorController = {
       const criteriaTags = parseTagsField(req.body?.criteriaTags);
       const excludeTags = parseTagsField(req.body?.excludeTags);
       const externalLinks = parseExternalLinkInputs(req.body ?? {});
+      const reasonRaw = String(req.body?.reason ?? '');
 
       const svc = buildSvc();
       try {
+        // The reason and the clear flags ride along on every submission; the
+        // service ignores them unless this is a member's own gallery, which is
+        // the only door they mean anything on.
         await svc.updateGallery({
           actorMemberId,
           actorIsAdmin: true,
           galleryId,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+          reason: reasonRaw,
+          moderation: {
+            clearName:        req.body?.clearName === '1',
+            clearDescription: req.body?.clearDescription === '1',
+          },
         });
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -897,7 +910,8 @@ export const adminCuratorController = {
             uploadTagsRaw: '',
             externalLinks,
             fieldErrors: err.fieldErrors,
-          });
+            reasonRaw,
+          }, actorMemberId);
           return;
         }
         throw err;
@@ -1298,6 +1312,33 @@ interface CuratorGalleryEditErrorContext {
   uploadTagsRaw: string;
   externalLinks: ReturnType<typeof parseExternalLinkInputs>;
   fieldErrors?: Record<string, string>;
+  // The administrator's typed reason, so a refused moderation comes back with
+  // it still in the box rather than asking them to write it out again.
+  reasonRaw?: string;
+}
+
+/**
+ * The moderation banner and labels, or null when this is not moderation. A
+ * gallery of Footbag Hacky's is the administrator's own to author, and an
+ * administrator editing a gallery they own themselves is an owner like any
+ * other member.
+ */
+function moderationViewFor(
+  gallery: CuratorGalleryEditView,
+  actorMemberId: string,
+): { ownerDisplayName: string } | null {
+  if (gallery.isSystemOwned) return null;
+  if (gallery.ownerMemberId === actorMemberId) return null;
+  return { ownerDisplayName: gallery.ownerDisplayName };
+}
+
+/**
+ * What this page is, in its own title. One URL serves two cohorts, and calling
+ * the moderation of a member's own gallery "curation" contradicts the banner
+ * printed directly beneath it.
+ */
+function galleryEditTitle(moderation: { ownerDisplayName: string } | null): string {
+  return moderation ? "Moderate a Member's Gallery" : 'Edit Curator Gallery';
 }
 
 function renderCuratorGalleryEditError(
@@ -1305,19 +1346,25 @@ function renderCuratorGalleryEditError(
   status: number,
   errorMessage: string,
   ctx: CuratorGalleryEditErrorContext,
+  actorMemberId: string,
 ): void {
   let currentItems: CuratorGalleryEditView['currentItems'] = [];
   let currentItemsTruncated = false;
+  let isFhOwned = true;
+  let moderation: { ownerDisplayName: string } | null = null;
   try {
     const reread = buildSvc().getGalleryForEdit(ctx.galleryId);
     currentItems = reread.currentItems;
     currentItemsTruncated = reread.currentItemsTruncated;
+    isFhOwned = reread.isSystemOwned;
+    moderation = moderationViewFor(reread, actorMemberId);
   } catch {
     /* gallery may have been deleted concurrently; render with empty items */
   }
+  const title = galleryEditTitle(moderation);
   res.status(status).render('admin/curator/galleries/edit', {
-    seo: { title: 'Edit Curator Gallery' },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+    seo: { title, noindex: true },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title },
     formAction: `/admin/curator/galleries/${ctx.galleryId}/edit`,
     errorMessage,
     fieldErrors: ctx.fieldErrors,
@@ -1333,6 +1380,9 @@ function renderCuratorGalleryEditError(
     currentItemsTruncated,
     uploadTags: ctx.uploadTagsRaw,
     externalLinkSlots: buildExternalLinkSlots(ctx.externalLinks, [], ctx.fieldErrors),
+    isFhOwned,
+    moderation,
+    reasonRaw: ctx.reasonRaw ?? '',
   });
 }
 
@@ -1381,6 +1431,7 @@ async function executeCuratorGalleryEditMultipart(args: {
   const uploadTagsRaw = (fields.uploadTags ?? '') as string;
   const uploadTags = parseTagsField(uploadTagsRaw);
   const externalLinks = parseExternalLinkInputs(fields);
+  const reasonRaw = String(fields.reason ?? '');
 
   const svc = buildSvc();
   const errCtx: CuratorGalleryEditErrorContext = {
@@ -1392,24 +1443,46 @@ async function executeCuratorGalleryEditMultipart(args: {
     excludeTagsRaw: fields.excludeTags ?? '',
     uploadTagsRaw,
     externalLinks,
+    reasonRaw,
   };
 
   if (limitExceeded) {
-    renderCuratorGalleryEditError(res, 422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`, errCtx);
+    renderCuratorGalleryEditError(res, 422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`, errCtx, actorMemberId);
     return;
   }
   if (droppedNamelessFile) {
-    renderCuratorGalleryEditError(res, 422, 'One of the uploaded files was missing a filename.', errCtx);
+    renderCuratorGalleryEditError(res, 422, 'One of the uploaded files was missing a filename.', errCtx, actorMemberId);
     return;
   }
   for (const f of photoFiles) {
     if (f.buffer.length > PHOTO_MAX_BYTES) {
-      renderCuratorGalleryEditError(res, 422, 'Photo is too large. Maximum size is 25 MB.', errCtx);
+      renderCuratorGalleryEditError(res, 422, 'Photo is too large. Maximum size is 25 MB.', errCtx, actorMemberId);
       return;
     }
     if (!detectImageType(f.buffer)) {
-      renderCuratorGalleryEditError(res, 422, 'Only JPEG and PNG photos are accepted.', errCtx);
+      renderCuratorGalleryEditError(res, 422, 'Only JPEG and PNG photos are accepted.', errCtx, actorMemberId);
       return;
+    }
+  }
+  // Adding a file to a gallery that belongs to another member would put new
+  // content under their name, which is the one thing moderation never does.
+  // The form offers no upload control on that door; this refuses a request that
+  // carries files anyway. Checked only when files are present, so the ordinary
+  // curated save pays for no extra read.
+  if (photoFiles.length > 0) {
+    try {
+      const owner = svc.getGalleryForEdit(galleryId);
+      if (moderationViewFor(owner, actorMemberId)) {
+        renderCuratorGalleryEditError(
+          res, 422,
+          'Files cannot be added to a gallery that belongs to another member. '
+          + 'Moderating a member\'s gallery means removing what is wrong, never adding to it.',
+          errCtx, actorMemberId,
+        );
+        return;
+      }
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
     }
   }
 
@@ -1419,6 +1492,11 @@ async function executeCuratorGalleryEditMultipart(args: {
       actorIsAdmin: true,
       galleryId,
       updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+      reason: reasonRaw,
+      moderation: {
+        clearName:        fields.clearName === '1',
+        clearDescription: fields.clearDescription === '1',
+      },
     });
   } catch (err) {
     if (err instanceof NotFoundError) {
@@ -1431,7 +1509,9 @@ async function executeCuratorGalleryEditMultipart(args: {
       return;
     }
     if (err instanceof ValidationError) {
-      renderCuratorGalleryEditError(res, 422, err.message, { ...errCtx, fieldErrors: err.fieldErrors });
+      renderCuratorGalleryEditError(
+        res, 422, err.message, { ...errCtx, fieldErrors: err.fieldErrors }, actorMemberId,
+      );
       return;
     }
     throw err;
@@ -1456,6 +1536,7 @@ async function executeCuratorGalleryEditMultipart(args: {
           422,
           `Gallery saved, but uploading "${f.filename}" failed: ${err.message}`,
           errCtx,
+          actorMemberId,
         );
         return;
       }

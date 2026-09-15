@@ -1,0 +1,45 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Find a Club</h2></div>
+    <p class="text-muted fs-sm">This lookup reads every club, including the inactive ones the directory leaves out and the archived ones kept for history.</p>
+    <div class="search-box-section">
+      <form method="GET" action="/admin/clubs" class="search-box-form">
+        <input type="text" name="q" maxlength="200"
+               placeholder="Club id, hashtag, or part of a name or city"
+               value="{{content.query}}"
+               aria-label="Find a club by id, hashtag, name, or city"
+               class="search-box-input" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    {{#if content.hasQuery}}
+      <p class="text-muted">{{content.resultSummary}}</p>
+      {{#if content.hasResults}}
+        <div class="search-box-results">
+          {{#each content.results}}
+            <div class="search-box-result">
+              <a href="{{recordHref}}">{{name}}</a>
+              {{#each facts}}<span class="text-muted">{{this}}</span>{{/each}}
+              {{#each badges}}<span class="badge badge-tier">{{this}}</span>{{/each}}
+            </div>
+          {{/each}}
+        </div>
+      {{/if}}
+    {{else}}
+      <p class="text-muted">{{content.resultSummary}}</p>
+    {{/if}}
+  </section>
+
+  <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>
+</div>

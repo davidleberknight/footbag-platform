@@ -125,6 +125,11 @@ export const TEMPLATE_VARIANTS = {
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
   media_moderation_decision:       v('confidential', ['memberName', 'displayDecision', 'note']),
+  avatar_removed_member:           v('confidential', ['memberName', 'note']),
+  media_removed_member:            v('confidential', ['memberName', 'note']),
+  member_record_corrected:         v('confidential', ['memberName', 'whatChanged', 'note']),
+  club_record_corrected:           v('confidential', ['leaderName', 'clubName', 'whatChanged', 'note']),
+  gallery_moderated_member:        v('confidential', ['memberName', 'galleryName', 'whatChanged', 'note']),
   link_help_request_resolution:    v('confidential', ['memberName', 'displayDecision', 'note']),
   admin_loss_recruitment:          v('internal',     ['entityId', 'queueUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
@@ -377,10 +382,62 @@ const SHAPERS = {
   // went. The report itself is never quoted back to them: the reporter's words
   // are evidence for the administrator, and naming the reporter to the person
   // they reported is how a report turns into a reprisal.
-  media_moderation_decision: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
-    variant: 'media_moderation_decision',
-    merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
+  // One notice for every administrative correction of a member's own record,
+  // whichever field moved. The caller supplies the plain-English phrase for
+  // what changed, so a member reads one familiar message rather than a
+  // different one per surface, and the values themselves stay off the wire:
+  // the mail may reach an address that is no longer the member's, which is
+  // exactly the case a name or contact correction is most often made for.
+  member_record_corrected: (p: { memberName: string; whatChanged: string; note: string }): ShapedEmail => ({
+    variant: 'member_record_corrected',
+    merge: { memberName: p.memberName, whatChanged: p.whatChanged, note: p.note },
   }),
+  // The same notice for a club, which needs its own wording rather than the
+  // member one: what moved is not on the reader's own account, and the club has
+  // to be named because a co-leader reading it may belong to several. It goes
+  // to every current co-leader, so it addresses the reader by name and never
+  // implies they were the one who got it wrong.
+  club_record_corrected: (
+    p: { leaderName: string; clubName: string; whatChanged: string; note: string },
+  ): ShapedEmail => ({
+    variant: 'club_record_corrected',
+    merge: {
+      leaderName: p.leaderName, clubName: p.clubName, whatChanged: p.whatChanged, note: p.note,
+    },
+  }),
+  // An administrator moderated a gallery the member made. The gallery is named
+  // by the name it carried when they wrote it, because a cleared name would
+  // leave them with no way to tell which gallery this was about.
+  gallery_moderated_member: (
+    p: { memberName: string; galleryName: string; whatChanged: string; note: string },
+  ): ShapedEmail => ({
+    variant: 'gallery_moderated_member',
+    merge: {
+      memberName: p.memberName, galleryName: p.galleryName,
+      whatChanged: p.whatChanged, note: p.note,
+    },
+  }),
+  // A takedown reaches a member from two doors: a report an administrator
+  // decided, and an administrator acting on the member's record with no report
+  // in front of them. The decided case names the decision, because there was a
+  // two-way choice and the member is owed which way it went. The undecided case
+  // names no decision and quotes no reporter, because there was none, and the
+  // profile-picture wording additionally says where to put a new one up, so the
+  // mail reads as a removal rather than a sanction.
+  media_moderation_decision: (
+    p: { memberName: string; displayDecision: string; note: string; wasReported: boolean; isAvatar: boolean },
+  ): ShapedEmail => {
+    if (p.wasReported) {
+      return {
+        variant: 'media_moderation_decision',
+        merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
+      };
+    }
+    return {
+      variant: p.isAvatar ? 'avatar_removed_member' : 'media_removed_member',
+      merge: { memberName: p.memberName, note: p.note },
+    };
+  },
   // The identity-link category is answered by applying a link rather than by
   // writing back, so it resolves through its own queue and needs its own reply.
   // Without it a member is promised an answer on submission and hears nothing,

@@ -33,33 +33,63 @@
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
 
-  {{#if gallery.isDefault}}
-    {{! The name carries this gallery's web address and the identity the upload
-        path re-derives, and its criteria are what make it hold everything the
-        member has uploaded, so neither is offered as an input here. The service
-        refuses both regardless of what is submitted. }}
+  {{#if moderation}}
+    {{! The name and the description belong to the member who wrote them, so
+        this door offers no box to type in: the only move is to take them off.
+        The hidden inputs carry the current values because the shared submission
+        shape expects them; the service derives the new values from the clear
+        boxes and discards whatever these carry. }}
     <div class="form-field">
-      <span class="form-sublabel">Name</span>
-      <p class="form-hint">
-        <strong>{{gallery.name}}</strong> keeps its name. This gallery is created
-        for you and always shows everything you have uploaded, so it collects no
-        hashtags of its own. Create a named gallery to collect a subset.
-      </p>
+      <span class="form-sublabel">Name, written by {{moderation.ownerDisplayName}}</span>
+      <p class="form-hint"><strong>{{gallery.name}}</strong></p>
+      <label>
+        <input type="checkbox" name="clearName" value="1">
+        Clear this name
+      </label>
       <input type="hidden" name="name" value="{{gallery.name}}">
     </div>
-  {{else}}
     <div class="form-field">
-      <label for="gallery-name">Name</label>
-      <input type="text" id="gallery-name" name="name" value="{{gallery.name}}" maxlength="150" required>
-      {{#if fieldErrors.name}}<small class="form-field-error" role="alert">{{fieldErrors.name}}</small>{{/if}}
+      <span class="form-sublabel">Description, written by {{moderation.ownerDisplayName}}</span>
+      {{#if gallery.description}}
+        <p class="form-hint">{{gallery.description}}</p>
+        <label>
+          <input type="checkbox" name="clearDescription" value="1">
+          Clear this description
+        </label>
+      {{else}}
+        <p class="form-hint">This gallery has no description.</p>
+      {{/if}}
+      <input type="hidden" name="description" value="{{gallery.description}}">
+    </div>
+  {{else}}
+    {{#if gallery.isDefault}}
+      {{! The name carries this gallery's web address and the identity the upload
+          path re-derives, and its criteria are what make it hold everything the
+          member has uploaded, so neither is offered as an input here. The service
+          refuses both regardless of what is submitted. }}
+      <div class="form-field">
+        <span class="form-sublabel">Name</span>
+        <p class="form-hint">
+          <strong>{{gallery.name}}</strong> keeps its name. This gallery is created
+          for you and always shows everything you have uploaded, so it collects no
+          hashtags of its own. Create a named gallery to collect a subset.
+        </p>
+        <input type="hidden" name="name" value="{{gallery.name}}">
+      </div>
+    {{else}}
+      <div class="form-field">
+        <label for="gallery-name">Name</label>
+        <input type="text" id="gallery-name" name="name" value="{{gallery.name}}" maxlength="150" required>
+        {{#if fieldErrors.name}}<small class="form-field-error" role="alert">{{fieldErrors.name}}</small>{{/if}}
+      </div>
+    {{/if}}
+
+    <div class="form-field">
+      <label for="gallery-description">Description</label>
+      <textarea id="gallery-description" name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
+      {{#if fieldErrors.description}}<small class="form-field-error" role="alert">{{fieldErrors.description}}</small>{{/if}}
     </div>
   {{/if}}
-
-  <div class="form-field">
-    <label for="gallery-description">Description</label>
-    <textarea id="gallery-description" name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
-    {{#if fieldErrors.description}}<small class="form-field-error" role="alert">{{fieldErrors.description}}</small>{{/if}}
-  </div>
 
   <details class="gallery-advanced"{{#if (or fieldErrors.criteriaTags (or fieldErrors.excludeTags fieldErrors.sortOrder))}} open{{/if}}>
     <summary>Advanced: which items appear, and their order</summary>
@@ -138,6 +168,21 @@
     {{/if}}
   {{/unless}}
 
+  {{#if moderation}}
+    {{! Moderating somebody else's gallery means taking off what is wrong, never
+        adding to it under their name, so this door offers no upload control and
+        the service refuses files posted to it anyway. }}
+    <div class="form-field">
+      <label for="gallery-moderation-reason">Reason (required)</label>
+      <input type="text" id="gallery-moderation-reason" name="reason"
+             value="{{reasonRaw}}" maxlength="500" required>
+      <small class="form-hint">
+        Recorded in the audit log with every changed value, and sent to
+        {{moderation.ownerDisplayName}} with the notice that their gallery changed.
+      </small>
+      {{#if fieldErrors.reason}}<small class="form-field-error" role="alert">{{fieldErrors.reason}}</small>{{/if}}
+    </div>
+  {{else}}
   <fieldset class="form-fieldset">
     <legend>Upload files now (optional)</legend>
     {{! The legend names the group, not the control, so assistive tech needs
@@ -161,6 +206,7 @@
       </small>
     </div>
   </fieldset>
+  {{/if}}
 
   <div class="form-actions">
     <button type="submit">{{#if submitLabel}}{{submitLabel}}{{else}}Save Changes{{/if}}</button>

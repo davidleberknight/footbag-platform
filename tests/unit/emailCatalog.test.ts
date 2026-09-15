@@ -78,8 +78,42 @@ const CATALOG: CatalogEntry[] = [
   ] },
   // mediaModerationService — what the uploader is told after their item is
   // reported and decided, either way the decision went.
+  // memberService, identityAccessService, activePlayerService — one notice for
+  // every administrative correction of a member's own record, whichever field
+  // moved, so a member reads one familiar message rather than a different one
+  // per surface.
+  { template: 'member_record_corrected',
+    services: ['memberService', 'identityAccessService', 'activePlayerService'], samples: [
+      { params: { memberName: 'M', whatChanged: 'your city', note: 'n' },
+        variant: 'member_record_corrected' },
+    ] },
+  // clubService — the same notice for a club, sent to every current co-leader
+  // when an administrator corrects the club's own details or moves its hashtag.
+  // It needs its own wording because what moved is not on the reader's account
+  // and the club has to be named: a co-leader may belong to several.
+  { template: 'club_record_corrected', services: ['clubService'], samples: [
+    { params: { leaderName: 'L', clubName: 'C', whatChanged: "the club's city", note: 'n' },
+      variant: 'club_record_corrected' },
+  ] },
+  // curatorMediaService — what a member is told when an administrator moderates
+  // a gallery they made. It names the gallery by the name it carried when they
+  // wrote it, because a cleared name would leave them unable to tell which one
+  // this was about.
+  { template: 'gallery_moderated_member', services: ['curatorMediaService'], samples: [
+    { params: { memberName: 'M', galleryName: 'G', whatChanged: "the gallery's name", note: 'n' },
+      variant: 'gallery_moderated_member' },
+  ] },
+  // mediaModerationService — what an uploader is told about a takedown, which
+  // reaches them from two doors. A decided report names the decision; an
+  // administrator acting with no report in front of them names none, and quotes
+  // no reporter, because there was not one.
   { template: 'media_moderation_decision', services: ['mediaModerationService'], samples: [
-    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n' }, variant: 'media_moderation_decision' },
+    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n', wasReported: true, isAvatar: false },
+      variant: 'media_moderation_decision' },
+    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n', wasReported: false, isAvatar: true },
+      variant: 'avatar_removed_member' },
+    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n', wasReported: false, isAvatar: false },
+      variant: 'media_removed_member' },
   ] },
   // identityAccessService — the reply for the one contact category answered by
   // applying a link rather than by writing back.

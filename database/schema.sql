@@ -57,8 +57,17 @@ CREATE TABLE tags (
   is_standard   INTEGER NOT NULL DEFAULT 0 CHECK (is_standard IN (0,1)),
   standard_type TEXT CHECK (standard_type IN ('event','club')),
 
+  -- An administrator has taken this freeform tag out of circulation. The row
+  -- survives rather than being deleted, so its normalized form stays reserved
+  -- and the same abusive word cannot be recreated under a new id. Only
+  -- is_standard = 0 rows are ever stamped: a club's or event's hashtag is its
+  -- address and is permanent (APP-024). The reason lives on the audit row.
+  retired_at           TEXT,
+  retired_by_member_id TEXT REFERENCES members(id),
+
   CHECK (tag_normalized = lower(tag_normalized)),
-  CHECK (substr(tag_normalized,1,1) = '#')
+  CHECK (substr(tag_normalized,1,1) = '#'),
+  CHECK (retired_at IS NULL OR is_standard = 0)
 );
 
 CREATE UNIQUE INDEX ux_tags_normalized ON tags(tag_normalized);

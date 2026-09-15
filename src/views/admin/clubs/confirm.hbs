@@ -10,12 +10,7 @@
       <p class="notice notice-warn" role="alert">{{content.caution}}</p>
     {{/if}}
     <div class="card mb-6">
-      <p class="m-0 fw-500">{{content.displayName}} &middot; {{content.slugLabel}} &middot; {{content.memberId}}</p>
-      {{#if content.previewImage}}
-        <span class="avatar-preview-frame mt-1">
-          <img class="avatar-edit-thumb" src="{{content.previewImage.src}}" alt="{{content.previewImage.alt}}" width="80" height="80" />
-        </span>
-      {{/if}}
+      <p class="m-0 fw-500">{{content.name}} &middot; {{content.hashtagLabel}} &middot; {{content.clubId}}</p>
       {{#if content.hasChanges}}
         <dl class="trick-structural-facts-list mt-1">
           {{#each content.changes}}
@@ -25,9 +20,7 @@
       {{else}}
         <p class="m-0 mt-1 text-muted">{{content.noChangeMessage}}</p>
       {{/if}}
-      {{#if content.reason}}
-        <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
-      {{/if}}
+      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
     </div>
 
     <p>{{content.summary}}</p>

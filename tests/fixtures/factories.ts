@@ -368,6 +368,18 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
     o.moderation_status ?? 'active',
   );
   attachMediaTags(db, id, o.tags ?? []);
+  // The production upload points the member at their avatar as part of the same
+  // transaction, and every profile read resolves the picture through that
+  // pointer rather than through is_avatar. A fixture that sets the flag without
+  // the pointer is an avatar no surface renders, which is not the state any
+  // test means to seed.
+  if ((o.is_avatar ?? 0) === 1) {
+    db.prepare(`
+      UPDATE members SET avatar_media_id = ?, updated_at = ?, updated_by = 'test',
+             version = version + 1
+       WHERE id = ?
+    `).run(id, TS, o.uploader_member_id);
+  }
   return id;
 }
 
@@ -456,6 +468,81 @@ export function insertMediaFlag(db: BetterSqlite3.Database, o: MediaFlagOverride
     o.status ?? 'open',
   );
   return id;
+}
+
+/**
+ * One archived broadcast: the record of what the platform said in IFPA's name,
+ * naming no recipient. The announce type is the one that needs neither a
+ * mailing list nor an event, so it is the default here; the other two carry a
+ * CHECK that would refuse a row without theirs.
+ */
+export interface EmailArchiveOverrides {
+  id?: string;
+  archive_type?: 'mailing_list' | 'event_participants' | 'announce';
+  mailing_list_id?: string | null;
+  event_id?: string | null;
+  sender_member_id?: string | null;
+  from_identity?: string | null;
+  subject?: string;
+  body_text?: string;
+  sent_at?: string;
+  recipient_count?: number;
+}
+
+export function insertEmailArchive(
+  db: BetterSqlite3.Database,
+  o: EmailArchiveOverrides = {},
+): string {
+  const id = o.id ?? `emailarchive-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO email_archives (
+      id, created_at, created_by, updated_at, updated_by, version,
+      archive_type, mailing_list_id, event_id,
+      sender_member_id, from_identity, subject, body_text, sent_at, recipient_count
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, TS,
+    o.archive_type ?? 'announce',
+    o.mailing_list_id ?? null,
+    o.event_id ?? null,
+    o.sender_member_id ?? null,
+    o.from_identity === undefined ? null : o.from_identity,
+    o.subject ?? 'A message to the community',
+    o.body_text ?? 'The body of the message as it went out.',
+    o.sent_at ?? TS,
+    o.recipient_count ?? 0,
+  );
+  return id;
+}
+
+/**
+ * A tag's usage record, the denormalized cache every discovery surface reads:
+ * a tag with no row here appears in no popular list, no alphabetical index and
+ * no highlight, whatever the tags table still says. The production writer is
+ * the rebuild pass in HashtagDiscoveryService, which recomputes the whole
+ * table; this seeds one row so a test can assert what happens to it.
+ */
+export interface TagStatOverrides {
+  tag_id: string;
+  usage_count?: number;
+  distinct_member_count?: number;
+  last_used_at?: string;
+}
+
+export function insertTagStat(db: BetterSqlite3.Database, o: TagStatOverrides): string {
+  db.prepare(`
+    INSERT INTO tag_stats (
+      tag_id, usage_count, distinct_member_count, last_used_at,
+      created_at, updated_at, computed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    o.tag_id,
+    o.usage_count ?? 1,
+    o.distinct_member_count ?? 1,
+    o.last_used_at ?? TS,
+    TS, TS, TS,
+  );
+  return o.tag_id;
 }
 
 // ── TT lesson media ──────────────────────────────────────────────────────────

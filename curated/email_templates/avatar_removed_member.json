@@ -1,0 +1,7 @@
+{
+  "templateKey": "avatar_removed_member",
+  "subjectTemplate": "Your footbag.org profile picture has been removed",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has removed the profile picture on your account. Your account, your membership and everything else on your profile are unchanged.\n\nAdministrator's note:\n{note}\n\nYou can upload a new picture from your profile edit page. If you believe this was decided in error, submit a contact request from that page.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

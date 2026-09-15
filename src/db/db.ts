@@ -659,6 +659,39 @@ export const clubs = {
      WHERE c.id = ?
   `); },
 
+  // The administrator's club lookup. It reads clubs_all rather than clubs_open
+  // because the record exists to reach exactly the clubs the public views
+  // exclude: an archived one whose details are wrong is still a club whose
+  // details are wrong. The hashtag is matched whole, in its stored '#club_x'
+  // form, so an administrator who pastes a club's address lands on that club
+  // instead of on every club whose name happens to contain the same letters.
+  get findClubIdsForAdminSearch() { return db.prepare(`
+    SELECT c.id
+      FROM clubs_all AS c
+      INNER JOIN tags AS t ON t.id = c.hashtag_tag_id
+     WHERE c.id = ?
+        OR t.tag_normalized = ?
+        OR LOWER(c.name) LIKE '%' || ? || '%' ESCAPE '\\'
+        OR LOWER(c.city) LIKE '%' || ? || '%' ESCAPE '\\'
+     ORDER BY c.name COLLATE NOCASE, c.id
+     LIMIT ?
+  `); },
+
+  // Everything the administrator's club record shows in one read, including the
+  // archived rows clubs_open hides and the quarantine reason the public render
+  // suppresses: an administrator correcting a URL has to be able to see that
+  // the one on file was rejected.
+  get findClubForAdminRecord() { return db.prepare(`
+    SELECT c.id, c.name, c.description, c.city, c.region, c.country,
+           c.external_url, c.external_url_validated_at,
+           c.external_url_quarantine_reason, c.status,
+           c.created_at, c.updated_at,
+           t.tag_normalized, t.tag_display
+      FROM clubs_all AS c
+      INNER JOIN tags AS t ON t.id = c.hashtag_tag_id
+     WHERE c.id = ?
+  `); },
+
   get insertClub() { return db.prepare(`
     INSERT INTO clubs (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -4772,6 +4805,13 @@ export const account = {
     SELECT family_name, given_names, real_name FROM members WHERE id = ?
   `); },
 
+  // Which picture, if any, the member's profile is currently showing. The
+  // pointer rather than the avatar media row, because a taken-down picture
+  // keeps its row and is detached by clearing this.
+  get findMemberAvatarPointer() { return db.prepare(`
+    SELECT avatar_media_id FROM members WHERE id = ?
+  `); },
+
   // The whole member row an administrator's member record renders, plus the
   // names its correction rewrites. Reads the bare members table rather than a
   // visibility view: the record exists to reach members the member-facing views
@@ -4781,6 +4821,9 @@ export const account = {
            login_email, email_verified_at, email_status, last_login_at,
            family_name, given_names, real_name, display_name,
            city, region, country, gender, birth_date, phone, whatsapp,
+           bio, email_visibility, phone_visible, whatsapp_visible,
+           first_competition_year, show_competitive_results,
+           show_first_competition_year, show_gender,
            searchable, is_admin, is_system, is_board, is_hof, is_bap,
            is_deceased, deceased_at,
            deleted_at, deletion_grace_expires_at, personal_data_purged_at,
@@ -5059,7 +5102,7 @@ export const account = {
       show_gender                = ?,
       gender                     = COALESCE(?, gender),
       updated_at                 = ?,
-      updated_by                 = 'member',
+      updated_by                 = ?,
       version                    = version + 1
     WHERE id = ?
   `); },
@@ -6224,6 +6267,30 @@ export const media = {
     WHERE id = ?
   `); },
 
+  // Takes a decided picture out of the member's avatar slot without deleting
+  // it. Only one row per member may carry is_avatar = 1, whatever its
+  // moderation status, so a decided picture left flagged would hold the slot and
+  // the member's next upload would fail the index. Clearing the flag is also
+  // simply true: it is not their picture any more. The row stays out of every
+  // gallery and browse read regardless, because those filter on the active
+  // moderation status as well as on the flag.
+  get clearAvatarFlag() { return db.prepare(`
+    UPDATE media_items
+    SET is_avatar = 0, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND is_avatar = 1
+  `); },
+
+  // Detaches a member from their picture without deleting the media row, which
+  // is what a takedown decided on a report needs: the row carries the reports
+  // and the decision, so it survives, and the profile reads the picture through
+  // this pointer. Guarded on the pointer still naming the item being decided,
+  // so a decision on an old picture can never unset a newer one.
+  get clearMemberAvatar() { return db.prepare(`
+    UPDATE members
+    SET avatar_media_id = NULL, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND avatar_media_id = ?
+  `); },
+
   get getExistingAvatarMediaId() { return db.prepare(`
     SELECT id, s3_key_thumb, s3_key_display
     FROM media_items
@@ -6592,9 +6659,11 @@ export const media = {
     ORDER BY t.tag_display
   `); },
 
-  // Admin gallery edit: UPDATE the metadata fields of an FH-owned
-  // member_galleries row. Caller wraps in a transaction with the
-  // matching tag-set rewrites.
+  // UPDATE the metadata fields of a named gallery, whoever owns it: Footbag
+  // Hacky's own, edited by an administrator curating, and a member's own,
+  // edited by that member or cleared by an administrator moderating. Ownership
+  // is decided in the service, which is why this statement keys on the gallery
+  // alone. Caller wraps it in a transaction with the matching tag-set rewrites.
   get updateMemberGalleryMetadata() { return db.prepare(`
     UPDATE member_galleries
     SET name = ?, description = ?, sort_order = ?,
@@ -7282,8 +7351,11 @@ export function queryMemberDisplayNamesBySlugs(slugs: string[]): MemberByTagRow[
 }
 
 export const mediaTags = {
+  // Carries retired_at because this is the resolve-or-create lookup every tag
+  // application runs through, and a retired tag's row deliberately survives:
+  // the caller has to refuse it rather than hand the abusive word back.
   get findTagByNormalized() { return db.prepare(`
-    SELECT id FROM tags WHERE tag_normalized = ?
+    SELECT id, retired_at FROM tags WHERE tag_normalized = ?
   `); },
 
   get insertTag() { return db.prepare(`
@@ -7339,6 +7411,62 @@ export const mediaTags = {
            updated_by     = ?,
            version        = version + 1
      WHERE id = ?
+  `); },
+};
+
+// Taking an abusive freeform tag out of circulation. The tag row is never
+// deleted: six tables reference tags(id) and none of them cascades, so a
+// delete would fail against a tag anything still uses, and succeeding on an
+// orphan would free the abusive word for the next uploader to recreate.
+// Retirement instead detaches the tag from everything that names it and
+// stamps the surviving row, which keeps the normalized form reserved.
+export const tagRetirement = {
+  // Resolves the tag an administrator typed, with everything the preview has
+  // to show before an irreversible act: what it looks like to members, whether
+  // it is a club or event identity that may not be retired, whether it is
+  // already retired, and how much comes off with it.
+  get findTagForRetirement() { return db.prepare(`
+    SELECT t.id, t.tag_normalized, t.tag_display, t.is_standard,
+           t.standard_type, t.retired_at,
+           (SELECT COUNT(*) FROM media_tags mt
+             WHERE mt.tag_id = t.id)                       AS media_count,
+           (SELECT COUNT(*) FROM member_gallery_tags gt
+             WHERE gt.tag_id = t.id)                       AS gallery_criteria_count,
+           (SELECT COUNT(*) FROM member_gallery_exclude_tags gx
+             WHERE gx.tag_id = t.id)                       AS gallery_exclude_count
+      FROM tags AS t
+     WHERE t.tag_normalized = ?
+  `); },
+
+  get deleteMediaTagsByTagId() { return db.prepare(`
+    DELETE FROM media_tags WHERE tag_id = ?
+  `); },
+
+  get deleteGalleryCriteriaByTagId() { return db.prepare(`
+    DELETE FROM member_gallery_tags WHERE tag_id = ?
+  `); },
+
+  get deleteGalleryExcludesByTagId() { return db.prepare(`
+    DELETE FROM member_gallery_exclude_tags WHERE tag_id = ?
+  `); },
+
+  get deleteTagStat() { return db.prepare(`
+    DELETE FROM tag_stats WHERE tag_id = ?
+  `); },
+
+  // The permanence rule lives in the WHERE clause rather than in the service,
+  // so a future caller that forgets to check is refused by the statement: a
+  // standard tag matches no row and the update reports zero changes.
+  get markRetired() { return db.prepare(`
+    UPDATE tags
+       SET retired_at           = ?,
+           retired_by_member_id = ?,
+           updated_at           = ?,
+           updated_by           = ?,
+           version              = version + 1
+     WHERE id = ?
+       AND is_standard = 0
+       AND retired_at IS NULL
   `); },
 };
 
@@ -7730,6 +7858,7 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
       )
       AND t.tag_normalized NOT LIKE '#by_%'
       AND t.tag_normalized <> '#unavailable_embed'
+      AND t.retired_at IS NULL
     ORDER BY COALESCE(ts.distinct_member_count, 0) DESC,
              COALESCE(ts.usage_count, 0) DESC
     LIMIT ?
@@ -9499,6 +9628,21 @@ export const emailArchives = {
     ) VALUES (?, ?, ?, ?, ?, 1,
               ?, ?, NULL,
               ?, ?, ?, ?, ?, ?)
+  `); },
+
+  // Account erasure's reach into the archive. The message itself is never
+  // touched: what went out in IFPA's name went out, and the subject, the body
+  // and the identity it was sent under stay as sent. What goes is the link back
+  // to the member, so an erased account is no longer identifiable as the author
+  // of everything they broadcast. The column is nullable and keeps its foreign
+  // key, so the integrity stays where it belongs.
+  get clearSenderForMember() { return db.prepare(`
+    UPDATE email_archives
+       SET sender_member_id = NULL,
+           updated_at       = ?,
+           updated_by       = 'system',
+           version          = version + 1
+     WHERE sender_member_id = ?
   `); },
 
   // Newest first, which is the order an administrator reads a send history in.

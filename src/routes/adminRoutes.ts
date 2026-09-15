@@ -5,7 +5,9 @@ import { adminMediaFlagsController } from '../controllers/adminMediaFlagsControl
 import { adminWorkQueueController } from '../controllers/adminWorkQueueController';
 import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
+import { adminClubController } from '../controllers/adminClubController';
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
+import { adminTagController } from '../controllers/adminTagController';
 import { adminEventOrganizerController } from '../controllers/adminEventOrganizerController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
@@ -69,6 +71,10 @@ adminRouter.post('/members/:memberId/tier',                adminMemberController
 adminRouter.post('/members/:memberId/tier/confirm',        adminMemberController.confirmTier);
 adminRouter.post('/members/:memberId/active-player',         adminMemberController.previewActivePlayer);
 adminRouter.post('/members/:memberId/active-player/confirm', adminMemberController.confirmActivePlayer);
+adminRouter.post('/members/:memberId/profile',               adminMemberController.previewProfile);
+adminRouter.post('/members/:memberId/profile/confirm',       adminMemberController.confirmProfile);
+adminRouter.post('/members/:memberId/avatar/remove',         adminMemberController.previewAvatarRemoval);
+adminRouter.post('/members/:memberId/avatar/remove/confirm', adminMemberController.confirmAvatarRemoval);
 // Order matters: the two `/revert` paths must precede their shorter siblings,
 // or `/deceased/confirm` would swallow `/deceased/revert/confirm`. Each handler
 // is told here whether it is the marking or its reversal, rather than reading
@@ -154,13 +160,28 @@ adminRouter.get('/events/organizers',                  adminEventOrganizerContro
 adminRouter.get('/events/:eventId/organizers',         adminEventOrganizerController.detail);
 adminRouter.post('/events/:eventId/organizers/assign', adminEventOrganizerController.assign);
 adminRouter.post('/events/:eventId/organizers/remove', adminEventOrganizerController.remove);
+adminRouter.get('/clubs',                     adminClubController.index);
+// The literal leadership path is registered before the :clubId segment, or an
+// administrator opening the queue asks for a club called "leadership".
 adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
+adminRouter.get('/clubs/:clubId',             adminClubController.record);
+// The longer confirm path first, as elsewhere: each correction previews and
+// writes only on confirm.
+adminRouter.post('/clubs/:clubId/content/confirm', adminClubController.confirmContent);
+adminRouter.post('/clubs/:clubId/content',         adminClubController.previewContent);
+adminRouter.post('/clubs/:clubId/hashtag/confirm', adminClubController.confirmHashtag);
+adminRouter.post('/clubs/:clubId/hashtag',         adminClubController.previewHashtag);
 adminRouter.get('/clubs/:clubId/leadership',  adminClubLeadershipController.detail);
 adminRouter.post('/clubs/:clubId/leadership/assign',  adminClubLeadershipController.assign);
 // The longer confirm path first, as elsewhere: a demotion previews and writes
 // only on confirm, because removing an affiliation ends a club membership.
 adminRouter.post('/clubs/:clubId/leadership/demote/confirm', adminClubLeadershipController.demote);
 adminRouter.post('/clubs/:clubId/leadership/demote',  adminClubLeadershipController.demotePreview);
+adminRouter.get('/tags',                      adminTagController.index);
+// The longer confirm path first, as elsewhere: a retirement previews and
+// writes only on confirm, because nothing on the site can undo one.
+adminRouter.post('/tags/retire/confirm',      adminTagController.confirm);
+adminRouter.post('/tags/retire',              adminTagController.preview);
 adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
 adminRouter.post('/club-cleanup/claim',       adminClubCleanupController.claim);
 adminRouter.post('/club-cleanup/bulk-resolve', adminClubCleanupController.bulkResolve);

@@ -48,7 +48,8 @@
  *
  * Side effects:
  *   - audit_entries append
- *   - outbox_emails enqueue (vouch confirmations)
+ *   - outbox_emails enqueue (vouch confirmations; the notice telling a member an
+ *     administrator corrected their Active Player standing)
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -897,6 +898,21 @@ export function correctExpiry(
         new_expires_at: newExpiresAt,
       },
     });
+  });
+  // After the commit. A correction is the one write permitted to move an expiry
+  // earlier, so it is the one that can quietly take standing away; a member who
+  // loses it is owed the reason. The membership-status change story requires
+  // this notice by name, and the surface stated the opposite until now.
+  emailService.sendToMember({
+    template: 'member_record_corrected',
+    params: {
+      memberName: (account.findNotificationContactById.get(memberId) as
+        | { display_name: string } | undefined)?.display_name ?? 'there',
+      whatChanged: 'your Active Player standing',
+      note: reason,
+    },
+    memberId,
+    idempotencyKey: `member-record-corrected:${memberId}:${id}`,
   });
   return { status: 'corrected' as const, expiresAt: newExpiresAt };
 }

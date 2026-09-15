@@ -749,24 +749,116 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     } finally { db.close(); }
   });
 
-  it('admin can edit a member-owned gallery via the admin curator route (moderation path)', async () => {
-    // The admin route at /admin/curator/galleries/:id/edit is wired
-    // through the same service.updateGallery; an admin actor passes
-    // service-layer authz on any owner. This test exercises that path
-    // against a member-owned gallery to confirm admin moderation works
-    // on member-owned rows alongside FH-owned rows.
+  it('admin moderating a member-owned gallery clears the name rather than rewriting it', async () => {
+    // The admin route at /admin/curator/galleries/:id/edit serves two cohorts
+    // through one URL. On a member's own gallery the administrator is
+    // moderating somebody else's record, so the name is the member's words: a
+    // posted replacement is dropped and the clear flag is what acts.
     await createGalleryViaApi('To Be Moderated');
     const id = findGalleryIdByName('To Be Moderated')!;
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${id}/edit`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ name: 'Moderated', description: '', sortOrder: 'upload_desc', criteriaTags: '#m', excludeTags: '' });
+      .send({
+        name: 'Renamed By An Admin', description: '', sortOrder: 'upload_desc',
+        criteriaTags: '#m', excludeTags: '',
+        clearName: '1', reason: 'The name names another member and calls them a cheat.',
+      });
     expect(res.status, 'the admin curator gallery edit redirects on success').toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const row = db.prepare('SELECT name FROM member_galleries WHERE id = ?').get(id) as { name: string };
-      expect(row.name).toBe('Moderated');
+      expect(row.name).toBe('Gallery');
+    } finally { db.close(); }
+  });
+
+  it('refuses an admin write to a member-owned gallery with no reason', async () => {
+    await createGalleryViaApi('Reason Required Here');
+    const id = findGalleryIdByName('Reason Required Here')!;
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Reason Required Here', description: '', sortOrder: 'upload_asc',
+        criteriaTags: '#m', excludeTags: '', clearName: '1',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Enter the reason');
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const row = db.prepare(
+        'SELECT name, sort_order FROM member_galleries WHERE id = ?',
+      ).get(id) as { name: string; sort_order: string };
+      expect(row.name).toBe('Reason Required Here');
+      expect(row.sort_order).toBe('upload_desc');
+    } finally { db.close(); }
+  });
+
+  it('records the moderation with the reason and each changed value', async () => {
+    await createGalleryViaApi('Audited Moderation');
+    const id = findGalleryIdByName('Audited Moderation')!;
+    const reason = 'The description is abusive about another member.';
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Audited Moderation', description: 'anything', sortOrder: 'upload_asc',
+        criteriaTags: '#m', excludeTags: '', reason,
+      });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const rows = db.prepare(
+        "SELECT actor_type, actor_member_id, reason_text, metadata_json FROM audit_entries"
+        + " WHERE action_type = 'media.member_gallery_moderated' AND entity_id = ?",
+      ).all(id) as Array<{
+        actor_type: string; actor_member_id: string;
+        reason_text: string; metadata_json: string;
+      }>;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.actor_type).toBe('admin');
+      expect(rows[0]!.actor_member_id).toBe(ADMIN_ID);
+      expect(rows[0]!.reason_text).toBe(reason);
+      const meta = JSON.parse(rows[0]!.metadata_json) as {
+        fields: string[]; before: Record<string, unknown>; after: Record<string, unknown>;
+      };
+      expect(meta.fields).toContain('sortOrder');
+      expect(meta.before['sortOrder']).toBe('upload_desc');
+      expect(meta.after['sortOrder']).toBe('upload_asc');
+      // The description was never cleared, so it is not among the changes even
+      // though the request carried a different one.
+      expect(meta.fields).not.toContain('description');
+
+      const notices = db.prepare(
+        "SELECT body_text FROM outbox_emails WHERE template_key = 'gallery_moderated_member'"
+        + ' AND recipient_member_id = ?',
+      ).all(OWNER_ID) as Array<{ body_text: string }>;
+      expect(notices.some((n) => n.body_text.includes(reason))).toBe(true);
+    } finally { db.close(); }
+  });
+
+  it('writes no audit row and no notice when the moderation changed nothing', async () => {
+    await createGalleryViaApi('Unchanged By Admin');
+    const id = findGalleryIdByName('Unchanged By Admin')!;
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Unchanged By Admin', description: 'desc', sortOrder: 'upload_desc',
+        criteriaTags: '#tag1', excludeTags: '', reason: 'Looked at it and left it alone.',
+      });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const rows = db.prepare(
+        "SELECT id FROM audit_entries"
+        + " WHERE action_type = 'media.member_gallery_moderated' AND entity_id = ?",
+      ).all(id);
+      expect(rows).toHaveLength(0);
     } finally { db.close(); }
   });
 });

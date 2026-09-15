@@ -1,0 +1,7 @@
+{
+  "templateKey": "gallery_moderated_member",
+  "subjectTemplate": "An IFPA administrator has made a change to your gallery",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has changed {whatChanged} on your gallery {galleryName} on footbag.org. Your photos and videos were not removed and nothing you wrote about them has changed.\n\nAdministrator's note:\n{note}\n\nYou can see the gallery by logging in to footbag.org and opening your galleries. If you believe this was done in error, submit a contact request from your profile edit page.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

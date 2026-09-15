@@ -7,6 +7,11 @@
  *   - The takedown queue page-model an administrator decides from
  *   - The two decisions, Delete and No Action, and the clearing of a single flag
  *   - `media_items.moderation_status`, which nothing else in the application writes
+ *   - Detaching a decided profile picture from its member. A profile picture is
+ *     reportable and decidable like any other item, but the profile resolves it
+ *     through the member's own avatar pointer rather than through a read that
+ *     filters on moderation status, so the decision clears that pointer in the
+ *     same transaction or the picture stays on the profile.
  *
  * Does not own:
  *   - Upload, edit and owner-initiated delete of media (CuratorMediaService)
@@ -45,6 +50,12 @@
  *     IP-derived is stored, read or displayed.
  *   - A decision another administrator already took reports as settled rather than
  *     overwriting their reason.
+ *   - An administrator never decides a report about an item they uploaded
+ *     themselves: they would be both the subject and the judge, and the decision
+ *     is final one way and unappealable the other. Deciding a report the
+ *     administrator filed is deliberately allowed, because that is the designed
+ *     path for an administrator who finds an abusive item: report it from the
+ *     administrative control, then decide it.
  *
  * Transaction discipline:
  *   Each decision writes the media row, its open flags, the queue twin and the
@@ -274,13 +285,33 @@ function validateDecisionReason(raw: unknown): string {
   return text;
 }
 
+/**
+ * An administrator may not decide a report about an item they uploaded
+ * themselves: they would be both the subject and the judge, and the decision is
+ * final in one direction and unappealable in the other. The platform refuses
+ * the same shape elsewhere, where an administrator cannot approve their own
+ * legacy-identity help request, resolve their own identity dispute, or revoke
+ * their own role. An administrator wanting their own upload gone deletes it
+ * through their own media routes, as any member does.
+ *
+ * Deciding a report the administrator filed themselves is deliberately allowed.
+ * That is not a loophole but the designed path: an administrator who finds an
+ * abusive item reports it from the administrative control and then decides it,
+ * which is one act with two steps rather than two administrators.
+ */
+function assertNotDecidingOwnUpload(row: ModerationRow, adminMemberId: string): void {
+  if (row.uploader_member_id === adminMemberId) {
+    throw new ValidationError(
+      'You cannot decide a report about your own upload. Another administrator must review it.',
+    );
+  }
+}
+
 function loadItemForModeration(mediaId: string): ModerationRow {
   const row = runSqliteRead('getMediaItemForModeration', () =>
     media.getMediaItemForModeration.get(mediaId),
   ) as ModerationRow | undefined;
-  // An avatar is not gallery content and no public media surface renders one, so
-  // it is not reportable and not decidable here.
-  if (!row || row.is_avatar === 1) {
+  if (!row) {
     throw new NotFoundError(`Media item not found: ${mediaId}`);
   }
   return row;
@@ -402,8 +433,21 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     return allRemoved;
   }
 
-  /** The uploader is told what was decided. The system member is not a person. */
-  function notifyUploader(row: ModerationRow, displayDecision: string, reason: string, key: string): boolean {
+  /**
+   * The uploader is told what was decided. The system member is not a person.
+   *
+   * `wasReported` chooses the wording, because a takedown reaches this from two
+   * doors. Telling somebody a member reported their picture when nobody did is
+   * a false account of why it came down, and it invites them to go looking for
+   * a reporter who does not exist.
+   */
+  function notifyUploader(
+    row: ModerationRow,
+    displayDecision: string,
+    reason: string,
+    key: string,
+    wasReported: boolean,
+  ): boolean {
     if (row.uploader_is_system === 1) return false;
     const sent = emailService.send({
       template: 'media_moderation_decision',
@@ -411,6 +455,8 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         memberName: row.uploader_display_name,
         displayDecision,
         note: reason,
+        wasReported,
+        isAvatar: row.is_avatar === 1,
       },
       recipientEmail:    row.uploader_login_email,
       recipientMemberId: row.uploader_member_id,
@@ -448,6 +494,15 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     }
 
     const row = loadItemForModeration(input.mediaId);
+
+    // An administrator may flag any item, including a profile picture, which is
+    // how one reaches the takedown queue. A member cannot: no public surface
+    // offers a picture for reporting, so a report of one could only be a
+    // crafted request, and it answers as it would for any item that surface
+    // does not carry.
+    if (!input.actorIsAdmin && row.is_avatar === 1) {
+      throw new NotFoundError(`Media item not found: ${input.mediaId}`);
+    }
 
     // One report per reporter per item, open or already resolved: the unique
     // index says so, and the story says a repeat is not a second count.
@@ -507,8 +562,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     resolutionLabel: 'deleted' | 'no_action';
     nowIso: string;
     hide: boolean;
-  }): boolean {
+  }): { settled: boolean; flagsResolved: number } {
     let settled = false;
+    let flagsResolved = 0;
     transaction(() => {
       if (input.hide) {
         // The decisive write, guarded on the item still being visible, so a
@@ -520,6 +576,24 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           input.reason, input.nowIso, input.adminMemberId, input.row.id,
         );
         if (res.changes === 0) return;
+
+        // A hidden gallery item leaves every public read on its own, because
+        // those reads filter on the moderation status. A profile picture does
+        // not: the profile resolves it through the member's own pointer, which
+        // knows nothing about moderation, so hiding the row alone would take a
+        // decided picture off the takedown queue and leave it on the profile.
+        if (input.row.is_avatar === 1) {
+          media.clearMemberAvatar.run(
+            input.nowIso, input.adminMemberId, input.row.uploader_member_id, input.row.id,
+          );
+          // And out of the avatar slot, which only one row per member may hold.
+          // Without this the decided picture keeps the slot, and the member's
+          // own next upload deletes this row to make room, taking the reports
+          // that justified the decision with it through the cascade on
+          // media_flags. The decision would erase its own evidence by way of
+          // the one action every surface invites the member to take.
+          media.clearAvatarFlag.run(input.nowIso, input.adminMemberId, input.row.id);
+        }
       }
 
       const flagRes = mediaFlags.resolveOpenFlagsForMedia.run(
@@ -546,13 +620,18 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         reasonText: input.reason,
         metadata:   {
           mediaType:      input.row.media_type,
+          // A profile picture and a gallery photo are both `photo`, and the
+          // ledger has to tell them apart: one of them was somebody's face on
+          // their own profile.
+          isAvatar:       input.row.is_avatar === 1,
           uploaderMemberId: input.row.uploader_member_id,
           flagsResolved:  flagRes.changes,
         },
       });
+      flagsResolved = flagRes.changes;
       settled = true;
     });
-    return settled;
+    return { settled, flagsResolved };
   }
 
   return {
@@ -641,6 +720,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     }): Promise<DecisionResult> {
       const reason = validateDecisionReason(input.reason);
       const row = loadItemForModeration(input.mediaId);
+      assertNotDecidingOwnUpload(row, input.adminMemberId);
 
       // Already hidden, so this is the retry path for an object removal that
       // failed earlier. Nothing is decided twice: no second audit row, no second
@@ -650,7 +730,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         return { status: 'already_hidden', storageRemoved: retried };
       }
 
-      const settled = settleFlagsAndQueue({
+      const { settled, flagsResolved } = settleFlagsAndQueue({
         row, adminMemberId: input.adminMemberId, reason,
         resolutionLabel: 'deleted', nowIso: new Date().toISOString(), hide: true,
       });
@@ -658,7 +738,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
 
       const storageRemoved = await removeStoredObjectsAndRecord(row, input.adminMemberId);
       const uploaderNotified = notifyUploader(
-        row, 'Removed', reason, `media-moderation:${input.mediaId}:deleted`,
+        row, 'Removed', reason, `media-moderation:${input.mediaId}:deleted`, flagsResolved > 0,
       );
 
       return { status: 'decided', storageRemoved, uploaderNotified };
@@ -672,16 +752,19 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     }): DecisionResult {
       const reason = validateDecisionReason(input.reason);
       const row = loadItemForModeration(input.mediaId);
+      assertNotDecidingOwnUpload(row, input.adminMemberId);
       const nowIso = new Date().toISOString();
 
-      const settled = settleFlagsAndQueue({
+      const { settled } = settleFlagsAndQueue({
         row, adminMemberId: input.adminMemberId, reason,
         resolutionLabel: 'no_action', nowIso, hide: false,
       });
       if (!settled) return { status: 'already_settled' };
 
+      // No Action is only reachable on a reported item: it is the decision to
+      // leave a report's subject alone, so there was always a report.
       const uploaderNotified = notifyUploader(
-        row, 'No action taken', reason, `media-moderation:${input.mediaId}:no_action`,
+        row, 'No action taken', reason, `media-moderation:${input.mediaId}:no_action`, true,
       );
       return { status: 'decided', storageRemoved: true, uploaderNotified };
     },
