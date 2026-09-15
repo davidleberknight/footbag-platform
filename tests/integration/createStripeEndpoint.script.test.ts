@@ -46,7 +46,7 @@ const SETSID = requireToolInCI('setsid', '--version');
 const SCRIPT = join(process.cwd(), 'scripts/create-stripe-endpoint.sh');
 const ACTIVATE = join(process.cwd(), 'scripts/activate-payments.sh');
 
-const DOMAIN = 'd111111abcdef8.cloudfront.net';
+const DOMAIN = 'd1234abcdef8.cloudfront.net';
 const EXPECTED_URL = `https://${DOMAIN}/payments/webhook`;
 /** What terraform's `platform_url` output reads once the custom-domain flag is
  *  on: the `www` host, never the bare apex, which only redirects. */
