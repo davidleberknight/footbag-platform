@@ -87,6 +87,12 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # pre-existing media-data cleanup items; run it for visibility without failing
 # the rebuild.
 "${PY}" "${L}/24_qc_freestyle_media_coverage.py" --db "${DB}" || echo "  (media-coverage QC reported issues — pre-existing media-data cleanup, not a rebuild failure)"
-"${PY}" "${L}/25_qc_media_tag_invariant.py"     --db "${DB}" || echo "  (media-tag QC reported issues — see above)"
+
+# Media-tag invariant: hard gate on this path. The script is a refusal by
+# design, and a tripwire whose alarm is wired to an echo is not a tripwire.
+# Note the limit: on a reset the curator seeder runs after this rebuild, so
+# here the check sees an empty media table and passes on nothing. What it
+# guards is a refresh against a database that already holds media.
+"${PY}" "${L}/25_qc_media_tag_invariant.py"     --db "${DB}"
 
 echo "→ Freestyle rebuild complete."
