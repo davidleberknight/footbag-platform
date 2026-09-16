@@ -21,6 +21,16 @@
 #     writes real data fails the run instead of clobbering.
 #   The test suites themselves write only to os.tmpdir() / mktemp.
 #
+# SAFE BY DESIGN — reaches AWS only where it says it does:
+#   - Only the operator-only staging-AWS smoke gate reaches AWS, and only behind
+#     an explicit --with-smoke. Every other gate runs through aws_isolated_run
+#     (scripts/lib/aws-isolation.sh), which points every credential source at
+#     nothing, so a gate that starts reaching AWS fails at once rather than
+#     passing wherever a key happens to work. This was trusted rather than
+#     enforced until the terraform gate spent months calling STS on every run,
+#     green while the operator's key worked and blaming terraform once it
+#     stopped.
+#
 # Two CI jobs have no local counterpart here, and never can:
 #   - CodeQL static analysis: GitHub-hosted, and its findings are triaged in the
 #     repository's code-scanning view rather than at a terminal.
@@ -53,6 +63,11 @@
 
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# Credential isolation for the gates that must not reach AWS. Sourced here rather
+# than inside a gate so every gate can reach it, and so the conventions gate has
+# one place to assert against.
+source scripts/lib/aws-isolation.sh
 
 QUICK=0
 WITH_SMOKE=0
@@ -226,7 +241,13 @@ fi
 # this run's Playwright retain-on-failure traces survive for post-run debugging.
 # clean_up_rubbish.sh touches no real-data tree, so it runs before the
 # fingerprint snapshot below.
-bash scripts/clean_up_rubbish.sh
+#
+# --stale-only because this sweep is automatic and a second run is something an
+# operator starts deliberately: the temp databases in the sweep's path belong to
+# whatever is running right now, in this terminal or another one, and deleting
+# them mid-suite fails the other run somewhere far from the cause. The flag
+# spares anything young enough to still be in use; a later sweep collects it.
+bash scripts/clean_up_rubbish.sh --stale-only
 
 # -----------------------------------------------------------------------------
 # No-real-data guard. Fingerprint the trees that hold irreplaceable local data.
@@ -386,10 +407,38 @@ gate_terraform() {
     echo "  terraform CLI absent — skipping (CI's terraform job covers it)."
     return 77
   fi
-  ( cd terraform && terraform fmt -check -recursive )
-  local d
+  ( cd terraform && aws_isolated_run terraform fmt -check -recursive )
+  local d data_dir
+  local plugin_arg=()
   for d in staging production shared; do
-    ( cd "terraform/$d" && terraform init -backend=false >/dev/null && terraform validate >/dev/null )
+    # `-backend=false` disables *configuring* a backend, not *using* one:
+    # terraform's own help says it uses "what was previously initialized
+    # instead". An operator's `terraform init` leaves a .terraform holding the S3
+    # state backend, so this gate used to load it and call STS on every run —
+    # green while the key worked, and blaming terraform for a dead key once it
+    # stopped. A throwaway TF_DATA_DIR leaves no previous initialization to
+    # reuse, which is what makes the init offline; it lands under LOG_DIR so the
+    # existing EXIT trap removes it and the operator's own .terraform (which the
+    # smoke gate reads outputs from) is never touched.
+    #
+    # -plugin-dir reuses the providers already on disk, ~740M per stack, so
+    # nothing is re-downloaded. Where there is no local mirror — CI's fresh
+    # checkout, which is also the only place the old command was ever offline —
+    # it is omitted and init resolves providers exactly as CI already does.
+    #
+    # aws_isolated_run is what keeps this honest: it is enforcement, not
+    # decoration. Remove it and a future edit can start reaching AWS again
+    # without anything failing on a machine where a key happens to work.
+    data_dir="${LOG_DIR}/terraform-${d}"
+    plugin_arg=()
+    [[ -d "terraform/$d/.terraform/providers" ]] && plugin_arg=(-plugin-dir=.terraform/providers)
+    (
+      cd "terraform/$d"
+      export TF_DATA_DIR="$data_dir"
+      aws_isolated_run terraform init -backend=false \
+        ${plugin_arg[@]+"${plugin_arg[@]}"} >/dev/null
+      aws_isolated_run terraform validate >/dev/null
+    )
   done
 }
 

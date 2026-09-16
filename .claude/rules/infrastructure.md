@@ -122,9 +122,16 @@ argument, which would expose it to every account on the host.
 
 ## Verify without applying
 
-`terraform validate` and `terraform fmt -check` are the checks to run, after
-`terraform init -backend=false`. Applying, planning against real state, and any
-state mutation are human-run operator actions, not agent actions.
+`terraform validate` and `terraform fmt -check` are the checks to run. They need
+an init first, and `-backend=false` alone does not make that init offline: it
+disables *configuring* a backend and then uses whatever was previously
+initialized instead, so in a tree where an operator has run `terraform init` it
+loads the S3 backend and calls STS. Point `TF_DATA_DIR` at a throwaway directory,
+which leaves no previous initialization to reuse, and add
+`-plugin-dir=.terraform/providers` where a local mirror exists so the providers
+already on disk are reused rather than re-downloaded. Applying, planning against
+real state, and any state mutation are human-run operator actions, not agent
+actions.
 
 ## Check how the thing is actually reached before adding a resource for it
 
