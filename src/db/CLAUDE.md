@@ -35,8 +35,9 @@ schema assertion to catch it; `tests/integration/schemaMigrations.parity.test.ts
 
 ### Migrations are additive: expand and contract
 
-A migration adds. It does not drop and it does not rename. Add a column in one release, read it in
-the next, remove it in a third once nothing reads it. Additivity is what lets a restore to a
+A migration adds. It does not drop, it does not rename, and it does not quietly rewrite the rows
+that are already there. Add a column in one release, read it in the next, remove it in a third once
+nothing reads it. Additivity is what lets a restore to a
 snapshot taken before the migration still serve traffic: the older schema carries everything the
 older code asks of it.
 
@@ -48,6 +49,13 @@ per migration: read the new column behind a guard, or keep the feature that need
 migration has landed. Code that reads the new column unconditionally turns a working restore into a
 broken site.
 
-`scripts/ci/check_migrations_additive.sh` refuses a drop or a rename. A genuine contraction, once
-that third release arrives, declares itself with a `-- CONTRACTION:` header line saying why nothing
-reads it any more.
+`scripts/ci/check_migrations_additive.sh` refuses a drop, a rename, and a direct edit of the schema
+table. A genuine contraction, once that third release arrives, declares itself with a
+`-- CONTRACTION:` line saying why nothing reads it any more.
+
+It also refuses a statement that writes or removes rows. A backfill against live data is intended
+work and a delete is sometimes right, but neither is visible in the schema afterwards and no later
+release puts a deleted row back, so one carries a `-- DATA CHANGE:` line saying what it writes and
+why a restore to an earlier snapshot still serves. Both markers are read per statement, on the
+statement's own line or in the few lines above it, so an acknowledgement never covers the statement
+somebody adds underneath it.

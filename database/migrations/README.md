@@ -13,8 +13,11 @@ After go-live, production is the one database that is never rebuilt, and a migra
 the only way a schema change reaches it. Those files ship through `scripts/deploy-migrate.sh`,
 which applies the migration and its ledger row in one transaction, checks integrity and foreign
 keys, and restores the pre-migration copy on failure. Migrations are additive:
-`scripts/ci/check_migrations_additive.sh` refuses a drop or a rename, and a genuine contraction
-arrives as its own later release.
+`scripts/ci/check_migrations_additive.sh` refuses a drop, a rename, a direct edit of the schema
+table, and any statement that writes or removes rows, and a genuine contraction arrives as its own
+later release. A statement that means one of those says so on its own line or just above it, with
+`-- CONTRACTION:` for a schema removal and `-- DATA CHANGE:` for one that touches rows; the marker
+is read per statement, so it never covers the next one.
 
 The rule and the reasoning behind it live in DATA_MODEL's `schema_migrations` entry and in
 `../../src/db/CLAUDE.md`. A test that needs to exercise the migrating deploy before go-live

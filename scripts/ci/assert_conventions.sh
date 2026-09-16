@@ -14,6 +14,62 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
 violations=0
+skipped=""
+skipped_count=0
+
+# Announce a check, and say whether it can run at all.
+#
+# Every check names the paths it reads. Against this repository all of them
+# exist, so every check runs. Against a minimal fixture repository, which is how
+# the suite proves a rule red and green without ever planting a violation in the
+# real tree, most of them have nothing to read. Three wrong answers to that were
+# available, and this script gave all three. A
+# pipeline with no `|| true` ended the entire run at the eighth check, so nothing
+# past it was ever demonstrated. A `grep -q` against an absent file reported a
+# FAIL for a file that was never there. And a recursive grep over a missing
+# directory found nothing and reported a clean pass, which is the worst of the
+# three, because a scope that has quietly shrunk to nothing is a check that
+# stopped enforcing anything and says so in the same words it uses for success.
+#
+# So a check that cannot find what it scans says that it did not run. A skip is
+# never free: unless the run declares itself a fixture tree, a skipped check
+# fails the gate at the end. The default on a real checkout is therefore closed,
+# and no continuous-integration configuration has to know this exists.
+#
+# The guarded bodies below are deliberately NOT indented. Fourteen of them embed
+# a here-document whose terminator has to sit at column 0, so indenting the
+# guarded region would mean indenting some bodies and not others; and
+# re-indenting sixteen hundred lines would bury a two-line-per-check change in a
+# diff where every line had moved.
+check() {
+  local name="$1"
+  shift
+  local missing=""
+  local target
+  for target in "$@"; do
+    [ -e "$target" ] || missing="${missing} ${target}"
+  done
+  if [ -z "$missing" ]; then
+    echo "[conventions] check: ${name}"
+    return 0
+  fi
+  echo "[conventions] check: ${name} -- DID NOT RUN, no${missing}"
+  skipped="${skipped}  ${name}: no${missing}\n"
+  skipped_count=$((skipped_count + 1))
+  return 1
+}
+
+# A delegated check lives in its own script so its own suite can run it inside a
+# throwaway repository. Same contract as above: absent means it did not run.
+delegate() {
+  local name="$1"
+  local script="$2"
+  if check "${name} (delegated)" "${ROOT}/scripts/ci/${script}"; then
+    if ! bash "${ROOT}/scripts/ci/${script}"; then
+      violations=$((violations + 1))
+    fi
+  fi
+}
 
 # Rule: SQL compilation (.prepare) lives only in src/db/db.ts.
 # Reason: All SQL compilation must live in src/db/db.ts as named prepared
@@ -24,7 +80,7 @@ violations=0
 # Allowlisted exceptions:
 #   - src/testkit/**         permanent test scaffolding (persona row builders); not a service
 #   - src/dev-bootstrap/**   dev-only seed/override tooling; not a service
-echo "[conventions] check: .prepare( outside src/db/db.ts"
+if check ".prepare( outside src/db/db.ts" src; then
 hits=$(grep -rn --include='*.ts' '\.prepare(' src/ \
   | grep -v '^src/db/db\.ts:' \
   | grep -v '^src/testkit/' \
@@ -34,6 +90,7 @@ if [ -n "$hits" ]; then
   echo "$hits" >&2
   echo "  FAIL: SQL compilation must live in src/db/db.ts" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: tests seed table data through the shared factories, never a hand-rolled
@@ -72,7 +129,7 @@ fi
 # says what it looked at, so a silently shrinking scope is visible rather than
 # reading as a clean pass. A scan that cannot run at all ends the script under
 # pipefail, which is what every other scanner-backed check in this file does.
-echo "[conventions] check: tests seed through factories, not hand-rolled INSERTs"
+if check "tests seed through factories, not hand-rolled INSERTs" tests; then
 insert_out=$(python3 - <<'PYEOF'
 import re, pathlib, sys
 
@@ -122,6 +179,7 @@ if [ -n "$insert_out" ]; then
   echo "  FAIL: seed test data through tests/fixtures/factories.ts; add a factory if the table has none" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: work_queue_items inserts go only through src/services/workQueueService.ts.
 # Reason: Every work-queue item must fan out its admin-alerts notification in the
@@ -129,7 +187,7 @@ fi
 # the admins). workQueueService.enqueue is the single path that writes the row
 # and sends the alert together; a direct workQueue.insertItem elsewhere could add
 # an item with no notification.
-echo "[conventions] check: workQueue.insertItem outside src/services/workQueueService.ts"
+if check "workQueue.insertItem outside src/services/workQueueService.ts" src; then
 hits=$(grep -rn --include='*.ts' 'workQueue\.insertItem' src/ \
   | grep -v '^src/db/db\.ts:' \
   | grep -v '^src/services/workQueueService\.ts:' \
@@ -138,6 +196,7 @@ if [ -n "$hits" ]; then
   echo "$hits" >&2
   echo "  FAIL: work-queue inserts must go through workQueueService.enqueue (row + admin-alerts in one step)" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: AWS SDK and Stripe imports live only in src/adapters/.
@@ -149,7 +208,7 @@ fi
 # test contract.
 #
 # No allowlists (all current imports are in src/adapters/).
-echo "[conventions] check: AWS SDK / Stripe imports outside src/adapters/"
+if check "AWS SDK / Stripe imports outside src/adapters/" src; then
 hits=$(grep -rnE --include='*.ts' "(from |require\()['\"](@aws-sdk|stripe)" src/ \
   | grep -v '^src/adapters/' \
   || true)
@@ -157,6 +216,7 @@ if [ -n "$hits" ]; then
   echo "$hits" >&2
   echo "  FAIL: AWS SDK or Stripe imports must live in src/adapters/" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: process.env reads live only in src/config/env.ts.
@@ -174,7 +234,7 @@ fi
 # Comment-only mentions (lines whose match is inside a // comment) are
 # filtered so src/server.ts and src/transcodeWorker.ts pass without an
 # explicit allowlist entry.
-echo "[conventions] check: process.env reads outside src/config/env.ts"
+if check "process.env reads outside src/config/env.ts" src; then
 hits=$(grep -rn --include='*.ts' 'process\.env' src/ \
   | grep -v -E ':[0-9]+:[[:space:]]*//' \
   | grep -v '^src/config/env\.ts:' \
@@ -187,6 +247,7 @@ if [ -n "$hits" ]; then
   echo "  FAIL: process.env reads must go through src/config/env.ts" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: templates must not carry inline style="...", <style> blocks, or
 # inline <script> tags.
@@ -198,7 +259,7 @@ fi
 # Permitted exceptions (filtered by the grep below):
 #   - <script src="..." defer></script>             external JS loaded from /public/js
 #   - <script type="application/json" id="...">     non-executable JSON data island (the one permitted inline-script form)
-echo "[conventions] check: inline style/script in src/views/**"
+if check "inline style/script in src/views/**" src/views; then
 # Regex anchored to attribute boundary: `style=` must be at line-start or
 # preceded by whitespace. Prevents false positives on attribute NAMES that
 # end with `-style` (e.g. a `data-*-style` hook, SVG `font-style=`,
@@ -217,6 +278,7 @@ if [ -n "$template_csp_hits" ]; then
   echo "  FAIL: inline style/script violates CSP; use external CSS/JS" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: templates must not nest one <form> inside another.
 # Reason: HTML closes the outer form at the first </form>, silently orphaning
@@ -227,7 +289,7 @@ fi
 # associate the controls via the HTML form="id" attribute instead of nesting.
 # Per-file depth scan: `<form` opens, `</form` closes (`<form` never matches
 # inside `</form>`); flag depth > 1, a close before an open, or any imbalance.
-echo "[conventions] check: nested <form> in src/views/**"
+if check "nested <form> in src/views/**" src/views; then
 nested_form_hits=""
 while IFS= read -r f; do
   if ! awk '
@@ -243,6 +305,7 @@ if [ -n "$nested_form_hits" ]; then
   echo "  FAIL: nested <form> orphans the submit button; associate controls via form=\"id\" instead of nesting" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every fixture-staging script must declare the real-data guard.
 # Reason: scripts/ci/stage_*.sh files populate paths that on a workstation
@@ -252,7 +315,7 @@ fi
 # `# REAL-DATA GUARD` header marker. A stager omitting the marker has not
 # declared the guard. The 2026-05-09 incident (60 GB mirror lost to --force)
 # is the precedent. No such stager exists today; this check guards any future one.
-echo "[conventions] check: # REAL-DATA GUARD marker in scripts/ci/stage_*.sh"
+if check "# REAL-DATA GUARD marker in scripts/ci/stage_*.sh" scripts/ci; then
 missing=""
 for f in scripts/ci/stage_*.sh; do
   if [ -f "$f" ] && ! grep -qE '^#.*REAL-DATA GUARD' "$f"; then
@@ -264,6 +327,7 @@ if [ -n "$missing" ]; then
   echo "  FAIL: fixture-staging scripts must declare the real-data guard; see .claude/rules/testing.md 'Fixture-staging scripts' section" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every static form-* class token in a template has a defining rule in
 # src/public/css/style.css.
@@ -273,9 +337,12 @@ fi
 # scans class="..." attributes for tokens beginning with `form-`, skipping
 # Handlebars-interpolated tokens (containing `{` or `}`) and BEM modifier
 # tokens (containing `--`), and fails on any token style.css does not define.
-echo "[conventions] check: undefined form-* classes in src/views/**"
+if check "undefined form-* classes in src/views/**" src/public/css/style.css src/views; then
 form_defined_file="$(mktemp)"
-grep -oE '\.form-[a-zA-Z0-9_-]+' src/public/css/style.css | sed 's/^\.//' | sort -u > "$form_defined_file"
+# A stylesheet defining no form vocabulary at all is not this check's failure to
+# report: every template token is then undefined and the check below says so.
+# Without the tolerated exit, an empty match ends the entire run under pipefail.
+grep -oE '\.form-[a-zA-Z0-9_-]+' src/public/css/style.css | sed 's/^\.//' | sort -u > "$form_defined_file" || true
 form_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"' src/views/ \
   | awk -v deffile="$form_defined_file" '
       BEGIN { while ((getline c < deffile) > 0) defined[c] = 1 }
@@ -300,6 +367,7 @@ if [ -n "$form_class_hits" ]; then
   echo "  FAIL: template uses a form-* class with no rule in src/public/css/style.css; define it there" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: an element that announces itself to assistive technology carries one of
 # the named message classes.
@@ -310,7 +378,7 @@ fi
 # which is how three parallel message families grew in the first place. The
 # allowed set is the four message classes, the two field-level ones, and the
 # site-frame flash banner, which is the header strip rather than a page message.
-echo "[conventions] check: message classes on announcing elements in src/views/**"
+if check "message classes on announcing elements in src/views/**" src/views; then
 message_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"[^>]*role="(status|alert)"' src/views/ \
   | grep -vE 'class="[^"]*(form-success-banner|form-notice|form-error-banner|notice-warn|form-field-error|form-field-warning|flash-banner|retirement-notice)' \
   || true)
@@ -319,6 +387,7 @@ if [ -n "$message_class_hits" ]; then
   echo "  FAIL: an element with role=status or role=alert must carry a named message class; see the message vocabulary in .claude/rules/view-layer.md" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every font-family declaration in style.css resolves through the
 # --font-body / --font-mono tokens (or inherits), except inside @font-face
@@ -326,7 +395,7 @@ fi
 # Reason: the site has one type system behind two tokens; a raw typeface
 # stack in a rule reintroduces a parallel type vocabulary that drifts from
 # the shared standard and ships a different font to one surface.
-echo "[conventions] check: raw font-family outside @font-face in style.css"
+if check "raw font-family outside @font-face in style.css" src/public/css/style.css; then
 font_hits=$(awk '
   /@font-face/ { ff = 1 }
   ff { if (/}/) ff = 0; next }
@@ -341,11 +410,12 @@ if [ -n "$font_hits" ]; then
   echo "  FAIL: font-family must use var(--font-body) or var(--font-mono); raw typeface stacks belong only in @font-face" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: colors come from the :root design tokens; no raw hex in rule bodies.
 # Reason: a hex literal in a rule is an untracked one-off that drifts from the
 # shared palette; a new color enters as a named :root token first.
-echo "[conventions] check: raw hex color outside :root in style.css"
+if check "raw hex color outside :root in style.css" src/public/css/style.css; then
 hex_hits=$(awk '
   /:root/ { inroot = 1 }
   inroot { if (/}/) inroot = 0; next }
@@ -357,10 +427,11 @@ if [ -n "$hex_hits" ]; then
   echo "  FAIL: colors must use :root tokens; raw hex belongs only in the :root token block" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: border-radius uses the --radius* tokens, never a raw px value.
 # Reason: corner radii are part of the token system; a raw px is an untracked one-off.
-echo "[conventions] check: raw px border-radius in style.css"
+if check "raw px border-radius in style.css" src/public/css/style.css; then
 radius_hits=$(awk '
   /border-radius:/ {
     line = $0; gsub(/\/\*.*\*\//, "", line)
@@ -372,11 +443,12 @@ if [ -n "$radius_hits" ]; then
   echo "  FAIL: border-radius must use var(--radius*) tokens, not raw px" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: media queries use only the canonical breakpoints 480/768/1024 (1024 = tablet).
 # Reason: a consistent breakpoint set keeps responsive behavior coherent; ad-hoc
 # breakpoints fragment the reflow story across surfaces.
-echo "[conventions] check: non-canonical @media breakpoints in style.css"
+if check "non-canonical @media breakpoints in style.css" src/public/css/style.css; then
 bp_hits=$(awk '
   /@media/ {
     line = $0
@@ -392,13 +464,14 @@ if [ -n "$bp_hits" ]; then
   echo "  FAIL: @media must use canonical breakpoints 480px / 768px / 1024px only" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: no committed skipped tests (.skip / .todo / xit).
 # Reason: a silently skipped test is a coverage regression nothing reports;
 # if a test cannot land, the feature cannot either. Conditional gating via
 # describe.skipIf (e.g. smoke suites behind RUN_STAGING_SMOKE) is allowed:
 # the condition is explicit and environment-driven, not a silent off switch.
-echo "[conventions] check: committed .skip/.todo/xit in tests"
+if check "committed .skip/.todo/xit in tests" tests; then
 skip_hits=$(grep -rnE --include='*.ts' '(\.skip\(|\.todo\(|\bxit\()' tests/ \
   | grep -v 'skipIf' \
   || true)
@@ -406,6 +479,7 @@ if [ -n "$skip_hits" ]; then
   echo "$skip_hits" >&2
   echo "  FAIL: committed skipped tests are forbidden; gate conditionally with skipIf or fix the test" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: the same, for the Python suites.
@@ -432,7 +506,7 @@ fi
 # contains no `pytest.fail(`.
 #
 # Reports its scope, for the same reason the insert check above does.
-echo "[conventions] check: committed skips in the Python suites"
+if check "committed skips in the Python suites" legacy_data/tests legacy_data/legacy_mirror/tests; then
 py_dirs="legacy_data/tests legacy_data/legacy_mirror/tests"
 py_mark_hits=$(grep -rnE --include='*.py' '@pytest\.mark\.skip\b' $py_dirs 2>/dev/null \
   | grep -v 'skipif' || true)
@@ -527,6 +601,7 @@ if [ -n "$py_skip_hits" ]; then
   echo "  FAIL: a Python skip must be guarded by a fail under the owns-the-input declaration" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: a test does not identify a row by ordering on a timestamp and taking one.
 # Reason: the platform stamps rows to the millisecond, so two rows written by one
@@ -543,7 +618,7 @@ fi
 # Exempt a line that genuinely tests ordering itself, or whose ordering column is
 # unique, or whose id really is time-ordered, by writing the reason on it or just
 # above it as: ordering-is-the-contract: <why>
-echo "[conventions] check: tests/ identify a row by ordering on a timestamp"
+if check "tests/ identify a row by ordering on a timestamp" tests; then
 row_order_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 
@@ -573,6 +648,7 @@ if [ -n "$row_order_hits" ]; then
   echo "  FAIL: pin the row the action wrote (tests/fixtures/rowPinning.ts) instead of ordering by a timestamp; if the ordering is the contract, say so with an ordering-is-the-contract: comment" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: a test file that spawns a process synchronously imports the shared bound
 # in tests/fixtures/spawnGuard.ts.
@@ -595,7 +671,7 @@ fi
 # Store with its fixture value, and the suite reported a clean pass. The
 # isolation is default-deny in one place rather than per file, because per file
 # is a rule the next file can forget.
-echo "[conventions] check: the test setup isolates AWS credentials"
+if check "the test setup isolates AWS credentials" tests/setup-env.ts tests/fixtures/awsIsolation.ts; then
 if ! grep -q 'NO_AWS_CREDENTIALS' tests/setup-env.ts; then
   echo "  FAIL: tests/setup-env.ts must apply NO_AWS_CREDENTIALS from tests/fixtures/awsIsolation.ts" >&2
   violations=$((violations + 1))
@@ -611,6 +687,7 @@ for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_
   fi
 done
 unset _aws_var
+fi
 
 # Rule: the same setup denies every worker the rest of the machine it runs on.
 # Reason: two suites passed on a maintainer's workstation and failed on the
@@ -622,7 +699,7 @@ unset _aws_var
 # are in the same declaration for a second reason: one of them points at a tree
 # holding real member media, and the rule that no test writes real data must not
 # depend on each media suite remembering to override it.
-echo "[conventions] check: the test setup isolates the rest of the machine"
+if check "the test setup isolates the rest of the machine" tests/setup-env.ts tests/fixtures/machineIsolation.ts; then
 if ! grep -q 'noMachineState' tests/setup-env.ts; then
   echo "  FAIL: tests/setup-env.ts must apply noMachineState from tests/fixtures/machineIsolation.ts" >&2
   violations=$((violations + 1))
@@ -634,6 +711,7 @@ for _machine_var in HOME FOOTBAG_ENV FOOTBAG_MEDIA_DIR FOOTBAG_CURATED_MEDIA_DIR
   fi
 done
 unset _machine_var
+fi
 
 # Rule: every temporary path a test builds carries the swept prefix.
 # Reason: the session sweep in tests/global-setup.ts is what reclaims scratch a
@@ -644,7 +722,7 @@ unset _machine_var
 # again before this check existed. tests/fixtures/scratchDir.ts builds a
 # conforming path for new code; this check is what keeps the next suite from
 # spelling its own.
-echo "[conventions] check: temp paths in tests carry the swept prefix"
+if check "temp paths in tests carry the swept prefix" tests; then
 # What this reaches, stated plainly so nobody trusts it further than it goes: a
 # temp path built from `tmpdir()`. A hardcoded `/tmp/...` literal is not matched,
 # and that is deliberate rather than an oversight. Matching one fires on every
@@ -666,8 +744,9 @@ if [ -n "$scratch_hits" ]; then
   echo "        strands. Use tests/fixtures/scratchDir.ts, or spell the prefix." >&2
   violations=$((violations + 1))
 fi
+fi
 
-echo "[conventions] check: synchronous spawns in tests carry the shared bound"
+if check "synchronous spawns in tests carry the shared bound" tests; then
 spawn_files=$(grep -rlE --include='*.ts' '(spawnSync|execFileSync|execSync)\(' tests/ \
   | grep -v '^tests/fixtures/spawnGuard\.ts$' \
   || true)
@@ -677,6 +756,7 @@ if [ -n "$guard_hits" ]; then
   echo "  FAIL: a test that spawns synchronously must spread SPAWN_GUARD from tests/fixtures/spawnGuard.ts" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: no tracked archives, and no Terraform state in any form.
 # Reason: every secret control here reads text, including the gitleaks history
@@ -685,18 +765,12 @@ fi
 # unmatched filename carried three live secrets in public history for seven
 # weeks with CI green throughout. Delegated so a test can run it inside a
 # throwaway repository.
-echo "[conventions] check: no tracked archives or Terraform state (delegated)"
-if ! bash "${ROOT}/scripts/ci/check_no_opaque_archives.sh"; then
-  violations=$((violations + 1))
-fi
+delegate "no tracked archives or Terraform state" check_no_opaque_archives.sh
 
 # Rule: a migration file is additive (expand and contract). Delegated, so the
 # gate can be run inside a throwaway repository by its own test rather than
 # proved by writing a fixture into this tree.
-echo "[conventions] check: migrations are additive (delegated)"
-if ! bash "${ROOT}/scripts/ci/check_migrations_additive.sh"; then
-  violations=$((violations + 1))
-fi
+delegate "migrations are additive" check_migrations_additive.sh
 
 # Rule: no test may reach real cloud object storage or a deployed database.
 # Reason: a test suite is collectible by anyone and runs unattended, so it is
@@ -705,27 +779,71 @@ fi
 # exercise the adapter contract; building it without one resolves real AWS
 # credentials and writes real objects. Deployed database paths are barred for
 # the same reason: every test database is `:memory:` or a temp file.
-echo "[conventions] check: real cloud storage / deployed DB access in tests"
+#
+# A third way exists and is not obvious from either of those, because the test
+# does not mention AWS at all: it spawns an operator script, and the script
+# reaches the cloud itself. What stops that is not this check but the setup,
+# which breaks credential resolution for the whole worker, so the child a test
+# spawns inherits an environment that cannot authenticate. A spawn handed an
+# `env` object built from scratch throws that away and hands the script a clean
+# environment on a machine whose ambient profile is a real operator identity.
+# One such case existed, reaching a live bucket listing and passing only where
+# the credentials happened to be; it has been fixed.
+#
+# So: a spawn passing an `env` names where that environment came from, by
+# spreading the inherited one or the isolation declaration itself. Stated
+# plainly, because a check nobody can predict gets waved through: this reaches a
+# spawn whose environment mentions neither, anywhere in the call or the lines
+# above it. An environment assembled key by key from the inherited one is not
+# reached, and is not the case this is about.
+if check "real cloud storage / deployed DB access in tests" tests; then
 cloud_hits=$(python3 - <<'PYEOF'
-import pathlib
+import pathlib, re
 
 WINDOW = 6
+# How far above a spawn to look for where its environment was built. A helper's
+# `const inherited = { ...process.env }` sits a line or two up; nothing legible
+# builds it further away than this.
+ENV_LOOKBACK = 40
+
+spawn_re = re.compile(r'\b(spawnSync|execFileSync|execSync|spawn)\s*\(')
+env_opt_re = re.compile(r'\benv:')
+isolated_re = re.compile(r'process\.env|NO_AWS_CREDENTIALS')
+
 for path in sorted(pathlib.Path('tests').rglob('*.ts')):
     lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
     for i, line in enumerate(lines):
-        if 'createS3MediaStorageAdapter(' not in line:
+        if 'createS3MediaStorageAdapter(' in line:
+            window = '\n'.join(lines[i:i + WINDOW])
+            if 's3Client' not in window:
+                print(f'{path}:{i + 1}: {line.strip()}')
+        m = spawn_re.search(line)
+        if not m:
             continue
-        window = '\n'.join(lines[i:i + WINDOW])
-        if 's3Client' not in window:
-            print(f'{path}:{i + 1}: {line.strip()}')
+        # The call's own text, to wherever its parentheses close.
+        depth = 0
+        call = []
+        for j in range(i, min(i + 60, len(lines))):
+            piece = lines[j][m.start():] if j == i else lines[j]
+            call.append(piece)
+            depth += piece.count('(') - piece.count(')')
+            if depth <= 0:
+                break
+        call_text = '\n'.join(call)
+        if not env_opt_re.search(call_text):
+            continue
+        context = '\n'.join(lines[max(0, i - ENV_LOOKBACK):i]) + call_text
+        if not isolated_re.search(context):
+            print(f'{path}:{i + 1}: spawn env replaces the isolated one: {line.strip()[:90]}')
 PYEOF
 )
 db_hits=$(grep -rnE --include='*.ts' "FOOTBAG_DB_PATH[[:space:]]*=[[:space:]]*['\"]/(srv|var|opt)/" tests/ || true)
 if [ -n "$cloud_hits" ] || [ -n "$db_hits" ]; then
   [ -n "$cloud_hits" ] && echo "$cloud_hits" >&2
   [ -n "$db_hits" ] && echo "$db_hits" >&2
-  echo "  FAIL: tests never touch real object storage or a deployed database; inject an s3Client, and keep every test DB in :memory: or a temp path" >&2
+  echo "  FAIL: tests never touch real object storage or a deployed database; inject an s3Client, keep every test DB in :memory: or a temp path, and spread the inherited environment into any spawn" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: short-form Handlebars comments must not contain mustaches.
@@ -734,7 +852,7 @@ fi
 # text into the rendered page, evaluating any embedded expression along the
 # way. Comments that need to mention template syntax use the long form
 # {{!-- ... --}} (which tolerates internal mustaches) or plain words.
-echo "[conventions] check: short-form {{! comments containing mustaches in templates"
+if check "short-form {{! comments containing mustaches in templates" src/views; then
 comment_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 for f in sorted(pathlib.Path('src/views').rglob('*.hbs')):
@@ -753,6 +871,7 @@ if [ -n "$comment_hits" ]; then
   echo "  FAIL: use {{!-- --}} for comments that contain template syntax" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: code comments carry no doc-path references or delivery-epoch labels.
 # Reason: .claude/rules/comments.md requires every comment to state a self-
@@ -763,7 +882,7 @@ fi
 # DATA_GOVERNANCE §) are permitted locators and carry no .md, so they pass. The
 # scan parses real // and /* */ comments only, so string literals such as URLs
 # (https://...) are not flagged.
-echo "[conventions] check: doc-path / epoch-label references in src/ comments"
+if check "doc-path / epoch-label references in src/ comments" src; then
 doc_label_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 
@@ -826,6 +945,7 @@ if [ -n "$doc_label_hits" ]; then
   echo "  FAIL: comments must state a self-contained WHY; drop doc paths (docs/, exploration/, *.md) and sprint/slice/phase/wave labels" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: Handlebars comments carry no doc-path references or delivery-epoch labels.
 # Reason: the same self-contained-WHY rule that governs .ts comments applies to
@@ -833,7 +953,7 @@ fi
 # inside one rots when the doc moves or the epoch passes. Only comment spans are
 # scanned, so rendered template text is never flagged. Same md/path/label
 # patterns as the .ts scan above.
-echo "[conventions] check: doc-path / epoch-label references in src/views/**/*.hbs comments"
+if check "doc-path / epoch-label references in src/views/**/*.hbs comments" src/views; then
 hbs_comment_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 md_re    = re.compile(r'[A-Za-z0-9_./-]+\.md\b')
@@ -862,6 +982,7 @@ if [ -n "$hbs_comment_hits" ]; then
   echo "  FAIL: Handlebars comments must state a self-contained WHY; drop doc paths (docs/, exploration/, *.md) and sprint/slice/phase/wave labels" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # ---------------------------------------------------------------------------
 # Convention and invariant gates (DD §1.15): mechanically-checkable layer rules
@@ -876,12 +997,13 @@ fi
 # Handlebars registers no JSON/stringify helper, so any such token in a .hbs file
 # is an inline-serialization anomaly. Tests legitimately use JSON.stringify, so
 # the scan is scoped to src/views/.
-echo "[conventions] check: inline JSON serialization in src/views/**"
+if check "inline JSON serialization in src/views/**" src/views; then
 json_hits=$(grep -rnE --include='*.hbs' 'JSON\.|stringify' src/views/ || true)
 if [ -n "$json_hits" ]; then
   echo "$json_hits" >&2
   echo "  FAIL: emit data islands via the centralized escaping helper; no inline JSON.stringify in templates" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: SQL writers use the canonical strftime UTC timestamp, never datetime('now').
@@ -890,12 +1012,13 @@ fi
 # datetime('now') output breaks lexical=chronological ordering. Scope is the
 # production SQL surfaces (db.ts + the schema); test-fixture and pipeline SQL are
 # outside this harm model.
-echo "[conventions] check: datetime('now') in src/db/db.ts + database/*.sql"
+if check "datetime('now') in src/db/db.ts + database/*.sql" src/db/db.ts database; then
 datetime_hits=$(grep -nE "datetime\([[:space:]]*['\"]now['\"]" src/db/db.ts database/*.sql || true)
 if [ -n "$datetime_hits" ]; then
   echo "$datetime_hits" >&2
   echo "  FAIL: use strftime('%Y-%m-%dT%H:%M:%fZ','now'); datetime('now') breaks lexical ordering" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: templates do not assemble a URL from two or more variables.
@@ -904,13 +1027,14 @@ fi
 # of the service and risks a silently malformed link. A single variable (one
 # query param, one path segment) is fine. The -o tokenization isolates each
 # attribute value so two single-variable links on one line do not false-positive.
-echo "[conventions] check: multi-variable href/src URL assembly in src/views/**"
+if check "multi-variable href/src URL assembly in src/views/**" src/views; then
 url_hits=$(grep -rnoE --include='*.hbs' '(href|src)="[^"]*"' src/views/ \
   | grep -E '(href|src)="[^"]*\{\{[^}]*\}\}[^"]*\{\{' || true)
 if [ -n "$url_hits" ]; then
   echo "$url_hits" >&2
   echo "  FAIL: build URLs from one variable or a pre-shaped *Href field; no multi-variable URL assembly in templates" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: templates do not branch on a raw domain enum.
@@ -919,12 +1043,13 @@ fi
 # authorization or state decision in the template. The dot and the trailing
 # space/paren anchor the match to the exact field name, so pre-shaped fields such
 # as curatedStatus or statusLabel are not flagged.
-echo "[conventions] check: template branching on raw domain enums in src/views/**"
+if check "template branching on raw domain enums in src/views/**" src/views; then
 enum_hits=$(grep -rnE --include='*.hbs' '\((eq|neq|gt|lt) [a-zA-Z0-9_.]*\.(role|status|tier|level)( |\))' src/views/ || true)
 if [ -n "$enum_hits" ]; then
   echo "$enum_hits" >&2
   echo "  FAIL: branch on a service-supplied boolean, not a raw .role/.status/.tier/.level field" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: cookies are set or cleared only through the cookie-helper libs.
@@ -932,13 +1057,14 @@ fi
 # that must not vary; a direct res.cookie()/res.clearCookie()/Set-Cookie write can
 # silently drop one. src/lib/sessionCookie.ts and src/lib/flashCookie.ts are the
 # only allowed emission sites.
-echo "[conventions] check: direct cookie emission outside the cookie-helper libs"
+if check "direct cookie emission outside the cookie-helper libs" src; then
 cookie_hits=$(grep -rnE --include='*.ts' "res\.cookie\(|res\.clearCookie\(|res\.(setHeader|append|header|set)\([[:space:]]*['\"][Ss]et-[Cc]ookie['\"]" src/ \
   | grep -vE 'src/lib/sessionCookie\.ts:|src/lib/flashCookie\.ts:' || true)
 if [ -n "$cookie_hits" ]; then
   echo "$cookie_hits" >&2
   echo "  FAIL: set or clear cookies only via src/lib/sessionCookie.ts or src/lib/flashCookie.ts" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: SQL uses positional ? parameters, never named :param binds.
@@ -947,7 +1073,7 @@ fi
 # compiling surfaces (db.ts plus the .prepare-allowlisted dev-bootstrap/testkit).
 # ${...} interpolations are stripped first, and the lookbehind excludes :: casts
 # and time formats like %H:%M:%fZ.
-echo "[conventions] check: named :param SQL binds in SQL-compiling files"
+if check "named :param SQL binds in SQL-compiling files" src/db/db.ts; then
 named_param_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 files = [pathlib.Path('src/db/db.ts')]
@@ -976,13 +1102,14 @@ if [ -n "$named_param_hits" ]; then
   echo "  FAIL: SQL parameters are positional ?; named :param binds are forbidden" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: controllers never execute a db statement directly; SQL stays in services.
 # Reason: a controller is HTTP glue (parse, call service, render); reaching into a
 # db/db statement group from a controller leaks the data layer past the service
 # boundary. Only value-imports from a db/db module are flagged, so adapter calls
 # (for example a payment controller's Stripe adapter) are not false-positives.
-echo "[conventions] check: controllers executing db statements directly"
+if check "controllers executing db statements directly" src/controllers; then
 ctrl_db_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 root = pathlib.Path('src/controllers')
@@ -1014,6 +1141,7 @@ if [ -n "$ctrl_db_hits" ]; then
   echo "  FAIL: controllers call services, not db statements; move the SQL into a service" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: a *_failed operational-error audit row is written via
 # recordOperationalError, not appendAuditEntry directly.
@@ -1021,7 +1149,7 @@ fi
 # drives the staging/prod alarm and the in-test guard; a direct appendAuditEntry
 # for a *_failed row writes the forensic row with no alarm. The '.failed'
 # business-event suffix and dynamic actionType values are excluded.
-echo "[conventions] check: appendAuditEntry for *_failed rows in src/services/**"
+if check "appendAuditEntry for *_failed rows in src/services/**" src/services; then
 op_error_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 root = pathlib.Path('src/services')
@@ -1055,76 +1183,32 @@ if [ -n "$op_error_hits" ]; then
   echo "  FAIL: write *_failed operational-error rows via recordOperationalError(), not appendAuditEntry" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: synthetic-only identifiers in fixtures/content/scripts.
 # Rule: script credential-handling discipline.
 # Both delegated to dedicated checkers so their pattern sets stay readable.
-echo "[conventions] check: synthetic-only identifiers (delegated)"
-if ! bash scripts/ci/check_synthetic_identifiers.sh; then
-  violations=$((violations + 1))
-fi
-echo "[conventions] check: script credential handling (delegated)"
-if ! bash scripts/ci/check_script_credentials.sh; then
-  violations=$((violations + 1))
-fi
-echo "[conventions] check: append-only triggers present (delegated)"
-if ! bash scripts/ci/check_append_only_triggers.sh; then
-  violations=$((violations + 1))
-fi
-echo "[conventions] check: GitHub Actions SHA-pinning (delegated)"
-if ! bash scripts/ci/check_action_pinning.sh; then
-  violations=$((violations + 1))
-fi
-echo "[conventions] check: container hardening (delegated)"
-if ! bash scripts/ci/check_dockerfile_hardening.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: live external fetch in pipeline scripts (delegated)"
-if ! bash scripts/ci/check_no_live_pipeline_fetch.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: runtime repo-data reads have a matching Dockerfile COPY (delegated)"
-if ! bash scripts/ci/check_runtime_data_paths_copied.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: copied runtime assets readable by the image's non-root account (delegated)"
-if ! bash scripts/ci/check_runtime_assets_readable.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: no terraform state/plan artifacts tracked (delegated)"
-if ! bash scripts/ci/check_no_terraform_artifacts.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: no sensitive variable assigned in a tracked tfvars example (delegated)"
-if ! bash scripts/ci/check_tfvars_sensitive.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: every S3 bucket carries the encryption, public-access and deny-plaintext baseline (delegated)"
-if ! bash scripts/ci/check_bucket_baseline.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: config seed / Configurable Parameters parity (delegated)"
-if ! bash scripts/ci/check_config_seed_parity.sh; then
-  violations=$((violations + 1))
-fi
-
-echo "[conventions] check: every CI job has a local gate or a recorded reason it cannot (delegated)"
-if ! bash scripts/ci/check_ci_parity.sh; then
-  violations=$((violations + 1))
-fi
+delegate "synthetic-only identifiers" check_synthetic_identifiers.sh
+delegate "script credential handling" check_script_credentials.sh
+delegate "append-only triggers present" check_append_only_triggers.sh
+delegate "GitHub Actions SHA-pinning" check_action_pinning.sh
+delegate "container hardening" check_dockerfile_hardening.sh
+delegate "live external fetch in pipeline scripts" check_no_live_pipeline_fetch.sh
+delegate "runtime repo-data reads have a matching Dockerfile COPY" check_runtime_data_paths_copied.sh
+delegate "copied runtime assets readable by the image's non-root account" check_runtime_assets_readable.sh
+delegate "no terraform state/plan artifacts tracked" check_no_terraform_artifacts.sh
+delegate "no sensitive variable assigned in a tracked tfvars example" check_tfvars_sensitive.sh
+delegate "every S3 bucket carries the encryption, public-access and deny-plaintext baseline" check_bucket_baseline.sh
+delegate "config seed / Configurable Parameters parity" check_config_seed_parity.sh
+delegate "every CI job has a local gate or a recorded reason it cannot" check_ci_parity.sh
 
 # Rule: no concrete CloudFront distribution hostname in any tracked file. The
 # staging environment is protected by its address staying unpublished, so a
 # real distribution hostname in a committed file defeats that control.
 # Generic wildcard references like "*.cloudfront.net" are fine: the character
 # before the first dot is not alphanumeric, so the pattern skips them.
+# No target guard: this reads the tracked tree through git, which exists
+# wherever the gate can run at all, so it never has nothing to scan.
 echo "[conventions] check: no concrete CloudFront hostnames tracked"
 # Exempt the two documented fake hosts (the onboarding guide's "something
 # like" example domain and the Terraform bootstrap placeholder value), plus the
@@ -1147,7 +1231,7 @@ fi
 # user-story slugs, and code identifiers are not doc references and stay.
 # Allowlisted: ".md" named as the file extension the password-leak scanners
 # skip, and the in-repo archive path asserted as a literal string value.
-echo "[conventions] check: tests/ doc / finding-id references"
+if check "tests/ doc / finding-id references" tests; then
 test_doc_hits=$(grep -rnE '\.md\b|exploration/|\b(DD|US|SC|VC|DM|DG|MP) §|MIGRATION_PLAN|USER_STORIES|DESIGN_DECISIONS|SERVICE_CATALOG|VIEW_CATALOG|DATA_MODEL|DATA_GOVERNANCE|STABILIZATION_PLAN|PHASE_B_LOCK|regression: ?B[0-9]|\bBUG_HUNT\b|\(B[0-9]+\)' tests/ --include='*.ts' \
   | grep -vE 'documentation \(\.md\)' \
   | grep -vE "toContain\('exploration/" \
@@ -1156,6 +1240,7 @@ if [ -n "$test_doc_hits" ]; then
   echo "$test_doc_hits" >&2
   echo "  FAIL: test comments/names must describe the contract in plain words, not reference docs, doc-section numbers, or finding ids" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: tests/ comments and describe/it names carry no delivery-epoch label and
@@ -1173,7 +1258,7 @@ fi
 # cites the ruling in words instead. The bare "pt##" placeholder is not a tag
 # and stays legal, which is what the tests asserting public pages expose no such
 # label have to write.
-echo "[conventions] check: tests/ epoch-label / dated-change-marker references"
+if check "tests/ epoch-label / dated-change-marker references" tests; then
 test_epoch_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 
@@ -1248,6 +1333,7 @@ if [ -n "$test_epoch_hits" ]; then
   echo "  FAIL: test comments and describe/it names state the permanent contract; drop sprint/slice/phase/wave labels and dated change-markers" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: no em dashes in visitor-facing text. Em dashes are unrestricted in
 # code comments, scripts, and docs; only public text a visitor reads is in
@@ -1258,7 +1344,7 @@ fi
 # curator-audit metadata (resolvedFormulas `provenance`, not rendered) and
 # standalone "—" no-value placeholders are exempt; dev-only and internal-QC
 # surfaces are out of scope.
-echo "[conventions] check: visitor-facing em dashes"
+if check "visitor-facing em dashes" src/views src/content; then
 emdash_hits=""
 for f in $(grep -rl '—' src/views --include='*.hbs' 2>/dev/null | grep -vE 'internal-qc/|/dev/' || true); do
   h=$(perl -0777 -pe 's/\{\{!--.*?--\}\}//gs; s/\{\{!.*?\}\}//gs' "$f" | grep -nE '—' | sed "s|^|$f:|" || true)
@@ -1282,6 +1368,7 @@ if [ -n "$(printf '%s' "$emdash_hits" | tr -d '[:space:]')" ]; then
   echo "  FAIL: em dashes are not allowed in visitor-facing text; use a comma, parentheses, or a colon" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every font size comes from the closed type scale.
 # Reason: the stylesheet had drifted to sixty distinct sizes, many a tenth of a
@@ -1290,7 +1377,7 @@ fi
 # display sizes for figures and icon glyphs. Nothing renders below 0.9rem;
 # subordination below that is carried by colour and weight. A closed set only
 # stays closed if something checks it.
-echo "[conventions] check: font sizes come from the type scale"
+if check "font sizes come from the type scale" src/public/css/style.css; then
 size_ok='0\.9rem|1rem|1\.25rem|1\.5rem|2\.25rem|2rem|3rem|0\.9em|1em'
 size_bad=$(grep -nE 'font-size: *[0-9.]+r?em' src/public/css/style.css \
   | grep -vE "font-size: ($size_ok);" || true)
@@ -1303,6 +1390,7 @@ if [ -n "$size_bad$token_bad" ]; then
   echo "  FAIL: font size is off the type scale (0.9 / 1 / 1.25 / 1.5 / 2.25 rem, display 2 / 3 rem)" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: a public control never carries a decorative arrow in its label.
 # Reason: colour, resting underline, and wording carry the link affordance; an
@@ -1312,7 +1400,7 @@ fi
 # input-to-result transformation, sequence and ladder separators, and
 # position markers within a list. Internal and administrative tooling is out of
 # scope and keeps its existing glyphs.
-echo "[conventions] check: decorative arrows in public control labels"
+if check "decorative arrows in public control labels" src/views src/public/css/style.css; then
 # Matched precisely: an arrow inside a control's own label, meaning immediately
 # before the closing tag or immediately after the opening tag of an anchor or
 # button. An arrow sitting BETWEEN elements is a separator (a progression chain,
@@ -1344,6 +1432,7 @@ if [ -n "$(printf '%s' "$arrow_hits" | tr -d '[:space:]')" ]; then
   echo "  FAIL: public control labels carry no decorative arrow; drop the glyph and keep the words" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every audit action_type is a lowercase, dotted, domain-prefixed value.
 # Reason: action_type is a closed vocabulary that downstream queries, metric
@@ -1352,7 +1441,7 @@ fi
 # assertCanonicalActionType in appendAuditEntry; this gate is the build-time
 # backstop for every action_type literal in src/, including the persona and
 # dev-admin audit-marker constants that reach the DB through a raw-SQL path.
-echo "[conventions] check: audit action_type literals are dotted (src/**)"
+if check "audit action_type literals are dotted (src/**)" src; then
 action_type_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 root = pathlib.Path('src')
@@ -1374,15 +1463,12 @@ if [ -n "$action_type_hits" ]; then
   echo "  FAIL: audit action_type must be lowercase dotted domain.event (every value namespaced)" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every audit action_type literal in src/ appears in the data model's
 # action_type catalogue. Delegated so it can be exercised against a fixture
-# repository; run inline here, a fixture tree aborts on an earlier rule long
-# before reaching this one.
-echo "[conventions] check: audit action_type literals appear in the data model catalogue (delegated)"
-if ! bash scripts/ci/check_audit_catalogue.sh; then
-  violations=$((violations + 1))
-fi
+# repository of its own.
+delegate "audit action_type literals appear in the data model catalogue" check_audit_catalogue.sh
 
 # Rule: security-critical dependencies are pinned to an exact version.
 # Reason: argon2, better-sqlite3, express, helmet, and marked sit on the
@@ -1390,7 +1476,7 @@ fi
 # paths; a floating range lets a new upstream release install silently on a
 # fresh npm install. An upgrade to any of these must be a reviewed, deliberate
 # change, so their declared versions are exact x.y.z with no range operator.
-echo "[conventions] check: security-critical dependencies pinned exactly"
+if check "security-critical dependencies pinned exactly" package.json; then
 # stripe is pinned for a reason beyond supply chain: the SDK carries the API
 # version, and an API version change reshapes webhook payloads. A caret range
 # lets an unrelated install move object shapes under working payment code.
@@ -1402,6 +1488,7 @@ if [ -n "$pin_hits" ]; then
   echo "  FAIL: argon2 / better-sqlite3 / express / helmet / marked / stripe must be pinned to an exact x.y.z version" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: every static import of a production-stripped subtree has a no-op stub in
 # the web image.
@@ -1412,7 +1499,7 @@ fi
 # it is tested and then dies at boot with MODULE_NOT_FOUND on production alone.
 # Staging cannot catch it: staging builds with the subtrees included, so it never
 # runs the stripped image at all.
-echo "[conventions] check: stripped-subtree imports have a stub in docker/web/Dockerfile"
+if check "stripped-subtree imports have a stub in docker/web/Dockerfile" src docker/web/Dockerfile; then
 stripped_hits=$(grep -rn --include='*.ts' -oE "from '[^']*(testkit|dev-bootstrap)/[A-Za-z0-9_/-]+'" src/ \
   | grep -vE '^src/(testkit|dev-bootstrap)/' \
   || true)
@@ -1426,6 +1513,7 @@ while IFS= read -r hit; do
     violations=$((violations + 1))
   fi
 done <<< "$stripped_hits"
+fi
 
 # Rule: the retired internal QC subsystem does not come back.
 # Reason: it was operator tooling mounted only in dev and staging, and no
@@ -1445,7 +1533,7 @@ done <<< "$stripped_hits"
 # image for exactly this list. scripts/internal/ is deploy tooling unrelated to
 # the retired /internal HTTP mount, which is why the route pattern requires a QC
 # path segment rather than matching the word alone.
-echo "[conventions] check: the retired QC subsystem has not returned"
+if check "the retired QC subsystem has not returned" src database; then
 qc_hits=$(grep -rnE --exclude-dir=node_modules --exclude-dir=__pycache__ --exclude-dir=tests \
   'internal-qc|internalRouter|netQcController|personsQcController|netQcService|personsQcService|personsQcChecks|/internal/(net|persons|freestyle)/|net_review_queue|net_candidate_match|net_curated_match|net_raw_fragment|net_recovery_alias_candidate|net_team_correction_candidate' \
   src database legacy_data scripts 2>/dev/null \
@@ -1456,6 +1544,7 @@ if [ -n "$qc_hits" ]; then
   echo "$qc_hits" >&2
   echo "  FAIL: the internal QC subsystem is retired; these name its code, routes or tables" >&2
   violations=$((violations + 1))
+fi
 fi
 
 # Rule: a table carries the standard metadata columns, or declares why it does not.
@@ -1474,7 +1563,7 @@ fi
 # means there is no later change to attribute. A ledger whose trigger is named some other
 # way reads here as an ordinary table and is asked for the full set, which is the right
 # prompt: either follow the naming the rest of the schema uses, or declare the table.
-echo "[conventions] check: standard metadata columns on tables in database/schema.sql"
+if check "standard metadata columns on tables in database/schema.sql" database/schema.sql; then
 schema_meta_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 
@@ -1551,6 +1640,7 @@ if [ -n "$schema_meta_hits" ]; then
   echo "  FAIL: add the standard metadata columns, or declare the table in this rule's list beside the family that explains it" >&2
   violations=$((violations + 1))
 fi
+fi
 
 # Rule: an UPDATE stamps every metadata column its table carries.
 # Reason: a row whose updated_by still names a previous actor is worse than one
@@ -1562,7 +1652,7 @@ fi
 # statement stamping the same row:
 #   - clearDerivedParse           runs with updateScalars, which stamps the trick row
 #   - setMediaItemExternalUrl     runs with the INSERT that created the media row
-echo "[conventions] check: UPDATE statements stamp the metadata columns their table carries"
+if check "UPDATE statements stamp the metadata columns their table carries" src/db/db.ts database/schema.sql; then
 stamp_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 
@@ -1598,10 +1688,31 @@ if [ -n "$stamp_hits" ]; then
   echo "  FAIL: an UPDATE sets updated_at, updated_by and version = version + 1 for every one its table carries" >&2
   violations=$((violations + 1))
 fi
+fi
+
+# What did not run, and whether that is allowed. A fixture repository declares
+# itself and is expected to be missing nearly everything; a real checkout is
+# expected to be missing nothing, so a skip there is a rule that has silently
+# stopped being enforced and the gate fails on it.
+if [ "$skipped_count" -gt 0 ]; then
+  echo "[conventions] ${skipped_count} check(s) did not run:" >&2
+  printf '%b' "$skipped" >&2
+  if [ "${CONVENTIONS_FIXTURE_TREE:-}" != "1" ]; then
+    echo "  FAIL: every check runs against this repository. A check with nothing to scan is" >&2
+    echo "        a rule that has stopped being enforced, so restore what it reads or move" >&2
+    echo "        the rule. Only a fixture tree may skip, and it says so by setting" >&2
+    echo "        CONVENTIONS_FIXTURE_TREE=1." >&2
+    violations=$((violations + 1))
+  fi
+fi
 
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1
 fi
 
-echo "[conventions] all rules pass"
+if [ "$skipped_count" -gt 0 ]; then
+  echo "[conventions] all rules that ran pass (${skipped_count} did not run)"
+else
+  echo "[conventions] all rules pass"
+fi

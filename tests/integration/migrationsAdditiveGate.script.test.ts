@@ -91,6 +91,75 @@ describe('the additive-migration gate', () => {
     expect(res.exitCode, res.stderr).toBe(0);
   });
 
+  it('refuses a delete, whose damage no schema read afterwards would show', () => {
+    // A drop is visible in the schema forever. A delete leaves a schema that looks
+    // exactly as it should, and no later release puts the rows back.
+    const res = inFixtureRepo({
+      '2030-01-01-purge.sql': "DELETE FROM members WHERE joined_at < '2020-01-01';\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('must be additive');
+    expect(res.stderr).toContain('DATA CHANGE');
+  });
+
+  it('accepts a delete that declares what it removes', () => {
+    const res = inFixtureRepo({
+      '2030-01-01-purge.sql':
+        '-- DATA CHANGE: removes the abandoned draft rows; a restore to any earlier\n'
+        + '-- snapshot serves them again harmlessly, because nothing reads a draft.\n'
+        + "DELETE FROM drafts WHERE state = 'abandoned';\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('refuses an undeclared backfill, which is the shape a deploy is expected to carry', () => {
+    // The deploy path names an additive backfill against live data as an intended
+    // use, so this is not forbidden work; it is work that says what it writes.
+    const res = inFixtureRepo({
+      '2030-01-01-backfill.sql': "UPDATE members SET handle = nickname WHERE handle IS NULL;\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('DATA CHANGE');
+  });
+
+  it('accepts a backfill that declares itself', () => {
+    const res = inFixtureRepo({
+      '2030-01-01-backfill.sql':
+        '-- DATA CHANGE: fills the handle column added in the previous release;\n'
+        + '-- it writes only rows where the column is still empty.\n'
+        + 'UPDATE members SET handle = nickname WHERE handle IS NULL;\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('refuses a direct edit of the schema table, which contains neither keyword', () => {
+    // Removing a table's definition this way leaves no DROP and no RENAME anywhere
+    // in the file.
+    const res = inFixtureRepo({
+      '2030-01-01-rewrite.sql':
+        'PRAGMA writable_schema = ON;\n'
+        + "DELETE FROM sqlite_master WHERE name = 'members';\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('CONTRACTION');
+  });
+
+  it('does not let one declaration cover the statement written underneath it', () => {
+    // The marker used to be read per file, so the first acknowledged statement
+    // bought immunity for everything after it, including work added later by
+    // somebody who read the header as already settled.
+    const res = inFixtureRepo({
+      '2030-01-01-two.sql':
+        '-- DATA CHANGE: clears the abandoned drafts, which nothing reads.\n'
+        + "DELETE FROM drafts WHERE state = 'abandoned';\n"
+        + '\n'
+        + 'DELETE FROM members WHERE tier IS NULL;\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('members');
+    expect(res.stderr).not.toContain('drafts');
+  });
+
   it('does not trip on a comment that merely mentions dropping', () => {
     // A header explaining what a migration deliberately does not do must not be
     // read as the thing it says it is avoiding.

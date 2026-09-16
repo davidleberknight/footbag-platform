@@ -26,6 +26,16 @@
 # adopt. If a legitimate one is ever needed, add it here deliberately with the
 # reason written down, the same way a destructive migration declares itself.
 #
+# Scope is the tracked tree, deliberately, and not the history behind it. Two
+# archive-shaped blobs already sit in this repository's history: the plan file
+# from the incident above, whose removal is ruled against, and a spreadsheet,
+# which is a zip underneath. A history-reading gate would need both exempted by
+# hash forever, would add about a quarter to this gate's running time, and would
+# have to be handed a full clone, where the job that runs it fetches one commit
+# and would otherwise scan nothing and report a pass. What it would buy is the
+# narrow case of an archive added and deleted again within one branch. The trade
+# was weighed and declined; the tracked tree is what this refuses.
+#
 # Resolves its own root through git, so a test can stand up a throwaway
 # repository and run this inside it rather than writing a fixture into the real
 # tree. Delegated from scripts/ci/assert_conventions.sh.
@@ -48,7 +58,40 @@ MAGIC = {
     b'BZh': 'bzip2',
     b'\x28\xb5\x2f\xfd': 'zstd',
     b'Rar!': 'rar',
+    # A database file is as opaque to a text scanner as a compressed archive: the
+    # secret sits in a page nobody reads, and a diff of it says nothing.
+    b'SQLite format 3\x00': 'SQLite database',
+    # Encrypted containers. Whatever is inside is unreviewable by construction,
+    # which is the same property the rule is about, arrived at deliberately.
+    b'age-encryption.org/v1': 'age container',
+    b'-----BEGIN PGP': 'PGP message',
 }
+
+# Two container shapes the prefix table cannot express.
+#
+# A tar is not compressed and carries no leading signature at all: its marker is
+# the six bytes at offset 257 of the first header block. A tar of a state
+# directory is therefore as readable to this check as a zip was to the filename
+# rules, which is to say not at all.
+TAR_MARKER_OFFSET = 257
+TAR_MARKERS = (b'ustar\x00', b'ustar ')
+
+# The binary form of an OpenPGP message. These are the old-format packet tags a
+# message realistically starts with: an encrypted session key, a public key, a
+# trust packet. The armoured form is text and sits in the table above.
+PGP_PACKET_TAGS = (b'\x85', b'\x99', b'\xa6')
+
+
+def container_kind(head):
+    """The kind of opaque container this file is, or None for ordinary content."""
+    for magic, name in MAGIC.items():
+        if head.startswith(magic):
+            return name
+    if head[TAR_MARKER_OFFSET:TAR_MARKER_OFFSET + 6] in TAR_MARKERS:
+        return 'tar archive'
+    if head[:1] in PGP_PACKET_TAGS:
+        return 'PGP message'
+    return None
 
 archives, states = [], []
 files = [f for f in subprocess.run(
@@ -61,7 +104,7 @@ for raw in files:
             head = fh.read(4096)
     except OSError:
         continue
-    hit = next((name for magic, name in MAGIC.items() if head.startswith(magic)), None)
+    hit = container_kind(head)
     if hit:
         archives.append((path, hit))
         continue
