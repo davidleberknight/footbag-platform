@@ -1933,6 +1933,33 @@ section.home-media { padding-top: 0; }
   text-underline-offset: 2px;
 }
 
+/* Inline action: a state-changing control that reads as text because it sits in
+   a table row, a list item or a sentence, where a bordered button would be the
+   default chrome the callout policy reserves. It is a <button> because it posts,
+   so it inherits the surrounding font and carries no box; the resting underline
+   is the non-colour cue a link owes a reader who cannot use its colour. The
+   danger variant is the same control for a destructive act. Both take a visible
+   focus ring: a control styled as text has nothing else to show the keyboard
+   where it is, and changing the underline on focus is not an indicator. */
+.btn-link,
+.btn-link-danger {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn-link { color: var(--primary); }
+.btn-link:hover { color: var(--primary-dk); }
+.btn-link-danger { color: var(--danger-accent); }
+.btn-link-danger:hover { color: var(--danger-text); }
+.btn-link:focus-visible,
+.btn-link-danger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ── Archive year nav ───────────────────────────────────────── */
 .year-grid {
   display: flex;
@@ -3557,16 +3584,6 @@ section.home-media { padding-top: 0; }
 .curator-list-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
 .curator-pagination { display: flex; gap: 10px; align-items: center; margin: 16px 0; }
 .curator-thumb { border-radius: var(--radius-sm); height: auto; }
-.btn-link-danger {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: var(--danger-accent);
-  cursor: pointer;
-  text-decoration: underline;
-}
-.btn-link-danger:hover { color: var(--danger-text); }
 .work-queue-item { margin-bottom: 14px; }
 
 /* ── Admin: dashboard queue rows and navigation groups ───────── */
@@ -3766,7 +3783,6 @@ section.home-media { padding-top: 0; }
      pattern; doing it here with display:block as well would be two mechanisms
      for one job. */
   .data-table th, .data-table td { padding: 8px 6px; }
-  .curator-list th, .curator-list td { padding: 8px 6px; }
 }
 
 @media (max-width: 480px) {
@@ -5491,9 +5507,17 @@ a.hashtag--media:hover {
   border-bottom: 2px solid var(--white);
   font-weight: 600;
 }
-/* Keyboard focus indicator on the active tab. */
-.upload-tab-radio:focus + .upload-tab-bar .upload-tab,
-.upload-tab-radio:focus-visible + .upload-tab-bar .upload-tab {
+/* Keyboard focus indicator on the focused tab. The radios sit in a row ahead of
+   .upload-tab-bar rather than immediately before it, so the match has to be
+   general-sibling; scoping each selector to its own label keeps the ring on the
+   single tab the keyboard is on rather than on the whole bar. :focus-visible
+   alone because this is the keyboard affordance, and clicking a label focuses
+   its radio without wanting a ring drawn. */
+.upload-tabs > input#upload-tab-photo:focus-visible ~ .upload-tab-bar .upload-tab[for="upload-tab-photo"],
+.upload-tabs > input#upload-tab-video:focus-visible ~ .upload-tab-bar .upload-tab[for="upload-tab-video"],
+.upload-tabs > input#upload-tab-url:focus-visible   ~ .upload-tab-bar .upload-tab[for="upload-tab-url"],
+.upload-tabs > input#member-tab-photo:focus-visible ~ .upload-tab-bar .upload-tab[for="member-tab-photo"],
+.upload-tabs > input#member-tab-video:focus-visible ~ .upload-tab-bar .upload-tab[for="member-tab-video"] {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -5562,9 +5586,17 @@ a.hashtag--media:hover {
   width: 100%;
   margin-bottom: 24px;
 }
+/* The bar rests hidden and the upload script reveals it, so the display above
+   has to yield to the attribute; a bare `display: block` outranks `hidden` and
+   leaves an empty bar sitting above the submit button on every page load. */
+.upload-form [data-async-progress][hidden] {
+  display: none;
+}
 
-/* Sort indicator on admin curator media list column headers. */
-.curator-list .sort-indicator {
+/* Sort direction arrow in a sortable table's column header. The glyph carries
+   meaning rather than decoration, so it takes the accent colour and sits tight
+   to the heading it qualifies. */
+.data-table .sort-indicator {
   font-size: 0.9em;
   margin-left: 2px;
   color: var(--accent);

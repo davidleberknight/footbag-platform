@@ -4,39 +4,44 @@
   moderating somebody else's record. The moderation variant offers no box to
   retype the member's words, takes a mandatory reason, and adds no files.
 --}}
-<div class="wrapper">
-  <h1>{{page.title}}</h1>
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
 
-  {{#if notFound}}
-    <p class="form-field-error">Gallery <code>{{galleryId}}</code> not found.</p>
-    <p><a href="/admin/curator/galleries">&lsaquo; Back to galleries</a></p>
+<div class="wrapper">
+  {{#if content.notFound}}
+    <p class="form-field-error">Gallery <code>{{content.galleryId}}</code> not found.</p>
+    <p><a href="{{content.cancelHref}}">&lsaquo; Back to galleries</a></p>
   {{else}}
-    {{#if moderation}}
+    {{#if content.moderation}}
       <p class="notice notice-warn" role="alert">
-        This gallery belongs to {{moderation.ownerDisplayName}}. Its name and its
+        This gallery belongs to {{content.moderation.ownerDisplayName}}. Its name and its
         description are their words, so they can be cleared here but not rewritten.
         Every change takes a reason, is recorded with each value before and after,
         and is sent to them.
       </p>
     {{else}}
       <p>
-        Editing <code>{{gallery.id}}</code>. Membership rule: an item appears in this gallery iff
+        Editing <code>{{content.gallery.id}}</code>. Membership rule: an item appears in this gallery iff
         it carries every <strong>criteria tag</strong> AND no <strong>exclude tag</strong>.
       </p>
     {{/if}}
 
     {{> gallery-edit-form
-        formAction=formAction
-        gallery=gallery
-        errorMessage=errorMessage
-        fieldErrors=fieldErrors
-        cancelHref="/admin/curator/galleries"
-        currentItems=currentItems
-        currentItemsTruncated=currentItemsTruncated
-        externalLinkSlots=externalLinkSlots
-        isFhOwned=isFhOwned
-        moderation=moderation
-        reasonRaw=reasonRaw
+        formAction=content.formAction
+        gallery=content.gallery
+        errorMessage=content.errorMessage
+        fieldErrors=content.fieldErrors
+        cancelHref=content.cancelHref
+        currentItems=content.currentItems
+        currentItemsTruncated=content.currentItemsTruncated
+        uploadTags=content.uploadTags
+        externalLinkSlots=content.externalLinkSlots
+        isFhOwned=content.isFhOwned
+        moderation=content.moderation
+        reasonRaw=content.reasonRaw
     }}
   {{/if}}
 </div>

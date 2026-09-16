@@ -1130,6 +1130,46 @@ describe('POST /members/:memberKey/galleries — rate limit', () => {
       rlMod.resetRateLimitForTests();
     }
   });
+
+  it('states the refusal on the list a rate-limited delete returns to', async () => {
+    // The list is where a refused delete lands, and a list that simply
+    // re-appears reads as though the gallery had been deleted. The bucket is
+    // shared across the three write operations, so creates exhaust it and the
+    // delete is what meets the limit.
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    insertSystemConfig(tuneDb, {
+      config_key: 'gallery_write_rate_limit_per_hour',
+      value_json: '2',
+      // Its own effective row: the case above sets the same key, and the two
+      // would collide on the key and instant if both ran and both took the
+      // insert's own timestamp. Both carry the same limit, so whichever row is
+      // current gives this case the same budget.
+      effective_start_at: '2026-01-02T00:00:00.000Z',
+    });
+    tuneDb.close();
+    try {
+      const created = await createGalleryViaApi('RL Delete Target', '#rldel');
+      expect(created.status).toBe(303);
+      const targetId = findGalleryIdByName('RL Delete Target')!;
+      expect(await createGalleryViaApi('RL Delete Filler', '#rldel')).toMatchObject({ status: 303 });
+
+      const blocked = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/galleries/${targetId}/delete`)
+        .set('Cookie', ownerCookie())
+        .type('form')
+        .send({ confirmed: '1' });
+
+      expect(blocked.status).toBe(429);
+      expect(blocked.text).toContain('form-error-banner');
+      expect(blocked.text).toMatch(/too many|try again/i);
+      // The gallery is still listed, because nothing was deleted.
+      expect(blocked.text).toContain('RL Delete Target');
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
 });
 
 // The Personal Gallery is materialized by the upload path rather than composed

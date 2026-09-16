@@ -13,11 +13,19 @@
  *   - Auto-application of the `#curated` uploader marker
  *   - Admin and member named-gallery editing (FH-owned and member-owned
  *     `member_galleries` rows)
+ *   - The page contracts for the admin curator surface and for the member's own
+ *     media, galleries and gallery list: the `get*Page` builders at the end of
+ *     this file return a typed `PageViewModel`, so a controller parses the
+ *     request, chooses the status code, and renders what it is handed. The
+ *     hrefs a page displays are composed there, and a controller never augments
+ *     what a builder returned
  *
  * Does not own:
  *   - Public gallery/browse page shaping (MediaGalleryService) or the
  *     avatar lifecycle (AvatarService; avatar rows are refused by the
- *     member-self delete)
+ *     member-self delete). The gallery list's teaching empty state shows
+ *     community media for that reason: the read is handed to the builder by its
+ *     caller rather than performed here
  *
  * Required patterns:
  *   - `uploader_member_id` is always the system member id (`is_system=1`); the admin
@@ -192,8 +200,19 @@ import { readIntConfig } from './configReader';
 import { hasTier1Benefits } from './tierPredicates';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
-import { hashtagDiscoveryService } from './hashtagDiscoveryService';
+import {
+  hashtagDiscoveryService,
+  type MemberTagSuggestions,
+  type TagChipShape,
+  type HashtagStatsSummary,
+} from './hashtagDiscoveryService';
 import { emailService } from './emailService';
+import { buildTierBenefitNotice } from './tierBenefitNotice';
+// Type-only, so the gallery list can name the shape of the community examples
+// it is handed without importing the media service that reads them: that module
+// already imports this one, and a value import would close the loop.
+import type { GalleryItem } from './mediaService';
+import type { PageViewModel, TierBenefitNotice } from '../types/page';
 
 export const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = config.videoMaxBytes;
@@ -3619,4 +3638,975 @@ function authorizeGalleryActor(
       });
     }
   }
+}
+
+// ── Page-model builders: the admin curator surface ────────────────────────
+//
+// A page contract on this surface is composed from domain values: which tags a
+// row carries, which sort is active, whether the configured storage adapter
+// supports the direct-to-S3 video path, whose gallery an administrator is
+// looking at. That composition belongs beside the domain it reads, so it lives
+// here and the controller parses the request, picks the status code, and
+// renders what these return.
+
+export type CuratorMediaService = ReturnType<typeof createCuratorMediaService>;
+
+/** How many curated items one page of the admin media list shows. */
+export const CURATOR_LIST_PAGE_SIZE = 50;
+
+/**
+ * The upload form's fields as the browser last submitted them, echoed back so a
+ * refused submission re-renders with the curator's own words still in place.
+ */
+export interface CuratorUploadFormValues {
+  mediaType?: string;
+  caption?: string;
+  tags?: string;
+  category?: string;
+  newCategory?: string;
+  videoUrl?: string;
+  videoPlatform?: string;
+  primarySlug?: string;
+  title?: string;
+  creator?: string;
+  sourceId?: string;
+  tier?: string;
+  externalUrl?: string;
+}
+
+export interface CuratorUploadContent {
+  errorMessage: string | null;
+  formValues: CuratorUploadFormValues;
+  existingCategories: string[];
+  hasExistingCategories: boolean;
+  savedFlag: boolean;
+  // True when the configured storage adapter is S3, which is what makes the
+  // browser-side presigned PUT path available for video. It also decides
+  // whether a category is required, because the local adapter writes a sidecar
+  // into a category directory and S3 does not.
+  asyncEnabled: boolean;
+  requireCategory: boolean;
+  // The cap the page states and the cap the server applies are the same number
+  // by construction: the megabyte figure is what the label reads, the byte
+  // figure is what the browser compares a chosen file against so an oversized
+  // file is refused before any of it is sent.
+  videoMaxMb: number;
+  videoMaxBytes: number;
+}
+
+/** One row of the admin curated-media list, with its delete-confirm state. */
+export interface CuratorMediaListRow extends CuratorMediaListItem {
+  isConfirmDelete: boolean;
+}
+
+export interface CuratorMediaListContent {
+  items: CuratorMediaListRow[];
+  total: number;
+  totalNoun: string;
+  currentPage: number;
+  totalPages: number;
+  tagFilter: string;
+  hasTagFilter: boolean;
+  sortLinks: { date: string; type: string; caption: string };
+  sortIndicator: { dateDesc: boolean; dateAsc: boolean; type: boolean; caption: boolean };
+  prevPageHref: string | null;
+  nextPageHref: string | null;
+  emptyState: boolean;
+  savedWasEdit: boolean;
+  savedWasDelete: boolean;
+  uploadHref: string;
+  listHref: string;
+}
+
+export interface CuratorMediaEditContent {
+  notFound: boolean;
+  mediaId: string;
+  errorMessage: string | null;
+  media: {
+    mediaId: string;
+    mediaType: 'photo' | 'video';
+    caption: string;
+    tagsString: string;
+    thumbnailUrl: string;
+    isSidecarBacked: boolean;
+    videoPlatform: string | null;
+    videoUrl: string | null;
+    creator: string;
+    sourceId: string;
+    tier: string;
+    startSeconds: number | string;
+    endSeconds: number | string;
+    externalUrl: string;
+    showThumbnailField: boolean;
+  } | null;
+  cancelHref: string;
+  formAction: string;
+}
+
+export interface CuratorGalleryListRow extends CuratorGallerySummary {
+  isConfirmDelete: boolean;
+  editHref: string;
+  viewHref: string;
+  deleteHref: string;
+  excludeTagsEmpty: boolean;
+}
+
+export interface CuratorGalleryListContent {
+  items: CuratorGalleryListRow[];
+  emptyState: boolean;
+  savedFlag: boolean;
+  newGalleryHref: string;
+  listHref: string;
+}
+
+export interface CuratorGalleryFormFields {
+  id?: string;
+  idSlug?: string;
+  name: string;
+  description: string;
+  sortOrder: string;
+  criteriaTagsString: string;
+  excludeTagsString: string;
+  // True for the member's auto-materialized Personal Gallery, whose name and
+  // criteria the service refuses to change, so the form shows those parts as
+  // fixed rather than offering inputs that would be rejected.
+  isDefault?: boolean;
+}
+
+export interface CuratorGalleryNewContent {
+  formAction: string;
+  cancelHref: string;
+  errorMessage: string | null;
+  gallery: CuratorGalleryFormFields;
+}
+
+export interface CuratorGalleryEditContent {
+  notFound: boolean;
+  galleryId: string;
+  formAction: string;
+  cancelHref: string;
+  errorMessage: string | null;
+  fieldErrors: Record<string, string> | undefined;
+  gallery: CuratorGalleryFormFields | null;
+  currentItems: CuratorGalleryEditView['currentItems'];
+  currentItemsTruncated: boolean;
+  uploadTags: string;
+  externalLinkSlots: ExternalLinkSlot[];
+  isFhOwned: boolean;
+  // Non-null only when an administrator is looking at somebody else's gallery,
+  // which is moderation rather than authorship: the words stay theirs, so the
+  // form offers removal and not rewriting.
+  moderation: { ownerDisplayName: string } | null;
+  reasonRaw: string;
+}
+
+export interface CuratorJobStatusContent {
+  notFound: boolean;
+  jobId: string;
+  job: {
+    id: string;
+    state: string;
+    mediaId: string | null;
+    errorMessage: string | null;
+    sourceFilename: string | null;
+    caption: string | null;
+    isPendingUpload: boolean;
+    isPendingTranscode: boolean;
+    isProcessing: boolean;
+    isSucceeded: boolean;
+    isFailed: boolean;
+    isAbandoned: boolean;
+    mediaEditHref: string | null;
+  } | null;
+  eventsUrl: string | null;
+  uploadHref: string;
+}
+
+/**
+ * Whether this edit is moderation, and whose words are being moderated. A
+ * gallery of Footbag Hacky's is the administrator's own to author, and an
+ * administrator editing a gallery they own themselves is an owner like any
+ * other member.
+ */
+export function curatorGalleryModerationView(
+  gallery: CuratorGalleryEditView,
+  actorMemberId: string,
+): { ownerDisplayName: string } | null {
+  if (gallery.isSystemOwned) return null;
+  if (gallery.ownerMemberId === actorMemberId) return null;
+  return { ownerDisplayName: gallery.ownerDisplayName };
+}
+
+/**
+ * What the gallery edit page is, in its own title. One URL serves two cohorts,
+ * and calling the moderation of a member's own gallery "curation" contradicts
+ * the banner printed directly beneath it.
+ */
+export function curatorGalleryEditTitle(
+  moderation: { ownerDisplayName: string } | null,
+): string {
+  return moderation ? "Moderate a Member's Gallery" : 'Edit Curator Gallery';
+}
+
+export function getCuratorUploadPage(
+  opts: {
+    errorMessage?: string;
+    formValues?: CuratorUploadFormValues;
+    savedFlag?: boolean;
+    existingCategories?: string[];
+  } = {},
+): PageViewModel<CuratorUploadContent> {
+  const asyncEnabled = config.mediaStorageAdapter === 's3';
+  const existingCategories = opts.existingCategories ?? [];
+  return {
+    seo: { title: 'Upload Curated Media' },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media' },
+    content: {
+      errorMessage: opts.errorMessage ?? null,
+      formValues: opts.formValues ?? {},
+      existingCategories,
+      hasExistingCategories: existingCategories.length > 0,
+      savedFlag: opts.savedFlag ?? false,
+      asyncEnabled,
+      requireCategory: !asyncEnabled,
+      videoMaxMb: VIDEO_MAX_MB,
+      videoMaxBytes: VIDEO_MAX_BYTES,
+    },
+  };
+}
+
+export function getCuratorMediaListPage(
+  svc: CuratorMediaService,
+  input: {
+    page: number;
+    tagFilter: string | null;
+    sort: 'date_desc' | 'date_asc' | 'type_asc' | 'caption_asc';
+    confirmDeleteId: string | null;
+    savedFlag: 'edit' | 'delete' | null;
+  },
+): PageViewModel<CuratorMediaListContent> {
+  const listHref = '/admin/curator/media';
+  const { tagFilter, sort } = input;
+  const result = svc.listMedia({
+    page: input.page,
+    pageSize: CURATOR_LIST_PAGE_SIZE,
+    tagFilter: tagFilter ?? undefined,
+    sort,
+  });
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+
+  // Both the tag filter and the active sort survive a page step, so a curator
+  // paging through a filtered view keeps the view they were reading.
+  const queryTail = (p: number): string => {
+    const parts = [`page=${p}`];
+    if (tagFilter) parts.push(`tag=${encodeURIComponent(tagFilter)}`);
+    if (sort !== 'date_desc') parts.push(`sort=${sort}`);
+    return '?' + parts.join('&');
+  };
+  // Each column link moves to the next sort that column offers: the active
+  // Uploaded column toggles its direction, the others reset to their canonical
+  // ascending order. The tag filter is preserved either way.
+  const sortQuery = (s: string): string => {
+    const parts: string[] = [];
+    if (tagFilter) parts.push(`tag=${encodeURIComponent(tagFilter)}`);
+    if (s !== 'date_desc') parts.push(`sort=${s}`);
+    return parts.length === 0 ? listHref : `${listHref}?${parts.join('&')}`;
+  };
+
+  return {
+    seo: { title: 'Curated Media' },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_list', title: 'Curated Media' },
+    content: {
+      items: result.items.map((item) => ({
+        ...item,
+        isConfirmDelete: input.confirmDeleteId !== null && item.mediaId === input.confirmDeleteId,
+      })),
+      total: result.total,
+      totalNoun: result.total === 1 ? 'item' : 'items',
+      currentPage: result.page,
+      totalPages,
+      tagFilter: tagFilter ?? '',
+      hasTagFilter: tagFilter !== null && tagFilter.length > 0,
+      sortLinks: {
+        date: sortQuery(sort === 'date_desc' ? 'date_asc' : 'date_desc'),
+        type: sortQuery('type_asc'),
+        caption: sortQuery('caption_asc'),
+      },
+      sortIndicator: {
+        dateDesc: sort === 'date_desc',
+        dateAsc: sort === 'date_asc',
+        type: sort === 'type_asc',
+        caption: sort === 'caption_asc',
+      },
+      prevPageHref: result.page > 1 ? listHref + queryTail(result.page - 1) : null,
+      nextPageHref: result.page < totalPages ? listHref + queryTail(result.page + 1) : null,
+      emptyState: result.items.length === 0,
+      savedWasEdit: input.savedFlag === 'edit',
+      savedWasDelete: input.savedFlag === 'delete',
+      uploadHref: '/admin/curator/upload',
+      listHref,
+    },
+  };
+}
+
+function curatorMediaEditEnvelope(
+  title: string,
+  content: CuratorMediaEditContent,
+): PageViewModel<CuratorMediaEditContent> {
+  return {
+    seo: { title },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title },
+    content,
+  };
+}
+
+export function getCuratorMediaNotFoundPage(
+  mediaId: string,
+): PageViewModel<CuratorMediaEditContent> {
+  return curatorMediaEditEnvelope('Curated Media: Not Found', {
+    notFound: true,
+    mediaId,
+    errorMessage: null,
+    media: null,
+    cancelHref: '/admin/curator/media',
+    formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
+  });
+}
+
+export async function getCuratorMediaEditPage(
+  svc: CuratorMediaService,
+  mediaId: string,
+): Promise<PageViewModel<CuratorMediaEditContent> | null> {
+  const item = await svc.getMediaItem(mediaId);
+  if (!item) return null;
+  // The #curated tag is auto-applied and cannot be edited, so the editable tag
+  // string shows only the tags a curator can actually change.
+  const editableTags = item.tags.filter((t) => t !== '#curated');
+  const isSidecarBacked = item.videoPlatform === 'youtube' || item.videoPlatform === 'vimeo';
+  return curatorMediaEditEnvelope('Edit Curated Media', {
+    notFound: false,
+    mediaId: item.mediaId,
+    errorMessage: null,
+    media: {
+      mediaId: item.mediaId,
+      mediaType: item.mediaType,
+      caption: item.caption ?? '',
+      tagsString: editableTags.join(' '),
+      thumbnailUrl: item.thumbnailUrl,
+      isSidecarBacked,
+      videoPlatform: item.videoPlatform,
+      videoUrl: item.videoUrl,
+      creator: item.creator ?? '',
+      sourceId: item.sourceId ?? '',
+      tier: item.tier ?? '',
+      startSeconds: item.startSeconds ?? '',
+      endSeconds: item.endSeconds ?? '',
+      externalUrl: item.externalUrl ?? '',
+      showThumbnailField: item.showThumbnailField === true,
+    },
+    cancelHref: '/admin/curator/media',
+    formAction: `/admin/curator/media/${encodeURIComponent(item.mediaId)}/edit`,
+  });
+}
+
+/** The edit form re-rendered after a refusal, carrying back what was typed. */
+export function getCuratorMediaEditErrorPage(
+  mediaId: string,
+  errorMessage: string,
+  submitted: { caption: string; tagsString: string },
+): PageViewModel<CuratorMediaEditContent> {
+  return curatorMediaEditEnvelope('Edit Curated Media', {
+    notFound: false,
+    mediaId,
+    errorMessage,
+    media: {
+      mediaId,
+      mediaType: 'photo',
+      caption: submitted.caption,
+      tagsString: submitted.tagsString,
+      thumbnailUrl: '',
+      isSidecarBacked: false,
+      videoPlatform: null,
+      videoUrl: null,
+      creator: '',
+      sourceId: '',
+      tier: '',
+      startSeconds: '',
+      endSeconds: '',
+      externalUrl: '',
+      showThumbnailField: false,
+    },
+    cancelHref: '/admin/curator/media',
+    formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
+  });
+}
+
+export function getCuratorGalleryListPage(
+  svc: CuratorMediaService,
+  input: { confirmDeleteId: string | null; savedFlag: boolean },
+): PageViewModel<CuratorGalleryListContent> {
+  const items = svc.listOwnedGalleries();
+  return {
+    seo: { title: 'Curator Galleries' },
+    page: {
+      sectionKey: 'admin',
+      pageKey: 'admin_curator_galleries_list',
+      title: 'Curator Galleries',
+    },
+    content: {
+      items: items.map((item) => ({
+        ...item,
+        isConfirmDelete: input.confirmDeleteId !== null && item.id === input.confirmDeleteId,
+        editHref: `/admin/curator/galleries/${encodeURIComponent(item.id)}/edit`,
+        viewHref: `/media/${encodeURIComponent(item.id)}`,
+        deleteHref: `/admin/curator/galleries/${encodeURIComponent(item.id)}/delete`,
+        excludeTagsEmpty: item.excludeTags.length === 0,
+      })),
+      emptyState: items.length === 0,
+      savedFlag: input.savedFlag,
+      newGalleryHref: '/admin/curator/galleries/new',
+      listHref: '/admin/curator/galleries',
+    },
+  };
+}
+
+export function getCuratorGalleryNewPage(
+  opts: { errorMessage?: string; gallery?: CuratorGalleryFormFields } = {},
+): PageViewModel<CuratorGalleryNewContent> {
+  return {
+    seo: { title: 'New Curator Gallery' },
+    page: {
+      sectionKey: 'admin',
+      pageKey: 'admin_curator_galleries_new',
+      title: 'New Curator Gallery',
+    },
+    content: {
+      formAction: '/admin/curator/galleries',
+      cancelHref: '/admin/curator/galleries',
+      errorMessage: opts.errorMessage ?? null,
+      gallery: opts.gallery ?? {
+        idSlug: '',
+        name: '',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTagsString: '',
+        excludeTagsString: '',
+      },
+    },
+  };
+}
+
+function curatorGalleryEditEnvelope(
+  title: string,
+  content: CuratorGalleryEditContent,
+): PageViewModel<CuratorGalleryEditContent> {
+  return {
+    seo: { title, noindex: true },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title },
+    content,
+  };
+}
+
+export function getCuratorGalleryNotFoundPage(
+  galleryId: string,
+): PageViewModel<CuratorGalleryEditContent> {
+  return curatorGalleryEditEnvelope('Curator Gallery: Not Found', {
+    notFound: true,
+    galleryId,
+    formAction: `/admin/curator/galleries/${encodeURIComponent(galleryId)}/edit`,
+    cancelHref: '/admin/curator/galleries',
+    errorMessage: null,
+    fieldErrors: undefined,
+    gallery: null,
+    currentItems: [],
+    currentItemsTruncated: false,
+    uploadTags: '',
+    externalLinkSlots: [],
+    isFhOwned: true,
+    moderation: null,
+    reasonRaw: '',
+  });
+}
+
+export function getCuratorGalleryEditPage(
+  svc: CuratorMediaService,
+  galleryId: string,
+  actorMemberId: string,
+): PageViewModel<CuratorGalleryEditContent> {
+  const g = svc.getGalleryForEdit(galleryId);
+  const moderation = curatorGalleryModerationView(g, actorMemberId);
+  return curatorGalleryEditEnvelope(curatorGalleryEditTitle(moderation), {
+    notFound: false,
+    galleryId,
+    formAction: `/admin/curator/galleries/${encodeURIComponent(galleryId)}/edit`,
+    cancelHref: '/admin/curator/galleries',
+    errorMessage: null,
+    fieldErrors: undefined,
+    gallery: {
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      sortOrder: g.sortOrder,
+      criteriaTagsString: g.criteriaTags.join(' '),
+      excludeTagsString: g.excludeTags.join(' '),
+    },
+    currentItems: g.currentItems,
+    currentItemsTruncated: g.currentItemsTruncated,
+    uploadTags: g.criteriaTags.join(' '),
+    externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
+    isFhOwned: g.isSystemOwned,
+    moderation,
+    reasonRaw: '',
+  });
+}
+
+/**
+ * The gallery edit form re-rendered after a refusal. The gallery is re-read so
+ * the read-only item strip stays accurate; a gallery deleted concurrently
+ * renders with an empty strip rather than failing the response the curator is
+ * already owed.
+ */
+export function getCuratorGalleryEditErrorPage(
+  svc: CuratorMediaService,
+  actorMemberId: string,
+  errorMessage: string,
+  submitted: {
+    galleryId: string;
+    name: string;
+    description: string;
+    sortOrderRaw: string;
+    criteriaTagsRaw: string;
+    excludeTagsRaw: string;
+    uploadTagsRaw: string;
+    externalLinks: CuratorGalleryExternalLinkInput[];
+    fieldErrors?: Record<string, string>;
+    reasonRaw?: string;
+  },
+): PageViewModel<CuratorGalleryEditContent> {
+  let currentItems: CuratorGalleryEditView['currentItems'] = [];
+  let currentItemsTruncated = false;
+  let isFhOwned = true;
+  let moderation: { ownerDisplayName: string } | null = null;
+  try {
+    const reread = svc.getGalleryForEdit(submitted.galleryId);
+    currentItems = reread.currentItems;
+    currentItemsTruncated = reread.currentItemsTruncated;
+    isFhOwned = reread.isSystemOwned;
+    moderation = curatorGalleryModerationView(reread, actorMemberId);
+  } catch {
+    /* gallery may have been deleted concurrently; render with empty items */
+  }
+  return curatorGalleryEditEnvelope(curatorGalleryEditTitle(moderation), {
+    notFound: false,
+    galleryId: submitted.galleryId,
+    formAction: `/admin/curator/galleries/${encodeURIComponent(submitted.galleryId)}/edit`,
+    cancelHref: '/admin/curator/galleries',
+    errorMessage,
+    fieldErrors: submitted.fieldErrors,
+    gallery: {
+      id: submitted.galleryId,
+      name: submitted.name,
+      description: submitted.description,
+      sortOrder: submitted.sortOrderRaw,
+      criteriaTagsString: submitted.criteriaTagsRaw,
+      excludeTagsString: submitted.excludeTagsRaw,
+    },
+    currentItems,
+    currentItemsTruncated,
+    uploadTags: submitted.uploadTagsRaw,
+    externalLinkSlots: buildExternalLinkSlots(submitted.externalLinks, [], submitted.fieldErrors),
+    isFhOwned,
+    moderation,
+    reasonRaw: submitted.reasonRaw ?? '',
+  });
+}
+
+function curatorJobStatusEnvelope(
+  title: string,
+  content: CuratorJobStatusContent,
+): PageViewModel<CuratorJobStatusContent> {
+  return {
+    seo: { title },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title },
+    content,
+  };
+}
+
+export function getCuratorJobNotFoundPage(
+  jobId: string,
+): PageViewModel<CuratorJobStatusContent> {
+  return curatorJobStatusEnvelope('Curator Upload: Not Found', {
+    notFound: true,
+    jobId,
+    job: null,
+    eventsUrl: null,
+    uploadHref: '/admin/curator/upload',
+  });
+}
+
+export function getCuratorJobStatusPage(job: {
+  id: string;
+  state: string;
+  media_id: string | null;
+  last_error: string | null;
+  source_filename: string | null;
+  caption: string | null;
+}): PageViewModel<CuratorJobStatusContent> {
+  return curatorJobStatusEnvelope('Curator Upload Progress', {
+    notFound: false,
+    jobId: job.id,
+    job: {
+      id: job.id,
+      state: job.state,
+      mediaId: job.media_id,
+      errorMessage: job.last_error,
+      sourceFilename: job.source_filename,
+      caption: job.caption,
+      isPendingUpload: job.state === 'pending_upload',
+      isPendingTranscode: job.state === 'pending_transcode',
+      isProcessing: job.state === 'processing',
+      isSucceeded: job.state === 'succeeded',
+      isFailed: job.state === 'failed',
+      isAbandoned: job.state === 'abandoned',
+      mediaEditHref: job.media_id
+        ? `/admin/curator/media/${encodeURIComponent(job.media_id)}/edit`
+        : null,
+    },
+    eventsUrl: `/admin/curator/upload/jobs/${encodeURIComponent(job.id)}/events`,
+    uploadHref: '/admin/curator/upload',
+  });
+}
+
+// ── Page-model builders: the member's own media and galleries ─────────────
+//
+// The member-owned write surface for media. The same reasoning applies as
+// above: what the page offers depends on what the member owns, so the page
+// contract is composed here and the controller renders it.
+
+/** A member's own gallery, offered on the upload form as a destination. */
+export interface MemberGalleryOption {
+  id: string;
+  name: string;
+  criteriaTags: string[];
+}
+
+export interface MemberMediaUploadFormValues {
+  mediaType?: 'photo' | 'video';
+  caption?: string;
+  tags?: string;
+  videoUrl?: string;
+  videoPlatform?: 'youtube' | 'vimeo' | '';
+  externalUrl?: string;
+  galleryId?: string;
+}
+
+export interface MemberMediaUploadContent {
+  formAction: string;
+  cancelHref: string;
+  errorMessage: string | null;
+  formValues: MemberMediaUploadFormValues;
+  tagSuggestions: MemberTagSuggestions | null;
+  galleries: MemberGalleryOption[];
+  hasGalleries: boolean;
+}
+
+export interface MemberMediaEditFormValues {
+  caption: string;
+  tags: string;
+  externalUrl: string;
+}
+
+export interface MemberMediaEditContent {
+  formAction: string;
+  deleteAction: string;
+  cancelHref: string;
+  errorMessage: string | null;
+  formValues: MemberMediaEditFormValues;
+  tagSuggestions: MemberTagSuggestions | null;
+}
+
+export function getMemberMediaUploadPage(
+  svc: CuratorMediaService,
+  memberKey: string,
+  memberId: string | null,
+  opts: {
+    errorMessage?: string;
+    formValues?: MemberMediaUploadFormValues;
+    tagSuggestions?: MemberTagSuggestions;
+  } = {},
+): PageViewModel<MemberMediaUploadContent> {
+  // The destinations the form offers are the member's own galleries, which is a
+  // domain read shaped into a control, so it is composed here rather than handed
+  // in already shaped.
+  const galleries: MemberGalleryOption[] = memberId
+    ? svc.listGalleriesForOwner(memberId).map((g) => ({
+        id: g.id,
+        name: g.name,
+        criteriaTags: g.criteriaTags,
+      }))
+    : [];
+  return {
+    seo: { title: 'Upload Media' },
+    page: { sectionKey: 'members', pageKey: 'member_media_upload', title: 'Upload Media' },
+    content: {
+      formAction: `/members/${memberKey}/media/upload`,
+      cancelHref: `/members/${memberKey}/galleries`,
+      errorMessage: opts.errorMessage ?? null,
+      formValues: opts.formValues ?? { mediaType: 'photo' },
+      tagSuggestions: opts.tagSuggestions ?? null,
+      galleries,
+      hasGalleries: galleries.length > 0,
+    },
+  };
+}
+
+export function getMemberMediaEditPage(
+  memberKey: string,
+  mediaId: string,
+  formValues: MemberMediaEditFormValues,
+  opts: { errorMessage?: string; tagSuggestions?: MemberTagSuggestions } = {},
+): PageViewModel<MemberMediaEditContent> {
+  return {
+    seo: { title: 'Edit Media' },
+    page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
+    content: {
+      formAction: `/members/${memberKey}/media/${mediaId}/edit`,
+      deleteAction: `/members/${memberKey}/media/${mediaId}/delete`,
+      cancelHref: `/members/${memberKey}/galleries`,
+      errorMessage: opts.errorMessage ?? null,
+      formValues,
+      tagSuggestions: opts.tagSuggestions ?? null,
+    },
+  };
+}
+
+export interface MemberGalleryNewContent {
+  formAction: string;
+  cancelHref: string;
+  errorMessage: string | null;
+  fieldErrors: Record<string, string> | undefined;
+  gallery: CuratorGalleryFormFields;
+  uploadTags: string;
+  externalLinkSlots: ExternalLinkSlot[];
+}
+
+export interface MemberGalleryEditContent {
+  formAction: string;
+  cancelHref: string;
+  uploadMediaHref: string;
+  errorMessage: string | null;
+  fieldErrors: Record<string, string> | undefined;
+  gallery: CuratorGalleryFormFields;
+  currentItems: CuratorGalleryEditView['currentItems'];
+  currentItemsTruncated: boolean;
+  uploadTags: string;
+  externalLinkSlots: ExternalLinkSlot[];
+}
+
+export function getMemberGalleryNewPage(
+  memberKey: string,
+  opts: {
+    errorMessage?: string;
+    fieldErrors?: Record<string, string>;
+    gallery?: CuratorGalleryFormFields;
+    uploadTags?: string;
+    externalLinks?: CuratorGalleryExternalLinkInput[] | null;
+  } = {},
+): PageViewModel<MemberGalleryNewContent> {
+  const listHref = `/members/${memberKey}/galleries`;
+  return {
+    seo: { title: 'Create Gallery' },
+    page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
+    content: {
+      formAction: listHref,
+      cancelHref: listHref,
+      errorMessage: opts.errorMessage ?? null,
+      fieldErrors: opts.fieldErrors,
+      gallery: opts.gallery ?? {
+        name: '',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTagsString: '',
+        excludeTagsString: '',
+      },
+      uploadTags: opts.uploadTags ?? '',
+      externalLinkSlots: buildExternalLinkSlots(
+        opts.externalLinks ?? null,
+        [],
+        opts.fieldErrors,
+      ),
+    },
+  };
+}
+
+export function getMemberGalleryEditPage(
+  memberKey: string,
+  galleryId: string,
+  input: {
+    gallery: CuratorGalleryFormFields;
+    currentItems: CuratorGalleryEditView['currentItems'];
+    currentItemsTruncated: boolean;
+    // Pre-fills the upload widget's tag input with the gallery's criteria as a
+    // suggestion. User-editable, and the user-supplied value is what gets
+    // applied to uploads; nothing is auto-stamped from it.
+    uploadTags: string;
+    externalLinkSlots: ExternalLinkSlot[];
+    errorMessage?: string;
+    fieldErrors?: Record<string, string>;
+  },
+): PageViewModel<MemberGalleryEditContent> {
+  return {
+    seo: { title: 'Edit Gallery' },
+    page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
+    content: {
+      formAction: `/members/${memberKey}/galleries/${galleryId}/edit`,
+      cancelHref: `/members/${memberKey}/galleries`,
+      uploadMediaHref: `/members/${memberKey}/media/upload`,
+      errorMessage: input.errorMessage ?? null,
+      fieldErrors: input.fieldErrors,
+      gallery: input.gallery,
+      currentItems: input.currentItems,
+      currentItemsTruncated: input.currentItemsTruncated,
+      uploadTags: input.uploadTags,
+      externalLinkSlots: input.externalLinkSlots,
+    },
+  };
+}
+
+/** Caps on the empty state's community examples and popular-tag chips. */
+const TEACHING_EXAMPLE_LIMIT = 6;
+const TEACHING_TAG_LIMIT = 8;
+
+/** One of the member's galleries as the list renders it. */
+export interface MemberGalleryListRow extends CuratorGallerySummary {
+  editHref: string;
+  deleteHref: string;
+  isConfirmDelete: boolean;
+}
+
+/**
+ * The empty state a member with no media is taught with: what other people
+ * have shared, and the tags to reach for.
+ */
+export interface MemberGalleryListTeaching {
+  exampleItems: GalleryItem[];
+  popularTags: TagChipShape[];
+  stats: HashtagStatsSummary;
+}
+
+export interface MemberGalleryListContent {
+  galleries: MemberGalleryListRow[];
+  listHref: string;
+  newGalleryHref: string | null;
+  uploadMediaHref: string | null;
+  benefitNotice: TierBenefitNotice | null;
+  teaching: MemberGalleryListTeaching | null;
+  savedMessage: string | null;
+  errorMessage: string | null;
+}
+
+function memberGalleryRows(
+  summaries: CuratorGallerySummary[],
+  memberKey: string,
+  confirmDeleteId: string | null,
+): MemberGalleryListRow[] {
+  return summaries.map((g) => ({
+    ...g,
+    editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
+    deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
+    // The default gallery cannot be deleted, so it never offers the
+    // confirmation step even when its id arrives in the query.
+    isConfirmDelete: confirmDeleteId !== null && g.id === confirmDeleteId && !g.isDefault,
+  }));
+}
+
+/**
+ * The member's own gallery list.
+ *
+ * This is the one media surface a member without the Tier 1 benefits still
+ * reaches, so it is where they learn what they no longer hold, and the notice
+ * decides the page: every write control leads to a form the gate would refuse,
+ * so where the notice is present the hrefs behind those controls are absent and
+ * nothing downstream can draw one.
+ *
+ * `readCommunityExamples` is taken as an input rather than called directly
+ * because the community browse shaping it performs belongs to the media
+ * service, which already reads this module. Passing the read in keeps that
+ * ownership boundary and the module graph intact, while the rule that decides
+ * WHETHER a member is taught at all stays here with the galleries it counts: no
+ * galleries means nothing has been uploaded, because the Personal Gallery
+ * materializes on first upload.
+ */
+export function getMemberGalleryListPage(
+  svc: CuratorMediaService,
+  input: {
+    memberKey: string;
+    memberId: string;
+    memberSlug: string;
+    confirmDeleteId: string | null;
+    savedFlag: 'create' | 'edit' | 'delete' | 'upload' | null;
+    readCommunityExamples: (limit: number, backHref: string) => GalleryItem[];
+  },
+): PageViewModel<MemberGalleryListContent> {
+  const { memberKey, memberId } = input;
+  const listHref = `/members/${memberKey}/galleries`;
+  const summaries = svc.listGalleriesForOwner(memberId);
+  const benefitNotice = hasTier1Benefits(memberId)
+    ? null
+    : buildTierBenefitNotice(input.memberSlug, 'media');
+  const teaching = summaries.length > 0 ? null : {
+    exampleItems: input.readCommunityExamples(TEACHING_EXAMPLE_LIMIT, listHref),
+    popularTags: hashtagDiscoveryService.getPopularTagsCommunityFirst(TEACHING_TAG_LIMIT),
+    stats: hashtagDiscoveryService.getCommunityHashtagSummary(),
+  };
+
+  return {
+    seo: { title: 'My Galleries' },
+    page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
+    content: {
+      galleries: memberGalleryRows(summaries, memberKey, input.confirmDeleteId),
+      listHref,
+      newGalleryHref: benefitNotice ? null : `${listHref}/new`,
+      uploadMediaHref: benefitNotice ? null : `/members/${memberKey}/media/upload`,
+      benefitNotice,
+      teaching,
+      // Pre-shaped so the template never branches on the raw flash code.
+      savedMessage: input.savedFlag === 'upload' ? 'Uploaded.' : input.savedFlag ? 'Saved.' : null,
+      errorMessage: null,
+    },
+  };
+}
+
+/**
+ * The same list re-rendered after a refused write.
+ *
+ * It carries the write controls whatever the tier gate would say now, because
+ * only a member holding the benefits can have attempted the write that failed,
+ * and it teaches nobody: a member who just tried to write is not in the empty
+ * state the teaching block is for.
+ */
+export function getMemberGalleryListErrorPage(
+  svc: CuratorMediaService,
+  input: {
+    memberKey: string;
+    memberId: string;
+    errorMessage: string;
+  },
+): PageViewModel<MemberGalleryListContent> {
+  const { memberKey } = input;
+  const listHref = `/members/${memberKey}/galleries`;
+  return {
+    seo: { title: 'My Galleries' },
+    page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
+    content: {
+      galleries: memberGalleryRows(svc.listGalleriesForOwner(input.memberId), memberKey, null),
+      listHref,
+      newGalleryHref: `${listHref}/new`,
+      uploadMediaHref: `/members/${memberKey}/media/upload`,
+      benefitNotice: null,
+      teaching: null,
+      savedMessage: null,
+      errorMessage: input.errorMessage,
+    },
+  };
 }

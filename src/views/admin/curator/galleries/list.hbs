@@ -1,5 +1,10 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Public named galleries owned by the FH/curator system account. Membership is computed
     at request time by tag-AND match against each gallery's criteria-tag set, minus any
@@ -12,70 +17,74 @@
   </p>
 
   <p>
-    <a href="/admin/curator/galleries/new" class="btn btn-primary">Create New Gallery</a>
+    <a href="{{content.newGalleryHref}}" class="btn btn-primary">Create New Gallery</a>
   </p>
 
-  {{#if savedFlag}}
+  {{#if content.savedFlag}}
     <div class="form-success-banner" role="status">
       Saved.
     </div>
   {{/if}}
 
-  {{#if emptyState}}
+  {{#if content.emptyState}}
     <p class="empty-state">No FH-owned named galleries yet. Use the Create button above, or run <code>python scripts/seed_fh_curator.py</code> to bootstrap from <code>/curated/galleries/*.json</code>.</p>
   {{else}}
-    <table class="curator-list">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Description</th>
-          <th>Sort order</th>
-          <th>Criteria tags</th>
-          <th>Exclude tags</th>
-          <th>Items</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each items}}
+    <div class="records-table-wrap">
+      <table class="data-table">
+        <thead>
           <tr>
-            <td><code>{{id}}</code></td>
-            <td>{{name}}</td>
-            <td>{{description}}</td>
-            <td><code>{{sortOrder}}</code></td>
-            <td>
-              {{#each criteriaTags}}
-                <code class="tag-chip">{{this}}</code>
-              {{/each}}
-            </td>
-            <td>
-              {{#each excludeTags}}
-                <code class="tag-chip">{{this}}</code>
-              {{else}}
-                <span class="text-muted">(none)</span>
-              {{/each}}
-            </td>
-            <td>{{itemCount}}</td>
-            <td>
-              <a href="/admin/curator/galleries/{{id}}/edit">Edit</a>
-              <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              {{#if isConfirmDelete}}
-                <form method="POST" action="/admin/curator/galleries/{{id}}/delete" class="inline-form">
-                  <input type="hidden" name="confirmed" value="1" />
-                  <span class="text-secondary">Are you sure?</span>
-                  <button type="submit" class="btn-link-danger">Confirm Delete</button>
-                  <a href="/admin/curator/galleries">Cancel</a>
-                </form>
-              {{else}}
-                <form method="POST" action="/admin/curator/galleries/{{id}}/delete" class="inline-form" data-confirm="Delete gallery {{id}}? This removes both the DB row and the JSON sidecar at /curated/galleries/&lt;slug&gt;.json on disk.">
-                  <button type="submit" class="btn-link-danger">Delete</button>
-                </form>
-              {{/if}}
-            </td>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Sort order</th>
+            <th>Criteria tags</th>
+            <th>Exclude tags</th>
+            <th>Items</th>
+            <th>Actions</th>
           </tr>
-        {{/each}}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {{#each content.items}}
+            <tr>
+              <td><code>{{id}}</code></td>
+              <td>{{name}}</td>
+              <td>{{description}}</td>
+              <td><code>{{sortOrder}}</code></td>
+              <td>
+                {{#each criteriaTags}}
+                  <code class="tag-chip">{{this}}</code>
+                {{/each}}
+              </td>
+              <td>
+                {{#if excludeTagsEmpty}}
+                  <span class="text-muted">(none)</span>
+                {{else}}
+                  {{#each excludeTags}}
+                    <code class="tag-chip">{{this}}</code>
+                  {{/each}}
+                {{/if}}
+              </td>
+              <td>{{itemCount}}</td>
+              <td>
+                <a href="{{editHref}}">Edit</a>
+                <a href="{{viewHref}}" target="_blank" rel="noopener noreferrer">View</a>
+                {{#if isConfirmDelete}}
+                  <form method="POST" action="{{deleteHref}}" class="inline-form">
+                    <input type="hidden" name="confirmed" value="1" />
+                    <span class="text-secondary">Are you sure?</span>
+                    <button type="submit" class="btn-link-danger">Confirm Delete</button>
+                    <a href="{{../content.listHref}}">Cancel</a>
+                  </form>
+                {{else}}
+                  <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete gallery {{id}}? This removes both the DB row and the JSON sidecar at /curated/galleries/&lt;slug&gt;.json on disk.">
+                    <button type="submit" class="btn-link-danger">Delete</button>
+                  </form>
+                {{/if}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
   {{/if}}
 </div>

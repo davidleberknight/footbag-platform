@@ -9,9 +9,22 @@ import {
   VIDEO_MAX_MB,
   POSTER_MAX_BYTES,
   isValidCategoryName,
-  buildExternalLinkSlots,
+  getCuratorUploadPage,
+  getCuratorMediaListPage,
+  getCuratorMediaEditPage,
+  getCuratorMediaEditErrorPage,
+  getCuratorMediaNotFoundPage,
+  getCuratorGalleryListPage,
+  getCuratorGalleryNewPage,
+  getCuratorGalleryEditPage,
+  getCuratorGalleryEditErrorPage,
+  getCuratorGalleryNotFoundPage,
+  getCuratorJobStatusPage,
+  getCuratorJobNotFoundPage,
+  curatorGalleryModerationView,
   type CuratorMediaEditInput,
-  type CuratorGalleryEditView,
+  type CuratorUploadFormValues,
+  type CuratorGalleryFormFields,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderInvalidRequest, renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
@@ -57,8 +70,6 @@ function posterExtFor(contentType: string): string {
   return 'bin';
 }
 
-const LIST_PAGE_SIZE = 50;
-
 function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
 }
@@ -83,21 +94,7 @@ const PER_FILE_LIMIT = VIDEO_MAX_BYTES;
 const OVERSIZED_FILE_MESSAGE =
   `File exceeded the maximum allowed size of ${VIDEO_MAX_MB} MB.`;
 
-interface FormValues {
-  mediaType?: string;
-  caption?: string;
-  tags?: string;
-  category?: string;
-  newCategory?: string;
-  videoUrl?: string;
-  videoPlatform?: string;
-  primarySlug?: string;
-  title?: string;
-  creator?: string;
-  sourceId?: string;
-  tier?: string;
-  externalUrl?: string;
-}
+type FormValues = CuratorUploadFormValues;
 
 function renderForm(
   res: Response,
@@ -108,28 +105,15 @@ function renderForm(
     savedFlag?: 'upload' | null;
   } = {},
 ): void {
-  // In S3 mode the form opts into the async sign + S3 PUT + finalize flow
-  // for video (browser PUTs bytes directly to S3, bypassing nginx). In local
-  // mode video uploads submit as standard multipart and the service writes
-  // the source bytes plus a sidecar to /curated/{category}/ so the upload
-  // survives DB and media-store wipes.
-  const asyncEnabled = config.mediaStorageAdapter === 's3';
-  res.render('admin/curator/upload', {
-    seo: { title: 'Upload Curated Media' },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media' },
-    errorMessage: opts.errorMessage,
-    formValues: opts.formValues ?? {},
-    existingCategories: opts.existingCategories ?? [],
-    savedFlag: opts.savedFlag ?? null,
-    asyncEnabled,
-    requireCategory: !asyncEnabled,
-    // The cap the page states and the cap the server applies are the same
-    // number by construction. The megabyte figure is what the label reads; the
-    // byte figure is what the browser-side check compares a chosen file
-    // against, so an oversized file is refused before any of it is sent.
-    videoMaxMb: VIDEO_MAX_MB,
-    videoMaxBytes: VIDEO_MAX_BYTES,
-  });
+  res.render(
+    'admin/curator/upload',
+    getCuratorUploadPage({
+      errorMessage: opts.errorMessage,
+      formValues: opts.formValues,
+      existingCategories: opts.existingCategories,
+      savedFlag: opts.savedFlag === 'upload',
+    }),
+  );
 }
 
 // Resolves the form's mutually-exclusive category fields into a single
@@ -536,70 +520,17 @@ export const adminCuratorController = {
       const savedFlagRaw = readMediaSavedFlag(req, res);
       const savedFlag = savedFlagRaw === 'edit' || savedFlagRaw === 'delete' ? savedFlagRaw : null;
 
-      const svc = buildSvc();
-      const result = svc.listMedia({ page, pageSize: LIST_PAGE_SIZE, tagFilter, sort });
-
-      const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
-      // Pagination links preserve both tag + sort.
-      const queryTail = (p: number): string => {
-        const parts = [`page=${p}`];
-        if (tagFilter) parts.push(`tag=${encodeURIComponent(tagFilter)}`);
-        if (sort !== 'date_desc') parts.push(`sort=${sort}`);
-        return '?' + parts.join('&');
-      };
-      const prevPageHref = result.page > 1
-        ? '/admin/curator/media' + queryTail(result.page - 1)
-        : null;
-      const nextPageHref = result.page < totalPages
-        ? '/admin/curator/media' + queryTail(result.page + 1)
-        : null;
-
-      // Per-column sort links for the view. Each link toggles to the next
-      // logical sort when clicked: clicking the active Uploaded column
-      // toggles desc <-> asc; the other columns reset to their canonical
-      // ascending sort. Tag filter is preserved.
-      const sortLinkBase = '/admin/curator/media';
-      const sortQuery = (s: string): string => {
-        const parts: string[] = [];
-        if (tagFilter) parts.push(`tag=${encodeURIComponent(tagFilter)}`);
-        if (s !== 'date_desc') parts.push(`sort=${s}`);
-        return parts.length === 0 ? sortLinkBase : `${sortLinkBase}?${parts.join('&')}`;
-      };
-      const sortLinks = {
-        date: sortQuery(sort === 'date_desc' ? 'date_asc' : 'date_desc'),
-        type: sortQuery('type_asc'),
-        caption: sortQuery('caption_asc'),
-      };
-      // Pre-shaped booleans so the template never branches on raw sort or
-      // flash codes.
-      const sortIndicator = {
-        dateDesc: sort === 'date_desc',
-        dateAsc: sort === 'date_asc',
-        type: sort === 'type_asc',
-        caption: sort === 'caption_asc',
-      };
-
       const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
-      res.render('admin/curator/list', {
-        seo: { title: 'Curated Media' },
-        page: { sectionKey: 'admin', pageKey: 'admin_curator_list', title: 'Curated Media' },
-        items: result.items.map((item) => ({
-          ...item,
-          isConfirmDelete: confirmDeleteId !== null && item.mediaId === confirmDeleteId,
-        })),
-        total: result.total,
-        currentPage: result.page,
-        totalPages,
-        tagFilter: tagFilter ?? '',
-        sort,
-        sortLinks,
-        sortIndicator,
-        prevPageHref,
-        nextPageHref,
-        emptyState: result.items.length === 0,
-        savedWasEdit: savedFlag === 'edit',
-        savedWasDelete: savedFlag === 'delete',
-      });
+      res.render(
+        'admin/curator/list',
+        getCuratorMediaListPage(buildSvc(), {
+          page,
+          tagFilter: tagFilter ?? null,
+          sort,
+          confirmDeleteId,
+          savedFlag,
+        }),
+      );
     } catch (err) {
       if (err instanceof ValidationError) {
         renderInvalidRequest(res, {
@@ -616,41 +547,12 @@ export const adminCuratorController = {
   async getEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const mediaId = req.params.id;
-      const svc = buildSvc();
-      const item = await svc.getMediaItem(mediaId);
-      if (!item) {
-        res.status(404).render('admin/curator/edit', {
-          seo: { title: 'Curated Media: Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Curated Media: Not Found' },
-          notFound: true,
-          mediaId,
-        });
+      const vm = await getCuratorMediaEditPage(buildSvc(), mediaId);
+      if (!vm) {
+        res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
         return;
       }
-      // Filter #curated from the editable tag display since it is auto-applied
-      // and cannot be edited; show user-meaningful tags only.
-      const editableTags = item.tags.filter((t) => t !== '#curated');
-      const isSidecarBacked = item.videoPlatform === 'youtube' || item.videoPlatform === 'vimeo';
-      res.render('admin/curator/edit', {
-        seo: { title: 'Edit Curated Media' },
-        page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Edit Curated Media' },
-        media: {
-          mediaId: item.mediaId,
-          mediaType: item.mediaType,
-          caption: item.caption ?? '',
-          tagsString: editableTags.join(' '),
-          thumbnailUrl: item.thumbnailUrl,
-          isSidecarBacked,
-          videoPlatform: item.videoPlatform,
-          videoUrl: item.videoUrl,
-          creator: item.creator ?? '',
-          sourceId: item.sourceId ?? '',
-          tier: item.tier ?? '',
-          startSeconds: item.startSeconds ?? '',
-          endSeconds: item.endSeconds ?? '',
-          externalUrl: item.externalUrl ?? '',
-        },
-      });
+      res.render('admin/curator/edit', vm);
     } catch (err) {
       next(err);
     }
@@ -693,27 +595,17 @@ export const adminCuratorController = {
         await svc.editMedia(editInput);
       } catch (err) {
         if (err instanceof NotFoundError) {
-          res.status(404).render('admin/curator/edit', {
-            seo: { title: 'Curated Media: Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Curated Media: Not Found' },
-            notFound: true,
-            mediaId,
-          });
+          res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
           return;
         }
         if (err instanceof ValidationError) {
-          res.status(422).render('admin/curator/edit', {
-            seo: { title: 'Edit Curated Media' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Edit Curated Media' },
-            errorMessage: err.message,
-            media: {
-              mediaId,
-              mediaType: 'photo' as const,
+          res.status(422).render(
+            'admin/curator/edit',
+            getCuratorMediaEditErrorPage(mediaId, err.message, {
               caption: req.body?.caption ?? '',
               tagsString: req.body?.tags ?? '',
-              thumbnailUrl: '',
-            },
-          });
+            }),
+          );
           return;
         }
         throw err;
@@ -730,18 +622,11 @@ export const adminCuratorController = {
     try {
       const savedFlag = readMediaSavedFlag(req, res);
       const svc = buildSvc();
-      const items = svc.listOwnedGalleries();
       const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
-      res.render('admin/curator/galleries/list', {
-        seo: { title: 'Curator Galleries' },
-        page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_list', title: 'Curator Galleries' },
-        items: items.map((item) => ({
-          ...item,
-          isConfirmDelete: confirmDeleteId !== null && item.id === confirmDeleteId,
-        })),
-        emptyState: items.length === 0,
-        savedFlag,
-      });
+      res.render(
+        'admin/curator/galleries/list',
+        getCuratorGalleryListPage(svc, { confirmDeleteId, savedFlag: savedFlag !== null }),
+      );
     } catch (err) {
       next(err);
     }
@@ -749,12 +634,7 @@ export const adminCuratorController = {
 
   /** GET /admin/curator/galleries/new — render new-gallery form. */
   getGalleryNew(req: Request, res: Response): void {
-    res.render('admin/curator/galleries/new', {
-      seo: { title: 'New Curator Gallery' },
-      page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_new', title: 'New Curator Gallery' },
-      formAction: '/admin/curator/galleries',
-      gallery: { idSlug: '', name: '', description: '', sortOrder: 'upload_desc', criteriaTagsString: '', excludeTagsString: '' },
-    });
+    res.render('admin/curator/galleries/new', getCuratorGalleryNewPage());
   },
 
   /** POST /admin/curator/galleries — create FH-owned gallery. */
@@ -783,20 +663,18 @@ export const adminCuratorController = {
         return;
       } catch (err) {
         if (err instanceof ValidationError || err instanceof ConflictError) {
-          res.status(422).render('admin/curator/galleries/new', {
-            seo: { title: 'New Curator Gallery' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_new', title: 'New Curator Gallery' },
-            formAction: '/admin/curator/galleries',
-            errorMessage: err.message,
-            gallery: {
-              idSlug: slug,
-              name,
-              description,
-              sortOrder: sortOrderRaw,
-              criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-              excludeTagsString: (req.body?.excludeTags ?? '') as string,
-            },
-          });
+          const gallery: CuratorGalleryFormFields = {
+            idSlug: slug,
+            name,
+            description,
+            sortOrder: sortOrderRaw,
+            criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
+            excludeTagsString: (req.body?.excludeTags ?? '') as string,
+          };
+          res.status(422).render(
+            'admin/curator/galleries/new',
+            getCuratorGalleryNewPage({ errorMessage: err.message, gallery }),
+          );
           return;
         }
         throw err;
@@ -812,38 +690,16 @@ export const adminCuratorController = {
       const galleryId = req.params.id;
       const svc = buildSvc();
       try {
-        const g = svc.getGalleryForEdit(galleryId);
-        const currentItems = g.currentItems;
-        const currentItemsTruncated = g.currentItemsTruncated;
-        const moderation = moderationViewFor(g, req.user!.userId);
-        const title = galleryEditTitle(moderation);
-        res.render('admin/curator/galleries/edit', {
-          seo: { title, noindex: true },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title },
-          formAction: `/admin/curator/galleries/${galleryId}/edit`,
-          gallery: {
-            id: g.id,
-            name: g.name,
-            description: g.description,
-            sortOrder: g.sortOrder,
-            criteriaTagsString: g.criteriaTags.join(' '),
-            excludeTagsString: g.excludeTags.join(' '),
-          },
-          currentItems,
-          currentItemsTruncated,
-          uploadTags: g.criteriaTags.join(' '),
-          externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
-          isFhOwned: g.isSystemOwned,
-          moderation,
-        });
+        res.render(
+          'admin/curator/galleries/edit',
+          getCuratorGalleryEditPage(svc, galleryId, req.user!.userId),
+        );
       } catch (err) {
         if (err instanceof NotFoundError) {
-          res.status(404).render('admin/curator/galleries/edit', {
-            seo: { title: 'Curator Gallery: Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
-            notFound: true,
-            galleryId,
-          });
+          res.status(404).render(
+            'admin/curator/galleries/edit',
+            getCuratorGalleryNotFoundPage(galleryId),
+          );
           return;
         }
         throw err;
@@ -891,12 +747,10 @@ export const adminCuratorController = {
         });
       } catch (err) {
         if (err instanceof NotFoundError) {
-          res.status(404).render('admin/curator/galleries/edit', {
-            seo: { title: 'Curator Gallery: Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
-            notFound: true,
-            galleryId,
-          });
+          res.status(404).render(
+            'admin/curator/galleries/edit',
+            getCuratorGalleryNotFoundPage(galleryId),
+          );
           return;
         }
         if (err instanceof ValidationError) {
@@ -944,12 +798,10 @@ export const adminCuratorController = {
         return;
       } catch (err) {
         if (err instanceof NotFoundError) {
-          res.status(404).render('admin/curator/galleries/edit', {
-            seo: { title: 'Curator Gallery: Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
-            notFound: true,
-            galleryId,
-          });
+          res.status(404).render(
+            'admin/curator/galleries/edit',
+            getCuratorGalleryNotFoundPage(galleryId),
+          );
           return;
         }
         throw err;
@@ -1193,33 +1045,10 @@ export const adminCuratorController = {
       const jobId = req.params.jobId;
       const job = getMediaJobService().getJobStatusForAdmin(jobId, adminMemberId);
       if (!job) {
-        res.status(404).render('admin/curator/job-status', {
-          seo: { title: 'Curator Upload: Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Curator Upload: Not Found' },
-          notFound: true,
-          jobId,
-        });
+        res.status(404).render('admin/curator/job-status', getCuratorJobNotFoundPage(jobId));
         return;
       }
-      res.render('admin/curator/job-status', {
-        seo: { title: 'Curator Upload Progress' },
-        page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Curator Upload Progress' },
-        job: {
-          id: job.id,
-          state: job.state,
-          mediaId: job.media_id,
-          errorMessage: job.last_error,
-          sourceFilename: job.source_filename,
-          caption: job.caption,
-          isPendingUpload: job.state === 'pending_upload',
-          isPendingTranscode: job.state === 'pending_transcode',
-          isProcessing: job.state === 'processing',
-          isSucceeded: job.state === 'succeeded',
-          isFailed: job.state === 'failed',
-          isAbandoned: job.state === 'abandoned',
-        },
-        eventsUrl: `/admin/curator/upload/jobs/${encodeURIComponent(job.id)}/events`,
-      });
+      res.render('admin/curator/job-status', getCuratorJobStatusPage(job));
     } catch (err) {
       next(err);
     }
@@ -1317,30 +1146,6 @@ interface CuratorGalleryEditErrorContext {
   reasonRaw?: string;
 }
 
-/**
- * The moderation banner and labels, or null when this is not moderation. A
- * gallery of Footbag Hacky's is the administrator's own to author, and an
- * administrator editing a gallery they own themselves is an owner like any
- * other member.
- */
-function moderationViewFor(
-  gallery: CuratorGalleryEditView,
-  actorMemberId: string,
-): { ownerDisplayName: string } | null {
-  if (gallery.isSystemOwned) return null;
-  if (gallery.ownerMemberId === actorMemberId) return null;
-  return { ownerDisplayName: gallery.ownerDisplayName };
-}
-
-/**
- * What this page is, in its own title. One URL serves two cohorts, and calling
- * the moderation of a member's own gallery "curation" contradicts the banner
- * printed directly beneath it.
- */
-function galleryEditTitle(moderation: { ownerDisplayName: string } | null): string {
-  return moderation ? "Moderate a Member's Gallery" : 'Edit Curator Gallery';
-}
-
 function renderCuratorGalleryEditError(
   res: Response,
   status: number,
@@ -1348,42 +1153,10 @@ function renderCuratorGalleryEditError(
   ctx: CuratorGalleryEditErrorContext,
   actorMemberId: string,
 ): void {
-  let currentItems: CuratorGalleryEditView['currentItems'] = [];
-  let currentItemsTruncated = false;
-  let isFhOwned = true;
-  let moderation: { ownerDisplayName: string } | null = null;
-  try {
-    const reread = buildSvc().getGalleryForEdit(ctx.galleryId);
-    currentItems = reread.currentItems;
-    currentItemsTruncated = reread.currentItemsTruncated;
-    isFhOwned = reread.isSystemOwned;
-    moderation = moderationViewFor(reread, actorMemberId);
-  } catch {
-    /* gallery may have been deleted concurrently; render with empty items */
-  }
-  const title = galleryEditTitle(moderation);
-  res.status(status).render('admin/curator/galleries/edit', {
-    seo: { title, noindex: true },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title },
-    formAction: `/admin/curator/galleries/${ctx.galleryId}/edit`,
-    errorMessage,
-    fieldErrors: ctx.fieldErrors,
-    gallery: {
-      id: ctx.galleryId,
-      name: ctx.name,
-      description: ctx.description,
-      sortOrder: ctx.sortOrderRaw,
-      criteriaTagsString: ctx.criteriaTagsRaw,
-      excludeTagsString: ctx.excludeTagsRaw,
-    },
-    currentItems,
-    currentItemsTruncated,
-    uploadTags: ctx.uploadTagsRaw,
-    externalLinkSlots: buildExternalLinkSlots(ctx.externalLinks, [], ctx.fieldErrors),
-    isFhOwned,
-    moderation,
-    reasonRaw: ctx.reasonRaw ?? '',
-  });
+  res.status(status).render(
+    'admin/curator/galleries/edit',
+    getCuratorGalleryEditErrorPage(buildSvc(), actorMemberId, errorMessage, ctx),
+  );
 }
 
 function handleCuratorGalleryEditMultipart(
@@ -1472,7 +1245,7 @@ async function executeCuratorGalleryEditMultipart(args: {
   if (photoFiles.length > 0) {
     try {
       const owner = svc.getGalleryForEdit(galleryId);
-      if (moderationViewFor(owner, actorMemberId)) {
+      if (curatorGalleryModerationView(owner, actorMemberId)) {
         renderCuratorGalleryEditError(
           res, 422,
           'Files cannot be added to a gallery that belongs to another member. '
@@ -1500,12 +1273,10 @@ async function executeCuratorGalleryEditMultipart(args: {
     });
   } catch (err) {
     if (err instanceof NotFoundError) {
-      res.status(404).render('admin/curator/galleries/edit', {
-        seo: { title: 'Curator Gallery: Not Found' },
-        page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
-        notFound: true,
-        galleryId,
-      });
+      res.status(404).render(
+        'admin/curator/galleries/edit',
+        getCuratorGalleryNotFoundPage(galleryId),
+      );
       return;
     }
     if (err instanceof ValidationError) {

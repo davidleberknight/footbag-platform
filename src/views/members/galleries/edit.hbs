@@ -1,6 +1,11 @@
 {{!-- Member's own gallery edit form. Owner-only view. --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Editing your gallery. Items appear here when they carry every
     <strong>criteria tag</strong> and no <strong>exclude tag</strong>.
@@ -8,16 +13,20 @@
   </p>
 
   <p>
-    Need to add new photos? <a href="{{uploadMediaHref}}">Upload more media</a>,
+    Need to add new photos? <a href="{{content.uploadMediaHref}}">Upload more media</a>,
     then return here to attach them to this gallery.
   </p>
 
   {{> gallery-edit-form
-      formAction=formAction
-      gallery=gallery
-      errorMessage=errorMessage
-      cancelHref=cancelHref
-      pickerItems=pickerItems
+      formAction=content.formAction
+      gallery=content.gallery
+      errorMessage=content.errorMessage
+      fieldErrors=content.fieldErrors
+      cancelHref=content.cancelHref
+      currentItems=content.currentItems
+      currentItemsTruncated=content.currentItemsTruncated
+      uploadTags=content.uploadTags
+      externalLinkSlots=content.externalLinkSlots
   }}
 </div>
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

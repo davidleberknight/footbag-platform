@@ -1,104 +1,109 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Curated media uploaded by the FH/curator system account.
-    Total: {{total}} item{{#unless (eq total 1)}}s{{/unless}}.
-    <a href="/admin/curator/upload">Upload new</a>.
+    Total: {{content.total}} {{content.totalNoun}}.
+    <a href="{{content.uploadHref}}">Upload new</a>.
   </p>
 
-  {{#if savedWasEdit}}
+  {{#if content.savedWasEdit}}
     <div class="form-success-banner" role="status">
       Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
       run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
     </div>
   {{/if}}
-  {{#if savedWasDelete}}
+  {{#if content.savedWasDelete}}
     <div class="form-success-banner" role="status">
       Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
       run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
     </div>
   {{/if}}
 
-  <form method="GET" action="/admin/curator/media" class="curator-list-filter">
-    <label>
-      Filter by tag:
-      <input type="text" name="tag" value="{{tagFilter}}" placeholder="#example_tag">
-    </label>
-    <button type="submit">Apply</button>
-    {{#if tagFilter}}
-      <a href="/admin/curator/media">Clear filter</a>
+  <form method="GET" action="{{content.listHref}}" class="curator-list-filter">
+    <label for="curator-list-tag">Filter by tag:</label>
+    <input type="text" id="curator-list-tag" name="tag" value="{{content.tagFilter}}" placeholder="#example_tag">
+    <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+    {{#if content.hasTagFilter}}
+      <a href="{{content.listHref}}">Clear filter</a>
     {{/if}}
   </form>
 
-  {{#if emptyState}}
+  {{#if content.emptyState}}
     <p class="empty-state">
-      {{#if tagFilter}}
-        No curated media match the tag <code>{{tagFilter}}</code>.
+      {{#if content.hasTagFilter}}
+        No curated media match the tag <code>{{content.tagFilter}}</code>.
       {{else}}
-        No curated media yet. <a href="/admin/curator/upload">Upload the first one</a>.
+        No curated media yet. <a href="{{content.uploadHref}}">Upload the first one</a>.
       {{/if}}
     </p>
   {{else}}
-    <table class="curator-list">
-      <thead>
-        <tr>
-          <th>Thumbnail</th>
-          <th>
-            <a href="{{sortLinks.type}}">Type</a>{{#if sortIndicator.type}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
-          </th>
-          <th>
-            <a href="{{sortLinks.caption}}">Caption</a>{{#if sortIndicator.caption}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
-          </th>
-          <th>Tags</th>
-          <th>
-            <a href="{{sortLinks.date}}">Uploaded</a>{{#if sortIndicator.dateDesc}} <span class="sort-indicator" aria-label="sorted descending">▼</span>{{/if}}{{#if sortIndicator.dateAsc}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
-          </th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each items}}
+    <div class="records-table-wrap">
+      <table class="data-table">
+        <thead>
           <tr>
-            <td>
-              {{#if thumbnailUrl}}
-                <img src="{{thumbnailUrl}}" alt="" class="curator-thumb" width="80" height="80">
-              {{/if}}
-            </td>
-            <td>{{mediaType}}</td>
-            <td>{{caption}}</td>
-            <td>
-              {{#each tags}}
-                <code class="tag-chip">{{this}}</code>
-              {{/each}}
-            </td>
-            <td>{{formatDate uploadedAt}}</td>
-            <td>
-              <a href="/admin/curator/media/{{mediaId}}/edit">Edit</a>
-              {{#if isConfirmDelete}}
-                <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form">
-                  <input type="hidden" name="confirmed" value="1" />
-                  <span class="text-secondary">Are you sure?</span>
-                  <button type="submit" class="btn-link-danger">Confirm Delete</button>
-                  <a href="/admin/curator/media">Cancel</a>
-                </form>
-              {{else}}
-                <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form" data-confirm="Permanently delete this curated media item? This cannot be undone.">
-                  <button type="submit" class="btn-link-danger">Delete</button>
-                </form>
-              {{/if}}
-            </td>
+            <th>Thumbnail</th>
+            <th>
+              <a href="{{content.sortLinks.type}}">Type</a>{{#if content.sortIndicator.type}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            </th>
+            <th>
+              <a href="{{content.sortLinks.caption}}">Caption</a>{{#if content.sortIndicator.caption}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            </th>
+            <th>Tags</th>
+            <th>
+              <a href="{{content.sortLinks.date}}">Uploaded</a>{{#if content.sortIndicator.dateDesc}} <span class="sort-indicator" aria-label="sorted descending">▼</span>{{/if}}{{#if content.sortIndicator.dateAsc}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            </th>
+            <th>Actions</th>
           </tr>
-        {{/each}}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {{#each content.items}}
+            <tr>
+              <td>
+                {{#if thumbnailUrl}}
+                  <img src="{{thumbnailUrl}}" alt="" class="curator-thumb" width="80" height="80">
+                {{/if}}
+              </td>
+              <td>{{mediaType}}</td>
+              <td>{{caption}}</td>
+              <td>
+                {{#each tags}}
+                  <code class="tag-chip">{{this}}</code>
+                {{/each}}
+              </td>
+              <td>{{formatDate uploadedAt}}</td>
+              <td>
+                <a href="/admin/curator/media/{{mediaId}}/edit">Edit</a>
+                {{#if isConfirmDelete}}
+                  <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form">
+                    <input type="hidden" name="confirmed" value="1" />
+                    <span class="text-secondary">Are you sure?</span>
+                    <button type="submit" class="btn-link-danger">Confirm Delete</button>
+                    <a href="{{../content.listHref}}">Cancel</a>
+                  </form>
+                {{else}}
+                  <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form" data-confirm="Permanently delete this curated media item? This cannot be undone.">
+                    <button type="submit" class="btn-link-danger">Delete</button>
+                  </form>
+                {{/if}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
 
     <nav class="curator-pagination">
-      Page {{currentPage}} of {{totalPages}}
-      {{#if prevPageHref}}
-        <a href="{{prevPageHref}}">&lsaquo; Previous</a>
+      Page {{content.currentPage}} of {{content.totalPages}}
+      {{#if content.prevPageHref}}
+        <a href="{{content.prevPageHref}}">&lsaquo; Previous</a>
       {{/if}}
-      {{#if nextPageHref}}
-        <a href="{{nextPageHref}}">Next &rsaquo;</a>
+      {{#if content.nextPageHref}}
+        <a href="{{content.nextPageHref}}">Next &rsaquo;</a>
       {{/if}}
     </nav>
   {{/if}}

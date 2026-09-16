@@ -17,7 +17,7 @@
     {{/if}}
 
     <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="freestyle-edit-form">
-      <fieldset>
+      <fieldset class="form-fieldset">
         <p><label>Canonical name</label><br><input type="text" name="canonicalName" value="{{content.fields.canonicalName}}" /></p>
         <p><label>ADD</label><br><input type="text" name="adds" value="{{content.fields.adds}}" /></p>
         <p><label>Movement notation</label><br><textarea name="movementNotation" rows="2">{{content.fields.movementNotation}}</textarea></p>
@@ -95,7 +95,7 @@
     {{else}}<p class="text-muted">No aliases.</p>{{/if}}
 
     <form method="POST" action="{{content.addAliasHref}}" class="freestyle-edit-form">
-      <fieldset>
+      <fieldset class="form-fieldset">
         <p><label>Add alias</label><br><input type="text" name="aliasText" value="{{content.aliasFormText}}" placeholder="Alias name" /></p>
         <p><label>Type</label><br>
           <select name="aliasType">
@@ -137,7 +137,7 @@
 
     {{#if content.hasUnlinkedSources}}
     <form method="POST" action="{{content.attachSourceHref}}" class="freestyle-edit-form">
-      <fieldset>
+      <fieldset class="form-fieldset">
         <p><label>Attach source</label><br>
           <select name="sourceId">
             <option value="">Choose a source</option>
@@ -171,7 +171,7 @@
     {{else}}<p class="text-muted">No modifier links.</p>{{/if}}
 
     <form method="POST" action="{{content.attachModifierHref}}" class="freestyle-edit-form">
-      <fieldset>
+      <fieldset class="form-fieldset">
         <p><label>Attach modifier</label><br>
           <select name="modifierSlug">
             <option value="">Choose a modifier</option>

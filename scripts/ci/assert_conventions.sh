@@ -329,22 +329,29 @@ if [ -n "$missing" ]; then
 fi
 fi
 
-# Rule: every static form-* class token in a template has a defining rule in
+# Rule: every static class token in a template has a defining rule in
 # src/public/css/style.css.
-# Reason: the project mandates one canonical form vocabulary and a hard rule
-# that no template uses an undefined CSS class. An undefined form-*
-# class renders unstyled in production while route tests still pass. This gate
-# scans class="..." attributes for tokens beginning with `form-`, skipping
-# Handlebars-interpolated tokens (containing `{` or `}`) and BEM modifier
-# tokens (containing `--`), and fails on any token style.css does not define.
-if check "undefined form-* classes in src/views/**" src/public/css/style.css src/views; then
-form_defined_file="$(mktemp)"
-# A stylesheet defining no form vocabulary at all is not this check's failure to
-# report: every template token is then undefined and the check below says so.
-# Without the tolerated exit, an empty match ends the entire run under pipefail.
-grep -oE '\.form-[a-zA-Z0-9_-]+' src/public/css/style.css | sed 's/^\.//' | sort -u > "$form_defined_file" || true
-form_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"' src/views/ \
-  | awk -v deffile="$form_defined_file" '
+# Reason: an undefined class fails nothing at build or test time and renders
+# silently unstyled in production while every route test passes, so eye and
+# review are the only things standing between it and a shipped page. Three
+# reached the tree while this check read `form-` tokens alone: a table class
+# with no base rule at all, rendering raw HTML tables beside styled ones; a
+# button variant defined only as a descendant of a bar the page did not have;
+# and a third consumer missed when the first was retired. The scan reads
+# class="..." attributes and skips two token shapes it cannot judge:
+# Handlebars-interpolated ones (containing `{` or `}`), whose value is not known
+# until render, and BEM modifiers (containing `--`), which are composed rather
+# than written whole into the stylesheet. It cannot catch an element that needs
+# a class to be styled at all, which is how a bare <fieldset> drew browser
+# chrome on six pages; that shape of defect is found by looking at the page.
+if check "undefined classes in src/views/**" src/public/css/style.css src/views; then
+css_defined_file="$(mktemp)"
+# A stylesheet defining no classes at all is not this check's failure to report:
+# every template token is then undefined and the check below says so. Without
+# the tolerated exit, an empty match ends the entire run under pipefail.
+grep -oE '\.[a-zA-Z][a-zA-Z0-9_-]*' src/public/css/style.css | sed 's/^\.//' | sort -u > "$css_defined_file" || true
+css_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"' src/views/ \
+  | awk -v deffile="$css_defined_file" '
       BEGIN { while ((getline c < deffile) > 0) defined[c] = 1 }
       {
         p = index($0, "class=\"")
@@ -353,18 +360,29 @@ form_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"' src/views/ \
         rest = substr($0, p + 7)
         q = index(rest, "\"")
         attr = substr(rest, 1, q - 1)
+        # A class attribute mixes literal names with Handlebars expressions, so
+        # reduce it to the literals before tokenising. Each span becomes a
+        # marker. A literal joined to a marker by a trailing hyphen is a prefix
+        # the value completes (`notation-{{kind}}`), never a class in itself, so
+        # it goes with the marker; the mirror case is a suffix. What survives is
+        # a whole literal name, including one written between a block open and
+        # its close, and those are checked.
+        gsub(/\{\{+[^{}]*\}\}+/, "\001", attr)
+        gsub(/[A-Za-z0-9_-]*-\001/, " ", attr)
+        gsub(/\001-[A-Za-z0-9_-]*/, " ", attr)
+        gsub(/\001/, " ", attr)
         n = split(attr, toks, /[ \t]+/)
         for (i = 1; i <= n; i++) {
           t = toks[i]
-          if (t ~ /^form-/ && t !~ /[{}]/ && t !~ /--/ && !(t in defined))
+          if (t != "" && t !~ /[{}]/ && t !~ /--/ && !(t in defined))
             print loc t
         }
       }
   ' || true)
-rm -f "$form_defined_file"
-if [ -n "$form_class_hits" ]; then
-  echo "$form_class_hits" >&2
-  echo "  FAIL: template uses a form-* class with no rule in src/public/css/style.css; define it there" >&2
+rm -f "$css_defined_file"
+if [ -n "$css_class_hits" ]; then
+  echo "$css_class_hits" >&2
+  echo "  FAIL: template uses a class with no rule in src/public/css/style.css; define it there" >&2
   violations=$((violations + 1))
 fi
 fi
@@ -779,6 +797,74 @@ for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_
   fi
 done
 unset _aws_var
+fi
+
+# Rule: the local runner's gates reach AWS only where they say they do, and the
+# terraform gate initializes into a throwaway data directory.
+# Reason: the same invariant as above, for the half of the tree the TypeScript
+# declaration cannot cover. `terraform init -backend=false` does not make an init
+# offline: it disables *configuring* a backend and uses whatever was previously
+# initialized instead, so in a tree where an operator has run `terraform init`
+# the gate loaded the S3 state backend and called STS on every local run. That
+# was invisible for months, because a passing credential check looks exactly like
+# no credential check, and it surfaced as the terraform gate failing on the day
+# the operator's access key stopped being accepted. Avoiding credentials is not
+# something a gate can be trusted to do; it is enforced here so a gate that
+# starts reaching AWS fails at once rather than passing wherever a key works.
+if check "the local runner isolates AWS credentials" run_all_tests.sh scripts/lib/aws-isolation.sh; then
+if ! grep -q 'source scripts/lib/aws-isolation.sh' run_all_tests.sh; then
+  echo "  FAIL: run_all_tests.sh must source scripts/lib/aws-isolation.sh" >&2
+  violations=$((violations + 1))
+fi
+for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_ACCESS_KEY_ID \
+                AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_EC2_METADATA_DISABLED; do
+  if ! grep -q "$_aws_var" scripts/lib/aws-isolation.sh; then
+    echo "  FAIL: scripts/lib/aws-isolation.sh no longer neutralises $_aws_var" >&2
+    violations=$((violations + 1))
+  fi
+done
+unset _aws_var
+# Every gate, not just the one that got this wrong. A check naming gate_terraform
+# would leave the next gate free to repeat it, and the next gate is exactly how
+# this arrived: the defect was written by someone following the rule of the day,
+# not by someone being careless. Bodies are read with comments stripped, so a
+# gate cannot describe an isolation it does not apply, and `command -v terraform`
+# is a presence guard rather than an invocation so it does not match.
+#
+# gate_smoke is the single declared exception, the same shape as the smoke opt-in
+# that exempts one tier on the TypeScript side: it is the operator-only live-AWS
+# suite, it says so, and it is the one gate whose purpose is to reach the estate.
+_gate_names="$(grep -oE '^gate_[a-z_]+\(\)' run_all_tests.sh | sed 's/()$//')"
+if [[ -z "$_gate_names" ]]; then
+  echo "  FAIL: no gate functions found in run_all_tests.sh; this check has stopped scanning" >&2
+  violations=$((violations + 1))
+fi
+# The verdict is taken from captured text, never from a pipeline into `grep -q`.
+# `grep -qv` exits 0 on empty input, so `<producer> | grep -qv PATTERN` reports a
+# violation for a gate that invokes nothing at all, and only `pipefail` masking
+# it with the producer's own exit status makes that composition appear to work.
+# A check whose correctness rests on that is the shape this repository has
+# already been bitten by once.
+for _gate in $_gate_names; do
+  [[ "$_gate" == "gate_smoke" ]] && continue
+  _body="$(sed -n "/^${_gate}()/,/^}/p" run_all_tests.sh | sed 's/#.*//')"
+  _calls="$(printf '%s\n' "$_body" \
+    | grep -E '(^|[;&|(]|&&)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(aws|terraform)[[:space:]]' || true)"
+  _unisolated="$(printf '%s' "$_calls" | grep -v 'aws_isolated_run' || true)"
+  if [[ -n "$_unisolated" ]]; then
+    echo "  FAIL: ${_gate} invokes aws or terraform outside aws_isolated_run; a gate that reaches AWS while presenting as local is green wherever a key happens to work" >&2
+    violations=$((violations + 1))
+  fi
+done
+unset _gate _gate_names _body _calls _unisolated
+# The terraform gate additionally has to redirect its data directory: without
+# that, -backend=false silently reuses the operator's initialized S3 backend,
+# which is the specific defect, and isolation alone would turn it into a hard
+# failure rather than preventing it.
+if ! sed -n '/^gate_terraform()/,/^}/p' run_all_tests.sh | sed 's/#.*//' | grep -q 'TF_DATA_DIR'; then
+  echo "  FAIL: gate_terraform must init into a throwaway TF_DATA_DIR; -backend=false alone reuses the operator's initialized S3 backend" >&2
+  violations=$((violations + 1))
+fi
 fi
 
 # Rule: the same setup denies every worker the rest of the machine it runs on.

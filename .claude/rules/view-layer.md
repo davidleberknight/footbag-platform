@@ -70,21 +70,37 @@ stacked sections, so adjacent blocks never butt together with a zero gap.
 
 ## Action hierarchy
 
-Every clickable control on a public page belongs to exactly one of six tiers, and the tier fixes the
-class. A control that fits no tier is a design question to raise, never a licence to mint a class.
+Every clickable control on a public page belongs to exactly one of seven tiers, and the tier fixes
+the class. A control that fits no tier is a design question to raise, never a licence to mint a
+class.
 
 | Tier | What it is | Class |
 |---|---|---|
 | Primary action | The one thing the page most wants the visitor to do | `.btn .btn-primary` |
 | Secondary action | A real action, subordinate to the primary one | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
+| Inline action | A state-changing control that reads as text because it sits in a table row, a list item, or a sentence | `.btn-link`; `.btn-link-danger` for a destructive one |
 | Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer | `.action-link` |
 | Prose link | An ordinary link inside running text | bare `<a>` |
 | Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token |
 | Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
 
+`.btn-sm` is a size modifier on the two button tiers, not a variant of its own; it changes the
+padding and type size and nothing else.
+
 The prominent-action-link tier exists because its absence is what produces one-off classes: a
 surface needing more weight than prose and less than a button will otherwise invent a local `*-cta`,
 `*-link`, or `*-deeplink`. There is one class for it, site-wide.
+
+The inline-action tier exists for the mirror case, and its absence had the same effect. A control
+that posts must be a `<button>`, but a delete inside a table row or a "Download My Data" inside a
+list item cannot carry a bordered button without putting enclosing chrome where the callout policy
+reserves it (DESIGN_DECISIONS §4.15). The tier carries no box, inherits the surrounding font, and
+takes a resting underline, because colour and a resting underline are what mark a control as a link
+(§4.14) and the underline is the cue a reader who cannot use the colour still gets. Both classes
+carry a visible focus ring: a control drawn as text has nothing else to show the keyboard where it
+is, and a change of underline is not a focus indicator. Which of the two a destructive control takes
+is decided by where it sits, not by which page it is on: inline in a row or a list, `.btn .btn-outline
+.btn-sm` when it stands alone.
 
 Three constraints bind every tier. No control appends a decorative arrow to its label, in template
 text or through a pseudo-element; colour, underline, and wording carry the affordance, and glyphs
@@ -144,10 +160,19 @@ their own way. A true community nickname renders inline beside the canonical nam
 `src/public/css/style.css` is the source of truth for class definitions; this rule names the
 discipline, not the enumeration.
 
-- Every class used in a template has a corresponding rule in `style.css` (a class counts as defined
-  when it appears in any selector, including a compound such as `.hero.hero-sm`). Before a template
-  change ships, grep `style.css` for each class introduced: an undefined class fails nothing at
-  build or test time and renders silently unstyled.
+- Every class used in a template has a corresponding rule in `style.css` that reaches it where it is
+  used. A compound such as `.hero.hero-sm` defines both parts; a descendant selector such as
+  `.filter-bar .btn-link` defines the class only inside that container, so the same class used
+  anywhere else is undefined and renders unstyled. A class that a template uses outside any
+  container that styles it needs a base rule of its own. Before a template change ships, grep
+  `style.css` for each class introduced and check what actually matches: an undefined class fails
+  nothing at build or test time and renders silently unstyled. The convention gate at
+  `scripts/ci/assert_conventions.sh` checks every static class token in a template against the
+  stylesheet, skipping only the parts of an attribute a Handlebars expression supplies.
+- An element that needs a class to be styled at all is the same failure wearing different clothes.
+  There is no bare `fieldset` rule, so a `<fieldset>` without `.form-fieldset` renders the browser's
+  own border and notched legend, which belongs to no surface on this site. Group form fields with
+  `.form-fieldset`.
 - Never invent a class by analogy with another framework (`btn-secondary` is a Bootstrap name, not
   ours). New classes are added to `style.css`.
 - The vocabulary is shared (required across all public pages) plus per-section (required only within

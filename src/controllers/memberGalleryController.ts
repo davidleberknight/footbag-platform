@@ -22,7 +22,17 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
-import { getDefaultCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX, buildExternalLinkSlots, type CuratorGalleryEditView } from '../services/curatorMediaService';
+import {
+  getDefaultCuratorMediaService,
+  PHOTO_MAX_BYTES,
+  UPLOADER_TAG_PREFIX,
+  buildExternalLinkSlots,
+  getMemberGalleryNewPage,
+  getMemberGalleryEditPage,
+  getMemberGalleryListPage,
+  getMemberGalleryListErrorPage,
+  type CuratorGalleryEditView,
+} from '../services/curatorMediaService';
 import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
@@ -30,16 +40,8 @@ import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCooki
 import { renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { mediaService } from '../services/mediaService';
-import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
-import { hasTier1Benefits } from '../services/tierPredicates';
-import { buildTierBenefitNotice } from '../services/tierBenefitNotice';
 
 type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
-
-// Caps for the no-media teaching empty state (recent community examples and
-// the seed-padded popular-tag chips).
-const TEACHING_EXAMPLE_LIMIT = 6;
-const TEACHING_TAG_LIMIT = 8;
 
 function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
   const flash = readFlash(req);
@@ -98,35 +100,11 @@ function renderListWithError(
   status: number,
   errorMessage: string,
 ): void {
-  const memberKey = req.params.memberKey;
-  const memberId = req.user!.userId;
-  const svc = buildSvc();
-  const summaries = svc.listGalleriesForOwner(memberId);
-  const galleries = summaries.map((g) => ({
-    id: g.id,
-    name: g.name,
-    description: g.description,
-    sortOrder: g.sortOrder,
-    criteriaTags: g.criteriaTags,
-    excludeTags: g.excludeTags,
-    itemCount: g.itemCount,
-    editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
-    deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
-    isDefault: g.isDefault,
+  res.status(status).render('members/galleries/list', getMemberGalleryListErrorPage(buildSvc(), {
+    memberKey: req.params.memberKey,
+    memberId: req.user!.userId,
+    errorMessage,
   }));
-  res.status(status).render('members/galleries/list', {
-    seo: { title: 'My Galleries' },
-    page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
-    content: {
-      galleries,
-      newGalleryHref: `/members/${memberKey}/galleries/new`,
-      uploadMediaHref: `/members/${memberKey}/media/upload`,
-      // This path re-renders a failed write, which only a member holding the
-      // benefits can have attempted, so the controls belong on the page.
-      benefitNotice: null,
-      errorMessage,
-    },
-  });
 }
 
 export const memberGalleryController = {
@@ -137,57 +115,17 @@ export const memberGalleryController = {
       return;
     }
     try {
-      const memberKey = req.params.memberKey;
-      const memberId = req.user!.userId;
-      const svc = buildSvc();
-      const summaries = svc.listGalleriesForOwner(memberId);
-      // The one surface a member without the benefits still reaches, so it is
-      // where they learn what they no longer hold. Its presence is also what
-      // decides whether the page renders write controls at all: every one of
-      // them leads to a form the gate would refuse.
-      const benefitNotice = hasTier1Benefits(memberId)
-        ? null
-        : buildTierBenefitNotice(req.user!.slug, 'media');
-      const savedFlag = readMediaSavedFlag(req, res);
-      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
-      const galleries = summaries.map((g) => ({
-        id: g.id,
-        name: g.name,
-        description: g.description,
-        sortOrder: g.sortOrder,
-        criteriaTags: g.criteriaTags,
-        excludeTags: g.excludeTags,
-        itemCount: g.itemCount,
-        editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
-        deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
-        isDefault: g.isDefault,
-        isConfirmDelete: confirmDeleteId !== null && g.id === confirmDeleteId && !g.isDefault,
+      res.render('members/galleries/list', getMemberGalleryListPage(buildSvc(), {
+        memberKey: req.params.memberKey,
+        memberId: req.user!.userId,
+        memberSlug: req.user!.slug,
+        confirmDeleteId: typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null,
+        savedFlag: readMediaSavedFlag(req, res),
+        // The community examples the empty state teaches with are the media
+        // service's to read; the builder decides whether the page asks for them.
+        readCommunityExamples: (limit, backHref) =>
+          mediaService.listRecentCommunityMedia(limit, backHref),
       }));
-      // No galleries means the member has uploaded nothing yet (the Personal
-      // Gallery materializes on first upload), so this is the no-media state:
-      // attach the teaching content. Skipped entirely once any gallery exists.
-      const teaching = summaries.length > 0 ? null : {
-        exampleItems: mediaService.listRecentCommunityMedia(TEACHING_EXAMPLE_LIMIT, listHref(memberKey)),
-        popularTags: hashtagDiscoveryService.getPopularTagsCommunityFirst(TEACHING_TAG_LIMIT),
-        stats: hashtagDiscoveryService.getCommunityHashtagSummary(),
-      };
-      res.render('members/galleries/list', {
-        seo: { title: 'My Galleries' },
-        page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
-        content: {
-          galleries,
-          listHref: listHref(memberKey),
-          // No href for a form the member cannot open, so nothing downstream
-          // can render a control that leads to a refusal.
-          newGalleryHref: benefitNotice ? null : `/members/${memberKey}/galleries/new`,
-          uploadMediaHref: benefitNotice ? null : `/members/${memberKey}/media/upload`,
-          benefitNotice,
-          teaching,
-          // Pre-shaped flash message so the template never branches on the
-          // raw flash code.
-          savedMessage: savedFlag === 'upload' ? 'Uploaded.' : savedFlag ? 'Saved.' : null,
-        },
-      });
     } catch (err) {
       logger.error('member gallery list error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
@@ -201,15 +139,7 @@ export const memberGalleryController = {
       return;
     }
     const memberKey = req.params.memberKey;
-    res.render('members/galleries/new', {
-      seo: { title: 'Create Gallery' },
-      page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
-      formAction: listHref(memberKey),
-      gallery: { name: '', description: '', sortOrder: 'upload_desc', criteriaTagsString: '', excludeTagsString: '' },
-      cancelHref: listHref(memberKey),
-      uploadTags: '',
-      externalLinkSlots: buildExternalLinkSlots(null, []),
-    });
+    res.render('members/galleries/new', getMemberGalleryNewPage(memberKey));
   },
 
   /** POST /members/:memberKey/galleries — create a new gallery (form-encoded
@@ -257,23 +187,21 @@ export const memberGalleryController = {
             res.setHeader('Retry-After', String(err.retryAfterSeconds));
           }
           const fieldErrors = err instanceof ValidationError ? err.fieldErrors : undefined;
-          res.status(err instanceof RateLimitedError ? 429 : 422).render('members/galleries/new', {
-            seo: { title: 'Create Gallery' },
-            page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
-            formAction: listHref(memberKey),
-            errorMessage: err.message,
-            fieldErrors,
-            gallery: {
-              name,
-              description,
-              sortOrder: sortOrderRaw,
-              criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-              excludeTagsString: (req.body?.excludeTags ?? '') as string,
-            },
-            cancelHref: listHref(memberKey),
-            uploadTags: '',
-            externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
-          });
+          res.status(err instanceof RateLimitedError ? 429 : 422).render(
+            'members/galleries/new',
+            getMemberGalleryNewPage(memberKey, {
+              errorMessage: err.message,
+              fieldErrors,
+              gallery: {
+                name,
+                description,
+                sortOrder: sortOrderRaw,
+                criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
+                excludeTagsString: (req.body?.excludeTags ?? '') as string,
+              },
+              externalLinks,
+            }),
+          );
           return;
         }
         throw err;
@@ -300,31 +228,24 @@ export const memberGalleryController = {
         // exists but is not owned by the requesting member — matches
         // the anti-enumeration convention of the rest of /members/.
         const g = svc.getGalleryForEdit(galleryId, memberId, { memberKey });
-        const currentItems = g.currentItems;
-        const currentItemsTruncated = g.currentItemsTruncated;
-        res.render('members/galleries/edit', {
-          seo: { title: 'Edit Gallery' },
-          page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
-          formAction: `/members/${memberKey}/galleries/${galleryId}/edit`,
-          gallery: {
-            id: g.id,
-            name: g.name,
-            description: g.description,
-            sortOrder: g.sortOrder,
-            criteriaTagsString: g.criteriaTagsDisplayString,
-            excludeTagsString: g.excludeTags.join(' '),
-            isDefault: g.isDefault,
-          },
-          cancelHref: listHref(memberKey),
-          uploadMediaHref: `/members/${memberKey}/media/upload`,
-          currentItems,
-          currentItemsTruncated,
-          // Pre-fill the upload widget's tag input with the gallery's
-          // criteria as a suggestion. User-editable; user-supplied value
-          // is what gets applied to uploads (no auto-stamping).
-          uploadTags: g.criteriaTagsDisplayString,
-          externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
-        });
+        res.render(
+          'members/galleries/edit',
+          getMemberGalleryEditPage(memberKey, galleryId, {
+            gallery: {
+              id: g.id,
+              name: g.name,
+              description: g.description,
+              sortOrder: g.sortOrder,
+              criteriaTagsString: g.criteriaTagsDisplayString,
+              excludeTagsString: g.excludeTags.join(' '),
+              isDefault: g.isDefault,
+            },
+            currentItems: g.currentItems,
+            currentItemsTruncated: g.currentItemsTruncated,
+            uploadTags: g.criteriaTagsDisplayString,
+            externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
+          }),
+        );
       } catch (err) {
         if (err instanceof NotFoundError) {
           renderNotFound(res);
@@ -385,27 +306,25 @@ export const memberGalleryController = {
           const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
           const currentItems = reread.currentItems;
           const currentItemsTruncated = reread.currentItemsTruncated;
-          res.status(422).render('members/galleries/edit', {
-            seo: { title: 'Edit Gallery' },
-            page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
-            formAction: `/members/${memberKey}/galleries/${galleryId}/edit`,
-            errorMessage: err.message,
-            fieldErrors: err.fieldErrors,
-            gallery: {
-              id: galleryId,
-              name,
-              description,
-              sortOrder: sortOrderRaw,
-              criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-              excludeTagsString: (req.body?.excludeTags ?? '') as string,
-            },
-            cancelHref: listHref(memberKey),
-            uploadMediaHref: `/members/${memberKey}/media/upload`,
-            currentItems,
-            currentItemsTruncated,
-            uploadTags: (req.body?.uploadTags ?? '') as string,
-            externalLinkSlots: buildExternalLinkSlots(externalLinks, [], err.fieldErrors),
-          });
+          res.status(422).render(
+            'members/galleries/edit',
+            getMemberGalleryEditPage(memberKey, galleryId, {
+              errorMessage: err.message,
+              fieldErrors: err.fieldErrors,
+              gallery: {
+                id: galleryId,
+                name,
+                description,
+                sortOrder: sortOrderRaw,
+                criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
+                excludeTagsString: (req.body?.excludeTags ?? '') as string,
+              },
+              currentItems,
+              currentItemsTruncated,
+              uploadTags: (req.body?.uploadTags ?? '') as string,
+              externalLinkSlots: buildExternalLinkSlots(externalLinks, [], err.fieldErrors),
+            }),
+          );
           return;
         }
         if (err instanceof RateLimitedError) {
@@ -571,23 +490,22 @@ async function executeMultipartCreate(args: {
     errorMessage: string,
     fieldErrors?: Record<string, string>,
   ): void {
-    res.status(status).render('members/galleries/new', {
-      seo: { title: 'Create Gallery' },
-      page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
-      formAction: listHref(memberKey),
-      errorMessage,
-      fieldErrors,
-      gallery: {
-        name,
-        description,
-        sortOrder: sortOrderRaw,
-        criteriaTagsString: fields.criteriaTags ?? '',
-        excludeTagsString: fields.excludeTags ?? '',
-      },
-      cancelHref: listHref(memberKey),
-      uploadTags: uploadTagsRaw,
-      externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
-    });
+    res.status(status).render(
+      'members/galleries/new',
+      getMemberGalleryNewPage(memberKey, {
+        errorMessage,
+        fieldErrors,
+        gallery: {
+          name,
+          description,
+          sortOrder: sortOrderRaw,
+          criteriaTagsString: fields.criteriaTags ?? '',
+          excludeTagsString: fields.excludeTags ?? '',
+        },
+        uploadTags: uploadTagsRaw,
+        externalLinks,
+      }),
+    );
   }
 
   if (limitExceeded) {
@@ -713,28 +631,26 @@ async function executeMultipartUpdate(args: {
     } catch {
       /* gallery may have been deleted concurrently; render with empty items */
     }
-    res.status(status).render('members/galleries/edit', {
-      seo: { title: 'Edit Gallery' },
-      page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
-      formAction: `/members/${memberKey}/galleries/${galleryId}/edit`,
-      errorMessage,
-      fieldErrors,
-      gallery: {
-        id: galleryId,
-        name,
-        description,
-        sortOrder: sortOrderRaw,
-        criteriaTagsString: fields.criteriaTags ?? '',
-        excludeTagsString: fields.excludeTags ?? '',
-        isDefault,
-      },
-      cancelHref: listHref(memberKey),
-      uploadMediaHref: `/members/${memberKey}/media/upload`,
-      currentItems,
-      currentItemsTruncated,
-      uploadTags: uploadTagsRaw,
-      externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
-    });
+    res.status(status).render(
+      'members/galleries/edit',
+      getMemberGalleryEditPage(memberKey, galleryId, {
+        errorMessage,
+        fieldErrors,
+        gallery: {
+          id: galleryId,
+          name,
+          description,
+          sortOrder: sortOrderRaw,
+          criteriaTagsString: fields.criteriaTags ?? '',
+          excludeTagsString: fields.excludeTags ?? '',
+          isDefault,
+        },
+        currentItems,
+        currentItemsTruncated,
+        uploadTags: uploadTagsRaw,
+        externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
+      }),
+    );
   }
 
   if (limitExceeded) {

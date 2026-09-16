@@ -4,58 +4,66 @@
      Target: SSE updates the [data-state] block from the data-events-url
        hook (admin-curator-job-status.js) so the status surface refreshes
        without operator action. --}}
-<div class="wrapper">
-  <h1>{{page.title}}</h1>
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
 
-  {{#if notFound}}
+<div class="wrapper">
+  {{#if content.notFound}}
     <p class="form-error-banner" role="alert">
-      No curator upload job with id <code>{{jobId}}</code> exists, or it
+      No curator upload job with id <code>{{content.jobId}}</code> exists, or it
       belongs to a different admin.
     </p>
-    <p><a href="/admin/curator/upload">Back to upload</a></p>
+    <p><a href="{{content.uploadHref}}">Back to upload</a></p>
   {{else}}
-    <dl>
-      <dt>Job</dt><dd><code>{{job.id}}</code></dd>
-      {{#if job.sourceFilename}}<dt>File</dt><dd>{{job.sourceFilename}}</dd>{{/if}}
-      {{#if job.caption}}<dt>Caption</dt><dd>{{job.caption}}</dd>{{/if}}
-    </dl>
+    <section>
+      <div class="section-heading"><h2>Upload Details</h2></div>
+      <dl class="trick-structural-facts-list">
+        <dt>Job</dt><dd><code>{{content.job.id}}</code></dd>
+        {{#if content.job.sourceFilename}}<dt>File</dt><dd>{{content.job.sourceFilename}}</dd>{{/if}}
+        {{#if content.job.caption}}<dt>Caption</dt><dd>{{content.job.caption}}</dd>{{/if}}
+      </dl>
+    </section>
 
-    <section data-job-status data-state="{{job.state}}">
-      {{#if job.isPendingUpload}}
+    <section data-job-status data-state="{{content.job.state}}">
+      <div class="section-heading"><h2>Progress</h2></div>
+      {{#if content.job.isPendingUpload}}
         <p>Waiting for the browser to finish uploading source bytes to S3.</p>
       {{/if}}
-      {{#if job.isPendingTranscode}}
+      {{#if content.job.isPendingTranscode}}
         <p>Upload complete. Waiting for the worker to start transcoding.</p>
       {{/if}}
-      {{#if job.isProcessing}}
+      {{#if content.job.isProcessing}}
         <p>Transcoding now. This usually takes one to three minutes for a typical curator clip.</p>
       {{/if}}
-      {{#if job.isSucceeded}}
+      {{#if content.job.isSucceeded}}
         <p class="form-success-banner" role="status">
           Transcode succeeded.
-          {{#if job.mediaId}}
-            <a href="/admin/curator/media/{{job.mediaId}}/edit">Open the new media item.</a>
+          {{#if content.job.mediaEditHref}}
+            <a href="{{content.job.mediaEditHref}}">Open the new media item.</a>
           {{/if}}
         </p>
       {{/if}}
-      {{#if job.isFailed}}
+      {{#if content.job.isFailed}}
         <p class="form-error-banner" role="alert">
-          Transcode failed{{#if job.errorMessage}}: {{job.errorMessage}}{{/if}}.
+          Transcode failed{{#if content.job.errorMessage}}: {{content.job.errorMessage}}{{/if}}.
           Re-upload the file to try again.
         </p>
-        <p><a href="/admin/curator/upload">Back to upload</a></p>
+        <p><a href="{{content.uploadHref}}">Back to upload</a></p>
       {{/if}}
-      {{#if job.isAbandoned}}
+      {{#if content.job.isAbandoned}}
         <p class="form-error-banner" role="alert">
           The upload session expired before finalizing. Re-upload to try again.
         </p>
-        <p><a href="/admin/curator/upload">Back to upload</a></p>
+        <p><a href="{{content.uploadHref}}">Back to upload</a></p>
       {{/if}}
     </section>
 
     {{!-- SSE events URL exposed for the client JS hook. Without JS the page
          still shows the server-rendered current state; refresh to re-poll. --}}
-    <div data-events-url="{{eventsUrl}}" hidden></div>
+    <div data-events-url="{{content.eventsUrl}}" hidden></div>
   {{/if}}
 </div>
 

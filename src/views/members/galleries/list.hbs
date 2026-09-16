@@ -1,6 +1,11 @@
 {{!-- Member's own named-gallery list. Owner-only view. --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Your media collections. A gallery is a saved view of your photos and videos
     that match a set of hashtags. Items appear when they carry every required
@@ -12,22 +17,21 @@
   {{else}}
     <p>
       <a href="{{content.uploadMediaHref}}" class="btn btn-primary">Upload Media</a>
-      <a href="{{content.newGalleryHref}}" class="btn">Create New Gallery</a>
+      <a href="{{content.newGalleryHref}}" class="btn btn-outline">Create New Gallery</a>
     </p>
   {{/if}}
 
-  {{#if content.savedMessage}}
-    <div class="form-success-banner" role="status">
-      {{content.savedMessage}}
-    </div>
-  {{/if}}
+  {{! A write this page refused states why here. Without it the list simply
+      re-appears and the member is left to guess what happened. }}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+  {{> outcome-notice text=content.savedMessage tone='ok'}}
 
   {{#if content.galleries.length}}
     {{! Seven columns including two tag lists and the row actions. Scrolls
         inside its own container so the page body never does, and so the
         controls at the end of each row stay reachable at phone width. }}
     <div class="records-table-wrap">
-    <table class="curator-list">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Name</th>

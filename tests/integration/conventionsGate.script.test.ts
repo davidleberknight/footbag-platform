@@ -165,7 +165,7 @@ describe('the convention gate: rules about templates and the stylesheet', () => 
       'src/views/page.hbs': '<div class="form-unknown">hello</div>\n',
     });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain('form-* class with no rule');
+    expect(res.stderr).toContain('class with no rule');
     expect(res.stderr).toContain('form-unknown');
   });
 
@@ -175,7 +175,43 @@ describe('the convention gate: rules about templates and the stylesheet', () => 
       'src/views/page.hbs': '<div class="form-known">hello</div>\n',
     });
     expect(res.exitCode, res.stderr).toBe(0);
-    expectCheckRan(res, 'undefined form-* classes in src/views/**');
+    expectCheckRan(res, 'undefined classes in src/views/**');
+  });
+
+  it('refuses an undefined class that carries no form prefix', () => {
+    // The check reads every class token, not one prefix. A table class with no
+    // rule and a button variant defined only under some other container both
+    // reached production while the scan looked at `form-` alone, and an
+    // undefined class renders silently unstyled with every route test green.
+    const res = inFixtureRepo({
+      'src/public/css/style.css': PLAIN_CSS,
+      'src/views/page.hbs': '<table class="roster-table">hello</table>\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('roster-table');
+  });
+
+  it('accepts a literal prefix the template completes with a template expression', () => {
+    // `page-{{section}}` is a prefix a value completes, never a class in itself,
+    // so the scan must not read the literal half as an undefined class. The
+    // literal names around the expression are still real tokens: `form-known`
+    // here is defined, and the case below proves an undefined one is caught.
+    const res = inFixtureRepo({
+      'src/public/css/style.css': PLAIN_CSS,
+      'src/views/page.hbs': '<div class="form-known page-{{currentSection}}">hi</div>\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'undefined classes in src/views/**');
+  });
+
+  it('still reads a whole literal class sitting beside a template expression', () => {
+    const res = inFixtureRepo({
+      'src/public/css/style.css': PLAIN_CSS,
+      'src/views/page.hbs':
+        '<div class="form-known{{#if wide}} roster-wide{{/if}}">hi</div>\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('roster-wide');
   });
 
   it('reports a form class against a stylesheet defining no form vocabulary at all', () => {

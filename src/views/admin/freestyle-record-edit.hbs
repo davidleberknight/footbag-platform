@@ -22,7 +22,7 @@
     {{/if}}
 
     <form method="POST" action="{{content.formAction}}" class="freestyle-edit-form">
-      <fieldset>
+      <fieldset class="form-fieldset">
         <p><label>Record type</label><br>
           <select name="recordType">
             {{#each content.recordTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}

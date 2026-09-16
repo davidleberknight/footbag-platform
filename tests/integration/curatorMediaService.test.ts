@@ -2288,6 +2288,191 @@ describe('curatorMediaService.listGalleriesForOwner', () => {
   });
 });
 
+describe('the member gallery list page contract', () => {
+  /**
+   * The list is the one media surface a member without the benefits still
+   * reaches, and the page it gets is decided here rather than in the template:
+   * where the notice is present the hrefs behind the write controls are absent,
+   * so no later reader of this model can draw a control that leads to a form
+   * the gate would refuse. The template happens to branch on the notice today,
+   * which is why the absent hrefs have to be asserted on the model itself.
+   */
+  function pageFor(memberId: string, slug: string) {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    return svcModule.getMemberGalleryListPage(svc, {
+      memberKey: slug,
+      memberId,
+      memberSlug: slug,
+      confirmDeleteId: null,
+      savedFlag: null,
+      readCommunityExamples: () => [],
+    });
+  }
+
+  function seedMember(memberId: string, slug: string, tier: 'tier0' | 'tier1'): void {
+    const db = openDb();
+    insertMember(db, { id: memberId, slug, login_email: `${slug}@example.com` });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: tier });
+    db.close();
+  }
+
+  it('offers neither write href to a member who no longer holds the benefits', () => {
+    seedMember('member-gal-page-t0', 'gal_page_t0', 'tier0');
+
+    const page = pageFor('member-gal-page-t0', 'gal_page_t0');
+
+    expect(page.content.benefitNotice).not.toBeNull();
+    expect(page.content.newGalleryHref).toBeNull();
+    expect(page.content.uploadMediaHref).toBeNull();
+    // The list itself stays open: the member keeps the read they came for.
+    expect(page.content.listHref).toBe('/members/gal_page_t0/galleries');
+  });
+
+  it('offers both write hrefs, and no notice, to a member who holds them', () => {
+    seedMember('member-gal-page-t1', 'gal_page_t1', 'tier1');
+
+    const page = pageFor('member-gal-page-t1', 'gal_page_t1');
+
+    expect(page.content.benefitNotice).toBeNull();
+    expect(page.content.newGalleryHref).toBe('/members/gal_page_t1/galleries/new');
+    expect(page.content.uploadMediaHref).toBe('/members/gal_page_t1/media/upload');
+  });
+
+  it('puts one named gallery into the delete-confirmation state, and no other', () => {
+    const memberId = 'member-gal-page-confirm';
+    const target = 'gallery_m_confirm_one';
+    const bystander = 'gallery_m_confirm_two';
+    seedMember(memberId, 'gal_page_confirm', 'tier1');
+    const db = openDb();
+    for (const [id, name] of [[target, 'Alpha'], [bystander, 'Bravo']] as const) {
+      insertMemberGallery(db, {
+        id, owner_member_id: memberId, name, description: '',
+        sort_order: 'upload_desc', created_at: '2026-04-04T00:00:00Z', created_by: memberId,
+      });
+    }
+    db.close();
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    const page = svcModule.getMemberGalleryListPage(svc, {
+      memberKey: 'gal_page_confirm',
+      memberId,
+      memberSlug: 'gal_page_confirm',
+      confirmDeleteId: target,
+      savedFlag: null,
+      readCommunityExamples: () => [],
+    });
+
+    const confirming = page.content.galleries.filter((g) => g.isConfirmDelete);
+    expect(confirming.map((g) => g.id)).toEqual([target]);
+    expect(page.content.galleries.find((g) => g.id === bystander)!.deleteHref)
+      .toBe(`/members/gal_page_confirm/galleries/${bystander}/delete`);
+  });
+
+  it('refuses the confirmation to the gallery that was created for the member', () => {
+    // The Personal Gallery cannot be deleted, so it never offers the step that
+    // leads there, whatever arrives in the query.
+    const memberId = 'member-gal-page-default';
+    const defaultId = 'gallery_m_default_one';
+    seedMember(memberId, 'gal_page_default', 'tier1');
+    const db = openDb();
+    insertMemberGallery(db, {
+      id: defaultId, owner_member_id: memberId, name: 'Personal Gallery', description: '',
+      sort_order: 'upload_desc', created_at: '2026-04-04T00:00:00Z', created_by: memberId,
+      is_default: 1,
+    });
+    db.close();
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    const page = svcModule.getMemberGalleryListPage(svc, {
+      memberKey: 'gal_page_default',
+      memberId,
+      memberSlug: 'gal_page_default',
+      confirmDeleteId: defaultId,
+      savedFlag: null,
+      readCommunityExamples: () => [],
+    });
+
+    const row = page.content.galleries.find((g) => g.id === defaultId)!;
+    expect(row.isDefault).toBe(true);
+    expect(row.isConfirmDelete).toBe(false);
+  });
+
+  it('teaches only the member who has uploaded nothing', () => {
+    const emptyMember = 'member-gal-page-empty';
+    const stockedMember = 'member-gal-page-stocked';
+    seedMember(emptyMember, 'gal_page_empty', 'tier1');
+    seedMember(stockedMember, 'gal_page_stocked', 'tier1');
+    const db = openDb();
+    insertMemberGallery(db, {
+      id: 'gallery_m_stocked_one', owner_member_id: stockedMember, name: 'Alpha', description: '',
+      sort_order: 'upload_desc', created_at: '2026-04-04T00:00:00Z', created_by: stockedMember,
+    });
+    db.close();
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    const build = (memberId: string, slug: string, calls: string[]) =>
+      svcModule.getMemberGalleryListPage(svc, {
+        memberKey: slug,
+        memberId,
+        memberSlug: slug,
+        confirmDeleteId: null,
+        savedFlag: null,
+        readCommunityExamples: (limit, backHref) => {
+          calls.push(`${limit}:${backHref}`);
+          return [];
+        },
+      });
+
+    const emptyCalls: string[] = [];
+    const stockedCalls: string[] = [];
+    const emptyPage = build(emptyMember, 'gal_page_empty', emptyCalls);
+    const stockedPage = build(stockedMember, 'gal_page_stocked', stockedCalls);
+
+    expect(emptyPage.content.teaching).not.toBeNull();
+    expect(stockedPage.content.teaching).toBeNull();
+    // The community read is the caller's to perform, and a member with a
+    // gallery is never asked for it at all.
+    expect(emptyCalls).toEqual(['6:/members/gal_page_empty/galleries']);
+    expect(stockedCalls).toEqual([]);
+  });
+
+  it('re-renders a refused write with the message, the controls, and no teaching', () => {
+    const memberId = 'member-gal-page-error';
+    seedMember(memberId, 'gal_page_error', 'tier1');
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    const page = svcModule.getMemberGalleryListErrorPage(svc, {
+      memberKey: 'gal_page_error',
+      memberId,
+      errorMessage: 'Too many galleries created. Try again later.',
+    });
+
+    expect(page.content.errorMessage).toBe('Too many galleries created. Try again later.');
+    // Only a member holding the benefits can have attempted the write, so the
+    // controls stay whatever the gate would say now.
+    expect(page.content.newGalleryHref).toBe('/members/gal_page_error/galleries/new');
+    expect(page.content.uploadMediaHref).toBe('/members/gal_page_error/media/upload');
+    expect(page.content.benefitNotice).toBeNull();
+    expect(page.content.teaching).toBeNull();
+    expect(page.content.savedMessage).toBeNull();
+  });
+});
+
 
 describe('curatorMediaService.finalizeTranscodeForJob', () => {
   function makeJobRow(overrides: Partial<import('../../src/db/db').MediaJobRow> = {}): import('../../src/db/db').MediaJobRow {

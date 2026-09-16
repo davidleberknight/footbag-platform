@@ -2,24 +2,29 @@
      shared gallery-edit-form partial) so the FH-only Gallery ID slug field
      can sit alongside the standard fields without leaking admin concerns
      into the member-facing partial. --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Create a new FH-owned named gallery. The Gallery ID becomes the URL slug at
     <code>/media/&lt;id&gt;</code> and the JSON sidecar filename at
     <code>/curated/galleries/&lt;slug&gt;.json</code>.
   </p>
 
-  <form method="POST" action="{{formAction}}" class="form-block">
-    {{#if errorMessage}}
-      <div class="form-error-banner" role="alert">{{errorMessage}}</div>
+  <form method="POST" action="{{content.formAction}}" class="form-block">
+    {{#if content.errorMessage}}
+      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
     {{/if}}
 
     <div class="form-field">
       <label for="idSlug">Gallery ID</label>
       <span class="form-input-with-prefix">
         <span class="form-input-prefix"><code>gallery_</code></span>
-        <input type="text" id="idSlug" name="idSlug" value="{{gallery.idSlug}}" pattern="[a-z0-9_]+" required>
+        <input type="text" id="idSlug" name="idSlug" value="{{content.gallery.idSlug}}" pattern="[a-z0-9_]+" required>
       </span>
       <small class="form-hint">
         Lowercase letters, digits, and underscores. The <code>gallery_</code> prefix is added
@@ -30,38 +35,38 @@
 
     <div class="form-field">
       <label for="name">Name</label>
-      <input type="text" id="name" name="name" value="{{gallery.name}}" maxlength="150" required>
+      <input type="text" id="name" name="name" value="{{content.gallery.name}}" maxlength="150" required>
     </div>
 
     <div class="form-field">
       <label for="description">Description</label>
-      <textarea id="description" name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
+      <textarea id="description" name="description" rows="3" maxlength="1000">{{content.gallery.description}}</textarea>
     </div>
 
     <div class="form-field">
       <label for="sortOrder">Sort order</label>
       <select id="sortOrder" name="sortOrder">
-        <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
-        <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
-        <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
+        <option value="upload_desc" {{#if (eq content.gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
+        <option value="upload_asc"  {{#if (eq content.gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
+        <option value="caption_asc" {{#if (eq content.gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
       </select>
     </div>
 
     <div class="form-field">
       <label for="criteriaTags">Criteria tags</label>
-      <textarea id="criteriaTags" name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
+      <textarea id="criteriaTags" name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{content.gallery.criteriaTagsString}}</textarea>
       <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
     </div>
 
     <div class="form-field">
       <label for="excludeTags">Exclude tags</label>
-      <textarea id="excludeTags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
+      <textarea id="excludeTags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{content.gallery.excludeTagsString}}</textarea>
       <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
     </div>
 
     <div class="form-actions">
-      <button type="submit">Create Gallery</button>
-      <a href="/admin/curator/galleries">Cancel</a>
+      <button type="submit" class="btn btn-primary">Create Gallery</button>
+      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
     </div>
   </form>
 </div>

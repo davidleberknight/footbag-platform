@@ -1,6 +1,11 @@
 {{!-- Member's own new-gallery form. Owner-only view. --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Create a new named gallery. Pick a name and an optional description.
     Add <strong>criteria tags</strong> to filter what appears here, or leave
@@ -9,13 +14,15 @@
   </p>
 
   {{> gallery-edit-form
-      formAction=formAction
-      gallery=gallery
-      errorMessage=errorMessage
-      cancelHref=cancelHref
+      formAction=content.formAction
+      gallery=content.gallery
+      errorMessage=content.errorMessage
+      fieldErrors=content.fieldErrors
+      cancelHref=content.cancelHref
       submitLabel="Create gallery"
       isCreate=true
-      pickerItems=pickerItems
+      uploadTags=content.uploadTags
+      externalLinkSlots=content.externalLinkSlots
   }}
 </div>
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

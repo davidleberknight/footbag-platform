@@ -4,8 +4,13 @@
   page; sidecar / creator / tier / clip-range fields are admin-only
   and not surfaced here.
 --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Update this item's caption, tags, or external URL. The auto-applied
     <code>#by_&lt;your-slug&gt;</code> uploader marker is preserved across saves
@@ -13,42 +18,42 @@
     are system-managed and rejected as input.
   </p>
 
-  {{#if errorMessage}}
-    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
   {{/if}}
 
-  <form action="{{formAction}}" method="POST">
-    <p>
-      <label for="member-media-caption">Caption (optional, up to 500 characters):</label><br>
-      <textarea id="member-media-caption" name="caption" maxlength="500" rows="3" cols="60">{{formValues.caption}}</textarea>
-    </p>
+  <form action="{{content.formAction}}" method="POST" class="form-block">
+    <div class="form-field">
+      <label for="member-media-caption">Caption (optional, up to 500 characters):</label>
+      <textarea id="member-media-caption" name="caption" maxlength="500" rows="3">{{content.formValues.caption}}</textarea>
+    </div>
 
-    <p>
-      <label for="member-media-tags">Tags (space-separated <code>#hashtags</code>):</label><br>
-      <input id="member-media-tags" type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #spike" data-tag-chips>
-    </p>
-    {{#if tagSuggestions}}
+    <div class="form-field">
+      <label for="member-media-tags">Tags (space-separated <code>#hashtags</code>):</label>
+      <input id="member-media-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #spike" data-tag-chips>
+    </div>
+    {{#if content.tagSuggestions}}
     <div class="tag-suggestions" aria-label="Suggested tags">
-      {{#if tagSuggestions.clubTags.length}}
+      {{#if content.tagSuggestions.clubTags.length}}
       <div class="tag-suggestions-group">
         <span class="tag-suggestions-label">Your clubs:</span>
-        {{#each tagSuggestions.clubTags}}
+        {{#each content.tagSuggestions.clubTags}}
         <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
         {{/each}}
       </div>
       {{/if}}
-      {{#if tagSuggestions.participatedEventTags.length}}
+      {{#if content.tagSuggestions.participatedEventTags.length}}
       <div class="tag-suggestions-group">
         <span class="tag-suggestions-label">Your events:</span>
-        {{#each tagSuggestions.participatedEventTags}}
+        {{#each content.tagSuggestions.participatedEventTags}}
         <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
         {{/each}}
       </div>
       {{/if}}
-      {{#if tagSuggestions.popularTags.length}}
+      {{#if content.tagSuggestions.popularTags.length}}
       <div class="tag-suggestions-group">
         <span class="tag-suggestions-label">Popular:</span>
-        {{#each tagSuggestions.popularTags}}
+        {{#each content.tagSuggestions.popularTags}}
         <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
         {{/each}}
       </div>
@@ -56,26 +61,26 @@
     </div>
     {{/if}}
 
-    <p>
-      <label for="member-media-external-url">External URL (optional, link to source page or creator):</label><br>
-      <input id="member-media-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}" placeholder="https://example.com/article">
-    </p>
+    <div class="form-field">
+      <label for="member-media-external-url">External URL (optional, link to source page or creator):</label>
+      <input id="member-media-external-url" type="url" name="externalUrl" value="{{content.formValues.externalUrl}}" placeholder="https://example.com/article">
+    </div>
 
-    <p>
+    <div class="form-actions">
       <button type="submit" class="btn btn-primary">Save</button>
-      <a href="{{cancelHref}}" class="btn btn-link">Cancel</a>
-    </p>
+      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+    </div>
   </form>
 
   {{!-- Separate form: nesting it inside the edit form would orphan the
         edit form's controls (HTML closes the outer form at the first
         closing form tag). Deletion is permanent with cascading tag
         removal. --}}
-  <form method="POST" action="{{deleteAction}}" class="inline-form" data-confirm="Delete this item permanently? Its tags are removed with it. This cannot be undone.">
-    <button type="submit" class="btn-link-danger">Delete This Item</button>
+  <form method="POST" action="{{content.deleteAction}}" class="inline-form" data-confirm="Delete this item permanently? Its tags are removed with it. This cannot be undone.">
+    <button type="submit" class="btn btn-outline btn-sm">Delete This Item</button>
   </form>
 </div>
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
-{{#if tagSuggestions}}
+{{#if content.tagSuggestions}}
 <script src="{{{asset 'js/tag-suggestions.js'}}}" defer></script>
 {{/if}}

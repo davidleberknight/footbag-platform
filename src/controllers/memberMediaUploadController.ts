@@ -26,6 +26,8 @@ import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
   getDefaultCuratorMediaService,
   PHOTO_MAX_BYTES,
+  getMemberMediaUploadPage,
+  type MemberMediaUploadFormValues,
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
@@ -33,52 +35,32 @@ import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
-interface FormValues {
-  mediaType?: 'photo' | 'video';
-  caption?: string;
-  tags?: string;
-  videoUrl?: string;
-  videoPlatform?: 'youtube' | 'vimeo' | '';
-  externalUrl?: string;
-  galleryId?: string;
-}
-
-interface GalleryOption {
-  id: string;
-  name: string;
-  criteriaTags: string[];
-}
+type FormValues = MemberMediaUploadFormValues;
 
 function listHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
 }
 
-function uploadHref(memberKey: string): string {
-  return `/members/${memberKey}/media/upload`;
-}
-
 function renderForm(
   res: Response,
   memberKey: string,
+  memberId: string | null,
   opts: {
     status?: number;
     errorMessage?: string;
     formValues?: FormValues;
     tagSuggestions?: MemberTagSuggestions;
-    galleries?: GalleryOption[];
   } = {},
 ): void {
   const status = opts.status ?? 200;
-  res.status(status).render('members/media/upload', {
-    seo: { title: 'Upload Media' },
-    page: { sectionKey: 'members', pageKey: 'member_media_upload', title: 'Upload Media' },
-    formAction: uploadHref(memberKey),
-    cancelHref: listHref(memberKey),
-    errorMessage: opts.errorMessage,
-    formValues: opts.formValues ?? { mediaType: 'photo' },
-    tagSuggestions: opts.tagSuggestions,
-    galleries: opts.galleries,
-  });
+  res.status(status).render(
+    'members/media/upload',
+    getMemberMediaUploadPage(getDefaultCuratorMediaService(), memberKey, memberId, {
+      errorMessage: opts.errorMessage,
+      formValues: opts.formValues,
+      tagSuggestions: opts.tagSuggestions,
+    }),
+  );
 }
 
 function parseTagsField(raw: string | undefined): string[] {
@@ -92,18 +74,11 @@ export const memberMediaUploadController = {
       renderNotFound(res);
       return;
     }
-    const memberId = req.user?.userId;
+    const memberId = req.user?.userId ?? null;
     const tagSuggestions = memberId
       ? hashtagDiscoveryService.getTagSuggestionsForMember(memberId)
       : undefined;
-    const galleries: GalleryOption[] = memberId
-      ? getDefaultCuratorMediaService().listGalleriesForOwner(memberId).map(g => ({
-          id: g.id,
-          name: g.name,
-          criteriaTags: g.criteriaTags,
-        }))
-      : [];
-    renderForm(res, req.params.memberKey, { tagSuggestions, galleries });
+    renderForm(res, req.params.memberKey, memberId, { tagSuggestions });
   },
 
   /** POST /members/:memberKey/media/upload — accept multipart upload. */
@@ -152,7 +127,7 @@ export const memberMediaUploadController = {
     busboy.on('finish', () => {
       void handleFinish().catch((err: unknown) => {
         if (err instanceof ValidationError) {
-          renderForm(res, memberKey, {
+          renderForm(res, memberKey, memberId, {
             status: 422,
             errorMessage: err.message,
             formValues: collectFormValues(fields),
@@ -163,7 +138,7 @@ export const memberMediaUploadController = {
           if (typeof err.retryAfterSeconds === 'number') {
             res.setHeader('Retry-After', String(err.retryAfterSeconds));
           }
-          renderForm(res, memberKey, {
+          renderForm(res, memberKey, memberId, {
             status: 429,
             errorMessage: err.message,
             formValues: collectFormValues(fields),

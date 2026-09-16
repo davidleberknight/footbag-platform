@@ -25,7 +25,11 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
-import { getDefaultCuratorMediaService } from '../services/curatorMediaService';
+import {
+  getDefaultCuratorMediaService,
+  getMemberMediaEditPage,
+  type MemberMediaEditFormValues,
+} from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
@@ -36,9 +40,6 @@ function galleriesHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
 }
 
-function editHref(memberKey: string, mediaId: string): string {
-  return `/members/${memberKey}/media/${mediaId}/edit`;
-}
 
 function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
@@ -46,11 +47,7 @@ function parseTagsField(raw: string | undefined): string[] {
 
 const buildSvc = getDefaultCuratorMediaService;
 
-interface FormValues {
-  caption: string;
-  tags: string;
-  externalUrl: string;
-}
+type FormValues = MemberMediaEditFormValues;
 
 function renderForm(
   res: Response,
@@ -59,16 +56,13 @@ function renderForm(
   values: FormValues,
   opts: { status?: number; errorMessage?: string; tagSuggestions?: MemberTagSuggestions } = {},
 ): void {
-  res.status(opts.status ?? 200).render('members/media/edit', {
-    seo: { title: 'Edit Media' },
-    page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
-    formAction: editHref(memberKey, mediaId),
-    deleteAction: `/members/${memberKey}/media/${mediaId}/delete`,
-    cancelHref: galleriesHref(memberKey),
-    errorMessage: opts.errorMessage,
-    formValues: values,
-    tagSuggestions: opts.tagSuggestions,
-  });
+  res.status(opts.status ?? 200).render(
+    'members/media/edit',
+    getMemberMediaEditPage(memberKey, mediaId, values, {
+      errorMessage: opts.errorMessage,
+      tagSuggestions: opts.tagSuggestions,
+    }),
+  );
 }
 
 export const memberMediaEditController = {

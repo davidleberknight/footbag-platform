@@ -5,8 +5,13 @@
   and transcoding costs for the member tier. Same CSS-only tab pattern as
   the admin curator form. Works without JavaScript.
 --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
 <div class="wrapper">
-  <h1>{{page.title}}</h1>
   <p>
     Upload a photo, or share a YouTube or Vimeo video link. Anything you upload is
     automatically tagged with your uploader marker, so it appears in your Personal Gallery.
@@ -15,19 +20,19 @@
     and cannot be set by hand; <code>#curated</code> is similarly reserved.
   </p>
 
-  {{#if errorMessage}}
-    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
   {{/if}}
 
-  <form action="{{formAction}}" method="POST" enctype="multipart/form-data" class="upload-form form-block">
+  <form action="{{content.formAction}}" method="POST" enctype="multipart/form-data" class="upload-form form-block">
 
     <div class="upload-tabs">
       {{!-- Hidden radios act as the tab control. --}}
       <input type="radio" name="mediaType" value="photo" id="member-tab-photo"
-        {{#if (eq formValues.mediaType "video")}}{{else}}checked{{/if}}
+        {{#if (eq content.formValues.mediaType "video")}}{{else}}checked{{/if}}
         class="upload-tab-radio">
       <input type="radio" name="mediaType" value="video" id="member-tab-video"
-        {{#if (eq formValues.mediaType "video")}}checked{{/if}}
+        {{#if (eq content.formValues.mediaType "video")}}checked{{/if}}
         class="upload-tab-radio">
 
       <div class="upload-tab-bar">
@@ -53,13 +58,13 @@
               <label for="videoPlatform">Platform:</label>
               <select id="videoPlatform" name="videoPlatform">
                 <option value="">--</option>
-                <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
-                <option value="vimeo"   {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
+                <option value="youtube" {{#if (eq content.formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
+                <option value="vimeo"   {{#if (eq content.formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
               </select>
             </div>
             <div class="form-field">
               <label for="videoUrl">URL:</label>
-              <input type="url" id="videoUrl" name="videoUrl" value="{{formValues.videoUrl}}"
+              <input type="url" id="videoUrl" name="videoUrl" value="{{content.formValues.videoUrl}}"
                      placeholder="https://www.youtube.com/watch?v=...">
             </div>
           </fieldset>
@@ -67,53 +72,53 @@
       </div>
     </div>
 
-    <fieldset>
+    <fieldset class="form-fieldset">
       <legend>Details</legend>
       <div class="form-field">
         <label for="member-upload-caption">Caption (optional, up to 500 characters):</label>
-        <textarea id="member-upload-caption" name="caption" maxlength="500" rows="3">{{formValues.caption}}</textarea>
+        <textarea id="member-upload-caption" name="caption" maxlength="500" rows="3">{{content.formValues.caption}}</textarea>
       </div>
       <div class="form-field">
         <label for="member-upload-tags">Tags (optional, space-separated <code>#hashtags</code>):</label>
-        <input id="member-upload-tags" type="text" name="tags" value="{{formValues.tags}}"
+        <input id="member-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}"
                placeholder="#freestyle #trick" data-tag-chips>
         <small class="form-hint">The leading <code>#</code> is optional. Event and club tags follow canonical patterns: events use <code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location-slug&gt;</code>, for example <code>#club_tokyo</code>.</small>
       </div>
-      {{#if tagSuggestions}}
+      {{#if content.tagSuggestions}}
       <div class="tag-suggestions" aria-label="Suggested tags">
-        {{#if tagSuggestions.clubTags.length}}
+        {{#if content.tagSuggestions.clubTags.length}}
         <div class="tag-suggestions-group">
           <span class="tag-suggestions-label">Your clubs:</span>
-          {{#each tagSuggestions.clubTags}}
+          {{#each content.tagSuggestions.clubTags}}
           <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
           {{/each}}
         </div>
         {{/if}}
-        {{#if tagSuggestions.participatedEventTags.length}}
+        {{#if content.tagSuggestions.participatedEventTags.length}}
         <div class="tag-suggestions-group">
           <span class="tag-suggestions-label">Your events:</span>
-          {{#each tagSuggestions.participatedEventTags}}
+          {{#each content.tagSuggestions.participatedEventTags}}
           <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
           {{/each}}
         </div>
         {{/if}}
-        {{#if tagSuggestions.popularTags.length}}
+        {{#if content.tagSuggestions.popularTags.length}}
         <div class="tag-suggestions-group">
           <span class="tag-suggestions-label">Popular:</span>
-          {{#each tagSuggestions.popularTags}}
+          {{#each content.tagSuggestions.popularTags}}
           <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
           {{/each}}
         </div>
         {{/if}}
       </div>
       {{/if}}
-      {{#if galleries.length}}
+      {{#if content.hasGalleries}}
       <div class="form-field">
         <label for="member-upload-gallery">Add to gallery (optional):</label>
         <select id="member-upload-gallery" name="galleryId">
           <option value="">(none)</option>
-          {{#each galleries}}
-          <option value="{{id}}" {{#if (eq id ../formValues.galleryId)}}selected{{/if}}>{{name}}</option>
+          {{#each content.galleries}}
+          <option value="{{id}}" {{#if (eq id ../content.formValues.galleryId)}}selected{{/if}}>{{name}}</option>
           {{/each}}
         </select>
         <small class="form-hint">Gallery criteria tags will be added automatically.</small>
@@ -121,18 +126,18 @@
       {{/if}}
       <div class="form-field">
         <label for="member-upload-external-url">External URL (optional, link to source page or creator):</label>
-        <input id="member-upload-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}"
+        <input id="member-upload-external-url" type="url" name="externalUrl" value="{{content.formValues.externalUrl}}"
                placeholder="https://example.com/article">
       </div>
     </fieldset>
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Upload</button>
-      <a href="{{cancelHref}}" class="btn btn-outline">Cancel</a>
+      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
     </div>
   </form>
 </div>
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
-{{#if tagSuggestions}}
+{{#if content.tagSuggestions}}
 <script src="{{{asset 'js/tag-suggestions.js'}}}" defer></script>
 {{/if}}
