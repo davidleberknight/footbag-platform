@@ -190,7 +190,7 @@
 
 **SIGTERM**: Unix signal sent to a process requesting graceful shutdown. When Docker stops a container, it sends SIGTERM to allow the application to finish in-flight work before exiting. Footbag.org handles SIGTERM by stopping new request acceptance, waiting up to 30 seconds for active transactions to complete, running a final WAL checkpoint, closing the SQLite connection, uploading a final S3 backup, and then exiting cleanly.
 
-**SNS (Simple Notification Service)**: AWS managed messaging service that delivers notifications to subscribers via email, SMS, or HTTP endpoints. Footbag.org uses SNS topics as the delivery mechanism for CloudWatch alarms, routing warning-level alerts to the operations team email and critical alerts to both email and SMS.
+**SNS (Simple Notification Service)**: AWS managed messaging service that delivers notifications to subscribers via email, SMS, or HTTP endpoints. Footbag.org uses SNS topics as the delivery mechanism for CloudWatch alarms, routing both warning-level and critical alerts to the operations team email.
 
 **Soft Delete**: Deletion pattern marking records as deleted without immediate physical removal. Footbag.org sets a deleted_at timestamp on deleted records; database views automatically filter WHERE deleted_at IS NULL so queries never accidentally expose deleted data. Member personal data is purged after the configurable grace period (default 90 days, `member_cleanup_grace_days`) while an anonymized stub row is retained for referential integrity. Foreign keys use ON DELETE NO ACTION to prevent accidental hard deletes while relationships exist.
 

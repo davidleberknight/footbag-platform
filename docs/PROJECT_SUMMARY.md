@@ -751,7 +751,7 @@ CloudFront exit from maintenance is automatic. When Lightsail origin returns to 
 
 **Recovery:** CloudFront exit from maintenance is automatic. When the origin returns to health, CloudFront resumes normal operation within 10 seconds (error page cache TTL). Origin recovery may require admin intervention (restart/rollback/restore); this procedure is documented in DEVOPS_GUIDE.md (private GitHub repo).
 
-**Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email and SMS. Documented recovery procedures enable rapid restoration (typically 15-30 minutes for application issues, up to 2 hours for complete infrastructure restore).
+**Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email. Documented recovery procedures enable rapid restoration (typically 15-30 minutes for application issues, up to 2 hours for complete infrastructure restore).
 
 **Regional Outage Handling:** In the extremely unlikely event of extended AWS regional outage, recovery process: restore from cross-region backup bucket (us-east-1) to new Lightsail instance in any available region using documented procedures (2-4 hours). No pre-planned regional failover is maintained; the probability is too low to justify ongoing complexity.
 

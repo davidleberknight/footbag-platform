@@ -6,11 +6,12 @@
 # the origin-latency alarm threshold is calibrated from.
 #
 # WHY IT EXISTS.
-# The CloudFront origin-latency alarm fires on p90 OriginLatency above 3000 ms
-# sustained across three five-minute periods, in both environments. That number
-# was a default: nothing had ever measured what the origin actually does, so the
-# go/no-go walk had a monitoring precondition it could not honestly check. This
-# script produces the baseline that precondition needs.
+# The CloudFront origin-latency alarm fires on p95 OriginLatency above 2000 ms
+# sustained across two five-minute periods, and the origin-spike alarm fires on
+# more than 5,000 requests in a five-minute period, which is 1,000 a minute.
+# Both exist in both environments. A threshold nothing has measured is a
+# monitoring precondition the go/no-go walk cannot honestly check, so this
+# script produces the baseline both of them rest on.
 #
 # WHAT IT MEASURES, AND WHY BOTH HALVES ARE NEEDED.
 # The client-side half is what a member experiences: latency percentiles and the
@@ -242,9 +243,10 @@ DISTRIBUTION_ID="$("$TERRAFORM_BIN" -chdir="${REPO_ROOT}/terraform/staging" \
 # hours: long enough to read, short enough that the reports do not accumulate.
 REPORT_DIR="$(mktemp -d -t footbag-loadcheck-XXXXXX)"
 
-# Reads back exactly what the alarm reads: OriginLatency at the alarm's p90,
-# alongside p95 and p99 so a threshold can be argued about, at the alarm's own
-# five-minute period, over the window the run occupied.
+# Reads back exactly what the alarms read: OriginLatency at the latency alarm's
+# p95, alongside p90 and p99 so a threshold can be argued about, and Requests at
+# the origin-spike alarm's Sum, both at the alarms' own five-minute period, over
+# the window the run occupied.
 read_back() {
   local start="$1" end="$2"
 
@@ -267,7 +269,7 @@ read_back() {
   ' "${REPORT_DIR}/origin-latency.json"
 
   local worst
-  worst="$(jq -r '[.Datapoints[].ExtendedStatistics.p90] | if length == 0 then "none" else (max | floor | tostring) end' \
+  worst="$(jq -r '[.Datapoints[].ExtendedStatistics.p95] | if length == 0 then "none" else (max | floor | tostring) end' \
     "${REPORT_DIR}/origin-latency.json")"
 
   "$AWS_BIN" cloudwatch get-metric-statistics \
@@ -288,8 +290,8 @@ read_back() {
   echo "  requests in window   $(jq -r '[.Datapoints[].Sum] | add // 0 | floor' "${REPORT_DIR}/requests.json")"
   echo "  worst 5xx rate       $(jq -r '[.Datapoints[].Average] | if length == 0 then 0 else max end' "${REPORT_DIR}/5xx-rate.json")%"
   echo
-  echo "  highest five-minute p90 origin latency: ${worst} ms"
-  echo "  the deployed alarm fires at 3000 ms, three consecutive periods."
+  echo "  highest five-minute p95 origin latency: ${worst} ms"
+  echo "  the deployed alarm fires at 2000 ms, two consecutive periods."
   echo
 }
 

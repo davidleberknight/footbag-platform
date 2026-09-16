@@ -653,6 +653,56 @@ resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   }
 }
 
+# ── Origin spike ──────────────────────────────────────────────────────────────
+# The detective backstop the design decisions name as the fourth leg of the
+# no-WAF posture, alongside Shield Standard, Turnstile at the form boundary and
+# in-process rate limiting. It escalates rather than blocks: an application-layer
+# flood of valid-looking requests on non-form routes cannot be stopped above the
+# application, so this alarm's job is to tell a human that abuse is happening.
+#
+# Requests rather than a derived origin-request count, because CloudFront
+# publishes no origin-request metric, and because this is the metric AWS's own
+# DDoS-resiliency guidance names for detecting an application-layer attack. It
+# counts viewer requests at the edge, a superset of what reaches the origin, but
+# every HTML behaviour on this distribution uses CachingDisabled, so the page
+# traffic in it is origin traffic; the overcount is cached static and media
+# assets, and it errs towards firing early rather than late.
+#
+# The number: the staging load check drove 397 requests a minute at five
+# concurrent readers, 8,156 requests over twenty minutes with no errors, which is
+# the highest rate anything has legitimately asked of this platform. 1,000 a
+# minute is two and a half times that, so the supported staging load run cannot
+# trip it, and neither can a launch-day readership for an association this size.
+# Two five-minute periods rather than one so a crawler pass or a link
+# aggregator's burst does not fire it, and the same shape as the origin-latency
+# alarm above, which is also the statistic and period scripts/load-check.sh
+# reads back. The threshold is deliberately identical in both environments: the
+# load check runs against staging, and a number it can trip is a number that
+# teaches the operator to ignore the alarm.
+#
+# Re-read the number against real traffic at the first quarterly threshold review
+# after launch, like the latency threshold above.
+resource "aws_cloudwatch_metric_alarm" "origin_spike" {
+  count               = var.enable_cloudfront ? 1 : 0
+  alarm_name          = "${local.prefix}-origin-spike"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "Requests"
+  namespace           = "AWS/CloudFront"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5000
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "CloudFront serving over 1,000 requests/minute for 10+ minutes (sustained traffic flood)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    DistributionId = aws_cloudfront_distribution.main[0].id
+    Region         = "Global"
+  }
+}
+
 # ── CloudFront Functions: edge failures ──────────────────────────────────────
 # The viewer-request functions decide every request on the behaviours they are
 # attached to, before the cache and before any origin, and nothing else in this
