@@ -57,12 +57,18 @@ afterAll(async () => {
 describe('transcode dispatch push', () => {
   it('gives up on a worker that never answers, instead of waiting indefinitely', async () => {
     answerImmediatelyWith = null;
-    const client = createTranscodeDispatchClient({ timeoutMs: 150 });
+    const DISPATCH_TIMEOUT_MS = 150;
+    const client = createTranscodeDispatchClient({ timeoutMs: DISPATCH_TIMEOUT_MS });
     const started = Date.now();
 
-    await expect(client.dispatch('mediajob_wedged')).rejects.toThrow(/timed out after 150ms/);
+    await expect(client.dispatch('mediajob_wedged'))
+      .rejects.toThrow(new RegExp(`timed out after ${DISPATCH_TIMEOUT_MS}ms`));
     // The ceiling is what ends the call, not the caller losing patience.
-    expect(Date.now() - started).toBeLessThan(3000);
+    // budget-is-the-contract: the bound is a multiple of the client's own
+    // timeout rather than a fixed millisecond figure, so it states that
+    // relationship instead of how fast the machine that wrote it happened to be,
+    // and it follows the budget if the budget ever moves.
+    expect(Date.now() - started).toBeLessThan(DISPATCH_TIMEOUT_MS * 20);
   });
 
   it('raises the timeout as a dispatch failure, so the caller handles it like any other', async () => {

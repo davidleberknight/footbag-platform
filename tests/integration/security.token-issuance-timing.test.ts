@@ -119,7 +119,7 @@ describe('token-issuance wall-clock equivalence (anti-enumeration)', () => {
       absent.push(await timePasswordForgot(RESET_ABSENT_EMAIL));
     }
     expectEquivalent(present, absent);
-  }, 30000);
+  });
 
   it('legacy-claim lookup is equivalent for a matching vs non-matching identifier', async () => {
     await timeClaimFind(CLAIM_LEGACY_EMAIL);
@@ -132,5 +132,5 @@ describe('token-issuance wall-clock equivalence (anti-enumeration)', () => {
       absent.push(await timeClaimFind(CLAIM_ABSENT_IDENTIFIER));
     }
     expectEquivalent(present, absent);
-  }, 30000);
+  });
 });

@@ -109,7 +109,7 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
       absentTime,
       `absent-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
     ).toBeGreaterThan((argonBaselineMs * 3) / 4);
-  }, 15000);
+  });
 
   it('absent-email and present-email-wrong-password login wall-clock are in the same order of magnitude', async () => {
     // Warm-up.
@@ -144,5 +144,5 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     // the ratio toward >20x (immediate return vs full argon2).
     const ratio = Math.max(presentMedian / absentMedian, absentMedian / presentMedian);
     expect(ratio).toBeLessThan(4);
-  }, 30000);
+  });
 });

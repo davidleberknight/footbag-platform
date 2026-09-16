@@ -84,6 +84,11 @@ beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'footbag-test-cfgfix-'));
   dbFile = join(workDir, 'footbag.db');
   const db = new BetterSqlite3(dbFile);
+  // The schema commits each of its ~460 statements separately, so the default
+  // durability costs a disk flush per statement and seconds per test. A
+  // throwaway fixture has nothing to survive, and the on-disk layout the script
+  // reads is unchanged.
+  db.pragma('synchronous = OFF');
   db.exec(readFileSync(SCHEMA, 'utf8'));
   db.close();
 });

@@ -39,5 +39,5 @@ describe('hashPassword', () => {
     expect(hash.startsWith('$argon2id$')).toBe(true);
     expect(hash).toContain('m=65536');
     expect(await argon2.verify(hash, SAMPLE)).toBe(true);
-  }, 15000);
+  });
 });

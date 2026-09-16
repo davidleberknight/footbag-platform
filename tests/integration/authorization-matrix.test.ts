@@ -220,26 +220,73 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/freestyle/consecutive-records',
   ];
 
-  it('serves admins, 403s authenticated non-admins, redirects the unauthenticated', async () => {
-    for (const route of ADMIN_GET_ROUTES) {
-      for (const p of CANONICAL_PERSONAS) {
-        const cookie = cookies.get(p.slug);
-        const req = request(createApp()).get(route);
-        if (cookie) req.set('Cookie', cookie);
-        const res = await req;
-        const cell = `${p.slug} -> GET ${route}`;
-        if (!cookie) {
-          expect(isLoginRedirect(res), `${cell} (anonymous → login)`).toBe(true);
-        } else if (isPendingPersona(p)) {
-          expect(isWizardRedirect(res), `${cell} (pending → wizard)`).toBe(true);
-        } else if (p.isAdmin) {
-          expect(res.status, `${cell} (admin allow)`).toBe(200);
-        } else {
-          expect(res.status, `${cell} (non-admin deny)`).toBe(403);
-        }
-      }
+  // The four outcomes the gate can produce, as a function of the persona's own
+  // state. `canHoldSession` decides whether the persona has a cookie at all, so
+  // this reproduces the branch the assertion below takes without needing one.
+  type GateOutcome = 'login' | 'wizard' | 'allow' | 'deny';
+  function outcomeFor(p: PersonaSpec): GateOutcome {
+    if (!canHoldSession(p)) return 'login';
+    if (isPendingPersona(p)) return 'wizard';
+    return p.isAdmin ? 'allow' : 'deny';
+  }
+
+  async function assertGateCell(
+    app: ReturnType<typeof createApp>,
+    route: string,
+    p: PersonaSpec,
+  ): Promise<void> {
+    const cookie = cookies.get(p.slug);
+    const req = request(app).get(route);
+    if (cookie) req.set('Cookie', cookie);
+    const res = await req;
+    const cell = `${p.slug} -> GET ${route}`;
+    switch (outcomeFor(p)) {
+      case 'login':
+        expect(isLoginRedirect(res), `${cell} (anonymous → login)`).toBe(true);
+        break;
+      case 'wizard':
+        expect(isWizardRedirect(res), `${cell} (pending → wizard)`).toBe(true);
+        break;
+      case 'allow':
+        expect(res.status, `${cell} (admin allow)`).toBe(200);
+        break;
+      case 'deny':
+        expect(res.status, `${cell} (non-admin deny)`).toBe(403);
+        break;
     }
-  }, 120_000);
+  }
+
+  // The gate is a single router-level `use(requireMember, requireAdmin)` sitting
+  // above every route listed here, so it decides before any handler is reached
+  // and its verdict cannot vary from one route to the next. Route and persona
+  // are therefore independent axes, and the two sweeps below cover them
+  // separately instead of as a cross product. Crossing them re-renders the same
+  // 403 page for each of the dozens of non-admin personas on each of the thirty
+  // routes, which dominates this file's wall-clock cost while proving nothing
+  // that either sweep alone leaves out.
+
+  it('serves admins, 403s authenticated non-admins, redirects the unauthenticated', async () => {
+    // One persona per outcome, on every route: proves each route sits behind the
+    // gate, and, for the admin, that the route below it actually renders rather
+    // than merely passing the gate.
+    const app = createApp();
+    const representatives = (['login', 'wizard', 'allow', 'deny'] as const).map((outcome) => {
+      const p = CANONICAL_PERSONAS.find((c) => outcomeFor(c) === outcome);
+      expect(p, `the persona catalog must carry a '${outcome}' case for this sweep`).toBeDefined();
+      return p!;
+    });
+
+    for (const route of ADMIN_GET_ROUTES) {
+      for (const p of representatives) await assertGateCell(app, route, p);
+    }
+  });
+
+  it('applies the gate to every canonical persona, each by the state it carries', async () => {
+    // Every persona, on one route: proves each persona meets the outcome its own
+    // state earns. The route is arbitrary because the gate runs above all of them.
+    const app = createApp();
+    for (const p of CANONICAL_PERSONAS) await assertGateCell(app, '/admin', p);
+  });
 });
 
 describe('admin gate — parameterized GET (detail routes sit behind the gate)', () => {

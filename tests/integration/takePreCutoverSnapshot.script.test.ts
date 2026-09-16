@@ -23,6 +23,8 @@ import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { createHash } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -57,6 +59,11 @@ afterEach(() => {
 
 function buildDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
+  // The schema commits each of its ~460 statements separately, so the default
+  // durability costs a disk flush per statement and seconds per test. Kept off
+  // WAL deliberately: the snapshot script reads this database off disk and
+  // handles sidecars, so the fixture stays the single file it encounters.
+  db.pragma('synchronous = OFF');
   db.exec(SCHEMA_SQL);
   db.close();
 }
@@ -106,6 +113,19 @@ describe('take-pre-cutover-snapshot.sh produces a restorable artifact', () => {
     expect(manifest.sha256).not.toEqual(manifest.archive_sha256);
     expect(manifest.byte_size).not.toEqual(manifest.archive_byte_size);
     expect(manifest.integrity_check).toBe('ok');
+
+    // Both hashes are recomputed from the artifact rather than only compared to
+    // each other. A manifest whose digests are merely different from one another
+    // still satisfies that, and a wrong digest is undetectable at the moment it
+    // matters: a restore verifies against this file after the member database
+    // has already been replaced.
+    const archiveBytes = fs.readFileSync(manifest.snapshot_path as string);
+    expect(createHash('sha256').update(archiveBytes).digest('hex')).toBe(manifest.archive_sha256);
+    expect(archiveBytes.byteLength).toBe(manifest.archive_byte_size);
+
+    const dbBytes = gunzipSync(archiveBytes);
+    expect(createHash('sha256').update(dbBytes).digest('hex')).toBe(manifest.sha256);
+    expect(dbBytes.byteLength).toBe(manifest.byte_size);
   });
 
   it('counts every table the cutover preflight requires of the manifest', () => {

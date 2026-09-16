@@ -87,7 +87,7 @@ describe('POST /register race against email UNIQUE constraint', () => {
 
     // Exactly one member row exists for the shared email.
     expect(countMembersByEmail(sharedEmail)).toBe(1);
-  }, 30000);
+  });
 });
 
 describe('POST /register race against slug UNIQUE constraint', () => {
@@ -139,5 +139,5 @@ describe('POST /register race against slug UNIQUE constraint', () => {
     }
     // Sanity: exactly one row holds the base slug.
     expect(countMembersBySlug('john_slugrace')).toBe(1);
-  }, 30000);
+  });
 });

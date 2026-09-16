@@ -424,7 +424,7 @@ describe('persona harness — single-source containment', () => {
     }
     const hits = raw.split('\n').filter((s) => s.length > 0).map((s) => s.replace(/^\.\//, ''));
     expect(hits).toEqual(['src/testkit/personaSecrets.ts']);
-  }, 30_000);
+  });
 
   it('the seed runner inherits the production import guard by importing personaSecrets', () => {
     const source = readFileSync(path.resolve(REPO_ROOT, 'src', 'testkit', 'personaSeedRunner.ts'), 'utf8');

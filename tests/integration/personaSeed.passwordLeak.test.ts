@@ -74,7 +74,7 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
   it('appears in exactly one checked-in file: src/testkit/personaSecrets.ts', () => {
     const hits = grepRepoForLiteral(TEST_PERSONA_SEED_PASSWORD_LITERAL);
     expect(hits).toEqual(['src/testkit/personaSecrets.ts']);
-  }, 30_000);
+  });
 
   it('persona runner sources do not embed the literal as a string', () => {
     for (const relPath of ['personaSeedRunner.ts', 'personaRefreshCli.ts']) {
@@ -142,5 +142,5 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
       db.close();
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  }, 30_000);
+  });
 });

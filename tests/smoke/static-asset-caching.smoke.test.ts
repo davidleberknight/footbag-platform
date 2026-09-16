@@ -44,7 +44,10 @@ const domain = process.env.STAGING_CLOUDFRONT_DOMAIN ?? '';
 const base = `https://${domain}`;
 
 const freshToken = (): string => randomBytes(8).toString('hex');
-const get = (url: string): Promise<Response> => fetch(url, { signal: AbortSignal.timeout(15_000) });
+/** Per-request bound. Every case below is a real round trip to the edge. */
+const FETCH_TIMEOUT_MS = 15_000;
+const get = (url: string): Promise<Response> =>
+  fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 
 describe.skipIf(!RUN)('static-asset cache-busting reaches the staging CloudFront edge', () => {
   it('STAGING_CLOUDFRONT_DOMAIN is configured (non-empty)', () => {
@@ -94,5 +97,9 @@ describe.skipIf(!RUN)('static-asset cache-busting reaches the staging CloudFront
     const res = await get(`${base}/fonts/Inter-Regular.woff2?v=${freshToken()}`);
     expect(res.status).toBe(200);
     expect(res.headers.get('x-cache') ?? '').not.toMatch(/^Hit from cloudfront/i);
-  }, 30_000);
+    // Three sequential round trips, each bounded above, so the case has to be
+    // allowed more than their sum. At the suite default it was allowed less, and
+    // a slow edge would have been reported as the runner giving up rather than
+    // as the fetch bound that actually decided.
+  }, FETCH_TIMEOUT_MS * 4);
 });

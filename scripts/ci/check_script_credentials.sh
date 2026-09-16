@@ -78,10 +78,14 @@ if [ "${#SCAN_DIRS[@]}" -gt 0 ]; then
   # -type f OR -type l: a symlinked script is still a script, and skipping
   # links meant one could sit in scope while being scanned nowhere. `.bash` is
   # included for the same reason the extension list exists at all.
+  # The virtualenv is pruned rather than filtered out of the results. Filtering
+  # still descends it, and it holds a couple of hundred megabytes of installed
+  # third-party Python that is not this project's code and can never be in
+  # scope; walking it was most of this gate's runtime.
   SUBTREE_LIST=$(find "${SCAN_DIRS[@]}" \
+       \( -name '.venv' -o -name '__pycache__' -o -name 'node_modules' \) -prune -o \
        \( -type f -o -type l \) \
        \( -name '*.sh' -o -name '*.bash' -o -name '*.ts' -o -name '*.py' \) \
-       -not -path 'scripts/.venv/*' \
        -not -path 'scripts/ci/check_script_credentials.sh' \
        -print) || FIND_STATUS=$?
 fi

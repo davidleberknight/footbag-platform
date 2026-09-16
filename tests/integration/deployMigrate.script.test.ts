@@ -119,7 +119,7 @@ describe('applying a schema migration to a live database', () => {
     applyMigration('ALTER TABLE payments ADD COLUMN note TEXT;');
     const copies = readDb(() => existsSync(`${dbPath}`)) && spawnSync(
       'bash', ['-c', `ls ${JSON.stringify(dbPath)}.pre-migration.* | wc -l`],
-      { env: { ...process.env, ...SPAWN_GUARD }, encoding: 'utf8' },
+      { env: { ...process.env }, encoding: 'utf8', ...SPAWN_GUARD },
     ).stdout.trim();
     // The copy is the whole safety story for a step that can destroy data no
     // rebuild can recreate.

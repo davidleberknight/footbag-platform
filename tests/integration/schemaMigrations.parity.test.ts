@@ -34,6 +34,8 @@ import { tmpdir } from 'node:os';
 import BetterSqlite3 from 'better-sqlite3';
 
 const SCHEMA = join(process.cwd(), 'database/schema.sql');
+/** Read once: every build below applies the same text. */
+const SCHEMA_SQL = readFileSync(SCHEMA, 'utf8');
 const MIGRATIONS_DIR = join(process.cwd(), 'database/migrations');
 
 function migrationFiles(): string[] {
@@ -71,7 +73,11 @@ function schemaMovedBy(sql: string): boolean {
   counter += 1;
   const db = new BetterSqlite3(join(workDir, `parity-${counter}.db`));
   try {
-    db.exec(readFileSync(SCHEMA, 'utf8'));
+    // The schema commits each of its ~460 statements separately, so the default
+    // durability costs a disk flush per statement. Nothing here outlives the
+    // call: the fingerprint is read back from this same handle.
+    db.pragma('synchronous = OFF');
+    db.exec(SCHEMA_SQL);
     const before = schemaFingerprint(db);
     try {
       db.exec(sql);

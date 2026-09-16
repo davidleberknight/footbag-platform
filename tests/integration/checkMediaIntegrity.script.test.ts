@@ -36,26 +36,34 @@ afterEach(() => {
   fs.rmSync(workDir, { recursive: true, force: true });
 });
 
+/**
+ * A schema-only fixture database on disk. The schema commits each of its ~460
+ * statements separately, so the default durability costs a disk flush per
+ * statement and seconds per test; a throwaway fixture has nothing to survive.
+ */
+function buildSchemaDb(dbPath: string): void {
+  const db = new BetterSqlite3(dbPath);
+  db.pragma('synchronous = OFF');
+  db.exec(SCHEMA_SQL);
+  db.close();
+}
+
 function run(dbPath: string) {
   return spawnSync('bash', ['scripts/check-media-integrity.sh'], {
     cwd: REPO_ROOT,
     encoding: 'utf-8',
     env: { ...process.env, FOOTBAG_DB_PATH: dbPath },
     ...SPAWN_GUARD,
-    // tsx compiles the app graph first; the kill signal stays the guard's.
-    timeout: 55_000,
   });
 }
 
 describe('check-media-integrity.sh exit contract', () => {
-  it('exits 1 on a database whose site-content slots are unseeded', { timeout: 60_000 }, () => {
+  it('exits 1 on a database whose site-content slots are unseeded', () => {
     // A schema-only database is the canonical metadata-without-bytes state:
     // every fixed site slot in the registry resolves to nothing. The check must
     // fail it, name the slots, and use the exit code the deploy gate reads.
     const dbPath = path.join(workDir, 'fixture.db');
-    const db = new BetterSqlite3(dbPath);
-    db.exec(SCHEMA_SQL);
-    db.close();
+    buildSchemaDb(dbPath);
 
     const res = run(dbPath);
     expect(res.status, res.stdout + res.stderr).toBe(1);
@@ -63,7 +71,7 @@ describe('check-media-integrity.sh exit contract', () => {
     expect(res.stderr).toContain('check-media-integrity: FAIL');
   });
 
-  it('exits 2 when it cannot open the database at all', { timeout: 60_000 }, () => {
+  it('exits 2 when it cannot open the database at all', () => {
     // Failure to run and failure of the data are different verdicts, and the
     // deploy treats them differently; conflating them would let a mispointed
     // path read as a media problem.
@@ -72,7 +80,7 @@ describe('check-media-integrity.sh exit contract', () => {
     expect(res.stderr).toContain('check-media-integrity: error');
   });
 
-  it('exits 2 when the storage adapter cannot be configured', { timeout: 60_000 }, () => {
+  it('exits 2 when the storage adapter cannot be configured', () => {
     // The adapter resolves its configuration as its module loads, so a bad
     // configuration threw before main ran: the catch above never saw it and the
     // process exited 1, which is the code that means referenced objects are absent.
@@ -80,16 +88,13 @@ describe('check-media-integrity.sh exit contract', () => {
     // when nothing had been compared. Deferring the import makes a configuration
     // failure land where it belongs, as the setup error the exit contract promises.
     const dbPath = path.join(workDir, 'fixture.db');
-    const db = new BetterSqlite3(dbPath);
-    db.exec(SCHEMA_SQL);
-    db.close();
+    buildSchemaDb(dbPath);
 
     const res = spawnSync('bash', ['scripts/check-media-integrity.sh'], {
       cwd: REPO_ROOT,
       encoding: 'utf-8',
       env: { ...process.env, FOOTBAG_DB_PATH: dbPath, MEDIA_STORAGE_ADAPTER: 'not-an-adapter' },
       ...SPAWN_GUARD,
-      timeout: 55_000,
     });
     expect(res.status, res.stdout + res.stderr).toBe(2);
     expect(res.stderr).toContain('check-media-integrity: error');

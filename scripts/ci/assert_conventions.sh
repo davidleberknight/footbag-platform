@@ -650,6 +650,98 @@ if [ -n "$row_order_hits" ]; then
 fi
 fi
 
+# Rule: a test does not assert against an unfrozen clock or an unseeded random
+# source.
+# Reason: the value then comes from the machine rather than from the code, so the
+# assertion says how fast this box was on this run. Building test data from
+# Date.now() or randomUUID() is fine and common; it is comparing against one that
+# decides a verdict, which is why this looks only inside expect(...).
+#
+# Exempt a line whose bound is derived from a budget the code under test declares
+# — a client timeout, a configured ceiling — rather than from machine speed, by
+# writing the reason on it or just above it as:
+#   budget-is-the-contract: <why>
+if check "tests/ assert against an unfrozen clock or unseeded randomness" tests; then
+unfrozen_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+# An unfrozen source appearing inside an expect(...) argument.
+assert_re = re.compile(r'expect\s*\([^;]{0,200}?(Date\.now\s*\(\)|randomUUID\s*\(\)|randomBytes\s*\()', re.S)
+exempt_re = re.compile(r'budget-is-the-contract:', re.I)
+
+for path in sorted(pathlib.Path('tests').rglob('*.ts')):
+    text = path.read_text(encoding='utf-8', errors='replace')
+    lines = text.splitlines()
+    for m in assert_re.finditer(text):
+        line_no = text.count('\n', 0, m.start()) + 1
+        # The marker may sit on the line or in the few lines above it, because
+        # the explanation usually precedes the assertion.
+        window = lines[max(0, line_no - 7):line_no + 1]
+        if any(exempt_re.search(w) for w in window):
+            continue
+        print(f"{path}:{line_no}: {lines[line_no - 1].strip()[:120]}")
+PYEOF
+)
+if [ -n "$unfrozen_hits" ]; then
+  echo "$unfrozen_hits" >&2
+  echo "  FAIL: this assertion is decided by the clock or by randomness; freeze the source, assert shape rather than value, or derive the bound from a budget the code declares and say so with a budget-is-the-contract: comment" >&2
+  violations=$((violations + 1))
+fi
+fi
+
+# Rule: a test does not declare a per-test timeout equal to the configured
+# testTimeout.
+# Reason: it changes nothing, and it is not harmless. A number written beside a
+# case reads as evidence that the case needed a longer budget, so the next reader
+# treats a fast test as a slow one and the next author copies the number onto a
+# case that really is slow, where it is equally inert. The pattern this repeats
+# is the one worth stopping: reaching for a bigger number instead of asking why
+# the test is slow. Timeouts that differ from the default are untouched, in
+# either direction, because those express a real decision; hook declarations are
+# untouched because hookTimeout is a different budget.
+#
+# The configured value is read from vitest.config.ts rather than written here, so
+# this tracks the config instead of drifting from it.
+if check "tests/ declare a timeout equal to the configured default" tests vitest.config.ts; then
+noop_timeout_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+cfg = pathlib.Path('vitest.config.ts').read_text(encoding='utf-8', errors='replace')
+m = re.search(r'testTimeout\s*:\s*([0-9_]+)', cfg)
+if m:
+    configured = int(m.group(1).replace('_', ''))
+    # `}, 30_000);` closing a case, and `it('name', { timeout: 30_000 }, ...)`.
+    tail_re = re.compile(r'^\s*\}\s*,\s*([0-9_]+)\s*\)\s*;?\s*$')
+    opt_re = re.compile(r'\b(it|test)\s*\([^)]*\{\s*timeout\s*:\s*([0-9_]+)\s*\}')
+    opener_re = re.compile(r'\b(it|test|beforeAll|beforeEach|afterAll|afterEach)\s*\(')
+
+    for path in sorted(pathlib.Path('tests').rglob('*.ts')):
+        lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+        for i, line in enumerate(lines):
+            mo = opt_re.search(line)
+            if mo and int(mo.group(2).replace('_', '')) == configured:
+                print(f"{path}:{i + 1}: {line.strip()[:120]}")
+                continue
+            mt = tail_re.match(line)
+            if not mt or int(mt.group(1).replace('_', '')) != configured:
+                continue
+            # Which construct is being closed decides whether this is inert: the
+            # same number on a hook is measured against hookTimeout instead.
+            for j in range(i, -1, -1):
+                mk = opener_re.search(lines[j])
+                if mk:
+                    if mk.group(1) in ('it', 'test'):
+                        print(f"{path}:{i + 1}: {line.strip()[:120]}")
+                    break
+PYEOF
+)
+if [ -n "$noop_timeout_hits" ]; then
+  echo "$noop_timeout_hits" >&2
+  echo "  FAIL: this timeout equals the configured testTimeout and so does nothing; delete it, or set a value that differs because the case genuinely needs one" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: a test file that spawns a process synchronously imports the shared bound
 # in tests/fixtures/spawnGuard.ts.
 # Reason: a synchronous spawn blocks the worker's event loop, and vitest's own
@@ -1534,9 +1626,14 @@ fi
 # the retired /internal HTTP mount, which is why the route pattern requires a QC
 # path segment rather than matching the word alone.
 if check "the retired QC subsystem has not returned" src database; then
-qc_hits=$(grep -rnE --exclude-dir=node_modules --exclude-dir=__pycache__ --exclude-dir=tests \
+# Tracked files only. The claim is that the subsystem is not in the codebase, and
+# git knows what the codebase is: grepping the working tree instead walks the
+# gitignored Python virtualenv and pipeline output too, which is a hundred
+# thousand files of other people's code and generated artifacts, and makes the
+# answer depend on what a given workstation happens to be holding.
+qc_hits=$(git grep -nE \
   'internal-qc|internalRouter|netQcController|personsQcController|netQcService|personsQcService|personsQcChecks|/internal/(net|persons|freestyle)/|net_review_queue|net_candidate_match|net_curated_match|net_raw_fragment|net_recovery_alias_candidate|net_team_correction_candidate' \
-  src database legacy_data scripts 2>/dev/null \
+  -- src database legacy_data scripts ':(exclude)**/tests/**' 2>/dev/null \
   | grep -vE '^scripts/validate-qc-absence\.sh:' \
   | grep -vE '^scripts/ci/assert_conventions\.sh:' \
   || true)

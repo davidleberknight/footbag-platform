@@ -36,6 +36,11 @@ function tempDir(): string {
 
 function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {}): void {
   const db = new BetterSqlite3(dbPath);
+  // The schema commits each of its ~460 statements separately and the seed rows
+  // below add hundreds more, so the default durability costs a disk flush per
+  // statement and seconds per test. A throwaway fixture has nothing to survive,
+  // and the gates under test read this database as the single file it stays.
+  db.pragma('synchronous = OFF');
   db.exec(SCHEMA_SQL);
 
   // Minimum legacy_members fixture: real_name + country + import_source +
@@ -148,10 +153,6 @@ function runChecklist(
     env,
     encoding: 'utf8',
     ...SPAWN_GUARD,
-    // The checklist runs every gate in one pass, so it legitimately takes longer
-    // than the shared bound allows; the cases that call it declare the matching
-    // per-test timeout. The kill signal stays the guard's.
-    timeout: 60_000,
   });
   return {
     status: result.status ?? -1,
@@ -175,7 +176,7 @@ describe('pre-cutover checklist orchestrator', () => {
     if (fs.existsSync(workDir)) fs.rmSync(workDir, { recursive: true, force: true });
   });
 
-  it('green path: every gate PASS, exit 0, summary lists each gate', { timeout: 60_000 }, () => {
+  it('green path: every gate PASS, exit 0, summary lists each gate', () => {
     buildFixtureDb(dbPath);
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
@@ -202,7 +203,7 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.stdout).toMatch(/GATE: CLAIM-SAFETY SKIP/);
   });
 
-  it('red path: empty name_variants → G11 FAIL → exit non-zero, summary reports the failure', { timeout: 60_000 }, () => {
+  it('red path: empty name_variants → G11 FAIL → exit non-zero, summary reports the failure', () => {
     buildFixtureDb(dbPath, { withNameVariants: false });
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status).not.toBe(0);
@@ -210,7 +211,7 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
   });
 
-  it('red path: showcase records missing → SHOWCASE-PRESENCE FAIL', { timeout: 60_000 }, () => {
+  it('red path: showcase records missing → SHOWCASE-PRESENCE FAIL', () => {
     buildFixtureDb(dbPath);
     const db = new BetterSqlite3(dbPath);
     db.prepare(`DELETE FROM historical_persons WHERE person_name = 'Footbag Hacky'`).run();
@@ -221,7 +222,7 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.stdout).toMatch(/Footbag Hacky rows: 0/);
   });
 
-  it('red path: an email shared across accounts in a secondary column → G1 FAIL', { timeout: 60_000 }, () => {
+  it('red path: an email shared across accounts in a secondary column → G1 FAIL', () => {
     buildFixtureDb(dbPath);
     const db = new BetterSqlite3(dbPath);
     // legmem-1 carries legacy1@example.com as its primary; put the same
@@ -242,7 +243,7 @@ describe('pre-cutover checklist orchestrator', () => {
   // production while every one of them read the operator's own build, and
   // nothing in the output contradicted that reading.
 
-  it('names the workstation as the subject when no target is given', { timeout: 60_000 }, () => {
+  it('names the workstation as the subject when no target is given', () => {
     buildFixtureDb(dbPath);
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status).toBe(0);
@@ -266,7 +267,7 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.stderr).toMatch(/mutually exclusive/);
   });
 
-  it('payments-boot skips with its reason when there is no env file to read', { timeout: 60_000 }, () => {
+  it('payments-boot skips with its reason when there is no env file to read', () => {
     // The gate reads a deploy env file, which lives on a host. Without a target
     // and without a file it used to FAIL, so a run counted a failure that said
     // nothing about the environment being certified. Looking at nothing is a

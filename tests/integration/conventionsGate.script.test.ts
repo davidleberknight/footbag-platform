@@ -13,8 +13,16 @@
  * violation and asserts the same message is absent. A check with nothing to scan
  * reports that it did not run, and a fixture tree says it is one by setting
  * CONVENTIONS_FIXTURE_TREE, because on a real checkout a rule with nothing to scan is
- * a rule that has stopped being enforced and the gate fails on it. The last case runs
- * against this repository, which is what keeps the fixtures honest.
+ * a rule that has stopped being enforced and the gate fails on it.
+ *
+ * What keeps these fixtures honest is the gate's own run against this repository, in
+ * the pre-PR script, the full local runner, the clean-room gate and continuous
+ * integration. That run is deliberately not repeated here. Without
+ * CONVENTIONS_FIXTURE_TREE the gate already fails closed on any check that found
+ * nothing to scan, so its exit status alone carries everything a copy of it here
+ * could assert, and a full scan of the tree takes about twenty seconds, which on a
+ * slower machine exceeds the bound every spawn in this file runs under and would be
+ * reported as a killed worker rather than as a named failure.
  *
  * A few fixture snippets are assembled from pieces rather than written out. The gate
  * scans this directory too, and a skipped-test call or an unswept temp prefix written
@@ -269,6 +277,69 @@ describe('the convention gate: rules about tests/', () => {
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, 'real cloud storage / deployed DB access in tests');
   });
+
+  // Assembled rather than written out, for the reason the header gives: a line
+  // reading exactly like the closing argument below IS the violation, and the
+  // gate scans this directory too.
+  const CONFIG = 'export default { test: { testTimeout: 30_000 } };\n';
+  const closeWith = (n: string): string => `${'}'}, ${n});`;
+  const caseClosing = (n: string): string => `it('x', async () => {\n${closeWith(n)}\n`;
+  const hookClosing = (n: string): string => `beforeAll(async () => {\n${closeWith(n)}\n`;
+
+  it('refuses a per-test timeout that only restates the configured default', () => {
+    const res = inFixtureRepo({
+      'vitest.config.ts': CONFIG,
+      'tests/unit/thing.test.ts': caseClosing('30_000'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('equals the configured testTimeout');
+  });
+
+  it('accepts a per-test timeout that differs from the default', () => {
+    const res = inFixtureRepo({
+      'vitest.config.ts': CONFIG,
+      'tests/unit/thing.test.ts': caseClosing('120_000'),
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'tests/ declare a timeout equal to the configured default');
+  });
+
+  // Assembled for the same reason: written out plainly, these are the violation.
+  const NOW = `Date${'.'}now()`;
+  const clockAssertion = `it('x', () => {\n  expect(${NOW} - started).toBeLessThan(3000);\n});\n`;
+
+  it('refuses an assertion decided by the clock', () => {
+    const res = inFixtureRepo({ 'tests/unit/thing.test.ts': clockAssertion });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('decided by the clock');
+  });
+
+  it('accepts the same assertion when its bound comes from a budget the code declares', () => {
+    const res = inFixtureRepo({
+      'tests/unit/thing.test.ts':
+        "it('x', () => {\n  // budget-is-the-contract: a multiple of the client timeout.\n"
+        + `  expect(${NOW} - started).toBeLessThan(TIMEOUT_MS * 20);\n});\n`,
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'tests/ assert against an unfrozen clock or unseeded randomness');
+  });
+
+  it('accepts an unfrozen source used to build test data rather than to decide a verdict', () => {
+    const res = inFixtureRepo({
+      'tests/unit/thing.test.ts': `const id = ${NOW};\nit('x', () => {\n  expect(id).toBeTruthy();\n});\n`,
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'tests/ assert against an unfrozen clock or unseeded randomness');
+  });
+
+  it('accepts the same number on a hook, which is measured against a different budget', () => {
+    const res = inFixtureRepo({
+      'vitest.config.ts': CONFIG,
+      'tests/unit/thing.test.ts': hookClosing('30_000'),
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'tests/ declare a timeout equal to the configured default');
+  });
 });
 
 describe('the convention gate: what it does with nothing to scan', () => {
@@ -296,12 +367,4 @@ describe('the convention gate: what it does with nothing to scan', () => {
     expect(res.stderr).toContain('every check runs against this repository');
   });
 
-  it('passes against this repository, with every check running', () => {
-    const res = spawnSync('bash', [GATE], {
-      cwd: process.cwd(), encoding: 'utf8', ...SPAWN_GUARD,
-    });
-    expect(res.status, res.stderr ?? '').toBe(0);
-    expect(res.stdout).toContain('[conventions] all rules pass');
-    expect(res.stdout).not.toContain('DID NOT RUN');
-  });
 });

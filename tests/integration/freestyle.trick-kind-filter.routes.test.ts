@@ -215,15 +215,17 @@ describe('Trick-browse view filter — non-trick kinds excluded', () => {
     { name: 'topology',  url: '/freestyle/tricks?view=topology' },
   ];
 
+  // One request per view, not one per view and slug: the URL does not depend on
+  // the slug, so every slug is asserted against the same rendered page.
   for (const view of views) {
-    for (const slug of ALL_FILTERED_SAMPLES) {
-      it(`excludes non-trick slug '${slug}' from ${view.name} view`, async () => {
-        const app = createApp();
-        const res = await request(app).get(view.url);
-        expect(res.status).toBe(200);
-        expect(res.text).not.toContain(`data-trick-slug="${slug}"`);
-      });
-    }
+    it(`excludes every non-trick slug from the ${view.name} view`, async () => {
+      const app = createApp();
+      const res = await request(app).get(view.url);
+      expect(res.status).toBe(200);
+      for (const slug of ALL_FILTERED_SAMPLES) {
+        expect(res.text, `${slug} in ${view.name} view`).not.toContain(`data-trick-slug="${slug}"`);
+      }
+    });
   }
 });
 

@@ -28,8 +28,13 @@ while IFS= read -r f; do
   if grep -qE "$FETCH" "$f" && grep -qE "$HOSTS" "$f"; then
     offenders="${offenders}  ${f}"$'\n'
   fi
-done < <(find legacy_data scripts freestyle -name '*.py' \
-           -not -path '*/.venv/*' -not -path '*/tests/*' -not -path '*/fixtures/*' 2>/dev/null \
+# The virtualenv, bytecode caches and pipeline output are pruned rather than
+# filtered: filtering still walks them, and between them they hold six figures of
+# files that are installed third-party code or generated artifacts, never a
+# pipeline script this gate can be talking about.
+done < <(find legacy_data scripts freestyle \
+           \( -name '.venv' -o -name '__pycache__' -o -name 'out' -o -name 'tests' -o -name 'fixtures' \) -prune -o \
+           -name '*.py' -print 2>/dev/null \
            | grep -vE "$ALLOW")
 
 if [ -n "$offenders" ]; then

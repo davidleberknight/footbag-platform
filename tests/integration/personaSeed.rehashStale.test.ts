@@ -99,7 +99,7 @@ describe('persona seed runner: stale-hash self-heal', () => {
     expect(after.row.id).toBe(before.id);
     expect(after.count).toBe(1);
     expect(after.row.v).toBe(before.v + 1);
-  }, 30_000);
+  });
 
   it('leaves an already-current hash unchanged on a second run', async () => {
     const BetterSqlite3 = (await import('better-sqlite3')).default;
@@ -134,5 +134,5 @@ describe('persona seed runner: stale-hash self-heal', () => {
     // No re-hash and no version bump: a current-scheme hash is skipped.
     expect(second.h).toBe(first.h);
     expect(second.v).toBe(first.v);
-  }, 30_000);
+  });
 });

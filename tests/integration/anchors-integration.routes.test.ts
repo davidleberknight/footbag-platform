@@ -602,5 +602,5 @@ describe('registration conflict ledger entry', () => {
     expect(metadata.conflicts[0].legacy_member_id).toBe('LM-ledger-1');
     expect(metadata.conflicts.length).toBeLessThanOrEqual(5);
     expect(JSON.stringify(metadata)).not.toContain('Ledgersson');
-  }, 30000);
+  });
 });

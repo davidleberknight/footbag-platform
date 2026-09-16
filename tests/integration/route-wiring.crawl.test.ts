@@ -357,6 +357,18 @@ async function crawlAs(
   return { failures, visited };
 }
 
+/**
+ * Ceiling for a crawl case, derived from the crawl's own budget rather than from
+ * how long a walk happens to take here. MAX_PAGES is what decides when a crawl
+ * stops, and exceeding it is reported as a named failure, so this has to clear a
+ * full-budget walk or the runner interrupts before the budget can report and the
+ * verdict becomes a statement about the machine. A page costs on the order of
+ * twenty milliseconds, so the full 800 are seconds rather than minutes, and the
+ * margin here is for a workstation several times slower than the one that
+ * measured it.
+ */
+const CRAWL_TIMEOUT_MS = 120_000;
+
 // The persona-switch route issues a real session cookie on its 302; pulling it
 // out lets the crawl render pages AS the switched persona instead of only
 // confirming the switch link resolves.
@@ -388,13 +400,13 @@ describe('route wiring crawl', () => {
   it('anonymous: every rendered link and form target resolves; no template artifacts', async () => {
     const { failures } = await crawlAs('anonymous', null);
     expect(failures).toEqual([]);
-  }, 120_000);
+  }, CRAWL_TIMEOUT_MS);
 
   it('authenticated member: every rendered link and form target resolves; no template artifacts', async () => {
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
     const { failures } = await crawlAs('member', cookie);
     expect(failures).toEqual([]);
-  }, 120_000);
+  }, CRAWL_TIMEOUT_MS);
 
   it('admin: every rendered link and form target resolves; no template artifacts', async () => {
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
@@ -410,7 +422,7 @@ describe('route wiring crawl', () => {
     // A login-blocked persona is an exercisable link, not a dead row: its
     // /dev/login target is followed and resolves (it lands on /login).
     expect(visited.has('/dev/login?as=unverified')).toBe(true);
-  }, 120_000);
+  }, CRAWL_TIMEOUT_MS);
 
   // Adopting the session cookie the switch route issues renders pages AS each
   // persona, so tier, honor, and club-role conditional surfaces are actually

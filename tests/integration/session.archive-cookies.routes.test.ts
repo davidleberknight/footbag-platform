@@ -90,6 +90,10 @@ describe('session issue with an archive cookie signer configured', () => {
     const policy = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
     expect(policy.Statement).toHaveLength(1);
     expect(policy.Statement[0].Resource).toBe('https://archive.example.test/*');
+    // budget-is-the-contract: the expiry is set from the signing TTL the code
+    // declares, and what is asserted is that a cookie is never issued already
+    // expired. The comparison is against the clock because the contract is about
+    // the clock, and no machine speed can make a future stamp into a past one.
     expect(policy.Statement[0].Condition.DateLessThan['AWS:EpochTime']).toBeGreaterThan(
       Math.floor(Date.now() / 1000),
     );

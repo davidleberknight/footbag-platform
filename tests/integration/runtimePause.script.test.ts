@@ -49,8 +49,9 @@ interface RunResult {
 
 function run(env: Record<string, string>): RunResult {
   const res = spawnSync('bash', [REMOTE_HALF], {
-    env: { ...process.env, ...SPAWN_GUARD, CONFIG_KEY: PAYMENTS_KEY, ...env },
+    env: { ...process.env, CONFIG_KEY: PAYMENTS_KEY, ...env },
     encoding: 'utf8',
+    ...SPAWN_GUARD,
   });
   return {
     exitCode: res.status ?? -1,
@@ -95,6 +96,13 @@ beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'footbag-test-pause-'));
   dbFile = join(workDir, 'footbag.db');
   const db = new BetterSqlite3(dbFile);
+  // The schema is around 460 DDL statements and carries no transaction of its
+  // own, so each one commits separately. Left at the default durability that is
+  // a disk flush per statement, which costs seconds per test and is the whole
+  // reason this file was slow. A throwaway fixture in a temp directory has
+  // nothing to survive, and this leaves the single-file layout the script under
+  // test reads exactly as it was.
+  db.pragma('synchronous = OFF');
   db.exec(readFileSync(SCHEMA, 'utf8'));
   db.close();
   seededRows = {
