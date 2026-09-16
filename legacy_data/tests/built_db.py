@@ -39,8 +39,10 @@ REQUIRED_DB_INTEGRITY_GUARDS = (
     "test_freestyle_canonical_name_uniqueness.py",
     "test_freestyle_incomplete_notation_cohort.py",
     "test_freestyle_public_prose_hygiene.py",
+    "test_freestyle_record_resolution_cohort.py",
     "test_freestyle_same_in_out_scope.py",
     "test_freestyle_scoring_bracket_parity.py",
+    "test_freestyle_trick_family_integrity.py",
     "test_symbolic_grammar_artifact_current.py",
     "test_symbolic_grammar_slug_literals.py",
 )
