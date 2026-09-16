@@ -39,6 +39,21 @@ def test_no_around_the_world_trick_is_direction_neutral():
         ).fetchall()
     finally:
         conn.close()
+
+    # Floor before the verdict: this test concludes from finding no offender inside a
+    # cohort, so an empty cohort, or one whose notation is entirely blank, passes it
+    # having scanned nothing. require_loaded proves the table holds rows, not that
+    # these rows are among them.
+    assert rows, (
+        "no active around-the-world trick is present, so the direction check scanned "
+        "nothing. Either the family was renamed away from this slug shape or the "
+        "dictionary did not load."
+    )
+    assert any(op.strip() for _, op in rows), (
+        f"all {len(rows)} active around-the-world trick(s) carry blank operational "
+        "notation, so the direction check scanned nothing."
+    )
+
     offenders = sorted(s for s, op in rows if "SAME IN/OUT" in op)
     assert not offenders, (
         "Around the World is inward, not direction-neutral, but these active tricks "

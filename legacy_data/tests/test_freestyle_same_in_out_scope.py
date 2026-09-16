@@ -59,6 +59,18 @@ def test_no_active_canonical_operational_notation_is_direction_neutral():
         ).fetchall()
     finally:
         conn.close()
+
+    # Floor before the verdict: this test concludes from finding no direction-neutral
+    # token anywhere, so a corpus whose operational notation is entirely blank passes
+    # it having scanned nothing, and that is the state a failed or partial load
+    # produces. require_loaded proves the table holds rows, not that they hold
+    # notation.
+    notated = sum(1 for _, op in rows if op.strip())
+    assert notated, (
+        f"no active trick carries operational notation ({len(rows)} active row(s) read), "
+        "so the direction-resolution check scanned nothing."
+    )
+
     offenders = sorted(
         slug for slug, op in rows
         if SAME_IN_OUT_RE.search(op) and slug not in OPERATIONAL_SAME_IN_OUT_ALLOWLIST
