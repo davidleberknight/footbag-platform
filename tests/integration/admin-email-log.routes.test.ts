@@ -3,7 +3,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertOutboxEmail, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertOutboxEmail, insertSesEvent, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3242');
 
@@ -80,6 +80,43 @@ describe('GET /admin/email-log', () => {
     expect(res.text).toContain('el-member@example.com');
     // recipient_member_id resolves to a member profile link.
     expect(res.text).toContain(`href="/members/${MEMBER_SLUG}"`);
+  });
+
+  it('names the feedback the provider reported against a message', async () => {
+    // Delivery status says what happened at the moment of sending. What the
+    // provider said afterwards is the other half, and an operator reading this
+    // log after a bad send is asking exactly that.
+    withDb((db) => {
+      const outboxId = insertOutboxEmail(db, {
+        recipient_email: 'el-member@example.com', recipient_member_id: MEMBER_ID,
+        subject: 'Newsletter May', template_key: 'account_verify', status: 'sent',
+        sent_at: '2026-06-01T00:01:00.000Z', provider_message_id: 'provider-bounced-1',
+      });
+      insertSesEvent(db, {
+        message_id: 'sns-el-bounce', event_type: 'bounce',
+        created_at: '2026-06-01T00:05:00.000Z',
+        mail_message_id: 'provider-bounced-1', outbox_email_id: outboxId,
+      });
+    });
+    const app = createApp();
+    const res = await request(app).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Newsletter May');
+    expect(res.text).toContain('Bounced 2026-06-01 00:05:00 UTC');
+  });
+
+  it('says nothing about feedback for a message that drew none', async () => {
+    withDb((db) => insertOutboxEmail(db, {
+      recipient_email: 'el-member@example.com', subject: 'Quiet delivery',
+      template_key: 'account_verify', status: 'sent',
+      sent_at: '2026-06-01T00:01:00.000Z', provider_message_id: 'provider-quiet-1',
+    }));
+    const app = createApp();
+    const res = await request(app).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Quiet delivery');
+    expect(res.text).not.toContain('Bounced');
+    expect(res.text).not.toContain('Marked as spam');
   });
 
   it('shows the unpopulated template body, never the recipient-rendered message body', async () => {

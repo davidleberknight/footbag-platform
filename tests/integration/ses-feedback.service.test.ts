@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMailingListSubscription, insertMember } from '../fixtures/factories';
+import { insertMailingListSubscription, insertMember, insertOutboxEmail } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3083');
 
@@ -31,6 +31,11 @@ beforeAll(async () => {
   insertMember(db, { id: 'sf-2', slug: 'sf_2', login_email: 'complainer@example.com' });
   insertMember(db, { id: 'sf-3', slug: 'sf_3', login_email: 'suppressed@example.com' });
   db.prepare(`UPDATE members SET email_status = 'suppressed' WHERE id = 'sf-3'`).run();
+  // The tracing cases need addresses no earlier case has already flipped, since
+  // these statuses only ever escalate.
+  insertMember(db, { id: 'sf-4', slug: 'sf_4', login_email: 'traced@example.com' });
+  insertMember(db, { id: 'sf-5', slug: 'sf_5', login_email: 'untraceable@example.com' });
+  insertMember(db, { id: 'sf-6', slug: 'sf_6', login_email: 'envelopeless@example.com' });
   ({ sesFeedbackService: feedback } = await import('../../src/services/sesFeedbackService'));
 });
 
@@ -49,17 +54,33 @@ function snsEnvelope(message: Record<string, unknown>, messageId?: string): stri
   return JSON.stringify(envelope);
 }
 
-function bounceBody(emails: string[], bounceType = 'Permanent', messageId?: string): string {
+/**
+ * The mail envelope names the message the provider is reporting on. It is
+ * omitted where a case is about the address alone, which is also what a payload
+ * missing it must still be handled as.
+ */
+function mailEnvelope(mailMessageId?: string): Record<string, unknown> {
+  return mailMessageId === undefined ? {} : { mail: { messageId: mailMessageId } };
+}
+
+function bounceBody(
+  emails: string[],
+  bounceType = 'Permanent',
+  messageId?: string,
+  mailMessageId?: string,
+): string {
   return snsEnvelope({
     notificationType: 'Bounce',
     bounce: { bounceType, bouncedRecipients: emails.map((e) => ({ emailAddress: e })) },
+    ...mailEnvelope(mailMessageId),
   }, messageId);
 }
 
-function complaintBody(emails: string[], messageId?: string): string {
+function complaintBody(emails: string[], messageId?: string, mailMessageId?: string): string {
   return snsEnvelope({
     notificationType: 'Complaint',
     complaint: { complainedRecipients: emails.map((e) => ({ emailAddress: e })) },
+    ...mailEnvelope(mailMessageId),
   }, messageId);
 }
 
@@ -229,5 +250,80 @@ describe('bounce and complaint notifications', () => {
     // the queue hand back the same body until it aged out.
     const result = feedback.processSnsMessage('this is not json');
     expect(result).toEqual({ status: 'ignored', reason: 'malformed' });
+  });
+});
+
+/**
+ * Which send a piece of feedback belongs to. The sent message kept the
+ * identifier the provider issued for it, and the report names the same one, so
+ * the notification record can carry the message as well as the address. The
+ * address half of the work never depends on that resolving: a mailbox that
+ * refuses mail is a fact about the mailbox, not about the message.
+ */
+describe('tracing feedback to the send that caused it', () => {
+  function eventRow(snsMessageId: string): {
+    mail_message_id: string | null;
+    outbox_email_id: string | null;
+  } {
+    return db.prepare(
+      'SELECT mail_message_id, outbox_email_id FROM ses_events WHERE message_id = ?',
+    ).get(snsMessageId) as { mail_message_id: string | null; outbox_email_id: string | null };
+  }
+
+  it('records the message a bounce is about, alongside the address', () => {
+    const outboxId = insertOutboxEmail(db, {
+      recipient_email: 'traced@example.com',
+      status: 'sent',
+      sent_at: '2026-04-17T00:00:00.000Z',
+      provider_message_id: 'provider-msg-traced',
+    });
+    feedback.processSnsMessage(
+      bounceBody(['traced@example.com'], 'Permanent', 'sns-traced', 'provider-msg-traced'),
+    );
+    expect(statusOf('sf-4')).toBe('bounced');
+    expect(eventRow('sns-traced')).toEqual({
+      mail_message_id: 'provider-msg-traced',
+      outbox_email_id: outboxId,
+    });
+  });
+
+  it('records a message it cannot resolve, and still acts on the address', () => {
+    // Ordinary rather than exceptional: the per-recipient copy ages out of the
+    // outbox long before the provider stops having an opinion about the address.
+    feedback.processSnsMessage(
+      bounceBody(['untraceable@example.com'], 'Permanent', 'sns-untraceable', 'provider-msg-gone'),
+    );
+    expect(statusOf('sf-5')).toBe('bounced');
+    expect(eventRow('sns-untraceable')).toEqual({
+      mail_message_id: 'provider-msg-gone',
+      outbox_email_id: null,
+    });
+  });
+
+  it('handles a notification carrying no mail envelope at all', () => {
+    feedback.processSnsMessage(
+      bounceBody(['envelopeless@example.com'], 'Permanent', 'sns-envelopeless'),
+    );
+    expect(statusOf('sf-6')).toBe('bounced');
+    expect(eventRow('sns-envelopeless')).toEqual({
+      mail_message_id: null,
+      outbox_email_id: null,
+    });
+  });
+
+  it('does not re-resolve a redelivered notification, which is claimed once', () => {
+    insertOutboxEmail(db, {
+      recipient_email: 'traced@example.com',
+      status: 'sent',
+      sent_at: '2026-04-17T00:00:00.000Z',
+      provider_message_id: 'provider-msg-repeat',
+    });
+    const body = complaintBody(['traced@example.com'], 'sns-repeat', 'provider-msg-repeat');
+    expect(feedback.processSnsMessage(body)).toMatchObject({ status: 'processed' });
+    expect(feedback.processSnsMessage(body)).toEqual({ status: 'duplicate', kind: 'complaint' });
+    const rows = db.prepare(
+      'SELECT COUNT(*) AS n FROM ses_events WHERE message_id = ?',
+    ).get('sns-repeat') as { n: number };
+    expect(rows.n).toBe(1);
   });
 });

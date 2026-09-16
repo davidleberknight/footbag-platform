@@ -69,6 +69,11 @@ interface EmailLogEntryViewModel {
   templateKey: string;
   classificationLabel: string | null;
   statusLabel: string;
+  // What the mail provider reported back about this message, once it had left.
+  // Null where it reported nothing, which is every message that arrived and most
+  // of those that did not. Delivery status above is what the platform observed
+  // at the moment of sending, and says nothing about what happened afterwards.
+  feedbackLabel: string | null;
   lastError: string | null;
   templateBodyPreview: string | null;
   // A message the drain has given up on, or cannot say was received, is the
@@ -153,6 +158,23 @@ function templateBodyPreview(templateKey: string | null): string | null {
 /** The two terminal failure states: nothing in the platform moves them on. */
 const REVIEWABLE_STATUSES = new Set(['dead_letter', 'manual_review']);
 
+// Feedback reaches this row because the send kept the identifier the provider
+// issued for it and the report carries the same one. The wording names the
+// provider's verdict rather than the raw event name, because an admin reading
+// this is answering "what happened to this message".
+const FEEDBACK_VERDICTS: Record<string, string> = {
+  bounce:    'Bounced',
+  complaint: 'Marked as spam',
+};
+
+function feedbackLabel(row: OutboxLogQueryRow): string | null {
+  if (!row.feedback_event_type) return null;
+  const verdict = FEEDBACK_VERDICTS[row.feedback_event_type];
+  if (!verdict) return null;
+  const when = tsDisplay(row.feedback_created_at);
+  return when ? `${verdict} ${when}` : verdict;
+}
+
 function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
   const isReviewed = row.reviewed_at !== null;
   return {
@@ -165,6 +187,7 @@ function shapeRow(row: OutboxLogQueryRow): EmailLogEntryViewModel {
     templateKey: row.template_key ?? '(none)',
     classificationLabel: emailTemplateClassification(row.template_key),
     statusLabel: row.status.replace('_', ' '),
+    feedbackLabel: feedbackLabel(row),
     lastError: row.last_error,
     templateBodyPreview: templateBodyPreview(row.template_key),
     isReviewable: REVIEWABLE_STATUSES.has(row.status) && !isReviewed,

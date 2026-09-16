@@ -721,6 +721,16 @@ CREATE TABLE outbox_emails (
   sent_at         TEXT,
   scheduled_for   TEXT,
 
+  -- The identifier the mail provider returned for this send, and the only thing
+  -- that joins a later bounce or complaint back to the message that caused it;
+  -- the feedback notification carries the same value. Written on the successful
+  -- send path only, so a row that never sent carries none, and neither does one
+  -- parked for manual review, its outcome being exactly what is not known. It
+  -- records what was sent and confers nothing on a retry: the provider send
+  -- carries no idempotency token, which is why an unknowable outcome parks for
+  -- an administrator rather than retrying.
+  provider_message_id TEXT,
+
   -- An administrator's disposition of a message that will never be delivered.
   -- 'dead_letter' and 'manual_review' are terminal: the drain has given up, or
   -- cannot tell whether a person received it, and nothing else in the platform
@@ -748,6 +758,13 @@ CREATE INDEX        idx_outbox_stream_due ON outbox_emails(status, stream, sched
 -- The admin health view counts what went out inside its window; without this it
 -- reads every row the table has ever held to answer one figure.
 CREATE INDEX        idx_outbox_sent       ON outbox_emails(status, sent_at);
+-- The feedback handler resolves an inbound bounce or complaint to the send that
+-- produced it by this value. Deliberately not unique: the provider issues a
+-- fresh identifier per send, but that is its promise to keep rather than one to
+-- enforce here, and a repeated value would fail a send rather than reveal it.
+CREATE INDEX        idx_outbox_provider_message
+  ON outbox_emails(provider_message_id)
+  WHERE provider_message_id IS NOT NULL;
 CREATE UNIQUE INDEX ux_outbox_idempotency
   ON outbox_emails(idempotency_key)
   WHERE idempotency_key IS NOT NULL;
@@ -1289,12 +1306,29 @@ CREATE TABLE ses_events (
   -- a bounce or complaint per notification, not per address, and a single
   -- notification can name several. Counting rows would report a two-recipient
   -- bounce as one, so the admin health view sums this instead.
-  recipient_count INTEGER NOT NULL DEFAULT 1
+  recipient_count INTEGER NOT NULL DEFAULT 1,
+
+  -- The provider's identifier for the original message this notification is
+  -- about, read from the notification's mail envelope. It is the same value the
+  -- sent outbox row carries, and it is distinct from the primary key above,
+  -- which identifies the notification rather than the mail. Kept here in its own
+  -- right because the per-recipient outbox copy ages out on the outbox retention
+  -- window and this row is the lasting record of what the provider reported.
+  mail_message_id TEXT,
+  -- The outbox row that identifier resolved to, where one was found. Cleared
+  -- rather than blocking when retention removes the per-recipient copy, so the
+  -- notification record outlives the message it is about.
+  outbox_email_id TEXT REFERENCES outbox_emails(id) ON DELETE SET NULL
 );
 
 -- The admin health view scans this table by arrival time to express bounce and
 -- complaint volume over its window.
 CREATE INDEX idx_ses_events_created ON ses_events(created_at, event_type);
+-- The admin email log reads the other direction, asking what feedback a given
+-- message received.
+CREATE INDEX idx_ses_events_outbox
+  ON ses_events(outbox_email_id)
+  WHERE outbox_email_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- RECURRING DONATION SUBSCRIPTIONS

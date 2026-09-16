@@ -320,9 +320,10 @@ export const systemHealthService = {
     // The two halves are measured over the same window but not over the same
     // messages: the denominator is what was sent inside it, the numerator is
     // the feedback that arrived inside it, which can concern mail sent before
-    // it. Nothing links a bounce back to the message that caused it, so a
-    // cohort rate is not available; this is a volume comparison, and a busy
-    // recovery period can put it above one hundred per cent.
+    // it. This is a volume comparison rather than a cohort rate, and a busy
+    // recovery period can put it above one hundred per cent. Feedback does now
+    // name the message that caused it, so a cohort rate is buildable; which
+    // denominator it ought to use is its own decision and is not taken here.
     const sentInWindow = halt.sentInWindow;
     const bounceCount = halt.bounceCount;
     const complaintCount = halt.complaintCount;

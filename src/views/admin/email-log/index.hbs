@@ -38,7 +38,7 @@
 
   {{#each content.entries}}
     <div class="card mb-2">
-      <div class="card-title">{{subject}} <span class="badge">{{statusLabel}}</span></div>
+      <div class="card-title">{{subject}} <span class="badge">{{statusLabel}}</span>{{#if feedbackLabel}} <span class="badge">{{feedbackLabel}}</span>{{/if}}</div>
       <p class="card-meta">
         To: {{#if recipientHref}}<a href="{{recipientHref}}">{{recipientLabel}}</a>{{else}}{{recipientLabel}}{{/if}}
         &middot; template: {{templateKey}}{{#if classificationLabel}} <span class="badge">{{classificationLabel}}</span>{{/if}}

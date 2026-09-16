@@ -1878,6 +1878,9 @@ export interface OutboxEmailOverrides {
   reviewed_at?: string | null;
   reviewed_by_member_id?: string | null;
   review_note?: string | null;
+  /** The identifier the mail provider returned for the send; a later bounce or
+   *  complaint names the same value, which is how it finds this row. */
+  provider_message_id?: string | null;
 }
 
 export interface MailingListOverrides {
@@ -1940,8 +1943,9 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
       recipient_email, recipient_member_id, mailing_list_id,
       subject, body_text, template_key, status, last_error, sent_at,
       stream, last_attempt_at,
-      reviewed_at, reviewed_by_member_id, review_note
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      reviewed_at, reviewed_by_member_id, review_note,
+      provider_message_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, ts, SYS, ts, SYS,
     recipientEmail,
@@ -1958,6 +1962,7 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     o.reviewed_at ?? null,
     o.reviewed_by_member_id ?? null,
     o.review_note ?? null,
+    o.provider_message_id ?? null,
   );
   return id;
 }
@@ -2127,17 +2132,27 @@ export interface SesEventOverrides {
   /** Addresses this one notification covered; the health view sums these
    *  rather than counting rows, because one notification can name several. */
   recipient_count?: number;
+  /** The provider's identifier for the message being reported on, distinct from
+   *  the notification's own identifier that keys this row. */
+  mail_message_id?: string | null;
+  /** The outbox row that identifier resolved to, where one was found. */
+  outbox_email_id?: string | null;
 }
 
 export function insertSesEvent(db: BetterSqlite3.Database, o: SesEventOverrides = {}): string {
   const messageId = o.message_id ?? `sns_${uid()}`;
   const ts = o.created_at ?? TS;
   db.prepare(`
-    INSERT INTO ses_events (message_id, created_at, event_type, processed_at, recipient_count)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO ses_events (
+      message_id, created_at, event_type, processed_at, recipient_count,
+      mail_message_id, outbox_email_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     messageId, ts, o.event_type ?? 'bounce', o.processed_at ?? ts,
     o.recipient_count ?? 1,
+    o.mail_message_id ?? null,
+    o.outbox_email_id ?? null,
   );
   return messageId;
 }

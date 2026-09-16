@@ -285,7 +285,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │                                                                     │
 │  [C] Webhook / JSON callbacks  (signature auth, not JWT)            │
 │    POST /stripe/webhook    →  PaymentController.webhook             │
-│    POST /ses/bounce        →  EmailController.sesWebhook            │
+│    Mail feedback arrives on a queue the background worker polls     │
 │    …  (no Handlebars rendering; JSON response; no cookie check)     │
 └─────────────────────────────────────────────────────────────────────┘
   ↓

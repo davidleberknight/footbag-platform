@@ -5755,6 +5755,8 @@ export interface OutboxLogQueryRow {
   reviewed_at: string | null;
   review_note: string | null;
   reviewed_by_display_name: string | null;
+  feedback_event_type: string | null;
+  feedback_created_at: string | null;
 }
 
 function buildOutboxLogWhere(f: OutboxLogFilters): { sql: string; params: unknown[] } {
@@ -5774,7 +5776,8 @@ export function queryOutboxLog(filters: OutboxLogFilters, limit: number, offset:
       o.mailing_list_id, o.subject, o.template_key, o.status, o.last_error,
       o.reviewed_at, o.review_note,
       rm.display_name AS recipient_display_name, rm.slug AS recipient_slug,
-      am.display_name AS reviewed_by_display_name
+      am.display_name AS reviewed_by_display_name,
+      fb.event_type AS feedback_event_type, fb.created_at AS feedback_created_at
     FROM outbox_emails o
     -- Join through members_active so a soft-deleted recipient resolves to no
     -- slug: the viewer then shows the stored email with no profile link, rather
@@ -5784,6 +5787,17 @@ export function queryOutboxLog(filters: OutboxLogFilters, limit: number, offset:
     -- than stored on the row, so a rename follows and a deleted account leaves
     -- the disposition standing with no name rather than a stale one.
     LEFT JOIN members_active am ON am.id = o.reviewed_by_member_id
+    -- What the mail provider last reported about this message, where it reported
+    -- anything. One message normally draws at most one notification; where it
+    -- drew more, the latest is what the provider most recently said, and the
+    -- message identifier completes the ordering so the pick never depends on
+    -- which row the engine happens to reach first.
+    LEFT JOIN ses_events fb ON fb.message_id = (
+      SELECT e.message_id FROM ses_events e
+      WHERE e.outbox_email_id = o.id
+      ORDER BY e.created_at DESC, e.message_id DESC
+      LIMIT 1
+    )
     ${sql}
     ORDER BY o.created_at DESC, o.id DESC
     LIMIT ? OFFSET ?
@@ -5991,6 +6005,9 @@ export const outbox = {
     WHERE id = ? AND status = 'pending'
   `); },
 
+  // The provider's identifier for the send rides the same statement that stamps
+  // the row sent, rather than a second write, so no window exists in which a row
+  // is sent and the thing that identifies what was sent is missing.
   get markSent() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'sent',
@@ -5998,8 +6015,16 @@ export const outbox = {
         updated_at = ?,
         updated_by = 'system',
         body_text = NULL,
+        provider_message_id = ?,
         version = version + 1
     WHERE id = ?
+  `); },
+
+  // How an inbound bounce or complaint finds the message that caused it. The
+  // provider reports against its own identifier, which is the only value the
+  // notification and the row have in common.
+  get findIdByProviderMessageId() { return db.prepare(`
+    SELECT id FROM outbox_emails WHERE provider_message_id = ?
   `); },
 
   // A failed attempt goes back to 'pending' with a scheduled_for delay so
@@ -11762,10 +11787,15 @@ export const sesEvents = {
   // no-op on SNS redelivery. The feedback service inserts first inside its
   // transaction and short-circuits on changes=0, so a redelivered bounce or
   // complaint does not re-flip status or append duplicate audit rows.
+  //
+  // The mail identifier and the outbox row it resolved to travel with the claim,
+  // because they are facts about the notification being recorded and there is no
+  // second write to this row: it is inserted once and never updated.
   get insertEventOrIgnore() { return db.prepare(`
     INSERT OR IGNORE INTO ses_events
-      (message_id, created_at, event_type, processed_at, recipient_count)
-    VALUES (?, ?, ?, ?, ?)
+      (message_id, created_at, event_type, processed_at, recipient_count,
+       mail_message_id, outbox_email_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `); },
 
   // Feedback volume over a recent window, one row per notification type, so the

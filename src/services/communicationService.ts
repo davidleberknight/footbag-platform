@@ -87,6 +87,12 @@
  *     The stub reports every send as delivered, so draining would mark queued
  *     mail sent and clear its body; holding it is what makes disarming email
  *     recoverable.
+ *   - A delivered row keeps the identifier the provider returned for the send,
+ *     stamped by the same statement that marks it sent. It is what a later
+ *     bounce or complaint is matched against, and it is written on the success
+ *     path alone, so a row that never sent and a row parked for manual review
+ *     both carry none. Holding it grants no retry: the send still has no
+ *     idempotency token.
  *
  * Persistence:
  *   outbox_emails; mailing_lists, mailing_list_subscriptions, registrations
@@ -306,10 +312,13 @@ function per10k(numerator: number, denominator: number): number {
  * Two properties worth stating, because both limit what this can claim:
  *
  * The numerator and the denominator are measured over the same window but not
- * over the same messages. Nothing links a bounce back to the message that
- * caused it, so what a batch itself produced is not knowable and this is a
- * windowed comparison rather than a cohort rate. It is the same figure the
- * admin health page shows, deliberately, so the two never disagree.
+ * over the same messages: feedback arriving inside it can concern mail sent
+ * before it. Feedback does name the message that caused it, so what a batch
+ * produced is knowable and a cohort rate is buildable; which denominator that
+ * rate should use is a decision in its own right, taken against the data
+ * rather than ahead of it, and this stays a windowed comparison until it is.
+ * It is the same figure the admin health page shows, deliberately, so the two
+ * never disagree.
  *
  * Below a floor of sent messages the rates are not judged at all. Without it
  * the first bounce against a nearly idle sender reads as a catastrophic rate
@@ -950,7 +959,12 @@ export function createCommunicationService(
         result.claimed += 1;
 
         try {
-          await adapter.sendEmail({
+          // The provider's identifier for this send is stored, because it is the
+          // only value a later bounce or complaint shares with the row that
+          // caused it. It says what was sent and nothing about retrying: the
+          // send carries no idempotency token, which is why the ambiguous
+          // outcome below parks rather than trying again.
+          const sendResult = await adapter.sendEmail({
             to: row.recipient_email ?? '',
             subject: row.subject,
             bodyText: row.body_text,
@@ -958,7 +972,12 @@ export function createCommunicationService(
             configurationSet: configurationSetFor(row),
             headers: unsubscribeHeadersFor(row),
           });
-          outbox.markSent.run(new Date().toISOString(), new Date().toISOString(), row.id);
+          outbox.markSent.run(
+            new Date().toISOString(),
+            new Date().toISOString(),
+            sendResult.messageId,
+            row.id,
+          );
           result.sent += 1;
           logger.info('outbox sent', {
             outboxId: row.id,

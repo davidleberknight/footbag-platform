@@ -374,6 +374,51 @@ describe('processSendQueue', () => {
     expect(row.sent_at).not.toBeNull();
   });
 
+  it('keeps the identifier the provider returned for the send, so feedback can name the message', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = callOne(svc, {
+      recipientEmail: 'traced@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
+    });
+    await svc.processSendQueue();
+    const row = readRow(id);
+    expect(row.status).toBe('sent');
+    expect(row.provider_message_id).toBe(stub.sentMessages[0].messageId);
+    expect(row.provider_message_id).toBeTruthy();
+  });
+
+  it('leaves the provider identifier unset on a row that never sent', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = callOne(svc, {
+      recipientEmail: 'unsent@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
+    });
+    stub.failNext(new Error('mailbox unavailable'));
+    await svc.processSendQueue();
+    const row = readRow(id);
+    expect(row.status).toBe('pending');
+    expect(row.retry_count).toBe(1);
+    expect(row.provider_message_id).toBeNull();
+  });
+
+  it('leaves the provider identifier unset on a row parked for manual review', async () => {
+    expectLoggedError('outbox ambiguous send outcome; parked for manual review');
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = callOne(svc, {
+      recipientEmail: 'ambiguous@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
+    });
+    const timeout = new Error('socket hang up') as Error & { code: string };
+    timeout.code = 'ECONNRESET';
+    stub.failNext(timeout);
+    await svc.processSendQueue();
+    const row = readRow(id);
+    // The whole point of parking: nothing here says whether the message went
+    // out, so nothing on the row may imply that it did.
+    expect(row.status).toBe('manual_review');
+    expect(row.provider_message_id).toBeNull();
+  });
+
   it('scrubs body_text to NULL after successful send (no token persistence in DB backups)', async () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);

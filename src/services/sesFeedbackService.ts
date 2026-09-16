@@ -21,13 +21,22 @@
  * id is already present short-circuits, so status flips and audit rows happen
  * exactly once. Parallel to the stripe_events webhook idempotency.
  *
+ * Tracing: the notification also names the message the provider is reporting
+ * on, by an identifier the outbox row kept when it was sent. That identifier
+ * and the row it resolves to are recorded on the claim, which is what lets a
+ * bounce name the send that produced it. Resolving to nothing is ordinary
+ * rather than exceptional -- the per-recipient outbox copy ages out on the
+ * outbox retention window -- and the address half of the work proceeds either
+ * way, a dead mailbox being a fact about the mailbox and not about the message.
+ *
  * Persistence: writes members.email_status and mailing_list_subscriptions
- * status; claims ses_events; appends audit_entries.
+ * status; reads outbox_emails to resolve the reported message; claims
+ * ses_events; appends audit_entries.
  *
  * Transport auth (the shared-secret query key plus SNS signature verification
  * on the webhook request) is the IPC controller's concern, not this service's.
  */
-import { sesFeedback, mailingListSubscriptions, sesEvents, transaction } from '../db/db';
+import { sesFeedback, mailingListSubscriptions, sesEvents, outbox, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { logger } from '../config/logger';
 import { safeSubscribeUrlForLog } from '../lib/snsSignature';
@@ -68,7 +77,7 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
     transaction(() => {
       if (confirmationId) {
         const claim = sesEvents.insertEventOrIgnore.run(
-          confirmationId, seenAt, 'subscription_confirmation', seenAt, 0,
+          confirmationId, seenAt, 'subscription_confirmation', seenAt, 0, null, null,
         );
         if (claim.changes === 0) {
           outcome = { status: 'duplicate', kind: 'subscription_confirmation' };
@@ -107,7 +116,7 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
 
   // SNS assigns one MessageId per message and reuses it across delivery retries,
   // so it is the idempotency key for redelivered bounce/complaint notifications.
-  const messageId = typeof envelope.MessageId === 'string' ? envelope.MessageId : null;
+  const snsMessageId = typeof envelope.MessageId === 'string' ? envelope.MessageId : null;
 
   let message: Record<string, unknown>;
   try {
@@ -115,6 +124,13 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
   } catch {
     return { status: 'ignored', reason: 'malformed' };
   }
+
+  // The mail envelope names the message the provider is reporting on, and its
+  // identifier is the one the outbox row kept when the message was sent. It is a
+  // different thing from the notification's own identifier above, which says
+  // which report this is; the two are easy to confuse and never interchangeable.
+  const mail = (message.mail ?? {}) as Record<string, unknown>;
+  const mailMessageId = typeof mail.messageId === 'string' ? mail.messageId : null;
 
   if (message.notificationType === 'Bounce') {
     const bounce = (message.bounce ?? {}) as Record<string, unknown>;
@@ -126,7 +142,7 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
     const recipients = (Array.isArray(bounce.bouncedRecipients) ? bounce.bouncedRecipients : [])
       .map((r) => (r as Record<string, unknown>).emailAddress)
       .filter((v): v is string => typeof v === 'string');
-    return applyStatus('bounce', recipients, messageId);
+    return applyStatus('bounce', recipients, snsMessageId, mailMessageId);
   }
 
   if (message.notificationType === 'Complaint') {
@@ -142,7 +158,7 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
     const recipients = (Array.isArray(complaint.complainedRecipients) ? complaint.complainedRecipients : [])
       .map((r) => (r as Record<string, unknown>).emailAddress)
       .filter((v): v is string => typeof v === 'string');
-    return applyStatus('complaint', recipients, messageId);
+    return applyStatus('complaint', recipients, snsMessageId, mailMessageId);
   }
 
   return { status: 'ignored', reason: 'unknown_type' };
@@ -151,22 +167,34 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
 function applyStatus(
   kind: 'bounce' | 'complaint',
   recipients: string[],
-  messageId: string | null,
+  snsMessageId: string | null,
+  mailMessageId: string | null,
 ): SesFeedbackResult {
   const now = new Date().toISOString();
   let membersUpdated = 0;
   let duplicate = false;
+  let outboxEmailId: string | null = null;
   transaction(() => {
+    // Which send this report is about, where the platform still holds the row.
+    // A message that aged out of the outbox retention window, or one sent by
+    // something other than this platform on the same identity, resolves to
+    // nothing; the address half below still applies, because a dead mailbox is
+    // a fact about the mailbox whether or not the message is still on file.
+    if (mailMessageId) {
+      const match = outbox.findIdByProviderMessageId.get(mailMessageId) as
+        { id: string } | undefined;
+      outboxEmailId = match?.id ?? null;
+    }
     // Claim the SNS MessageId first. A redelivery whose id is already recorded
     // returns changes=0; short-circuit so the status flips and audit rows are
     // written exactly once. A notification without a MessageId cannot be deduped
     // and is processed (dropping real feedback over a missing key is worse).
-    if (messageId) {
+    if (snsMessageId) {
       // The recipient count travels with the claim. One notification can name
       // several bounced or complained addresses, and the health view reports
       // recipients, not notifications, so counting rows would undercount.
       const claim = sesEvents.insertEventOrIgnore.run(
-        messageId, now, kind, now, recipients.length,
+        snsMessageId, now, kind, now, recipients.length, mailMessageId, outboxEmailId,
       );
       if (claim.changes === 0) {
         duplicate = true;
@@ -193,8 +221,9 @@ function applyStatus(
         entityId:      'ses_feedback',
         reasonText:    null,
         metadata: {
-          masked_email:   maskEmail(normalized),
-          member_matched: res.changes > 0,
+          masked_email:    maskEmail(normalized),
+          member_matched:  res.changes > 0,
+          outbox_email_id: outboxEmailId,
         },
       });
     }
