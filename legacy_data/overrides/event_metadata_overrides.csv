@@ -47,7 +47,7 @@ event_id,year,event_name,host_club,date,location
 1146843672,2006,Montreal Spring Jam,,"June 3-4, 2006",NDA centre and Place des arts
 1149881200,2006,Funtastik Summer Classic Tournament and Festival,,"September 2-4, 2006","Day 1-Morrison Park (Sunshine Park) Day 2 & 3- Harvey Taylor Bridge & Front St.,"
 1161888703,2006,Cornell Footbag Jam,,"November 10-12, 2006",Cornell University
-1163784775,2007,2007 IFPA WORLD FOOTBAG CHAMPIONSHIPS,,"August 11-18, 2007",Disney Wide World of Sports Complex
+1163784775,2007,,,"August 11-18, 2007",Disney Wide World of Sports Complex
 1172931308,2007,Montreal Spring Jam 2,,"June 1-3, 2007",
 1176650845,2007,3rd New Jersey Spike and Shred,,"May 12-13, 2007",Turkey Brook Park
 1182542776,2007,Funtastik Summer Classic,,"September 1-3, 2007","Morrison Park (alias Sunshine) & Forrester & Front Sts, Harrisburg, PA"
@@ -61,7 +61,7 @@ event_id,year,event_name,host_club,date,location
 1241011525,2009,2009 French Footbag Championships,,"June 13-14, 2009",
 1245793403,2009,Funtastik Summer Classic,,"September 5-7, 2009",Morrison Park - Front & Forrester Sts.
 1252451527,2010,Funtastik Summer Classic,,"September 4-6, 2010","Morrison Park (alias Sunshine Park) on Sat, Sun & Mon- Front & Forrester Sts,(Ha"
-1265745512,2010,31st IFPA WORLD FOOTBAG CHAMPIONSHIPS,,"August 1-7, 2010","Oakland Convention Center, Marriott City Center"
+1265745512,2010,,,"August 1-7, 2010","Oakland Convention Center, Marriott City Center"
 1286644859,2010,Czech Footbag Championship 2010,,"November 6, 2010",
 1313351184,2011,2011 East Coast Footbag Championships,,"September 24-25, 2011","Buccleuch Park, adjacent to Rutgers University"
 1376036018,2013,13th Annual Polish Footbag Championships 2013,,"August 31-September 1, 2013",
@@ -112,7 +112,7 @@ event_id,year,event_name,host_club,date,location
 910551956,1999,1999 Western Regional Footbag Championships,,"May 29-31, 1999",Stanford University - Wilbur Field
 912467534,1999,12th Annual U.S. Open Footbag Net Championships,,"August 13-15, 1999",Tom McCall Waterfront Park
 913061034,1999,Finnish Freestyle Festival '99,,"March 13, 1999",Toolo Sportcenter
-915561090,1999,WORLD FOOTBAG CHAMPIONSHIPS,,"July 12-18, 1999",Montrose Harbor - Mayor's Cup Soccer Tournament
+915561090,1999,,,"July 12-18, 1999",Montrose Harbor - Mayor's Cup Soccer Tournament
 916977484,1999,State Games of Oregon Footbag Tournament,,"May 15-16, 1999",University of Oregon Education Field
 917278465,1999,EUROPEAN FOOTBAG OPEN,,"June 19-20, 1999",Flatow-Halle Berlin Kreuzberg
 917741782,1999,2nd Annual Illini Footbag Festival,,"April 10-11, 1999",Multiplex (First and Stadium)
