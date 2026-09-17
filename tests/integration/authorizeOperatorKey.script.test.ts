@@ -37,6 +37,7 @@ let THIRD_KEY = '';
 let WORK_DIR = '';
 let PIN = '';
 let SSH_STUB = '';
+let SSH_BIN_DIR = '';
 
 beforeAll(() => {
   WORK_DIR = mkdtempSync(join(tmpdir(), 'footbag-test-authkey-'));
@@ -58,12 +59,42 @@ beforeAll(() => {
   writeFileSync(PIN, '# pinned host keys fixture\n');
   chmodSync(PIN, 0o600);
 
-  SSH_STUB = join(WORK_DIR, 'ssh-stub');
+  // One stub, reached two ways, because the script reaches ssh two ways.
+  //
+  // The host call goes through the FOOTBAG_AUTHKEY_SSH seam. The alias guard in
+  // scripts/lib/host-env-remote.sh does not: it runs `ssh -G <alias>` against
+  // whatever ssh is on PATH, and refuses when the alias does not resolve. So a
+  // run that stubbed only the seam still asked the workstation whether the
+  // deploy alias exists — and took its answer. On a machine that has the alias
+  // the run proceeded and these cases passed; on a clean runner the guard
+  // refused and the run exited before reaching anything they assert. That is a
+  // test whose verdict came from the machine, and it is why this suite was
+  // green here and red on every push.
+  //
+  // Named `ssh` and placed on PATH so the guard resolves through the same stub,
+  // which makes the alias resolve for a reason this file created.
+  const binDir = join(WORK_DIR, 'bin');
+  mkdirSync(binDir, { recursive: true });
+  SSH_STUB = join(binDir, 'ssh');
   writeFileSync(
     SSH_STUB,
-    ['#!/usr/bin/env bash', 'cat > /dev/null', 'exit 0'].join('\n'),
+    [
+      '#!/usr/bin/env bash',
+      '# `ssh -G <alias>` prints the effective configuration, one keyword per',
+      '# line. The guard reads the last `hostname` line, so an address that is',
+      '# not the alias itself is what makes the alias count as resolved.',
+      'for arg in "$@"; do',
+      '  if [[ "$arg" == "-G" ]]; then',
+      "    printf 'hostname 203.0.113.10\\nuser footbag\\nport 2222\\n'",
+      '    exit 0',
+      '  fi',
+      'done',
+      'cat > /dev/null',
+      'exit 0',
+    ].join('\n'),
   );
   chmodSync(SSH_STUB, 0o755);
+  SSH_BIN_DIR = binDir;
 });
 
 interface RunResult {
@@ -83,6 +114,8 @@ function runScript(args: string[]): RunResult {
       ...NO_AWS_CREDENTIALS,
       FOOTBAG_AUTHKEY_SSH: SSH_STUB,
       FOOTBAG_KNOWN_HOSTS: PIN,
+      // Ahead of the real ssh, so the alias guard cannot consult the machine.
+      PATH: `${SSH_BIN_DIR}:${process.env.PATH ?? ''}`,
     },
     ...SPAWN_GUARD,
   });
