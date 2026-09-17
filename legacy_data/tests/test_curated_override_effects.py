@@ -19,8 +19,8 @@ silently sitting outside it.
 `event_results/canonical_input/`, which a fresh clone has. The build tree under
 `out/` is ignored, so a test reading it would pass on the machine that last ran
 the pipeline and say nothing anywhere else. What is asserted here is therefore
-the last published canonical state, which is the strongest claim available while
-the mirror crawl is incomplete and the canonical data cannot be regenerated.
+the last published canonical state, which is the strongest claim available until
+the canonical artifacts are regenerated against the current curated inputs.
 
 One file per test on purpose: junk events and known-broken events both assert
 absence, and a single combined test would let either file's coverage vanish
