@@ -27,6 +27,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { requireToolInCI } from '../fixtures/toolAvailability';
 
 /**
@@ -180,6 +181,8 @@ function runScript(args: string[], opts: RunOptions = {}): RunResult {
 
   const env: Record<string, string> = {
     ...process.env,
+    // The terraform reads are preceded by settling and proving an identity.
+    ...awsIdentityStubEnv(tmpDir),
     FOOTBAG_STRIPE_ENDPOINT_CURL_BIN: fakeCurl,
     FOOTBAG_STRIPE_ENDPOINT_TF_BIN: fakeTerraform,
     FAKE_LIST: listPath,

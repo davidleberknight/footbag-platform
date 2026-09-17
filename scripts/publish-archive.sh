@@ -77,7 +77,8 @@
 #   --dry-run                  Print what a publish would change and exit 0.
 #
 # Escape hatches, each correct by default and rarely passed:
-#   --profile <p>              AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>              AWS profile; else the identity this run settles
+#                              and proves.
 #   --mirror-root <path>       Override the mirror root location.
 #   --signing-key <pem>        Private key for the edge check (default the
 #                              environment's own, ~/AWS/archive-signing-key-<env>.pem).
@@ -92,6 +93,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "${SCRIPT_DIR}/lib/aws-profile.sh"
 
 TARGET_ENV=""
 DRY_RUN=0
@@ -158,11 +163,11 @@ fi
 AWS_ARGS=()
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
   AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
-elif [[ -n "${AWS_PROFILE:-}" ]]; then
-  echo "Using ambient AWS_PROFILE=${AWS_PROFILE}"
 else
-  echo "ERROR: pass --profile or export AWS_PROFILE (operator credentials)" >&2
-  exit 2
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile. Nothing here asks the operator to export anything.
+  aws_profile_ensure || exit 1
 fi
 
 WORK_DIR="$(mktemp -d /tmp/footbag-publish-archive.XXXXXX)"

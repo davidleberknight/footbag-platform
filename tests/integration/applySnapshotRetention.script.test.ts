@@ -27,6 +27,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/apply-snapshot-retention.sh');
 
@@ -68,6 +69,8 @@ interface AwsStubOptions {
   /** 'daily-disabled' is a rule that exists and expires nothing. */
   generationRules: 'all' | 'missing-daily' | 'daily-disabled';
   alarms: 'present' | 'none';
+  /** 'unreadable' is a listing the credential cannot read, not an absent one. */
+  drLifecycle: 'present' | 'unreadable';
 }
 
 /**
@@ -90,6 +93,7 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
     replication: 'scoped',
     generationRules: 'all',
     alarms: 'present',
+    drLifecycle: 'present',
     ...opts,
   };
   const stamp = (ageHours: number): string =>
@@ -121,9 +125,13 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
       `  *list-objects-v2*hourly/*) echo "${hourly}" ;;`,
       `  *list-objects-v2*daily/*)  echo "${daily}" ;;`,
       '  *get-bucket-lifecycle-configuration*-dr*|*-dr*get-bucket-lifecycle-configuration*)',
-      '    printf "expire-dr-routine-stream\\tEnabled\\troutine/\\t90\\n"',
-      '    printf "expire-dr-hourly-tier\\tEnabled\\thourly/\\t90\\n"',
-      '    printf "expire-dr-daily-tier\\tEnabled\\tdaily/\\t90\\n" ;;',
+      ...(o.drLifecycle === 'unreadable'
+        ? ['    exit 254 ;;']
+        : [
+            '    printf "expire-dr-routine-stream\\tEnabled\\troutine/\\t90\\n"',
+            '    printf "expire-dr-hourly-tier\\tEnabled\\thourly/\\t90\\n"',
+            '    printf "expire-dr-daily-tier\\tEnabled\\tdaily/\\t90\\n" ;;',
+          ]),
       '  *get-bucket-lifecycle-configuration*)',
       '    printf "expire-routine-stream\\tEnabled\\troutine/\\t2\\n"',
       '    printf "expire-hourly-tier\\tEnabled\\thourly/\\t30\\n"',
@@ -168,11 +176,16 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
 function writeTerraformStub(
   planShouldFail = false,
   replicationAlarm: boolean | 'unpublished' = true,
+  drBucket: 'published' | 'unpublished' = 'published',
 ): void {
   const alarmOutput =
     replicationAlarm === 'unpublished'
       ? '    replication_alarm_enabled) exit 1 ;;'
       : `    replication_alarm_enabled) echo "${replicationAlarm}"; exit 0 ;;`;
+  const drBucketOutput =
+    drBucket === 'unpublished'
+      ? '    dr_bucket_name)        exit 1 ;;'
+      : '    dr_bucket_name)        echo "footbag-test-snapshots-dr"; exit 0 ;;';
   writeFileSync(
     tfStub,
     [
@@ -180,7 +193,7 @@ function writeTerraformStub(
       `echo "terraform $*" >> "${callLog}"`,
       'for arg in "$@"; do',
       '  case "$arg" in',
-      '    dr_bucket_name)        echo "footbag-test-snapshots-dr"; exit 0 ;;',
+      drBucketOutput,
       '    snapshots_bucket_name) echo "footbag-test-snapshots";    exit 0 ;;',
       alarmOutput,
       `    plan)   ${planShouldFail ? 'exit 1' : ':'} ;;`,
@@ -199,7 +212,8 @@ function writeTerraformStub(
 
 function run(args: string[], withStubs = true): RunResult {
   rmSync(callLog, { force: true });
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  // The run settles and proves its identity before it plans or applies.
+  const env: NodeJS.ProcessEnv = { ...process.env, ...awsIdentityStubEnv(tmpDir) };
   if (withStubs) {
     env.RETENTION_AWS_BIN = awsStub;
     env.RETENTION_TERRAFORM_BIN = tfStub;
@@ -433,6 +447,33 @@ describe('apply-snapshot-retention.sh: verification', () => {
     expect(res.stdout).toMatch(/footbag-test-snapshots-dr/);
     expect(res.stdout).toMatch(/expire-dr-daily-tier/);
     expect(res.stdout).toMatch(/same window as the lock/);
+  });
+
+  it('fails the run when it cannot name the disaster-recovery bucket', () => {
+    // Production is the only target that reaches this block and the only one
+    // where the bucket exists, so an unreadable name is never "there is nothing
+    // to check". Skipping it in silence left the run printing that all three
+    // generation rules were present and exiting 0, having never looked at the
+    // replica whose windows the Object Lock depends on.
+    writeAwsStub(2, 2);
+    writeTerraformStub(false, true, 'unpublished');
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/bucket name unreadable/);
+    expect(res.stdout).toMatch(/does not publish dr_bucket_name/);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+    writeTerraformStub();
+  });
+
+  it('fails the run when the disaster-recovery lifecycle cannot be read', () => {
+    // The name resolved and the listing did not. Printing "<unreadable>" and
+    // carrying on is the same pass as never having asked.
+    writeAwsStub(2, 2, { drLifecycle: 'unreadable' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/<unreadable>/);
+    expect(res.stdout).toMatch(/cannot prove the windows/);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
   });
 
   it('does not look for snapshot replication on staging', () => {

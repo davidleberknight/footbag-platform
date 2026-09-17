@@ -16,9 +16,14 @@
 #
 # Reads sudo password from stdin (line 1). Run via:
 #   bash deploy_to_aws.sh -k
-# or invoke directly with stdin redirected:
+# or, for STAGING only, invoke directly with stdin redirected:
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-code.sh
-#   (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt, selected by DEPLOY_TARGET)
+#
+# Production has no direct form, and redirecting a credential file here does not
+# make one: this script refuses a production target unless a terminal is attached,
+# because the confirmation is a person rather than a password. Production goes
+# through deploy_to_aws.sh, which asks for the typed word and takes the host
+# password at the terminal in the same gate.
 #
 # Override the SSH config alias:
 #   DEPLOY_TARGET=footbag-staging ...
@@ -27,9 +32,13 @@
 # enforcement is active, since direct-to-origin curls return 444):
 #   SKIP_SMOKE=yes ...
 #
-# Always preserves:
+# Always preserves, by excluding each from the promotion's delete pass rather than
+# by naming a path in the host env file:
 #   /srv/footbag/env
-#   /srv/footbag/footbag.db (and any DB at FOOTBAG_DB_PATH)
+#   the database directory named by FOOTBAG_DB_DIR in /srv/footbag/env, default
+#     /srv/footbag/db, which is what the containers mount
+#   /srv/footbag/footbag.db and its -wal and -shm sidecars, the older layout
+#   /srv/footbag/media, /srv/footbag/data and /srv/footbag/.curated-build
 
 set -euo pipefail
 
@@ -38,8 +47,11 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: bash deploy_to_aws.sh -k
-   or: < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-code.sh
-       (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt)
+   or (staging only): < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-code.sh
+
+A production deploy runs only through deploy_to_aws.sh, which asks for the typed
+confirmation and takes the host password at the terminal. This script refuses a
+production target when no terminal is attached.
 
 Reads sudo password from stdin (line 1).
 
@@ -94,6 +106,37 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # then reported a smoke failure that was really a missing file.
 cd "$REPO_ROOT"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-code-remote.sh"
+
+# shellcheck source=lib/terminal.sh
+source "${REPO_ROOT}/scripts/lib/terminal.sh"
+
+# A production deploy stops for a person, in every mode, including this one.
+#
+# What this leaf replaces is the release the public is served, so it is gated the
+# same way a database replacement is, even though the database is untouched here.
+# The test is a terminal rather than a word or a variable, and the distinction is
+# the point: the typed word lives in deploy_to_aws.sh, which is the only sanctioned
+# way in, and a leaf that accepted an acknowledgement variable instead would hand
+# anyone able to export it the unattended run this refuses. No environment variable
+# can satisfy a terminal, so a scheduled job, a continuous-integration runner and an
+# agent session are all refused here by the same check, whatever they set.
+#
+# First, ahead of every other precondition, because this one decides whether the run
+# is allowed to happen at all. Behind the host-key check it would report a missing
+# pin file to a caller who was never entitled to run, which names the wrong problem.
+#
+# Staging is deliberately not gated. It is fed a credential file with nobody at the
+# keyboard by design, and its data is disposable.
+if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
+  echo "ERROR: a production deploy requires a terminal, and none is attached." >&2
+  echo "       Run: bash deploy_to_aws.sh -k" >&2
+  echo "       It asks for the typed confirmation and takes the host password at" >&2
+  echo "       the terminal. There is no unattended form of a production deploy," >&2
+  echo "       and redirecting a credential file in here does not create one:" >&2
+  echo "       it supplies a password without supplying a person." >&2
+  exit 1
+fi
+
 # shellcheck source=lib/image-transfer.sh
 source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 
@@ -102,6 +145,9 @@ source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
 
 # shellcheck source=lib/initial-admins.sh
 source "${REPO_ROOT}/scripts/lib/initial-admins.sh"
+
+# shellcheck source=lib/terraform-output.sh
+source "${REPO_ROOT}/scripts/lib/terraform-output.sh"
 
 # SSH connection options. The host is verified against the operator's pinned
 # host-key file and an unrecognized key fails the deploy, which matters here
@@ -156,13 +202,16 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # a failure aborts before anything on the production host is touched.
 # SKIP_SMOKE=yes remains the operator's deliberate override.
 if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
-  staging_domain=$(terraform -chdir="$REPO_ROOT/terraform/staging" \
-    output -raw cloudfront_domain 2>/dev/null || true)
+  tf_output_read "$REPO_ROOT/terraform/staging" cloudfront_domain || true
+  staging_domain="$TF_OUTPUT_VALUE"
   STAGING_BASE_URL=""
   [[ -n "$staging_domain" ]] && STAGING_BASE_URL="https://$staging_domain"
   if [[ -z "$STAGING_BASE_URL" ]]; then
-    echo "ERROR: a production deploy first verifies the smoke gate against staging, but the staging address could not be read from 'terraform -chdir=terraform/staging output -raw cloudfront_domain'." >&2
-    echo "       Check that tree is initialised and your AWS profile is configured, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
+    echo "       and the staging address could not be read." >&2
+    tf_output_explain "terraform/staging" cloudfront_domain
+    echo "" >&2
+    echo "       SKIP_SMOKE=yes skips the gate deliberately." >&2
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
@@ -177,9 +226,37 @@ if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
 fi
 
 # ── Step 1: Prepare upload directory ─────────────────────────────────────────
-
+#
+# The staging directory lives in the connecting account's own home, so it is a
+# different path for every operator. Resolve it once here and use that one value
+# for the upload, the transfer and the root-side promotion. The root half cannot
+# derive it: it runs as root, so a `~` there names root's home, and a literal
+# path there names whichever account the literal was written for. An operator
+# deploying from a named account then uploads to their own home while root
+# promotes the shared account's -- shipping whatever that account last deployed,
+# and reporting success.
 echo "==> Preparing remote upload directory..."
-ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf ~/footbag-release && mkdir -p ~/footbag-release" </dev/null
+REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
+# Absolute, not merely non-empty. This captures the remote shell's whole stdout,
+# so a host whose profile prints a banner or a version-manager line for a
+# non-interactive shell returns that text with the path glued to the end of it.
+# Emptiness is the case that never happens there; a relative path built from a
+# banner is the one that does, and it survives every check downstream because
+# both halves are handed the same wrong value and therefore agree.
+if [[ -z "$REMOTE_HOME" || "$REMOTE_HOME" != /* ]]; then
+  echo "ERROR: could not resolve the home directory of the deploy account on $REMOTE." >&2
+  echo "       Refusing rather than guessing: the upload and the promotion must" >&2
+  echo "       name the same directory, and a guess that is wrong ships somebody" >&2
+  echo "       else's release." >&2
+  echo "       Expected an absolute path. A host that prints a banner or a version" >&2
+  echo "       manager's output for a non-interactive shell returns that text too;" >&2
+  echo "       silence it for non-interactive logins and re-run." >&2
+  exit 1
+fi
+REMOTE_RELEASE_DIR="${REMOTE_HOME}/footbag-release"
+echo "    staging directory: ${REMOTE_RELEASE_DIR}"
+ssh "${SSH_OPTS[@]}" "$REMOTE" \
+  "rm -rf '$REMOTE_RELEASE_DIR' && mkdir -p '$REMOTE_RELEASE_DIR'" </dev/null
 
 # ── Step 2: Rsync deployable files (code only, no database) ──────────────────
 #
@@ -219,7 +296,7 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/package-lock.json' \
   --include='/tsconfig.json' \
   --exclude='*' \
-  "$REPO_ROOT/" "$REMOTE:~/footbag-release/" </dev/null
+  "$REPO_ROOT/" "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
 
 # ── Step 3: Build images locally (workstation, where memory is plentiful) ────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build;
@@ -377,6 +454,10 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"
   printf 'FOOTBAG_ENV=%q\n'                  "$FOOTBAG_ENV"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
+  # The directory this run actually uploaded to, resolved in step 1 against the
+  # connecting account's home. Sent rather than assumed, so the half that
+  # promotes it and the half that filled it can never name different paths.
+  printf 'RELEASE_DIR=%q\n'                  "$REMOTE_RELEASE_DIR"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'REFRESH_TEST_PERSONAS=%q\n'       "${REFRESH_TEST_PERSONAS:-no}"
@@ -401,8 +482,8 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
 if [[ -z "${SMOKE_BASE_URL:-}" ]]; then
   case "$FOOTBAG_ENV" in
     staging | production)
-      smoke_domain=$(terraform -chdir="$REPO_ROOT/terraform/$FOOTBAG_ENV" \
-        output -raw cloudfront_domain 2>/dev/null || true)
+      tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" cloudfront_domain || true
+      smoke_domain="$TF_OUTPUT_VALUE"
       [[ -n "$smoke_domain" ]] && SMOKE_BASE_URL="https://$smoke_domain"
       ;;
   esac
@@ -416,7 +497,11 @@ elif [[ -z "$SMOKE_BASE_URL" ]]; then
   # skipped: a deploy that "succeeds" unverified is false confidence.
   # Explicit SKIP_SMOKE=yes remains the operator's deliberate override.
   if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
-    echo "ERROR: no public base URL for $FOOTBAG_ENV. The address is read from 'terraform -chdir=terraform/$FOOTBAG_ENV output -raw cloudfront_domain', so check that tree is initialised and your AWS profile is configured, or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "ERROR: no public base URL for $FOOTBAG_ENV, so the deploy cannot be" >&2
+    echo "       smoke-checked and will not report itself as done." >&2
+    tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_domain
+    echo "" >&2
+    echo "       Or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"

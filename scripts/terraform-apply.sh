@@ -59,14 +59,16 @@
 # --break-stale-lock asks in every environment, staging included, because what it
 # removes is not staging's disposable data.
 #
-#   ... --yes   accepted and unnecessary everywhere it is accepted: production is
-#               the only environment that stops for a typed confirmation, and a
-#               production apply is refused with this flag, because a
-#               confirmation a flag can supply in advance is not one. Kept so
-#               that reaching for it against production fails loudly rather than
-#               looking like an option nobody happened to implement.
-#               --dry-run --yes still works against production, since a dry run
-#               applies nothing.
+#   ... --yes   answers the typed confirmation where one is asked and the flag is
+#               accepted: the shared tree's apply, and a staging lock break. A
+#               production apply refuses it outright, because a confirmation a flag
+#               can supply in advance is not one, and so does breaking the lock on
+#               production or the shared tree, because removing a live lock lets two
+#               runs write state at once. Kept rather than rejected as unknown so
+#               that reaching for it in a place it does not carry fails loudly
+#               instead of looking like an option nobody happened to implement.
+#               --dry-run --yes still works everywhere, since a dry run applies
+#               nothing.
 #
 # --dry-run runs nothing at all: it states what the real run would do.
 #
@@ -101,6 +103,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # operator script prompts the same way.
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 
 TF_BIN="${TERRAFORM_APPLY_BIN:-terraform}"
 
@@ -337,6 +343,37 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
+# --yes does not carry breaking the lock on production or the shared tree.
+#
+# Separate from the apply refusal below, and placed here for a reason: the
+# stale-lock block exits on its own, so everything under it is unreachable from a
+# lock-breaking run. `--break-stale-lock --i-killed-that-run --yes` therefore
+# reached the typed word with the flag still set, the helper answered it, and
+# force-unlock ran against production state with nothing typed by anyone.
+#
+# The shared tree is included because production's own state lives in it. Removing
+# a lock while a run is genuinely live lets two runs write state at once, which is
+# the outcome this mode's four checks exist to prevent, and a flag passed in
+# advance is not the operator's judgement that the holding run is gone.
+#
+# Staging keeps --yes here. Its lock prompt is the one place staging still stops,
+# and an explicitly typed flag is entitled to answer it; the tree's data is
+# disposable and its state is not shared with anything that is not.
+if (( BREAK_LOCK )) && [[ "$ASSUME_YES" == "yes" ]] \
+   && [[ "$TARGET" == "production" || "$TARGET" == "shared" ]]; then
+  echo "ERROR: --yes does not carry breaking the ${TARGET} state lock." >&2
+  echo "       Removing a lock while a run is genuinely live lets two runs write" >&2
+  echo "       state at once, so the word is typed rather than passed in advance." >&2
+  echo "       Re-run without --yes, read the four checks, and answer them." >&2
+  exit 2
+fi
+
+# Every path below this reaches the state backend, so the identity is settled and
+# proved here, once, rather than discovered by terraform. Placed after the
+# argument refusals and the dry run, which need no credential at all: a run that
+# was only going to print what it would do should not fail for want of one.
+aws_profile_ensure || exit 1
+
 # ── Breaking a stale state lock ──────────────────────────────────────────────
 #
 # A plan or apply that is killed rather than interrupted leaves its lock behind,
@@ -358,7 +395,7 @@ if (( BREAK_LOCK )); then
   chmod 600 "$TF_PLAN"
   TF_PLAN_LOG="$(mktemp "/tmp/footbag-${TARGET}-lockprobelog.XXXXXX")"
   chmod 600 "$TF_PLAN_LOG"
-  trap 'for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}"; do if [ -n "$f" ] && [ -e "$f" ]; then shred -u "$f"; fi; rm -f "$f"; done' EXIT INT TERM
+  trap 'for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}"; do if [ -n "$f" ] && [ -e "$f" ]; then shred -u "$f" 2>/dev/null || true; fi; rm -f "$f"; done' EXIT INT TERM
 
   # Check 1: the lock is held right now. A plan is the probe rather than a read of
   # the backend's object layout, because terraform is the authority on its own
@@ -513,8 +550,11 @@ fi
 # Refused here rather than at the prompt, so the run stops before a plan file
 # holding a full copy of state in the clear has been written at all. A dry run is
 # deliberately above this line: it applies nothing, so the flag costs nothing
-# there. Every other environment applies without a confirmation at all, so the
-# flag is simply unnecessary there rather than doing anything.
+# there. The shared tree stops for the typed word too, but accepts the flag in
+# answer to it: it changes about once a year, it serves nobody directly, and the
+# lock-breaking refusal above already covers the operation on it that is
+# irreversible. Every other environment applies without a confirmation at all, so
+# the flag is simply unnecessary there rather than doing anything.
 if [[ "$TARGET" == "production" && "$ASSUME_YES" == "yes" ]]; then
   echo "ERROR: --yes does not carry a production apply." >&2
   echo "       This plan reaches what the public is served, so the confirmation is" >&2
@@ -554,13 +594,20 @@ chmod 600 "$TF_PLAN"
 # resource names and is shredded on every exit path.
 TF_PLAN_LOG="$(mktemp "/tmp/footbag-${TARGET}-planlog.XXXXXX")"
 chmod 600 "$TF_PLAN_LOG"
-trap 'for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}"; do if [ -n "$f" ] && [ -e "$f" ]; then shred -u "$f"; fi; rm -f "$f"; done' EXIT INT TERM
+# TF_SHOW_ERR is created later, only on the jq path, and is swept here too: it
+# holds terraform's diagnostics, which can quote resource values.
+TF_SHOW_ERR=""
+trap 'for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}" "${TF_SHOW_ERR:-}"; do if [ -n "$f" ] && [ -e "$f" ]; then shred -u "$f" 2>/dev/null || true; fi; rm -f "$f"; done' EXIT INT TERM
 
 # `|| PLAN_STATUS=$?` rather than an `if`, because `set -e` with `pipefail` would
 # otherwise abort the script on the failing plan before the report below runs,
 # which is the one failure this whole branch exists to explain.
 PLAN_STATUS=0
-"$TF_BIN" -chdir="$TF_DIR" plan -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
+# -no-color because this output is both shown and captured to a file that the
+# DNS check below greps when jq is unavailable. Terraform's colour escapes land
+# between the start of a line and its +/-/~ marker, which defeats an anchored
+# pattern and makes that check silently match nothing.
+"$TF_BIN" -chdir="$TF_DIR" plan -no-color -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
 if (( PLAN_STATUS != 0 )); then
   echo "ERROR: terraform plan failed. Nothing was applied." >&2
   if ! report_state_lock "$TF_PLAN_LOG"; then
@@ -569,6 +616,139 @@ if (( PLAN_STATUS != 0 )); then
   exit 1
 fi
 echo ""
+
+# ── DNS changes are approved by a human, on every tree, always ───────────────
+#
+# The zone move has not happened. The registry still delegates footbag.org to the
+# legacy provider, the site the public sees is still served from there, and a
+# record changed early does not fail: it succeeds, and the failure surfaces as
+# visitors reaching the wrong place, or mail stopping, with nothing in the deploy
+# log to connect it to.
+#
+# The gate is on the CHANGE, not on the environment, which is why it is separate
+# from the confirmation below rather than folded into it. Staging has no domain
+# and no hosted zone, so its route53 resources are commented out or gated off and
+# nothing here fires on an ordinary staging apply. That is the point: this costs
+# nothing until a plan genuinely moves a record, and then it stops, whichever
+# tree it is and whatever that tree's usual confirmation posture is. Scoping it
+# to production instead would have left the gap open the day a zone is wired
+# anywhere else.
+#
+# It ignores --yes, because an approval a flag can supply in advance is not the
+# human approval this is asking for.
+#
+# FAILS CLOSED, on both reads. Each used to swallow its own failure and yield an
+# empty answer, which this block cannot distinguish from "no DNS in the plan" --
+# so a `show -json` that errored, or an unreadable plan text, silently skipped the
+# gate on exactly the plans it exists for. A gate that cannot read the plan must
+# stop, not wave it through.
+#
+# Failing closed cuts both ways, so the reads have to be precise about what a
+# failure IS. The JSON read captures stdout and stderr separately, because a
+# warning terraform prints on a SUCCESSFUL run is not a failure and must not be
+# parsed as though it were the plan. The text read distinguishes grep's "no match"
+# from its "could not read the file", because only the second is a failure.
+DNS_CHANGES=""
+DNS_READ_OK=0
+
+if command -v jq >/dev/null 2>&1; then
+  PLAN_JSON=""
+  # stdout and stderr are captured SEPARATELY, and the separation is the point.
+  # Merging them put terraform's diagnostics into the text handed to jq, and
+  # terraform writes there on runs that succeed: a provider deprecation notice, or
+  # the development-overrides warning that prints on every command when a
+  # workstation has a dev_overrides block. jq then fails on text that is not JSON,
+  # and because this gate fails closed the tree could not be applied at all until
+  # whoever owned that warning removed it. Resuming took the same path.
+  #
+  # The merge existed so the refusal below could show terraform's own words. That
+  # still works: stderr goes to a temp file, swept by the same trap as the plan.
+  TF_SHOW_ERR="$(mktemp "/tmp/footbag-${TARGET}-tfshow.XXXXXX")"
+  chmod 600 "$TF_SHOW_ERR"
+  if PLAN_JSON="$("$TF_BIN" -chdir="$TF_DIR" show -json "$TF_PLAN" 2>"$TF_SHOW_ERR")"; then
+    if DNS_CHANGES="$(printf '%s' "$PLAN_JSON" | jq -r '
+        .resource_changes[]?
+        | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+        | select(.type | startswith("aws_route53"))
+        | "  \(.change.actions | join("+"))  \(.address)"
+      ')"; then
+      DNS_READ_OK=1
+    fi
+  fi
+  if (( ! DNS_READ_OK )); then
+    echo "ERROR: could not read the saved plan to check it for DNS changes." >&2
+    if [[ -s "${TF_SHOW_ERR:-}" ]]; then
+      tail -5 "$TF_SHOW_ERR" | sed 's/^/         /' >&2
+    else
+      echo "         terraform wrote nothing to its error stream, so the plan it" >&2
+      echo "         produced could not be parsed as JSON. A provider or CLI" >&2
+      echo "         warning on stdout would do that." >&2
+    fi
+    echo "" >&2
+    echo "       Nothing has been applied. This check is not optional and does" >&2
+    echo "       not fail open: a plan it cannot read is a plan whose DNS" >&2
+    echo "       changes it cannot see, and those are the ones that do not" >&2
+    echo "       announce themselves. Resume with --from-step 2 once fixed." >&2
+    exit 1
+  fi
+else
+  # Without jq, fall back to the human-readable plan captured above. It is
+  # written with -no-color, because terraform colours its output when it is not
+  # writing to a terminal here and the escape sequence lands between the line
+  # start and the +/-/~ marker, so an anchored pattern matches nothing at all.
+  # That is the under-match this fallback previously had, and it is worse than
+  # over-matching: it reads as "no DNS in this plan".
+  # grep exits 0 on a match, 1 on no match, and 2 when it could not read the file
+  # at all. `|| true` collapsed all three into an empty result, which this block
+  # reads as "no DNS in this plan" and applies -- so an unreadable or swept plan
+  # log waved through exactly the changes this gate exists to stop. Only the jq
+  # read above was made fail-closed; this one was not, while the comment at the
+  # top of the block claimed both were.
+  DNS_GREP_STATUS=0
+  DNS_CHANGES="$(grep -E '^[[:space:]]*[#~+-].*aws_route53' "$TF_PLAN_LOG")" || DNS_GREP_STATUS=$?
+  if (( DNS_GREP_STATUS > 1 )); then
+    echo "ERROR: could not read the plan text to check it for DNS changes." >&2
+    echo "       Nothing has been applied. This check does not fail open: a plan" >&2
+    echo "       it cannot read is a plan whose DNS changes it cannot see, and" >&2
+    echo "       those are the ones that do not announce themselves." >&2
+    echo "       Resume with --from-step 2 once fixed." >&2
+    exit 1
+  fi
+  echo "NOTE: jq is not installed, so the DNS check is reading the text plan" >&2
+  echo "      rather than its JSON. It over-matches deliberately; confirm any" >&2
+  echo "      prompt it raises against the plan above." >&2
+fi
+
+if [[ -n "$DNS_CHANGES" ]]; then
+  echo ""
+  echo "=============================================================="
+  echo " THIS PLAN CHANGES DNS."
+  echo "=============================================================="
+  printf '%s\n' "$DNS_CHANGES"
+  echo ""
+  echo "DNS is not ours to change without a person deciding to. A record applied"
+  echo "early does not error; it succeeds, and what surfaces later is visitors"
+  echo "landing somewhere wrong or mail going quiet, with nothing tying it back"
+  echo "to this run. The zone move is also still ahead of us, so a record written"
+  echo "now is written into a delegation the registry does not yet point at."
+  echo ""
+  echo "If this is not the change you came for, stop. Anything else pending in the"
+  echo "tree is applied along with it."
+  echo ""
+  # --yes does not answer this one. Cleared around the prompt rather than
+  # checked, so there is no path where an exported or passed flag stands in for
+  # the person.
+  DNS_ASSUME_YES_WAS="$ASSUME_YES"
+  ASSUME_YES="no"
+  if ! confirm_from_tty "Type 'APPLY' to change DNS: " "APPLY"; then
+    ASSUME_YES="$DNS_ASSUME_YES_WAS"
+    echo "Aborted before terraform apply. Nothing was changed; resume with --from-step 2." >&2
+    exit 1
+  fi
+  ASSUME_YES="$DNS_ASSUME_YES_WAS"
+  echo ""
+fi
+
 # Staging is the only tree that applies without the typed word. The confirmation
 # is not a receipt that a plan was read; it is the thing that stands between a
 # decision and replacing what the public is served, and staging serves nobody and

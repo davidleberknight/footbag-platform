@@ -40,6 +40,10 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-expectations.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 
 # No default target. A verification that silently reports on the environment the
 # operator did not name is worse than one that refuses.
@@ -80,17 +84,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$TARGET" in
-  staging|production) ;;
-  '')
-    echo "ERROR: --target is required ('staging' or 'production')" >&2
-    exit 2
-    ;;
-  *)
-    echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
-    exit 2
-    ;;
-esac
+require_target "$TARGET" staging production || exit 2
 
 if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
@@ -136,6 +130,9 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
 else
   echo "== verifying $TARGET host env (ssh alias: $SSH_ALIAS) =="
   echo ""
+  # Only this branch reads terraform, so only this branch needs an identity: an
+  # --env-file run compares a file against expectations and touches no account.
+  aws_profile_ensure || exit 1
   echo "Reading terraform outputs from $TF_DIR..."
   TF_JWT_KMS_KEY_ARN="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn 2>/dev/null || true)"
   TF_SES_SENDER="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity 2>/dev/null || true)"

@@ -21,6 +21,30 @@ import {
   noMachineState,
 } from './fixtures/machineIsolation';
 
+// Refuse to run under a vitest configuration that is not this repository's.
+//
+// vitest.config.ts stamps FOOTBAG_VITEST_CONFIG_LOADED into every worker. Its
+// absence means some other config was resolved, or none: a run started outside
+// the repository root, an editor integration carrying its own config, or a
+// vitest resolved from elsewhere. Such a run takes vitest's built-in defaults
+// for testTimeout, hookTimeout, the worker cap, the pool, the temp-artifact
+// sweep in globalSetup and the worktree exclusions, and nothing says so.
+//
+// The first symptom is a timeout at a ceiling that appears nowhere in the tree,
+// which is not a debuggable failure: it sends the reader looking for a number
+// that does not exist. It cost a second operator two rounds of correspondence
+// over a 15000ms timeout, which is vitest's browser-mode default and is
+// unreachable from any commit in this repository.
+if (process.env.FOOTBAG_VITEST_CONFIG_LOADED !== '1') {
+  throw new Error(
+    "tests/setup-env.ts ran without this repository's vitest config, so every timeout, " +
+      'the worker cap, the temp-artifact sweep and the worktree exclusions are vitest defaults ' +
+      'rather than this tree\'s. Run vitest from the repository root (npx vitest run tests/...), ' +
+      'or pass --config vitest.config.ts. A timeout reported by such a run names a ceiling that ' +
+      'is not configured anywhere here.',
+  );
+}
+
 // Worker threads share a process.pid, so use threadId to keep each vitest
 // worker's keypair file distinct. Falls back to pid when threadId is 0
 // (single-process runs).

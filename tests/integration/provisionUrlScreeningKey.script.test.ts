@@ -31,8 +31,16 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/provision-url-screening-key.sh');
+
+/**
+ * The script settles and proves an AWS identity before it reads or writes the
+ * parameter, so every spawn here supplies one. It grants no access: the refusals
+ * under test are still the script's own.
+ */
+const IDENTITY_ENV = awsIdentityStubEnv(mkdtempSync(join(tmpdir(), 'footbag-test-sb-identity-')));
 
 interface RunResult {
   exitCode: number;
@@ -44,7 +52,7 @@ function runScript(args: string[]): RunResult {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
-    env: { ...process.env, ...NO_AWS_CREDENTIALS },
+    env: { ...process.env, ...NO_AWS_CREDENTIALS, ...IDENTITY_ENV },
     ...SPAWN_GUARD,
   });
   return {
@@ -91,7 +99,7 @@ describe('provision-url-screening-key.sh — invocation', () => {
     const result = spawnSync('setsid', ['bash', SCRIPT, '--env', 'staging', 'store'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
-      env: { ...process.env, ...NO_AWS_CREDENTIALS },
+      env: { ...process.env, ...NO_AWS_CREDENTIALS, ...IDENTITY_ENV },
       stdio: ['ignore', 'pipe', 'pipe'],
       ...SPAWN_GUARD,
     });

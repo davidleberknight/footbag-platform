@@ -287,10 +287,25 @@ fi
 # with any number of other flags in front of it. Both checks below narrow this
 # one set, so a form that evades this pattern evades both.
 # A `sudo` word, optionally reached by an absolute path (`/usr/bin/sudo` evaded
-# the old anchor), on a line that also carries an -S-bearing flag cluster or
-# --stdin. Both checks below narrow this one set.
+# the old anchor), whose OWN flag run carries an -S cluster -- or which is on a
+# line carrying --stdin anywhere.
+#
+# The -S must belong to sudo. Collecting any line with a `sudo` word and an -S
+# anywhere on it refused `sudo passwd -S <account>`, where -S is passwd's status
+# flag and sudo reads nothing from stdin at all, and would refuse any
+# `sudo <command> -S`. The demand it then made was incoherent as well as wrong:
+# adding -k to sudo does not change what passwd's -S means. The flag-run shape
+# below is the same one 3a already uses to bind -k to this sudo, reused here so
+# both ends of the check agree about which flags are sudo's.
+#
+# --stdin stays a whole-line match on purpose, so this narrowing loses nothing.
+# Unlike -S it never means anything benign: on sudo it is the long form of -S,
+# and on passwd it is the RHEL form that reads a new password from stdin. Both
+# are hazards worth reporting, so the looser match is the right one for it.
+sudo_flag_run='(^|[^[:alnum:]_-])(/[^[:space:]]*/)?sudo([[:space:]]+-[a-zA-Z]+([[:space:]]+([^-[:space:]][^[:space:]]*|"[^"]*"|'"'"'[^'"'"']*'"'"'))?)*[[:space:]]+'
+
 sudo_stdin=$(scan_sh '(^|[^[:alnum:]_-])(/[^[:space:]]*/)?sudo([[:space:]]|$)' \
-  | grep -E '(^|[[:space:]])(-[a-zA-Z]*S[a-zA-Z]*|--stdin)([[:space:]]|$)' \
+  | grep -E "${sudo_flag_run}-[a-zA-Z]*S[a-zA-Z]*([[:space:]]|\$)|(^|[[:space:]])--stdin([[:space:]]|\$)" \
   | strip_comments || true)
 
 if [ -n "$sudo_stdin" ]; then
@@ -325,6 +340,45 @@ if [ -n "$sudo_stdin" ]; then
       "      case pipes the password into the target file. Write the file from inside the" \
       "      remote half, through a root-side restricted temp file promoted with install."
   fi
+fi
+
+# ── 3c. The whole credential file forwarded into the remote root shell ───────
+# The wire pattern's first line is the sudo password and sudo consumes exactly
+# one line; everything after it is inherited by the remote `bash` and run as a
+# root shell command. So the sending side must read ONE line and emit ONE line.
+# A bare `cat` in its place forwards every remaining line of whatever the
+# operator redirected in, which is a credential file that may hold a second
+# credential, a comment, or a stray note, and each such line executes as root on
+# a deployed host. Three scripts in this tree carried that form while a fourth
+# had been corrected, which is the shape of a fix that did not travel.
+#
+# File-level, because the two halves sit on different lines: a bare `cat` is
+# only a hazard in a file that pipes a credential into sudo. A bare `cat` with
+# no operand reads all of stdin and has no other use in these scripts; `$(cat)`
+# inside a container reassignment, which the rule requires, is not this form and
+# is not matched.
+#
+# The files are taken from the same $sudo_stdin set that 3a and 3b narrow, not
+# found again here. Re-detecting would have to be done against the normalized
+# source, which blanks the inside of quoted strings -- and the sudo invocation
+# in this pattern lives inside the quoted ssh argument, so a fresh search finds
+# nothing in exactly the files that matter.
+cat_forwarders=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  hit=$(grep -nHE '^[[:space:]]*cat[[:space:]]*$' "$f" || true)
+  [ -n "$hit" ] || continue
+  cat_forwarders="${cat_forwarders}${hit}
+"
+done < <(printf '%s' "$sudo_stdin" | cut -d: -f1 | sort -u)
+
+if [ -n "$(printf '%s' "$cat_forwarders" | tr -d '[:space:]')" ]; then
+  report "$cat_forwarders" \
+    "FAIL: a bare 'cat' forwards every line of the operator credential file into the" \
+    "      remote shell, and sudo consumes only the first; the rest run as root on the" \
+    "      host. Read one line and emit one line:" \
+    "        IFS= read -r SUDO_PASS" \
+    "        { printf '%s\\\\n' \"\$SUDO_PASS\"; ... } | ssh ... 'sudo -k -S -p \"\" bash'"
 fi
 
 # ── 4. ssh -t ────────────────────────────────────────────────────────────────

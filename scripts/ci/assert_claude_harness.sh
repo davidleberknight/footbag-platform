@@ -201,10 +201,16 @@ fi
 # permission decision, so a regression in a guard or the read-only auto-approver
 # (a reopened bypass, an over-block) fails the build here.
 if [ -x scripts/ci/test_hooks.sh ]; then
-  if scripts/ci/test_hooks.sh >/dev/null 2>&1; then
+  # Captured rather than discarded. The suite is silent on success and prints one
+  # self-contained line per failing fixture, naming the hook, the command and the
+  # decision it wanted, so re-showing it costs nothing on a green run and is the
+  # whole diagnosis on a red one. Sending it to /dev/null and telling the reader
+  # to re-run it by hand threw away the answer that was already in hand.
+  if hook_output="$(scripts/ci/test_hooks.sh 2>&1)"; then
     echo "[harness] hook fixture suite passes"
   else
-    echo "[harness] FAIL: hook fixture suite (scripts/ci/test_hooks.sh) failed; run it directly for detail" >&2
+    echo "[harness] FAIL: hook fixture suite (scripts/ci/test_hooks.sh) failed:" >&2
+    printf '%s\n' "$hook_output" | sed 's/^/  /' >&2
     fail=1
   fi
 else

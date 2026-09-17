@@ -17,6 +17,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = 'scripts/publish-archive.sh';
@@ -48,6 +49,8 @@ function run(args: string[]) {
   return spawnSync('bash', [SCRIPT, ...args], {
     cwd: REPO_ROOT,
     encoding: 'utf-8',
+    // The run settles and proves its identity before it uploads anything.
+    env: { ...process.env, ...awsIdentityStubEnv(keyDir) },
     ...SPAWN_GUARD,
   });
 }

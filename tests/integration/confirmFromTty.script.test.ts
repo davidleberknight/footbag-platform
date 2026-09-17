@@ -31,6 +31,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'host-env-remote.sh');
+const TERMINAL_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'terminal.sh');
 
 function runConfirm(assumeYes: 'yes' | 'no'): { status: number | null; stderr: string } {
   // spawnSync always captures, so the child's stdout and stderr are pipes. When
@@ -63,19 +64,36 @@ describe('confirm_from_tty: the human-present guard', () => {
   });
 
   it('decides on the standard streams and not on the terminal device alone', () => {
-    const source = readFileSync(LIB, 'utf8');
-    const guard = source.slice(source.indexOf('confirm_from_tty() {'));
     // Opening /dev/tty is necessary but not sufficient: it succeeds inside a
     // harness whose output is captured. The stream test is what makes the
     // refusal deterministic there.
-    expect(guard).toMatch(/!\s*-t\s*1/);
-    expect(guard).toMatch(/!\s*-t\s*2/);
+    //
+    // The test now lives in the shared helper, because three files had grown
+    // their own copy of it. That is why this reads the helper rather than the
+    // caller, and why the next case pins the caller to it: an inlined check
+    // here would satisfy the old assertion while drifting from the other two.
+    const guard = readFileSync(TERMINAL_LIB, 'utf8');
+    const body = guard.slice(guard.indexOf('terminal_present() {'));
+    expect(body).toMatch(/-t\s*1/);
+    expect(body).toMatch(/-t\s*2/);
+    expect(body).toMatch(/>\/dev\/tty/);
+  });
+
+  it('asks the shared helper rather than carrying its own copy of the test', () => {
+    const source = readFileSync(LIB, 'utf8');
+    const fn = source.slice(source.indexOf('confirm_from_tty() {'));
+    expect(fn).toMatch(/terminal_present/);
   });
 
   it('does not test stdin, which under the credential-pipe pattern carries the secret', () => {
+    // A confirmation reads from /dev/tty precisely because stdin is the
+    // credential pipe, so requiring stdin to be a terminal would refuse every
+    // correct caller. The helper takes it as an opt-in for the other case, a
+    // script asking a human to TYPE a secret, and the default stays off.
     const source = readFileSync(LIB, 'utf8');
-    const guard = source.slice(source.indexOf('confirm_from_tty() {'), source.indexOf('confirm_from_tty() {') + 900);
-    expect(guard).not.toMatch(/-t\s*0/);
+    const fn = source.slice(source.indexOf('confirm_from_tty() {'), source.indexOf('confirm_from_tty() {') + 900);
+    expect(fn).not.toMatch(/-t\s*0/);
+    expect(fn).not.toMatch(/--with-stdin/);
   });
 
   it('does not let the launching environment decide a confirmation', () => {

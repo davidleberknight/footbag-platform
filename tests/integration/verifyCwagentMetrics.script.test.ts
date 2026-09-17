@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/verify-cwagent-metrics.sh');
 
@@ -76,7 +77,8 @@ function awsStub(counts: Record<string, string>): string {
 }
 
 function run(args: string[], counts?: Record<string, string>) {
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  // The run settles and proves its identity before it reads any metric.
+  const env: NodeJS.ProcessEnv = { ...process.env, ...awsIdentityStubEnv(stubDir) };
   if (counts !== undefined) env.CWAGENT_VERIFY_AWS_BIN = awsStub(counts);
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),

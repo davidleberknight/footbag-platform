@@ -24,6 +24,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'dns-ttl-preflight.sh');
@@ -137,6 +138,9 @@ function run(
     encoding: 'utf8',
     env: {
       ...process.env,
+      // The zone read is preceded by settling and proving an identity, which is
+      // a different question from the one the fake route53 answers.
+      ...awsIdentityStubEnv(dir),
       PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
       FOOTBAG_LEGACY_HOSTED_ZONE_ID: 'Z0EXAMPLE',
       FOOTBAG_DNS_AUTHORITATIVE_NS: NS,

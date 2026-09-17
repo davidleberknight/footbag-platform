@@ -43,16 +43,15 @@ while [[ $# -gt 0 ]]; do
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
-    --help|-h) usage; exit 2 ;;
+    --help|-h) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-case "$TARGET" in
-  staging|production) ;;
-  '') echo "ERROR: --target is required ('staging' or 'production')" >&2; exit 2 ;;
-  *) echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2; exit 2 ;;
-esac
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+
+require_target "$TARGET" staging production || exit 2
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
@@ -73,7 +72,13 @@ require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 echo "==> Diagnosing the CloudWatch agent on $REMOTE"
+# Exactly ONE line is read from stdin, not the whole file. sudo consumes the
+# password line and the remote bash inherits whatever follows it, so forwarding
+# the rest of the operator credential file runs each remaining line as a root
+# shell command. That this script only reads is no protection: what it forwards
+# is not its own.
+IFS= read -r SUDO_PASS
 {
-  cat
+  printf '%s\n' "$SUDO_PASS"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'

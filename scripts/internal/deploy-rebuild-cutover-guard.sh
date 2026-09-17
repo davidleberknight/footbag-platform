@@ -85,14 +85,58 @@ elif ! sqlite3 "file:${CUTOVER_GUARD_DB_PATH}?mode=ro" 'SELECT count(*) FROM sql
   echo "         the in-database cutover marker could not be read. Falling back to the" >&2
   echo "         env-file marker alone." >&2
 else
-  CUTOVER_GUARD_DB_VALUE=$(
+  # A FAILED QUERY IS 'unknown', NOT 'absent'.
+  #
+  # The distinction above is the whole design of this block, and discarding this
+  # query's stderr and exit status would defeat it: anything that stopped the
+  # read succeeding would fall through to the empty value and be recorded as a
+  # definite "no marker here". The probe above cannot cover that, because it
+  # asks only whether the file is a readable SQLite database,
+  # which is satisfied by a database with an older schema, by a path pointing at
+  # some other SQLite file, and by a database that is simply locked -- and this
+  # runs on a host where the application is using that database.
+  #
+  # An EMPTY result is a real answer and stays 'absent': no row means no marker,
+  # which is a pre-cutover host. Only a non-zero exit distinguishes the two.
+  # stderr is discarded on the success path rather than merged, because a merged
+  # warning would end up inside the value, and a contaminated value fails the
+  # `== "1"` test and lands on 'absent' -- the unsafe direction. The failure path
+  # re-runs the query to collect the message, which costs nothing because it only
+  # happens when the read has already failed.
+  # The latest recorded marker row, not the current-value view. That view drops any
+  # row dated after the reading clock and silently answers with the row before it,
+  # so a marker written on one host and read on another, or written seconds before
+  # a hypervisor time sync steps this clock backward, reads as the value it
+  # superseded. Here that is the unsafe direction: a host whose operator has just
+  # recorded the cutover would look pre-cutover and this guard would let the
+  # database-replacing deploy through. The marker is a latch with no future-dated
+  # state, so the last row appended is the answer and no clock is consulted.
+  if ! CUTOVER_GUARD_DB_VALUE=$(
     sqlite3 "file:${CUTOVER_GUARD_DB_PATH}?mode=ro" \
-      "SELECT value_json FROM system_config_current WHERE config_key = 'post_cutover';" 2>/dev/null
-  ) || CUTOVER_GUARD_DB_VALUE=""
-  # The value is stored as JSON, so it may arrive quoted.
-  CUTOVER_GUARD_DB_VALUE="${CUTOVER_GUARD_DB_VALUE//\"/}"
-  if [[ "$CUTOVER_GUARD_DB_VALUE" == "1" ]]; then
-    CUTOVER_GUARD_DB_MARKER="present"
+      "SELECT value_json FROM system_config
+         WHERE config_key = 'post_cutover'
+         ORDER BY effective_start_at DESC, rowid DESC
+         LIMIT 1;" 2>/dev/null
+  ); then
+    CUTOVER_GUARD_DB_MARKER="unknown"
+    CUTOVER_GUARD_DB_ERR=$(
+      sqlite3 "file:${CUTOVER_GUARD_DB_PATH}?mode=ro" \
+        "SELECT value_json FROM system_config
+           WHERE config_key = 'post_cutover'
+           ORDER BY effective_start_at DESC, rowid DESC
+           LIMIT 1;" 2>&1 >/dev/null
+    ) || true
+    echo "WARNING: cutover guard: $CUTOVER_GUARD_DB_PATH is a readable database but its" >&2
+    echo "         cutover marker could not be read, so it gets no vote. Falling back to" >&2
+    echo "         the env-file marker alone." >&2
+    echo "         sqlite3 said: ${CUTOVER_GUARD_DB_ERR}" >&2
+    CUTOVER_GUARD_DB_VALUE=""
+  else
+    # The value is stored as JSON, so it may arrive quoted.
+    CUTOVER_GUARD_DB_VALUE="${CUTOVER_GUARD_DB_VALUE//\"/}"
+    if [[ "$CUTOVER_GUARD_DB_VALUE" == "1" ]]; then
+      CUTOVER_GUARD_DB_MARKER="present"
+    fi
   fi
 fi
 
@@ -117,3 +161,9 @@ if [[ "$CUTOVER_GUARD_ENV_MARKER" == "present" || "$CUTOVER_GUARD_DB_MARKER" == 
   echo "       deliberately clearing both markers as root on the host first." >&2
   exit 1
 fi
+
+# Handshake consumed by the destructive remote half, set only after both marker
+# reads above have run and agreed in this same shell stream. The production-live
+# guard sets its own, and the remote half requires both, so dropping either guard
+# from the caller's stream is refused rather than silently satisfied by the other.
+CUTOVER_GUARD_RAN=1

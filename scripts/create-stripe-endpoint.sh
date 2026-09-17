@@ -62,6 +62,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # satisfy is not a guard, so the library overwrites it and every caller parses
 # its own flags afterwards. This file does exactly that, below.
 source "$REPO_ROOT/scripts/lib/host-env-remote.sh"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "$REPO_ROOT/scripts/lib/aws-profile.sh"
 
 TARGET=""
 MODE=""
@@ -118,6 +122,11 @@ EVENTS="$(grep '^REQUIRED_WEBHOOK_EVENTS=' "$ACTIVATE" | cut -d'"' -f2)"
 [[ -n "$API_VERSION" && -n "$EVENTS" ]] || {
   echo "ERROR: could not read the pinned API version and event list from the activation script." >&2
   exit 1; }
+
+# The reads below reach the state backend, so the identity is settled and proved
+# here rather than left for terraform to discover: these two reads discard their
+# own stderr, so a credential failure would arrive as an empty value.
+aws_profile_ensure || exit 1
 
 # The distribution domain is a terraform output rather than a literal, so this
 # cannot be pointed at a stale host. A wrong URL fails silently at delivery time.

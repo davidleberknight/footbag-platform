@@ -152,6 +152,12 @@ create_endpoint_via_api() {
 
   local repo_root; repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   local tf_dir="$repo_root/terraform/$TARGET" domain=""
+  # The read discards its own stderr, so without an identity settled and proved
+  # first a dead credential arrives here as an empty domain and is reported as a
+  # tree that was never applied. terraform takes no --profile of its own.
+  # shellcheck source=lib/aws-profile.sh
+  source "${repo_root}/scripts/lib/aws-profile.sh"
+  aws_profile_ensure || return 1
   domain="$(terraform -chdir="$tf_dir" output -raw cloudfront_domain 2>/dev/null || true)"
   if [[ -z "$domain" ]]; then
     echo "ERROR: could not read cloudfront_domain from the $TARGET terraform output." >&2

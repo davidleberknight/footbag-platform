@@ -766,6 +766,39 @@ describe('deploy provenance is recorded by both deploy paths (static-text)', () 
   });
 });
 
+// The staging directory sits in the connecting account's home, so it is a
+// different path for each operator. The half that fills it and the half that
+// promotes it must therefore name one resolved value rather than each deciding
+// for itself: root cannot expand the operator's `~`, and a literal names
+// whichever account it was written for. When they disagree the deploy promotes
+// whatever that other account last uploaded and reports success, so the
+// operator's own change is simply absent from a run that said it worked.
+describe('the code deploy resolves one release directory and shares it (static-text)', () => {
+  it('scripts/deploy-code.sh resolves the connecting account home and forwards it', () => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-code.sh'), 'utf8');
+    expect(content).toMatch(/REMOTE_HOME="\$\(ssh /);
+    expect(content).toMatch(/printf %s "\$HOME"/);
+    expect(content).toMatch(/REMOTE_RELEASE_DIR="\$\{REMOTE_HOME\}\/footbag-release"/);
+    expect(content).toMatch(/printf 'RELEASE_DIR=%q\\n'/);
+    // Both the upload and the transfer name that value, never a bare tilde.
+    expect(content).toMatch(/"\$REPO_ROOT\/" "\$REMOTE:\$REMOTE_RELEASE_DIR\//);
+    expect(content).not.toMatch(/~\/footbag-release/);
+  });
+
+  it('scripts/internal/deploy-code-remote.sh takes the sent value rather than assuming', () => {
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+      'utf8',
+    );
+    // Required rather than defaulted. A default cannot tell a caller that never
+    // sent the value from one that sent an empty one, so it answered a sender bug
+    // by promoting a directory nobody named, with --delete, over the live install.
+    expect(content).toMatch(/: "\$\{RELEASE_DIR:\?/);
+    // An unconditional assignment would silently override what the caller sent.
+    expect(content).not.toMatch(/^RELEASE_DIR=\/home/m);
+  });
+});
+
 // ── wrapper-side production gate (static text scan) ──────────────────────────
 //
 // The remote-half refusal above is the backstop, and it fires late: by the time
@@ -1556,8 +1589,15 @@ describe('the production gate asks what happens to the media bucket', () => {
     // a substring match is satisfied by a branch that has been disabled with a
     // trailing conjunction, which is how a question that no longer gets asked
     // keeps a passing test.
+    //
+    // Reuse mode is excluded, and that exclusion is part of the contract rather
+    // than a disabled branch. Reuse ships the local database as it stands and
+    // rebuilds nothing, so it reseeds no media and the question's premise is
+    // false there; worse, the "yes" answer emits a flag the orchestrator refuses
+    // outside a rebuild, which killed the run after the typed word and the
+    // password. Asking only where the answer can be carried is the whole point.
     expect(question).toMatch(
-      /if \(\( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 \)\); then\n/);
+      /if \(\( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 && MODE_REUSE == 0 \)\); then\n/);
     // Every media flag counts as the operator having said so, in either direction,
     // and combined short flags are expanded before this scan reads them.
     expect(wrapperSrc).toMatch(
@@ -1802,7 +1842,7 @@ describe('both deploy paths start from an empty upload directory', () => {
       // The two spell the destination differently (a literal path, and the
       // REMOTE_RELEASE_DIR variable holding the same path), so match the clear
       // itself rather than either spelling.
-      const wipeAt = source.search(/rm -rf (~\/footbag-release|"?\$REMOTE_RELEASE_DIR)/);
+      const wipeAt = source.search(/rm -rf (~\/footbag-release|['"]?\$REMOTE_RELEASE_DIR)/);
       const rsyncAt = source.indexOf('rsync -av --delete');
       expect(wipeAt, `${file} never clears the upload directory`).toBeGreaterThan(-1);
       expect(rsyncAt, `${file} has no upload rsync`).toBeGreaterThan(-1);
@@ -2164,5 +2204,297 @@ describe('deploy promote preserves the provenance record (static-text)', () => {
     const write = source.indexOf('mv "$provenance_tmp" /srv/footbag/deployed-from');
     expect(promote).toBeGreaterThan(-1);
     expect(write).toBeGreaterThan(promote);
+  });
+});
+
+// ── the wrapper's own connection is pinned like every other ──────────────────
+//
+// Permanent contract: no script in this tree opens a connection to a deployed
+// host on trust. The wrapper's schema probe is the one connection it makes
+// itself, and it decides whether a code-only deploy is allowed to proceed onto
+// the host, so a substituted host answering it is a substituted host steering
+// the gate. Trust-on-first-connect would also write that host into the
+// operator's own known_hosts on the way past, where it would vouch for itself
+// on every later run.
+//
+// Driven by lifting the probe out and running it, because a connection is what
+// is under test: a source assertion would pass on a script that named the
+// options and never passed them.
+
+describe('deploy_to_aws.sh schema probe pins the host key', () => {
+  const WRAPPER = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf-8');
+
+  function sliceProbe(): string {
+    const start = WRAPPER.indexOf('  source "${SCRIPT_DIR}/scripts/lib/ssh-known-hosts.sh"');
+    const end = WRAPPER.indexOf('  if [[ -z "$_expected_fp" ]]; then');
+    expect(start, 'the pinned probe was not found in the wrapper').toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return WRAPPER.slice(start, end);
+  }
+
+  /** Runs the probe with a pin the test owns, or with none. */
+  function runProbe(withPin: boolean) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-probe-'));
+    const argvLog = path.join(dir, 'ssh-argv');
+    const pin = path.join(dir, 'known_hosts');
+    if (withPin) {
+      fs.writeFileSync(pin, '[203.0.113.7]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA\n');
+      fs.chmodSync(pin, 0o600);
+    }
+    const harness = path.join(dir, 'probe.sh');
+    fs.writeFileSync(
+      harness,
+      [
+        'set -euo pipefail',
+        `SCRIPT_DIR=${JSON.stringify(REPO_ROOT)}`,
+        'DEPLOY_TARGET="footbag-staging"',
+        // Records what the probe actually passed, and drains the piped body so
+        // the real redirection is exercised rather than short-circuited.
+        `ssh() { printf '%s\\n' "$*" > ${JSON.stringify(argvLog)}; cat > /dev/null; echo "stub-fp"; }`,
+        sliceProbe(),
+        'echo "PROBE_RAN host_fp=${_host_fp}"',
+      ].join('\n') + '\n',
+    );
+    const r = spawnSync('bash', [harness], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, FOOTBAG_KNOWN_HOSTS: pin },
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    const argv = fs.existsSync(argvLog) ? fs.readFileSync(argvLog, 'utf-8') : '';
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '', argv, pin };
+  }
+
+  it('verifies the host against the pin instead of learning it', () => {
+    const r = runProbe(true);
+    expect(r.stdout).toMatch(/PROBE_RAN/);
+    expect(r.argv).toMatch(/StrictHostKeyChecking=yes/);
+    expect(r.argv).toMatch(new RegExp(`UserKnownHostsFile=${r.pin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  });
+
+  it('refuses rather than connecting when there is no pin to verify against', () => {
+    // The deploy this preflight leads into requires the same pin and refuses
+    // without it, so nothing that works today is stopped by refusing here. What
+    // is stopped is opening the connection first and asking afterwards.
+    const r = runProbe(false);
+    expect(r.status).toBe(1);
+    expect(r.argv).toBe('');
+    expect(r.stderr).toMatch(/pinned host-key file not found/);
+    expect(r.stdout).not.toMatch(/PROBE_RAN/);
+  });
+});
+
+// A production deploy replaces what the public is served, so it stops for a
+// person every time, in every mode. The leaf that replaces the database enforced
+// that and the leaf that ships code only did not, which left the whole gate one
+// direct invocation wide: a scheduled job, a continuous-integration runner or an
+// agent session could redirect a credential file into the code leaf and deploy
+// production with nothing typed anywhere.
+//
+// A terminal is the test rather than a word or a variable, and that distinction
+// is the contract being pinned here. An acknowledgement variable records that a
+// word was typed somewhere, once, by somebody, and an operator's shell can hold
+// and export it; nothing a caller can export produces a terminal. Staging is
+// deliberately outside this: it is fed a credential file with nobody present, by
+// design, and its data is disposable.
+describe('a production deploy refuses to run unattended', () => {
+  // spawnSync gives the child pipes for all three descriptors, which is exactly
+  // the shape a scheduler or an agent session has, so these runs are the real
+  // unattended case rather than a simulation of one.
+  const LEAVES: Array<[string, string]> = [
+    ['scripts/deploy-code.sh', 'deploy_to_aws.sh -k'],
+    ['scripts/deploy-rebuild.sh', 'deploy_to_aws.sh'],
+  ];
+
+  it.each(LEAVES)('%s refuses a production target with no terminal', (leaf) => {
+    const r = run('bash', [leaf], {
+      env: { DEPLOY_TARGET: 'footbag-production' },
+      input: 'unused-password\n',
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/production deploy requires a terminal/);
+    // Refused before anything is attempted against the host: no connection, no
+    // upload, no promotion. The point of the gate is that nothing happens.
+    expect(r.stdout).not.toMatch(/Deploy target/);
+    expect(r.stderr).not.toMatch(/Deploy target/);
+  });
+
+  it.each(LEAVES)('%s refuses before it reports any other missing precondition', (leaf) => {
+    // Ordering is part of the contract. Behind the host-key pin check, a caller
+    // with no business running production would be told its pin file was missing,
+    // which names the wrong problem and invites someone to go and fix it.
+    const r = run('bash', [leaf], {
+      env: { DEPLOY_TARGET: 'footbag-production' },
+      input: 'unused-password\n',
+    });
+    expect(r.stderr).not.toMatch(/pinned host-key file not found/);
+  });
+
+  it('the database-replace acknowledgement does not satisfy it', () => {
+    // The bypass this closes: the ack is an ordinary environment variable, so a
+    // shell that exports it and invokes the leaf directly used to get through.
+    const r = run('bash', ['scripts/deploy-rebuild.sh'], {
+      env: { DEPLOY_TARGET: 'footbag-production', FOOTBAG_PROD_DB_REPLACE_ACK: '1' },
+      input: 'unused-password\n',
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/production deploy requires a terminal/);
+  });
+
+  it.each(LEAVES)('%s gates on production alone, leaving staging unattended by design', (leaf) => {
+    // Asserted against the source rather than by running a staging deploy, which
+    // would open a real connection to the deployed host. What matters is that the
+    // condition names the production alias and nothing broader.
+    const content = fs.readFileSync(path.join(REPO_ROOT, leaf), 'utf8');
+    expect(content).toMatch(
+      /if \[\[ "\$REMOTE" == "footbag-production" \]\] && ! terminal_present; then/,
+    );
+  });
+});
+
+// The code deploy promotes with `rsync --delete`, so anything on the host that is
+// host state rather than release content has to be excluded or the delete pass
+// removes it: the uploaded tree does not carry it, which makes it extraneous.
+// The live database was missing from that list while the caller's own header
+// promised it was always preserved, and the loss is silent, because the stack
+// restarts, answers its readiness check and reports success against nothing.
+describe('the code deploy protects host state at least as well as the rebuild deploy', () => {
+  const excludesOf = (relPath: string): string[] => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    return [...content.matchAll(/--exclude=(\/[A-Za-z0-9._-]+)/g)].map((m) => m[1]);
+  };
+
+  it('excludes the live database and its write-ahead sidecars', () => {
+    const excludes = excludesOf('scripts/internal/deploy-code-remote.sh');
+    expect(excludes).toContain('/footbag.db');
+    expect(excludes).toContain('/footbag.db-wal');
+    expect(excludes).toContain('/footbag.db-shm');
+  });
+
+  it('excludes everything the rebuild half excludes, so the two cannot drift apart', () => {
+    const codeExcludes = new Set(excludesOf('scripts/internal/deploy-code-remote.sh'));
+    const rebuildExcludes = excludesOf('scripts/internal/deploy-rebuild-remote.sh');
+    expect(rebuildExcludes.length).toBeGreaterThan(0);
+    for (const e of rebuildExcludes) {
+      expect(codeExcludes.has(e), `code deploy must also exclude ${e}`).toBe(true);
+    }
+  });
+
+  it('takes the database directory from the mounted key, never from the host DB path', () => {
+    // The container opens a fixed filename inside the directory the compose files
+    // mount, so that key is what decides the directory. Deriving one from the
+    // host-side database path instead is wrong twice over: on a host still on the
+    // older layout it names a file the container does not open, and its parent is
+    // the live install itself, which would turn the recursive ownership fix below
+    // into a handover of the promoted code, the compose files, the systemd unit
+    // source and the root-invoked backup script to the container account.
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+      'utf8',
+    );
+    expect(content).not.toMatch(/read_env FOOTBAG_DB_PATH/);
+    expect(content).toMatch(/_db_dir_from_env="\$\(read_env FOOTBAG_DB_DIR\)"/);
+    expect(content).toMatch(/_mig_db_dir="\$\(read_env FOOTBAG_DB_DIR\)"/);
+  });
+
+  it('refuses a database directory that would widen the recursive chown', () => {
+    // A recursive chown runs in one direction and has no undo, so a value that
+    // resolves to the live install or the filesystem root stops the deploy rather
+    // than being applied and discovered afterwards.
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+      'utf8',
+    );
+    expect(content).toMatch(/case "\$_db_dir_from_env" in\n\s*"\$LIVE_DIR"\|\/\|""\)/);
+  });
+
+  it('requires the release directory to be sent rather than defaulting to one', () => {
+    // A default cannot tell a caller that never sent the value from one that sent
+    // an empty one, so it answered a sender bug by promoting a directory nobody
+    // named, with --delete, over the live install.
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+      'utf8',
+    );
+    expect(content).toMatch(/: "\$\{RELEASE_DIR:\?/);
+    expect(content).not.toMatch(/RELEASE_DIR="\$\{RELEASE_DIR:-/);
+  });
+
+  it('checks the release tree and the committed config before promoting, not after', () => {
+    // Once the live tree has been replaced there is no state in which refusing is
+    // still cheap, so every check that can refuse belongs above the rsync.
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+      'utf8',
+    );
+    const validateAt = content.indexOf('seed_committed_host_config validate');
+    const requireAt = content.indexOf('require_path "release dir"');
+    const promoteAt = content.indexOf('rsync -a --delete');
+    expect(validateAt).toBeGreaterThan(-1);
+    expect(requireAt).toBeGreaterThan(-1);
+    expect(promoteAt).toBeGreaterThan(-1);
+    expect(validateAt).toBeLessThan(promoteAt);
+    expect(requireAt).toBeLessThan(promoteAt);
+  });
+});
+
+// Both guards are streamed into the same root shell by one `cat`, and each sets
+// its own handshake as its last act. One handshake covering two guards is not a
+// check on the guard that does not set it: dropping the post-cutover guard from
+// that list is the refactor mistake the handshake exists to catch, and a single
+// shared flag would have left it satisfied by the guard that remained.
+describe('the destructive remote half requires every guard that ran ahead of it', () => {
+  it('each guard sets its own handshake', () => {
+    const cutover = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-cutover-guard.sh'),
+      'utf8',
+    );
+    const prodLive = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-production-live-guard.sh'),
+      'utf8',
+    );
+    expect(cutover).toMatch(/^CUTOVER_GUARD_RAN=1$/m);
+    expect(prodLive).toMatch(/^PROD_LIVE_GUARD_RAN=1$/m);
+  });
+
+  it('the remote half refuses unless both handshakes are present', () => {
+    const content = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-remote.sh'),
+      'utf8',
+    );
+    expect(content).toMatch(/\$\{CUTOVER_GUARD_RAN:-\}" != "1"/);
+    expect(content).toMatch(/\$\{PROD_LIVE_GUARD_RAN:-\}" != "1"/);
+  });
+
+  it('every streamed guard ends in a newline, so no line merges at a file boundary', () => {
+    for (const relPath of [
+      'scripts/internal/deploy-rebuild-cutover-guard.sh',
+      'scripts/internal/deploy-rebuild-production-live-guard.sh',
+    ]) {
+      const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+      expect(content.endsWith('\n'), `${relPath} must end with a newline`).toBe(true);
+    }
+  });
+});
+
+// The question exists to spare the operator a start-over-with-a-flag ending. In
+// reuse mode it produced one: that mode ships the local database as it stands and
+// rebuilds nothing, so it reseeds no media, and the "yes" answer emitted a flag
+// the orchestrator refuses, killing the run after the typed word and the password.
+describe('the production media question is only asked where the answer can be carried', () => {
+  it('is skipped in reuse mode', () => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
+    expect(content).toMatch(
+      /PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 && MODE_REUSE == 0/,
+    );
+  });
+
+  it('only emits the no-media flag in a mode the orchestrator accepts it in', () => {
+    // The orchestrator's refusal is the other half of this contract: the flag is
+    // meaningful only alongside a rebuild, so the question must not be able to
+    // produce it anywhere else.
+    const orchestrator = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-to-aws.sh'), 'utf8');
+    expect(orchestrator).toMatch(/--no-media is only meaningful with --from-csv/);
   });
 });

@@ -141,6 +141,21 @@ else
     fail "password-forgot equivalence — status differs by account existence (${registered_status} vs ${unregistered_status})"
   elif [[ "$registered_body" != "$unregistered_body" ]]; then
     fail "password-forgot equivalence — response body differs by account existence (status ${registered_status})"
+    # Both bodies are already in hand. "Differs" on its own sends the reader off
+    # to reproduce the probe by curl to find out where, so name the divergence.
+    # normalize_body has already dropped the form-value refill that would echo the
+    # submitted address, and anything address-shaped is redacted here as well, so
+    # neither probe address reaches this output.
+    divergence_offset=0
+    while (( divergence_offset < ${#registered_body} )) \
+      && [[ "${registered_body:divergence_offset:64}" == "${unregistered_body:divergence_offset:64}" ]]; do
+      divergence_offset=$(( divergence_offset + 64 ))
+    done
+    echo "     first divergence near character ${divergence_offset}:"
+    echo "       registered:   $(printf '%s' "${registered_body:divergence_offset:200}" \
+      | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/<address>/g')"
+    echo "       unregistered: $(printf '%s' "${unregistered_body:divergence_offset:200}" \
+      | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/<address>/g')"
   else
     pass "password-forgot equivalence (identical ${registered_status} both ways)"
   fi

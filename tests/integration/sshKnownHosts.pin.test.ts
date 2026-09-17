@@ -106,7 +106,7 @@ describe('a missing pin stops the caller', () => {
 
     // A refusal an operator cannot act on invites deleting the check instead of
     // fixing the pin, which is the one outcome this guard cannot survive.
-    expect(r.stderr).toMatch(/lightsail get-instance-access-details/);
+    expect(r.stderr).toMatch(/install-known-hosts\.sh --target/);
     expect(r.stderr).toMatch(/FOOTBAG_KNOWN_HOSTS/);
   });
 });

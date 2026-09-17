@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/restore-db-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/restore-db.sh');
@@ -211,6 +212,29 @@ describe('restoring a snapshot onto a host', () => {
     expect(calls()).toContain('systemctl start footbag');
   });
 
+  it('refuses, and restarts the service, when it cannot measure the free space', () => {
+    // The service is already stopped by this point, so how this fails decides
+    // whether the host comes back. An unguarded `db_kb=$(du …)` takes the
+    // command's status under set -e and aborts the script where it stands,
+    // before the refusal below and before its restart, leaving the host down
+    // with nothing printed to say why. A measurement that cannot be taken is
+    // not permission to copy blind either: the aside copy is the only way back
+    // from restoring the wrong snapshot.
+    const failingDu = join(workDir, 'no-du');
+    mkdirSync(failingDu, { recursive: true });
+    writeFileSync(join(failingDu, 'du'), ['#!/usr/bin/env bash', 'exit 1'].join('\n'));
+    chmodSync(join(failingDu, 'du'), 0o755);
+
+    const key = publishSnapshot(['snapshot-1']);
+    const res = runRemote(key, undefined, {
+      PATH: `${failingDu}:${binDir}:${process.env.PATH ?? ''}`,
+    });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('could not measure the database');
+    expect(calls()).toContain('systemctl start footbag');
+  });
+
   it('copies the database it replaces aside, and says where', () => {
     // The copy is the only way back from restoring the wrong snapshot, so it is
     // taken before the swap and never cleaned up on the way out.
@@ -378,10 +402,13 @@ describe('the operator-facing restore script', () => {
     args: string[],
     env?: NodeJS.ProcessEnv,
   ): { status: number; stdout: string; stderr: string } {
+    // The script settles and proves its identity before it searches the bucket,
+    // through its own seams rather than the CLI on PATH, so a case that makes
+    // that CLI unusable still makes it unusable for the search itself.
     const res = spawnSync('setsid', ['bash', OPERATOR_SCRIPT, ...args], {
       encoding: 'utf8',
       input: '',
-      ...(env ? { env } : {}),
+      env: { ...(env ?? process.env), ...awsIdentityStubEnv(workDir) },
       ...SPAWN_GUARD,
     });
     return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };

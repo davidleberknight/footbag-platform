@@ -65,6 +65,15 @@ if [[ ! -d "$TF_DIR/.terraform" ]]; then
   exit 1
 fi
 
+# The outputs are read on the operator's own identity, before the runtime
+# profile below takes over for the probes themselves. Settled and proved here,
+# because a dead operator credential otherwise fails the first `output -raw`
+# under set -e and reads as an uninitialised tree, which the check above has
+# just ruled out.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+aws_profile_ensure || exit 1
+
 JWT_KMS_KEY_ID="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn)"
 SES_FROM_IDENTITY="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity)"
 MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name)"

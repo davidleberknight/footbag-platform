@@ -56,6 +56,12 @@ export default defineConfig({
     // per-file env isolation the integration suites rely on is unchanged.
     pool: 'threads' as const,
     ...(workerCap ? { maxWorkers: workerCap } : {}),
+    // Proof, inside the worker, that this file is the config in force. A run
+    // that resolves some other config, or none, silently takes vitest's own
+    // defaults for every value above, and the first symptom is a timeout at a
+    // ceiling that appears nowhere in this tree. tests/setup-env.ts refuses to
+    // run without this marker and names the cause instead.
+    env: { FOOTBAG_VITEST_CONFIG_LOADED: '1' },
     setupFiles: ['./tests/setup-env.ts'],
     // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session
     // start and end. Per-test afterAll() handles the happy path; this hook

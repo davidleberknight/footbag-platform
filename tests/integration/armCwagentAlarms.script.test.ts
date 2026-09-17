@@ -51,10 +51,11 @@ function tfvars(value: string | null): string {
   return path;
 }
 
-function run(args: string[], input = 'yes\n') {
+function run(args: string[], env: Record<string, string> = {}, input = '') {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
+    env: { ...process.env, ...env },
     input,
     ...SPAWN_GUARD,
   });
@@ -63,6 +64,18 @@ function run(args: string[], input = 'yes\n') {
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
   };
+}
+
+/** A stand-in for the terraform apply wrapper, so the outcome of the apply is
+ *  the test's to choose. A failing one is the only way to reach the branch that
+ *  decides whether the values file is put back. */
+function terraformStub(exitCode: number): string {
+  const path = join(workDir, `terraform-stub-${exitCode}.sh`);
+  writeFileSync(path, `#!/usr/bin/env bash\necho "stub apply: $*"\nexit ${exitCode}\n`, {
+    encoding: 'utf-8',
+    mode: 0o755,
+  });
+  return path;
 }
 
 describe('arm-cwagent-alarms.sh argument guards', () => {
@@ -101,7 +114,7 @@ describe('arm-cwagent-alarms.sh values-file rewrite', () => {
 
   it('flips the flag, shows the diff, and stops before terraform', () => {
     const path = tfvars('false');
-    const r = run(['--target', 'production', '--tfvars', path]);
+    const r = run(['--target', 'production', '--tfvars', path, '--yes']);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('-enable_cwagent_alarms      = false');
     expect(r.stdout).toContain('+enable_cwagent_alarms      = true');
@@ -111,7 +124,7 @@ describe('arm-cwagent-alarms.sh values-file rewrite', () => {
 
   it('leaves the other switches alone', () => {
     const path = tfvars('false');
-    run(['--target', 'production', '--tfvars', path]);
+    run(['--target', 'production', '--tfvars', path, '--yes']);
     const after = readFileSync(path, 'utf-8');
     expect(after).toContain('enable_backup_alarm        = false');
     expect(after).toContain('alarm_email                = "ops@example.invalid"');
@@ -133,12 +146,81 @@ describe('arm-cwagent-alarms.sh values-file rewrite', () => {
     expect(r.stderr).toContain('no enable_cwagent_alarms assignment found');
   });
 
-  it('leaves the file exactly as found when the confirmation is declined', () => {
+  it('leaves the file exactly as found when there is no terminal and no --yes', () => {
     const path = tfvars('false');
     const before = readFileSync(path, 'utf-8');
-    const r = run(['--target', 'production', '--tfvars', path], 'no\n');
+    const r = run(['--target', 'production', '--tfvars', path]);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('tfvars not changed');
     expect(readFileSync(path, 'utf-8')).toBe(before);
+  });
+
+  it('cannot have its confirmation answered by whatever is piped at it', () => {
+    // The confirmation is read from the terminal, never stdin, so a redirected
+    // credential file cannot become the answer and be echoed on the compare.
+    // Piping the affirmative answer is the discriminating case: a prompt reading
+    // stdin would take it and flip the flag.
+    const path = tfvars('false');
+    const before = readFileSync(path, 'utf-8');
+    const r = run(['--target', 'production', '--tfvars', path], {}, 'APPLY\nyes\n');
+    expect(r.status).toBe(1);
+    expect(readFileSync(path, 'utf-8')).toBe(before);
+  });
+
+  it('cannot have its confirmation supplied by an exported variable', () => {
+    // A guard an environment variable can satisfy is not a guard: the shared
+    // library assigns the accept-in-advance value unconditionally, so only the
+    // flag reaches it.
+    const path = tfvars('false');
+    const before = readFileSync(path, 'utf-8');
+    const r = run(['--target', 'production', '--tfvars', path], { ASSUME_YES: 'yes' });
+    expect(r.status).toBe(1);
+    expect(readFileSync(path, 'utf-8')).toBe(before);
+  });
+});
+
+describe('arm-cwagent-alarms.sh when the apply does not succeed', () => {
+  // The values file is put back only where this run is the whole story. Once
+  // terraform has been invoked the estate may already hold some of the alarms,
+  // and writing "unarmed" over them is the same invisible half-state the script
+  // exists to prevent, reached from the other side.
+
+  it('puts the file back when it stops before terraform is ever invoked', () => {
+    const path = tfvars('false');
+    const before = readFileSync(path, 'utf-8');
+    const r = run(['--target', 'production', '--tfvars', path]);
+    expect(r.status).toBe(1);
+    expect(readFileSync(path, 'utf-8')).toBe(before);
+  });
+
+  it('LEAVES the flag set when the apply itself fails, and says why', () => {
+    const path = tfvars('false');
+    const r = run(['--target', 'production', '--tfvars', path, '--yes'], {
+      ARM_CWAGENT_TERRAFORM: terraformStub(1),
+    });
+    expect(r.status).not.toBe(0);
+    expect(readFileSync(path, 'utf-8')).toContain('enable_cwagent_alarms      = true');
+    expect(r.stderr).toContain('may hold some of the alarms already');
+    expect(r.stderr).toContain('LEFT saying');
+    expect(r.stderr).toContain('describe-alarms');
+  });
+
+  it('keeps the flag set when the apply succeeds', () => {
+    const path = tfvars('false');
+    const r = run(['--target', 'production', '--tfvars', path, '--yes'], {
+      ARM_CWAGENT_TERRAFORM: terraformStub(0),
+    });
+    expect(r.status).toBe(0);
+    expect(readFileSync(path, 'utf-8')).toContain('enable_cwagent_alarms      = true');
+    expect(r.stderr).not.toContain('may hold some of the alarms already');
+  });
+
+  it('says on stderr that the terraform seam is in use, so a stubbed run is never read as a real one', () => {
+    const path = tfvars('false');
+    const r = run(['--target', 'production', '--tfvars', path, '--yes'], {
+      ARM_CWAGENT_TERRAFORM: terraformStub(0),
+    });
+    expect(r.stderr).toContain('terraform seam');
+    expect(r.stderr).toContain('no estate is reached');
   });
 });

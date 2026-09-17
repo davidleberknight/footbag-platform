@@ -92,11 +92,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$TARGET" in
-  staging|production) ;;
-  '') die "--target is required ('staging' or 'production')" ;;
-  *) die "--target must be production or staging (got '${TARGET}')" ;;
-esac
+require_target "$TARGET" staging production || exit 2
 
 [[ -n "$ACTION" ]] || die "one of --status or --apply is required"
 

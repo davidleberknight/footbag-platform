@@ -98,6 +98,17 @@ if [[ -n "${TARGET}" && "${MOCK_AWS}" -eq 1 ]]; then
   exit 2
 fi
 
+# A run that names a target reaches the host and pulls the snapshot object back,
+# so the identity it will use is settled and proved here rather than discovered
+# in the middle of a gate, where a credential failure reads as a failed gate. A
+# mocked run, and a run with no target, attest to nothing outside this
+# workstation and need no credential at all.
+if [[ -n "${TARGET}" && "${MOCK_AWS}" -eq 0 ]]; then
+  # shellcheck source=lib/aws-profile.sh
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
+fi
+
 results=()
 fail=0
 

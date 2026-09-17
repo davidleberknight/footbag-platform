@@ -1009,7 +1009,13 @@ CREATE INDEX idx_system_config_actor
 -- Returns the row with the latest effective_start_at <= now for each key.
 -- This is the authoritative read surface for all runtime config lookups.
 -- Use this view for all application reads; never query system_config directly
--- unless building admin history UIs or audit reports.
+-- unless building admin history UIs or audit reports, or reading a latch-style
+-- marker whose correctness must not depend on the reader's clock agreeing with
+-- the writer's (the cutover marker, and its two deploy guards). That last case
+-- is not a style preference: this view drops any row dated after the reading
+-- clock and then answers with the row before it, saying nothing, so a marker
+-- written on a host running ahead, or written seconds before a hypervisor time
+-- sync steps this clock backward, reads as the value it superseded.
 CREATE VIEW system_config_current AS
 SELECT s.*
 FROM system_config s

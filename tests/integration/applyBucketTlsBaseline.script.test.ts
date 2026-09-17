@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/apply-bucket-tls-baseline.sh');
 
@@ -64,9 +65,54 @@ function terraformStub(planJson: string): string {
   return path;
 }
 
-function run(args: string[], planJson?: string) {
-  const env: NodeJS.ProcessEnv = { ...process.env };
+/**
+ * A stand-in AWS CLI on PATH, for the access-log delivery check.
+ *
+ * The deny and plaintext probes are answered healthily so the only thing a case
+ * can put wrong is the listing. `logs` decides what the listing does: a key is a
+ * live delivery, `none` is the literal string the CLI prints when the call
+ * succeeded and matched nothing, and `unreadable` is the call failing — which is
+ * a different answer and must stay one.
+ */
+function awsStubOnPath(logs: 'key' | 'none' | 'unreadable'): string {
+  const listing =
+    logs === 'unreadable'
+      ? ['    echo "An error occurred (AccessDenied)" >&2; exit 254 ;;']
+      : logs === 'none'
+        ? ['    echo "None" ;;']
+        : ['    echo "AWSLogs/123456789012/CloudFront/E1EXAMPLE.2026-09-17.gz" ;;'];
+  const path = join(stubDir, 'aws');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env bash',
+      'case "$*" in',
+      '  *list-objects-v2*)',
+      ...listing,
+      '  *get-bucket-policy*)',
+      '    echo \'{"Statement":[{"Sid":"DenyPlaintextAccess"}]}\' ;;',
+      '  *head-bucket*)',
+      // The deny doing its job: the script requires the refusal to name itself
+      // rather than accepting any failure at all.
+      '    echo "An error occurred (AccessDenied) when calling HeadBucket" >&2; exit 254 ;;',
+      '  *) echo "" ;;',
+      'esac',
+      'exit 0',
+    ].join('\n'),
+    'utf-8',
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+function run(args: string[], planJson?: string, logs?: 'key' | 'none' | 'unreadable') {
+  // The run settles and proves its identity before it plans or applies.
+  const env: NodeJS.ProcessEnv = { ...process.env, ...awsIdentityStubEnv(stubDir) };
   if (planJson !== undefined) env.TERRAFORM_APPLY_BIN = terraformStub(planJson);
+  if (logs !== undefined) {
+    awsStubOnPath(logs);
+    env.PATH = `${stubDir}:${process.env.PATH ?? ''}`;
+  }
   const r = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
@@ -154,5 +200,41 @@ describe('apply-bucket-tls-baseline.sh — the session-secret gate', () => {
     expect(r.stderr).toMatch(/Refusing rather than|assuming it would not/);
     // It must not claim to know which way the plan would have gone.
     expect(r.stderr).not.toMatch(/REFUSING: the plan would change the value of/);
+  });
+});
+
+describe('apply-bucket-tls-baseline.sh — the access-log delivery precondition', () => {
+  // The second reason this script exists. It replaces a bucket policy the AWS
+  // log-delivery service wrote for itself, and a wrong delivery statement errors
+  // nothing: the logs simply stop arriving and nobody notices until they are
+  // wanted. So the run records the newest delivered key before the apply and
+  // re-reads it after.
+  //
+  // The failure that check cannot survive is its own reads failing. Both calls
+  // answering "could not read" once compared equal, and equal is the value that
+  // means "unchanged, delivery is merely batched" — so the one condition under
+  // which the check can see nothing was the one it reported as fine.
+  it('refuses when neither side of the comparison could be read', () => {
+    const r = run(['--from-step', '1', '--yes'], NO_SECRET_CHANGE, 'unreadable');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/could not list the staging access-log bucket/);
+    expect(r.stderr).toMatch(/a live delivery from one the new policy stopped/);
+    // The sentence that must never be reached on an unreadable pair.
+    expect(r.stdout).not.toMatch(/Delivery is batched/);
+  });
+
+  it('accepts a listing that succeeded and matched nothing, which is not the same answer', () => {
+    // "None" is what the CLI prints for an empty match. A bucket with no logs
+    // delivered yet is an ordinary state and must not be refused, or the
+    // distinction the fix rests on would just be a stricter check.
+    const r = run(['--from-step', '1', '--yes'], NO_SECRET_CHANGE, 'none');
+    expect(r.stderr).not.toMatch(/could not list the staging access-log bucket/);
+    expect(r.stdout).toMatch(/newest staging access-log key is now None/);
+  });
+
+  it('reports the delivered key when the listing is readable', () => {
+    const r = run(['--from-step', '1', '--yes'], NO_SECRET_CHANGE, 'key');
+    expect(r.stderr).not.toMatch(/could not list the staging access-log bucket/);
+    expect(r.stdout).toMatch(/newest staging access-log key is now AWSLogs\//);
   });
 });

@@ -82,6 +82,10 @@ cd "$REPO_ROOT"
 # its own flags first would have the answer overwritten.
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 
 TARGET=""
 DOMAIN=""
@@ -247,6 +251,10 @@ ORIGINAL_TFVARS="$(cat "$TFVARS_PATH")"
 # ── Where to verify ──────────────────────────────────────────────────────────
 
 if [[ -z "$DOMAIN" && "$SYNTHETIC" -eq 0 ]]; then
+  # The read below discards its own stderr, so a dead credential would arrive
+  # here as an empty domain and be reported as an uninitialised tree. A
+  # synthetic run, and a run given its domain, reach no account.
+  aws_profile_ensure || exit 1
   DOMAIN="$(terraform -chdir="$TF_DIR" output -raw cloudfront_domain 2>/dev/null || true)"
   if [[ -z "$DOMAIN" || "$DOMAIN" == "null" ]]; then
     echo "ERROR: could not read the distribution domain from terraform output." >&2

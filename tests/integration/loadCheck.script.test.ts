@@ -28,6 +28,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/load-check.sh');
 
@@ -106,7 +107,8 @@ interface RunOptions {
 }
 
 function run(args: string[], options: RunOptions = {}) {
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  // The run settles and proves its identity before it reads the address.
+  const env: NodeJS.ProcessEnv = { ...process.env, ...awsIdentityStubEnv(stubDir) };
   if (options.terraform === true) env.FOOTBAG_LOADCHECK_TERRAFORM_BIN = terraformStub();
   if (options.curl === true) env.FOOTBAG_LOADCHECK_CURL_BIN = curlStub();
   if (options.driverExit !== undefined) env.FOOTBAG_LOADCHECK_DRIVER = driverStub(options.driverExit);

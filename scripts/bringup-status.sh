@@ -96,13 +96,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$TARGET" in
-  staging|production) ;;
-  *)
-    echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
-    exit 2
-    ;;
-esac
+require_target "$TARGET" staging production || exit 2
 
 if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
@@ -210,6 +204,12 @@ else
   # --- terraform probe ------------------------------------------------------
   if (( ! SKIP_TF )); then
     PROBES_RUN+="terraform "
+    # terraform takes no profile of its own, so without an identity settled here
+    # every probe below reports the estate as unreadable and the report reads as
+    # a bring-up that has not happened.
+    # shellcheck source=lib/aws-profile.sh
+    source "${SCRIPT_DIR}/lib/aws-profile.sh"
+    aws_profile_ensure || exit 1
     TF_DIR="terraform/$TARGET"
     if [[ -d "$TF_DIR" ]]; then
       set +e

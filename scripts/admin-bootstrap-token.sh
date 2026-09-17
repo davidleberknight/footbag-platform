@@ -31,6 +31,11 @@
 #   scripts/admin-bootstrap-token.sh --target staging --profile <staging-profile> cleanup
 set -euo pipefail
 
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+
 TARGET=""
 AWS_PROFILE_ARG=""
 ACTION=""
@@ -84,11 +89,11 @@ PARAM_NAME="/footbag/${TARGET}/app/bootstrap/admin_token"
 AWS_ARGS=()
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
   AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
-elif [[ -n "${AWS_PROFILE:-}" ]]; then
-  echo "Using ambient AWS_PROFILE=${AWS_PROFILE}"
 else
-  echo "ERROR: pass --profile or export AWS_PROFILE" >&2
-  exit 2
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile. Nothing here asks the operator to export anything.
+  aws_profile_ensure || exit 1
 fi
 
 param_exists() {

@@ -44,6 +44,15 @@ the generated-content check, the secret scan, the browser tier, and terraform va
 tests is not the same as passing the gate, and a secret scan is the case that proves it: a finding
 there is invisible to every vitest tier and first shows up as a red push.
 
+**Run vitest from the repository root, or pass `--config vitest.config.ts`.** The config stamps a
+marker into every worker and `tests/setup-env.ts` refuses without it. A run under somebody else's
+config — an editor integration carrying its own, or a vitest resolved from elsewhere — takes
+vitest's built-in defaults for every timeout, the worker cap, the pool, the stale-artifact sweep and
+the worktree exclusions, and nothing says so. The first symptom is a timeout at a ceiling that
+appears nowhere in this tree, which is not a debuggable failure: it sends the reader hunting for a
+number that does not exist, and it cost a second operator two rounds of correspondence over one that
+was vitest's browser-mode default. The refusal names the cause instead.
+
 `npm run test:pre-pr` is the fast loop beneath it — build, lint, the conventions gate, the secret
 scan, and the vitest tiers — for the check before a commit rather than before a push. Every
 continuous-integration job is reachable from one of those two or carries a written reason it cannot

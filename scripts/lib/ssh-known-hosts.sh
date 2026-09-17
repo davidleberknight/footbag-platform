@@ -44,12 +44,11 @@ require_pinned_known_hosts() {
     echo "ERROR: pinned host-key file not found or unreadable: $pin" >&2
     echo "       Deploys refuse to run without it; they will not accept a host key on trust." >&2
     echo "" >&2
-    echo "       Rebuild it from the authoritative source, once per instance:" >&2
-    echo "         aws lightsail get-instance-access-details --region us-east-1 \\" >&2
-    echo "           --instance-name <instance> --query 'accessDetails.hostKeys[].publicKey' \\" >&2
-    echo "           --output text" >&2
-    echo "       Write one line per key as: [<static ip>]:<port> <algorithm> <public key>" >&2
-    echo "       covering both SSH ports the hosts listen on." >&2
+    echo "       Build it, once per instance:" >&2
+    echo "         bash scripts/install-known-hosts.sh --target <staging|production>" >&2
+    echo "       It reads the keys from the Lightsail API and the address from" >&2
+    echo "       Terraform, writes both algorithms on both SSH ports, keeps any" >&2
+    echo "       other environment's lines, and proves the result with ssh-keygen." >&2
     echo "" >&2
     echo "       Override the location with FOOTBAG_KNOWN_HOSTS." >&2
     return 1

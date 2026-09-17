@@ -160,6 +160,19 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
         sqlite3 "file:${PROD_LIVE_GUARD_DB_CANDIDATE}?mode=ro" \
           "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='members';" 2>/dev/null
       ) || PROD_LIVE_HAS_MEMBERS_TABLE=""
+      # An empty answer here is not "no members table", it is "the question was
+      # not answered". The probe above proves the file opens, but this query can
+      # still lose a race with the running service, which is writing to this
+      # database at this point in the chain. Left untested, an empty value is
+      # neither "1" nor "0", the whole tripwire below is skipped in silence, and
+      # the destructive deploy proceeds against a database that may hold real
+      # member accounts.
+      if [[ ! "$PROD_LIVE_HAS_MEMBERS_TABLE" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: refusing the database-replacing deploy: the real-member tripwire" >&2
+        echo "       could not determine whether $PROD_LIVE_GUARD_DB_CANDIDATE carries a" >&2
+        echo "       members table, so it cannot rule out live member data (fail closed)." >&2
+        exit 1
+      fi
       if [[ "$PROD_LIVE_HAS_MEMBERS_TABLE" == "1" ]]; then
         PROD_LIVE_MEMBER_COUNT=$(
           sqlite3 "file:${PROD_LIVE_GUARD_DB_CANDIDATE}?mode=ro" \

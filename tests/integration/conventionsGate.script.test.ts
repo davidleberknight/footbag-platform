@@ -30,7 +30,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 
@@ -106,6 +106,65 @@ describe('the convention gate: rules about src/', () => {
     expect(res.exitCode, res.stderr).toBe(0);
     expect(res.stderr).not.toContain('SQL compilation must live');
     expectCheckRan(res, '.prepare( outside src/db/db.ts');
+  });
+
+  it('accepts a tree where the vitest config marker and its refusal are both present', () => {
+    // The marker and the refusal that reads it are a pair and either alone is
+    // inert: a config that stamps nothing cannot be detected as absent, and a
+    // setup that never looks is satisfied by any config at all. The gate holds
+    // both rather than trusting the next edit to keep them together.
+    const res = inFixtureRepo({
+      'vitest.config.ts': "env: { FOOTBAG_VITEST_CONFIG_LOADED: '1' },\n",
+      'tests/setup-env.ts': "if (!process.env.FOOTBAG_VITEST_CONFIG_LOADED) throw new Error('x');\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, "the test setup proves this repository's vitest config is in force");
+  });
+
+  it('refuses a vitest config that stamps no marker into the worker', () => {
+    const res = inFixtureRepo({
+      'vitest.config.ts': 'export default { test: { globals: true } };\n',
+      'tests/setup-env.ts': "if (!process.env.FOOTBAG_VITEST_CONFIG_LOADED) throw new Error('x');\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('must stamp FOOTBAG_VITEST_CONFIG_LOADED');
+  });
+
+  it('refuses a test setup that never checks whether the marker arrived', () => {
+    const res = inFixtureRepo({
+      'vitest.config.ts': "env: { FOOTBAG_VITEST_CONFIG_LOADED: '1' },\n",
+      'tests/setup-env.ts': 'export const setup = () => undefined;\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('must refuse to run when FOOTBAG_VITEST_CONFIG_LOADED is absent');
+  });
+
+  it('refuses a test setup that has stopped neutralising an AWS credential source', () => {
+    // Default-deny in one place rather than per file, because per file is a rule
+    // the next file forgets. Dropping any one source from the declaration
+    // reopens the whole path: a spawned child inherits the environment, so a
+    // test running an operator script would be authenticated again.
+    const res = inFixtureRepo({
+      'tests/setup-env.ts':
+        "import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';\n" +
+        "if (process.env.RUN_STAGING_SMOKE !== '1') Object.assign(process.env, NO_AWS_CREDENTIALS);\n",
+      'tests/fixtures/awsIsolation.ts':
+        "export const NO_AWS_CREDENTIALS = { AWS_PROFILE: '', AWS_CONFIG_FILE: '/dev/null', AWS_SHARED_CREDENTIALS_FILE: '/dev/null' };\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('no longer neutralises AWS_EC2_METADATA_DISABLED');
+  });
+
+  it('accepts a test setup that neutralises every declared AWS credential source', () => {
+    const res = inFixtureRepo({
+      'tests/setup-env.ts':
+        "import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';\n" +
+        "if (process.env.RUN_STAGING_SMOKE !== '1') Object.assign(process.env, NO_AWS_CREDENTIALS);\n",
+      'tests/fixtures/awsIsolation.ts':
+        "export const NO_AWS_CREDENTIALS = { AWS_PROFILE: '', AWS_CONFIG_FILE: '/dev/null', AWS_SHARED_CREDENTIALS_FILE: '/dev/null', AWS_EC2_METADATA_DISABLED: 'true' };\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'the test setup isolates AWS credentials');
   });
 
   it('refuses a payment SDK import outside the adapter seam', () => {
@@ -378,6 +437,27 @@ describe('the convention gate: rules about tests/', () => {
   });
 });
 
+describe('the convention gate: the AWS-identity delegation', () => {
+  it('runs the identity gate, and fails the run when that gate refuses', () => {
+    // The sub-gate has its own suite; what is pinned here is that the
+    // conventions run actually reaches it, since a delegation that silently
+    // stopped being invoked would leave a rule enforced by nothing.
+    // The delegated gate has to exist inside the fixture for the delegation to
+    // run at all, so the real one is copied in: a stand-in would prove the
+    // conventions gate calls something, not that it calls this.
+    const res = inFixtureRepo({
+      'scripts/ci/check_aws_identity.sh': readFileSync(
+        join(process.cwd(), 'scripts/ci/check_aws_identity.sh'),
+        'utf8',
+      ),
+      'scripts/thing.sh': ['#!/usr/bin/env bash', 'aws ssm get-parameter --name /x', ''].join('\n'),
+    });
+    expect(res.exitCode).toBe(1);
+    expectCheckRan(res, 'AWS identity resolution (delegated)');
+    expect(res.stderr).toContain('never says where its identity comes from');
+  });
+});
+
 describe('the convention gate: what it does with nothing to scan', () => {
   it('runs every check on a tree that carries almost nothing', () => {
     const res = inFixtureRepo({ 'notes.txt': 'nothing to see\n' });
@@ -403,4 +483,133 @@ describe('the convention gate: what it does with nothing to scan', () => {
     expect(res.stderr).toContain('every check runs against this repository');
   });
 
+});
+
+/**
+ * The verdict has to name what was violated.
+ *
+ * The gate runs sixty-five checks and keeps going after one fails, so a rule broken
+ * early has its offending file:line pushed out of the sixty-line tail that
+ * run_all_tests.sh and the clean room re-show on a failure — and both delete their
+ * captured logs on the way out. The verdict was a bare count, so the reader was told
+ * that one rule was violated, never which, with nothing left to scroll back to.
+ */
+describe('the convention gate: the verdict says which rule failed', () => {
+  it('names the violated rule after the count, where the tail of the run will carry it', () => {
+    const res = inFixtureRepo({
+      'src/services/thing.ts': "export const row = handle.prepare('SELECT 1').get();\n",
+    });
+    expect(res.exitCode).toBe(1);
+
+    const countAt = res.stderr.indexOf('rule(s) violated');
+    expect(countAt, 'the gate must still report a count').toBeGreaterThan(-1);
+    const verdict = res.stderr.slice(countAt);
+    expect(verdict).toContain('.prepare( outside src/db/db.ts');
+  });
+
+  it('names every violated rule when more than one failed', () => {
+    const res = inFixtureRepo({
+      'src/services/thing.ts': "export const row = handle.prepare('SELECT 1').get();\n",
+      // A second, unrelated rule: a test file that spawns synchronously without
+      // importing the shared spawn bound. Assembled rather than written plainly,
+      // because the gate scans this directory too.
+      'tests/integration/x.test.ts': `import { ${'spawnSync'} } from 'node:child_process';\n${'spawnSync'}('ls', []);\n`,
+    });
+    expect(res.exitCode).toBe(1);
+
+    const verdict = res.stderr.slice(res.stderr.indexOf('rule(s) violated'));
+    expect(verdict).toContain('.prepare( outside src/db/db.ts');
+    expect(verdict.split('\n').filter((l) => l.startsWith('  ')).length).toBeGreaterThan(1);
+  });
+
+  it('names no rule when the gate passes', () => {
+    const res = inFixtureRepo({
+      'src/db/db.ts': "export const row = handle.prepare('SELECT 1').get();\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('rule(s) violated');
+  });
+});
+
+// The rule that test comments and test names never cite a document. A test
+// describes a lasting contract in plain words; a document path or section number
+// rots as the documents move, and a finding id is throwaway.
+//
+// It was a search over whole files, so it also matched string DATA -- a filename
+// a fixture builds, a path a test asserts on -- which is neither a citation nor
+// something that can rot. Two exceptions had been hand-written into it to shield
+// individual literals, which is the shape of a rule patched at the symptom, and a
+// third literal then failed the same way. It now reads comment text and the names
+// of test declarations, which is what it always said it covered.
+describe('the convention gate: citing a document from a test', () => {
+  const RULE = 'tests/ doc / finding-id references';
+
+  it('refuses a document path in a comment', () => {
+    const res = inFixtureRepo({
+      'tests/x.test.ts': "// see DESIGN_DECISIONS for why\nexport const a = 1;\n",
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('doc reference or finding id in test comment or name');
+  });
+
+  it('refuses a document path in a test name', () => {
+    // The cited name is assembled rather than written out, so that the fixture
+    // on disk carries it while this file does not. A test whose subject is a
+    // banned string is otherwise caught by the very rule it is testing.
+    const cited = 'USER_' + 'STORIES';
+    const res = inFixtureRepo({
+      'tests/x.test.ts': `it('matches ${cited}', () => {});\n`,
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode).toBe(1);
+  });
+
+  it('refuses a finding id in a comment, which is the throwaway kind', () => {
+    const res = inFixtureRepo({
+      'tests/x.test.ts': "// regression: B12\nexport const a = 1;\n",
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode).toBe(1);
+  });
+
+  it('refuses a block comment spanning lines', () => {
+    // The scanner tracks block comments across lines; a citation on the second
+    // line of one is the case a line-by-line reader misses.
+    const res = inFixtureRepo({
+      'tests/x.test.ts': "/*\n * see DATA_GOVERNANCE\n */\nexport const a = 1;\n",
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode).toBe(1);
+  });
+
+  it('allows a filename that is fixture data rather than a citation', () => {
+    // The case that surfaced the defect: a synthetic repository whose contents
+    // are described by filename. Nothing here points a reader at a document.
+    const res = inFixtureRepo({
+      'tests/x.test.ts': "const files = { 'README.md': 'no scripts here\\n' };\nexport default files;\n",
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('allows an asserted string value that happens to name a path', () => {
+    // The second hand-written exception this replaces: a test checking that some
+    // output contains a path is asserting behaviour, not citing a document.
+    const res = inFixtureRepo({
+      'tests/x.test.ts': "expect(out).toContain('exploration/notes');\n",
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('still allows a comment naming the document extension a scanner skips', () => {
+    // The one hand-written exception that is legitimate and stays: the comment is
+    // about which file types are scanned, not about a document to go and read.
+    const res = inFixtureRepo({
+      'tests/x.test.ts': "// It does NOT scan documentation (.md); doc content is governed elsewhere\nexport const a = 1;\n",
+    });
+    expectCheckRan(res, RULE);
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
 });

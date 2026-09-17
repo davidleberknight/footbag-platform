@@ -97,7 +97,11 @@ fi
 WORK_DIR="$(mktemp -d /tmp/footbag-clean-room.XXXXXX)"
 TREE="${WORK_DIR}/tree"
 CLEAN_HOME="${WORK_DIR}/home"
-mkdir -p "$CLEAN_HOME"
+# Per-gate output is captured here so a failed gate can be re-shown at the end.
+# Inside WORK_DIR, so the same trap that removes the worktree removes it too and
+# nothing of a run survives it.
+GATE_LOG_DIR="${WORK_DIR}/gate-logs"
+mkdir -p "$CLEAN_HOME" "$GATE_LOG_DIR"
 
 cleanup() {
   local rc=$?
@@ -148,6 +152,7 @@ clean_env() {
 
 GATE_NAMES=()
 GATE_RESULTS=()
+FAIL_LOGS=()
 ANY_FAIL=0
 ANY_UNRUN=0
 
@@ -165,16 +170,20 @@ gate() {
   local name="$1"; shift
   echo ""
   echo "→ [clean-room:${name}] $*"
-  local rc=0
+  local rc=0 log="${GATE_LOG_DIR}/${name}.log"
+  # tee keeps the live output while capturing it; PIPESTATUS[0] is the gate's own
+  # exit code, not tee's. stderr is merged in so a gate that fails on stderr
+  # alone still has something to re-show.
   set +e
-  ( cd "$TREE" && clean_env "$@" )
-  rc=$?
+  ( cd "$TREE" && clean_env "$@" ) 2>&1 | tee "$log"
+  rc=${PIPESTATUS[0]}
   set -e
   GATE_NAMES+=("$name")
   if (( rc == 0 )); then
     GATE_RESULTS+=("PASS")
   else
     GATE_RESULTS+=("FAIL (exit ${rc})")
+    FAIL_LOGS+=("$name")
     ANY_FAIL=1
     echo "ERROR: [clean-room:${name}] FAILED (exit ${rc})" >&2
   fi
@@ -198,13 +207,23 @@ echo "→ installing from the lockfile (npm ci)"
 # interpreter answering is the one the requirements file describes and never
 # whichever one the workstation happens to carry.
 PY_READY=0
-if command -v python3 >/dev/null 2>&1 && python3 -m venv "${WORK_DIR}/venv" >/dev/null 2>&1; then
+# Captured rather than discarded. When this fails, two gates report NOT RUN and
+# the run exits INCOMPLETE, and "could not build the pinned Python environment"
+# cannot tell a missing venv module from a dead network or a requirement that
+# will not build — a five-second fix and a real problem read identically. The log
+# lives under WORK_DIR, which the trap removes, so it is shown here or nowhere.
+PY_SETUP_LOG="${WORK_DIR}/python-setup.log"
+if command -v python3 >/dev/null 2>&1 && python3 -m venv "${WORK_DIR}/venv" >"$PY_SETUP_LOG" 2>&1; then
   echo "→ installing the pinned Python requirements"
   if ( cd "$TREE" && clean_env PIP_CACHE_DIR="${HOME}/.cache/pip" \
-         "${WORK_DIR}/venv/bin/pip" install -q -r legacy_data/requirements.txt ) >/dev/null 2>&1; then
+         "${WORK_DIR}/venv/bin/pip" install -q -r legacy_data/requirements.txt ) >>"$PY_SETUP_LOG" 2>&1; then
     CLEAN_PATH="${WORK_DIR}/venv/bin:${PATH}"
     PY_READY=1
   fi
+fi
+if (( PY_READY == 0 )) && [[ -s "$PY_SETUP_LOG" ]]; then
+  echo "→ the pinned Python environment could not be built; last 20 lines:"
+  tail -n 20 "$PY_SETUP_LOG" | sed 's/^/  /'
 fi
 
 gate build       npm run build
@@ -258,6 +277,31 @@ echo "  Not covered here, and only ever on GitHub:"
 echo "    codeql              static analysis, GitHub-hosted"
 echo "    dependency-review   pull-request only, GitHub-hosted"
 echo "=============================================="
+
+# Re-show the tail of every failed gate. Its output did stream past live, but by
+# the time the summary lands a later gate has buried it under thousands of lines
+# — the loader gate and the Python suites alone run long after the vitest tiers —
+# and the summary names which gate failed without saying why. The recap goes last
+# on purpose: run_all_tests.sh shows only the tail of this log when the clean room
+# is the gate that failed, so the failure has to be what the tail holds. Without
+# it that outer report always showed the last gate's output, never the failing
+# one, and the reader was sent back to scroll-back to find anything at all.
+if (( ${#FAIL_LOGS[@]} > 0 )); then
+  echo ""
+  echo "=============================================="
+  echo " clean-room failure details (${#FAIL_LOGS[@]} gate(s); last 60 lines each)"
+  echo "=============================================="
+  for name in "${FAIL_LOGS[@]}"; do
+    echo ""
+    echo "──── clean-room:${name} ────"
+    if [[ -s "${GATE_LOG_DIR}/${name}.log" ]]; then
+      tail -n 60 "${GATE_LOG_DIR}/${name}.log"
+    else
+      echo "  (no captured output)"
+    fi
+  done
+  echo "=============================================="
+fi
 
 if (( ANY_FAIL )); then
   echo "CLEAN ROOM FAILED: the runner will see the same." >&2

@@ -14,7 +14,20 @@ set -euo pipefail
 
 LIVE_DIR=/srv/footbag
 ENV_PATH=/srv/footbag/env
-RELEASE_DIR=/home/footbag/footbag-release
+# The caller sends the directory it uploaded to, because that is the connecting
+# account's home and differs per operator. A literal here would promote whatever
+# the named account happened to hold, which for anyone but that account is
+# somebody else's release, promoted without a word.
+#
+# Required, with no default, for the same reason FOOTBAG_ENV and the image-layer
+# variables below are. A default cannot distinguish a caller that never sent the
+# value from one that sent an empty one, so it answers a sender bug by silently
+# promoting a directory nobody named: on a shared host that is the rebuild deploy's
+# staging tree, holding whatever a previous run left in it, and it would be rsynced
+# over the live install with --delete before anything noticed. Refusing costs a
+# caller that predates the assignment nothing, because no such caller exists; every
+# sender in the tree emits it.
+: "${RELEASE_DIR:?RELEASE_DIR must be sent by the calling deploy script}"
 
 # Every rewrite of the host env file below stages a full copy through a temp
 # file in the same directory and then renames it into place. The rename removes
@@ -68,6 +81,18 @@ read_env() {
   awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1
 }
 
+# Matches the rebuild half's helper of the same name. Both promotion paths rsync
+# over the live install with --delete, so both need to establish that what they
+# are about to promote is a release tree rather than an empty or half-transferred
+# directory. Checking after the promotion is not a check.
+require_path() {
+  local label="$1" path="$2"
+  if [[ ! -e "$path" ]]; then
+    echo "Missing required path: $label ($path)" >&2
+    exit 1
+  fi
+}
+
 # Reconcile the committed per-environment host config into /srv/footbag/env, so
 # it is governed by version control instead of an operator remembering to set
 # it. Two kinds of value: container sizing (memory limits, image concurrency,
@@ -84,11 +109,12 @@ read_env() {
 # a secret or a malformed line into the runtime env. Because this runs on every
 # deploy rather than only when a line is absent, a hand edit on the host does
 # not survive.
-# Must run after the release tree is promoted into $LIVE_DIR.
+# The apply pass must run after the release tree is promoted into $LIVE_DIR.
 # Pass "validate" to parse and check the committed file without writing
-# anything. The rebuild half calls it that way before it stops the service, so a
-# typo in a committed value fails while the stack is still up rather than after
-# the service is down and the database has been replaced.
+# anything, naming the incoming tree as the second argument. Both promotion paths
+# call it that way before they touch the live install, so a typo in a committed
+# value fails while the stack is still up rather than after the live tree has been
+# replaced or the database swapped.
 seed_committed_host_config() {
   local mode="${1:-apply}"
   # Second argument is the tree to read the committed file from. Validation runs
@@ -166,7 +192,17 @@ seed_committed_host_config() {
 
 # Disk-space preflight: rsync of release dir + docker layer churn can land
 # 200 MB at peak. Refuse to start if /srv/footbag has under 500 MB free.
-SRV_AVAIL_KB=$(df -k --output=avail /srv/footbag 2>/dev/null | tail -1 | tr -d ' ')
+# The `|| echo ''` keeps a df failure from aborting the whole script at this line.
+# Under pipefail a df that cannot stat the directory, or one built without
+# --output, fails the pipeline, fails the assignment and exits with status 1 and
+# no message at all, which also made the empty-value branch below unreachable.
+# Every other refusal in this script says why; this one said nothing.
+SRV_AVAIL_KB=$(df -k --output=avail /srv/footbag 2>/dev/null | tail -1 | tr -d ' ' || echo '')
+if [[ -z "$SRV_AVAIL_KB" ]]; then
+  echo "WARNING: could not read free space on /srv/footbag; continuing without the" >&2
+  echo "         disk preflight. A deploy that runs out of space part-way leaves the" >&2
+  echo "         live tree half-promoted." >&2
+fi
 if [[ -n "$SRV_AVAIL_KB" ]] && (( SRV_AVAIL_KB < 512000 )); then
   echo "ERROR: /srv/footbag has only ${SRV_AVAIL_KB}K free; need >=500 MB." >&2
   # Scoped the same way the automatic reclaim above is scoped, and for the same
@@ -367,7 +403,18 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
     chown root:root "$env_tmp"
     cp "$ENV_PATH" "$env_tmp"
     ensure_final_newline "$env_tmp"
-    printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$env_tmp"
+    # Assigned on its own line, not substituted into the printf argument. A
+    # command substitution that fails inside an argument does not trip `set -e`,
+    # so an absent or erroring openssl wrote the bare prefix and the deploy
+    # reported success: every host would then share one guessable value, which is
+    # exactly the constant this generated secret exists to avoid.
+    stub_secret=$(openssl rand -hex 24)
+    [[ -n "$stub_secret" ]] || {
+      echo "ERROR: could not generate a webhook stub secret on this host." >&2
+      exit 1
+    }
+    printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$stub_secret" >> "$env_tmp"
+    unset stub_secret
     mv "$env_tmp" "$ENV_PATH"
   fi
 fi
@@ -414,6 +461,28 @@ for _pf_name in \
 done
 unset _pf_env _pf_profile _pf_region _pf_name
 
+# Everything below this point runs before the promotion, deliberately, because the
+# promotion is the irreversible half: once the live tree has been replaced there is
+# no state in which refusing is still cheap.
+#
+# What the release tree must actually contain. The sender resolves the directory
+# and this half is handed the resolved value, so the two agree by construction even
+# when the value is wrong; agreement is not evidence. An empty or half-transferred
+# directory promoted with --delete empties the live install, and nothing downstream
+# would call that a failure.
+require_path "release dir"         "$RELEASE_DIR"
+require_path "env file"            "$ENV_PATH"
+require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
+require_path "compose file"        "$RELEASE_DIR/docker/docker-compose.yml"
+require_path "compose prod file"   "$RELEASE_DIR/docker/docker-compose.prod.yml"
+
+# Parse and check the committed host config without writing anything, which is what
+# the rebuild half does before it stops the service and for the same reason: a typo
+# in a committed value should fail while the stack is still up and the live tree is
+# still the one that was working. Validated here and applied further down, after the
+# promotion, so a bad value costs nothing and a good one is written once.
+seed_committed_host_config validate "$RELEASE_DIR"
+
 echo "==> Promoting release (preserving env, DB, media)..."
 # deployed-from is excluded for a different reason than the three beside it.
 # Those are host state the release must not overwrite; this one is the record of
@@ -421,8 +490,20 @@ echo "==> Promoting release (preserving env, DB, media)..."
 # Without the exclusion the delete pass removes it here and a run that fails
 # anywhere between leaves the host with no record at all, which is precisely
 # when someone needs to know what is on it.
+#
+# The exclusion list is a superset of the rebuild half's, deliberately, and must
+# stay one. Anything host state rather than release content has to appear here or
+# the delete pass removes it as extraneous, because the uploaded tree does not
+# carry it. /footbag.db and its sidecars are the case that matters: a host still on
+# the older layout keeps its live database at that path, the release tree has no
+# such file, and this script's own caller promises in its header that the database
+# is always preserved. Without the exclusion that promise is false and the loss is
+# silent, because the stack restarts, answers its readiness check, and reports
+# success against an empty database.
 rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media --exclude=/deployed-from \
+  --exclude=/footbag.db --exclude=/footbag.db-wal --exclude=/footbag.db-shm \
+  --exclude=/data --exclude=/.curated-build \
   "$RELEASE_DIR/" "$LIVE_DIR/"
 chown -R root:root "$LIVE_DIR"
 
@@ -472,11 +553,40 @@ fi
 # The database directory holds the SQLite file plus its write-ahead log and
 # shared-memory sidecars; all three must belong to the running account or the
 # first write fails. The media directory is the local storage-adapter backing.
-for _d in "${FOOTBAG_DB_DIR:-/srv/footbag/db}" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
+#
+# Read from the env file rather than from a shell variable nothing in this process
+# assigns, so a host that records a non-default directory is honoured instead of
+# silently getting the literal.
+#
+# FOOTBAG_DB_DIR is the right key and FOOTBAG_DB_PATH is not, which is worth
+# stating because the wrong one looks more precise. The compose files mount
+# ${FOOTBAG_DB_DIR:-/srv/footbag/db} at /app/db and the container opens a fixed
+# filename inside it, so this key is what decides which directory the runtime
+# actually uses. FOOTBAG_DB_PATH is a host-side record that on a host still on the
+# older layout names a file the running container does not open at all; deriving a
+# directory from it there yields /srv/footbag, the live install itself, and the
+# chown below would then hand the container account the promoted code, the compose
+# files, the systemd unit source and the root-invoked backup script.
+_db_dir_from_env="$(read_env FOOTBAG_DB_DIR)"
+[[ -n "$_db_dir_from_env" ]] || _db_dir_from_env="/srv/footbag/db"
+# Bounded rather than trusted. A recursive chown is destructive in one direction
+# only and there is no undo, so a value that would widen it beyond the database
+# directory stops the deploy instead of being applied.
+case "$_db_dir_from_env" in
+  "$LIVE_DIR"|/|"")
+    echo "ERROR: FOOTBAG_DB_DIR in ${ENV_PATH} resolves to '${_db_dir_from_env}'," >&2
+    echo "       which is the live install or the filesystem root rather than the" >&2
+    echo "       database directory. Refusing: the ownership fix below is recursive" >&2
+    echo "       and would hand the container account the whole tree." >&2
+    exit 1
+    ;;
+esac
+for _d in "$_db_dir_from_env" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
   if [[ -d "$_d" ]]; then
     chown -R "$APP_UID":"$APP_UID" "$_d"
   fi
 done
+unset _db_dir_from_env
 
 # Apply the committed per-environment container sizing now that the release
 # tree (and docker/env/<env>.env) is in place, before the service restart.
@@ -1029,8 +1139,25 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   chown root:root "$ENV_PATH"
   if [[ "$PAYMENT_ADAPTER_DERIVED" == "stub" ]] && ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
     echo "==> Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
-    ensure_final_newline "$ENV_PATH"
-    printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
+    # Generated first, for the reason given at the sibling seed above, and staged
+    # through a temp file like every other rewrite in this script. Appending to the
+    # live env file was the one exception, and a partial append there corrupts the
+    # host's whole secret set in place, with no rename to fall back on.
+    stub_secret=$(openssl rand -hex 24)
+    [[ -n "$stub_secret" ]] || {
+      echo "ERROR: could not generate a webhook stub secret on this host." >&2
+      exit 1
+    }
+    env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+    chmod 600 "$env_tmp"
+    chown root:root "$env_tmp"
+    cp "$ENV_PATH" "$env_tmp"
+    ensure_final_newline "$env_tmp"
+    printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$stub_secret" >> "$env_tmp"
+    unset stub_secret
+    mv "$env_tmp" "$ENV_PATH"
+    chmod 600 "$ENV_PATH"
+    chown root:root "$ENV_PATH"
   fi
 
   # Sync the Stripe webhook signing secrets from Parameter Store. Mirrors
@@ -1248,10 +1375,21 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "       Refusing to migrate; the service has not been stopped." >&2
     exit 1
   }
-  # The runtime opens a fixed filename inside the host's database directory, so
-  # the migration reaches the same file the application does rather than a path
-  # assembled a second way.
-  DB_PATH="${FOOTBAG_DB_DIR:-/srv/footbag/db}/footbag.db"
+  # The runtime opens a fixed filename inside the directory the compose files mount
+  # at /app/db, so the migration is aimed at that same directory rather than at a
+  # path assembled a second way. Read from the env file, because nothing in this
+  # process assigns FOOTBAG_DB_DIR and a shell default therefore always won,
+  # migrating the literal even on a host that records a different directory.
+  #
+  # Deliberately not FOOTBAG_DB_PATH, which is the host-side record and on a host
+  # still on the older layout names a file the container does not open. Migrating
+  # that file would leave the database the application actually reads unmigrated,
+  # and say nothing: the run would succeed, write a ledger row and report a clean
+  # integrity check against the wrong file.
+  _mig_db_dir="$(read_env FOOTBAG_DB_DIR)"
+  [[ -n "$_mig_db_dir" ]] || _mig_db_dir="/srv/footbag/db"
+  DB_PATH="${_mig_db_dir}/footbag.db"
+  unset _mig_db_dir
   [[ -f "$DB_PATH" ]] || {
     echo "ERROR: no database at ${DB_PATH}; nothing to migrate." >&2
     exit 1
@@ -1267,6 +1405,25 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # these exact bytes (skip, and let the code deploy finish), or applied with
   # different bytes (refuse, because the database no longer matches the file
   # claiming to describe it, and applying it again would be guesswork).
+  # Both values are interpolated into SQL that runs as root against the live
+  # database, so they are checked here rather than trusted. The sender applies the
+  # same restriction, but a sender-side check protects only the callers that go
+  # through that sender, and this body takes its values from the environment of
+  # whoever assembled the stream. Restricted rather than escaped, matching the
+  # sender: a migration filename and a hex checksum have no reason to hold anything
+  # else, and a refusal is a better outcome than a quoted injection.
+  if [[ -n "${MIGRATION_NAME:-}" ]] \
+     && ! printf '%s' "$MIGRATION_NAME" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+    echo "ERROR: migration name '${MIGRATION_NAME}' contains characters this host will" >&2
+    echo "       not put into SQL. Letters, digits, dot, dash and underscore only." >&2
+    exit 1
+  fi
+  if [[ -n "${MIGRATION_CHECKSUM:-}" ]] \
+     && ! printf '%s' "$MIGRATION_CHECKSUM" | grep -qE '^[A-Fa-f0-9]+$'; then
+    echo "ERROR: migration checksum is not hexadecimal; refusing to record it." >&2
+    exit 1
+  fi
+
   if [[ -n "${MIGRATION_NAME:-}" ]]; then
     # Absent on a database that predates the ledger, which is the ordinary case
     # for the first migration ever applied to it. That is "never applied", not
@@ -1370,8 +1527,22 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # Free space for a second copy, checked before the migration touches anything.
   # A cp that runs out of disk leaves a truncated backup, and this copy is the
   # only way back from a bad migration.
-  db_kb="$(du -k "$DB_PATH" | cut -f1)"
-  avail_kb="$(df -Pk "$(dirname "$DB_PATH")" | tail -1 | tr -s ' ' | cut -d' ' -f4)"
+  # Guarded like every other risky read here, and for a sharper reason than
+  # most: the service is already stopped at this point. An unguarded assignment
+  # takes the command's status under set -e and aborts the script where it
+  # stands -- before this block, and so before the restart below ever runs --
+  # leaving the host down with none of the "nothing was migrated" messages every
+  # other refusal here prints.
+  db_kb="$(du -k "$DB_PATH" | cut -f1)" || db_kb=""
+  avail_kb="$(df -Pk "$(dirname "$DB_PATH")" | tail -1 | tr -s ' ' | cut -d' ' -f4)" || avail_kb=""
+  if [[ ! "$db_kb" =~ ^[0-9]+$ || ! "$avail_kb" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: could not measure the database or the free space beside it." >&2
+    echo "       Refusing the migration rather than copying blind: this copy is the" >&2
+    echo "       only way back from a bad migration." >&2
+    echo "       Nothing was migrated; restarting the service." >&2
+    systemctl start footbag || true
+    exit 1
+  fi
   if (( avail_kb < db_kb * 2 )); then
     echo "ERROR: not enough free space for the pre-migration copy." >&2
     echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2
@@ -1459,7 +1630,19 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # A foreign key the migration broke is not corruption, so the check above
   # passes and the damage surfaces later as a read returning nothing. Checked
   # here, while the previous copy is still one command away.
-  fk_violations="$(sqlite3 "$DB_PATH" 'PRAGMA foreign_key_check;' | head -5 || true)"
+  #
+  # A failed query is not a clean result. `|| true` inside the substitution made
+  # the two indistinguishable: both produce an empty string, the restore is
+  # skipped, and the banner below reports both checks clean having run neither.
+  # Same shape as the integrity check above, which gets this right.
+  # `awk 'NR<=5'` rather than `head -5`: head closes its stdin after five lines,
+  # sqlite3 takes SIGPIPE, and under pipefail that healthy run would report itself
+  # as a failed check and trigger a restore nobody needed.
+  fk_violations="$(sqlite3 "$DB_PATH" 'PRAGMA foreign_key_check;' 2>/dev/null \
+    | awk 'NR<=5' || echo 'check-failed')"
+  if [[ "$fk_violations" == "check-failed" ]]; then
+    restore_and_fail "the post-migration foreign-key check could not be run"
+  fi
   if [[ -n "$fk_violations" ]]; then
     restore_and_fail "the migration left foreign-key violations: ${fk_violations}"
   fi

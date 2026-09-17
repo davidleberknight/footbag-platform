@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -185,7 +186,7 @@ describe('arming.sh — the deploy it actually runs', () => {
         cwd: process.cwd(),
         encoding: 'utf-8',
         input: '',
-        env: { ...process.env, ARMING_DEPLOY_CMD: recorder },
+        env: { ...process.env, ...awsIdentityStubEnv(tmpDir), ARMING_DEPLOY_CMD: recorder },
         ...SPAWN_GUARD,
       },
     );
@@ -501,6 +502,8 @@ describe('arming.sh — the email switch', () => {
     chmodSync(credFile, 0o600);
     const env: NodeJS.ProcessEnv = {
       ...process.env,
+      // The run settles and proves its identity before it reads the state.
+      ...awsIdentityStubEnv(tmpDir),
       PATH: `${binDir}:${process.env.PATH ?? ''}`,
       FOOTBAG_KNOWN_HOSTS: pinFile,
     };
@@ -621,6 +624,7 @@ describe('arming.sh — the email switch', () => {
       input,
       env: {
         ...process.env,
+        ...awsIdentityStubEnv(tmpDir),
         PATH: `${binDir}:${process.env.PATH ?? ''}`,
         FOOTBAG_KNOWN_HOSTS: pinFile,
         AWS_OPERATOR_FILE: credFile,

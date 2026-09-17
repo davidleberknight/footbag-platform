@@ -246,3 +246,95 @@ describe('activate-notification-feeds.sh — synthetic mode stops before real in
     expect(res.stdout).toMatch(/verify-host-env\.sh/);
   });
 });
+
+/**
+ * The operator-address check in the deploy step, run rather than read.
+ *
+ * Synthetic mode stops before the deploy, so the block is sliced out of the
+ * script and executed on its own against stubs. That is the only way to see what
+ * it does with an answer it could not get: the whole point of the check is that
+ * SSH to the host is restricted to the operator CIDRs, and an address that has
+ * rotated since the apply strands the deploy part-way through its remote half.
+ *
+ * A failed lookup is the case that matters. It used to skip the question
+ * entirely, so the run with the least information about the address asked the
+ * fewest questions about it.
+ */
+function runEgressCheck(
+  lookup: 'fails' | 'listed' | 'unlisted',
+  answer: 'yes' | 'no',
+): RunResult {
+  const script = readFileSync(SCRIPT, 'utf-8');
+  const start = script.indexOf('EGRESS_IP="$(curl');
+  const end = script.indexOf('  echo "  Running a CODE-ONLY deploy.');
+  expect(start, 'the egress check was not found in the script').toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+
+  fileCounter += 1;
+  const tfvars = join(tmpDir, `egress-${fileCounter}.tfvars`);
+  writeFileSync(tfvars, 'operator_cidrs = ["203.0.113.7/32"]\n');
+
+  const curlBody =
+    lookup === 'fails'
+      ? 'return 7'
+      : lookup === 'listed'
+        ? "printf '203.0.113.7\\n'"
+        : "printf '198.51.100.22\\n'";
+
+  const harness = join(tmpDir, `egress-${fileCounter}.sh`);
+  writeFileSync(
+    harness,
+    [
+      'set -euo pipefail',
+      // curl 7 is "could not connect", which is what a captive network or a dead
+      // DNS answer looks like from here.
+      `curl() { ${curlBody}; }`,
+      'confirm_from_tty() {',
+      '  echo "ASKED"',
+      `  [ "${answer}" = "yes" ]`,
+      '}',
+      `TFVARS_PATH=${JSON.stringify(tfvars)}`,
+      script.slice(start, end),
+      'echo REACHED_THE_DEPLOY',
+    ].join('\n') + '\n',
+  );
+
+  const r = spawnSync('bash', [harness], {
+    cwd: process.cwd(),
+    encoding: 'utf-8',
+    ...SPAWN_GUARD,
+  });
+  return { exitCode: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+describe('activate-notification-feeds.sh — the operator-address check before the deploy', () => {
+  it('asks when the address could not be resolved, rather than treating it as covered', () => {
+    const res = runEgressCheck('fails', 'yes');
+    expect(res.stdout).toMatch(/could not be resolved/);
+    expect(res.stdout).toMatch(/unknown rather than fine/);
+    expect(res.stdout).toMatch(/ASKED/);
+  });
+
+  it('aborts before the deploy when an unresolved address is not vouched for', () => {
+    const res = runEgressCheck('fails', 'no');
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
+    expect(res.stderr).toMatch(/Aborted before the deploy/);
+  });
+
+  it('asks when the address resolved and is not listed', () => {
+    const res = runEgressCheck('unlisted', 'yes');
+    expect(res.stdout).toMatch(/198\.51\.100\.22\/32 is not listed verbatim/);
+    expect(res.stdout).toMatch(/ASKED/);
+    expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('asks nothing when the address resolved and is listed', () => {
+    // The check must stay quiet on the ordinary case, or the question stops
+    // carrying information and the operator learns to type through it.
+    const res = runEgressCheck('listed', 'no');
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).not.toMatch(/ASKED/);
+    expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
+  });
+});

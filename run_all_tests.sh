@@ -376,9 +376,14 @@ run_gate() {
     ANY_FAIL=1
     echo "ERROR: [${name}] FAILED (exit ${rc})" >&2
     if (( FAIL_FAST == 1 )); then
-      assert_real_data_untouched
+      # Report before the fingerprint guard, not after: it exits 2 on its own, and
+      # its most common trip is an unrelated concurrent writer rather than
+      # anything a gate did. Going first, it threw away the gate table and every
+      # failure tail this run had already produced. See the same ordering at the
+      # end of the script.
       summarize
       dump_failures
+      assert_real_data_untouched
       exit 1
     fi
   fi
@@ -572,7 +577,18 @@ gate_persona_crawl() {
 
   local rc=0
   if (( ready == 0 )); then
-    echo "ERROR: dev stack did not become ready at ${base} within the timeout; see ${LOG_DIR}/persona-stack.log" >&2
+    # The stack's log lives under LOG_DIR, which this script's EXIT trap removes,
+    # so naming the path hands the reader a file that is gone by the time they
+    # read the message. Whatever the stack said about why it would not boot — a
+    # port still held, a schema mismatch, a worker that died — is printed here or
+    # it is lost.
+    echo "ERROR: dev stack did not become ready at ${base} within the timeout." >&2
+    echo "Last 60 lines of the stack's own output:" >&2
+    if [[ -s "${LOG_DIR}/persona-stack.log" ]]; then
+      tail -n 60 "${LOG_DIR}/persona-stack.log" >&2
+    else
+      echo "  (the stack produced no output at all)" >&2
+    fi
     rc=1
   else
     npm run test:persona-crawl
@@ -869,9 +885,14 @@ if (( FULL == 1 )); then
   run_gate clean-room bash scripts/ci/run_clean_room.sh
 fi
 
-assert_real_data_untouched
+# The gate table and the failure tails first, the real-data fingerprint after.
+# The guard exits 2 the moment it trips, and what trips it is usually a legacy
+# mirror crawl writing alongside the run rather than a gate misbehaving — so
+# running it first discarded a full hour of results, including the tail of every
+# failed gate, over a condition that says nothing about them.
 summarize
 dump_failures
+assert_real_data_untouched
 
 if (( ANY_FAIL == 1 )); then
   echo "→ run_all_tests.sh: one or more gates FAILED." >&2

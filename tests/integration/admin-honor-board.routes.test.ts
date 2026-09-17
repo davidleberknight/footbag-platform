@@ -319,6 +319,20 @@ describe('board standing', () => {
   // typed by hand. A page that removes a director has to be able to answer who
   // the directors are; a feed of recent grants answers a different question.
   it('lists the sitting directors, with the id the removal form takes', async () => {
+    // Asserted on the member this test controls, and on the board flag of the
+    // row it set, rather than on the page's total.
+    //
+    // The total was the original assertion and it is not this test's to make: it
+    // counts every director in the database, so it holds only while every other
+    // test in the file has cleaned up after itself, and it fails for a reason
+    // that has nothing to do with what this test is about. That is the shape the
+    // testing rules forbid — a verdict that depends on state another test left —
+    // and it showed up as a failure under the full run that never reproduced
+    // when the file ran alone.
+    //
+    // What this test is actually about is narrower and is what the comment above
+    // says: the page can answer who the directors are, and it prints the id the
+    // removal form takes. Both are properties of one member.
     await post('/admin/honor-grants/board/set/confirm', {
       member_key: BOARD_T0_ID, reason: 'elected at the November meeting',
     });
@@ -326,15 +340,17 @@ describe('board standing', () => {
     const page = await request(createApp())
       .get('/admin/honor-grants').set('Cookie', adminCookie());
     expect(page.status).toBe(200);
-    expect(page.text).toContain('Sitting Directors (1)');
     expect(page.text).toContain(BOARD_T0_ID);
+    expect(honourRow(BOARD_T0_ID).is_board).toBe(1);
 
     await post('/admin/honor-grants/board/remove/confirm', {
       member_key: BOARD_T0_ID, reason: 'term ended',
     });
     const after = await request(createApp())
       .get('/admin/honor-grants').set('Cookie', adminCookie());
-    expect(after.text).toContain('Sitting Directors (0)');
-    expect(after.text).toContain('No member is recorded as sitting on the board.');
+    // Gone from the list, which is the removal being visible on the page, and
+    // gone from the row, which is it being real.
+    expect(after.text).not.toContain(BOARD_T0_ID);
+    expect(honourRow(BOARD_T0_ID).is_board).toBe(0);
   });
 });

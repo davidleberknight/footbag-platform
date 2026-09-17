@@ -63,13 +63,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$TARGET" in
-  staging|production) ;;
-  *)
-    echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
-    exit 2
-    ;;
-esac
+# Sourced here rather than further down, because the target check below lives in
+# it and a validation that runs after half the script has already read the
+# target is not a validation.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/host-env-remote.sh
+source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+
+require_target "$TARGET" staging production || exit 2
 
 if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
@@ -84,7 +85,6 @@ for unit in "$UNIT_SERVICE" "$UNIT_TIMER"; do
   fi
 done
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/install-backup-timer-remote.sh"
 
 if (( DRY_RUN )); then
@@ -103,9 +103,6 @@ if (( DRY_RUN )); then
   echo "  set enable_backup_alarm = true in terraform/$TARGET/terraform.tfvars and apply"
   exit 0
 fi
-
-# shellcheck source=lib/host-env-remote.sh
-source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
 require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" || exit 1
 # Operator-only preflight: a plain message on a machine without the deploy

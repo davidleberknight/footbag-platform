@@ -90,7 +90,9 @@ The harness is designed around the precise trigger for each layer, and around ho
 
 Routing is how the agent gets from the always-loaded entry point to the exact document a task needs.
 
-**The chain:** root `CLAUDE.md`, then `PROJECT_SUMMARY_CONCISE.md` (an orientation index whose routing table names the document for each kind of need), then the canonical design documents (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`, `docs/TESTING.md`) and the maintainers' private tracker (read on demand via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"`; the `tracker-ops` skill owns the workflow, and a machine without the wiring simply skips the read, because the private repo is optional per machine).
+**The chain:** root `CLAUDE.md`, then `PROJECT_SUMMARY_CONCISE.md` (an orientation index whose routing table names the document for each kind of need), then the canonical design documents (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`, `docs/TESTING.md`) and the maintainers' private tracker (read on demand via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"`; the `tracker-ops` skill owns the workflow, and a machine without the wiring simply skips the read, because the private repo is optional for a developer or tester — though not for an operator, whose Terraform values and runbooks live only there).
+
+**Routing is not optional, and one gate makes it binding.** Progressive disclosure means the design documents are loaded on demand, which leaves a gap the rule-attachment gap does not cover: an agent reasoning about an architecture may never open the document that already rules on it, because nothing it is doing touches a governed path. The root `CLAUDE.md` therefore imposes a *pre-design gate* beside the pre-writing-code gate. Before proposing an approach, or explaining why something is built as it is, read the governing passage in the design decisions first, and the user stories where the question is about behaviour, then say which passage governs or that none does. It exists because the failure is real and repeated: an agent proposed an identity model the design had already rejected, then defended a layout the design never chose, in both cases reasoning from the code and the conversation while the governing passage sat one grep away. The gate is prose, so it is a request rather than a guarantee. No hook can observe that a document was consulted before a claim was made, and the Stop hook that could inspect the finished message has no trigger as cheap and exact as the question mark the question-quality guard keys on. Machinery would be the stronger answer if a precise trigger is ever found.
 
 **The load-bearing distinction:** canonical documents describe design intent and are timeless; the private tracker is the one place implementation status lives. A deviation, a current-versus-target gap, a completion note, or a dated status line belongs in a tracker issue, never in a canonical document. `.claude/rules/doc-governance.md` enforces this, preventing the failure mode where documentation rots into stale status the agent then trusts. Keeping status out of the repository entirely also keeps it out of always-loaded context: the tracker is a pay-per-read source, fetched only when a task needs scope or deviation state.
 
@@ -275,11 +277,17 @@ IFPA board member can use the harness efficiently from day one.
 **The repositories.**
 
 - **footbag-platform** (this repo) — the public application: code, schema, infrastructure, tests,
-  and the canonical design docs. It works standalone; nothing here hard-requires a companion repo.
+  and the canonical design docs. Development, the full test suite, and architecture orientation
+  need nothing else. **Operations do:** every environment's Terraform values file lives in the
+  private repo and is reached from here through a symlink, and the deploy entry point refuses
+  every mode without it. So "works standalone" is true of the developer and tester path and false
+  of the operator path, which is a distinction worth keeping straight because a new operator who
+  reads the first half stops looking for the second.
 - **The private operations repo** — the maintainers' work tracker (GitHub Issues), operations
   docs, and private/sensitive data, kept private for member-data privacy. Reached through a
   canonical-named, gitignored symlink (`footbag_private_repo`) at this repo's root, plus a
-  machine-local slug in `.claude/settings.local.json`. Optional per machine.
+  machine-local slug in `.claude/settings.local.json`. Optional for a developer or tester;
+  **hard-required for any AWS work**.
 - **The legacy footbag.org clone** — a read-only snapshot of the old site, reached through the
   `footbag_legacy_repo` symlink. Needed only for historical-pipeline work. Optional per machine.
 - **The footbag.org mirror crawl output** — the gitignored data tree the mirror crawler produces,
@@ -303,4 +311,5 @@ is "solve, don't defer" — the absence is handled explicitly, never left to imp
 **Where to get wired.** A maintainer sets up both companion repos following the private repo's
 `ONBOARDING.md` (private GitHub repo), which covers the developer path (writing code) and the
 browser path (governance work, no code). This public guide does not restate those steps; it
-records only that the companion repos are optional and how the harness behaves without them.
+records only which companion repos a given kind of work requires and how the harness behaves
+without them: optional for a developer or tester, hard-required for an operator.

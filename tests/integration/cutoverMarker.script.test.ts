@@ -115,6 +115,21 @@ function configRowCount(): number {
   return n;
 }
 
+/** An ISO timestamp in the same shape the marker writer stores, offset from now. */
+function hoursFromNow(hours: number): string {
+  return new Date(Date.now() + hours * 3_600_000).toISOString().replace(/(\.\d{3})Z$/, '$1Z');
+}
+
+/** Append a superseding marker row directly, standing in for a writer on another clock. */
+function insertMarkerRow(value: string, effectiveStartAt: string): void {
+  const db = new BetterSqlite3(dbPath);
+  db.prepare(
+    `INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text)
+     VALUES (?, ?, 'post_cutover', ?, ?, 'written by a host on another clock')`,
+  ).run(`cfg_skew_${effectiveStartAt}`, effectiveStartAt, value, effectiveStartAt);
+  db.close();
+}
+
 function envHasMarker(): boolean {
   return fs.readFileSync(envPath, 'utf-8').split('\n').includes('FOOTBAG_CUTOVER_COMPLETE=1');
 }
@@ -135,6 +150,46 @@ describe('cutover marker writer', () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/FOOTBAG_CUTOVER_COMPLETE: reversed/);
     expect(r.stdout).toMatch(/post_cutover: *reversed/);
+  });
+
+  it('reports a database it cannot query as unreadable, never as reversed', () => {
+    // A failed read is not a state, and the direction it fails in decides how
+    // much a mistake costs. "reversed" is the state in which the
+    // database-replacing rebuild deploy is ARMED, so a read that did not
+    // succeed must never be reported as that: it would say the live member
+    // data is unprotected when nothing had actually been read.
+    //
+    // This fixture is the deterministic form of a defect that first showed up
+    // as a full-suite-only flake, where a locked database under load produced
+    // the same wrong answer while the file was perfectly valid. The file here
+    // is a readable SQLite database that simply has no marker view, which the
+    // readability probe passes and the real query then fails.
+    const db = new BetterSqlite3(dbPath);
+    db.exec('CREATE TABLE unrelated (x INTEGER);');
+    db.close();
+
+    const r = run(['--status']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/post_cutover: *unreadable/);
+    expect(r.stdout).not.toMatch(/post_cutover: *reversed/);
+  });
+
+  it('refuses to move a marker it could not read, rather than moving half of it', () => {
+    // The consequence of the check above: a half-moved marker is the exact
+    // disagreement state the destructive deploy's guard refuses, so the script
+    // must not write the env file when the database side is unknown.
+    const db = new BetterSqlite3(dbPath);
+    db.exec('CREATE TABLE unrelated (x INTEGER);');
+    db.close();
+
+    const r = runTyped(['--set', 'complete'], PHRASE_COMPLETE);
+    expect(r.status).not.toBe(0);
+    expect(envHasMarker()).toBe(false);
+    // Asserting the guard's own refusal, not merely a non-zero exit: without
+    // the guard the run still dies, because the INSERT fails under `set -e`,
+    // so a status-only assertion would pass against a script that had no guard
+    // at all and would tell an operator nothing about why it stopped.
+    expect(`${r.stdout}${r.stderr}`).toMatch(/present but unreadable/);
   });
 
   it('sets both markers together', () => {
@@ -161,6 +216,33 @@ describe('cutover marker writer', () => {
 
     const status = run(['--status']);
     expect(status.stdout).toMatch(/post_cutover: *reversed/);
+  });
+
+  it('reads the latest marker even when its timestamp is ahead of this clock', () => {
+    // The marker is written by one process and read back by another, and the two
+    // clocks need not agree. A workstation under a hypervisor has its clock
+    // stepped backward at each time resync, and a database copied from another
+    // host carries that host's timestamps. Deciding what is current by discarding
+    // rows dated later than the reader silently answers with the row that was
+    // just superseded, and a stale answer here is indistinguishable from a
+    // correct one. The marker has no future-dated state; the last row appended is
+    // the answer.
+    makeDb('1');
+    fs.appendFileSync(envPath, 'FOOTBAG_CUTOVER_COMPLETE=1\n', 'utf-8');
+    insertMarkerRow('0', hoursFromNow(1));
+
+    const status = run(['--status']);
+    expect(status.stdout).toMatch(/post_cutover: *reversed/);
+  });
+
+  it('keeps protecting a database whose marker was written ahead of this clock', () => {
+    // The same skew in the direction that matters: a host that has just recorded
+    // the cutover must not read as a host that never did.
+    makeDb('0');
+    insertMarkerRow('1', hoursFromNow(1));
+
+    const status = run(['--status']);
+    expect(status.stdout).toMatch(/post_cutover: *complete/);
   });
 
   it('warns when the two markers disagree, which is the state the deploy guard refuses', () => {

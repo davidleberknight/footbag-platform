@@ -37,6 +37,8 @@ HOST_ENV_PATH_DEFAULT="/srv/footbag/env"
 HOST_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ssh-known-hosts.sh
 source "${HOST_ENV_LIB_DIR}/ssh-known-hosts.sh"
+# shellcheck source=terminal.sh
+source "${HOST_ENV_LIB_DIR}/terminal.sh"
 
 # The host is verified against the operator's pinned host-key file and an
 # unrecognized key aborts before the pipe opens, which is what keeps the sudo
@@ -368,6 +370,78 @@ write_tfvars_url() {
 # because every caller parses its flags after this file is sourced.
 ASSUME_YES="no"
 
+# require_target <value> <accepted...> — which environment a run lands on.
+#
+# Nineteen scripts had their own copy of this, each a hand-written case with its
+# own wording and its own accepted set, and the sets had already diverged: the
+# apply wrapper takes a third `shared` target, and the production-only levers
+# take one. Nothing checked that a new script had the guard at all.
+#
+# It has produced no defect yet, which is the honest reason this was a card
+# rather than a fix. But it is the same structure as the confirmation flag, which
+# every script was expected to clear before sourcing: seven had not, and an
+# exported value accepted the typed confirmation on a production apply, on arming
+# live payments, and on restoring a database. That was fixed here rather than in
+# each caller, and this is the same move for the same reason -- a safety property
+# that depends on every script independently getting the same thing right belongs
+# where every script already goes.
+#
+# The accepted values are the caller's, so a script whose subject exists in one
+# environment expresses that by naming one. What is shared is the refusal, its
+# wording, and the fact that there is never a default.
+# The flag this script spells it with. Most say --target; the secret
+# provisioners say --env, and telling an operator to fix a flag their script
+# does not have is worse than the duplication this replaces. Callers set it
+# before calling and the default covers the majority.
+REQUIRE_TARGET_FLAG="--target"
+
+require_target() {
+  local value="$1"
+  shift
+  local accepted=("$@") candidate
+  local flag="${REQUIRE_TARGET_FLAG:---target}"
+
+  if [[ "${#accepted[@]}" -eq 0 ]]; then
+    echo "ERROR: require_target was called with no accepted values." >&2
+    return 2
+  fi
+
+  # The accepted set, written the way nineteen scripts already wrote it:
+  # "'a'", "'a' or 'b'", "'a', 'b' or 'c'". Matching the established phrasing
+  # rather than inventing a house style is deliberate. Eighteen test files
+  # assert on these words, and those assertions are pinning a contract with the
+  # operator that has no reason to change just because the implementation moved.
+  # A refactor that rewrites every error message is a refactor nobody can review
+  # for behaviour, because every diff line looks like a change.
+  local list=""
+  local i
+  for (( i = 0; i < ${#accepted[@]}; i++ )); do
+    if (( i == 0 )); then
+      list="'${accepted[i]}'"
+    elif (( i == ${#accepted[@]} - 1 )); then
+      list="${list} or '${accepted[i]}'"
+    else
+      list="${list}, '${accepted[i]}'"
+    fi
+  done
+
+  if [[ -z "$value" ]]; then
+    echo "ERROR: ${flag} is required (${list})." >&2
+    echo "       There is deliberately no default. Which environment a run" >&2
+    echo "       lands on is never inherited from ambient state: a forgotten" >&2
+    echo "       flag would otherwise send the run somewhere unintended, and" >&2
+    echo "       every step after it would succeed just as readily." >&2
+    return 2
+  fi
+
+  for candidate in "${accepted[@]}"; do
+    [[ "$value" == "$candidate" ]] && return 0
+  done
+
+  echo "ERROR: ${flag} must be ${list} (got '${value}')." >&2
+  return 2
+}
+
 # confirm_from_tty <prompt> <expected-word>
 # Reads from the terminal rather than stdin, because stdin is the credential
 # pipe and a prompt reading from it would swallow the next line of the
@@ -398,7 +472,7 @@ confirm_from_tty() {
     echo "${prompt}[--yes]" >&2
     return 0
   fi
-  if [[ ! -t 1 || ! -t 2 ]] || ! { true >/dev/tty; } 2>/dev/null; then
+  if ! terminal_present; then
     echo "" >&2
     echo "ERROR: no terminal to confirm on, and --yes was not given." >&2
     echo "       Re-run from an interactive shell, or pass --yes to accept this change." >&2

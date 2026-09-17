@@ -101,10 +101,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$TARGET" in
-  staging|production) : ;;
-  *) echo "ERROR: --target must be 'staging' or 'production'" >&2; usage; exit 2 ;;
-esac
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+
+require_target "$TARGET" staging production || exit 2
 case "$SCENARIO" in
   success|bounce|complaint|mixed) : ;;
   *) echo "ERROR: --scenario must be success, bounce, complaint or mixed" >&2; exit 2 ;;

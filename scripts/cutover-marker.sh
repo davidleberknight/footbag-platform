@@ -117,11 +117,57 @@ read_db_marker() {
     echo "unreadable"
     return
   fi
+  # A FAILED READ IS NOT A STATE, AND THIS IS THE WHOLE POINT OF THE FUNCTION.
+  #
+  # Discarding the query's stderr and exit status would fall through to the
+  # empty-value branch and report "reversed", which is the worst available
+  # direction to fail in: "reversed" is the state in which the
+  # database-replacing rebuild deploy is ARMED, so a database that could not be
+  # read would report that the live member data is not protected. A locked
+  # database under load, a path pointing at some other SQLite file, and a schema
+  # without this view all produce that, and all look exactly like a genuine
+  # pre-cutover host.
+  #
+  # The probe above cannot stand in for this check. It asks whether the file is
+  # a readable SQLite database, which every one of those cases satisfies; the
+  # query can still fail afterwards, and between the two the database can also
+  # become locked. So the real read reports its own failure.
+  #
+  # An EMPTY result is different and is a genuine answer: no row means no
+  # marker, which is a pre-cutover host, which is reversed. Only a non-zero exit
+  # distinguishes the two, and sqlite3's stderr is deliberately not swallowed so
+  # the operator sees why.
+  # Read the latest recorded marker, not the current-value view.
+  #
+  # That view answers "what is in effect now", which it decides by discarding any
+  # row dated after the reading clock. For scheduled configuration that is the
+  # point. For this marker it is a trap: the row is written with the writer's
+  # clock and read back by a later process, and if the two clocks disagree by so
+  # much as a millisecond in the wrong direction the freshly written row is
+  # silently skipped and the view serves the value it just superseded. It does
+  # not report anything: a stale answer and a correct one are the same shape.
+  #
+  # Clocks do disagree. A workstation under WSL2 has its clock stepped backward a
+  # second or two whenever the hypervisor's time sync resyncs, and a database
+  # copied from another host carries timestamps from that host's clock. Either one
+  # turns this read into the previous marker value for the width of the skew.
+  #
+  # The marker is a latch rather than a schedule: it has no future-dated state and
+  # the only question is which row was appended last. Ordering answers that
+  # without consulting a clock at all. The tiebreak on rowid is insertion order,
+  # for a fixture or a foreign database that lacks the table's uniqueness
+  # constraint on (config_key, effective_start_at).
   local value
-  value=$(
+  if ! value=$(
     sqlite3 "file:${MARKER_DB_PATH}?mode=ro" \
-      "SELECT value_json FROM system_config_current WHERE config_key = 'post_cutover';" 2>/dev/null
-  ) || value=""
+      "SELECT value_json FROM system_config
+         WHERE config_key = 'post_cutover'
+         ORDER BY effective_start_at DESC, rowid DESC
+         LIMIT 1;"
+  ); then
+    echo "unreadable"
+    return
+  fi
   value="${value//\"/}"
   if [[ "$value" == "1" ]]; then echo "complete"; else echo "reversed"; fi
 }

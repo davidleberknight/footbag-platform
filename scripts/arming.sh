@@ -602,6 +602,21 @@ if [[ -z "$TFVARS_OVERRIDE" ]] && ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; };
   exit 1
 fi
 
+# The state read below and the apply after it both reach the account, and
+# terraform takes no profile of its own, so the identity this run uses is
+# settled and proved here. Placed after the terminal guard, which decides
+# whether the run can ask its questions at all, and before the first read, so a
+# dead credential is named as one rather than reported as "not yet armed".
+#
+# Conditioned the same way the terminal guard above is: a run driven by a
+# values-file override is the synthetic one, which stops before terraform and
+# the deploy and reaches no account.
+if [[ -z "$TFVARS_OVERRIDE" ]]; then
+  # shellcheck source=lib/aws-profile.sh
+  source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
+fi
+
 # ── Already there? Then say so and stop, before asking for anything ──────────
 #
 # Arming is three places that must agree: the tfvars flag, the SSM parameter the

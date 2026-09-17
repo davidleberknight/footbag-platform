@@ -118,7 +118,16 @@ expected_for() {
 if [[ "$MODE" == "function" ]]; then
   command -v aws >/dev/null || { echo "ERROR: aws CLI not installed" >&2; exit 2; }
   AWS_ARGS=()
-  [[ -n "$AWS_PROFILE_ARG" ]] && AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
+  if [[ -n "$AWS_PROFILE_ARG" ]]; then
+    AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
+  else
+    # No profile named on the command line, so the identity is the one the
+    # shared library settles and proves: whatever this shell already carries,
+    # or the operator profile.
+    # shellcheck source=lib/aws-profile.sh
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+    aws_profile_ensure || exit 1
+  fi
 
   WORK="$(mktemp -d)"
 

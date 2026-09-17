@@ -175,8 +175,22 @@ fi
 # moved. A cp that runs out of disk mid-write leaves a truncated file, and the
 # two cp calls below are the ones standing between a failed restore and a lost
 # database. Refusing here costs nothing; refusing later is not an option.
-db_kb="$(du -k "$DB_FILE" | cut -f1)"
-avail_kb="$(df -Pk "$(dirname "$DB_FILE")" | tail -1 | tr -s ' ' | cut -d' ' -f4)"
+# Guarded like every other risky read here, and for a sharper reason than most:
+# the service is already stopped at this point. An unguarded assignment takes
+# the command's status under set -e and aborts the script where it stands --
+# before this block, and so before the restart below ever runs -- leaving the
+# host down with none of the "nothing was replaced" messages every other refusal
+# here prints. A measurement that cannot be taken is not permission to proceed.
+db_kb="$(du -k "$DB_FILE" | cut -f1)" || db_kb=""
+avail_kb="$(df -Pk "$(dirname "$DB_FILE")" | tail -1 | tr -s ' ' | cut -d' ' -f4)" || avail_kb=""
+if [[ ! "$db_kb" =~ ^[0-9]+$ || ! "$avail_kb" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: could not measure the database or the free space beside it." >&2
+  echo "       Refusing the restore rather than copying blind: a cp that runs out" >&2
+  echo "       of disk leaves a truncated file, and this copy is the only way back." >&2
+  echo "       Nothing was replaced; restarting the service." >&2
+  systemctl start footbag || true
+  exit 1
+fi
 if (( avail_kb < db_kb * 2 )); then
   echo "ERROR: not enough free space to copy the database aside." >&2
   echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2

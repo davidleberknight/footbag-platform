@@ -431,47 +431,46 @@ jobs:
     if: always()
 
     steps:
-      # The needs list above controls only what this job waits for. The verdict
-      # is decided here, by name. Adding a job to needs therefore gates nothing
-      # on its own, which is easy to get wrong and was: three jobs were added to
-      # needs believing that made them blocking, and the tick stayed green
-      # whatever they did. A job belongs in both places or neither.
+      # The verdict is derived from the needs list above rather than from a
+      # second list naming each job again. Those two lists have to agree, nothing
+      # held them together, and they drifted twice: three jobs the first time,
+      # then freestyle-db-integrity and legacy-pytest, which ran, could go red,
+      # and left this tick green anyway. The second time happened underneath a
+      # comment asking the next person not to repeat the first. A comment is not
+      # a mechanism, so there is now only one list: a job in needs blocks.
+      #
+      # PR_ONLY_JOBS is the single exception, and it is not a way to excuse a job
+      # that fails. A job named here may report `skipped`, and only on an event
+      # that is not a pull request, because its own `if:` is what skipped it.
+      # On a pull request it has to succeed like everything else.
       - name: Check results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_ONLY_JOBS: dependency-review
         run: |
-          if [ "${{ needs.typecheck.result }}" != "success" ] || \
-             [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.dependency-audit.result }}" != "success" ] || \
-             [ "${{ needs.secret-scan.result }}" != "success" ] || \
-             [ "${{ needs.conventions.result }}" != "success" ] || \
-             [ "${{ needs.harness.result }}" != "success" ] || \
-             [ "${{ needs.unit-tests.result }}" != "success" ] || \
-             [ "${{ needs.integration-tests.result }}" != "success" ] || \
-             [ "${{ needs.coverage.result }}" != "success" ] || \
-             [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
-             [ "${{ needs.e2e.result }}" != "success" ] || \
-             [ "${{ needs.security-probes.result }}" != "success" ] || \
-             [ "${{ needs.codeql.result }}" != "success" ] || \
-             [ "${{ needs.terraform.result }}" != "success" ]; then
-            echo "One or more jobs failed:"
-            echo "  typecheck: ${{ needs.typecheck.result }}"
-            echo "  lint: ${{ needs.lint.result }}"
-            echo "  dependency-audit: ${{ needs.dependency-audit.result }}"
-            echo "  secret-scan: ${{ needs.secret-scan.result }}"
-            echo "  conventions: ${{ needs.conventions.result }}"
-            echo "  harness: ${{ needs.harness.result }}"
-            echo "  unit-tests: ${{ needs.unit-tests.result }}"
-            echo "  integration-tests: ${{ needs.integration-tests.result }}"
-            echo "  coverage: ${{ needs.coverage.result }}"
-            echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
-            echo "  e2e: ${{ needs.e2e.result }}"
-            echo "  security-probes: ${{ needs.security-probes.result }}"
-            echo "  dependency-review: ${{ needs.dependency-review.result }}  (not blocking)"
-            echo "  freestyle-db-integrity: ${{ needs.freestyle-db-integrity.result }}  (not blocking)"
-            echo "  legacy-pytest: ${{ needs.legacy-pytest.result }}  (not blocking)"
-            echo "  codeql: ${{ needs.codeql.result }}"
-            echo "  terraform: ${{ needs.terraform.result }}"
+          # Printed on every run, not only on failure: a green tick that never
+          # says what it checked is how "(not blocking)" sat here unnoticed.
+          echo "job results (${EVENT_NAME}):"
+          jq -r 'to_entries[] | "  \(.key): \(.value.result)"' <<<"$NEEDS_JSON"
+
+          failed=$(jq -r --arg event "$EVENT_NAME" --arg pronly "$PR_ONLY_JOBS" '
+            ($pronly | split(",")) as $pr
+            | to_entries[]
+            | select(
+                (.value.result == "success")
+                or ((.key | IN($pr[])) and $event != "pull_request" and .value.result == "skipped")
+                | not)
+            | "\(.key): \(.value.result)"' <<<"$NEEDS_JSON")
+
+          if [ -n "$failed" ]; then
+            echo ""
+            echo "FAILED — every job above must succeed:"
+            printf '%s\n' "$failed" | sed 's/^/  /'
             exit 1
           fi
+          echo ""
+          echo "every job succeeded"
 
   terraform:
     name: Terraform fmt / validate

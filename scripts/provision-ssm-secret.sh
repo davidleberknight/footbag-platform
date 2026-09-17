@@ -39,7 +39,8 @@
 # Flags:
 #   --env staging|production        Required. The environment to act on.
 #   --secret <name>                 Required. One of the supported names below.
-#   --profile <p>                   AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>                   AWS profile; else the identity this run
+#                                   settles and proves.
 set -euo pipefail
 
 TARGET_ENV=""
@@ -84,17 +85,18 @@ done
 
 [[ -n "$ACTION" ]] || { echo "ERROR: name an action: status or store." >&2; usage; }
 
-case "$TARGET_ENV" in
-  staging|production) ;;
-  "")
-    echo "ERROR: --env is required (staging or production)." >&2
-    exit 2
-    ;;
-  *)
-    echo "ERROR: --env must be 'staging' or 'production' (got '$TARGET_ENV')." >&2
-    exit 2
-    ;;
-esac
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+
+# This script spells it --env rather than --target, so the shared refusal is
+# told which flag to name. Telling an operator to fix a flag their script does
+# not have is worse than the duplication the shared check replaces.
+REQUIRE_TARGET_FLAG="--env"
+require_target "$TARGET_ENV" staging production || exit 2
 
 # An allowlist rather than a free-form parameter name, and the safety property is
 # the point rather than tidiness: a mistyped name must not create a parameter
@@ -117,7 +119,14 @@ case "$SECRET_NAME" in
 esac
 
 AWS_ARGS=()
-[[ -n "$AWS_PROFILE_ARG" ]] && AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
+if [[ -n "$AWS_PROFILE_ARG" ]]; then
+  AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
+else
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile. Nothing here asks the operator to export anything.
+  aws_profile_ensure || exit 1
+fi
 
 PARAM="/footbag/${TARGET_ENV}/secrets/${SECRET_NAME}"
 KMS_ALIAS="alias/footbag-${TARGET_ENV}"

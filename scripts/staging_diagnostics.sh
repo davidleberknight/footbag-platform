@@ -10,20 +10,32 @@
 #
 # From your local workstation, after pulling latest:
 #
-#   scp scripts/staging_diagnostics.sh footbag-staging:/home/footbag/
-#   ssh footbag-staging 'chmod +x /home/footbag/staging_diagnostics.sh'
+#   scp scripts/staging_diagnostics.sh footbag-staging:~/
+#   ssh footbag-staging
 #
-# Then on staging:
+# Then, in that session on the host:
 #
+#   chmod +x ~/staging_diagnostics.sh
 #   ~/staging_diagnostics.sh help
 #   ~/staging_diagnostics.sh outbox <recipient-email>
 #   ~/staging_diagnostics.sh worker-logs 60
 #   ~/staging_diagnostics.sh force-tick -y
 #
+# Log in and run it there, rather than passing it as a command to ssh. Every
+# subcommand goes through sudo, and sudo needs a terminal to prompt on: a
+# one-shot `ssh host '<command>'` allocates none, so the run fails on sudo
+# rather than on anything diagnostic. An interactive session has one. Asking
+# ssh for a terminal instead is not the alternative here, because a privileged
+# remote step in this tree never drives an interactive sudo prompt.
+#
+# The destination is the connecting account's own home, written as ~, never a
+# literal path: every operator connects as themselves, so a literal names one
+# person's home and fails or writes to the wrong place for everybody else.
+#
 # Upload it each time rather than reaching for a copy already on the host. The
-# deploy carries only the scripts the host itself invokes, so whatever is under
-# /home/footbag/footbag-release/scripts/ is not this file, and any copy in the
-# home directory is as old as the last hand upload.
+# deploy carries only the scripts the host itself invokes, so this file is not
+# among what a release ships, and any copy in a home directory is as old as the
+# last hand upload.
 #
 # Requires: sudo docker, node inside the web container (already present),
 # and outbound AWS credentials for the aws-* subcommands (already present via
@@ -42,10 +54,21 @@
 
 set -euo pipefail
 
-ENV_FILE='/srv/footbag/env'
-COMPOSE_BASE='/home/footbag/footbag-release/docker/docker-compose.yml'
-COMPOSE_PROD='/home/footbag/footbag-release/docker/docker-compose.prod.yml'
-DB_HOST_PATH='/srv/footbag/db/footbag.db'
+# Everything below reads the LIVE install, /srv/footbag, which is where the
+# deploy promotes a release to and where it composes the running stack from.
+#
+# It deliberately does not read an operator's upload directory. That directory
+# lives in the connecting account's own home and is therefore a different path
+# for every operator, so a literal one names whichever account it was written
+# for: on any other operator's run it is either missing, or it is somebody
+# else's staging copy of whatever they last uploaded. Diagnostics that read a
+# different definition from the one the host is running are worse than no
+# diagnostics, because they answer confidently.
+LIVE_DIR='/srv/footbag'
+ENV_FILE="${LIVE_DIR}/env"
+COMPOSE_BASE="${LIVE_DIR}/docker/docker-compose.yml"
+COMPOSE_PROD="${LIVE_DIR}/docker/docker-compose.prod.yml"
+DB_HOST_PATH="${LIVE_DIR}/db/footbag.db"
 
 compose() {
   sudo docker compose --env-file "$ENV_FILE" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" "$@"
@@ -86,8 +109,20 @@ cmd_time() {
 }
 
 cmd_git_sha() {
-  banner "Release dir SHA"
-  (cd /home/footbag/footbag-release 2>/dev/null && git rev-parse HEAD 2>/dev/null) || echo "(not a git tree)"
+  banner "What is deployed"
+  # The deploy records this itself, into the live install, and that record is
+  # the only honest answer to the question. Reading a git tree instead answers a
+  # different one: the deploy ships the working tree rather than a tagged
+  # artifact, so uncommitted edits are part of what is running and a commit
+  # alone does not describe it. The record carries the commit, how many paths
+  # were uncommitted, and which. A git tree in somebody's upload directory
+  # carries none of that, and belongs to whichever operator deployed last.
+  if [[ -r "${LIVE_DIR}/deployed-from" ]]; then
+    cat "${LIVE_DIR}/deployed-from"
+  else
+    echo "(no deploy record at ${LIVE_DIR}/deployed-from; nothing has deployed"
+    echo " to this host since that record was introduced)"
+  fi
 }
 
 # ---------------- DB inspection ----------------
@@ -292,6 +327,76 @@ cmd_disk() {
   sudo ls -lh "$DB_HOST_PATH"* 2>/dev/null || echo "(no host DB file at $DB_HOST_PATH)"
 }
 cmd_systemd() { banner "systemctl status footbag.service"; sudo systemctl status footbag.service --no-pager -l || true; }
+
+# ---------------- Host access ----------------
+
+# Who can reach this host and how, read from the host's own effective state
+# rather than from a config file. Read-only.
+#
+# Four sections, because each has produced a failure that read as one of the
+# others. sshd's effective settings come first and matter most: creating a
+# named operator account while password authentication is on produces a
+# password-loginable login whose password also unlocks sudo, and nothing in the
+# provisioning path notices. The settings are taken from `sshd -T` because an
+# Include directive means the file on disk is not the configuration in force.
+#
+# The provider's default account and the provider agent are here together
+# because the browser-based console depends on both: it signs in as that
+# account, and the agent is what admits it. A console that fails immediately,
+# with the provider's own error rather than a timeout, is a question about this
+# host rather than about the operator's network, and these two sections are the
+# answer.
+#
+# The last section is the only enumeration of host logins that exists, and it is
+# the only way to check the vault's host- entries against the host itself. Those
+# entries are written by hand at provisioning time and nothing else reconciles
+# them, so an account that outlives its entry, or an entry that outlives its
+# account, is invisible without this. Fingerprints only: a fingerprint
+# identifies a key without carrying it, which is what a record needs and all it
+# may hold.
+cmd_host_access() {
+  banner "sshd effective settings"
+  sudo sshd -T 2>/dev/null \
+    | grep -iE '^(port|passwordauthentication|permitrootlogin|pubkeyauthentication|allowusers|allowgroups|denyusers|denygroups) ' \
+    | sort \
+    || echo "(sshd -T failed)"
+
+  banner "Provider default account"
+  local acct found=0 keyfile
+  for acct in ec2-user ubuntu admin bitnami; do
+    getent passwd "$acct" >/dev/null 2>&1 || continue
+    found=1
+    printf '%s\n' "$acct"
+    printf '  shell:    %s\n' "$(getent passwd "$acct" | cut -d: -f7)"
+    printf '  password: %s (P set, L locked, NP none)\n' \
+      "$(sudo passwd -S "$acct" 2>/dev/null | cut -d' ' -f2)"
+    printf '  groups:   %s\n' "$(id -nG "$acct" 2>/dev/null)"
+    keyfile="$(getent passwd "$acct" | cut -d: -f6)/.ssh/authorized_keys"
+    if sudo test -s "$keyfile"; then
+      sudo ssh-keygen -l -f "$keyfile" 2>/dev/null | sed 's/^/  key:      /' \
+        || echo "  key:      (present, unparsable)"
+    else
+      echo "  key:      absent or empty"
+    fi
+  done
+  [[ "$found" -eq 1 ]] || echo "(no provider default account present)"
+
+  banner "Provider agent units"
+  systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null \
+    | grep -i lightsail \
+    || echo "(no service unit name matches lightsail)"
+
+  banner "Accounts that can log in"
+  local user home shell
+  while IFS=: read -r user _ _ _ _ home shell; do
+    case "$shell" in */nologin|*/false|'') continue ;; esac
+    printf '%s  shell=%s  groups=%s\n' "$user" "$shell" "$(id -nG "$user" 2>/dev/null)"
+    if sudo test -s "${home}/.ssh/authorized_keys"; then
+      sudo ssh-keygen -l -f "${home}/.ssh/authorized_keys" 2>/dev/null | sed 's/^/    /' \
+        || echo "    (authorized_keys present, unparsable)"
+    fi
+  done < <(getent passwd | sort -t: -k3 -n)
+}
 
 # ---------------- AWS ----------------
 
@@ -809,10 +914,15 @@ cmd_deploy_history() {
 }
 
 cmd_previous_release() {
-  banner "Release / live directories"
-  sudo ls -ld /home/footbag/footbag-release /srv/footbag 2>/dev/null || true
-  banner "Any sibling release backups"
-  sudo ls -ld /home/footbag/footbag-release.* 2>/dev/null || echo "(no sibling backups)"
+  banner "Live install"
+  sudo ls -ld "$LIVE_DIR" 2>/dev/null || true
+  banner "What it was deployed from"
+  sudo cat "${LIVE_DIR}/deployed-from" 2>/dev/null || echo "(no deploy record)"
+  banner "Upload directories, one per operator who has deployed"
+  # Every operator uploads into their own home before the promotion, so this is
+  # a glob rather than a path: there is no single release directory any more,
+  # and naming one would name whichever operator it was written for.
+  sudo ls -ld /home/*/footbag-release 2>/dev/null || echo "(none)"
 }
 
 # ---------------- State-change (force-tick only) ----------------
@@ -870,6 +980,9 @@ staging_diagnostics.sh — subcommands
                              the minimum reached (default 300s)
     disk                     df -h plus DB file sizes
     systemd                  systemctl status footbag.service
+    host-access              effective sshd settings, the provider default
+                             account and agent, and every account that can log
+                             in with its key fingerprints
 
   Workers
     worker-status            worker container status + restart history
@@ -959,6 +1072,7 @@ main() {
     memory-watch)         cmd_memory_watch "${1:-300}" ;;
     disk)                 cmd_disk ;;
     systemd)              cmd_systemd ;;
+    host-access)          cmd_host_access ;;
 
     aws-whoami)           cmd_aws_whoami ;;
     ses-identity)         cmd_ses_identity ;;

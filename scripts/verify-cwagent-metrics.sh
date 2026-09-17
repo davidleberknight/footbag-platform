@@ -37,7 +37,8 @@
 #
 # Flags:
 #   --target staging|production  Environment to check (required, no default).
-#   --profile <p>                AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>                AWS profile; else the identity this run settles
+#                                and proves.
 #   --window-minutes <n>         How far back to look for a datapoint
 #                                (default 15). Widen it only when the agent was
 #                                just installed and the first publish is still
@@ -89,18 +90,26 @@ done
 
 # No default target. Which environment a proof speaks for is exactly the thing
 # an operator must not get wrong by omission.
-case "$TARGET" in
-  staging|production) ;;
-  '') echo "ERROR: --target is required ('staging' or 'production')" >&2; exit 2 ;;
-  *) echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2; exit 2 ;;
-esac
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+
+require_target "$TARGET" staging production || exit 2
 
 if [[ ! "$WINDOW_MINUTES" =~ ^[0-9]+$ ]] || (( WINDOW_MINUTES < 1 )); then
   echo "ERROR: --window-minutes must be a positive whole number (got '$WINDOW_MINUTES')" >&2
   exit 2
 fi
 
-[[ -n "$PROFILE" ]] && export AWS_PROFILE="$PROFILE"
+if [[ -n "$PROFILE" ]]; then
+  export AWS_PROFILE="$PROFILE"
+else
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile.
+  # shellcheck source=lib/aws-profile.sh
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
+fi
 
 # The agent publishes no instance dimension, so the namespace is the only thing
 # separating one host's numbers from another's. Production has its own; staging

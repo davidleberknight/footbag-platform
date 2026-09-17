@@ -57,7 +57,8 @@
 #   --base-url <url>          Override the address; otherwise it is read from
 #                             the staging Terraform output, because no
 #                             environment URL is committed to this repository.
-#   --profile <p>             AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>             AWS profile; else the identity this run settles
+#                             and proves.
 #   --settle-seconds <n>      Wait before reading CloudWatch back (default 360).
 #                             CloudFront publishes a period some minutes after it
 #                             closes, so reading immediately reports a window
@@ -200,7 +201,16 @@ if (( READ_BACK_ONLY == 1 )) && { [[ -z "$WINDOW_START" ]] || [[ -z "$WINDOW_END
   exit 2
 fi
 
-[[ -n "$PROFILE" ]] && export AWS_PROFILE="$PROFILE"
+if [[ -n "$PROFILE" ]]; then
+  export AWS_PROFILE="$PROFILE"
+else
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile.
+  # shellcheck source=lib/aws-profile.sh
+  source "${SCRIPT_DIR}/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
+fi
 
 if [[ -n "${FOOTBAG_LOADCHECK_AWS_BIN:-}${FOOTBAG_LOADCHECK_TERRAFORM_BIN:-}${FOOTBAG_LOADCHECK_CURL_BIN:-}${FOOTBAG_LOADCHECK_DRIVER:-}" ]]; then
   echo "SYNTHETIC: a test seam is in use -- this run proves nothing about the estate." >&2

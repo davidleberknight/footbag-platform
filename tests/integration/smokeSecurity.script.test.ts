@@ -152,6 +152,26 @@ describe('smoke-security.sh', () => {
     expect(res.stdout).toContain('response body differs by account existence');
   });
 
+  it('shows where the two responses diverge, rather than only that they do', async () => {
+    // Both normalized bodies are in hand when the probe decides. A verdict that
+    // says only "differs" sends the reader off to reproduce the two requests by
+    // hand to find out what leaked.
+    const port = await startTarget('leaky-forgot');
+    const res = runSmoke(port, 'staging');
+    expect(res.stdout).toContain('first divergence near character');
+    expect(res.stdout).toContain('A reset link was sent');
+    expect(res.stdout).toContain('If the address exists');
+  });
+
+  it('redacts anything address-shaped from the divergence it prints', async () => {
+    const port = await startTarget('leaky-forgot');
+    const res = runSmoke(port, 'staging');
+    const divergence = res.stdout.slice(res.stdout.indexOf('first divergence'));
+    // Asserted first, so this case cannot pass by there being nothing to inspect.
+    expect(divergence).toContain('first divergence');
+    expect(divergence).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+  });
+
   it('holds production to the dev-surface-absent contract and skips the mail-sending probe', async () => {
     const port = await startTarget('production');
     const res = runSmoke(port, 'production');

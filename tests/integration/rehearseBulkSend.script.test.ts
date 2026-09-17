@@ -42,9 +42,13 @@ function run(args: string[]): RunResult {
 
 describe('argument refusals', () => {
   it('refuses to run without an environment', () => {
+    // Absent and wrong now read differently. They used to share one message,
+    // which told an operator who had forgotten the flag that their value was
+    // invalid. The shared check separates them and says there is no default.
     const res = run([]);
     expect(res.exitCode).toBe(2);
-    expect(res.stderr).toContain("--target must be 'staging' or 'production'");
+    expect(res.stderr).toContain("--target is required ('staging' or 'production')");
+    expect(res.stderr).toMatch(/no default/);
   });
 
   it('refuses an environment it does not know', () => {

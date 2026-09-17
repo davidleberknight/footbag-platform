@@ -159,11 +159,7 @@ done
 
 # No default target. Which environment a retention change lands on is exactly
 # the decision this script must not make for the operator.
-case "$TARGET" in
-  staging|production) ;;
-  '') echo "ERROR: --target is required ('staging' or 'production')" >&2; exit 2 ;;
-  *) echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2; exit 2 ;;
-esac
+require_target "$TARGET" staging production || exit 2
 
 if [[ ! "$FROM_STEP" =~ ^[1-3]$ ]]; then
   echo "ERROR: --from-step takes a step number from 1 to 3 (got '$FROM_STEP')." >&2
@@ -297,6 +293,14 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
+# Everything past the dry run reaches the estate. The aws calls carry a profile
+# of their own, but terraform takes none and runs on whatever identity the shell
+# carries, so the run settles and proves one here rather than letting the apply
+# be the thing that discovers there is none.
+# shellcheck source=lib/aws-profile.sh
+source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+aws_profile_ensure || exit 1
+
 # ── Step 1: the generation-history gate ──────────────────────────────────────
 BUCKET=""
 # Deliberately NOT conditioned on --from-step. The header says there is no flag
@@ -388,7 +392,7 @@ if (( FROM_STEP <= 2 )) && (( ! VERIFY_ONLY )); then
   # deciding and acting.
   TF_PLAN="$(mktemp /tmp/footbag-retention-plan.XXXXXX)"
   chmod 600 "$TF_PLAN"
-  trap 'if [ -n "${TF_PLAN:-}" ] && [ -e "${TF_PLAN}" ]; then shred -u "${TF_PLAN}"; fi; rm -f "${TF_PLAN:-}"' EXIT INT TERM
+  trap 'if [ -n "${TF_PLAN:-}" ] && [ -e "${TF_PLAN}" ]; then shred -u "${TF_PLAN}" 2>/dev/null || true; fi; rm -f "${TF_PLAN:-}"' EXIT INT TERM
 
   if ! "$TF_BIN" -chdir="$TF_DIR" plan -out="$TF_PLAN"; then
     echo "ERROR: terraform plan failed. Nothing was applied." >&2
@@ -473,14 +477,33 @@ if (( SNAPSHOT_REPLICATION )); then
   # a daily generation kept longer than the lock leaves a copy protected by access
   # control alone for the difference, in the account whose credentials the lock
   # exists to defend against. That is exactly the drift this step missed once.
+  #
+  # Both reads below fail closed. Production is the only target that reaches this
+  # block, and production is the one environment where the disaster-recovery
+  # bucket exists, so "could not read it" is never "there is nothing to read": it
+  # is this run being unable to see the very rule the block exists to check.
   DR_BUCKET="$("$TF_BIN" -chdir="$TF_DIR" output -raw dr_bucket_name 2>/dev/null)" || DR_BUCKET=""
-  if [[ -n "$DR_BUCKET" ]]; then
+  if [[ -z "$DR_BUCKET" ]]; then
+    echo "Lifecycle rules on the disaster-recovery bucket:"
+    echo "  <bucket name unreadable>"
+    echo ""
+    echo "  terraform/$TARGET does not publish dr_bucket_name, so this run cannot name the"
+    echo "  bucket whose windows have to match its Object Lock, let alone read them. Apply"
+    echo "  that tree so the output lands in state, then verify again."
+    VERIFY_FAIL=1
+    echo ""
+  else
     echo "Lifecycle rules on $DR_BUCKET (us-west-2), which must match its Object Lock:"
     DR_LIFECYCLE="$("$AWS_BIN" s3api get-bucket-lifecycle-configuration --bucket "$DR_BUCKET" \
       --profile "$AWS_PROFILE_ARG" --region us-west-2 \
       --query 'Rules[].[ID,Status,Filter.Prefix,Expiration.Days]' --output text 2>/dev/null)" || DR_LIFECYCLE=""
     if [[ -z "$DR_LIFECYCLE" ]]; then
       echo "  <unreadable>"
+      echo ""
+      echo "  No lifecycle could be read from $DR_BUCKET, so the apply did not land there or"
+      echo "  the credential cannot read it. Either way this run cannot prove the windows"
+      echo "  match the lock, and it does not pass on their behalf."
+      VERIFY_FAIL=1
     else
       printf '%s\n' "$DR_LIFECYCLE" | sed 's/^/  /'
       echo ""

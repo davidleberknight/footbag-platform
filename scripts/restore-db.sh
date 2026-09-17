@@ -122,6 +122,18 @@ fi
 # with no legitimate form; naming it explicitly is how a drill reads production's
 # artifacts without a production host being involved.
 [[ -z "$SOURCE_ENV" ]] && SOURCE_ENV="$TARGET"
+# Both checks here stay hand-rolled, deliberately, and this is the one script
+# where that is the right answer.
+#
+# `--source` names a snapshot STREAM rather than a destination, and this script
+# reports its refusals through `die`, which exits 1: the shared check exits 2 as
+# a usage error, and a caller distinguishing "bad arguments" from "refused to
+# restore" would see the wrong one. `--target` is OPTIONAL here, because an
+# absent target means a local restore and that is the ordinary case, while the
+# shared check exists precisely to refuse an absent value.
+#
+# Recorded rather than left looking like an oversight: the shared check is for a
+# required destination named with one flag, and neither of these is that.
 case "$SOURCE_ENV" in
   staging|production) ;;
   *) die "--source must be 'staging' or 'production' (got '${SOURCE_ENV:-}')" ;;
@@ -162,7 +174,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/restore-db-remote.sh"
 
 AWS_ARGS=()
-[[ -n "$AWS_PROFILE_ARG" ]] && AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
+if [[ -n "$AWS_PROFILE_ARG" ]]; then
+  AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
+else
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile. The in-place leg runs on the host and uses the host's own
+  # chain; this is the workstation half, which searches and pulls the artifact.
+  # shellcheck source=lib/aws-profile.sh
+  source "${SCRIPT_DIR}/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
+fi
 
 # The two artifact classes are never mixed in a search. The cutover rollback
 # lives under pre-flip/; the five-minute stream lives under routine/. Both are

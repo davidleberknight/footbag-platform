@@ -37,10 +37,16 @@
 #
 # Flags:
 #   --env staging|production   Target environment (required).
-#   --profile <p>              AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>              AWS profile; else the identity this workstation's
+#                              tooling supplies and proves for the run.
 #   --key-dir <path>           Operator key directory (default ~/AWS).
 #   --force                    Allow overwriting an existing local keypair.
 set -euo pipefail
+
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 
 TARGET_ENV=""
 AWS_PROFILE_ARG=""
@@ -125,12 +131,13 @@ needs_aws() {
   AWS_ARGS=()
   if [[ -n "$AWS_PROFILE_ARG" ]]; then
     AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
-  elif [[ -n "${AWS_PROFILE:-}" ]]; then
-    echo "Using ambient AWS_PROFILE=${AWS_PROFILE}"
   else
-    echo "ERROR: pass --profile or export AWS_PROFILE (operator credentials;" >&2
-    echo "       the runtime roles are read-only on SSM by design)" >&2
-    exit 2
+    # No profile named on the command line, so the identity is the one the
+    # shared library settles and proves: whatever this shell already carries,
+    # or the operator profile. Operator credentials are what this needs, since
+    # the runtime roles are read-only on SSM by design, and asking the operator
+    # to export a variable was how that requirement used to be expressed.
+    aws_profile_ensure || exit 1
   fi
 }
 

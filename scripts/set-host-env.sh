@@ -198,7 +198,18 @@ else
   # accepting one typed in is the difference between a timer that uploads and
   # one that reports healthy into a bucket that does not exist.
   TF_ENV=()
-  [[ -n "$AWS_PROFILE_ARG" ]] && TF_ENV=(env "AWS_PROFILE=$AWS_PROFILE_ARG")
+  if [[ -n "$AWS_PROFILE_ARG" ]]; then
+    TF_ENV=(env "AWS_PROFILE=$AWS_PROFILE_ARG")
+  else
+    # No profile named on the command line, so the identity is the one the
+    # shared library settles and proves: whatever this shell already carries, or
+    # the operator profile. The reads below discard their own stderr, so without
+    # it a dead credential arrives as an empty value and is reported as a tree
+    # that was never initialised.
+    # shellcheck source=lib/aws-profile.sh
+    source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+    aws_profile_ensure || exit 1
+  fi
   if ! BUCKET_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw snapshots_bucket_name 2>/dev/null)"; then
     echo "ERROR: could not read the snapshots bucket name from terraform/${TARGET}." >&2
     echo "       Run 'terraform -chdir=terraform/${TARGET} init' first, and pass --profile if the state needs credentials." >&2

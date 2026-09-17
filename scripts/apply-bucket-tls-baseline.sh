@@ -52,7 +52,9 @@
 #   --dry-run       State what a real run would do; run nothing.
 #   --from-step N   Resume at step N (1-4).
 #   --verify-only   Run the verifications against the estate as it stands.
-#   --profile <p>   AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>   AWS profile for the aws calls. terraform takes none, so both
+#                   it and any unflagged call use the identity this run settles
+#                   and proves.
 #   --yes           Accept confirmations where no terminal is attached.
 #
 # Test seam (CI only; operators never set this): TERRAFORM_APPLY_BIN points the
@@ -140,6 +142,15 @@ Nothing was planned, applied or read.
 PLAN
   exit 0
 fi
+
+# Everything past the dry run reaches the estate, through the aws calls and
+# through terraform, which takes no --profile of its own and so runs on whatever
+# identity the shell carries. Settled and proved once here rather than
+# discovered mid-sequence, where a credential failure between two steps is the
+# worst place to find one.
+# shellcheck source=lib/aws-profile.sh
+source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+aws_profile_ensure || exit 1
 
 # ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -234,13 +245,48 @@ for change in plan.get("resource_changes", []):
   return 0
 }
 
-# Newest delivered access-log key, or the empty string. Used either side of an
-# apply on the two buckets whose delivery policy this change replaces.
+# Newest delivered access-log key, used either side of an apply on the two
+# buckets whose delivery policy this change replaces.
+#
+# Three outcomes, and the third must stay distinct from the second. The CLI
+# prints the literal "None" when the listing succeeded and matched nothing, which
+# is "no logs delivered yet"; a failed call answers nothing at all. Folding the
+# failure into "None" makes two failed calls compare equal either side of the
+# apply, and the comparison then reports a stopped delivery as one that is merely
+# batched -- which is precisely the precondition this script exists to prove.
+LOG_KEY_UNREADABLE="__UNREADABLE__"
 newest_log_key() {
   local bucket="$1"
   aws s3api list-objects-v2 --bucket "$bucket" --prefix "AWSLogs/" \
     --query 'sort_by(Contents,&LastModified)[-1].Key' --output text \
-    "${AWS_ARGS[@]}" 2>/dev/null || echo "None"
+    "${AWS_ARGS[@]}" 2>/dev/null || echo "$LOG_KEY_UNREADABLE"
+}
+
+# Reports on a before/after pair and answers whether the delivery check proved
+# anything. A pair it could not read is a failure, not a quiet pass.
+assert_log_delivery() {
+  local label="$1" before="$2" after="$3"
+
+  if [[ "$after" == "$LOG_KEY_UNREADABLE" ]]; then
+    echo "  FAIL: could not list the ${label} access-log bucket, so this run cannot tell" >&2
+    echo "        a live delivery from one the new policy stopped. Check the credential" >&2
+    echo "        can list it, then re-run --verify-only." >&2
+    return 1
+  fi
+  if [[ "$before" == "$LOG_KEY_UNREADABLE" ]]; then
+    echo "  FAIL: the ${label} access-log bucket was unreadable before the apply, so there" >&2
+    echo "        is no baseline to compare today's newest key against." >&2
+    echo "        Newest key now: ${after}" >&2
+    return 1
+  fi
+
+  echo "  note: newest ${label} access-log key is now ${after}"
+  if [[ "${before:-unset}" != "unset" && "$after" == "$before" ]]; then
+    echo "  note: unchanged since before the apply. Delivery is batched, so this is"
+    echo "        expected immediately afterwards; re-run --verify-only later and"
+    echo "        treat a still-unchanged key as a stopped delivery."
+  fi
+  return 0
 }
 
 # The deny itself, proved rather than assumed: an authenticated call forced onto
@@ -343,12 +389,7 @@ if (( FROM_STEP <= 1 )) || (( VERIFY_ONLY )); then
   assert_deny_statement footbag-staging-snapshots || fail=1
   assert_plaintext_refused footbag-staging-media || fail=1
   after="$(newest_log_key footbag-staging-platform-logs)"
-  echo "  note: newest staging access-log key is now ${after}"
-  if [[ "${STAGING_LOG_BEFORE:-unset}" != "unset" && "$after" == "${STAGING_LOG_BEFORE}" ]]; then
-    echo "  note: unchanged since before the apply. Delivery is batched, so this is"
-    echo "        expected immediately afterwards; re-run --verify-only later and"
-    echo "        treat a still-unchanged key as a stopped delivery."
-  fi
+  assert_log_delivery staging "${STAGING_LOG_BEFORE:-unset}" "$after" || fail=1
   (( fail == 0 )) || { echo "Staging verification failed." >&2; exit 1; }
   echo ""
 fi
@@ -371,11 +412,7 @@ if (( FROM_STEP <= 2 )) || (( VERIFY_ONLY )); then
   assert_deny_statement footbag-production-cloudtrail     || fail=1
   assert_plaintext_refused footbag-production-db-snapshots || fail=1
   after="$(newest_log_key footbag-production-platform-logs)"
-  echo "  note: newest production access-log key is now ${after}"
-  if [[ "${PRODUCTION_LOG_BEFORE:-unset}" != "unset" && "$after" == "${PRODUCTION_LOG_BEFORE}" ]]; then
-    echo "  note: unchanged since before the apply. Re-run --verify-only later and"
-    echo "        treat a still-unchanged key as a stopped delivery."
-  fi
+  assert_log_delivery production "${PRODUCTION_LOG_BEFORE:-unset}" "$after" || fail=1
   (( fail == 0 )) || { echo "Production verification failed." >&2; exit 1; }
   echo ""
 fi

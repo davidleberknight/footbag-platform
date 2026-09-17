@@ -136,11 +136,7 @@ done
 
 # No default target. Which environment a feed is brought up on is exactly the
 # decision this script must not make for the operator.
-case "$TARGET" in
-  staging|production) ;;
-  '') echo "ERROR: --target is required ('staging' or 'production')" >&2; exit 2 ;;
-  *) echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2; exit 2 ;;
-esac
+require_target "$TARGET" staging production || exit 2
 
 if [[ -z "$MODE" ]]; then
   echo "ERROR: one of --status or --state on|off is required." >&2
@@ -265,6 +261,12 @@ SYNTHETIC=0
 if (( ! SYNTHETIC )); then
   require_ssh_alias "$SSH_ALIAS" || exit 1
   require_operator_stdin "scripts/activate-notification-feeds.sh --target ${TARGET} --state ${STATE}" || exit 1
+  # The apply and the queue read both reach the account, and terraform takes no
+  # profile of its own, so the identity is settled and proved before step 1
+  # rather than in the middle of the sequence.
+  # shellcheck source=lib/aws-profile.sh
+  source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
 fi
 
 # ── Step 1: the declared value ───────────────────────────────────────────────
@@ -373,7 +375,7 @@ if (( FROM_STEP <= 2 )); then
   # redirect the archive into a checkout.
   TF_PLAN="$(mktemp /tmp/footbag-feeds-plan.XXXXXX)"
   chmod 600 "$TF_PLAN"
-  trap 'if [ -n "${TF_PLAN:-}" ] && [ -e "${TF_PLAN}" ]; then shred -u "${TF_PLAN}"; fi; rm -f "${TF_PLAN:-}" "${TFVARS_TMP:-}"' EXIT INT TERM
+  trap 'if [ -n "${TF_PLAN:-}" ] && [ -e "${TF_PLAN}" ]; then shred -u "${TF_PLAN}" 2>/dev/null || true; fi; rm -f "${TF_PLAN:-}" "${TFVARS_TMP:-}"' EXIT INT TERM
 
   if ! terraform -chdir="$TF_DIR" plan -out="$TF_PLAN"; then
     echo "ERROR: terraform plan failed. Nothing was applied." >&2
@@ -421,10 +423,23 @@ if (( FROM_STEP <= 4 )); then
   # SSH to the host is restricted to the operator CIDRs in this environment's
   # tfvars. A travelling workstation's address changes, and a rotation between
   # the apply and the deploy strands the deploy part-way through its remote half.
+  #
+  # A lookup that fails answers "unknown", never "covered". Skipping the question
+  # on a failed lookup is the one outcome that must not happen: the address this
+  # check exists to doubt is exactly the one a run cannot resolve, and the deploy
+  # then strands part-way through its remote half with nothing having asked.
   EGRESS_IP="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]')" || EGRESS_IP=""
-  if [[ -n "$EGRESS_IP" ]] && ! grep -q "$EGRESS_IP/32" "$TFVARS_PATH"; then
+  EGRESS_COVERED=1
+  if [[ -z "$EGRESS_IP" ]]; then
+    echo "  This workstation's egress address could not be resolved, so whether it is"
+    echo "  listed in operator_cidrs is unknown rather than fine."
+    EGRESS_COVERED=0
+  elif ! grep -q "$EGRESS_IP/32" "$TFVARS_PATH"; then
     echo "  $EGRESS_IP/32 is not listed verbatim in operator_cidrs; it may still fall"
     echo "  inside a configured range."
+    EGRESS_COVERED=0
+  fi
+  if (( ! EGRESS_COVERED )); then
     if ! confirm_from_tty "  Is this address covered? (yes/no): " "yes"; then
       echo "Aborted before the deploy. Add today's address to operator_cidrs (add," >&2
       echo "never replace), terraform apply, then resume with --from-step 4." >&2

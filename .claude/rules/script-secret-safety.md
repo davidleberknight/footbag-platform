@@ -59,7 +59,17 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 ## Enforcement
 
-`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard. The prompt and guard checks read a file's code only: comments, heredoc bodies and the inside of quoted strings are stripped first, so a file cannot describe a guard it does not have. Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy.
+`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, a bare `cat` forwarding the whole credential file into the remote shell, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard.
+
+Two of those forms are narrower than they look, and the difference is what keeps the gate usable.
+`-S` is refused only where it sits in `sudo`'s own run of flags, because that is the only place it
+means "read the password from stdin": `sudo passwd -S <account>` asks an account's password status
+and is refused by nothing, while `sudo -S` and `sudo -u root -S` still are. `--stdin` stays a
+whole-line match instead, because it never means anything benign. Spelling a flag around the gate is
+not a fix — `passwd --status` was once used that way, which is not portable and is the wrong reason
+to choose a flag.
+
+The bare-`cat` check is the newest and the reason for it is worth stating. The sending side of the wire pattern must read ONE line and emit ONE line, because sudo consumes exactly one and the remote `bash` inherits and executes everything after it. A `cat` in that position forwards every remaining line of whatever the operator redirected in, so a credential file holding a second credential, a comment or a stray note runs each of those as a root shell command on a deployed host. Three scripts carried that form while a fourth had been corrected and carried the explanation in its header, which is the shape of a fix that did not travel. The check is file-level, because the two halves sit on different lines, and it takes its file list from the same set the `-k` and file-writer checks narrow rather than searching again: the gate's normalizer blanks the inside of quoted strings, and the `sudo` invocation in this pattern lives inside the quoted `ssh` argument, so a fresh search finds nothing in exactly the files that matter. The prompt and guard checks read a file's code only: comments, heredoc bodies and the inside of quoted strings are stripped first, so a file cannot describe a guard it does not have. Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy.
 
 Three properties of that gate are load-bearing, and each was absent once.
 

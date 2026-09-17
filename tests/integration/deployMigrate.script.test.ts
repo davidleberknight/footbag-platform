@@ -68,13 +68,30 @@ function applyMigration(
   expect(end).toBeGreaterThan(start);
   const block = remote.slice(start, end);
 
+  // The migration aims at the directory the compose files mount at /app/db, which
+  // the host env file records, so the harness gives it a real env file rather than
+  // a variable standing in for one. Taking the reader out of the script under test
+  // rather than re-implementing it here keeps the test honest: a re-implementation
+  // would go on passing if the real one changed. A directory other than the
+  // default is the case that matters, since the defaulted resolution could not
+  // express it.
+  const envPath = join(workDir, 'env');
+  writeFileSync(envPath, `FOOTBAG_ENV=staging\nFOOTBAG_DB_DIR=${workDir}\n`);
+
+  // Ends on a closing brace in the first column, not the next brace of any kind:
+  // the function body holds an awk program whose own braces come first.
+  const readEnvMatch = remote.match(/^read_env\(\) \{\n[\s\S]*?^\}$/m);
+  expect(readEnvMatch, 'read_env not found in the remote half').not.toBeNull();
+  const readEnv = readEnvMatch![0];
+
   const harness = join(workDir, 'harness.sh');
   writeFileSync(harness, [
     'set -euo pipefail',
     // systemd is not present in a test; the migration must not depend on the
     // service actually stopping for its data handling to be correct.
     'systemctl() { :; }',
-    `FOOTBAG_DB_DIR=${JSON.stringify(workDir)}`,
+    `ENV_PATH=${JSON.stringify(envPath)}`,
+    readEnv,
     block,
     'echo MIGRATION_BLOCK_DONE',
   ].join('\n'));

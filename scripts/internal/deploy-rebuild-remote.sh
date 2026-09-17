@@ -13,12 +13,26 @@
 set -euo pipefail
 
 # This body is destructive and must never run without the guard chain that
-# the caller prepends into the same shell stream. The production-live guard
-# sets this handshake as its last act; a direct invocation of this file (a
-# refactor mistake or a hand-run copy) has no guard and refuses here.
+# the caller prepends into the same shell stream. Each guard sets its own
+# handshake as its last act; a direct invocation of this file (a refactor
+# mistake or a hand-run copy) has no guard and refuses here.
+#
+# Both are required, separately. One handshake covering two guards is not a check
+# on the guard that does not set it: the caller streams both files in a single
+# `cat`, and dropping the cutover guard from that list is exactly the refactor
+# mistake this exists to catch, yet it would have left the remaining handshake
+# satisfied and the destructive half running on a post-cutover host.
+if [[ "${CUTOVER_GUARD_RAN:-}" != "1" ]]; then
+  echo "ERROR: the deploy guards did not run in this shell: the post-cutover guard" >&2
+  echo "       set no handshake. This remote half must be streamed by" >&2
+  echo "       scripts/deploy-rebuild.sh with its guard scripts prepended;" >&2
+  echo "       direct invocation is refused." >&2
+  exit 1
+fi
 if [[ "${PROD_LIVE_GUARD_RAN:-}" != "1" ]]; then
-  echo "ERROR: the deploy guards did not run in this shell. This remote half must be" >&2
-  echo "       streamed by scripts/deploy-rebuild.sh with its guard scripts prepended;" >&2
+  echo "ERROR: the deploy guards did not run in this shell: the production-live guard" >&2
+  echo "       set no handshake. This remote half must be streamed by" >&2
+  echo "       scripts/deploy-rebuild.sh with its guard scripts prepended;" >&2
   echo "       direct invocation is refused." >&2
   exit 1
 fi

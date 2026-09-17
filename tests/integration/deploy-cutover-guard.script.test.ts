@@ -131,6 +131,35 @@ describe('destructive-deploy cutover guard', () => {
     expect(r.stderr).toMatch(/FOOTBAG_CUTOVER_COMPLETE: present/);
   });
 
+  it('sees a marker whose timestamp is ahead of this clock, rather than the row it superseded', () => {
+    // The database travels: it is copied, snapshotted and restored onto hosts
+    // whose clocks do not agree with the one that wrote the marker, and a
+    // workstation under a hypervisor has its own clock stepped backward at each
+    // time resync. A read that decides what is current by discarding rows dated
+    // later than the reader answers with the superseded row and says nothing,
+    // and here that is the unsafe direction: a post-cutover database would look
+    // pre-cutover and this guard would pass the database-replacing deploy.
+    const p = path.join(tmp, 'db-ahead.db');
+    const ahead = new Date(Date.now() + 3_600_000).toISOString();
+    const db = new BetterSqlite3(p);
+    db.exec(`
+      CREATE TABLE system_config (
+        id TEXT PRIMARY KEY, created_at TEXT NOT NULL, config_key TEXT NOT NULL,
+        value_json TEXT NOT NULL, effective_start_at TEXT NOT NULL
+      );
+    `);
+    db.prepare(
+      `INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at)
+       VALUES ('cfg_reversed', '2026-01-01T00:00:00.000Z', 'post_cutover', '0', '2026-01-01T00:00:00.000Z'),
+              ('cfg_ahead', ?, 'post_cutover', '1', ?)`,
+    ).run(ahead, ahead);
+    db.close();
+
+    const r = runGuard({ ENV_PATH: envFile('env-ahead', true), DB_PATH: p });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/this host is post-cutover/);
+  });
+
   it('treats a superseding reversal row as absent, so a reversed cutover deploys again', () => {
     const r = runGuard({
       ENV_PATH: envFile('env-reversed', false),
@@ -167,5 +196,43 @@ describe('destructive-deploy cutover guard', () => {
     const refused = runGuard({ ENV_PATH: envFile('env-corrupt-marked', true), DB_PATH: corrupt });
     expect(refused.status).toBe(1);
     expect(refused.stderr).toMatch(/this host is post-cutover/);
+  });
+
+  it('treats a marker query that fails as unknown, not as a definite absent', () => {
+    // 'unknown' being distinct from 'absent' is the whole design of the marker
+    // block, and the read used to defeat it: it discarded the query's exit
+    // status, so anything that stopped the read succeeding became a definite
+    // "no marker on this host".
+    //
+    // The readability probe cannot cover this. It asks whether the file is a
+    // readable SQLite database, which is satisfied by a database with an older
+    // schema, by a path pointing at some other SQLite file, and by a database
+    // that is merely locked -- and this guard runs on a host where the
+    // application is using that database.
+    //
+    // The fixture is a valid SQLite database with no marker view, which is the
+    // deterministic form of the locked-database case.
+    const noView = path.join(tmp, 'no-view.db');
+    const db = new BetterSqlite3(noView);
+    db.exec('CREATE TABLE unrelated (x INTEGER);');
+    db.close();
+
+    const r = runGuard({ ENV_PATH: envFile('env-noview-clean', false), DB_PATH: noView });
+    expect(r.stderr).toMatch(/cutover marker could not be read/);
+    // It must say WHY, so an operator is not left guessing at a database the
+    // probe just called readable.
+    expect(r.stderr).toMatch(/no such table|sqlite3 said/);
+
+    // Where 'absent' and 'unknown' actually diverge, and the reason the
+    // distinction is worth keeping. With the env marker set and the database
+    // unread, classifying the failure as 'absent' makes the guard report that
+    // the two markers DISAGREE -- which is false, because one of them was never
+    // read, and it sends the operator to reconcile a conflict that may not
+    // exist. As 'unknown' the database abstains, the env marker carries the
+    // decision alone, and the refusal states the true reason.
+    const marked = runGuard({ ENV_PATH: envFile('env-noview-marked', true), DB_PATH: noView });
+    expect(marked.status).toBe(1);
+    expect(marked.stderr).toMatch(/this host is post-cutover/);
+    expect(marked.stderr).not.toMatch(/markers disagree/);
   });
 });

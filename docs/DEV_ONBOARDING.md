@@ -120,8 +120,10 @@ Claude Code (`@anthropic-ai/claude-code`) is required for all contributors, but 
 
 For the local Docker parity check (§1.13), also install or verify these:
 
-- Docker Desktop with WSL integration (install and verify steps are in §1.13)
-- `docker compose` support
+- Docker: Docker Desktop with WSL integration on Windows, or Docker Engine (`docker-ce`) from
+  Docker's apt repository on native Linux or inside the Mac VM. Install and verify steps are in
+  §1.13, which covers all three.
+- `docker compose` support (the `docker-compose-plugin` package on native Linux)
 - Cursor on Windows
 
 The AWS CLI and Terraform install as part of the AWS deployment steps in AWS_OPERATIONS.md (private GitHub repo), not here.
@@ -620,7 +622,15 @@ Docker is part of the required workflow because the deployed origin is container
 
 Do this before anyone touches AWS.
 
-**Install Docker first (if you have not already).** Install Docker Desktop on Windows, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro. Then verify from the Ubuntu shell:
+**Install Docker first (if you have not already).**
+
+On **native Linux**, install Docker Engine from Docker's own apt repository rather than the distribution's `docker.io` package, which lags and ships an older Compose. Follow Docker's "Install Docker Engine on Ubuntu" instructions for the repository setup, then `sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`. Add yourself to the `docker` group (`sudo usermod -aG docker "$USER"`) and open a new shell so the membership applies; without it every command below needs `sudo`. There is no Docker Desktop in this path and none is needed.
+
+On **Windows**, install Docker Desktop, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro.
+
+On **macOS**, if you are using the Ubuntu VM path from §1.2, install Docker Engine inside the VM as for native Linux.
+
+Then verify from the Ubuntu shell:
 
 ```bash
 docker --version

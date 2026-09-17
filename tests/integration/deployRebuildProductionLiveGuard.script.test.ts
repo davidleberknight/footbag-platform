@@ -186,6 +186,31 @@ describe('production-live guard: real-member tripwire', () => {
     expect(res.stderr).toContain('could not be read');
   });
 
+  // The narrowest and most dangerous case: the file opens, so the readability
+  // probe passes, and only the table question fails. The production service is
+  // still writing to this database when the guard runs, so losing that one
+  // query to a lock is an ordinary event rather than a corrupt-host scenario.
+  // An unanswered question must not read as "no members table".
+  it('refuses when the members-table question itself fails on a readable database', () => {
+    seedMembers({ real: 9 });
+    // Answers the readability probe and fails only the table-existence query.
+    fs.writeFileSync(
+      path.join(fakeBin, 'sqlite3'),
+      '#!/usr/bin/env bash\n' +
+        'for a in "$@"; do\n' +
+        '  case "$a" in *"name=\'members\'"*) exit 5 ;; esac\n' +
+        'done\n' +
+        '# Drop this stub directory, which runGuard prepends, so the rest of the\n' +
+        '# run reaches the real binary wherever the machine keeps it.\n' +
+        'PATH="${PATH#*:}"\n' +
+        'exec sqlite3 "$@"\n',
+      { mode: 0o755 },
+    );
+    const res = runGuard({ FAKE_SSM_VALUE: 'false' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('cannot rule out live member data');
+  });
+
   it('resolves the tripwire database from the host env file when no explicit path is given', () => {
     // The remote half deploys against FOOTBAG_DB_PATH from the host env
     // file, so the tripwire must inspect the same file; a hardcoded-only

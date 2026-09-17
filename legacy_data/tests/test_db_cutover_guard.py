@@ -23,6 +23,7 @@ Run from repo root:
 """
 import sqlite3
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -126,6 +127,48 @@ def test_a_later_zero_row_supersedes_the_marker(tmp_path):
         marker_rows=[
             ("1", "2026-01-01T00:00:00.000Z"),
             ("0", "2026-02-01T00:00:00.000Z"),
+        ],
+    )
+    result = run_guard(db)
+    assert result.returncode == 0
+
+
+def _iso_hours_from_now(hours):
+    stamp = datetime.now(timezone.utc) + timedelta(hours=hours)
+    return stamp.strftime("%Y-%m-%dT%H:%M:%S.") + f"{stamp.microsecond // 1000:03d}Z"
+
+
+def test_refuses_a_marker_dated_ahead_of_the_reading_clock(tmp_path):
+    # The database travels between hosts, and the clock that wrote the marker is
+    # not the clock that reads it: a snapshot restored onto a machine running
+    # behind the writer, or a workstation whose hypervisor steps its clock back at
+    # a time resync, both present a marker dated in the reader's future. Deciding
+    # what is current by discarding those rows answers with the row the marker
+    # superseded and says nothing about having done so, which here means a
+    # post-cutover database reading as a fresh one and a destructive rebuild
+    # proceeding against it.
+    db = tmp_path / "ahead.db"
+    make_db(
+        db,
+        marker_rows=[
+            ("0", "2026-01-01T00:00:00.000Z"),
+            ("1", _iso_hours_from_now(1)),
+        ],
+    )
+    result = run_guard(db)
+    assert result.returncode != 0
+    assert "post-cutover" in result.stderr
+
+
+def test_a_reversal_dated_ahead_of_the_reading_clock_still_supersedes(tmp_path):
+    # The same rule in the permissive direction: the last row appended wins
+    # whichever side of the reader's clock it was written on.
+    db = tmp_path / "ahead-reversed.db"
+    make_db(
+        db,
+        marker_rows=[
+            ("1", "2026-01-01T00:00:00.000Z"),
+            ("0", _iso_hours_from_now(1)),
         ],
     )
     result = run_guard(db)

@@ -51,7 +51,8 @@
 #   --env staging|production|both   Environment(s) to act on. Default: both.
 #   --key-file <path>               File holding the key, no trailing newline.
 #                                   Optional; prompts when omitted.
-#   --profile <p>                   AWS profile; else ambient AWS_PROFILE.
+#   --profile <p>                   AWS profile; else the identity this run
+#                                   settles and proves.
 #   --keep-key-file                 Do not shred the key file after storing.
 set -euo pipefail
 
@@ -107,17 +108,33 @@ done
 
 [[ -n "$ACTION" ]] || { echo "ERROR: name an action: status or store." >&2; usage; }
 
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+
+# Validated by the shared check, then mapped. `both` is an accepted value here
+# because one key currently serves both environments, which makes it the
+# ordinary case rather than a shortcut.
+REQUIRE_TARGET_FLAG="--env"
+require_target "$TARGET_ENV" staging production both || exit 2
+
 case "$TARGET_ENV" in
-  staging|production) ENVS=("$TARGET_ENV") ;;
-  both)               ENVS=(staging production) ;;
-  *)
-    echo "ERROR: --env must be 'staging', 'production' or 'both' (got '$TARGET_ENV')." >&2
-    exit 2
-    ;;
+  both) ENVS=(staging production) ;;
+  *)    ENVS=("$TARGET_ENV") ;;
 esac
 
 AWS_ARGS=()
-[[ -n "$AWS_PROFILE_ARG" ]] && AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
+if [[ -n "$AWS_PROFILE_ARG" ]]; then
+  AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
+else
+  # No profile named on the command line, so the identity is the one the shared
+  # library settles and proves: whatever this shell already carries, or the
+  # operator profile. Nothing here asks the operator to export anything.
+  aws_profile_ensure || exit 1
+fi
 
 # Terraform seeds every operator-supplied secret shell with this prefix, and the
 # live adapter treats a value carrying it as "not configured" rather than

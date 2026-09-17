@@ -161,6 +161,37 @@ describe('the credential gate: what it must refuse', () => {
     expect(res.stderr).toMatch(/stdin-consuming file writer/);
   });
 
+  it('refuses a bare cat forwarding the whole credential file into the remote shell', () => {
+    // sudo consumes exactly one line; the remote bash inherits the rest and runs
+    // each of them as a root shell command. A bare cat sends every line the
+    // operator redirected in, so a credential file holding anything after the
+    // password executes on a deployed host.
+    const res = inFixtureRepo(
+      script('{\n  cat\n  cat body.sh\n} | ssh host \'sudo -k -S -p "" bash\''),
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/forwards every line of the operator credential file/);
+  });
+
+  it('accepts a bare cat in a script that pipes no credential to sudo', () => {
+    // The hazard is the pairing, not the word. A file with no sudo -S in it has
+    // no password line for the cat to over-read past.
+    const res = inFixtureRepo(script('{ cat; } | ssh host \'wc -l\''));
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('accepts the $(cat) reassignment the rule requires for containers', () => {
+    // "pipe via -T stdin and reassign from $(cat) inside the container" is the
+    // prescribed form, and it is not a bare cat forwarding a stream onward.
+    const res = inFixtureRepo(
+      script(
+        'printf \'%s\\n\' "$SUDO_PASS" | ssh host \'sudo -k -S -p "" bash\'\n' +
+          'docker compose exec -T app sh -c \'SECRET=$(cat); use "$SECRET"\'',
+      ),
+    );
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
   it.each([
     ['-t', "ssh -t host 'sudo bash'"],
     ['-tt', "ssh -tt host 'sudo bash'"],
@@ -447,6 +478,30 @@ describe('the credential gate: forms only the current gate catches', () => {
     // findings waved through.
     const res = inFixtureRepo(script('TAR_OPTS=(-t -v)\ntar "${TAR_OPTS[@]}" archive.tar'));
     expect(res.exitCode).toBe(0);
+  });
+
+  it.each([
+    ['passwd status under sudo', 'sudo passwd -S someaccount'],
+    ['a long-form status flag is unaffected', 'sudo passwd --status someaccount'],
+    ['another command whose -S is its own', 'sudo lvs -S "lv_name=root"'],
+    ['an -S belonging to a command reached through sudo -u', 'sudo -u root passwd -S someaccount'],
+  ])('accepts an -S that is not sudo\'s own flag: %s', (_label, line) => {
+    // -S has to belong to sudo for sudo to be reading a password from stdin at
+    // all. Collecting any line carrying both a sudo word and an -S refused
+    // passwd's status flag, and the remedy it demanded was incoherent as well
+    // as wrong: adding -k to sudo does not change what passwd's -S means. The
+    // workaround was to spell it --status, which is not portable and is the
+    // wrong reason to choose a flag.
+    const res = inFixtureRepo(script(line));
+    expect(res.exitCode, `expected acceptance for: ${line}\n${res.stderr}`).toBe(0);
+  });
+
+  it('still refuses --stdin on a command that is not sudo', () => {
+    // The narrowing above is deliberately not applied to --stdin. It never
+    // means anything benign: on sudo it is the long form of -S, and on passwd
+    // it is the form that reads a new password from stdin.
+    const res = inFixtureRepo(script('sudo passwd --stdin someaccount'));
+    expect(res.exitCode).toBe(1);
   });
 
   it('does not accept a -k that sudo consumes as the prompt string', () => {

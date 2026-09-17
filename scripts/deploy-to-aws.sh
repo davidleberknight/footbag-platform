@@ -27,8 +27,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 usage() {
   cat <<'USAGE'
 Usage: bash deploy_to_aws.sh [flags]                       (recommended)
-   or: < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-to-aws.sh [flags]
-       (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt)
+   or (staging only): < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-to-aws.sh [flags]
+
+A production deploy runs only through deploy_to_aws.sh, which asks for the typed
+confirmation and takes the host password at the terminal. The leaf scripts refuse
+a production target when no terminal is attached, so there is no direct form.
 
 Default (no flags): code-only — ship code + images, run the post-deploy smoke
 check (not `npm test`, which is the local pre-PR gate — see ALWAYS-ON); the

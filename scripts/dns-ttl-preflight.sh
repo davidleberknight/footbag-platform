@@ -89,6 +89,14 @@ for tool in dig aws; do
   fi
 done
 
+# The AWS identity this run uses, supplied and proved rather than inherited from
+# whichever shell the operator started from. The zone read below is what needs
+# it, and an observation that reports "no records" because nothing could
+# authenticate would read as a zone that is not ready.
+# shellcheck source=lib/aws-profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+aws_profile_ensure || exit 1
+
 # The gate says "from the authoritative nameservers", so the zone's own NS set is
 # what gets asked, not whatever the local resolver has cached. Every one of them
 # is asked: a zone whose delegation includes a server that answers differently,

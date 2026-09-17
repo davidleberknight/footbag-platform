@@ -41,8 +41,21 @@ def db_is_post_cutover(db_path: str) -> bool:
     except sqlite3.Error:
         return False
     try:
+        # The latest recorded marker row, not the system_config_current view. The
+        # view decides what is "in effect now" by discarding rows dated after the
+        # reading clock, which is right for scheduled configuration and wrong for
+        # this latch: a database carrying a marker written on a host whose clock
+        # runs ahead of this one reads as the value that marker superseded, with
+        # nothing said about it. That is the unsafe direction here, because a
+        # post-cutover database would look pre-cutover and a destructive rebuild
+        # would be allowed to proceed against it. Ordering answers which row was
+        # appended last without consulting a clock; the rowid tiebreak covers a
+        # database lacking the table's (config_key, effective_start_at) uniqueness.
         row = con.execute(
-            "SELECT value_json FROM system_config_current WHERE config_key = 'post_cutover'"
+            "SELECT value_json FROM system_config"
+            " WHERE config_key = 'post_cutover'"
+            " ORDER BY effective_start_at DESC, rowid DESC"
+            " LIMIT 1"
         ).fetchone()
     except sqlite3.Error:
         # No system_config table / view: not a platform database in the

@@ -221,7 +221,16 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   #
   # Deleting is deliberately not on the menu. The operator who wants it can say
   # so on the command line, and no prompt default should be able to select it.
-  if (( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 )); then
+  #
+  # Reuse mode is excluded, and it has to be. It ships the local database as it
+  # stands and rebuilds nothing, so it reseeds no media and mints no storage keys,
+  # which makes the question's own premise false there. Worse, the answer had
+  # nowhere to go: --no-media is only meaningful alongside a rebuild, so the
+  # orchestrator refuses it, and a "yes" here killed the run on a flag the operator
+  # never typed, after the typed word and the password. That is the same
+  # start-over-with-a-flag defect this gate was written to remove, reintroduced by
+  # asking in a mode that cannot carry the answer.
+  if (( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 && MODE_REUSE == 0 )); then
     echo "  This rebuild reseeds curated media under new storage keys, so the bytes" >&2
     echo "  need to reach the bucket or the rows it ships point at objects that are" >&2
     echo "  not there. Nothing in the bucket is deleted either way." >&2
@@ -644,9 +653,26 @@ if (( MODE_CODE_ONLY == 1 )) \
   # host's docker group. It has no sqlite3, so the fingerprint is taken with the
   # driver the application itself bundles. Body cat-piped rather than quoted
   # inline, the same way the remote halves travel.
+  #
+  # This is the one connection this entry point opens itself, and it is pinned
+  # like every other privileged connection in the tree. Trust-on-first-connect
+  # here would let a substituted host answer the question the gate below acts on,
+  # and would write that host into the operator's own known_hosts on the way
+  # past. The refusal costs nothing a run would otherwise have had: the deploy
+  # this preflight leads into requires the same pin and refuses without it, so a
+  # workstation with no pin is stopped either way, and stopping here says so with
+  # the helper's own instructions instead of part-way through the hand-off.
+  #
+  # Sourced here rather than at the top because this is the only place the pin is
+  # wanted: the refusals above this point are reached by runs that never open a
+  # connection, and a top-level source would make them depend on a file they have
+  # no use for.
+  # shellcheck source=scripts/lib/ssh-known-hosts.sh
+  source "${SCRIPT_DIR}/scripts/lib/ssh-known-hosts.sh"
+  require_pinned_known_hosts || exit 1
   _fp_js="scripts/internal/host-db-fingerprint.js"
   if [[ -r "$_fp_js" ]]; then
-    _host_fp=$(ssh "$DEPLOY_TARGET" '
+    _host_fp=$(ssh "${FOOTBAG_SSH_PIN_OPTS[@]}" "$DEPLOY_TARGET" '
       c=$(docker ps --filter "name=web" --format "{{.Names}}" 2>/dev/null | head -1)
       [ -n "$c" ] || exit 9
       docker exec -i "$c" node

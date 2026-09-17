@@ -60,5 +60,15 @@ else
   echo "    python3 freestyle/scripts/build_observational_universe_content.py" >&2
   echo "    python3 freestyle/scripts/build_tracked_names_content.py" >&2
   git --no-pager diff --stat -- "${MODULES[@]}" >&2
+  # A local run leaves the regenerated modules in the tree, so the diff is there
+  # to read afterwards. Inside the clean room it is not: that worktree is deleted
+  # on the way out, so what is not printed here is gone with it, and a --stat
+  # names files and line counts without saying what changed. Bounded so a wholly
+  # regenerated module cannot bury the message above it.
+  stale_diff="$(git --no-pager diff -- "${MODULES[@]}")"
+  printf '%s\n' "${stale_diff:0:20000}" >&2
+  if [ "${#stale_diff}" -gt 20000 ]; then
+    echo "  ... diff truncated at 20000 characters." >&2
+  fi
   exit 1
 fi

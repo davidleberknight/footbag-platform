@@ -28,8 +28,11 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-rebuild.sh
-       (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt, selected by DEPLOY_TARGET)
+Usage (staging only): < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-rebuild.sh
+
+A production run has no direct form. It goes through deploy_to_aws.sh, which asks
+for the typed confirmation and takes the host password at the terminal; this
+script refuses a production target when no terminal is attached.
 
 Internal leaf script. End users should run `bash deploy_to_aws.sh` — the
 orchestrator threads the resolved choices to this script via env vars.
@@ -101,6 +104,41 @@ source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
 # shellcheck source=lib/initial-admins.sh
 source "${REPO_ROOT}/scripts/lib/initial-admins.sh"
 
+# shellcheck source=lib/terraform-output.sh
+source "${REPO_ROOT}/scripts/lib/terraform-output.sh"
+
+# Named here rather than relied on through the reader above, which sources it
+# for its own use: this script calls aws_profile_ensure directly, and a file
+# that calls a function should say where it comes from.
+# shellcheck source=lib/aws-profile.sh
+source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+
+# shellcheck source=lib/terminal.sh
+source "${REPO_ROOT}/scripts/lib/terminal.sh"
+
+# A production run stops for a person, and two separate things establish that.
+#
+# The terminal is the load-bearing one. An acknowledgement variable says a word was
+# typed somewhere, once, by somebody, and an operator's shell can hold it and export
+# it into a direct invocation of this leaf, which is exactly the unattended run the
+# gate exists to refuse. Nothing an operator can export satisfies a terminal, so this
+# check is the one a scheduled job, a continuous-integration runner and an agent
+# session all fail, whatever they set. The ack check further down carries the other
+# half: that the wrapper's typed word was answered for THIS run.
+#
+# First, ahead of every other precondition, because this one decides whether the run
+# is allowed to happen at all. Behind the host-key check it would report a missing
+# pin file to a caller who was never entitled to run, which names the wrong problem.
+if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
+  echo "ERROR: a production deploy requires a terminal, and none is attached." >&2
+  echo "       Run: bash deploy_to_aws.sh" >&2
+  echo "       It asks for the typed confirmation and takes the host password at the" >&2
+  echo "       terminal. There is no unattended form of a production deploy, and" >&2
+  echo "       redirecting a credential file in here does not create one: it supplies" >&2
+  echo "       a password without supplying a person." >&2
+  exit 1
+fi
+
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
 # for the rationale (verification against the pinned host-key file, fail-fast
 # on dead targets, keepalives across the long docker-save and rsync streams).
@@ -123,12 +161,13 @@ case "$REMOTE" in
     ;;
 esac
 
-# A production database replacement enters only through the wrapper's typed
-# confirmation, which threads this ack through the environment. A direct
-# invocation of this leaf with piped stdin must not bypass that confirmation
-# (the host-side guards still fire either way). The wrapper clears the variable
-# on entry and sets it only after the word is typed, so it is a handshake
-# between the two halves rather than something an operator's shell can hold.
+# The second half of the production gate, the first being the terminal check above.
+#
+# The ack stays beside that check rather than being replaced by it, because the two
+# carry different information. The terminal says a person is here. This says the
+# wrapper's typed word was answered for THIS run: the wrapper clears the variable on
+# entry and sets it only after the word is typed. Together they say a person was
+# present and that the person agreed.
 if [[ "$FOOTBAG_ENV" == "production" && "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
   echo "ERROR: production database replacement requires the deploy_to_aws.sh confirmation." >&2
   echo "       Run: bash deploy_to_aws.sh — it asks for the typed confirmation and threads" >&2
@@ -161,12 +200,44 @@ fi
 [[ -r "$PROD_LIVE_GUARD" ]] || { echo "ERROR: missing production-live guard: $PROD_LIVE_GUARD" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
 
-HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2; exit}')
+# No `exit` in the awk body, and the last match rather than the first. `exit`
+# there closes the pipe while ssh -G is still writing, ssh takes SIGPIPE, and
+# pipefail then kills this script with status 141 before the empty-value check
+# below can print anything. It survives only because ssh -G's output fits the
+# pipe buffer, which makes it a timing bug rather than a dormant one.
+HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}' | tail -1)
 REMOTE_RELEASE_DIR='/home/footbag/footbag-release'
 LOCAL_DB="$REPO_ROOT/database/footbag.db"
 
 if [[ -z "$HOST_IP" ]]; then
   echo "ERROR: unable to resolve deploy target hostname from ssh config: $REMOTE" >&2
+  exit 1
+fi
+
+# The staging directory above is a literal, and it names the shared account's home.
+# That is only correct while the connecting account IS the shared account. Connect
+# as anyone else and the run deletes and rewrites a directory belonging to another
+# login: either it dies on a raw permission error, after the local rebuild has
+# already been paid for, or it succeeds and destroys whatever that account had
+# staged, then ships from the tree it just overwrote.
+#
+# Refusing is deliberate, and it is a stopgap rather than the answer. The answer is
+# one fixed release location outside anybody's home, which every operator, script and
+# runbook can name; that is a settled decision and separate work. Until it lands, a
+# clear stop beats a destructive success, and beats guessing at the connecting
+# account's own home, which would spread the per-operator shape that decision removes.
+#
+# Current: refuses any connecting account but the shared one.
+# Target:  a fixed release location outside every operator's home, at which point
+#          this check and the literal above both go away.
+REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
+if [[ "$REMOTE_HOME" != "/home/footbag" ]]; then
+  echo "ERROR: this deploy stages into /home/footbag/footbag-release, but the account" >&2
+  echo "       it connects as has its home at '${REMOTE_HOME:-<unresolved>}'." >&2
+  echo "       Refusing: continuing would delete and rewrite a directory belonging to" >&2
+  echo "       a different login, and ship from it." >&2
+  echo "       Run a rebuild deploy as the shared deploy account, or use a code-only" >&2
+  echo "       deploy (bash deploy_to_aws.sh -k), which stages in its own home." >&2
   exit 1
 fi
 
@@ -189,13 +260,16 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # SKIP_SMOKE=yes remains the operator's deliberate override. Mirrors
 # deploy-code.sh.
 if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
-  staging_domain=$(terraform -chdir="$REPO_ROOT/terraform/staging" \
-    output -raw cloudfront_domain 2>/dev/null || true)
+  tf_output_read "$REPO_ROOT/terraform/staging" cloudfront_domain || true
+  staging_domain="$TF_OUTPUT_VALUE"
   STAGING_BASE_URL=""
   [[ -n "$staging_domain" ]] && STAGING_BASE_URL="https://$staging_domain"
   if [[ -z "$STAGING_BASE_URL" ]]; then
-    echo "ERROR: a production deploy first verifies the smoke gate against staging, but the staging address could not be read from 'terraform -chdir=terraform/staging output -raw cloudfront_domain'." >&2
-    echo "       Check that tree is initialised and your AWS profile is configured, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
+    echo "       and the staging address could not be read." >&2
+    tf_output_explain "terraform/staging" cloudfront_domain
+    echo "" >&2
+    echo "       SKIP_SMOKE=yes skips the gate deliberately." >&2
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
@@ -311,7 +385,8 @@ fi
 "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_email_templates.py" --db "${LOCAL_DB}"
 
 echo "==> Preparing remote upload directory..."
-ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf $REMOTE_RELEASE_DIR && mkdir -p $REMOTE_RELEASE_DIR" </dev/null
+ssh "${SSH_OPTS[@]}" "$REMOTE" \
+  "rm -rf '$REMOTE_RELEASE_DIR' && mkdir -p '$REMOTE_RELEASE_DIR'" </dev/null
 
 echo "==> Rsyncing source to host..."
 # /.curated-build/*** ships only when SYNC_MEDIA=yes, set by the -m/--sync-media
@@ -513,8 +588,8 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
 if [[ -z "${SMOKE_BASE_URL:-}" ]]; then
   case "$FOOTBAG_ENV" in
     staging | production)
-      smoke_domain=$(terraform -chdir="$REPO_ROOT/terraform/$FOOTBAG_ENV" \
-        output -raw cloudfront_domain 2>/dev/null || true)
+      tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" cloudfront_domain || true
+      smoke_domain="$TF_OUTPUT_VALUE"
       [[ -n "$smoke_domain" ]] && SMOKE_BASE_URL="https://$smoke_domain"
       ;;
   esac
@@ -528,7 +603,11 @@ elif [[ -z "$SMOKE_BASE_URL" ]]; then
   # skipped; the explicit SKIP_SMOKE=yes override remains. Mirrors
   # deploy-code.sh.
   if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
-    echo "ERROR: no public base URL for $FOOTBAG_ENV. The address is read from 'terraform -chdir=terraform/$FOOTBAG_ENV output -raw cloudfront_domain', so check that tree is initialised and your AWS profile is configured, or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "ERROR: no public base URL for $FOOTBAG_ENV, so the deploy cannot be" >&2
+    echo "       smoke-checked and will not report itself as done." >&2
+    tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_domain
+    echo "" >&2
+    echo "       Or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
@@ -563,12 +642,15 @@ fi
 # of the deployed state without needing tooling on the host.
 if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
   echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
-  MEDIA_BUCKET="$(terraform -chdir="$REPO_ROOT/terraform/$FOOTBAG_ENV" output -raw media_bucket_name 2>/dev/null || true)"
+  tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" media_bucket_name || true
+  MEDIA_BUCKET="$TF_OUTPUT_VALUE"
   if [[ -z "$MEDIA_BUCKET" ]]; then
     echo "ERROR: could not read media_bucket_name from terraform/$FOOTBAG_ENV." >&2
     echo "       The media sync ran, so the rows now reference objects this deploy" >&2
-    echo "       cannot verify. Run 'terraform -chdir=terraform/$FOOTBAG_ENV init' or" >&2
-    echo "       check the workstation's AWS profile, then re-run the check:" >&2
+    echo "       cannot verify." >&2
+    tf_output_explain "terraform/$FOOTBAG_ENV" media_bucket_name
+    echo "" >&2
+    echo "       Then re-run the check:" >&2
     echo "         MEDIA_STORAGE_ADAPTER=s3 MEDIA_STORAGE_S3_BUCKET=<bucket> \\" >&2
     echo "           AWS_REGION=<region> bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
     exit 1
@@ -580,6 +662,11 @@ if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
   # here rather than let the check fail to boot: the boot failure exits 1, which is
   # the check's code for objects being absent, so the operator was told the rows
   # this deploy shipped were broken when nothing had been compared at all.
+  # The fallback reads the workstation's own AWS configuration, so the identity
+  # has to be settled for it to read anything. Cheap to ask again: the library
+  # answers once per run and every terraform read above has already been through
+  # it.
+  aws_profile_ensure || exit 1
   MEDIA_CHECK_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || true)}}"
   if [[ -z "$MEDIA_CHECK_REGION" ]]; then
     echo "ERROR: no AWS region is configured, so the media integrity check cannot run." >&2

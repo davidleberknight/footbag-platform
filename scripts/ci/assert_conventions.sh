@@ -17,6 +17,30 @@ violations=0
 skipped=""
 skipped_count=0
 
+# Which rule each violation belonged to.
+#
+# The gate runs sixty-five checks, prints a progress line for each, and keeps
+# going after a violation so one run reports everything wrong rather than the
+# first thing. The cost is that a failure early on is pushed out of the sixty-line
+# tail the outer runners re-show, and the verdict at the end was a bare count: a
+# reader was told that one rule was violated and never which, with the offending
+# file:line thousands of lines up or gone with a deleted log.
+#
+# Every check passes through `check`, so that is where a violation is attributed:
+# the count is compared against what it was when the previous check started, and
+# any increase belonged to that check.
+current_check=""
+violations_at_check=0
+failed_checks=()
+
+attribute_violations() {
+  if [ -n "$current_check" ] && [ "$violations" -gt "$violations_at_check" ]; then
+    failed_checks+=("$current_check")
+  fi
+  current_check="${1:-}"
+  violations_at_check="$violations"
+}
+
 # Announce a check, and say whether it can run at all.
 #
 # Every check names the paths it reads. Against this repository all of them
@@ -44,6 +68,7 @@ skipped_count=0
 check() {
   local name="$1"
   shift
+  attribute_violations "$name"
   local missing=""
   local target
   for target in "$@"; do
@@ -799,6 +824,23 @@ done
 unset _aws_var
 fi
 
+# The same reasoning one level up: the values in vitest.config.ts only apply if
+# that config is the one in force, and nothing in a worker can tell otherwise.
+# A run that resolves a different config, or none, silently takes vitest's own
+# defaults and reports timeouts at ceilings configured nowhere in this tree. The
+# marker and the refusal that reads it are a pair; either one alone is inert, so
+# the gate holds both rather than trusting the next edit to keep them together.
+if check "the test setup proves this repository's vitest config is in force" vitest.config.ts tests/setup-env.ts; then
+if ! grep -q 'FOOTBAG_VITEST_CONFIG_LOADED' vitest.config.ts; then
+  echo "  FAIL: vitest.config.ts must stamp FOOTBAG_VITEST_CONFIG_LOADED into the worker env" >&2
+  violations=$((violations + 1))
+fi
+if ! grep -q 'FOOTBAG_VITEST_CONFIG_LOADED' tests/setup-env.ts; then
+  echo "  FAIL: tests/setup-env.ts must refuse to run when FOOTBAG_VITEST_CONFIG_LOADED is absent" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: the local runner's gates reach AWS only where they say they do, and the
 # terraform gate initializes into a throwaway data directory.
 # Reason: the same invariant as above, for the half of the tree the TypeScript
@@ -1368,6 +1410,7 @@ fi
 # Both delegated to dedicated checkers so their pattern sets stay readable.
 delegate "synthetic-only identifiers" check_synthetic_identifiers.sh
 delegate "script credential handling" check_script_credentials.sh
+delegate "AWS identity resolution" check_aws_identity.sh
 delegate "append-only triggers present" check_append_only_triggers.sh
 delegate "GitHub Actions SHA-pinning" check_action_pinning.sh
 delegate "container hardening" check_dockerfile_hardening.sh
@@ -1407,13 +1450,89 @@ fi
 # plain words; doc paths and section numbers rot as docs evolve, and finding
 # ids are throwaway. Product structure (glossary §N sections), pipeline phases,
 # user-story slugs, and code identifiers are not doc references and stay.
-# Allowlisted: ".md" named as the file extension the password-leak scanners
-# skip, and the in-repo archive path asserted as a literal string value.
+#
+# Comment spans and describe/it/test titles only, which is what this rule always
+# said it covered and what it did not do. It was a grep over whole files, so it
+# also matched STRING DATA: a filename inside a fixture, an asserted path in a
+# `toContain`. Those are values a test constructs or checks, not a reference a
+# reader would follow, and there is nothing in them to rot.
+#
+# The tell that this was a defect rather than strictness: the allowlist had
+# grown two entries of different kinds. One shields a real comment that names
+# ".md" as the extension a scanner skips, and that one is still needed and still
+# here. The other shielded a plain string value, one literal at a time, which is
+# the shape of a rule patched at the symptom. Scoping the scan correctly removes
+# the need for that second kind entirely.
+#
+# The scanner below is the same one the epoch-label rule under this uses, and the
+# two are deliberately identical: a change to either belongs in both.
 if check "tests/ doc / finding-id references" tests; then
-test_doc_hits=$(grep -rnE '\.md\b|exploration/|\b(DD|US|SC|VC|DM|DG|MP) §|MIGRATION_PLAN|USER_STORIES|DESIGN_DECISIONS|SERVICE_CATALOG|VIEW_CATALOG|DATA_MODEL|DATA_GOVERNANCE|STABILIZATION_PLAN|PHASE_B_LOCK|regression: ?B[0-9]|\bBUG_HUNT\b|\(B[0-9]+\)' tests/ --include='*.ts' \
-  | grep -vE 'documentation \(\.md\)' \
-  | grep -vE "toContain\('exploration/" \
-  || true)
+test_doc_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+doc_re = re.compile(
+    r'\.md\b'
+    r'|exploration/'
+    r'|\b(?:DD|US|SC|VC|DM|DG|MP) §'
+    r'|MIGRATION_PLAN|USER_STORIES|DESIGN_DECISIONS|SERVICE_CATALOG'
+    r'|VIEW_CATALOG|DATA_MODEL|DATA_GOVERNANCE|STABILIZATION_PLAN'
+    r'|PHASE_B_LOCK'
+    r'|regression: ?B[0-9]'
+    r'|\bBUG_HUNT\b'
+    r'|\(B[0-9]+\)'
+)
+# ".md" as the name of a file EXTENSION under discussion, rather than a document
+# being cited. A comment explaining which file types a scanner skips has to be
+# able to say so.
+exempt_re = re.compile(r'documentation \(\.md\)')
+title_re  = re.compile(r"\b(?:describe|it|test)\(\s*(['\"`])(.*?)\1", re.S)
+
+def comment_segments(line, in_block):
+    """Return (list of comment substrings in line, in_block_after_line)."""
+    segs = []
+    i, n = 0, len(line)
+    if in_block:
+        end = line.find('*/')
+        if end == -1:
+            return [line], True
+        segs.append(line[:end])
+        i = end + 2
+    quote = None
+    while i < n:
+        c = line[i]
+        if quote:
+            if c == '\\':
+                i += 2; continue
+            if c == quote:
+                quote = None
+            i += 1; continue
+        if c in ('"', "'", '`'):
+            quote = c; i += 1; continue
+        if c == '/' and i + 1 < n and line[i + 1] == '/':
+            segs.append(line[i + 2:]); return segs, False
+        if c == '/' and i + 1 < n and line[i + 1] == '*':
+            end = line.find('*/', i + 2)
+            if end == -1:
+                segs.append(line[i + 2:]); return segs, True
+            segs.append(line[i + 2:end]); i = end + 2; continue
+        i += 1
+    return segs, False
+
+def flagged(text):
+    if not text or exempt_re.search(text):
+        return False
+    return bool(doc_re.search(text))
+
+for f in sorted(pathlib.Path('tests').rglob('*.ts')):
+    in_block = False
+    for lineno, line in enumerate(f.read_text().splitlines(), 1):
+        segs, in_block = comment_segments(line, in_block)
+        scanned = [' '.join(segs)]
+        scanned += [m.group(2) for m in title_re.finditer(line)]
+        if any(flagged(t) for t in scanned):
+            print(f"{f}:{lineno}: doc reference or finding id in test comment or name")
+PYEOF
+)
 if [ -n "$test_doc_hits" ]; then
   echo "$test_doc_hits" >&2
   echo "  FAIL: test comments/names must describe the contract in plain words, not reference docs, doc-section numbers, or finding ids" >&2
@@ -1889,8 +2008,15 @@ if [ "$skipped_count" -gt 0 ]; then
   fi
 fi
 
+# Flush the last check's attribution before reporting.
+attribute_violations ""
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
+  if [ "${#failed_checks[@]}" -gt 0 ]; then
+    printf '  %s\n' "${failed_checks[@]}" >&2
+    echo "  Each one printed its offending file:line above, before the checks that followed it." >&2
+  fi
   exit 1
 fi
 
