@@ -26,6 +26,12 @@ One file per test on purpose: junk events and known-broken events both assert
 absence, and a single combined test would let either file's coverage vanish
 behind the other's.
 
+A directive whose event is absent from the published set is not a failed
+directive. The platform export drops events left with no disciplines, so an
+override can name a real event that the published artifact does not carry. Those
+are skipped rather than failed, and each test that skips any asserts it still had
+something to check, so skipping cannot empty it out.
+
 Run from repo root:
     python -m pytest legacy_data/tests/test_curated_override_effects.py -v
 """
@@ -183,3 +189,132 @@ def test_merged_names_resolve_to_exactly_one_person():
     assert not wrong, (
         f"{len(wrong)} merged name(s) did not consolidate onto their survivor: "
         + "; ".join(wrong))
+
+
+def _by_legacy_id() -> dict[str, dict]:
+    return {(e.get("legacy_event_id") or "").strip(): e for e in _events()}
+
+
+def test_event_renames_replaced_the_old_key():
+    directives = [r for r in _rows(OVERRIDES / "event_rename.csv")
+                  if (r.get("event_id") or "").strip()]
+    assert directives, "no rename directives, so this test checked nothing"
+
+    keys = {e["event_key"] for e in _events()}
+    wrong = []
+    for r in directives:
+        old, new = r["event_id"].strip(), r["new_event_id"].strip()
+        if old in keys:
+            wrong.append(f"{old} is still a live event key, so the rename did not happen")
+        if new not in keys:
+            wrong.append(f"{new} does not exist, so the rename has no destination")
+    assert not wrong, (
+        f"{len(wrong)} rename problem(s): " + "; ".join(wrong)
+        + ". A rename is proved by both halves: the old key gone and the new one there. "
+        "One half alone is a half-applied rename or a directive naming nothing.")
+
+
+def test_metadata_name_directives_match_the_canonical_event():
+    directives = [r for r in _rows(OVERRIDES / "event_metadata_overrides.csv")
+                  if (r.get("event_name") or "").strip()]
+    assert directives, "no metadata name directives, so this test checked nothing"
+
+    by_legacy = _by_legacy_id()
+    checkable = [r for r in directives if r["event_id"] in by_legacy]
+    assert checkable, (
+        "no name directive names an event in the published set, so this test checked "
+        "nothing. Either the overrides or the published set moved.")
+
+    wrong = []
+    for r in checkable:
+        canonical = by_legacy[r["event_id"]]["event_name"].strip()
+        if canonical != r["event_name"].strip():
+            wrong.append(f"{r['event_id']}: directive {r['event_name']!r} against canonical "
+                         f"{canonical!r}")
+    assert not wrong, (
+        f"{len(wrong)} of {len(checkable)} name directive(s) disagree with the canonical "
+        "event name: " + "; ".join(wrong)
+        + ". Either the directive is stale and should be cleared, or the build is not "
+        "applying it.")
+
+
+def test_type_overrides_match_the_canonical_event_type():
+    directives = _rows(OVERRIDES / "event_type_overrides.csv")
+    assert directives, "no type directives, so this test checked nothing"
+
+    by_legacy = _by_legacy_id()
+    checkable = [r for r in directives if r["event_id"] in by_legacy]
+    assert checkable, (
+        "no type directive names an event in the published set, so this test checked "
+        "nothing.")
+
+    wrong = []
+    for r in checkable:
+        canonical = by_legacy[r["event_id"]]["event_type"].strip()
+        if canonical != r["event_type"].strip():
+            wrong.append(f"{r['event_id']}: want {r['event_type']!r}, canonical carries "
+                         f"{canonical!r}")
+    assert not wrong, (
+        f"{len(wrong)} of {len(checkable)} type override(s) did not reach the canonical "
+        "event: " + "; ".join(wrong))
+
+
+def test_parsing_rule_events_carry_results():
+    # A parsing rule exists because the default parse of that event's source was
+    # wrong or empty. The observable consequence is therefore the opposite of
+    # nothing: the event carries disciplines and placements. This is a weaker
+    # claim than "the rule produced exactly these rows", and it is the strongest
+    # one available without re-running the parse, but it fails loudly if a fixup
+    # stops working and the event silently empties.
+    directives = _rows(OVERRIDES / "event_parsing_rules.csv")
+    assert directives, "no parsing rules, so this test checked nothing"
+
+    by_legacy = _by_legacy_id()
+    disciplines = _rows(CANONICAL / "event_disciplines.csv")
+    results = _rows(CANONICAL / "event_results.csv")
+    disc_keys = {d["event_key"] for d in disciplines}
+    result_counts: dict[str, int] = {}
+    for r in results:
+        result_counts[r["event_key"]] = result_counts.get(r["event_key"], 0) + 1
+
+    checkable = [r for r in directives if r["event_id"] in by_legacy]
+    assert checkable, "no parsing rule names an event in the published set"
+
+    wrong = []
+    for r in checkable:
+        key = by_legacy[r["event_id"]]["event_key"]
+        if key not in disc_keys:
+            wrong.append(f"{r['event_id']} ({r['rule_name']}): {key} carries no discipline")
+        elif not result_counts.get(key):
+            wrong.append(f"{r['event_id']} ({r['rule_name']}): {key} carries no placement")
+    assert not wrong, (
+        f"{len(wrong)} parsing-rule event(s) carry nothing, so the fixup they name is "
+        "producing no results: " + "; ".join(wrong))
+
+
+def test_the_split_merged_teams_rule_left_no_team_artifact():
+    # The one parsing rule whose effect has a shape of its own. Its source format
+    # runs two players onto one line with a bracketed placement between them, and
+    # the rule splits that into one participant per person. The artifact it removes
+    # is the bracket, so its presence in a display name means the merged line
+    # survived the parse.
+    rules = [r for r in _rows(OVERRIDES / "event_parsing_rules.csv")
+             if r["rule_name"] == "split_merged_teams"]
+    assert rules, "no split_merged_teams rule, so this test checked nothing"
+
+    by_legacy = _by_legacy_id()
+    participants = _rows(CANONICAL / "event_result_participants.csv")
+
+    for rule in rules:
+        event = by_legacy.get(rule["event_id"])
+        if event is None:
+            continue
+        rows = [p for p in participants if p["event_key"] == event["event_key"]]
+        assert rows, (
+            f"{event['event_key']} carries no participants, so the split rule's effect "
+            "cannot be observed")
+        artifacts = sorted(p["display_name"] for p in rows
+                           if "[" in p["display_name"] or "]" in p["display_name"])
+        assert not artifacts, (
+            f"{len(artifacts)} participant name(s) in {event['event_key']} still carry the "
+            f"merged-team bracket: {artifacts[:5]}")
