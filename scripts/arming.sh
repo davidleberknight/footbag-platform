@@ -154,6 +154,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # flags first would have its answer overwritten.
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+# The shared firewall check step 4 runs before it hands off to the deploy. It
+# reads live port state and sets a verdict; it never prompts, because the answer
+# here is read from stdin and the sibling script reads its own from the terminal
+# device, and a library that asked would have to pick one.
+# shellcheck source=lib/egress-allowlist.sh
+source "${REPO_ROOT}/scripts/lib/egress-allowlist.sh"
 
 # Every temp file this run creates, removed on any exit path. One handler rather
 # than a trap per step: a second `trap` call REPLACES the first, so a later step
@@ -1000,37 +1006,29 @@ fi
 if (( FROM_STEP <= 4 )); then
   echo "-- step 4: deploy --"
   echo ""
-  # SSH to the host is restricted to the operator CIDRs in this environment's
-  # tfvars. A travelling workstation's address changes, and a rotation between
+  # SSH to the host is restricted to the operator source ranges the firewall
+  # carries. A travelling workstation's address changes, and a rotation between
   # the apply and the deploy strands the deploy part-way through its remote
   # half, which is the worst moment to discover it.
-  EGRESS_IP="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]')" || EGRESS_IP=""
-  if [[ -z "$EGRESS_IP" ]]; then
-    echo "  Could not determine this workstation's egress address (no network answer)."
-    echo "  The deploy needs SSH to $SSH_ALIAS from an allowlisted address."
-  else
-    echo "  This workstation's egress address: $EGRESS_IP"
-    # Fixed-string, and quoted as the list actually writes it. An unanchored
-    # regex here matched far too much: dots match any character, so 1.2.3.4
-    # "passed" against an entry for 51.2.3.4/32 by substring alone, and the
-    # check then reported the address covered when it was not. The deploy
-    # strands part-way through its remote half, which is exactly what this
-    # check exists to prevent.
-    if grep -qF -- "\"$EGRESS_IP/32\"" "$TFVARS_PATH"; then
-      echo "  Found $EGRESS_IP/32 in the operator allowlist."
-    else
-      echo "  $EGRESS_IP/32 is not listed verbatim in operator_cidrs; it may still fall"
-      echo "  inside a configured range. Current operator_cidrs:"
-      sed -n '/operator_cidrs/,/]/p' "$TFVARS_PATH" | sed 's/^/    /'
-      echo ""
-      printf "  Is this address covered? (yes/no): "
-      read -r COVERED
-      if [[ "$COVERED" != "yes" ]]; then
-        echo "Aborted before the deploy. Add today's address to operator_cidrs (add, never" >&2
-        echo "replace, or the standing ranges are lost), terraform apply, then resume with" >&2
-        echo "--from-step 4." >&2
-        exit 1
-      fi
+  #
+  # Asked of the live firewall rather than of the values file, and of the port
+  # the deploy alias will actually use. The shared helper is the whole of the
+  # judgement; what belongs here is what to do about its answer.
+  egress_allowlist_check "$TARGET" "$SSH_ALIAS"
+  printf '%s\n' "$EGRESS_DETAIL" | sed 's/^/  /'
+  if [[ "$EGRESS_VERDICT" != "covered" ]]; then
+    # Both "not covered" and "could not tell" ask. This script used to warn and
+    # carry on when the address lookup failed, which is the one outcome that must
+    # not happen: the address a run cannot resolve is exactly the one the check
+    # exists to doubt.
+    echo ""
+    printf "  Is this address covered? (yes/no): "
+    read -r COVERED
+    if [[ "$COVERED" != "yes" ]]; then
+      echo "Aborted before the deploy. Add today's address to operator_cidrs (add, never" >&2
+      echo "replace, or the standing ranges are lost), terraform apply, then resume with" >&2
+      echo "--from-step 4." >&2
+      exit 1
     fi
   fi
   echo ""

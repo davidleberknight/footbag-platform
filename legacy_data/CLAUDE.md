@@ -97,6 +97,14 @@ records and their loaders belong to the freestyle subtree, not this one: see `fr
   local mirror. Regenerating from a checkout whose crawl predates recently-completed events drops
   them, because the parser skips events whose result pages that crawl never captured. Refresh the
   mirror first, or treat the committed CSVs as source of truth.
+- **A partial dictionary rebuild leaves the curator ledger unapplied.** The corrections in
+  `red_corrections_*.csv` are applied late in the freestyle rebuild, so re-running an earlier loader
+  on its own puts the columns they own back to the values they were correcting. The symptom surfaces
+  much later as a downstream integrity failure whose message blames the ledger, which is usually the
+  file that was already right. Run the whole of `freestyle/run_freestyle.sh` rather than one loader,
+  and when a generated artifact disagrees with the dictionary, check the database against the ledger
+  before regenerating from it: `assert_db_current` in `scripts/_freestyle_db_freshness.py` is what
+  the builders call, and `test_curator_corrections_in_effect.py` is what fails on it.
 - Canonical CSVs are deterministic: LF, UTF-8, sorted. Corrections carry provenance metadata, and
   workbook person visibility follows the platform filter.
 - Name-variant generators are idempotent; person-likeness gates filter non-person rows; no team

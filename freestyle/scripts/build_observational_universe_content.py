@@ -578,6 +578,15 @@ def badge(corpus: str) -> str:
 
 
 def main() -> None:
+    # Before anything is written, and against whichever database this run treats
+    # as the authority. The committed module this produces is read as settled
+    # doctrine, so deriving it from a database the committed inputs no longer
+    # describe publishes a plausible wrong answer rather than failing.
+    sys.path.insert(0, str(REPO / "scripts"))
+    from _freestyle_db_freshness import assert_db_current
+
+    assert_db_current(authority_db_path(), "the observational-universe module")
+
     rows: list[dict] = []
 
     # n_sources corroboration signal (single source ⇒ low_confidence_noise) sourced

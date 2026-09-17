@@ -38,6 +38,13 @@
 # and the pull-request dependency review. Those are named in the summary every
 # run, so the residue is never silently forgotten.
 #
+# And configuration the machine holds outside the home directory. An empty HOME
+# does not deny the SSH client's system-wide config, so `ssh -G` resolves the
+# deploy alias to a real host in here exactly as it does on the workstation.
+# Two tests took their verdict from that and were green here and red on the
+# runner for three pushes running. That class is denied in the shared test
+# declaration, tests/fixtures/machineIsolation.ts, rather than by this worktree.
+#
 # Usage:
 #   scripts/ci/run_clean_room.sh              # what a commit of the current tree would do
 #   scripts/ci/run_clean_room.sh --head       # the last commit, ignoring uncommitted work

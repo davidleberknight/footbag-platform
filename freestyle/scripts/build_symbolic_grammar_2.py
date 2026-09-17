@@ -37,6 +37,9 @@ ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "database" / "footbag.db"
 OUT_DIR = ROOT / "freestyle" / "symbolic_grammar"
 
+sys.path.insert(0, str(ROOT / "scripts"))
+from _freestyle_db_freshness import assert_db_current  # noqa: E402
+
 
 # ─────────────────────────────────────────────────────────────────────────
 # Group definitions (Task A)
@@ -874,6 +877,11 @@ def write_archetype_registry(state: dict) -> int:
 # ─────────────────────────────────────────────────────────────────────────
 
 def main() -> int:
+    # Before anything is written. These CSVs are committed, so an artifact built
+    # from a database the committed inputs no longer describe does not fail: it
+    # is published, and the currency test then reports a diff that reads as
+    # "regenerate and commit", which regenerates the same wrong thing.
+    assert_db_current(DB, "the symbolic-grammar CSVs")
     state = load_ifpa_state()
     write_group_csvs()
     n_memberships = write_membership_csv(state)

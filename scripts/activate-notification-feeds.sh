@@ -72,6 +72,12 @@ AWS_PROFILE_ARG=""
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+# The shared firewall check step 4 runs before it hands off to the deploy. It
+# reads live port state and sets a verdict; the question that follows stays here,
+# because this script reads its answers from the terminal device and its sibling
+# reads them from stdin.
+# shellcheck source=lib/egress-allowlist.sh
+source "${REPO_ROOT}/scripts/lib/egress-allowlist.sh"
 
 TFVAR_NAME="enable_feed_queues"
 
@@ -420,26 +426,18 @@ fi
 if (( FROM_STEP <= 4 )); then
   echo "-- step 4: deploy --"
   echo ""
-  # SSH to the host is restricted to the operator CIDRs in this environment's
-  # tfvars. A travelling workstation's address changes, and a rotation between
+  # SSH to the host is restricted to the operator source ranges the firewall
+  # carries. A travelling workstation's address changes, and a rotation between
   # the apply and the deploy strands the deploy part-way through its remote half.
   #
-  # A lookup that fails answers "unknown", never "covered". Skipping the question
-  # on a failed lookup is the one outcome that must not happen: the address this
-  # check exists to doubt is exactly the one a run cannot resolve, and the deploy
-  # then strands part-way through its remote half with nothing having asked.
-  EGRESS_IP="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]')" || EGRESS_IP=""
-  EGRESS_COVERED=1
-  if [[ -z "$EGRESS_IP" ]]; then
-    echo "  This workstation's egress address could not be resolved, so whether it is"
-    echo "  listed in operator_cidrs is unknown rather than fine."
-    EGRESS_COVERED=0
-  elif ! grep -q "$EGRESS_IP/32" "$TFVARS_PATH"; then
-    echo "  $EGRESS_IP/32 is not listed verbatim in operator_cidrs; it may still fall"
-    echo "  inside a configured range."
-    EGRESS_COVERED=0
-  fi
-  if (( ! EGRESS_COVERED )); then
+  # Asked of the live firewall rather than of the values file. This script used to
+  # ask the values file with an unanchored pattern, so 1.2.3.4 matched an entry
+  # for 51.2.3.4/32 by substring and an uncovered address read as covered.
+  #
+  # A lookup that fails answers "unknown", never "covered", and unknown asks.
+  egress_allowlist_check "$TARGET" "$SSH_ALIAS"
+  printf '%s\n' "$EGRESS_DETAIL" | sed 's/^/  /'
+  if [[ "$EGRESS_VERDICT" != "covered" ]]; then
     if ! confirm_from_tty "  Is this address covered? (yes/no): " "yes"; then
       echo "Aborted before the deploy. Add today's address to operator_cidrs (add," >&2
       echo "never replace), terraform apply, then resume with --from-step 4." >&2

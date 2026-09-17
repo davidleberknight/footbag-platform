@@ -476,6 +476,29 @@ require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
 require_path "compose file"        "$RELEASE_DIR/docker/docker-compose.yml"
 require_path "compose prod file"   "$RELEASE_DIR/docker/docker-compose.prod.yml"
 
+# And that the tree is THIS run's, which existence cannot answer. The sender writes
+# the stamp after its upload finishes, so a transfer that died part way leaves a
+# directory full of the previous run's files and no matching stamp, and this is
+# where that stops. Required rather than defaulted for the same reason the
+# directory is: a default would answer a sender that forgot to stamp by promoting
+# whatever was lying there.
+: "${RELEASE_STAMP:?RELEASE_STAMP must be sent by the calling deploy script}"
+# An absent stamp file is an ordinary outcome here rather than an error, and it is
+# the one the refusal below has the most to say about, so it is read into an empty
+# value and judged there rather than guarded inline.
+found_stamp=""
+if [[ -r "$RELEASE_DIR/.release-stamp" ]]; then
+  found_stamp="$(cat "$RELEASE_DIR/.release-stamp")"
+fi
+if [[ "$found_stamp" != "$RELEASE_STAMP" ]]; then
+  echo "ERROR: ${RELEASE_DIR} does not carry this run's release stamp." >&2
+  echo "       Expected '${RELEASE_STAMP}', found '${found_stamp:-none}'." >&2
+  echo "       Refusing to promote: this tree was not written by this run, so what" >&2
+  echo "       it holds is an earlier release or a transfer that did not finish." >&2
+  echo "       Re-run the deploy; the upload rewrites the tree from scratch." >&2
+  exit 1
+fi
+
 # Parse and check the committed host config without writing anything, which is what
 # the rebuild half does before it stops the service and for the same reason: a typo
 # in a committed value should fail while the stack is still up and the live tree is
@@ -503,7 +526,7 @@ echo "==> Promoting release (preserving env, DB, media)..."
 rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media --exclude=/deployed-from \
   --exclude=/footbag.db --exclude=/footbag.db-wal --exclude=/footbag.db-shm \
-  --exclude=/data --exclude=/.curated-build \
+  --exclude=/data --exclude=/.curated-build --exclude=/.release-stamp \
   "$RELEASE_DIR/" "$LIVE_DIR/"
 chown -R root:root "$LIVE_DIR"
 

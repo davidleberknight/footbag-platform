@@ -73,9 +73,13 @@ out="$(
     printf '%s\n' "$SUDO_PASS"
     cat <<'REMOTE_BASH'
 set -euo pipefail
+# The compose files come from the live install, which is what the running service
+# was started from, rather than from a release staging tree: that tree sits in
+# whichever account last deployed, so naming one account's home locks every other
+# operator out, and the next deploy deletes and rebuilds it.
 json="$(docker compose --env-file /srv/footbag/env \
-  -f /home/footbag/footbag-release/docker/docker-compose.yml \
-  -f /home/footbag/footbag-release/docker/docker-compose.prod.yml \
+  -f /srv/footbag/docker/docker-compose.yml \
+  -f /srv/footbag/docker/docker-compose.prod.yml \
   exec -T web node <<'JS'
 const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
 const members = db.prepare(

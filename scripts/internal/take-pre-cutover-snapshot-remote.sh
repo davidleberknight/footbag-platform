@@ -19,8 +19,14 @@
 # stream that also carries sudo and ssh noise.
 set -euo pipefail
 
-RELEASE_DIR=/home/footbag/footbag-release
-SNAPSHOT="${RELEASE_DIR}/scripts/take-pre-cutover-snapshot.sh"
+# The live install, not a release staging tree. The snapshot script ships with the
+# deploy and is promoted into /srv/footbag along with everything else, so it is
+# there for as long as the host has had a release. A staging tree is the wrong
+# source twice over: it sits in whichever account last deployed, so naming one
+# account's home locks every other operator out, and the next deploy deletes and
+# rebuilds it.
+LIVE_DIR=/srv/footbag
+SNAPSHOT="${LIVE_DIR}/scripts/take-pre-cutover-snapshot.sh"
 
 if [[ ! -r "${SNAPSHOT}" ]]; then
   echo "ERROR: ${SNAPSHOT} is not on this host. It ships with the deploy, so a host" >&2

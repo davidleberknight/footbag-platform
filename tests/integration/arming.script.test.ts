@@ -865,3 +865,109 @@ describe('production-live-marker.sh — refusals and plan', () => {
     expect(res.stdout).not.toMatch(/SecureString/);
   });
 });
+
+/**
+ * What the deploy step does with the firewall check's answer, run rather than
+ * read.
+ *
+ * SSH to the host is restricted to the operator source ranges the firewall
+ * carries, and an address that rotated since the apply strands the deploy
+ * part-way through its remote half. The judgement is the shared helper's and is
+ * proved against a stubbed firewall in its own suite; what belongs here is what
+ * this script does with the answer.
+ *
+ * Synthetic mode returns before step 4, so no run of the script can reach this
+ * block at all; it is sliced out and executed on its own against a stubbed
+ * helper. The unknown-verdict case is the one that could not previously have
+ * existed: this script used to warn and carry straight on to the deploy when it
+ * could not resolve the address, so the run that knew least about it asked
+ * nothing at all.
+ *
+ * The confirmation is read from stdin here rather than from the terminal device,
+ * which is this script's own idiom and the reason the shared helper does not
+ * prompt for either caller.
+ */
+function runEgressCheck(
+  verdict: 'covered' | 'uncovered' | 'unknown',
+  answer: string,
+): RunResult {
+  const script = readFileSync(ARMING, 'utf-8');
+  const start = script.indexOf('  egress_allowlist_check "$TARGET" "$SSH_ALIAS"');
+  const end = script.indexOf('  echo "  Running a CODE-ONLY deploy.');
+  expect(start, 'the firewall check was not found in the script').toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+
+  fileCounter += 1;
+  const harness = join(tmpDir, `egress-${fileCounter}.sh`);
+  writeFileSync(
+    harness,
+    [
+      'set -euo pipefail',
+      'TARGET=production',
+      'SSH_ALIAS=footbag-production',
+      'egress_allowlist_check() {',
+      `  EGRESS_VERDICT=${verdict}`,
+      '  EGRESS_DETAIL="the helper said its piece"',
+      '}',
+      script.slice(start, end),
+      'echo REACHED_THE_DEPLOY',
+    ].join('\n') + '\n',
+  );
+
+  const r = spawnSync('bash', [harness], {
+    cwd: process.cwd(),
+    encoding: 'utf-8',
+    input: `${answer}\n`,
+    ...SPAWN_GUARD,
+  });
+  return { exitCode: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+describe('arming.sh — the operator-address check before the deploy', () => {
+  it('asks on an unknown verdict rather than carrying on to the deploy', () => {
+    const res = runEgressCheck('unknown', 'yes');
+    expect(res.stdout).toMatch(/Is this address covered/);
+    expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('aborts before the deploy when an unknown verdict is not vouched for', () => {
+    const res = runEgressCheck('unknown', 'no');
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
+    expect(res.stderr).toMatch(/Aborted before the deploy/);
+    // The instruction matters as much as the refusal: replacing the list rather
+    // than adding to it is how the standing ranges get lost.
+    expect(res.stderr).toMatch(/add, never/);
+  });
+
+  it('asks when the firewall does not admit the address', () => {
+    const res = runEgressCheck('uncovered', 'yes');
+    expect(res.stdout).toMatch(/Is this address covered/);
+    expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('aborts before the deploy when an uncovered address is not vouched for', () => {
+    const res = runEgressCheck('uncovered', 'no');
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('takes only the word yes, not any other answer', () => {
+    const res = runEgressCheck('uncovered', 'y');
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('asks nothing when the firewall admits the address', () => {
+    const res = runEgressCheck('covered', 'no');
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).not.toMatch(/Is this address covered/);
+    expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('prints what the check found, whatever the verdict', () => {
+    for (const verdict of ['covered', 'uncovered', 'unknown'] as const) {
+      expect(runEgressCheck(verdict, 'yes').stdout).toMatch(/the helper said its piece/);
+    }
+  });
+});

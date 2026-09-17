@@ -235,6 +235,15 @@ fi
 # deploying from a named account then uploads to their own home while root
 # promotes the shared account's -- shipping whatever that account last deployed,
 # and reporting success.
+#
+# Current: the staging tree lives in the connecting account's own home, so the
+#          path varies by operator and both halves are kept in step by passing
+#          the resolved value and by the release stamp below.
+# Target:  one fixed staging location outside every operator's home, group-owned,
+#          that every operator, script, runbook and diagnostic can name. The
+#          stamp is already part of that design; the location is not built. Until
+#          it is, no script may name an account's home, which a conventions check
+#          enforces.
 echo "==> Preparing remote upload directory..."
 REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
 # Absolute, not merely non-empty. This captures the remote shell's whole stdout,
@@ -297,6 +306,25 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/tsconfig.json' \
   --exclude='*' \
   "$REPO_ROOT/" "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
+
+# Stamp the uploaded tree with an identifier only this run knows, and send the same
+# value to the root half, which refuses to promote a tree carrying anything else.
+#
+# Until now the root half checked that five paths existed and nothing more, and the
+# code said so itself: the sender resolves the directory and the root half is handed
+# the resolved value, so the two agree by construction even when the value is wrong,
+# and agreement is not evidence. What that misses is a tree that is real but is not
+# this run's: an upload that died part way and left the previous run's files, or a
+# directory that exists for any reason other than this run having just written it.
+# The stamp is written after the upload for exactly that reason -- an interrupted
+# rsync never reaches it, so the tree it leaves behind cannot be promoted.
+#
+# It is not a lock and does not pretend to be one. Nothing here serialises two
+# deploys; this answers "is this tree mine", which is a question a single operator
+# can get wrong on their own.
+RELEASE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$$-${RANDOM}"
+ssh "${SSH_OPTS[@]}" "$REMOTE" \
+  "printf '%s\n' '$RELEASE_STAMP' > '$REMOTE_RELEASE_DIR/.release-stamp'" </dev/null
 
 # ── Step 3: Build images locally (workstation, where memory is plentiful) ────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build;
@@ -458,6 +486,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   # connecting account's home. Sent rather than assumed, so the half that
   # promotes it and the half that filled it can never name different paths.
   printf 'RELEASE_DIR=%q\n'                  "$REMOTE_RELEASE_DIR"
+  printf 'RELEASE_STAMP=%q\n'                "$RELEASE_STAMP"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'REFRESH_TEST_PERSONAS=%q\n'       "${REFRESH_TEST_PERSONAS:-no}"

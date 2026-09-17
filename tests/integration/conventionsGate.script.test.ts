@@ -167,6 +167,137 @@ describe('the convention gate: rules about src/', () => {
     expectCheckRan(res, 'the test setup isolates AWS credentials');
   });
 
+  it('refuses a machine declaration that has stopped denying the SSH client', () => {
+    // No environment variable can deny it: the client reads a system-wide
+    // configuration as well as the one under the home directory, so an empty
+    // home leaves a spawned script resolving whichever aliases the workstation
+    // happens to define, and the verdict follows the machine rather than the
+    // code. The stub at the front of the search path is the only mechanism, and
+    // it is worth a rule because removing it is invisible on any machine.
+    const res = inFixtureRepo({
+      'tests/setup-env.ts':
+        "import { noMachineState } from './fixtures/machineIsolation';\n" +
+        'Object.assign(process.env, noMachineState(root));\n',
+      'tests/fixtures/machineIsolation.ts':
+        "export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV'];\n" +
+        'export function noMachineState(root) {\n' +
+        '  return { HOME: root, FOOTBAG_MEDIA_DIR: root, FOOTBAG_CURATED_MEDIA_DIR: root };\n' +
+        '}\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('no longer puts a stub ssh at the front of PATH');
+  });
+
+  it('accepts a machine declaration that puts a stub ssh at the front of the path', () => {
+    const res = inFixtureRepo({
+      'tests/setup-env.ts':
+        "import { noMachineState } from './fixtures/machineIsolation';\n" +
+        'Object.assign(process.env, noMachineState(root));\n',
+      'tests/fixtures/machineIsolation.ts':
+        "export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV'];\n" +
+        'export function noMachineState(root) {\n' +
+        "  writeFileSync(join(root, 'ssh'), STUB);\n" +
+        '  return {\n' +
+        '    HOME: root, FOOTBAG_MEDIA_DIR: root, FOOTBAG_CURATED_MEDIA_DIR: root,\n' +
+        '    PATH: `${root}:${process.env.PATH}`,\n' +
+        '  };\n' +
+        '}\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('no longer puts a stub ssh');
+    expectCheckRan(res, 'the test setup isolates the rest of the machine');
+  });
+
+  it('refuses a script that names one account home directory', () => {
+    // Correct only while the connecting account is that account. For anyone else
+    // the run either dies on a permission error or ships from a tree belonging to
+    // a different login, and the rebuild path promoted a database that way.
+    const res = inFixtureRepo({
+      'scripts/deploy-thing.sh': "RELEASE_DIR=/home/someone/footbag-release\necho \"$RELEASE_DIR\"\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("names one account's home directory");
+    expect(res.stderr).toContain('scripts/deploy-thing.sh');
+  });
+
+  it('accepts a release directory the caller resolves and sends', () => {
+    const res = inFixtureRepo({
+      'scripts/deploy-thing.sh':
+        'REMOTE_HOME="$(ssh "$REMOTE" \'printf %s "$HOME"\')"\n' +
+        'RELEASE_DIR="${REMOTE_HOME}/footbag-release"\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'no account home directories named in scripts/');
+  });
+
+  it('keeps the hook-fixture exemption narrow, to that one file', () => {
+    // The literal there is the denied command a hook case asserts on. The
+    // exemption is by filename, so this is what proves it did not widen into a
+    // pattern that would excuse a real script sitting beside it.
+    const res = inFixtureRepo({
+      'scripts/ci/test_hooks.sh': "expect \"$H\" 'cat /home/user/.ssh/config' deny\n",
+      'scripts/deploy-thing.sh': 'RELEASE_DIR=/home/someone/footbag-release\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('scripts/deploy-thing.sh');
+    expect(res.stderr).not.toContain('test_hooks.sh');
+  });
+
+  it('refuses a script that asks the values file whether an address is allowed', () => {
+    // A values file says what was last declared, not what the firewall holds, and
+    // a text match can see neither a containing range nor a source-IP alias. Two
+    // scripts asked it this way and drifted apart in opposite directions; fixing
+    // both would not have stopped a third.
+    const res = inFixtureRepo({
+      'scripts/arm-thing.sh': 'if grep -qF -- "\\"$EGRESS_IP/32\\"" "$TFVARS_PATH"; then :; fi\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('reads the operator allowlist out of a values file');
+    expect(res.stderr).toContain('scripts/arm-thing.sh');
+  });
+
+  it('refuses the same question asked of the allowlist variable by name', () => {
+    const res = inFixtureRepo({
+      'scripts/arm-thing.sh': 'grep -q operator_cidrs "$TFVARS_PATH"\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('reads the operator allowlist out of a values file');
+  });
+
+  it('refuses a script that runs a deploy without asking whether it can connect', () => {
+    // The half that catches the script nobody has written yet: whether this
+    // workstation still reaches the host is the one control that decides whether
+    // the deploy can start at all.
+    const res = inFixtureRepo({
+      'scripts/ship-thing.sh': '  DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" -k\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('without asking whether this workstation can still reach');
+    expect(res.stderr).toContain('scripts/ship-thing.sh');
+  });
+
+  it('accepts a script that runs a deploy and calls the shared check first', () => {
+    const res = inFixtureRepo({
+      'scripts/ship-thing.sh':
+        'source "${REPO_ROOT}/scripts/lib/egress-allowlist.sh"\n' +
+        '  egress_allowlist_check "$TARGET" "$SSH_ALIAS"\n' +
+        '  DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" -k\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'the firewall check before a deploy is live, and is actually called');
+  });
+
+  it('does not read an instruction about a deploy as running one', () => {
+    // The pattern is the assignment-prefixed invocation. A script that prints the
+    // command for an operator to run later is not the one that has to have asked,
+    // and flagging it would push the next author to satisfy the rule with a call
+    // that runs nowhere near a deploy.
+    const res = inFixtureRepo({
+      'scripts/tell-thing.sh': 'echo "  DEPLOY_TARGET=$SSH_ALIAS ./deploy_to_aws.sh"\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
   it('refuses a payment SDK import outside the adapter seam', () => {
     const res = inFixtureRepo({
       'src/services/billing.ts': "import Stripe from 'stripe';\nexport const s = Stripe;\n",

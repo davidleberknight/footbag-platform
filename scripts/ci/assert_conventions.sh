@@ -354,6 +354,90 @@ if [ -n "$missing" ]; then
 fi
 fi
 
+# Rule: no script under scripts/ names one account's home directory.
+# Reason: a literal such as /home/<account>/footbag-release is correct only while
+# the connecting account IS that account. Connect as anyone else and the run either
+# dies on a permission error after the local build has already been paid for, or
+# succeeds and ships from a tree belonging to a different login. Five sites carried
+# that shape at once, across both deploy paths, the cutover snapshot and the persona
+# check, and the one in the rebuild path promoted a database as well as code. Fixing
+# those five would not have stopped the sixth, which is what this check is for. The
+# two correct spellings are a directory the caller resolves and sends to the root
+# half, which scripts/deploy-code.sh models, and the live install at /srv/footbag;
+# neither contains anybody's home.
+# scripts/ci/test_hooks.sh is exempt by name: the literal there is the denied
+# command a hook case asserts on, not a path any script uses.
+if check "no account home directories named in scripts/" scripts; then
+home_scan_status=0
+home_hits="$(grep -rnE '/home/[a-z_][a-z0-9_-]*/' scripts --include='*.sh')" || home_scan_status=$?
+if [ "$home_scan_status" -gt 1 ]; then
+  echo "  FAIL: the account-home scan of scripts/ exited ${home_scan_status}, so it found nothing for a reason other than there being nothing. Refusing rather than reporting a pass it did not earn." >&2
+  violations=$((violations + 1))
+else
+  home_offenders="$(printf '%s\n' "$home_hits" | grep -Ev '^(scripts/ci/test_hooks\.sh:|$)')" || true
+  if [ -n "$home_offenders" ]; then
+    printf '%s\n' "$home_offenders" >&2
+    echo "  FAIL: a script names one account's home directory. Resolve the directory in the caller and send it to the root half (scripts/deploy-code.sh is the model), or name the live install at /srv/footbag." >&2
+    violations=$((violations + 1))
+  fi
+fi
+unset home_scan_status home_hits home_offenders
+fi
+
+# Rule: the operator-address check before a deploy reads the live firewall, and
+# no script asks the Terraform values file instead.
+# Reason: SSH to a deployed host is restricted to the operator source ranges the
+# firewall carries, so whether this workstation can connect is the one control
+# that decides whether the deploy can start at all. Two scripts asked it of the
+# local values file, which says what was last declared rather than what is open,
+# and the two copies had drifted apart in opposite directions: one matched the
+# address as a fixed string but carried on to the deploy when the address lookup
+# failed, the other stopped on a failed lookup but matched as an unanchored
+# regex, so 1.2.3.4 passed against an entry for 51.2.3.4/32 by substring alone.
+# Neither could see that an address fell inside a wider range, and neither could
+# see a source-IP alias. Fixing those two would not have stopped the third, which
+# is what this check is for: the shared judgement lives in
+# scripts/lib/egress-allowlist.sh, and a script that runs a deploy calls it.
+if check "the firewall check before a deploy is live, and is actually called" scripts; then
+egress_scan_status=0
+egress_hits="$(grep -rnE "grep[^#]*(/32|operator_cidrs)" scripts --include='*.sh')" || egress_scan_status=$?
+if [ "$egress_scan_status" -gt 1 ]; then
+  echo "  FAIL: the values-file scan of scripts/ exited ${egress_scan_status}, so it found nothing for a reason other than there being nothing. Refusing rather than reporting a pass it did not earn." >&2
+  violations=$((violations + 1))
+elif [ -n "$egress_hits" ]; then
+  printf '%s\n' "$egress_hits" >&2
+  echo "  FAIL: a script reads the operator allowlist out of a values file. A file says what was last declared, not what the firewall holds, and a text match cannot see a containing range or a source-IP alias. Use egress_allowlist_check from scripts/lib/egress-allowlist.sh." >&2
+  violations=$((violations + 1))
+fi
+
+# The other half: a script that hands off to a deploy asks the question at all.
+# The shape is the assignment-prefixed invocation both callers use, which is what
+# distinguishes running a deploy from printing an instruction about one.
+egress_caller_status=0
+egress_callers="$(grep -rlE '^[[:space:]]*(if[[:space:]]+!?[[:space:]]*)?DEPLOY_TARGET="' scripts --include='*.sh')" || egress_caller_status=$?
+if [ "$egress_caller_status" -gt 1 ]; then
+  echo "  FAIL: the deploy-caller scan of scripts/ exited ${egress_caller_status}, so it found nothing for a reason other than there being nothing." >&2
+  violations=$((violations + 1))
+elif [ -z "$egress_callers" ] && [ "${CONVENTIONS_FIXTURE_TREE:-}" != "1" ]; then
+  # A real checkout has scripts that run a deploy as a step, so a scan matching
+  # none of them has stopped looking where they live rather than found the tree
+  # clean. A fixture tree holds only what the rule under test reads and says so.
+  echo "  FAIL: the deploy-caller scan matched no script at all, so this half of the rule enforced nothing. Its pattern has stopped matching the scripts that run a deploy." >&2
+  violations=$((violations + 1))
+elif [ -n "$egress_callers" ]; then
+  egress_unchecked=""
+  for egress_caller in $egress_callers; do
+    grep -q 'egress_allowlist_check' "$egress_caller" || egress_unchecked="${egress_unchecked} ${egress_caller}"
+  done
+  if [ -n "$egress_unchecked" ]; then
+    echo "  FAIL: these run a deploy without asking whether this workstation can still reach the host:${egress_unchecked}" >&2
+    echo "        Source scripts/lib/egress-allowlist.sh and call egress_allowlist_check before the hand-off." >&2
+    violations=$((violations + 1))
+  fi
+fi
+unset egress_scan_status egress_hits egress_caller_status egress_callers egress_unchecked egress_caller
+fi
+
 # Rule: every static class token in a template has a defining rule in
 # src/public/css/style.css.
 # Reason: an undefined class fails nothing at build or test time and renders
@@ -931,6 +1015,18 @@ for _machine_var in HOME FOOTBAG_ENV FOOTBAG_MEDIA_DIR FOOTBAG_CURATED_MEDIA_DIR
   fi
 done
 unset _machine_var
+# The SSH client is the one surface no environment variable can deny, because
+# `ssh -G` reads the system-wide configuration as well as the one under HOME.
+# An empty home therefore does not reproduce a runner, which is why the clean
+# room could not catch the suite that took its verdict from whichever aliases
+# this machine defines. The declaration answers it by putting a stub ssh at the
+# front of PATH, which every spawn inherits; without that the suite is back to
+# passing or failing according to whose workstation it runs on.
+if ! grep -q "PATH:" tests/fixtures/machineIsolation.ts \
+  || ! grep -q "'ssh'" tests/fixtures/machineIsolation.ts; then
+  echo "  FAIL: tests/fixtures/machineIsolation.ts no longer puts a stub ssh at the front of PATH" >&2
+  violations=$((violations + 1))
+fi
 fi
 
 # Rule: every temporary path a test builds carries the swept prefix.

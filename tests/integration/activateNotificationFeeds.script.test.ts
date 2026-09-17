@@ -248,52 +248,46 @@ describe('activate-notification-feeds.sh — synthetic mode stops before real in
 });
 
 /**
- * The operator-address check in the deploy step, run rather than read.
+ * What the deploy step does with the firewall check's answer, run rather than
+ * read.
+ *
+ * The judgement itself belongs to the shared helper and is proved against a
+ * stubbed firewall in its own suite. What belongs here is the half this script
+ * owns: printing the helper's report, asking on anything short of a clear yes,
+ * and aborting before the deploy when the answer is no.
  *
  * Synthetic mode stops before the deploy, so the block is sliced out of the
- * script and executed on its own against stubs. That is the only way to see what
- * it does with an answer it could not get: the whole point of the check is that
- * SSH to the host is restricted to the operator CIDRs, and an address that has
- * rotated since the apply strands the deploy part-way through its remote half.
- *
- * A failed lookup is the case that matters. It used to skip the question
- * entirely, so the run with the least information about the address asked the
- * fewest questions about it.
+ * script and executed on its own against a stubbed helper. That is the only way
+ * to see what it does with a verdict it could not get, and an unknown verdict is
+ * the case that matters: the run with the least information about the address
+ * must not be the one that asks the fewest questions about it.
  */
 function runEgressCheck(
-  lookup: 'fails' | 'listed' | 'unlisted',
+  verdict: 'covered' | 'uncovered' | 'unknown',
   answer: 'yes' | 'no',
 ): RunResult {
   const script = readFileSync(SCRIPT, 'utf-8');
-  const start = script.indexOf('EGRESS_IP="$(curl');
+  const start = script.indexOf('  egress_allowlist_check "$TARGET" "$SSH_ALIAS"');
   const end = script.indexOf('  echo "  Running a CODE-ONLY deploy.');
-  expect(start, 'the egress check was not found in the script').toBeGreaterThan(-1);
+  expect(start, 'the firewall check was not found in the script').toBeGreaterThan(-1);
   expect(end).toBeGreaterThan(start);
 
   fileCounter += 1;
-  const tfvars = join(tmpDir, `egress-${fileCounter}.tfvars`);
-  writeFileSync(tfvars, 'operator_cidrs = ["203.0.113.7/32"]\n');
-
-  const curlBody =
-    lookup === 'fails'
-      ? 'return 7'
-      : lookup === 'listed'
-        ? "printf '203.0.113.7\\n'"
-        : "printf '198.51.100.22\\n'";
-
   const harness = join(tmpDir, `egress-${fileCounter}.sh`);
   writeFileSync(
     harness,
     [
       'set -euo pipefail',
-      // curl 7 is "could not connect", which is what a captive network or a dead
-      // DNS answer looks like from here.
-      `curl() { ${curlBody}; }`,
+      'TARGET=staging',
+      'SSH_ALIAS=footbag-staging',
+      'egress_allowlist_check() {',
+      `  EGRESS_VERDICT=${verdict}`,
+      '  EGRESS_DETAIL="the helper said its piece"',
+      '}',
       'confirm_from_tty() {',
       '  echo "ASKED"',
       `  [ "${answer}" = "yes" ]`,
       '}',
-      `TFVARS_PATH=${JSON.stringify(tfvars)}`,
       script.slice(start, end),
       'echo REACHED_THE_DEPLOY',
     ].join('\n') + '\n',
@@ -308,33 +302,48 @@ function runEgressCheck(
 }
 
 describe('activate-notification-feeds.sh — the operator-address check before the deploy', () => {
-  it('asks when the address could not be resolved, rather than treating it as covered', () => {
-    const res = runEgressCheck('fails', 'yes');
-    expect(res.stdout).toMatch(/could not be resolved/);
-    expect(res.stdout).toMatch(/unknown rather than fine/);
+  it('asks on an unknown verdict rather than treating it as covered', () => {
+    // The whole reason the helper distinguishes "not covered" from "could not
+    // tell": a run that cannot read the firewall knows less than one that can,
+    // and must not proceed more freely for it.
+    const res = runEgressCheck('unknown', 'yes');
     expect(res.stdout).toMatch(/ASKED/);
+    expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
   });
 
-  it('aborts before the deploy when an unresolved address is not vouched for', () => {
-    const res = runEgressCheck('fails', 'no');
+  it('aborts before the deploy when an unknown verdict is not vouched for', () => {
+    const res = runEgressCheck('unknown', 'no');
     expect(res.exitCode).toBe(1);
     expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
     expect(res.stderr).toMatch(/Aborted before the deploy/);
   });
 
-  it('asks when the address resolved and is not listed', () => {
-    const res = runEgressCheck('unlisted', 'yes');
-    expect(res.stdout).toMatch(/198\.51\.100\.22\/32 is not listed verbatim/);
+  it('asks when the firewall does not admit the address', () => {
+    const res = runEgressCheck('uncovered', 'yes');
     expect(res.stdout).toMatch(/ASKED/);
     expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
   });
 
-  it('asks nothing when the address resolved and is listed', () => {
+  it('aborts before the deploy when an uncovered address is not vouched for', () => {
+    const res = runEgressCheck('uncovered', 'no');
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('asks nothing when the firewall admits the address', () => {
     // The check must stay quiet on the ordinary case, or the question stops
     // carrying information and the operator learns to type through it.
-    const res = runEgressCheck('listed', 'no');
+    const res = runEgressCheck('covered', 'no');
     expect(res.exitCode).toBe(0);
     expect(res.stdout).not.toMatch(/ASKED/);
     expect(res.stdout).toMatch(/REACHED_THE_DEPLOY/);
+  });
+
+  it('prints what the check found, whatever the verdict', () => {
+    // An operator asked to vouch for an address needs to see what was read;
+    // a bare question is one they can only answer by habit.
+    for (const verdict of ['covered', 'uncovered', 'unknown'] as const) {
+      expect(runEgressCheck(verdict, 'yes').stdout).toMatch(/the helper said its piece/);
+    }
   });
 });

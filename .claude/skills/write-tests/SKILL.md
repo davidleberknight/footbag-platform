@@ -167,11 +167,13 @@ So, for every input the test does not itself create:
 - Never assert on a listing of a directory the machine might add to, and never grep the working tree
   when the claim is about what is checked in: `git grep` knows the difference.
 - The shared setup already denies credentials, the home directory, the deployment-environment
-  variable and the media directories. Extend that declaration rather than defending a new file
-  by hand.
+  variable, the media directories and the SSH client. Extend that declaration rather than
+  defending a new file by hand.
 
 `scripts/ci/run_clean_room.sh` is how you check: it runs the suite in a throwaway worktree with an
-empty home and no ambient environment, which is what the runner has.
+empty home and no ambient environment, which is most of what the runner has. It does not deny
+configuration the machine holds outside the home directory, so a suite that reads the SSH client's
+is green in there too; that class is denied in the shared declaration instead.
 
 ### The timing half
 

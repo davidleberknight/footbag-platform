@@ -206,7 +206,6 @@ command -v docker >/dev/null || { echo "ERROR: docker required locally for image
 # below can print anything. It survives only because ssh -G's output fits the
 # pipe buffer, which makes it a timing bug rather than a dormant one.
 HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}' | tail -1)
-REMOTE_RELEASE_DIR='/home/footbag/footbag-release'
 LOCAL_DB="$REPO_ROOT/database/footbag.db"
 
 if [[ -z "$HOST_IP" ]]; then
@@ -214,32 +213,43 @@ if [[ -z "$HOST_IP" ]]; then
   exit 1
 fi
 
-# The staging directory above is a literal, and it names the shared account's home.
-# That is only correct while the connecting account IS the shared account. Connect
-# as anyone else and the run deletes and rewrites a directory belonging to another
-# login: either it dies on a raw permission error, after the local rebuild has
-# already been paid for, or it succeeds and destroys whatever that account had
-# staged, then ships from the tree it just overwrote.
+# The staging directory lives in the connecting account's own home, so it is a
+# different path for every operator. Resolve it once here and use that one value for
+# the upload and for the root-side promotion, exactly as the code deploy does. The
+# root half cannot derive it: it runs as root, so a `~` there names root's home, and
+# a literal there names whichever account the literal was written for.
 #
-# Refusing is deliberate, and it is a stopgap rather than the answer. The answer is
-# one fixed release location outside anybody's home, which every operator, script and
-# runbook can name; that is a settled decision and separate work. Until it lands, a
-# clear stop beats a destructive success, and beats guessing at the connecting
-# account's own home, which would spread the per-operator shape that decision removes.
+# This script used to carry that literal and refuse any connecting account but the
+# shared one, which stopped a destructive success at the cost of locking a named
+# operator out of the rebuild path entirely.
 #
-# Current: refuses any connecting account but the shared one.
-# Target:  a fixed release location outside every operator's home, at which point
-#          this check and the literal above both go away.
+# Current: the staging tree lives in the connecting account's own home, so the
+#          path varies by operator and both halves are kept in step by passing
+#          the resolved value and by the release stamp below.
+# Target:  one fixed staging location outside every operator's home, group-owned,
+#          that every operator, script, runbook and diagnostic can name. The
+#          stamp is already part of that design; the location is not built. Until
+#          it is, no script may name an account's home, which a conventions check
+#          enforces.
 REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
-if [[ "$REMOTE_HOME" != "/home/footbag" ]]; then
-  echo "ERROR: this deploy stages into /home/footbag/footbag-release, but the account" >&2
-  echo "       it connects as has its home at '${REMOTE_HOME:-<unresolved>}'." >&2
-  echo "       Refusing: continuing would delete and rewrite a directory belonging to" >&2
-  echo "       a different login, and ship from it." >&2
-  echo "       Run a rebuild deploy as the shared deploy account, or use a code-only" >&2
-  echo "       deploy (bash deploy_to_aws.sh -k), which stages in its own home." >&2
+# Absolute, not merely non-empty. This captures the remote shell's whole stdout, so
+# a host whose profile prints a banner or a version-manager line for a
+# non-interactive shell returns that text with the path glued to the end of it.
+# Emptiness is the case that never happens; a relative path built from a banner is
+# the one that does, and it survives every check downstream because both halves are
+# handed the same wrong value and therefore agree.
+if [[ -z "$REMOTE_HOME" || "$REMOTE_HOME" != /* ]]; then
+  echo "ERROR: could not resolve the home directory of the deploy account on $REMOTE." >&2
+  echo "       Refusing rather than guessing: the upload and the promotion must name" >&2
+  echo "       the same directory, and a guess that is wrong ships somebody else's" >&2
+  echo "       release over the live install, database and all." >&2
+  echo "       Expected an absolute path. A host that prints a banner or a version" >&2
+  echo "       manager's output for a non-interactive shell returns that text too;" >&2
+  echo "       silence it for non-interactive logins and re-run." >&2
   exit 1
 fi
+REMOTE_RELEASE_DIR="${REMOTE_HOME}/footbag-release"
+echo "    staging directory: ${REMOTE_RELEASE_DIR}"
 
 echo "==> WARNING: this deploy will REPLACE the live host database from scratch."
 # The address goes to stderr, not stdout. ssh-known-hosts.sh records that the
@@ -421,6 +431,17 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --exclude='*' \
   "$REPO_ROOT/" "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
 
+# Stamp the uploaded tree with an identifier only this run knows, and send the same
+# value to the root half, which refuses to promote a tree carrying anything else.
+# Written after the upload, so a transfer that died part way leaves a directory the
+# root half will not promote. It matters more here than on the code path: this
+# promotion replaces the live database as well as the code, so a tree that is real
+# but is not this run's costs the data too. It is not a lock and does not pretend
+# to be one; it answers "is this tree mine", which one operator can get wrong alone.
+RELEASE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$$-${RANDOM}"
+ssh "${SSH_OPTS[@]}" "$REMOTE" \
+  "printf '%s\n' '$RELEASE_STAMP' > '$REMOTE_RELEASE_DIR/.release-stamp'" </dev/null
+
 # ── Build images locally (workstation, where memory is plentiful) ──────────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build.
 
@@ -562,6 +583,8 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
 # sha256:[0-9a-f]{64} tokens and contain no shell metacharacters.
 {
   printf '%s\n' "$SUDO_PASS"
+  printf 'RELEASE_DIR=%q\n'                  "$REMOTE_RELEASE_DIR"
+  printf 'RELEASE_STAMP=%q\n'                "$RELEASE_STAMP"
   printf 'EXPECTED_WEB_IMAGE_LAYERS=%q\n'    "$WEB_IMAGE_LAYERS"
   printf 'EXPECTED_WORKER_IMAGE_LAYERS=%q\n' "$WORKER_IMAGE_LAYERS"
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"

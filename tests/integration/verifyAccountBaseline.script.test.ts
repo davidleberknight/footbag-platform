@@ -34,6 +34,30 @@ interface Estate {
   rootMfa?: string;
   rootKeys?: string;
   users?: string | null;
+  /** Whether the break-glass user still holds an active key. */
+  breakGlassActive?: boolean;
+  /** Whether each runtime role's trust policy still names it; null is unreadable. */
+  trustsStaging?: boolean | null;
+  trustsProduction?: boolean | null;
+}
+
+const OPERATOR = 'footbag-operator';
+
+function trustDocument(names: boolean): string {
+  return JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [
+      {
+        Effect: 'Allow',
+        Principal: {
+          AWS: names
+            ? [`arn:aws:iam::111122223333:user/${OPERATOR}`, 'arn:aws:iam::111122223333:user/src']
+            : ['arn:aws:iam::111122223333:user/src'],
+        },
+        Action: 'sts:AssumeRole',
+      },
+    ],
+  });
 }
 
 let workDir: string;
@@ -55,6 +79,9 @@ const HEALTHY: Required<Estate> = {
   rootMfa: '1',
   rootKeys: '0',
   users: 'footbag-operator',
+  breakGlassActive: true,
+  trustsStaging: true,
+  trustsProduction: true,
 };
 
 function awsStub(estate: Estate): string {
@@ -97,8 +124,29 @@ function awsStub(estate: Estate): string {
       )}`,
       '    ;;',
       `  list-users) ${e.users === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.users)}`} ;;`,
-      "  list-access-keys) printf 'AKIAEXAMPLE\\tActive\\t2026-03-13T00:00:00Z\\n' ;;",
+      // Two different calls land on this arm. The per-user inventory asks for
+      // every key with its dates; the break-glass check asks only for the Active
+      // ones, and is told apart by `Active` appearing in its query.
+      '  list-access-keys)',
+      '    if [[ "$*" == *Active* ]]; then',
+      `      ${e.breakGlassActive === false ? "printf ''" : "printf 'AKIAEXAMPLE\\n'"}`,
+      '    else',
+      "      printf 'AKIAEXAMPLE\\tActive\\t2026-03-13T00:00:00Z\\n'",
+      '    fi',
+      '    ;;',
       '  get-access-key-last-used) printf \'2026-09-16T00:00:00Z\\n\' ;;',
+      '  get-role)',
+      `    if [[ "$*" == *footbag-staging-app-runtime* ]]; then ${
+        e.trustsStaging === null
+          ? 'exit 1'
+          : `printf '%s' ${JSON.stringify(trustDocument(e.trustsStaging !== false))}`
+      }; fi`,
+      `    if [[ "$*" == *footbag-production-app-runtime* ]]; then ${
+        e.trustsProduction === null
+          ? 'exit 1'
+          : `printf '%s' ${JSON.stringify(trustDocument(e.trustsProduction !== false))}`
+      }; fi`,
+      '    ;;',
       'esac',
       'exit 0',
     ].join('\n'),
@@ -260,5 +308,67 @@ describe('verify-account-baseline.sh — how it behaves', () => {
     const r = run({}, ['--nope']);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain("unknown argument '--nope'");
+  });
+});
+
+/**
+ * The emergency identity, and the two trust policies the current operator path
+ * runs through.
+ *
+ * These read the opposite way round from every check above: what is asserted is
+ * that something is still THERE. The IAM user is retained deliberately as the
+ * break-glass route, kept unfederated so that a failure of the identity provider
+ * cannot take the normal route and the emergency route down with it, and
+ * federation is added beside it rather than in place of it. So its absence is
+ * the finding.
+ *
+ * The trust policies are the pair that strands everyone. Both name that user by
+ * literal ARN and the chained runtime profiles resolve through them, and a
+ * recreated user is a different principal, so removing an entry is not undone by
+ * putting the user back. Nothing else in this tree reads them, which is why they
+ * are checked here rather than left to surface as a deploy failing weeks later.
+ */
+describe('verify-account-baseline.sh — the break-glass identity', () => {
+  it('passes when the key is active and both policies still name it', () => {
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/footbag-operator holds an active access key/);
+    expect(r.stdout).toMatch(/footbag-staging-app-runtime still trusts/);
+    expect(r.stdout).toMatch(/footbag-production-app-runtime still trusts/);
+  });
+
+  it('fails when the break-glass user holds no active key', () => {
+    // A deactivated key is not a way back in, and it reads as present to
+    // anything that only counts rows.
+    const r = run({ breakGlassActive: false });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/holds no active access key/);
+  });
+
+  it('fails when the staging runtime role no longer names it', () => {
+    const r = run({ trustsStaging: false });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/footbag-staging-app-runtime no longer names/);
+  });
+
+  it('fails when the production runtime role no longer names it', () => {
+    // Checked separately from staging: the operator path runs through both, and
+    // one of them passing says nothing about the other.
+    const r = run({ trustsProduction: false });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/footbag-production-app-runtime no longer names/);
+  });
+
+  it('fails when a trust policy cannot be read at all, rather than assuming it', () => {
+    const r = run({ trustsProduction: null });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read the trust policy/);
+  });
+
+  it('says a recreated user does not restore a removed trust entry', () => {
+    // The fact that decides whether this is a five-minute fix or an outage, and
+    // the one a reader is most likely to get wrong under pressure.
+    const r = run({ trustsStaging: false });
+    expect(r.stdout + r.stderr).toMatch(/recreated\s*\n?\s*user is a different principal/);
   });
 });

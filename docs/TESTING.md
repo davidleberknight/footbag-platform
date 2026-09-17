@@ -64,9 +64,9 @@ The timing half: an assertion pinned to the single outcome an idle machine produ
 What follows from it:
 
 - Give the test its own input. Write the file, stub the binary, pass the path, set the variable. A default that resolves to the developer's machine is not an input the test owns.
-- Where a whole class of input would otherwise be inherited, deny it once in the shared setup rather than per file. `tests/fixtures/awsIsolation.ts` does this for credentials and `tests/fixtures/machineIsolation.ts` for the home directory, the deployment-environment variable, and the media directories. Any single file remembering to isolate itself is a rule the next file can forget.
+- Where a whole class of input would otherwise be inherited, deny it once in the shared setup rather than per file. `tests/fixtures/awsIsolation.ts` does this for credentials and `tests/fixtures/machineIsolation.ts` for the home directory, the deployment-environment variable, the media directories, and the SSH client, which is denied with a stub `ssh` at the front of `PATH` because no environment variable can override a system-wide ssh config. Any single file remembering to isolate itself is a rule the next file can forget.
 - Assert the contract, not the one manifestation of it the author's machine produced.
-- Before a push, `scripts/ci/run_clean_room.sh` runs the suite in a throwaway worktree with an empty home and no ambient environment, which is the only way to see the suite as the runner sees it.
+- Before a push, `scripts/ci/run_clean_room.sh` runs the suite in a throwaway worktree with an empty home and no ambient environment, which is the closest local view of what the runner sees. It is not complete cover: configuration a machine holds outside the home directory survives it, and the SSH client is the case that proved it, resolving the deploy alias to a real host under an empty home and costing three red pushes before the shared declaration denied it.
 
 ---
 

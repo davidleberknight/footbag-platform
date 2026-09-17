@@ -49,6 +49,11 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 
 AWS_BIN="${ACCOUNT_BASELINE_AWS_BIN:-aws}"
+# The emergency identity, and the two roles whose trust policies name it. Both
+# are checked below because nothing else in the tree watches either, and losing
+# either one strands every operator on a path that has no replacement yet.
+BREAK_GLASS_USER="footbag-operator"
+RUNTIME_ROLES=("footbag-staging-app-runtime" "footbag-production-app-runtime")
 PROFILE=""
 QUIET=0
 
@@ -235,6 +240,48 @@ else
   note "suspected exposure, use from an unexpected source or region, or a key"
   note "idle long enough that its existence is no longer justified"
 fi
+
+# ── 7. The break-glass identity, and the two paths that depend on it ─────────
+#
+# The section above reports every key; this one asserts the three things whose
+# ABSENCE is the finding, which is the opposite direction and the reason it is
+# separate.
+#
+# The design retains this IAM user deliberately as the emergency identity: the
+# one directly authenticated way in, kept unfederated so a failure of the
+# identity provider cannot take the normal route and the emergency route down
+# together. Federation is added beside it, never in place of it. So a run that
+# finds no active key here has found the emergency route gone.
+#
+# The two runtime trust policies name that user by literal ARN, and the chained
+# runtime profiles resolve through them. Removing either entry cannot be undone
+# by recreating the user, because a recreated user has a different principal.
+# Nothing else in this tree reads those policies, which is why they are here
+# rather than left to surface as a deploy failing weeks later.
+echo ""
+echo "Break-glass identity"
+BG_ROWS="$(aws_q iam list-access-keys --user-name "$BREAK_GLASS_USER" \
+  --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text || true)"
+if [[ -z "$BG_ROWS" || "$BG_ROWS" == "None" ]]; then
+  fail "${BREAK_GLASS_USER} holds no active access key, or could not be read"
+  note "it is the way back in when the federated path itself is what has failed"
+else
+  pass "${BREAK_GLASS_USER} holds an active access key"
+fi
+
+for role in "${RUNTIME_ROLES[@]}"; do
+  TRUST="$(aws_q iam get-role --role-name "$role" \
+    --query 'Role.AssumeRolePolicyDocument' --output json || true)"
+  if [[ -z "$TRUST" ]]; then
+    fail "${role}: could not read the trust policy"
+  elif printf '%s' "$TRUST" | grep -qF ":user/${BREAK_GLASS_USER}"; then
+    pass "${role} still trusts ${BREAK_GLASS_USER}"
+  else
+    fail "${role} no longer names ${BREAK_GLASS_USER} in its trust policy"
+    note "the chained runtime profiles resolve through this, and a recreated"
+    note "user is a different principal, so this is not undone by recreating it"
+  fi
+done
 
 echo ""
 if (( FINDINGS == 0 )); then

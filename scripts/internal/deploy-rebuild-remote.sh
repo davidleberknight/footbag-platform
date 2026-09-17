@@ -39,7 +39,16 @@ fi
 
 LIVE_DIR=/srv/footbag
 ENV_PATH=/srv/footbag/env
-RELEASE_DIR=/home/footbag/footbag-release
+# The caller sends the directory it uploaded to, because that is the connecting
+# account's home and differs per operator. A literal here would promote whatever
+# the named account happened to hold, which for anyone but that account is somebody
+# else's release, promoted over the live install with its database.
+#
+# Required, with no default, for the same reason FOOTBAG_ENV and the image-layer
+# variables below are. A default cannot distinguish a caller that never sent the
+# value from one that sent an empty one, so it answers a sender bug by silently
+# promoting a directory nobody named.
+: "${RELEASE_DIR:?RELEASE_DIR must be sent by the calling deploy script}"
 NEW_DB="$RELEASE_DIR/database/footbag.db"
 
 # The account the application containers run as. It has to match the image's
@@ -270,6 +279,30 @@ require_path "uploaded DB"        "$NEW_DB"
 require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
 require_path "compose file"        "$RELEASE_DIR/docker/docker-compose.yml"
 require_path "compose prod file"   "$RELEASE_DIR/docker/docker-compose.prod.yml"
+
+# And that the tree is THIS run's, which existence cannot answer. The sender writes
+# the stamp after its upload finishes, so a transfer that died part way leaves a
+# directory full of the previous run's files and no matching stamp. This promotion
+# replaces the live database as well as the code, so promoting a tree that is real
+# but is not this run's costs the data too. The same block stands in the code half;
+# neither remote body can source a library, so it is duplicated deliberately and a
+# parity case holds the two together.
+: "${RELEASE_STAMP:?RELEASE_STAMP must be sent by the calling deploy script}"
+# An absent stamp file is an ordinary outcome here rather than an error, and it is
+# the one the refusal below has the most to say about, so it is read into an empty
+# value and judged there rather than guarded inline.
+found_stamp=""
+if [[ -r "$RELEASE_DIR/.release-stamp" ]]; then
+  found_stamp="$(cat "$RELEASE_DIR/.release-stamp")"
+fi
+if [[ "$found_stamp" != "$RELEASE_STAMP" ]]; then
+  echo "ERROR: ${RELEASE_DIR} does not carry this run's release stamp." >&2
+  echo "       Expected '${RELEASE_STAMP}', found '${found_stamp:-none}'." >&2
+  echo "       Refusing to promote: this tree was not written by this run, so what" >&2
+  echo "       it holds is an earlier release or a transfer that did not finish." >&2
+  echo "       Re-run the deploy; the upload rewrites the tree from scratch." >&2
+  exit 1
+fi
 
 # Runtime AWS credential files must exist on the host for the source-profile +
 # AssumeRole chain. Without these the app cannot assume the runtime role and
@@ -1164,7 +1197,7 @@ echo "    Promoting release into $LIVE_DIR ..."
 # exclusion the delete pass removes it here, and a run that fails anywhere
 # between leaves the host with no record at all, which is precisely when someone
 # needs to know what is on it.
-rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data --exclude=/.curated-build --exclude=/deployed-from "$RELEASE_DIR/" "$LIVE_DIR/"
+rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data --exclude=/.curated-build --exclude=/deployed-from --exclude=/.release-stamp "$RELEASE_DIR/" "$LIVE_DIR/"
 
 echo "    Replacing live DB..."
 mkdir -p "$(dirname "$DB_PATH")"

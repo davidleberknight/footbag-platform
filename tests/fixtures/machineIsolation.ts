@@ -12,7 +12,7 @@
  * branch where the contract breaks is unreachable on the machine that holds
  * those files.
  *
- * Three surfaces, each with its own reason:
+ * Four surfaces, each with its own reason:
  *
  * `HOME` is where operator credentials live. Several scripts a test spawns
  * default a key or a credential file to a path beneath it, so a test that does
@@ -31,10 +31,27 @@
  * same per-file arrangement that failed for credentials. Pointed at a throwaway
  * directory by default, forgetting is no longer possible.
  *
+ * The SSH client's configuration is the surface `HOME` does not reach, and it
+ * cost three red pushes to find. Sixteen operator scripts refuse to run unless
+ * the deploy alias resolves, and they ask the question by running `ssh -G`,
+ * which reads the system-wide configuration as well as the one under `HOME`. On
+ * a maintainer's workstation the alias resolves and the script proceeds; on a
+ * runner nothing defines it and the script exits at the guard, so two cases
+ * asserting what the script says afterwards passed here and failed there. An
+ * empty `HOME` does not reproduce it, which is why the clean-room gate, the one
+ * tool built for exactly this, would have passed too. There is no environment
+ * variable that overrides a system-wide ssh config, so the only way to deny it
+ * is to deny the binary: a stub `ssh` on the front of `PATH`, which every spawn
+ * inherits. It answers `-G` the way a machine holding no configuration for the
+ * name answers, and refuses to connect at all, which costs nothing legitimate
+ * because a test reaching a deployed host is already forbidden. A suite that
+ * needs an alias to resolve says so by putting its own `ssh` in front of this
+ * one, visibly, in the file that depends on it.
+ *
  * Spread this into the `env` of every spawn a test makes, alongside the
  * credential declaration.
  */
-import { mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -56,16 +73,55 @@ export function machineIsolationRoot(workerTag: string): string {
  */
 export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV'] as const;
 
+/**
+ * The stub `ssh`. Two behaviours, and the first is the one that matters.
+ *
+ * `-G` prints the effective configuration for a name. Asked about a name it has
+ * no stanza for, real OpenSSH does not fail: it exits 0 and echoes the name back
+ * as the hostname, which is how the scripts tell "not configured" from
+ * "configured", so a stub that refused instead would exercise a branch a runner
+ * never takes. The host is the last argument that is not a flag, which is the
+ * shape every `ssh -G` in this tree uses.
+ *
+ * Anything else is a connection attempt, and there is no such thing as a
+ * legitimate one here. It refuses with OpenSSH's own failure status and says in
+ * one line where the refusal came from, because the alternative is a suite
+ * failing on a message nobody can trace back to this file.
+ */
+const SSH_STUB = `#!/usr/bin/env bash
+set -u
+host=""
+wants_config=0
+for arg in "$@"; do
+  case "$arg" in
+    -G) wants_config=1 ;;
+    -*) ;;
+    *) host="$arg" ;;
+  esac
+done
+if (( wants_config == 1 )); then
+  printf 'hostname %s\\nuser nobody\\nport 22\\n' "$host"
+  exit 0
+fi
+echo "ssh: refused by tests/fixtures/machineIsolation.ts, which puts a stub ssh on PATH so that no test reads this machine's SSH configuration or opens a connection. A suite that needs one supplies its own stub ahead of this." >&2
+exit 255
+`;
+
 export function noMachineState(root: string): Record<string, string> {
   const home = join(root, 'home');
   const media = join(root, 'media');
   const curatedMedia = join(root, 'curated-media');
-  for (const dir of [home, media, curatedMedia]) {
+  const bin = join(root, 'bin');
+  for (const dir of [home, media, curatedMedia, bin]) {
     mkdirSync(dir, { recursive: true });
   }
+  const sshStub = join(bin, 'ssh');
+  writeFileSync(sshStub, SSH_STUB, 'utf-8');
+  chmodSync(sshStub, 0o755);
   return {
     HOME: home,
     FOOTBAG_MEDIA_DIR: media,
     FOOTBAG_CURATED_MEDIA_DIR: curatedMedia,
+    PATH: `${bin}:${process.env.PATH ?? ''}`,
   };
 }
