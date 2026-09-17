@@ -1,0 +1,27 @@
+{
+  "artifacts": [
+    "events.csv",
+    "event_disciplines.csv",
+    "event_results.csv",
+    "event_result_participants.csv",
+    "persons.csv"
+  ],
+  "produced_by": {
+    "fingerprint": "sha256:ccc2eca7e24051bb0b806ee1fa5f907384d2975ef762d7c16674352cb6743907",
+    "generators": {
+      "pipeline/platform/export_canonical_platform.py": "ae529dc3e4524303c6eeabf02cb5633b8202d776c6f24438bab1b0916cd62d31",
+      "pipeline/platform/output_set.py": "cd32cc99753c08c3540c53237f9f752ed7c4e76c7c1db9bd14d36530c0cce5c3",
+      "pipeline/platform/build_platform_exports.py": "b11cdcc1cb8970793d416bde156392d4634f9e443d24d4c09461484e8c0184ae",
+      "pipeline/historical/export_historical_csvs.py": "b81a8514dc4ffdf037b039d51532d5268287962426eead79bc158eafe0271983",
+      "pipeline/05p5_remediate_canonical.py": "d0b47e18a3a6094715999f3266101657d3fd1ca4c36ed2ac83d05f4ad4509c01"
+    },
+    "regenerated_at": "2026-09-05",
+    "commit": "6cd4ce48"
+  },
+  "known_stale": {
+    "current_fingerprint": "sha256:9e2a8b0d842c2a34e241d50649310da31aca8c8e0888572c5b33e623ee5a091b",
+    "acknowledged_at": "2026-09-17",
+    "acknowledged_commit": "6c94d999",
+    "reason": "The only generator to move since the last regeneration changed a comment and one progress line in the historical exporter, with no effect on the bytes it writes; a multi-hour rebuild to prove that is not worth it, and the next full pipeline run clears this entry."
+  }
+}
