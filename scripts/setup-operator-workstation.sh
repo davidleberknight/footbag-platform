@@ -69,18 +69,28 @@ TARGET=""
 CHECK=0
 TODO=0
 PRIVATE_REPO=""
+# Whether this run has an AWS identity that actually authenticates. Every step
+# below that reaches AWS reads it, so that one dead credential is reported once,
+# where it can be fixed, instead of three times in three other vocabularies.
+IDENTITY_OK=0
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/setup-operator-workstation.sh --target <staging|production> [--check]
+Usage: bash scripts/setup-operator-workstation.sh --target <staging|production>
+         [--private-repo <path>] [--check]
 
 Checks and completes the workstation setup a deploy needs: tools, the private
 checkout wiring, the Terraform variable files, the AWS profiles, the SSH alias,
 the operator credential file and the pinned host-key file. Reports what it
 cannot do itself.
 
-  --target <env>   staging or production. Required; never defaulted.
-  --check          report only, change nothing, non-zero if anything is missing.
+  --target <env>          staging or production. Required; never defaulted.
+  --private-repo <path>   your footbag-ops checkout. Needed only before the
+                          wiring exists, because two of the files checked here
+                          live in it and are reached through a link that is not
+                          made yet.
+  --check                 report only, change nothing, non-zero if anything is
+                          missing.
 EOF
 }
 
@@ -215,19 +225,56 @@ else
 fi
 
 # ── 4. AWS credentials and the chained runtime profiles ──────────────────────
+#
+# Proved, not listed, and this step is where that distinction was missing. A
+# profile name in `aws configure list-profiles` answers "is one configured",
+# which is a different question from "does it still authenticate": a key that
+# has been deactivated, deleted or rotated away leaves its profile in that list
+# untouched. So a dead credential collected three `[ok]` lines here and then
+# surfaced four steps down as a terraform read failing on its own terms, which
+# reads as an uninitialised tree. That is exactly the failure class
+# scripts/lib/aws-profile.sh exists to end, and this was the last step in the
+# run still reporting the invocation rather than the outcome.
+#
+# One call to AWS for the operator identity, latched inside the library so steps
+# 7, 7a and 8 pay nothing further, plus one per chained runtime profile. The
+# chain is proved for the same reason and for one more: the deploy runs a smoke
+# check that assumes one of those roles, so a runtime profile that exists but
+# cannot be assumed fails the deploy at its last step rather than here.
 step "AWS profiles"
-if command -v aws >/dev/null 2>&1 \
-   && aws configure list-profiles 2>/dev/null | grep -qx "footbag-operator"; then
-  ok "footbag-operator profile present"
+if ! command -v aws >/dev/null 2>&1; then
+  todo "the AWS CLI is not installed, so no profile can be checked or proved"
+elif ! aws_profile_ensure; then
+  # The library has already named the credential and printed the command that
+  # installs the current one, so this adds the verdict and repeats none of it.
+  todo "the AWS identity this run would use does not authenticate; the message just above names the fix"
+else
+  IDENTITY_OK=1
+  # The ARN is on the library's own line immediately above, in the wording every
+  # script in this tree uses, and it may name a profile this script supplied or
+  # one the operator's shell already carried. Repeating it here would say the
+  # same thing twice and would have to guess which of those two it was.
+  ok "that identity authenticates against AWS"
+
+  # Missing and unassumable are different faults with different owners, so they
+  # are reported separately: the installer writes a missing profile, whereas a
+  # profile that resolves to its own source identity means the assume-role grant
+  # on the shared IAM user is absent, which is not the newcomer's to fix.
+  _runtime_missing=0
   for rt in footbag-staging-runtime footbag-production-runtime; do
-    if aws configure list-profiles 2>/dev/null | grep -qx "$rt"; then
-      ok "$rt profile present"
-    else
+    if ! aws_profile_exists "$rt"; then
       todo "$rt is missing — run: bash scripts/install-operator-key.sh (it writes both)"
+      _runtime_missing=1
     fi
   done
-else
-  todo "no footbag-operator profile — run: bash scripts/install-operator-key.sh"
+  if (( _runtime_missing == 0 )); then
+    if aws_identity_require_chain footbag-staging-runtime footbag-production-runtime; then
+      ok "both chained runtime profiles assume their roles"
+    else
+      todo "a chained runtime profile is configured but does not assume its role. That is the assume-role permission on the shared IAM user rather than anything on this machine, so report it rather than reinstalling."
+    fi
+  fi
+  unset _runtime_missing
 fi
 
 # ── 5. The SSH alias ─────────────────────────────────────────────────────────
@@ -340,6 +387,11 @@ elif (( CHECK )); then
   todo "terraform/${TARGET} has never been initialised; re-run without --check and this is done for you"
 elif ! command -v terraform >/dev/null 2>&1; then
   todo "terraform is not installed, so the tree cannot be initialised"
+elif (( IDENTITY_OK == 0 )); then
+  # Said once, above, where it can be fixed. Without this the init below would
+  # meet the same refusal and print it a second time, which reads as a second
+  # fault rather than the same one.
+  todo "terraform/${TARGET} cannot be initialised without a working AWS identity; fix the AWS profiles step above first"
 else
   # Run rather than instructed. It downloads providers and connects to the remote
   # state, changes no infrastructure and is safe to repeat, so there is nothing
@@ -364,7 +416,13 @@ fi
 # else on the workstation has. Printed here rather than left to a hand-typed
 # `terraform output`, which needs an identity this machine has no default for.
 step "Host address for ${TARGET}"
-if tf_output_read "terraform/${TARGET}" lightsail_static_ip 2>/dev/null; then
+if (( IDENTITY_OK == 0 )); then
+  # The read below needs an identity, and without this guard its failure was
+  # reported as an uninitialised tree. On a machine whose tree IS initialised
+  # that produced the one message an operator cannot act on: advice to
+  # initialise a tree this run had just reported as initialised, two steps up.
+  todo "cannot read the ${TARGET} host address without a working AWS identity; fix the AWS profiles step above"
+elif tf_output_read "terraform/${TARGET}" lightsail_static_ip 2>/dev/null; then
   ok "${TARGET} host address: ${TF_OUTPUT_VALUE}"
   echo "         (this is the Hostname line your ~/.ssh/config stanza needs)"
 else
@@ -376,7 +434,11 @@ fi
 # Output shown rather than discarded. It names its own cause when it fails, and
 # hiding that was what made every distinct failure read as the same one.
 step "Pinned host-key file"
-if (( CHECK )); then
+if (( IDENTITY_OK == 0 )); then
+  # The pin is built from the Lightsail API and the Terraform output, so it
+  # needs the same identity. Named here rather than left to read as a stale pin.
+  todo "cannot build or check the pin for ${TARGET} without a working AWS identity: it is read from the Lightsail API and the Terraform output. Fix the AWS profiles step above."
+elif (( CHECK )); then
   if bash "${SCRIPT_DIR}/install-known-hosts.sh" --target "$TARGET" --check >/dev/null 2>&1; then
     ok "pinned and current for ${TARGET}"
   else
@@ -411,8 +473,30 @@ if [[ -f "$CRED_FILE" ]] && command -v ssh >/dev/null 2>&1 && require_pinned_kno
     # One session, the password as line one, exactly the wire pattern every
     # privileged step in this tree uses. `sudo -k` ignores any cached timestamp
     # so the host consumes precisely the line supplied.
+    # ControlPath=none, because this check is worthless on a reused connection.
+    #
+    # OpenSSH shares connections when the operator's own configuration sets
+    # ControlMaster and ControlPath: the first session opens a socket and later
+    # ones ride it instead of authenticating again. Everywhere else in this tree
+    # that is a harmless speed-up. Here it is the whole question, because this
+    # step exists to prove that the key and the password work NOW. Riding a
+    # socket opened before an account was retired, a key was withdrawn or a
+    # password was rotated reports success on the strength of an authentication
+    # that happened earlier, which is exactly the case an operator runs this to
+    # rule out. The runbook step that retires the host's default account is the
+    # one where that matters most: it removes an account's keys and then asks
+    # for proof that another account still works.
+    #
+    # ControlPath rather than ControlMaster: ControlMaster=no only declines to
+    # BECOME a master, and still joins an existing socket. Setting the path to
+    # none is what disables sharing for this connection.
+    #
+    # Scoped to this one call rather than added to the shared pin options, so
+    # the deploy's several connections keep whatever sharing the operator has
+    # configured. Nothing else in the tree is asking "is this credential live".
     if printf '%s\n' "$_probe_pass" \
-        | ssh "${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" "$ALIAS" \
+        | ssh "${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" \
+            -o "ControlPath=none" "$ALIAS" \
             'sudo -k -S -p "" true' >/dev/null 2>&1; then
       ok "connected as the alias account and sudo accepted the password"
     else

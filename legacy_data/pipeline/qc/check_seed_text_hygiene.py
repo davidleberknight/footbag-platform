@@ -28,6 +28,18 @@ Three signatures, each decidable without guessing at intent:
    another script wearing Latin bytes. Recovery needs the originating codepage,
    which is why these are corrected per row rather than by a rule.
 
+4. HTML markup left in a text value. The legacy site let members write HTML into
+   a description and rendered it; this platform escapes description text instead,
+   so a tag that survives into the seed is shown to every visitor as literal
+   markup. Three club descriptions reached the database that way, one of them an
+   entire Google Groups subscribe widget, table and form and all.
+
+   Decided on a whitelist of real HTML element names rather than on angle
+   brackets, because angle brackets alone are not damage: one club writes its
+   own name as `<<<<<<<<LeGo FoOtBaG Club>>>>>>>>`, and an address or an
+   inequality can carry them too. A whitelisted element name inside a tag is
+   decidable in the way the three signatures above are.
+
 Deliberately NOT flagged: ordinary non-ASCII text. Accented, Cyrillic, and CJK
 values are correct data and the point of the check is to protect them. Signature 3
 is written to leave them alone — a genuinely accented Latin name keeps its ASCII
@@ -63,6 +75,23 @@ SCANNED_SEEDS: tuple[tuple[str, str], ...] = (
 )
 
 _NUMERIC_ENTITY_RE = re.compile(r"&#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6});")
+
+# The element names a legacy description plausibly carries. A trailing word
+# boundary makes each one exact, so `<big>` can never be reported as `<b>` and
+# the order of the alternation does not matter.
+_HTML_ELEMENTS = "|".join((
+    "blockquote", "figcaption", "colgroup", "fieldset", "textarea", "marquee",
+    "section", "caption", "article", "strong", "strike", "button", "center",
+    "iframe", "legend", "object", "option", "script", "select", "source",
+    "footer", "header", "figure", "canvas", "aside", "embed", "param", "small",
+    "style", "table", "tbody", "tfoot", "thead", "title", "video", "audio",
+    "label", "input", "big", "div", "font", "form", "head", "html", "link",
+    "meta", "span", "sub", "sup", "nav", "map", "area", "body", "code", "pre",
+    "col", "dd", "dl", "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
+    "br", "img", "li", "ol", "td", "th", "tr", "ul", "a", "b", "i", "p", "s",
+    "u",
+))
+_HTML_TAG_RE = re.compile(rf"</?\s*(?:{_HTML_ELEMENTS})\b[^>]*>", re.IGNORECASE)
 
 
 def double_encoded_repair(text: str) -> str | None:
@@ -111,6 +140,16 @@ def scan_seed(path: Path, key_field: str) -> list[dict[str, str]]:
                         "value": value, "detail": f"contains {match.group(0)!r}",
                     })
                     continue
+                tag = _HTML_TAG_RE.search(value)
+                if tag:
+                    findings.append({
+                        "key": row_key, "field": field, "kind": "html markup",
+                        "value": value,
+                        "detail": f"contains {tag.group(0)!r}; the platform escapes this "
+                                  "text rather than rendering it, so the tag is shown to "
+                                  "the reader as literal markup",
+                    })
+                    continue
                 if looks_like_codepage_mismatch(value):
                     findings.append({
                         "key": row_key, "field": field, "kind": "codepage mismatch",
@@ -131,8 +170,8 @@ def main() -> int:
     args = parser.parse_args()
 
     print("=== seed text hygiene ===")
-    print("Invariant: a committed seed value is readable text, never double-encoded")
-    print("and never a literal HTML numeric character reference.")
+    print("Invariant: a committed seed value is readable text, never double-encoded,")
+    print("never a literal HTML numeric character reference, and never HTML markup.")
 
     total_findings: list[tuple[str, dict[str, str]]] = []
     scanned = 0

@@ -129,14 +129,14 @@ describe('tf_output_read', () => {
   });
 
   it('carries the value and no error on a successful read', () => {
-    const stub = tfStub('d1234.cloudfront.net', '', 0);
+    const stub = tfStub('d1234abcdef8.cloudfront.net', '', 0);
     const r = withLib(
       ['tf_output_read /nowhere cloudfront_domain', 'echo "V=[$TF_OUTPUT_VALUE]E=[$TF_OUTPUT_ERROR]"'].join(
         '\n',
       ),
       stub,
     );
-    expect(r.stdout).toContain('V=[d1234.cloudfront.net]E=[]');
+    expect(r.stdout).toContain('V=[d1234abcdef8.cloudfront.net]E=[]');
   });
 
   it('treats a legitimately empty output as a successful read, not a failure', () => {

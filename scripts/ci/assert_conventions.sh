@@ -1429,8 +1429,14 @@ delegate "every CI job has a local gate or a recorded reason it cannot" check_ci
 # Generic wildcard references like "*.cloudfront.net" are fine: the character
 # before the first dot is not alphanumeric, so the pattern skips them.
 # No target guard: this reads the tracked tree through git, which exists
-# wherever the gate can run at all, so it never has nothing to scan.
-echo "[conventions] check: no concrete CloudFront hostnames tracked"
+# wherever the gate can run at all, so it never has nothing to scan. It still
+# announces itself through `check`, with no targets, because that is where a
+# violation is attributed to a rule name. Printing the announcement directly is
+# what this rule used to do, and the attribution then belonged to whichever
+# check ran before it: a real CloudFront violation was reported under the name
+# of the continuous-integration parity rule above, which had passed, sending the
+# reader to a rule with nothing wrong with it.
+check "no concrete CloudFront hostnames tracked"
 # Exempt the two documented fake hosts (the onboarding guide's "something
 # like" example domain and the Terraform bootstrap placeholder value), plus the
 # one staging sneak-preview host the README intentionally publishes as a public
@@ -1996,6 +2002,15 @@ fi
 # itself and is expected to be missing nearly everything; a real checkout is
 # expected to be missing nothing, so a skip there is a rule that has silently
 # stopped being enforced and the gate fails on it.
+#
+# It opens a named span of its own, because the violation it raises is the one
+# violation in this file produced outside any `check`. Without a name here the
+# final flush below credited it to whichever rule happened to run last, so a
+# gate failing because a check had gone missing reported the name of a rule that
+# had just passed. That is the same misattribution the CloudFront rule used to
+# cause, arriving by the other route: there a check raised a violation without
+# opening a span, here a violation is raised after every span has closed.
+attribute_violations "every check ran against this tree"
 if [ "$skipped_count" -gt 0 ]; then
   echo "[conventions] ${skipped_count} check(s) did not run:" >&2
   printf '%b' "$skipped" >&2

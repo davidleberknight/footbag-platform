@@ -16,3 +16,24 @@ club_key,field,corrected_value,reason
 1472671462,external_url,https://www.facebook.com/groups/shredvan,"Website field held the address with a second scheme in front of it, http:// followed by the real https:// URL, which the legacy form prepended to a pasted link. The inner address is the club's real page and is kept; only the doubled scheme is removed."
 1190299395,region,Florida,"Region recorded as the two-letter postal abbreviation Fl, the form the mirror files this Tampa club under. The club is dormant, so the legacy dump carries no row to supply the full name and a re-extract restores the abbreviation. Normalised to the state's canonical name so it groups under Florida rather than under a separate abbreviated heading."
 1339680237,region,Florida,"Region recorded as the two-letter postal abbreviation Fl, the form the mirror files this Clearwater club under. The club is dormant, so the legacy dump carries no row to supply the full name and a re-extract restores the abbreviation. Normalised to the state's canonical name so it groups under Florida rather than under a separate abbreviated heading."
+1080281398,description,"December 2009 update:
+Yes, things are picking up. We've had a few good sessions lately. Welcome to the club.
+
+Email me anytime to set up meetings etc.
+Carl
+
+For up to date kicking times/locations, please visit (and join) our listserv.
+
+Subscribe to Cincinnati Footbag: Visit this group (http://groups.google.com/group/cincinnati-footbag)","Description carried a Google Groups subscribe widget as raw HTML: a table, an image, a form with email and submit inputs, and a link. The club page escapes description text rather than rendering it, so the whole block showed as visible markup to every visitor. The prose is kept exactly as written; the widget is reduced to the one part that still means anything as text, its link, in the text (url) form this seed already uses elsewhere. The subscribe form itself cannot be preserved, because a form has no meaning outside rendered HTML."
+1236288823,description,"Hi all the footbaggers out there.
+
+Swirl Pool, Footbag Lucerne was established in Spring 2009 but has been working with many years with the T.F.H.S. Footbag Club in Wolhusen (LU). Some members are quite experienced (over 4 years) and toghether the members of Swirl Pool they wanna aim high. It's all about pushing the sport of Footbag. Note, Swirl Pool is a Freestyle Club only. The club however welcomes Net players as well.
+
+Historic and beautiful Luzern is definitely worth visiting. It is in fact one of the top visited places in Switzerland (learn more about Tourism in Lucerne here (http://www.luzern.org/de/welcome.cfm?)). If you plan to stay in Switzerland, don't miss to visit the famous town of Lucerne and to have a session with the local players.","Description was written in HTML paragraphs with one inline link, and the club page escapes description text rather than rendering it, so the tags showed as visible markup to every visitor. Paragraphs become blank lines and the link becomes the text (url) form this seed already uses elsewhere. The author's own wording and spelling are kept unchanged, including toghether and has been working with many years, because only the markup is damage."
+960930150,description,"A quickly developing footbag club in Gyor. So far we only play freestyle and
+4 square.
+
+Currently we have 3 serious shredders.
+
+Sunshred Footbag Club members have attended (competed and/or judged) several
+footbag events in Hungary, Austria, Czech Republic, Germany and Croatia.","Description used unclosed HTML paragraph tags as line separators, and the club page escapes description text rather than rendering it, so each tag showed as visible markup to every visitor. Each becomes a blank line; the author's own line wrapping is otherwise untouched."

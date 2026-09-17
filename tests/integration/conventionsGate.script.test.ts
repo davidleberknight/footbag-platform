@@ -613,3 +613,57 @@ describe('the convention gate: citing a document from a test', () => {
     expect(res.exitCode, res.stderr).toBe(0);
   });
 });
+
+// A violation has to name the rule that found it. The gate runs sixty-five checks
+// and keeps going after a failure, so by the time the verdict prints, the offending
+// file:line is thousands of lines up or gone with a truncated log; the rule name in
+// the summary is all a reader has to go on. Pointing it at the wrong rule is worse
+// than printing nothing, because the reader goes and reads a rule that is working.
+describe('the convention gate: a violation is attributed to the rule that found it', () => {
+  const CF_RULE = 'no concrete CloudFront hostnames tracked';
+
+  it('names the rule that failed, not the one that ran before it', () => {
+    // The regression. This rule announced itself directly instead of through the
+    // helper that records which check is running, so its violations were credited
+    // to the previous check -- the continuous-integration parity rule, which had
+    // passed. Assembled from pieces because the gate scans this directory too, and
+    // a whole hostname written plainly here is the violation it stands for.
+    const host = ['d', 'beefcafe99', '.cloudfront', '.net'].join('');
+    const res = inFixtureRepo({ 'docs/notes.md': `The distribution answers at ${host}.\n` });
+
+    expectCheckRan(res, CF_RULE);
+    expect(res.exitCode, res.stdout).toBe(1);
+    // The summary lists one rule per violation, after the count.
+    const summary = res.stderr.slice(res.stderr.indexOf('rule(s) violated'));
+    expect(summary).toContain(CF_RULE);
+    expect(summary).not.toContain('every CI job has a local gate');
+  });
+
+  it('names the missing-checks rule when the failure is that a check did not run', () => {
+    // The same misattribution by the other route. This violation is raised after
+    // every named span has closed, so the final flush credited it to whichever
+    // rule ran last -- sending the reader to a rule that had just passed, for a
+    // failure whose real cause was a check finding nothing to scan.
+    const res = inFixtureRepo({ 'notes.txt': 'nothing to see\n' }, { declareFixture: false });
+
+    expect(res.exitCode, res.stdout).toBe(1);
+    expect(res.stderr).toContain('every check runs against this repository');
+    const summary = res.stderr.slice(res.stderr.indexOf('rule(s) violated'));
+    expect(summary).toContain('every check ran against this tree');
+    expect(summary).not.toContain('UPDATE statements stamp');
+  });
+
+  it('routes every announcement through the helper that does the attributing', () => {
+    // The shape that caused it, pinned so it cannot return in the next rule anyone
+    // adds. The helper's own two announcements interpolate the name it was handed;
+    // a rule printing its own carries the name as a literal, which is the tell.
+    const source = readFileSync(GATE, 'utf8');
+    const handWritten = source
+      .split('\n')
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => line.includes('echo "[conventions] check:'))
+      .filter(({ line }) => !line.includes('${name}'));
+
+    expect(handWritten.map(({ n, line }) => `${n}: ${line.trim()}`)).toEqual([]);
+  });
+});

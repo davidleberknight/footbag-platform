@@ -157,7 +157,40 @@ describe('check_bucket_baseline.sh', () => {
   });
 
   it('passes a tree with no buckets at all rather than complaining about one', () => {
-    const r = inFixtureRepo({ empty: '# no buckets here\n' });
+    // Alongside a tree that does hold one, so this asserts what it means: an
+    // empty tree raises no complaint. On its own it was also a run that scanned
+    // nothing, which is a different thing and is refused just below.
+    const r = inFixtureRepo({ demo: bucket('media'), empty: '# no buckets here\n' });
     expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toMatch(/terraform\/empty\//);
+  });
+
+  it('refuses a run that found no bucket anywhere, instead of passing on an empty scan', () => {
+    // Every refusal this gate makes is raised from inside its loop, so a run
+    // that never enters the loop body reaches the end with nothing to report.
+    // Without this it printed the same "pass" as a run that checked seventeen.
+    const r = inFixtureRepo({ empty: '# no buckets here\n' });
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/no S3 bucket declaration was found/);
+    expect(r.stderr).toMatch(/its pass would have meant nothing/);
+  });
+
+  it('refuses when the declarations stop matching the pattern it reads', () => {
+    // The likelier way the scope silently empties: not the directory moving,
+    // but a reformat. The pattern is anchored to one space between the two
+    // quoted names, so a second space hides every bucket in the tree.
+    const r = inFixtureRepo({ demo: 'resource  "aws_s3_bucket"  "media" {\n  bucket = "x"\n}\n' });
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/no S3 bucket declaration was found/);
+    expect(r.stderr).toMatch(/one space between the two/);
+  });
+
+  it('says how many buckets it held to the baseline, so a shrinking scope is visible', () => {
+    // The count is the evidence behind the verdict. A reader who knows the
+    // estate can see at a glance that the number is wrong; "pass" alone cannot
+    // carry that.
+    const r = inFixtureRepo({ demo: bucket('media') + bucket('snapshots') });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/pass \(2 bucket\(s\) across 1 tree\(s\)\)/);
   });
 });

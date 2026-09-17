@@ -30,10 +30,26 @@ const SCRIPT = join(process.cwd(), 'scripts/setup-operator-workstation.sh');
 let fakeHome: string;
 
 function run(args: string[], extraEnv: NodeJS.ProcessEnv = {}) {
+  // The developer's own AWS variables are stripped rather than inherited. The
+  // script now resolves an identity on every run, and an exported AWS_PROFILE or
+  // key pair in the parent shell is an identity: left in place it would send a
+  // TEST to the real AWS, and the verdict would then depend on whose machine ran
+  // it and whether that person's key was live that day.
+  const inherited: NodeJS.ProcessEnv = { ...process.env };
+  for (const name of [
+    'AWS_PROFILE',
+    'AWS_DEFAULT_PROFILE',
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+  ]) {
+    delete inherited[name];
+  }
+
   const res = spawnSync('bash', [SCRIPT, ...args], {
     encoding: 'utf-8',
     env: {
-      ...process.env,
+      ...inherited,
       HOME: fakeHome,
       // Pointed into the throwaway home so no run can read or write the
       // operator's own pin.
@@ -66,6 +82,80 @@ function stubSshOnPath(lines: string[]): NodeJS.ProcessEnv {
   chmodSync(sshStub, 0o755);
   return { PATH: `${binDir}:${process.env.PATH ?? ''}` };
 }
+
+/**
+ * What the stubbed AWS CLI answers. `profiles` is what `configure list-profiles`
+ * lists; `identities` maps a `--profile` value to the ARN it resolves to, and a
+ * profile absent from it refuses, which is how a configured-but-dead credential
+ * is expressed.
+ */
+type AwsStubSpec = { profiles: string[]; identities?: Record<string, string> };
+
+const OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
+const STAGING_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/footbag-staging-app-runtime/s';
+const PRODUCTION_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/footbag-production-app-runtime/s';
+
+/**
+ * An `aws` stub, on PATH and on both library seams at once.
+ *
+ * All three are needed together and the reason is easy to miss: the script probes
+ * for the CLI with `command -v aws`, while the library asks the profile question
+ * through AWS_PROFILE_BIN and the identity question through AWS_IDENTITY_BIN. A
+ * case that set only the seams would pass the probe using the developer's real
+ * CLI; a case that set only PATH would resolve identities through it.
+ *
+ * The answers are in the shape the callers parse for -- one profile name per
+ * line, and the bare ARN that `--query Arn --output text` returns -- so the
+ * fixture cannot mislead a parser about a format AWS is free to change.
+ */
+function stubAwsOnPath(spec: AwsStubSpec): NodeJS.ProcessEnv {
+  const binDir = join(fakeHome, 'stubbin');
+  mkdirSync(binDir, { recursive: true });
+  const stub = join(binDir, 'aws');
+  const arms = Object.entries(spec.identities ?? {}).map(
+    ([profile, arn]) => `    ${profile}) printf '%s\\n' ${JSON.stringify(arn)}; exit 0 ;;`,
+  );
+  writeFileSync(
+    stub,
+    [
+      '#!/usr/bin/env bash',
+      'if [[ "$1" == "configure" && "$2" == "list-profiles" ]]; then',
+      ...spec.profiles.map((p) => `  printf '%s\\n' ${JSON.stringify(p)}`),
+      '  exit 0',
+      'fi',
+      'if [[ "$1" == "sts" && "$2" == "get-caller-identity" ]]; then',
+      '  want=""; prev=""',
+      '  for a in "$@"; do [[ "$prev" == "--profile" ]] && want="$a"; prev="$a"; done',
+      '  case "$want" in',
+      ...arms,
+      '  esac',
+      // The wording AWS itself uses for a key that has been deactivated,
+      // deleted or rotated away, which is the state this stub stands in for.
+      '  printf \'%s\\n\' "An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid." >&2',
+      '  exit 255',
+      'fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  chmodSync(stub, 0o755);
+  return {
+    PATH: `${binDir}:${process.env.PATH ?? ''}`,
+    AWS_PROFILE_BIN: stub,
+    AWS_IDENTITY_BIN: stub,
+  };
+}
+
+/** Every profile present and every one of them resolving. */
+const HEALTHY_AWS: AwsStubSpec = {
+  profiles: ['footbag-operator', 'footbag-staging-runtime', 'footbag-production-runtime'],
+  identities: {
+    'footbag-operator': OPERATOR_ARN,
+    'footbag-staging-runtime': STAGING_ROLE_ARN,
+    'footbag-production-runtime': PRODUCTION_ROLE_ARN,
+  },
+};
 
 const PINNED_ALIAS_LINES = [
   'user footbag',
@@ -106,6 +196,18 @@ describe('setup-operator-workstation.sh — argument guards', () => {
     const r = run(['--nope']);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain("unknown argument '--nope'");
+  });
+
+  it('documents every flag it accepts, --private-repo included', () => {
+    // It was parsed and it worked, and the help text did not mention it, so the
+    // one command a newcomer is sent to run carried a flag its own --help
+    // denied having. A flag that works but is undocumented is indistinguishable
+    // from a typo to the person reading the usage block to check.
+    const r = run(['--help']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('--private-repo');
+    expect(r.stdout).toContain('--target');
+    expect(r.stdout).toContain('--check');
   });
 });
 
@@ -223,6 +325,21 @@ describe('the alias itself must be pinned, not only the deploy scripts', () => {
     expect(src).toMatch(/sudo -k -S -p "" true/);
   });
 
+  it('proves it on a connection of its own, not one opened earlier', () => {
+    // OpenSSH shares connections when the operator's configuration asks it to,
+    // and a shared one carries an authentication that already happened. This
+    // step asks whether the key and the password work NOW, so riding a socket
+    // opened before a key was withdrawn or a password rotated reports success
+    // for the one case it exists to catch. ControlMaster=no is not enough: it
+    // declines to become a master and still joins an existing socket.
+    const src = readFileSync(SCRIPT, 'utf-8');
+    expect(src).toMatch(/-o "ControlPath=none"/);
+    // Scoped to the proof rather than bolted onto the shared pin options, so
+    // every other connection in the tree keeps the operator's own sharing.
+    const pinLib = readFileSync(join(process.cwd(), 'scripts/lib/ssh-known-hosts.sh'), 'utf-8');
+    expect(pinLib).not.toMatch(/ControlPath/);
+  });
+
   it('reports rather than aborts when the credential or the pin is missing', () => {
     // A cold machine must still reach a verdict: this step needs two files that
     // earlier steps are still asking for, so it cannot be a hard failure.
@@ -232,6 +349,87 @@ describe('the alias itself must be pinned, not only the deploy scripts', () => {
     expect(all).toMatch(/Login and sudo on footbag-staging/);
     expect(all).toMatch(/cannot prove login and sudo yet/);
     expect(all).toMatch(/thing\(s\) still to do/);
+  });
+});
+
+// A configured profile is not an authenticating one. The key behind it can be
+// deactivated, deleted or rotated away and nothing in a list of profile names
+// changes, so this step used to report three `[ok]` lines for a credential that
+// could not reach AWS at all, and the failure then surfaced further down in
+// another step's vocabulary.
+describe('the AWS identity is proved, not listed', () => {
+  it('names the credential when the profile is configured but its key is dead', () => {
+    // The whole regression, in the state it actually arrives in: straight after
+    // a key rotation, when every profile is still exactly where it was.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      identities: {}, // nothing resolves
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).toMatch(/did not authenticate against AWS/);
+    expect(all).toMatch(/InvalidClientTokenId/);
+    expect(all).toMatch(/install-operator-key\.sh/);
+    expect(all).not.toMatch(/footbag-operator profile present/);
+  });
+
+  it('does not blame the terraform tree for a credential that cannot authenticate', () => {
+    // The sentence that cost an afternoon. With the tree initialised and the key
+    // dead, the run told the operator to initialise the tree -- two steps after
+    // reporting it initialised. The host-address and pin steps both read an
+    // identity, so both must point back at the one real fault.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      identities: {},
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).not.toMatch(/initialise the tree first/);
+    expect(all).toMatch(/cannot read the staging host address without a working AWS identity/);
+    expect(all).toMatch(/cannot build or check the pin for staging without a working AWS identity/);
+  });
+
+  it('reports the identity and the assumed roles when everything resolves', () => {
+    const all = output(run(['--target', 'staging', '--check'], stubAwsOnPath(HEALTHY_AWS)));
+
+    expect(all).toMatch(/that identity authenticates against AWS/);
+    expect(all).toMatch(/both chained runtime profiles assume their roles/);
+    expect(all).toContain(OPERATOR_ARN);
+  });
+
+  it('says a runtime profile is missing rather than that it cannot be assumed', () => {
+    // Two different faults with two different owners: the installer writes a
+    // missing profile, and nobody on this machine can grant an assume-role.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime'],
+      identities: {
+        'footbag-operator': OPERATOR_ARN,
+        'footbag-staging-runtime': STAGING_ROLE_ARN,
+      },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).toMatch(/footbag-production-runtime is missing/);
+    expect(all).toMatch(/install-operator-key\.sh \(it writes both\)/);
+    expect(all).not.toMatch(/does not assume its role/);
+  });
+
+  it('catches a chained profile that returns its own source identity', () => {
+    // The assume-role step never happened, so the role's permissions were never
+    // in play. It resolves, so only reading WHAT it resolved to catches it.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      identities: {
+        'footbag-operator': OPERATOR_ARN,
+        'footbag-staging-runtime': STAGING_ROLE_ARN,
+        // Resolves to the operator rather than to an assumed role.
+        'footbag-production-runtime': OPERATOR_ARN,
+      },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).toMatch(/does not assume its role/);
+    expect(all).toMatch(/assume-role permission on the shared IAM user/);
   });
 });
 
