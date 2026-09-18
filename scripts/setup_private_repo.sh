@@ -2,12 +2,12 @@
 # setup_private_repo.sh
 #
 # Wires this checkout to the companion operations checkout: the two repo-root
-# symlinks and the five Terraform values-file symlinks.
+# symlinks and the seven Terraform values-file symlinks.
 #
 # WHY THIS EXISTS.
 #
 # These links were hand-typed `ln -s` commands in an onboarding
-# document, and onboarding wired two of them. The other five are the ones that
+# document, and onboarding wired two of them. The other seven are the ones that
 # matter for AWS work, and every failure mode they have is silent:
 #
 #   - a missing values link means terraform reads no variables for that
@@ -21,7 +21,7 @@
 #     edit that a careless `ln -sf` would destroy without asking.
 #
 # The targets are deliberately relative and go through the `footbag_private_repo`
-# link rather than to wherever the private checkout actually sits, so the five
+# link rather than to wherever the private checkout actually sits, so the seven
 # values links are identical on every machine and only one link is
 # machine-specific. That is worth preserving, and it is the part most easily got
 # wrong by hand.
@@ -57,9 +57,9 @@
 #                          needed only for historical-pipeline work, and a
 #                          developer without it is a supported configuration.
 #   --check                Report the state of every link this run considers and
-#                          exit: the six an ordinary operator wires, plus the
+#                          exit: the eight an ordinary operator wires, plus the
 #                          legacy-clone link only when --legacy-repo is given, so
-#                          a bare --check reports six. Changes
+#                          a bare --check reports eight. Changes
 #                          nothing, takes no confirmation, and exits non-zero if
 #                          any link is missing, broken or blocked.
 #   --yes                  Accept the typed confirmation in advance.
@@ -102,15 +102,22 @@ cd "$REPO_ROOT"
 
 # ── The link set ─────────────────────────────────────────────────────────────
 #
-# One entry per line, "<path-relative-to-repo-root>|<target>". The five values
+# One entry per line, "<path-relative-to-repo-root>|<target>". The seven values
 # links have fixed targets because they resolve through the root link; only the
 # two root links vary by machine.
+#
+# Two of the seven are not environments: identity declares what an operator may
+# do, and operators is the roster of who they are. They are here for the same
+# reason the environment files are — a tree whose values file is not wired
+# cannot be planned, and nothing else would say so.
 VALUES_LINKS=(
   "terraform/staging/terraform.tfvars|../../footbag_private_repo/terraform/staging.tfvars"
   "terraform/staging/secrets.auto.tfvars|../../footbag_private_repo/terraform/staging.secrets.auto.tfvars"
   "terraform/production/terraform.tfvars|../../footbag_private_repo/terraform/production.tfvars"
   "terraform/production/secrets.auto.tfvars|../../footbag_private_repo/terraform/production.secrets.auto.tfvars"
   "terraform/shared/terraform.tfvars|../../footbag_private_repo/terraform/shared.tfvars"
+  "terraform/identity/terraform.tfvars|../../footbag_private_repo/terraform/identity.tfvars"
+  "terraform/operators/terraform.tfvars|../../footbag_private_repo/terraform/operators.tfvars"
 )
 
 # If no private repo was named and the root link already points somewhere real,

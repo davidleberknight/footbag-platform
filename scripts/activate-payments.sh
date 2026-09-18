@@ -76,12 +76,22 @@
 # refuse to boot on the next restart. It reads no secret and prompts for none.
 #
 # Usage (every mode that touches the host reads the sudo password from stdin,
-# line 1; --dry-run opens no connection and needs no credential file):
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <prod-profile>
+# line 1; --dry-run opens no connection and needs no credential file).
+#
+# Which file holds that password follows the account the alias connects as, and
+# production has its own file either way, because staging and production are
+# separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <prod-profile>
 #   scripts/activate-payments.sh --target production --dry-run
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --deactivate
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --deactivate
 #
 #   --create-endpoint creates the webhook endpoint through the Stripe API rather
 #   than pausing for the Dashboard, deriving the URL from the environment's
@@ -492,7 +502,8 @@ else
   # secret key, worked through the Stripe Dashboard, and typed the signing
   # secret -- and then throws all of it away. Nothing is written either way, so
   # the cost is the operator's time and a second trip to the Dashboard.
-  require_operator_stdin "scripts/activate-payments.sh --target $TARGET --profile <profile>" || exit 1
+  require_operator_stdin "scripts/activate-payments.sh --target $TARGET --profile <profile>" \
+    "$SSH_ALIAS" "$TARGET" || exit 1
   # Every prompt on this path reads from the terminal, never stdin. Stdin is the
   # credential pipe, so a prompt reading from it would silently take the next
   # line of the operator's credential file as the typed answer: a Stripe key

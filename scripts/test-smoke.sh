@@ -52,12 +52,23 @@ case "$SMOKE_TARGET_ENV" in
 esac
 TF_DIR="terraform/${SMOKE_TARGET_ENV}"
 
-# Operator-only guard: this suite reaches live AWS. Fail fast with a clear
-# message on a machine without the operator's AWS profile or an initialized
-# terraform tree, rather than dying on a raw terraform or aws-cli error
-# mid-run. Testers do not run this suite.
+# This suite reaches live AWS through a chained runtime profile. Fail fast with
+# a clear message on a machine without that profile or an initialized terraform
+# tree, rather than dying on a raw terraform or aws-cli error mid-run.
+#
+# The refusal says what is missing and what writes it, rather than calling the
+# suite operator-only. That wording was a diagnosis and it was the wrong one for
+# a dev-and-tester, who holds a permission set granting exactly this staging
+# access and was being told they were the wrong kind of person.
 if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.aws/credentials"; then
-  echo "ERROR: the staging-AWS adapter smoke is operator-only: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine." >&2
+  echo "ERROR: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine," >&2
+  echo "       and this suite reaches AWS through it rather than through your own identity." >&2
+  echo "" >&2
+  echo "         bash scripts/install-operator-sso-profile.sh --help" >&2
+  echo "" >&2
+  echo "       writes it, chained off your own sign-in. A production target additionally" >&2
+  echo "       needs the super-admin permission set: production's runtime role does not" >&2
+  echo "       trust the dev-and-tester one, and that boundary is deliberate." >&2
   exit 1
 fi
 if [[ ! -d "$TF_DIR/.terraform" ]]; then

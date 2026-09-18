@@ -52,9 +52,13 @@
 #                  later data gate reads that artifact. The gates then attest to
 #                  exactly the object the rollback would restore.
 #
-#                  Needs the operator credential file on stdin, the same way
-#                  every other script that opens a privileged session does:
-#                    < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+#                  Needs the credential file on stdin, the same way every other
+#                  script that opens a privileged session does. Which file that
+#                  is follows the account the alias connects as: the shared
+#                  footbag account reads ~/AWS/AWS_OPERATOR_PRODUCTION.txt and
+#                  your own named account reads the file below. A run started
+#                  without the redirect names the one it needs.
+#                    < ~/AWS/HOST_OPERATOR_PRODUCTION.txt \
 #                        bash scripts/pre-cutover-checklist.sh --target production
 #
 # Exit codes:
@@ -168,7 +172,8 @@ else
   REMOTE_HALF="scripts/internal/take-pre-cutover-snapshot-remote.sh"
   # shellcheck source=scripts/lib/host-env-remote.sh
   source scripts/lib/host-env-remote.sh
-  require_operator_stdin "scripts/pre-cutover-checklist.sh --target ${TARGET}" || exit 1
+  require_operator_stdin "scripts/pre-cutover-checklist.sh --target ${TARGET}" \
+    "${SSH_ALIAS}" "${TARGET}" || exit 1
   require_ssh_alias "${SSH_ALIAS}" || exit 1
   require_host_ssh_opts || exit 1
   [[ -r "${REMOTE_HALF}" ]] || { echo "missing remote half: ${REMOTE_HALF}" >&2; exit 1; }

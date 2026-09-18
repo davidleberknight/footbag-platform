@@ -18,9 +18,18 @@
 # the outbox send-path smoke executes inside the web container on the host,
 # enqueueing through the application path and watching the worker drain the
 # row to live SES, which the two direct `aws ses send-email` legs above cannot
-# prove. Needs the operator credential file on stdin, host sudo-password first
-# line, per the wire pattern in scripts/lib/host-env-remote.sh:
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
+# prove. Needs the credential file on stdin, host sudo-password first line, per
+# the wire pattern in scripts/lib/host-env-remote.sh.
+#
+# Which file that is follows the account the alias connects as, and production
+# has its own file either way:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
 #       --profile <p> --confirm-production --host-alias <alias> --inbox <addr>
 #
 # This sends REAL email via the production SES identity. It refuses to run
@@ -74,7 +83,8 @@ fi
 if [[ -n "$HOST_ALIAS" ]]; then
   # shellcheck source=lib/host-env-remote.sh
   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
-  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --confirm-production --host-alias <alias>" || exit 2
+  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --confirm-production --host-alias <alias>" \
+    "$HOST_ALIAS" production || exit 2
   require_ssh_alias "$HOST_ALIAS" || exit 2
 fi
 

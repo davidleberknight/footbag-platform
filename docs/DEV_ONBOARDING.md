@@ -6,7 +6,7 @@ This guide helps contributors understand how the platform is structured and how 
 
 > **Who you are (pick your lane).** This guide serves four kinds of contributor:
 >
-> - **New developer** — run it locally and learn the architecture. Lanes: Path A, then B, then C (history).
+> - **New developer** — run it locally and learn the architecture. Lanes: Path A, then B.
 > - **New tester** — run it locally; browse and switch between seeded personas at `/dev/personas` and read captured dev mail without a real inbox. Lanes: Path A, then the persona/tester harness (see `docs/TESTING.md` §16).
 > - **Initial operator / AWS maintainer** — owns AWS, applies Terraform, performs production activation, and claims the first admin. Starts here at Path B for orientation; all AWS staging and production setup is in AWS_OPERATIONS.md (private GitHub repo).
 > - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain: the pipeline maintainer runs `legacy_data/run_pipeline.sh` and `freestyle/run_freestyle.sh` (and loads the gitignored operator dataset per §1.10A), while design and content contributors work in `docs/` and `src/views/`.
@@ -17,7 +17,6 @@ This guide helps contributors understand how the platform is structured and how 
 >
 > - **Path A**; I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public pages locally.
 > - **Path B**; I need the architecture mental model, scope boundaries, and workflow rules.
-> - **Path C**; I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
 > - **AWS staging and production deployment**; I am the operator bringing up, hardening, or activating AWS. This lives in AWS_OPERATIONS.md (private GitHub repo) and requires access to the private operations repository.
 
 ---
@@ -50,17 +49,13 @@ This guide helps contributors understand how the platform is structured and how 
   - [2.4 Route contract and UI contract](#24-route-contract-and-ui-contract)
   - [2.5 Architecture mental model](#25-architecture-mental-model)
   - [2.6 Repo map](#26-repo-map)
-- [3. Path C — Historical bootstrap](#3-path-c--historical-bootstrap)
-  - [3.1 Why this section exists](#31-why-this-section-exists)
-  - [3.2 Original blank-slate assumptions](#32-original-blank-slate-assumptions)
-  - [3.3 Original implementation order](#33-original-implementation-order)
-- [4. AWS deployment and operations](#4-aws-deployment-and-operations)
-- [5. Appendices](#5-appendices)
-  - [5.1 Troubleshooting reference](#51-troubleshooting-reference)
-  - [5.2 Deterministic seed-data reference](#52-deterministic-seed-data-reference)
-  - [5.3 Smoke-check contract](#53-smoke-check-contract)
-  - [5.4 Authoritative project facts preserved by this guide](#54-authoritative-project-facts-preserved-by-this-guide)
-  - [5.5 Official references](#55-official-references)
+- [3. AWS deployment and operations](#3-aws-deployment-and-operations)
+- [4. Appendices](#4-appendices)
+  - [4.1 Troubleshooting reference](#41-troubleshooting-reference)
+  - [4.2 Deterministic seed-data reference](#42-deterministic-seed-data-reference)
+  - [4.3 Smoke-check contract](#43-smoke-check-contract)
+  - [4.4 Authoritative project facts preserved by this guide](#44-authoritative-project-facts-preserved-by-this-guide)
+  - [4.5 Official references](#45-official-references)
 
 ---
 
@@ -727,7 +722,7 @@ A stub `legacy_members` row with no `legacy_email` (for example before the legac
 
 ### 1.15 Filing a bug
 
-Defects are filed in the maintainers' private tracker (GitHub Issues on the private operations repository) using its Bug template: state observed versus expected behavior with the exact route or surface, reference members by record id and structural description (never name plus contact data), and never paste secret values. Security vulnerabilities go through GitHub's private vulnerability reporting on this public repository (see `SECURITY.md`), never a regular issue.
+Defects are filed in the maintainers' private tracker (GitHub Issues on the private operations repository) using its Bug template: state observed versus expected behavior with the exact route or surface, reference members by record id and structural description (never name plus contact data), and never paste secret values. A contributor without access to that tracker reports the same information to the maintainer instead, per `CONTRIBUTING.md`'s "Reporting a problem or proposing work", and the maintainer files it. Security vulnerabilities go through GitHub's private vulnerability reporting on this public repository (see `SECURITY.md`), never a regular issue.
 
 Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at the cheapest appropriate layer. A bug without a regression test is not closed.
 
@@ -739,7 +734,7 @@ With hello world running and the tests green, here is where to go next:
 - **More tests:** `./run_all_tests.sh` runs the fuller suite; `--full` adds the pentest, the staging-AWS smoke, and the persona-crawl. On a fixture-only clone (no operator data, no AWS profile) the staging-smoke and persona-crawl skip with a warning, so the run still completes green.
 - **The full dataset:** load the optional operator dataset and footbag.org mirror (§1.10A) when you need the real event archive and member roster; both are gitignored maintainer handoffs.
 - **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
-- **AWS deployment and operations:** staging and production bring-up, hardening, and activation live in AWS_OPERATIONS.md (private GitHub repo); running AWS commands requires access to the private operations repository.
+- **AWS deployment and operations:** staging and production bring-up, hardening, and activation live in AWS_OPERATIONS.md (private GitHub repo); running AWS commands requires access to the private operations repository. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.
 
 ## 2. Path B — Orientation: what this project is and how to think about it
 
@@ -950,7 +945,9 @@ The layered shape is the right mental map. The tree below shows the original eve
 ├─ terraform/
 │  ├─ shared/
 │  ├─ staging/
-│  └─ production/
+│  ├─ production/
+│  ├─ identity/
+│  └─ operators/
 ├─ docs/
 │  └─ DEV_ONBOARDING.md
 ├─ .env.example
@@ -982,155 +979,13 @@ Important file-level responsibilities:
 | ops/systemd/footbag.service         | production Compose wrapper                               |
 | terraform/                          | environment infrastructure definitions                   |
 
-## 3. Path C — Historical bootstrap
-
-### 3.1 Why this section exists
-
-This section is historical and architectural context.
-
-It explains:
-
-- how the initial functionality was originally built
-- what order the parts were intended to come together 
-- why particular files exist
-- how to reason about repo archaeology
-
-It is not the first thing a new contributor should follow today.
-
-### 3.2 Original blank-slate assumptions
-
-The original onboarding guide assumed a technically capable engineer joining the project with:
-
-- a blank Windows machine
-- WSL running Ubuntu
-- a blank or newly prepared GitHub repository
-- a blank AWS account or an account not yet prepared for this project
-
-That framing made sense for the original build-out. It no longer describes the main present-day onboarding entry point, which is why it lives here.
-
-### 3.3 Original implementation order
-
-The original build order was deliberate. In cleaned-up form, it was:
-
-#### Repository skeleton and initial files
-
-- package metadata
-- TypeScript config
-- .gitignore
-- .env.example
-- conventional directory layout
-
-#### Package and TypeScript tooling
-
-- Express
-- Handlebars
-- better-sqlite3
-- dotenv
-- TypeScript
-- tsx
-- Vitest
-- Supertest
-
-#### Baseline config
-
-- env loading/validation
-- logger
-- simple script set: dev, build, start, test
-
-#### SQLite bootstrap path
-
-- one DB module
-- PRAGMAs
-- statement catalog
-- transaction helper
-- no migration framework prerequisite yet
-
-#### Deterministic seed data
-
-- upcoming public event
-- completed public event with results
-- completed public event without results
-- non-public event that must not leak
-
-#### Host-run local app first
-
-- `src/app.ts`
-- `src/server.ts`
-- prove the app outside Docker before adding deployment complexity
-
-#### Public read routes
-
-- `GET /events`
-- `GET /events/year/:year`
-- `GET /events/:eventKey`
-
-#### Handlebars views
-
-- list page
-- year page
-- canonical event detail page
-- no-results handling
-- error pages
-
-#### Health endpoints
-
-- `/health/live`
-- `/health/ready`
-
-#### Tests and smoke scripts
-
-- integration tests
-- local smoke script
-- smoke-public script; out of scope for the initial slice
-
-#### Docker parity artifacts
-
-- web image
-- worker image
-- nginx
-- Compose stack
-- production overrides
-
-#### Terraform and ops artifacts
-
-- terraform/shared
-- terraform/staging
-- terraform/production
-- ops/systemd/footbag.service
-
-The original guide strongly emphasized the order: do not build giant infrastructure before the app runs locally and in Docker.
-
-#### Historical implementation batches
-
-The original batch plan is still useful as a mental model:
-
-- Batch 1: repository skeleton and toolchain
-- Batch 2: app bootstrap
-- Batch 3: database bootstrap and seed path
-- Batch 4: EventService public read models
-- Batch 5: controllers, routes, and templates
-- Batch 6: integration tests and smoke scripts
-- Batch 7: Docker parity artifacts
-- Batch 8: Terraform and ops artifacts
-
-Good historical checkpoints were:
-
-- `npm install` succeeds
-- `npm run build` works, even if source is still minimal
-- app starts cleanly
-- DB resets cleanly
-- readiness query works
-- route smoke checks pass
-- Docker parity works
-- Terraform fmt and validate pass
-
-## 4. AWS deployment and operations
+## 3. AWS deployment and operations
 
 AWS staging and production deployment for this project, the Terraform apply, host bring-up, production-readiness hardening, runtime AWS identity and transactional email activation, and production activation, is documented in AWS_OPERATIONS.md (private GitHub repo), the canonical AWS reference. Running any AWS command requires access to the private operations repository, and a contributor is invited to it before doing AWS work. Local development and the architecture orientation above need no AWS access.
 
-## 5. Appendices
+## 4. Appendices
 
-### 5.1 Troubleshooting reference
+### 4.1 Troubleshooting reference
 
 #### Local newcomer setup mistakes
 
@@ -1163,7 +1018,7 @@ AWS staging and production deployment for this project, the Terraform apply, hos
 - DB mount path wrong
 - `docker compose pull` used on host instead of the `docker save | docker load` ship path; images are built on the workstation and shipped manually
 
-### 5.2 Deterministic seed-data reference
+### 4.2 Deterministic seed-data reference
 
 These seeded routes are useful for local browser verification and integration tests. The deploy smoke check does not rely on them.
 
@@ -1180,7 +1035,7 @@ These seeded routes are useful for local browser verification and integration te
 
 These are reference checks, not the main onboarding story.
 
-### 5.3 Smoke-check contract
+### 4.3 Smoke-check contract
 
 `scripts/smoke-local.sh` is the canonical smoke-check baseline. All checks must be data-independent so the script runs against any staging DB without seed data. It should verify at least:
 
@@ -1201,7 +1056,7 @@ Why this matters:
 
 A `smoke-public.sh` script has not yet been created.
 
-### 5.4 Authoritative project facts preserved by this guide
+### 4.4 Authoritative project facts preserved by this guide
 
 This guide preserves these project constraints:
 
@@ -1217,12 +1072,12 @@ This guide preserves these project constraints:
 - explicit no-results rendering for historical events with no result rows
 - minimal readiness semantics (DB-only)
 - Lightsail origin behind CloudFront
-- /srv/footbag/env as the live runtime config source in non-local deployments
-- Parameter Store as optional AWS-side reference storage, not the runtime source of truth
+- /srv/footbag/env as the file the runtime reads in non-local deployments, mirrored from Parameter Store on every deploy
+- Parameter Store as the runtime source of truth for deployed secrets, with a hand edit on the host reverted by the next deploy
 - hardened per-operator SSH for host access
-- manual bootstrap only until Terraform authority is established
+- Terraform as the authority for infrastructure, with host bootstrap steps reproducible and reflected in the runbooks
 
-### 5.5 Official references
+### 4.5 Official references
 
 #### Windows / WSL
 
@@ -1238,7 +1093,7 @@ This guide preserves these project constraints:
 - [AWS CLI install](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [AWS CLI quickstart](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
 - [IAM Identity Center with AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)
-- [aws configure sso](https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html)
+- [aws configure sso](https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html) — the hand-typed flow, for background; here the operator profile is written by `scripts/install-operator-sso-profile.sh`, which also refuses to write it over a stored key
 - [Root user best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
 - [IAM best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
 - [Lightsail SSH keys and connection overview](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html)

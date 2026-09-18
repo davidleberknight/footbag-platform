@@ -190,8 +190,9 @@ describe('aws_identity_resolve', () => {
 
   it('accepts whatever principal answers, which the other two deliberately do not', () => {
     // This one runs before ordinary work, where the question is only whether
-    // the credential still authenticates. Pinning a principal here would have
-    // to be revised the day the same profile names a federated role.
+    // the credential still authenticates. The everyday profile answers as an
+    // assumed role, not as a user, so a principal pinned here would refuse the
+    // identity almost every run legitimately carries.
     const r = runIdentity('aws_identity_resolve p; echo "rc=$?"', {
       p: STAGING_ROLE,
     });

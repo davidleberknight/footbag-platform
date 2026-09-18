@@ -53,18 +53,19 @@
 # a statement rather than as --force so that using it is a claim about what you
 # did, not a way past a check you found inconvenient.
 #
-# The typed APPLY is asked for on production and on the shared tree, which holds
-# every environment's state. Staging applies without it: its data is meant to be
-# thrown away, and a word typed on every iteration is one that stops being read.
-# --break-stale-lock asks in every environment, staging included, because what it
-# removes is not staging's disposable data.
+# The typed APPLY is asked for on production, on the shared tree, which holds
+# every environment's state, and on the operators tree, where the plan is a
+# person gaining or losing access to this account. Staging applies without it:
+# its data is meant to be thrown away, and a word typed on every iteration is one
+# that stops being read. --break-stale-lock asks on every tree, staging included,
+# because what it removes is not staging's disposable data.
 #
 #   ... --yes   answers the typed confirmation where one is asked and the flag is
 #               accepted: the shared tree's apply, and a staging lock break. A
 #               production apply refuses it outright, because a confirmation a flag
 #               can supply in advance is not one, and so does breaking the lock on
-#               production or the shared tree, because removing a live lock lets two
-#               runs write state at once. Kept rather than rejected as unknown so
+#               production, the shared tree or the roster, because removing a live
+#               lock lets two runs write state at once. Kept rather than rejected so
 #               that reaching for it in a place it does not carry fails loudly
 #               instead of looking like an option nobody happened to implement.
 #               --dry-run --yes still works everywhere, since a dry run applies
@@ -270,12 +271,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# No default target. Which environment an apply lands on is exactly the decision
-# this script must not make for the operator.
+# No default target. Which tree an apply lands on is exactly the decision this
+# script must not make for the operator.
+#
+# `operators` is the roster: who holds which human-operator role. It is here
+# because hiring and firing are ordinary work and must be runnable by a super
+# admin as themselves. `identity`, which declares what those roles may DO, is
+# deliberately absent: a role is denied every write to its own definition, so
+# it cannot apply that tree, and scripts/standup-identity-center.sh owns it
+# instead.
 case "$TARGET" in
-  staging|production|shared) ;;
-  '') echo "ERROR: --target is required ('staging', 'production' or 'shared')" >&2; exit 2 ;;
-  *) echo "ERROR: --target must be 'staging', 'production' or 'shared' (got '$TARGET')" >&2; exit 2 ;;
+  staging|production|shared|operators) ;;
+  '') echo "ERROR: --target is required ('staging', 'production', 'shared' or 'operators')" >&2; exit 2 ;;
+  identity)
+    echo "ERROR: the identity tree is not applied through this wrapper." >&2
+    echo "       It declares the operator roles' own definitions, and a role is denied" >&2
+    echo "       every write to that definition, so no role can apply it. Use" >&2
+    echo "       scripts/standup-identity-center.sh, which runs as the directly" >&2
+    echo "       authenticated identity." >&2
+    echo "" >&2
+    echo "       If you meant to hire or fire somebody, that is the roster:" >&2
+    echo "         scripts/terraform-apply.sh --target operators" >&2
+    exit 2
+    ;;
+  *) echo "ERROR: --target must be 'staging', 'production', 'shared' or 'operators' (got '$TARGET')" >&2; exit 2 ;;
 esac
 
 if [[ ! "$FROM_STEP" =~ ^[1-2]$ ]]; then
@@ -328,7 +347,7 @@ if (( DRY_RUN )); then
     echo "     right now, then refuse unless the lock names this machine, was taken by"
     echo "     a plan, is older than $(( STALE_LOCK_MIN_AGE_SECS / 60 )) minutes, and no terraform is running here."
     echo "     Then a typed APPLY, then force-unlock, then a read proving it is gone."
-  elif [[ "$TARGET" == "production" || "$TARGET" == "shared" ]]; then
+  elif [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "operators" ]]; then
     echo "  2. terraform -chdir=terraform/$TARGET plan into a mode-600 file shredded on"
     echo "     every exit path, show it, take a typed APPLY, then apply that exact plan."
   else
@@ -356,11 +375,14 @@ fi
 # the outcome this mode's four checks exist to prevent, and a flag passed in
 # advance is not the operator's judgement that the holding run is gone.
 #
-# Staging keeps --yes here. Its lock prompt is the one place staging still stops,
-# and an explicitly typed flag is entitled to answer it; the tree's data is
-# disposable and its state is not shared with anything that is not.
+# The operators tree is here for the same reason it takes a typed APPLY: its
+# state is the record of who can sign in to this account, so two runs writing it
+# at once can leave somebody admitted who was being removed. Staging is the only
+# tree that keeps --yes here. Its lock prompt is the one place staging still
+# stops, and an explicitly typed flag is entitled to answer it; the tree's data
+# is disposable and its state is not shared with anything that is not.
 if (( BREAK_LOCK )) && [[ "$ASSUME_YES" == "yes" ]] \
-   && [[ "$TARGET" == "production" || "$TARGET" == "shared" ]]; then
+   && [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "operators" ]]; then
   echo "ERROR: --yes does not carry breaking the ${TARGET} state lock." >&2
   echo "       Removing a lock while a run is genuinely live lets two runs write" >&2
   echo "       state at once, so the word is typed rather than passed in advance." >&2
@@ -762,10 +784,17 @@ fi
 # bucket the other two trees need in order to exist at all. It also costs
 # nothing: the shared tree changes about once a year.
 #
-# The plan is still printed in full on every environment, and the warning below
-# still says what to look for, because the reading is the part that matters and
-# it is not what the prompt was buying.
-if [[ "$TARGET" == "production" || "$TARGET" == "shared" ]]; then
+# The operators tree asks for a different reason: its plan is a person gaining or
+# losing access to this account. A removed entry deletes somebody's sign-in, an
+# added one admits somebody; neither is a change to skim past, and the diff is
+# short enough that reading it costs nothing. Asking here does not make hiring or
+# firing ceremonial — it still runs as the operator themselves, with no
+# privileged sign-in — it only makes the moment deliberate.
+#
+# The plan is still printed in full on every tree, and the warning below still
+# says what to look for, because the reading is the part that matters and it is
+# not what the prompt was buying.
+if [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "operators" ]]; then
   echo "Read the plan above before answering. It covers this whole environment, not only"
   echo "the change you came for: anything else pending in the tree is applied with it."
   echo "A destroy or a replacement you did not expect is a reason to stop, not to confirm."
@@ -776,7 +805,8 @@ if [[ "$TARGET" == "production" || "$TARGET" == "shared" ]]; then
   fi
 else
   echo "Applying the plan above without a confirmation, which is deliberate for"
-  echo "${TARGET}: production is the environment that stops for a typed word."
+  echo "${TARGET}: it is the one tree that does not stop for a typed word, because"
+  echo "its data is disposable and a word typed on every iteration stops being read."
   echo "The plan covers this whole environment, not only the change you came for."
   echo ""
 fi

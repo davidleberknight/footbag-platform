@@ -4,8 +4,8 @@
 #
 # WHY THIS EXISTS.
 #
-# An operator workstation carries one named profile and no default section, so a
-# shell that has not been prepared has no AWS identity at all. For most of this
+# An operator workstation carries no default section, so a shell that has not
+# been prepared has no AWS identity at all. For most of this
 # tree's life that preparation was a line in an operator's shell profile, and it
 # worked until the day a run started somewhere that had not sourced it: the
 # deploy failed at its last step, reported three possible causes, and every one
@@ -50,16 +50,22 @@ report() {
 
 # Paths that must NOT resolve the operator identity, each for its own reason.
 #
-# Two families. The first runs on the deployed host, as root, where
-# `footbag-operator` does not exist and the host's own assumed-role chain is the
-# whole point. The second deliberately acts as, or proves, a different identity,
+# Two families. The first runs on the deployed host, as root, where neither
+# operator profile exists and the host's own assumed-role chain is the whole
+# point. The second deliberately acts as, or proves, a different identity,
 # and would be broken rather than helped by having the operator profile supplied
 # underneath it.
 is_exempt() {
   case "$1" in
-    # It creates the operator profile, and strips AWS_PROFILE to prove the new
-    # credential on its own. Supplying that profile would be circular.
+    # It creates the profile holding the directly authenticated key, and strips
+    # AWS_PROFILE to prove the pasted credential on its own. Supplying an
+    # identity underneath it would be circular.
     scripts/install-operator-key.sh) return 0 ;;
+    # It creates the everyday federated profile and reaches AWS not at all: it
+    # writes a stanza saying where to sign in and as what, and leaves the
+    # sign-in itself to the operator. There is no identity for this gate to
+    # supply, and one supplied would prove nothing about the file it wrote.
+    scripts/install-operator-sso-profile.sh) return 0 ;;
     # It requires an explicit profile and proves the chained runtime profiles
     # before cutting a key. A defaulted identity would let a rotation act on the
     # strength of the wrong credential.

@@ -5,8 +5,9 @@
 # pre-deploy summary, delegation to scripts/deploy-to-aws.sh.
 #
 # Where the host sudo password comes from depends on the target, and the
-# difference is the point. Staging reads ~/AWS/AWS_OPERATOR.txt exactly once via
-# shell `<` redirection, with nobody at the keyboard. Production reads it from the
+# difference is the point. Staging reads it exactly once via shell `<`
+# redirection, with nobody at the keyboard, from the one file that holds the
+# sudo password of the account the alias connects as. Production reads it from the
 # operator's terminal, silently, in the same gate that asks for the typed
 # confirmation, and has no file to fall back to: the file proves only that its
 # reader had filesystem access, which on this workstation is not the same as an
@@ -569,44 +570,25 @@ fi
 
 # Operator credential source, for staging only. Production has none: its host
 # password was typed at the gate above, so there is no file to resolve, nothing to
-# check for readability and no mode to enforce. An AWS_OPERATOR_FILE aimed at a
-# production run is ignored rather than honoured, because a variable that could
-# redirect the read would leave the typed gate one environment variable away from
-# gone, which is precisely the defect the inherited database-replacement
-# acknowledgement used to have.
-if (( PROD_PASSWORD_TYPED == 1 )); then
-  if [[ -n "${AWS_OPERATOR_FILE:-}" ]]; then
-    echo "NOTICE: AWS_OPERATOR_FILE is ignored for a production deploy; the host" >&2
-    echo "        password was typed at the terminal. Staging still reads its file." >&2
-    echo "" >&2
-  fi
-else
-  # Default path is per-environment so a stale AWS_OPERATOR env var bleed cannot
-  # accidentally feed one environment's credentials into another's deploy.
-  # Explicit AWS_OPERATOR_FILE overrides the default. Generic error: never print
-  # the resolved path.
-  if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
-    AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR.txt"
-  fi
-  if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
-    echo "ERROR: operator credential source unavailable." >&2
-    echo "Recommendation: verify the configured credential location is readable." >&2
-    exit 1
-  fi
-
-  # The file holds a host sudo password, so anything readable beyond its owner is
-  # an exposure rather than an inconvenience: every account on the workstation can
-  # read it, and nothing else in the chain would notice. The requirement is
-  # already the documented one; this refuses rather than trusting it, because a
-  # wrong mode is silent and can persist for months. Generic message: never print
-  # the resolved path.
-  _cred_mode=$(stat -c '%a' "$AWS_OPERATOR_FILE" 2>/dev/null || echo "")
-  if [[ "$_cred_mode" != "600" && "$_cred_mode" != "400" ]]; then
-    echo "ERROR: operator credential file has mode ${_cred_mode:-unknown}; expected 600 (or 400)." >&2
-    echo "Recommendation: restrict it to its owner, then rotate the password it holds," >&2
-    echo "                since a readable file must be assumed to have been read." >&2
-    exit 1
-  fi
+# check for readability and no mode to enforce. Nothing redirects that read
+# either, because a variable that could would leave the typed gate one
+# environment variable away from gone, which is precisely the defect the
+# inherited database-replacement acknowledgement used to have.
+#
+# Which file staging reads is not a setting. It follows the account the alias
+# connects as, by the shared rule, so an operator who has moved onto their own
+# named account changes the alias's `User` line and the deploy follows. That is
+# the whole of the switch. Before this rule existed, a deploy from a named
+# account piped the shared account's password, connected on the key and then
+# failed at sudo on the host, which reads as a broken account or a mistyped
+# password and is neither.
+OPERATOR_CREDENTIAL_FILE=""
+if (( PROD_PASSWORD_TYPED == 0 )); then
+  # shellcheck source=scripts/lib/operator-credential.sh
+  source "${SCRIPT_DIR}/scripts/lib/operator-credential.sh"
+  # The alias IS the deploy target here, and staging is the only environment
+  # that reaches this branch.
+  require_operator_credential "$DEPLOY_TARGET" staging || exit 1
 fi
 
 # Code-only schema-sync (the bare default, or -k). A code-only deploy ships new
@@ -617,8 +599,8 @@ fi
 # key auth, no operator password, no sudo, </dev/null so the credential pipe is
 # untouched). Git state is irrelevant — we compare against what is DEPLOYED, not
 # what is committed. Best-effort: any failure to read the host schema warns and
-# proceeds. Runs after the AWS_OPERATOR_FILE check so the more fundamental
-# credential error fires first.
+# proceeds. Runs after the credential check so the more fundamental credential
+# error fires first.
 if (( MODE_CODE_ONLY == 1 )) \
     && [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] \
     && command -v sqlite3 >/dev/null 2>&1 \
@@ -779,5 +761,5 @@ if (( PROD_PASSWORD_TYPED == 1 )); then
     < <(printf '%s\n' "$_PROD_SUDO_PASS")
 else
   exec bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
-    < "$AWS_OPERATOR_FILE"
+    < "$OPERATOR_CREDENTIAL_FILE"
 fi

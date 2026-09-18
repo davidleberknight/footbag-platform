@@ -25,6 +25,17 @@ each is a real one.
   comparison. And never from the environment: the accept-without-asking flag is assigned by the
   shared helper, so an exported value in the operator's shell cannot stand in for the typed answer.
   Use `confirm_from_tty`; do not re-implement the prompt.
+- **The credential file is chosen by the account, not by the operator and not by a variable.**
+  `scripts/lib/operator-credential.sh` reads what account the alias connects as and picks the file
+  that account keeps for that environment; no script builds the path itself and nothing selects it
+  by environment variable, so changing the alias's one `User` line is the whole act of switching
+  identity. Nothing falls back across the pairs: a file the rule selected and did not find is
+  refused by name, because a silent fallback attributes a named operator's work to the shared
+  account and nothing anywhere says so. A mode that is not 600 or 400 is refused with a message
+  saying to rotate, since a credential other accounts could read has already been exposed and
+  fixing the mode does not undo that. Say on stderr which file the rule chose, on every run: the
+  library never opens it, because the password arrives on stdin, so a run that did not name its
+  choice is ambiguous about the identity it meant.
 - **The word is always `APPLY`.** One word for every confirmation in the tree, whatever the script
   and whatever the direction. State what is being confirmed in full, immediately before the prompt,
   and never encode it in the word: a phrase per script gives the operator something to look up, and

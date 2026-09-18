@@ -19,7 +19,15 @@ import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync, chmodSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  chmodSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -471,6 +479,10 @@ describe('arming.sh — the email switch', () => {
         'set -euo pipefail',
         'if [[ "${1:-}" == "-G" ]]; then',
         '  echo "hostname 198.51.100.9"',
+        // The account the alias connects as, which is what selects the
+        // credential file. Left to the developer's own ~/.ssh/config it would
+        // decide these cases' verdict, and differently on each machine.
+        '  printf "user %s\\n" "${FAKE_SSH_USER:-footbag}"',
         '  exit 0',
         'fi',
         'IFS= read -r _password || true',
@@ -489,6 +501,26 @@ describe('arming.sh — the email switch', () => {
     return { binDir, pinFile };
   }
 
+  /**
+   * A throwaway home holding the shared account's credential files, or holding
+   * none. Both are written, because the rule picks by environment and these
+   * cases run against production; a case that supplied only one would pass for
+   * the wrong reason if the rule ever picked the other.
+   */
+  function fakeHomeWithCredential(present: boolean): string {
+    fileCounter += 1;
+    const home = join(tmpDir, `home-${fileCounter}`);
+    mkdirSync(join(home, 'AWS'), { recursive: true });
+    if (present) {
+      for (const name of ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt']) {
+        const path = join(home, 'AWS', name);
+        writeFileSync(path, 'host-sudo-password-not-real\n');
+        chmodSync(path, 0o600);
+      }
+    }
+    return home;
+  }
+
   function runWithHost(
     args: string[],
     input: string,
@@ -496,22 +528,18 @@ describe('arming.sh — the email switch', () => {
     withCredential = true,
   ): RunResult {
     const { binDir, pinFile } = writeHostStandIns(envContent ?? '');
-    fileCounter += 1;
-    const credFile = join(tmpDir, `cred-${fileCounter}.txt`);
-    writeFileSync(credFile, 'host-sudo-password-not-real\n');
-    chmodSync(credFile, 0o600);
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       // The run settles and proves its identity before it reads the state.
       ...awsIdentityStubEnv(tmpDir),
       PATH: `${binDir}:${process.env.PATH ?? ''}`,
       FOOTBAG_KNOWN_HOSTS: pinFile,
+      // The credential is a file at a fixed place under the operator's home,
+      // chosen by the account the alias connects as. Nothing selects it by
+      // environment variable any more, so a case that wants one present writes
+      // it, and a case that wants it absent writes nothing.
+      HOME: fakeHomeWithCredential(withCredential),
     };
-    if (withCredential) {
-      env.AWS_OPERATOR_FILE = credFile;
-    } else {
-      delete env.AWS_OPERATOR_FILE;
-    }
     const result = spawnSync('bash', [ARMING, ...args], {
       cwd: process.cwd(),
       encoding: 'utf-8',
@@ -593,8 +621,49 @@ describe('arming.sh — the email switch', () => {
       false,
     );
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toMatch(/Host env file NOT read: AWS_OPERATOR_FILE is not set/);
+    expect(res.stdout).toMatch(
+      /Host env file NOT read: ~\/AWS\/AWS_OPERATOR_PRODUCTION\.txt is missing or unreadable/,
+    );
     expect(res.stdout).toMatch(/Type 'APPLY' only if every one of 0 and a-e is true/);
+  });
+
+  it('names the personal file when the alias connects as a named account', () => {
+    // Same degradation, different file. An operator reading this message goes
+    // and looks at the file it names, so naming the shared one while connected
+    // as a person sends them to write their own password into the wrong place.
+    const tfvars = writeTfvars(EMAIL_TFVARS);
+    const { binDir, pinFile } = writeHostStandIns('');
+    const result = spawnSync(
+      'bash',
+      [
+        ARMING,
+        '--target',
+        'production',
+        '--switch',
+        'email',
+        '--state',
+        'armed',
+        '--tfvars',
+        tfvars,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+        input: 'APPLY\nyes\n',
+        env: {
+          ...process.env,
+          ...awsIdentityStubEnv(tmpDir),
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+          FOOTBAG_KNOWN_HOSTS: pinFile,
+          HOME: fakeHomeWithCredential(true),
+          FAKE_SSH_USER: 'ada_lovelace',
+        },
+        ...SPAWN_GUARD,
+      },
+    );
+    const out = result.stdout ?? '';
+    expect(out).toMatch(/HOST_OPERATOR_PRODUCTION\.txt is missing or unreadable/);
+    expect(out).not.toMatch(/AWS_OPERATOR_PRODUCTION\.txt is missing/);
   });
 
   /**
@@ -615,9 +684,6 @@ describe('arming.sh — the email switch', () => {
       'utf-8',
     );
     chmodSync(join(binDir, 'aws'), 0o755);
-    const credFile = join(tmpDir, `cred-ssm-${fileCounter}.txt`);
-    writeFileSync(credFile, 'host-sudo-password-not-real\n');
-    chmodSync(credFile, 0o600);
     const result = spawnSync('bash', [ARMING, ...args, '--profile', 'stand-in-profile'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
@@ -627,7 +693,7 @@ describe('arming.sh — the email switch', () => {
         ...awsIdentityStubEnv(tmpDir),
         PATH: `${binDir}:${process.env.PATH ?? ''}`,
         FOOTBAG_KNOWN_HOSTS: pinFile,
-        AWS_OPERATOR_FILE: credFile,
+        HOME: fakeHomeWithCredential(true),
       },
       ...SPAWN_GUARD,
     });

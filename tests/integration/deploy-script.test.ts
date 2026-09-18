@@ -60,9 +60,7 @@ function scaffoldWrapperRoot(withPrivateCheckout = true): string {
 
 describe('deploy_to_aws.sh wrapper', () => {
   it('--help exits 0 without checking AWS credentials or tools', () => {
-    const r = run('bash', ['deploy_to_aws.sh', '--help'], {
-      env: { AWS_OPERATOR_FILE: '/nonexistent/never/exists' },
-    });
+    const r = run('bash', ['deploy_to_aws.sh', '--help']);
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/Usage:/i);
   });
@@ -200,27 +198,26 @@ describe('deploy_to_aws.sh wrapper', () => {
   });
 
   it.skipIf(!HAS_DOCKER)(
-    '-k with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',
+    '-k with no credential file on the machine exits 1 with a Recommendation',
     () => {
+      // Which file the deploy needs follows the account the alias connects as,
+      // so there is no variable to point at a missing path any more: the run
+      // resolves one and finds it absent. Either that check or an earlier
+      // ssh-alias or tool check stops the run, and both say what to do about
+      // it, which is the contract here.
       const tmpRoot = scaffoldWrapperRoot();
       let r;
       try {
         r = run('bash', ['deploy_to_aws.sh', '-k'], {
           cwd: tmpRoot,
-          env: {
-            AWS_OPERATOR_FILE: '/nonexistent/never/exists',
-            DEPLOY_TARGET: 'footbag-staging',
-          },
+          env: { DEPLOY_TARGET: 'footbag-staging' },
         });
       } finally {
         fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
       expect(r.status).toBe(1);
-      // Either we hit the credential-file check or an earlier ssh-alias /
-      // tool check — both produce a Recommendation: line. Path must not leak.
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(combined).toMatch(/Recommendation:/);
-      expect(combined).not.toMatch(/\/nonexistent\/never\/exists/);
     },
   );
 
@@ -231,23 +228,17 @@ describe('deploy_to_aws.sh wrapper', () => {
       // footbag-production must not proceed without the operator typing the
       // confirmation phrase. Test environment has no TTY, so the gate
       // refuses with a clear "no TTY available" recommendation.
-      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-${Date.now()}.txt`);
-      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '--from-csv'], {
           cwd: tmpRoot,
-          env: {
-            AWS_OPERATOR_FILE: tmpFile,
-            DEPLOY_TARGET: 'footbag-production',
-          },
+          env: { DEPLOY_TARGET: 'footbag-production' },
         });
         expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
         expect(combined).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
         expect(combined).toMatch(/requires interactive confirmation/);
       } finally {
-        fs.unlinkSync(tmpFile);
         fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
@@ -260,23 +251,17 @@ describe('deploy_to_aws.sh wrapper', () => {
       // intake, so against footbag-production it must ride the same typed
       // confirmation as any other DB-touching deploy. The test environment has
       // no TTY, so the gate refuses before any host contact.
-      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-alldata-${Date.now()}.txt`);
-      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
           cwd: tmpRoot,
-          env: {
-            AWS_OPERATOR_FILE: tmpFile,
-            DEPLOY_TARGET: 'footbag-production',
-          },
+          env: { DEPLOY_TARGET: 'footbag-production' },
         });
         expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
         expect(combined).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
         expect(combined).toMatch(/requires interactive confirmation/);
       } finally {
-        fs.unlinkSync(tmpFile);
         fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
@@ -298,14 +283,11 @@ describe('deploy_to_aws.sh wrapper', () => {
       // the only thing left between this test and a real production database
       // replacement would be whichever preflight happens to fail on the machine
       // running the suite, which is not a safety property at all.
-      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-ack-${Date.now()}.txt`);
-      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '-n'], {
           cwd: tmpRoot,
           env: {
-            AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
             FOOTBAG_PROD_DB_REPLACE_ACK: '1',
           },
@@ -316,7 +298,6 @@ describe('deploy_to_aws.sh wrapper', () => {
         expect(combined).toMatch(/no non-interactive form of this confirmation/);
         expect(combined).not.toMatch(/skipping interactive confirmation/);
       } finally {
-        fs.unlinkSync(tmpFile);
         fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
@@ -337,14 +318,11 @@ describe('deploy_to_aws.sh wrapper', () => {
       // the result depend on whether the target host happens to be reachable
       // from the machine running the suite, which is a property of the machine
       // rather than of the code.
-      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-prod-k-${Date.now()}.txt`);
-      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       const tmpRoot = scaffoldWrapperRoot();
       try {
         const r = run('bash', ['deploy_to_aws.sh', '-kny'], {
           cwd: tmpRoot,
           env: {
-            AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
             // A code-only deploy compares the deployed schema against
             // database/schema.sql, and reads the deployed one by opening a
@@ -369,7 +347,6 @@ describe('deploy_to_aws.sh wrapper', () => {
         expect(combined).toMatch(/the on-host database is left alone/);
         expect(combined).toMatch(/a production deploy requires interactive confirmation/);
       } finally {
-        fs.unlinkSync(tmpFile);
         fs.rmSync(tmpRoot, { recursive: true, force: true });
       }
     },
@@ -422,27 +399,17 @@ describe('deploy_to_aws.sh wrapper', () => {
   it.skipIf(!HAS_DOCKER)(
     '-k with non-allowlisted DEPLOY_TARGET exits 1 at the allowlist gate',
     () => {
-      // After F.1 prod-plumbing, DEPLOY_TARGET is allowlisted to exactly
-      // 'footbag-staging' or 'footbag-production'. Any other value is
-      // refused at the entry-point allowlist check, before the SSH-alias
-      // resolve preflight ever runs. Substring patterns and typos cannot
-      // sneak through.
-      const tmpFile = path.join(os.tmpdir(), `footbag-test-op-${Date.now()}.txt`);
-      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
-      try {
-        const r = run('bash', ['deploy_to_aws.sh', '-k'], {
-          env: {
-            AWS_OPERATOR_FILE: tmpFile,
-            DEPLOY_TARGET: 'this-alias-definitely-does-not-exist-zzz',
-          },
-        });
-        expect(r.status).toBe(1);
-        const combined = (r.stderr ?? '') + (r.stdout ?? '');
-        expect(combined).toMatch(/DEPLOY_TARGET must be 'footbag-staging' or 'footbag-production'/);
-        expect(combined).toMatch(/Recommendation:/);
-      } finally {
-        fs.unlinkSync(tmpFile);
-      }
+      // DEPLOY_TARGET is allowlisted to exactly 'footbag-staging' or
+      // 'footbag-production'. Any other value is refused at the entry-point
+      // allowlist check, before the SSH-alias resolve preflight ever runs, so
+      // substring patterns and typos cannot sneak through.
+      const r = run('bash', ['deploy_to_aws.sh', '-k'], {
+        env: { DEPLOY_TARGET: 'this-alias-definitely-does-not-exist-zzz' },
+      });
+      expect(r.status).toBe(1);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).toMatch(/DEPLOY_TARGET must be 'footbag-staging' or 'footbag-production'/);
+      expect(combined).toMatch(/Recommendation:/);
     },
   );
 });
@@ -1425,14 +1392,30 @@ describe('production deploys type their host password instead of reading a file'
   it('leaves staging reading its credential file, with the mode check intact', () => {
     const source = wrapper();
     expect(source).toMatch(
-      /exec bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< "\$AWS_OPERATOR_FILE"/);
-    expect(source).toMatch(/expected 600 \(or 400\)/);
+      /exec bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< "\$OPERATOR_CREDENTIAL_FILE"/);
+    // The mode check moved into the shared rule rather than going away; this
+    // pins that the deploy still runs it, since a wrong mode is silent and can
+    // persist for months.
+    expect(source).toMatch(/require_operator_credential "\$DEPLOY_TARGET" staging/);
   });
 
-  it('ignores AWS_OPERATOR_FILE for production rather than letting it bypass the prompt', () => {
+  it('picks the staging credential file by rule rather than by environment variable', () => {
+    // The file follows the account the alias connects as. An operator who has
+    // moved onto their own named account changes the alias's User line and the
+    // deploy follows; before that, a deploy from a named account piped the
+    // shared account's password and failed at sudo on the host, which reads as
+    // a broken account and is not one.
+    const source = wrapper();
+    expect(source).not.toMatch(/AWS_OPERATOR_FILE/);
+    expect(source).not.toMatch(/HOME.*AWS\/AWS_OPERATOR/);
+  });
+
+  it('gives production no file to fall back to at all', () => {
     // Otherwise the gate is one environment variable away from gone, which is
     // the defect the inherited database-replacement ack already had.
-    expect(wrapper()).toMatch(/AWS_OPERATOR_FILE is ignored for a production deploy/);
+    const source = wrapper();
+    expect(source).toMatch(/if \(\( PROD_PASSWORD_TYPED == 0 \)\); then/);
+    expect(source).toMatch(/Production has none: its host/);
   });
 });
 

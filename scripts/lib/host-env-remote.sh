@@ -39,6 +39,11 @@ HOST_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${HOST_ENV_LIB_DIR}/ssh-known-hosts.sh"
 # shellcheck source=terminal.sh
 source "${HOST_ENV_LIB_DIR}/terminal.sh"
+# Which of the four credential files a run reads. Its own file, because the same
+# rule is needed by entry points that open no wire and must not inherit this
+# one's connection options or its unconditional flag assignments.
+# shellcheck source=operator-credential.sh
+source "${HOST_ENV_LIB_DIR}/operator-credential.sh"
 
 # The host is verified against the operator's pinned host-key file and an
 # unrecognized key aborts before the pipe opens, which is what keeps the sudo
@@ -70,17 +75,25 @@ HOST_LOG_GREP_HALF="${HOST_ENV_LIB_DIR}/../internal/host-log-grep-remote.sh"
 # stdin could not: the first consumer would drain it.
 SUDO_PASS=""
 
-# require_operator_stdin <invocation-example>
+# require_operator_stdin <invocation-example> <alias> <target>
 # Refuses an interactive stdin rather than hanging on a password nobody is going
 # to type, and names the exact form to re-run with.
+#
+# What it does NOT do, stated plainly because the guarantee is easy to overread:
+# the password arrives on stdin, so this never opens the credential file and
+# cannot tell which one the operator redirected in. It selects, names and refuses
+# on absence; whether the named file is the one that was piped is the caller's to
+# get right, which is why the selected name is printed on every run.
 require_operator_stdin() {
-  local invocation="$1"
-  # The credential file is per-environment, and a message naming a placeholder
-  # is not pasteable, which is the whole point of printing one here. The caller
-  # passes its own invocation, which names the target where there is one, so the
-  # right file is read straight off it.
-  local cred="~/AWS/AWS_OPERATOR.txt"
-  [[ "$invocation" == *production* ]] && cred="~/AWS/AWS_OPERATOR_PRODUCTION.txt"
+  local invocation="$1" alias="${2:-}" target="${3:-}"
+  if [[ -z "$alias" || -z "$target" ]]; then
+    echo "ERROR: require_operator_stdin needs the ssh alias and the target as well as the" >&2
+    echo "       invocation example; without the alias there is no account to pick a" >&2
+    echo "       credential file from. This is a defect in the calling script." >&2
+    return 1
+  fi
+  operator_credential_select "$alias" "$target" || return 1
+  local cred="$OPERATOR_CREDENTIAL_DISPLAY"
   if [[ -t 0 ]]; then
     echo "ERROR: must receive the host sudo password on stdin." >&2
     echo "       Run via: < ${cred} bash ${invocation}" >&2
@@ -92,6 +105,7 @@ require_operator_stdin() {
     echo "       Run via: < ${cred} bash ${invocation}" >&2
     return 1
   fi
+  echo "credential: expecting ${cred} ('${alias}' connects as '${OPERATOR_CREDENTIAL_ACCOUNT}'); what arrived on stdin is not checked against it" >&2
   return 0
 }
 
@@ -264,7 +278,7 @@ tfvars_mask() {
 # Prints the real path to write a values file at, after proving git will not
 # pick it up. Creates it at mode 0600 when absent.
 #
-# The only thing that matters here is that a live webhook secret cannot be
+# The only thing that matters here is that a live value cannot be
 # committed. That is decided by gitignore, not by where the file lives: a path
 # outside the repository is unreachable by git, and a path inside it is safe
 # exactly when `git check-ignore` claims it. `*.tfvars` is ignored, so the
@@ -304,9 +318,10 @@ resolve_tfvars_target() {
     "$repo_root"/*)
       if ! git -C "$repo_root" check-ignore -q "$resolved" 2>/dev/null; then
         echo "ERROR: $resolved is inside this repository and git does not ignore it." >&2
-        echo "       This file takes a live webhook secret; writing it where git can" >&2
-        echo "       pick it up is how that secret gets committed. Point --tfvars at an" >&2
-        echo "       ignored path (*.tfvars is ignored) or at one outside the tree." >&2
+        echo "       A values file is gitignored by design, and the callers of this" >&2
+        echo "       helper write live account facts into one. Writing where git can" >&2
+        echo "       pick it up is how such a value gets committed. Point --tfvars at" >&2
+        echo "       an ignored path (*.tfvars is ignored) or at one outside the tree." >&2
         return 1
       fi
       ;;
@@ -315,24 +330,30 @@ resolve_tfvars_target() {
   printf '%s' "$resolved"
 }
 
-# write_tfvars_url <resolved-path> <var-name> <url>
+# write_tfvars_string <resolved-path> <var-name> <value> [abort-hint]
 # Replace-or-append a terraform string assignment, show a key-masked diff,
 # confirm, install. Duplicates collapse, because terraform takes the last
 # assignment and a stale duplicate below the rewritten line would win over the
 # value the operator was shown.
-write_tfvars_url() {
-  local path="$1" var="$2" url="$3" tmp
+#
+# The abort hint is the caller's, because what a declined write leaves behind
+# differs by caller and a generic line would be wrong somewhere: a minted
+# webhook key is already installed on a host and needs regenerating, while an
+# ARN read back from IAM is still there to be read again. Omitted, the refusal
+# says only that the file is unchanged, which is always true.
+write_tfvars_string() {
+  local path="$1" var="$2" value="$3" hint="${4:-}" tmp
   umask 077
   tmp="$(mktemp "${TMPDIR:-/tmp}/footbag-tfvars.XXXXXX")"
 
-  VAR_NAME="$var" URL_VALUE="$url" awk '
+  VAR_NAME="$var" VAR_VALUE="$value" awk '
     BEGIN { pattern = "^[ \t]*" ENVIRON["VAR_NAME"] "[ \t]*="; seen = 0 }
     $0 ~ pattern {
-      if (!seen) { printf "%s = \"%s\"\n", ENVIRON["VAR_NAME"], ENVIRON["URL_VALUE"]; seen = 1 }
+      if (!seen) { printf "%s = \"%s\"\n", ENVIRON["VAR_NAME"], ENVIRON["VAR_VALUE"]; seen = 1 }
       next
     }
     { print }
-    END { if (!seen) printf "%s = \"%s\"\n", ENVIRON["VAR_NAME"], ENVIRON["URL_VALUE"] }
+    END { if (!seen) printf "%s = \"%s\"\n", ENVIRON["VAR_NAME"], ENVIRON["VAR_VALUE"] }
   ' "$path" > "$tmp"
 
   echo ""
@@ -343,8 +364,8 @@ write_tfvars_url() {
   if ! confirm_from_tty "Write this to ${path}? (yes/no): " "yes"; then
     rm -f "$tmp"
     echo ""
-    echo "Aborted: the values file is unchanged. The key is installed on the host," >&2
-    echo "so re-run with --rotate to generate a fresh one and write it in one pass." >&2
+    echo "Aborted: the values file is unchanged." >&2
+    [[ -n "$hint" ]] && printf '%s\n' "$hint" >&2
     return 1
   fi
 

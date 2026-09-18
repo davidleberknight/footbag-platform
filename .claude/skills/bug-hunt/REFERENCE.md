@@ -433,12 +433,12 @@ A service that reads a file or directory at runtime is correct only if the deplo
 
 #### 4.4.43 Infrastructure-as-code security and gate integrity
 
-The terraform tree (staging, production, shared), the Docker/compose files, and `.githooks/` are deployed configuration; a misconfiguration there is a production bug visible statically. CI validates syntax (`terraform fmt`/`validate`), not security posture — posture is this category.
+The terraform tree (staging, production, shared, identity, operators), the Docker/compose files, and `.githooks/` are deployed configuration; a misconfiguration there is a production bug visible statically. CI validates syntax (`terraform fmt`/`validate`), not security posture — posture is this category.
 
 - IAM: wildcard actions/resources, user policies broader than the role's task, missing scope-down (a go-live gate tracks IAM scope-down; audit against it).
 - Storage/CDN: public-access posture on buckets, CloudFront origin-access and cache-policy correctness for authenticated paths, missing `prevent_destroy` on the snapshots bucket (a named go-live gate).
 - Host exposure: Lightsail public port openings vs the documented front-door architecture; SSH exposure vs the pre-cutover revert checklist.
-- Secrets: SSM parameter types (SecureString vs String), KMS key policy breadth, secret values or real identifiers in `*.tfvars` (each environment's values file is a symlink into the private operations checkout by design; a real file at that path in this tree is the finding), committed plan/state artifacts (`*.tfplan`, `.terraform/*.tfstate` local files are a leak surface — flag any that are tracked or contain secrets).
+- Secrets: SSM parameter types (SecureString vs String), KMS key policy breadth, secret values or real identifiers in `*.tfvars` (each tree's values file is a symlink into the private operations checkout by design; a real file at that path in this tree is the finding), committed plan/state artifacts (`*.tfplan`, `.terraform/*.tfstate` local files are a leak surface — flag any that are tracked or contain secrets).
 - Parity: staging vs production module drift beyond the accepted differences (a go-live gate tracks the parity audit); docker/env files diverging from the documented runtime contract.
 - Systemd/timers under `ops/` count as infra here for exposure and dependency posture; their logic correctness is §4.4.44.
 

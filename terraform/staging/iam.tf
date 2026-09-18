@@ -16,19 +16,35 @@ resource "aws_iam_role" "app_runtime" {
   # Trusts:
   #   - footbag-staging-source-profile (host runtime path; long-lived keys
   #     live on the staging Lightsail host at /root/.aws/credentials)
-  #   - footbag-operator (operator-workstation chained-AssumeRole path used
-  #     by tests/smoke/staging-readiness.test.ts via
+  #   - footbag-operator (the super-admin identity, directly authenticated; also
+  #     the operator-workstation chained-AssumeRole path used by
+  #     tests/smoke/staging-readiness.test.ts via
   #     AWS_PROFILE=footbag-staging-runtime)
+  #   - the generated reserved-SSO role behind the super-admin
+  #     permission set, once the identity tree has been applied
+  #
+  # All three entries stay. The super-admin identity's ARN is what lets a
+  # directly authenticated principal reach this role when the identity provider
+  # is the thing that failed, and AWS resolves a literal-ARN trust to that user's
+  # internal unique id, so removing it is not undone by recreating the user: a
+  # recreated user is a different principal and this breaks with no plan diff to
+  # warn anyone. What changes once federation carries the routine work is the
+  # entry's PURPOSE, which is invisible here.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Sid    = "TrustHostAndOperator"
       Effect = "Allow"
       Principal = {
-        AWS = [
+        AWS = compact([
           aws_iam_user.source_profile.arn,
-          "arn:aws:iam::${var.aws_account_id}:user/footbag-operator"
-        ]
+          "arn:aws:iam::${var.aws_account_id}:user/footbag-operator",
+          var.super_admin_sso_role_arn,
+          # Staging carries the dev-and-tester role as well, because the reads a
+          # deploy makes are part of that job. Production deliberately has no
+          # such variable to set, and its absence there is the whole control.
+          var.dev_tester_sso_role_arn
+        ])
       }
       Action = "sts:AssumeRole"
     }]

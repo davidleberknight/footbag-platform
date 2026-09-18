@@ -59,9 +59,19 @@
 # The bucket name, both ARNs and the sender identity are read from Terraform
 # outputs rather than typed, so they cannot drift from what actually exists.
 #
-# Usage (the sudo password is read from stdin, line 1):
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/set-host-env.sh --target production --profile <prod-profile>
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/set-host-env.sh --target staging --yes
+# Usage (the sudo password is read from stdin, line 1).
+#
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/set-host-env.sh --target production --profile <prod-profile>
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/set-host-env.sh --target staging --yes
 #   scripts/set-host-env.sh --target staging --dry-run
 #
 # --dry-run resolves every value and prints the command plan without touching
@@ -333,7 +343,8 @@ NEW_LOCAL="$(mktemp /tmp/footbag-hostenv-new.XXXXXX)"
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   cp "$ENV_FILE_OVERRIDE" "$OLD_LOCAL"
 else
-  require_operator_stdin "scripts/set-host-env.sh --target $TARGET" || exit 1
+  require_operator_stdin "scripts/set-host-env.sh --target $TARGET" \
+    "$SSH_ALIAS" "$TARGET" || exit 1
   require_ssh_alias "$SSH_ALIAS" || exit 1
   echo "Reading ${HOST_ENV_PATH} from ${SSH_ALIAS}."
   echo ""
@@ -451,8 +462,11 @@ host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" || exit 1
 echo ""
 echo "Done. ${HOST_ENV_PATH} now carries every operator-owned value."
 echo "The running containers keep their current environment until the next deploy."
-if [[ "$TARGET" == "production" ]]; then
-  echo "Confirm with: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+# The same file this run was given, named back rather than guessed at, so the
+# suggested command is pasteable by whoever is actually running it. An operator
+# on a named account and one on the shared account need different files.
+if operator_credential_select "$SSH_ALIAS" "$TARGET" 2>/dev/null; then
+  echo "Confirm with: < ${OPERATOR_CREDENTIAL_DISPLAY} bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
 else
-  echo "Confirm with: < ~/AWS/AWS_OPERATOR.txt bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+  echo "Confirm with: bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}, with this environment's credential file redirected in"
 fi

@@ -58,8 +58,9 @@
 #     whether domain authentication is aligned. Those three stay an attestation,
 #     because nothing on the workstation can settle them.
 #
-#     Both host reads need AWS_OPERATOR_FILE (see Environment below). Without it
-#     they self-skip, say so, and fall back to asking for all of them.
+#     Both host reads need the credential file for the account the ssh alias
+#     connects as (see The credential file below). Without a usable one they
+#     self-skip, say so, and fall back to asking for all of them.
 #
 #   url_screening, going armed: the Safe Browsing key must already be a real
 #     value in this environment's Parameter Store. This is the one precondition
@@ -115,18 +116,15 @@
 # and echoes it on the failed comparison. It refuses to run unless stdin, stdout
 # and stderr are all terminals, for that reason.
 #
-# Environment:
-#   AWS_OPERATOR_FILE   Path to this environment's operator credential file, whose
-#                       first line is the host sudo password. Optional, and worth
-#                       setting: it is how the two steps that read the host get to
-#                       do so. Without it, step 1 cannot check the two SES values
-#                       that live in the host env file and asks you to confirm them
-#                       by hand, and step 5's host-side rows come back UNKNOWN,
-#                       which reads like a verification that ran and found nothing
-#                       rather than one that did not run. Set it rather than
-#                       redirect it:
-#                         AWS_OPERATOR_FILE=~/AWS/AWS_OPERATOR_PRODUCTION.txt \
-#                           scripts/arming.sh --target production --switch email --state armed
+# The credential file:
+#   Nothing has to be set, and nothing may be. The two steps that read the host
+#   read the sudo password of whatever account the alias footbag-<target>
+#   connects as, from the one file that permanently holds it, and the alias's
+#   `User` line is the whole of the choice. Without a usable file, step 1 cannot
+#   check the two SES values that live in the host env file and asks you to
+#   confirm them by hand, and step 5's host-side rows come back UNKNOWN, which
+#   reads like a verification that ran and found nothing rather than one that did
+#   not run. Either way the reason is printed, naming the file.
 #
 # Synthetic mode (CI tests only; operators never use this):
 #   --tfvars <path> points the rewrite at a local file and stops after step 2,
@@ -408,15 +406,46 @@ fi
 # The sudo password cannot arrive on stdin: this script's confirmations read stdin
 # and it refuses to run unless stdin is a terminal, so a redirected credential file
 # would be consumed as an answer to a prompt. It is taken from the first line of
-# the operator credential file named by AWS_OPERATOR_FILE instead, which is a file
-# read and puts nothing in any process's argument list. That is the same credential
-# step 5 already hands to the status view.
+# the credential file instead, which is a file read and puts nothing in any
+# process's argument list. That is the same credential step 5 hands to the status
+# view.
 #
 # Every failure here leaves the state "unchecked" and says why, so a run that
 # cannot reach the host falls back to asking rather than reporting a value absent
 # that it never looked for.
 HOST_SES_IDENTITY_STATE="unchecked"
 HOST_SES_QUEUE_STATE="unchecked"
+
+# Which file that is, is not this script's to decide and not the operator's to
+# set. It follows the account the ssh alias connects as, by the shared rule, so
+# the one `User` line in ~/.ssh/config switches identity and the credential
+# follows it. Nothing here falls back to the other pair: running a named
+# operator's work under the shared account's password is the failure this
+# prevents, and it would leave nothing behind saying which identity was meant.
+#
+# Unlike the scripts that refuse outright, this one degrades: the host reads are
+# an improvement on asking the operator, not a precondition, so a credential this
+# run cannot use leaves ARMING_CRED_WHY holding the reason and the caller says it.
+ARMING_CRED_FILE=""
+ARMING_CRED_WHY=""
+arming_select_credential() {
+  ARMING_CRED_FILE=""
+  ARMING_CRED_WHY=""
+  if ! operator_credential_select "footbag-${TARGET}" "$TARGET" 2>/dev/null; then
+    ARMING_CRED_WHY="the account footbag-${TARGET} connects as could not be read, so no credential file could be chosen"
+    return 1
+  fi
+  if [[ ! -r "$OPERATOR_CREDENTIAL_FILE" ]]; then
+    ARMING_CRED_WHY="${OPERATOR_CREDENTIAL_DISPLAY} is missing or unreadable, and it is the only file this run will read: '${OPERATOR_CREDENTIAL_ACCOUNT}' is the account footbag-${TARGET} connects as"
+    return 1
+  fi
+  if ! operator_credential_mode_ok "$OPERATOR_CREDENTIAL_FILE" 2>/dev/null; then
+    ARMING_CRED_WHY="${OPERATOR_CREDENTIAL_DISPLAY} is not mode 600 or 400; rotate the password and write the new one under 'umask 077'"
+    return 1
+  fi
+  ARMING_CRED_FILE="$OPERATOR_CREDENTIAL_FILE"
+  return 0
+}
 
 # Reads this switch's arming value off the host, for the already-there check
 # above. Every failure to read returns the same sentinel rather than a guess: the
@@ -427,9 +456,8 @@ HOST_SES_QUEUE_STATE="unchecked"
 read_host_armed_value() {
   local alias="footbag-$TARGET" env_local="" pass="" value=""
 
-  [[ -n "${AWS_OPERATOR_FILE:-}" ]] || { echo "(not read: no credential file)"; return 0; }
-  [[ -r "${AWS_OPERATOR_FILE}" ]] || { echo "(not read: credential file unreadable)"; return 0; }
-  IFS= read -r pass < "$AWS_OPERATOR_FILE" || true
+  arming_select_credential || { echo "(not read: no usable credential file)"; return 0; }
+  IFS= read -r pass < "$ARMING_CRED_FILE" || true
   [[ -n "$pass" ]] || { echo "(not read: credential file has no first line)"; return 0; }
   require_ssh_alias "$alias" >/dev/null 2>&1 || { echo "(not read: no ssh alias)"; return 0; }
 
@@ -451,19 +479,13 @@ read_host_armed_value() {
 read_host_ses_values() {
   local alias="footbag-$TARGET" env_local=""
 
-  if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
-    echo "  Host env file NOT read: AWS_OPERATOR_FILE is not set, so the two values"
-    echo "  below marked (host) have to be confirmed by hand. Set it to this"
-    echo "  environment's operator credential file to have them checked instead."
-    return 0
-  fi
-  if [[ ! -r "${AWS_OPERATOR_FILE}" ]]; then
-    echo "  Host env file NOT read: AWS_OPERATOR_FILE names a file this run cannot"
-    echo "  read, so the two values below marked (host) have to be confirmed by hand."
+  if ! arming_select_credential; then
+    echo "  Host env file NOT read: ${ARMING_CRED_WHY}, so the two values below"
+    echo "  marked (host) have to be confirmed by hand."
     return 0
   fi
 
-  IFS= read -r SUDO_PASS < "$AWS_OPERATOR_FILE" || true
+  IFS= read -r SUDO_PASS < "$ARMING_CRED_FILE" || true
   if [[ -z "${SUDO_PASS:-}" ]]; then
     echo "  Host env file NOT read: the first line of the operator credential file is"
     echo "  empty, where the host sudo password was expected."
@@ -675,8 +697,8 @@ if (( FROM_STEP <= 1 )) && [[ "$MODE" != "status" ]]; then
       echo "        SSM (/footbag/$TARGET/app/$SSM_SUFFIX): $sc_ssm"
       echo "        host footbag-$TARGET: ${sc_host}"
       echo "      A value shown as not-read is a read this run could not take, not a"
-      echo "      value that disagrees; pass --profile and AWS_OPERATOR_FILE to have"
-      echo "      both checked."
+      echo "      value that disagrees; pass --profile, and make this environment's"
+      echo "      credential file readable, to have both checked."
       echo ""
     fi
   fi
@@ -1062,23 +1084,18 @@ echo ""
 # credential file through when one was supplied; without it the remote probe
 # self-skips and the very rows this step tells the operator to confirm come back
 # UNKNOWN, which reads as a verification that ran rather than one that did not.
-if [[ -n "${AWS_OPERATOR_FILE:-}" && -r "${AWS_OPERATOR_FILE}" ]]; then
+if arming_select_credential; then
   bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
-    < "$AWS_OPERATOR_FILE" || true
+    < "$ARMING_CRED_FILE" || true
 else
   bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
     --skip-remote || true
   echo ""
   echo "The host-side rows above are UNKNOWN because they were not read, not because"
-  echo "the host is in an unknown state: this step needs AWS_OPERATOR_FILE set to this"
-  echo "environment's operator credential file. Set it for the whole run and step 1"
-  echo "checks its two host values as well."
+  echo "the host is in an unknown state: ${ARMING_CRED_WHY}."
+  echo "Put that right and step 1 checks its two host values as well."
   echo "For the full picture, re-run:"
-  if [[ "$TARGET" == "production" ]]; then
-    echo "  < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
-  else
-    echo "  < ~/AWS/AWS_OPERATOR.txt bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
-  fi
+  echo "  < ${OPERATOR_CREDENTIAL_DISPLAY:-~/AWS/<your credential file>} bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
 fi
 echo ""
 echo "Confirm above that the host reads $SWITCH $STATE and that $ADAPTER_LABEL is"

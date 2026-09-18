@@ -68,8 +68,52 @@ function sshStub(existingAccount: boolean): string {
   return path;
 }
 
+/**
+ * A directory holding an `ssh` that resolves the deploy alias, placed ahead of
+ * the shared isolation stub on PATH.
+ *
+ * The script's alias preflight runs the real `ssh -G`, not its own seam, because
+ * the question is about this machine's SSH configuration rather than about the
+ * host. The shared isolation in tests/fixtures/machineIsolation.ts answers that
+ * query the way a machine with no stanza answers it — the name echoed back as
+ * the hostname — so without this every case here would stop at the preflight.
+ * Supplying our own is what that fixture's own note asks a suite in this
+ * position to do, and it is declared here rather than hidden in a helper so the
+ * dependency is visible in the file that has it.
+ *
+ * The case that proves the preflight does not get this directory. It falls
+ * through to the isolation stub instead, because a test that proves a gate must
+ * not be handed the thing that opens it — and because that stub answers
+ * identically on every machine, so the refusal it asserts is not a property of
+ * whoever ran it.
+ */
+let ALIAS_BIN = '';
+
 beforeAll(() => {
   WORK_DIR = mkdtempSync(join(tmpdir(), 'footbag-test-opacc-'));
+
+  ALIAS_BIN = join(WORK_DIR, 'alias-bin');
+  mkdirSync(ALIAS_BIN, { recursive: true });
+  const aliasSsh = join(ALIAS_BIN, 'ssh');
+  writeFileSync(
+    aliasSsh,
+    [
+      '#!/usr/bin/env bash',
+      'set -u',
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then',
+      // The account the alias connects as, which is what picks the credential
+      // file the refusal names. It is an input this suite supplies rather than
+      // one the developer's ~/.ssh/config decides.
+      "    printf 'hostname 203.0.113.10\\nuser %s\\nport 22\\n' \"${FAKE_SSH_USER:-footbag}\"",
+      '    exit 0',
+      '  fi',
+      'done',
+      'echo "ssh: this suite supplies -G answers only." >&2',
+      'exit 255',
+    ].join('\n'),
+  );
+  chmodSync(aliasSsh, 0o755);
 
   const keygen = (name: string): string => {
     const out = join(WORK_DIR, name);
@@ -99,14 +143,25 @@ interface RunResult {
  * documented invocation does. stdout and stderr are pipes here, which is also
  * the condition the display guard has to recognise as "no terminal".
  */
-function runScript(args: string[], opts: { existingAccount?: boolean } = {}): RunResult {
+function runScript(
+  args: string[],
+  opts: {
+    existingAccount?: boolean;
+    input?: string;
+    resolvableAlias?: boolean;
+    connectsAs?: string;
+  } = {},
+): RunResult {
+  const resolvable = opts.resolvableAlias ?? true;
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
-    input: 'fixture-sudo-password\n',
+    input: opts.input ?? 'fixture-sudo-password\n',
     env: {
       ...process.env,
       ...NO_AWS_CREDENTIALS,
+      FAKE_SSH_USER: opts.connectsAs ?? 'footbag',
+      ...(resolvable ? { PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}` } : {}),
       FOOTBAG_PROVISION_SSH: sshStub(opts.existingAccount ?? false),
       FOOTBAG_KNOWN_HOSTS: PIN,
     },
@@ -123,7 +178,7 @@ function runScript(args: string[], opts: { existingAccount?: boolean } = {}): Ru
 function args(overrides: Partial<Record<string, string>> = {}): string[] {
   const base: Record<string, string> = {
     '--target': 'staging',
-    '--account': 'jsymons',
+    '--account': 'julie_symons',
     '--operator': 'Julie Symons',
     '--key-file': VALID_KEY,
     ...overrides,
@@ -142,6 +197,20 @@ describe('provision-operator-account.sh — invocation guards', () => {
     const result = runScript(args({ '--target': 'prod' }));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toMatch(/--target must be 'staging' or 'production'/);
+  });
+
+  it('shows an account name in the convention it tells the operator to type', () => {
+    // The script refuses to derive the name, so its own example is the only thing
+    // teaching what to type, and it is read by somebody about to create an
+    // account that keeps that name on every host for as long as the person holds
+    // access. An example spelled from an email local part teaches exactly the
+    // habit the convention exists to stop, and a name that is wrong is not
+    // corrected later: it is never reused for anyone else, and every past
+    // reference to it stays ambiguous.
+    const source = readFileSync(SCRIPT, 'utf-8');
+    const example = source.match(/--account (\S+)/);
+    expect(example, 'the usage shows no --account example at all').not.toBeNull();
+    expect(example?.[1]).toMatch(/^(<name>|[a-z]+_[a-z]+)$/);
   });
 
   it('will not derive the account name itself, because that is a human decision', () => {
@@ -171,6 +240,78 @@ describe('provision-operator-account.sh — invocation guards', () => {
     const result = runScript([...args(), '--force']);
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toMatch(/unknown argument '--force'/);
+  });
+
+  it('refuses an empty credential file rather than proceeding with no password', () => {
+    // An empty first line is not a password. Accepting one sends an empty
+    // string to every sudo on the host, which refuses it, and the run then
+    // reports what reads as a host fault rather than as a missing credential.
+    const result = runScript(args(), { input: '' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/first line of stdin was empty/);
+    expect(result.stderr).toMatch(/expected the host sudo password/);
+    // Nothing on the host was reached: the refusal comes before any connection.
+    expect(result.stdout).not.toMatch(/SSH OK/);
+  });
+
+  it('refuses a workstation with no deploy alias, before it opens a connection', () => {
+    // Without this the run reaches the reachability probe and fails there with
+    // a bare "Permission denied (publickey)", which reads as a rejected key
+    // rather than as a name ssh could not resolve, and sends the operator to
+    // look at their key instead of their SSH configuration.
+    const result = runScript(args(), { resolvableAlias: false });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/SSH alias 'footbag-staging' is not configured/);
+    expect(result.stderr).toMatch(/deploy alias stanza/);
+    expect(result.stdout).not.toMatch(/SSH OK/);
+  });
+
+  it('honours DEPLOY_TARGET when naming the alias it could not resolve', () => {
+    // The alias is not always derived from --target, so a refusal that named
+    // the derived one would send the operator to fix a stanza they were not
+    // using.
+    const result = spawnSync('bash', [SCRIPT, ...args()], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        DEPLOY_TARGET: 'some-other-host',
+        FOOTBAG_PROVISION_SSH: sshStub(false),
+        FOOTBAG_KNOWN_HOSTS: PIN,
+      },
+      ...SPAWN_GUARD,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr ?? '').toMatch(/SSH alias 'some-other-host' is not configured/);
+  });
+
+  it('names the credential file for the target it was actually given', () => {
+    // A production run refused with the staging file named is a refusal the
+    // operator cannot act on: they re-run with the file the message gave, and
+    // it fails the same way.
+    const result = runScript(args({ '--target': 'production' }), { input: '' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
+
+    const staging = runScript(args({ '--target': 'staging' }), { input: '' });
+    expect(staging.stderr).toMatch(/AWS_OPERATOR\.txt/);
+    expect(staging.stderr).not.toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
+  });
+
+  it('names the file for the account it is connecting as, not the shared one', () => {
+    // An operator who already has their own account provisions the next person
+    // from it, so the credential this run needs is their own. Naming the shared
+    // file would have them pipe a password the host will refuse for this login,
+    // and the refusal lands on the host as a sudo failure.
+    const result = runScript(args({ '--target': 'staging' }), {
+      input: '',
+      connectsAs: 'ada_lovelace',
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/HOST_OPERATOR\.txt/);
+    expect(result.stderr).not.toMatch(/AWS_OPERATOR\.txt/);
   });
 });
 
@@ -251,6 +392,9 @@ describe('provision-operator-account.sh — the pinned host key', () => {
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
+        // The subject here is the pin, which is checked after the alias
+        // preflight, so this case supplies a resolving alias to reach it.
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: sshStub(false),
         FOOTBAG_KNOWN_HOSTS: join(WORK_DIR, 'no-such-pin'),
       },
@@ -271,6 +415,9 @@ describe('provision-operator-account.sh — the pinned host key', () => {
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
+        // Same as above: the pin is what this asserts on, so the alias
+        // preflight ahead of it is given what it needs.
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: sshStub(false),
         FOOTBAG_KNOWN_HOSTS: loose,
       },
@@ -543,7 +690,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     // Requiring the departing person's key to remove their access would be a
     // precondition nobody can always meet.
     const r = runScript(
-      ['--target', 'staging', '--account', 'jsymons', '--operator', 'Julie Symons', '--offboard'],
+      ['--target', 'staging', '--account', 'julie_symons', '--operator', 'Julie Symons', '--offboard'],
       { existingAccount: true },
     );
     expect(r.stderr).not.toMatch(/public key is required/);
@@ -563,7 +710,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     const r = runScript(
       [
         '--target', 'staging',
-        '--account', 'jsymons',
+        '--account', 'julie_symons',
         '--operator', 'Julie Symons',
         '--offboard',
         '--rotate',
@@ -590,7 +737,7 @@ describe('provision-operator-account.sh — offboarding', () => {
 
   it('takes a typed confirmation, and touches nothing without one', () => {
     const r = runScript(
-      ['--target', 'staging', '--account', 'jsymons', '--operator', 'Julie Symons', '--offboard'],
+      ['--target', 'staging', '--account', 'julie_symons', '--operator', 'Julie Symons', '--offboard'],
       { existingAccount: true },
     );
     expect(r.exitCode).toBe(1);
@@ -601,7 +748,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     // The operator has to know which of the two acts they are approving; they
     // are not interchangeable and only one is reversible.
     const r = runScript(
-      ['--target', 'staging', '--account', 'jsymons', '--operator', 'Julie Symons', '--offboard'],
+      ['--target', 'staging', '--account', 'julie_symons', '--operator', 'Julie Symons', '--offboard'],
       { existingAccount: true },
     );
     expect(r.stdout).toMatch(/disabled, not deleted/);
@@ -847,7 +994,7 @@ describe('provision-operator-account.sh — replacing only the key', () => {
     const r = runScript(
       [
         '--target', 'staging',
-        '--account', 'jsymons',
+        '--account', 'julie_symons',
         '--operator', 'Julie Symons',
         '--offboard',
         '--key-only',

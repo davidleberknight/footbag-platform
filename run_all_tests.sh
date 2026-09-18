@@ -415,7 +415,7 @@ gate_terraform() {
   ( cd terraform && aws_isolated_run terraform fmt -check -recursive )
   local d data_dir
   local plugin_arg=()
-  for d in staging production shared; do
+  for d in staging production shared identity operators; do
     # `-backend=false` disables *configuring* a backend, not *using* one:
     # terraform's own help says it uses "what was previously initialized
     # instead". An operator's `terraform init` leaves a .terraform holding the S3

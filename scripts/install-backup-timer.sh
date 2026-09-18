@@ -19,10 +19,20 @@
 # The units travel in the pipe rather than by scp, so the host never holds a
 # staging directory and there is nothing to clean up after a failure.
 #
-# Usage (the sudo password is read from stdin, line 1; --dry-run needs none):
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-backup-timer.sh --target production
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging --ssh-alias my-host
+# Usage (the sudo password is read from stdin, line 1; --dry-run needs none).
+#
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/install-backup-timer.sh --target production
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging --ssh-alias my-host
 #   scripts/install-backup-timer.sh --target staging --dry-run
 #
 # After the first two scheduled runs emit the BackupAgeMinutes metric, set
@@ -104,7 +114,8 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
-require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" || exit 1
+require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" \
+  "$SSH_ALIAS" "$TARGET" || exit 1
 # Operator-only preflight: a plain message on a machine without the deploy
 # alias (a tester workstation), rather than a raw ssh resolution error at the
 # first remote step. It follows the credential guard, as in every sibling

@@ -15,9 +15,19 @@
 # stdin and the root-side body is cat-piped into the same stream, so no secret
 # reaches any process argv and nothing is staged on the host.
 #
-# Usage. Reads the sudo password from stdin, line 1:
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/diagnose-cwagent.sh --target staging
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/diagnose-cwagent.sh --target production
+# Usage. Reads the sudo password from stdin, line 1.
+#
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/diagnose-cwagent.sh --target staging
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/diagnose-cwagent.sh --target production
 #
 # Override the SSH alias:
 #   DEPLOY_TARGET=footbag-production ...
@@ -28,9 +38,13 @@ TARGET=""
 
 usage() {
   cat <<'EOF'
-Usage: < <operator-credential-file> bash scripts/diagnose-cwagent.sh --target staging|production
+Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/diagnose-cwagent.sh --target staging
+       < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/diagnose-cwagent.sh --target production
 
 Reads the sudo password from stdin (line 1). Read-only.
+
+Which file holds that password follows the account the alias connects as; a run
+started without the redirect names the one it needs.
 
 Override the SSH target:
   DEPLOY_TARGET=footbag-production ...
@@ -53,15 +67,20 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 require_target "$TARGET" staging production || exit 2
 
-if [[ -t 0 ]]; then
-  echo "ERROR: must receive sudo password on stdin." >&2
-  echo "       Run via: < <operator-credential-file> bash scripts/diagnose-cwagent.sh --target $TARGET" >&2
-  exit 1
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE="${DEPLOY_TARGET:-footbag-${TARGET}}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/diagnose-cwagent-remote.sh"
+
+# The shared guard rather than a gate of this script's own. It reads the account
+# the alias connects as and names the credential file that account keeps for this
+# environment, which is what this script's header promises and what a
+# placeholder in a refusal cannot do: an operator part way onto their own named
+# account is told to redirect a file holding somebody else's password, the
+# connection succeeds on the key, and sudo fails in a way that reads as a broken
+# account. It reads the one password line too, so nothing here consumes stdin
+# twice.
+require_operator_stdin "scripts/diagnose-cwagent.sh --target ${TARGET}" \
+  "$REMOTE" "$TARGET" || exit 1
 
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
@@ -72,12 +91,11 @@ require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 echo "==> Diagnosing the CloudWatch agent on $REMOTE"
-# Exactly ONE line is read from stdin, not the whole file. sudo consumes the
-# password line and the remote bash inherits whatever follows it, so forwarding
-# the rest of the operator credential file runs each remaining line as a root
-# shell command. That this script only reads is no protection: what it forwards
-# is not its own.
-IFS= read -r SUDO_PASS
+# Exactly ONE line of the operator's stdin reaches the host, not the whole file,
+# and the guard above is where that line was read. sudo consumes it and the
+# remote bash inherits whatever follows, so forwarding the rest of a credential
+# file would run each remaining line as a root shell command. That this script
+# only reads is no protection: what it forwards is not its own.
 {
   printf '%s\n' "$SUDO_PASS"
   cat "$REMOTE_HALF"

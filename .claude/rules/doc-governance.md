@@ -29,14 +29,14 @@ All implementation-state language belongs exclusively in the maintainers' privat
 
 Substitute patterns, transitional shortcuts, and other deviations with explicit unblock conditions are issues labeled `bug` in the maintainers' private tracker (the `tracker-ops` skill). Never duplicate substitute-aware callouts into DEV_ONBOARDING.md or other canonical docs: a volunteer reads the tracker first for deviations, then the canonical step. When the deviation resolves, close the issue; the canonical doc needs no change.
 
-## "Deferred to later path" is scope, not drift
+## "Deferred elsewhere" is scope, not drift
 
-In DEV_ONBOARDING and similar procedural docs, "deferred and will be added in Path E" is valid scope-sequencing language describing doc architecture. It is **not** doc-governance drift.
+In DEV_ONBOARDING and similar procedural docs, deferring work to a named place is valid scope-sequencing language describing doc architecture. It is **not** doc-governance drift.
 
-- **Valid scope language (leave alone):** "deferred to Path E", "not yet provisioned (see §5.3)", "deferred hardening — see Path E", "X is deferred to a later path".
+- **Valid scope language (leave alone):** "deferred to the AWS deployment and operations section", "not yet provisioned (see the appendix on authoritative facts)", "deferred to the private operations reference", "X is deferred to a later section".
 - **Actual drift (flag it):** "(deferred post-sprint)", "already declared... as deferred groundwork for exactly this chain", "the drift is expected and tracked", "not yet completed as of <date>", "as of today", "currently", "pending team review".
 
-Rule of thumb: if deferral points to another section/path/doc as the home for the work, it's scope. If it points to time, sprint, or tracking, it's drift.
+Rule of thumb: if deferral points to another section or document as the home for the work, it's scope. If it points to time, sprint, or tracking, it's drift.
 
 ## References
 
@@ -47,7 +47,7 @@ Rule of thumb: if deferral points to another section/path/doc as the home for th
 
 ## Plain words, not bare codes
 
-In any doc or plan, describe the thing in plain words a reader understands on its own. A gate ID, section number, finding code, state number, or item label may sit beside a self-contained explanation as a locator, never replace it. A reader who would have to open another document to know what a reference means has been handed shorthand, not a description — that is the defect. The one exception is a table whose rows are labelled by ID (the go-live gate index in GO_LIVE_PLAN.md (private GitHub repo) and the public pipeline validation gate table in `docs/TESTING.md`): there the ID is the row's own structural label. Everywhere else, lead with the words. When a locator is genuinely useful, prefer a durable one — the target's section title or feature name — over a numeric or code locator (a section number, gate ID, or item number), which rots as the doc is edited and sections renumber; titles and names stay readable and stable. This is the cross-doc generalization of the same standard the private tracker guide sets for issue bodies, and it mirrors the code-comment standard in `.claude/rules/comments.md` and the question standard in `.claude/rules/asking.md`.
+In any doc or plan, describe the thing in plain words a reader understands on its own. A gate ID, section number, finding code, state number, or item label may sit beside a self-contained explanation as a locator, never replace it. The one exception is a table whose rows are labelled by ID (the go-live gate index in GO_LIVE_PLAN.md (private GitHub repo) and the public pipeline validation gate table in `docs/TESTING.md`): there the ID is the row's own structural label. Prefer a durable locator, the target's section title or feature name, over a number that rots as the doc is edited and sections renumber. The same standard governs code comments (`.claude/rules/comments.md`), questions to the human (`.claude/rules/asking.md`), and private-tracker issue bodies.
 
 ## Sensitive content
 

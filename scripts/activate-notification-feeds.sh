@@ -45,14 +45,24 @@
 #   4  deploy (code-only), so the containers hold the URLs and poll
 #   5  verify the host and the live subscriptions
 #
-# Usage (the sudo password is read from stdin, line 1):
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --status
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state on
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-notification-feeds.sh --target production --state on
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state off
+# Usage (the sudo password is read from stdin, line 1).
+#
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --status
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state on
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-notification-feeds.sh --target production --state on
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state off
 #   scripts/activate-notification-feeds.sh --target production --state on --dry-run
 #   ... --yes   accept every confirmation, where no terminal is attached
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state on --from-step 3
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state on --from-step 3
 #
 # --status and --dry-run open no ssh session and need no credential file.
 #
@@ -266,7 +276,8 @@ SYNTHETIC=0
 
 if (( ! SYNTHETIC )); then
   require_ssh_alias "$SSH_ALIAS" || exit 1
-  require_operator_stdin "scripts/activate-notification-feeds.sh --target ${TARGET} --state ${STATE}" || exit 1
+  require_operator_stdin "scripts/activate-notification-feeds.sh --target ${TARGET} --state ${STATE}" \
+    "$SSH_ALIAS" "$TARGET" || exit 1
   # The apply and the queue read both reach the account, and terraform takes no
   # profile of its own, so the identity is settled and proved before step 1
   # rather than in the middle of the sequence.

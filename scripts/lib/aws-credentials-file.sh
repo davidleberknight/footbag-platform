@@ -177,6 +177,99 @@ aws_cred_put() {
   return 0
 }
 
+# aws_cred_remove_section <credentials-file> <profile>
+#
+# Removes one whole section and everything in it, keeping every other byte of
+# the file, and returns 2 when there is no such section so a re-run can say so
+# rather than fail.
+#
+# The only destructive operation in this library, and it exists for exactly one
+# job: retiring a profile name whose credential has already been written
+# somewhere else and proved there. Never call it before that proof. A section
+# removed while the replacement is unproved leaves a workstation with no working
+# identity and nothing on disk to go back to, since the secret it held was never
+# anywhere but this file and the vault.
+#
+# Atomic and shredded for the same reasons aws_cred_put is: the temp file holds
+# the secret this call is destroying, and a half-written credentials file breaks
+# every AWS call on the machine.
+aws_cred_remove_section() {
+  local file="$1" profile="$2"
+  local dir tmp line norm in_target=0 found=0
+
+  AWS_CRED_ERROR=""
+
+  if [[ -z "$file" || -z "$profile" ]]; then
+    AWS_CRED_ERROR="aws_cred_remove_section needs a file and a profile"
+    return 1
+  fi
+
+  [[ -f "$file" ]] || return 2
+
+  if [[ -L "$file" ]]; then
+    local resolved
+    if ! resolved="$(readlink -f -- "$file")" || [[ -z "$resolved" ]]; then
+      AWS_CRED_ERROR="${file} is a symlink whose target cannot be resolved"
+      return 1
+    fi
+    file="$resolved"
+  fi
+
+  aws_cred_has_section "$file" "$profile" || return 2
+
+  dir="$(dirname -- "$file")"
+  tmp="$(umask 077 && mktemp "${dir}/.aws-credentials.XXXXXX")" || {
+    AWS_CRED_ERROR="could not create a temp file beside ${file}"
+    return 1
+  }
+  secret_file_register "$tmp"
+  # shellcheck disable=SC2064
+  trap "secret_file_destroy '${tmp}'; trap - RETURN" RETURN
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    norm="${line//[[:space:]]/}"
+    if [[ "$norm" == \[*\] ]]; then
+      if [[ "$norm" == "[${profile}]" ]]; then
+        in_target=1
+        found=1
+        continue
+      fi
+      in_target=0
+    fi
+    (( in_target )) && continue
+    printf '%s\n' "$line" >> "$tmp"
+  done < "$file"
+
+  if (( ! found )); then
+    return 2
+  fi
+
+  chmod 600 -- "$tmp" || {
+    AWS_CRED_ERROR="could not restrict the mode of the new file"
+    return 1
+  }
+  mv -f -- "$tmp" "$file" || {
+    AWS_CRED_ERROR="could not promote the new file over ${file}"
+    return 1
+  }
+  return 0
+}
+
+# aws_cred_has_section <credentials-file> <profile>
+#
+# True when the credentials file carries a `[<name>]` section. The credentials
+# file spells a profile without the `profile ` prefix the config file uses,
+# which is why this is not the same test as aws_config_has_profile.
+aws_cred_has_section() {
+  local file="$1" profile="$2" line norm
+  [[ -f "$file" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    norm="${line//[[:space:]]/}"
+    [[ "$norm" == "[${profile}]" ]] && return 0
+  done < "$file"
+  return 1
+}
+
 # aws_cred_current_key_id <file> <profile>
 #
 # The access key id currently recorded for a profile, empty when there is none.
@@ -214,6 +307,174 @@ aws_config_has_profile() {
     [[ "$norm" == "[profile${profile}]" ]] && return 0
   done < "$file"
   return 1
+}
+
+# aws_config_has_section <config-file> <header>
+#
+# True when the file carries a section whose header is exactly <header>, given
+# without its brackets: "profile footbag-operator", "sso-session footbag". The
+# config file holds several kinds of section and only one of them is a profile,
+# so the sso-session block a federated profile points at cannot be found by
+# asking about profiles.
+#
+# Whitespace inside the header is ignored on both sides of the comparison, the
+# same as the profile check above, because the AWS tools accept "[profile  x]"
+# and an operator's editor sometimes produces it.
+aws_config_has_section() {
+  local file="$1" header="$2" line norm want
+  want="[${header//[[:space:]]/}]"
+  [[ -f "$file" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    norm="${line//[[:space:]]/}"
+    [[ "$norm" == "$want" ]] && return 0
+  done < "$file"
+  return 1
+}
+
+# aws_config_profile_key_id <config-file> <profile>
+#
+# Prints the access key id recorded directly in a `[profile <name>]` section of
+# the CONFIG file, and nothing when there is none.
+#
+# It exists because a static key is allowed to live in either file, and the one
+# question that matters before writing a federated profile is whether a static
+# key already occupies that name in either. A key found here resolves ahead of
+# the sign-in session the caller is about to write, silently, so a caller that
+# asked only about the credentials file would write a profile that looks
+# configured and is never used.
+aws_config_profile_key_id() {
+  local file="$1" profile="$2" line norm in_target=0
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    norm="${line//[[:space:]]/}"
+    if [[ "$norm" == \[*\] ]]; then
+      in_target=0
+      [[ "$norm" == "[profile${profile}]" ]] && in_target=1
+      continue
+    fi
+    if (( in_target )) && [[ "$norm" == aws_access_key_id=* ]]; then
+      printf '%s' "${norm#aws_access_key_id=}"
+      return 0
+    fi
+  done < "$file"
+  return 0
+}
+
+# aws_config_profile_source <config-file> <profile>
+#
+# Prints the `source_profile` recorded in a `[profile <name>]` section, and
+# nothing when the section has none or does not exist.
+#
+# For a caller that leaves an existing section alone, as everything here does,
+# but still needs to say what that section points at. A chained profile sourcing
+# one identity or another both work; which one it is decides whose name ends up
+# on the calls, and that is worth reporting rather than silently accepting.
+aws_config_profile_source() {
+  local file="$1" profile="$2" line norm in_target=0
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    norm="${line//[[:space:]]/}"
+    if [[ "$norm" == \[*\] ]]; then
+      in_target=0
+      [[ "$norm" == "[profile${profile}]" ]] && in_target=1
+      continue
+    fi
+    if (( in_target )) && [[ "$norm" == source_profile=* ]]; then
+      printf '%s' "${norm#source_profile=}"
+      return 0
+    fi
+  done < "$file"
+  return 0
+}
+
+# aws_config_append_section <config-file> <header> <body-line>...
+#
+# Appends one section, header given without its brackets, and does nothing at
+# all when a section of that header already exists, returning 2 so the caller
+# can say so.
+#
+# Additive for the same reason aws_config_add_role_profile below is: a config
+# section is the operator's, and it may carry a duration, an output format or an
+# mfa_serial somebody set for a reason this script cannot see. The write is
+# atomic for the same reason too: a half-written config file breaks every AWS
+# call on the machine and the operator has no copy of what was there.
+#
+# Nothing that goes through here is a secret. A start URL, an account id and a
+# role name are all public within the organization; the credential this section
+# describes is minted by the sign-in and never written to disk by us.
+aws_config_append_section() {
+  local file="$1" header="$2"
+  shift 2
+  local dir tmp line
+
+  AWS_CRED_ERROR=""
+
+  if [[ -z "$file" || -z "$header" || $# -eq 0 ]]; then
+    AWS_CRED_ERROR="aws_config_append_section needs a file, a header and at least one line"
+    return 1
+  fi
+
+  if [[ -e "$file" && ! -f "$file" ]]; then
+    AWS_CRED_ERROR="${file} exists and is not a regular file"
+    return 1
+  fi
+
+  # A symlink here is a legitimate way to point the config into a checkout, and
+  # the rename below would replace the link with a file rather than write
+  # through it.
+  if [[ -L "$file" ]]; then
+    local resolved
+    if ! resolved="$(readlink -f -- "$file")" || [[ -z "$resolved" ]]; then
+      AWS_CRED_ERROR="${file} is a symlink whose target cannot be resolved"
+      return 1
+    fi
+    file="$resolved"
+  fi
+
+  if aws_config_has_section "$file" "$header"; then
+    return 2
+  fi
+
+  dir="$(dirname -- "$file")"
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p -m 700 -- "$dir" || {
+      AWS_CRED_ERROR="could not create ${dir}"
+      return 1
+    }
+  fi
+
+  tmp="$(umask 077 && mktemp "${dir}/.aws-config.XXXXXX")" || {
+    AWS_CRED_ERROR="could not create a temp file beside ${file}"
+    return 1
+  }
+
+  if [[ -f "$file" ]]; then
+    cat -- "$file" >> "$tmp" || {
+      rm -f -- "$tmp"
+      AWS_CRED_ERROR="could not read ${file}"
+      return 1
+    }
+    # A file whose last line has no newline would otherwise glue the section
+    # header onto it, and the result parses as neither.
+    if [[ -s "$tmp" ]] && [[ -n "$(tail -c1 -- "$tmp")" ]]; then
+      printf '\n' >> "$tmp"
+    fi
+  fi
+
+  {
+    printf '[%s]\n' "$header"
+    for line in "$@"; do
+      printf '%s\n' "$line"
+    done
+  } >> "$tmp"
+
+  chmod 600 "$tmp"
+  if ! mv -f -- "$tmp" "$file"; then
+    rm -f -- "$tmp"
+    AWS_CRED_ERROR="could not install ${file}"
+    return 1
+  fi
+  return 0
 }
 
 # aws_config_add_role_profile <config-file> <profile> <role-arn> <source-profile> <region>
@@ -296,6 +557,89 @@ aws_config_add_role_profile() {
     printf 'source_profile = %s\n' "$source_profile"
     [[ -n "$region" ]] && printf 'region         = %s\n' "$region"
   } >> "$tmp"
+
+  chmod 600 "$tmp"
+  if ! mv -f -- "$tmp" "$file"; then
+    rm -f -- "$tmp"
+    AWS_CRED_ERROR="could not install ${file}"
+    return 1
+  fi
+  return 0
+}
+
+# aws_config_repoint_source_profile <config-file> <old> <new>
+#
+# Rewrites every `source_profile` whose value is exactly <old> to <new>, and
+# prints the name of each section it changed, one per line, so the caller can
+# show the operator what moved. Returns 2 when nothing pointed at <old>.
+#
+# This is the one function here that EDITS a config section rather than
+# appending one, and the exception is deliberate and narrow. Everything else
+# leaves an existing section alone because it is the operator's: it may carry a
+# duration, an output format or an mfa_serial set for a reason this tooling
+# cannot see. `source_profile` is not that. It is a pointer this tooling wrote
+# itself, at the same moment it wrote the section, and it names a profile this
+# tooling also wrote. When that profile is renamed the pointer is not a setting
+# somebody chose, it is a dangling reference, and leaving it dangling breaks
+# every chained call with a credential error naming the wrong thing.
+#
+# Only the value is touched. Key order, comments, and every other line in the
+# section survive byte for byte.
+aws_config_repoint_source_profile() {
+  local file="$1" old="$2" new="$3"
+  local dir tmp line norm section="" changed=0
+
+  AWS_CRED_ERROR=""
+
+  if [[ -z "$file" || -z "$old" || -z "$new" ]]; then
+    AWS_CRED_ERROR="aws_config_repoint_source_profile needs a file, an old name and a new one"
+    return 1
+  fi
+
+  [[ -f "$file" ]] || return 2
+
+  if [[ -L "$file" ]]; then
+    local resolved
+    if ! resolved="$(readlink -f -- "$file")" || [[ -z "$resolved" ]]; then
+      AWS_CRED_ERROR="${file} is a symlink whose target cannot be resolved"
+      return 1
+    fi
+    file="$resolved"
+  fi
+
+  dir="$(dirname -- "$file")"
+  tmp="$(umask 077 && mktemp "${dir}/.aws-config.XXXXXX")" || {
+    AWS_CRED_ERROR="could not create a temp file beside ${file}"
+    return 1
+  }
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    norm="${line//[[:space:]]/}"
+    if [[ "$norm" == \[*\] ]]; then
+      # Taken from the line rather than from the whitespace-stripped copy, which
+      # is for matching only: a section reported as `profilefootbag-staging`
+      # names nothing the operator can find in their own file.
+      section="${line#*[}"
+      section="${section%%]*}"
+      printf '%s\n' "$line" >> "$tmp"
+      continue
+    fi
+    if [[ "$norm" == "source_profile=${old}" ]]; then
+      # Spelled the way this library writes it rather than preserving the
+      # operator's spacing: the line being replaced is one this tooling wrote,
+      # so there is no hand formatting to lose.
+      printf 'source_profile = %s\n' "$new" >> "$tmp"
+      printf '%s\n' "$section"
+      changed=1
+      continue
+    fi
+    printf '%s\n' "$line" >> "$tmp"
+  done < "$file"
+
+  if (( ! changed )); then
+    rm -f -- "$tmp"
+    return 2
+  fi
 
   chmod 600 "$tmp"
   if ! mv -f -- "$tmp" "$file"; then

@@ -86,7 +86,6 @@ TARGET=""
 DRY_RUN=0
 VERIFY_ONLY=0
 FROM_STEP=1
-AWS_PROFILE_ARG="footbag-operator"
 AWS_REGION_ARG="${AWS_REGION:-us-east-1}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -96,6 +95,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # script prompts the same way.
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+# Sourced here for the profile name, which the default below needs. The identity
+# it settles for terraform is a separate act and happens past the dry run.
+# shellcheck source=lib/aws-profile.sh
+source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
+
+# Everyday operator work, so it takes the everyday profile from the library
+# rather than spelling one here. Which credential is behind that name is not
+# this script's business, and was changed once already without it noticing.
+AWS_PROFILE_ARG="$FOOTBAG_OPERATOR_PROFILE"
 
 AWS_BIN="${RETENTION_AWS_BIN:-aws}"
 TF_BIN="${RETENTION_TERRAFORM_BIN:-terraform}"
@@ -297,8 +305,6 @@ fi
 # of their own, but terraform takes none and runs on whatever identity the shell
 # carries, so the run settles and proves one here rather than letting the apply
 # be the thing that discovers there is none.
-# shellcheck source=lib/aws-profile.sh
-source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 aws_profile_ensure || exit 1
 
 # ── Step 1: the generation-history gate ──────────────────────────────────────

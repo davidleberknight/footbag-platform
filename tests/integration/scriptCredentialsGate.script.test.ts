@@ -412,6 +412,36 @@ describe('the credential gate: forms only the current gate catches', () => {
     expect(res.stderr).toMatch(/no terminal guard/);
   });
 
+  it('accepts the shared credential-selection helper as the guard it is', () => {
+    // A script reaching that helper has had the account the alias connects as
+    // resolved, the file it keeps named, and its absence and its mode refused,
+    // all before any read. Three scripts adopted it and passed this gate only
+    // because they happened to carry a terminal test as well, which is a pass
+    // for the wrong reason: the next one written this way trips the gate
+    // legitimately, and the quick fix under deadline is to weaken the gate.
+    const res = inFixtureRepo(
+      script('require_operator_credential "$alias" staging\nread -r answer'),
+    );
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('accepts the selection helper under its other name too', () => {
+    const res = inFixtureRepo(
+      script('operator_credential_select "$alias" staging\nread -r answer'),
+    );
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
+  it('is not exempted by a bare definition of the credential helper', () => {
+    // The same self-exemption the confirmation helper had: a file that DEFINES
+    // the guard has not called it.
+    const res = inFixtureRepo(
+      script('require_operator_credential() { :; }\nread -r answer'),
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal guard/);
+  });
+
   it('is not exempted by a bare definition of the confirmation helper', () => {
     const res = inFixtureRepo(script('confirm_from_tty() { :; }\nread -r answer'));
     expect(res.exitCode).toBe(1);

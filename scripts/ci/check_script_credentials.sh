@@ -475,7 +475,15 @@ PROMPT_RE='^[[:space:]]*(IFS=[^[:space:]]*[[:space:]]+)?\\?read([[:space:]]+-[a-
 #     still admits `[[ ! -t 0 ]]`, which is as common as the positive form.
 #   - the helper names must appear as a call, not a definition: a file
 #     containing `confirm_from_tty() { :; }` was exempting itself.
-GUARD_RE='\[\[?[^]]*-t[[:space:]]+0|/dev/tty|(confirm_from_tty|require_operator_stdin)[^(]'
+#
+# The credential-selection helpers count as guards for the same reason the stdin
+# one does: a script reaching them has had the account the alias connects as
+# resolved, the file that account keeps named, and its absence and its mode
+# refused, before any read. Three scripts that adopted them passed this gate only
+# because they happened to carry a `-t 0` test or a /dev/tty reference as well,
+# which is a pass for the wrong reason: the next script written this way would
+# trip the gate legitimately, and the quick fix under deadline is to weaken it.
+GUARD_RE='\[\[?[^]]*-t[[:space:]]+0|/dev/tty|(confirm_from_tty|require_operator_stdin|require_operator_credential|operator_credential_select)[^(]'
 
 prompt_offenders=""
 while IFS= read -r f; do

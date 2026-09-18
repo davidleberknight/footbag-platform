@@ -520,6 +520,39 @@ _SEED_HINT = ("Rebuild the freestyle tables (freestyle/run_freestyle.sh), whose 
               "ruling ledger.")
 
 
+def require_usable_authority(db_path: Path) -> None:
+    """Refuse, by name, when the adjudication authority cannot supply rulings.
+
+    The same three conditions `read_rulings` refuses on — no database, no table,
+    no rows — asked cheaply and early. It exists because anything that opens this
+    database before `read_rulings` does inherits the job of explaining an unusable
+    one, and a caller that simply connects reports a raw sqlite error instead: a
+    traceback naming a file path, where this generator has a sentence naming the
+    condition and the command that fixes it. The database-freshness gate is such a
+    caller, which is why this runs in front of it.
+    """
+    if not db_path.exists():
+        raise SystemExit(
+            f"adjudication authority unavailable: no database at {db_path}. {_SEED_HINT}"
+        )
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        present = conn.execute(
+            "SELECT 1 FROM freestyle_ev_adjudications LIMIT 1"
+        ).fetchone()
+    except sqlite3.OperationalError as exc:
+        raise SystemExit(
+            f"adjudication authority unreadable in {db_path}: {exc}. {_SEED_HINT}"
+        ) from exc
+    finally:
+        conn.close()
+    if present is None:
+        raise SystemExit(
+            f"adjudication authority empty in {db_path}: the table holds no rulings. "
+            f"{_SEED_HINT}"
+        )
+
+
 def read_rulings() -> tuple[list[dict], list[str]]:
     """The adjudications in recorded order, and each one's trick slug or ''.
 
@@ -585,6 +618,12 @@ def main() -> None:
     sys.path.insert(0, str(REPO / "scripts"))
     from _freestyle_db_freshness import assert_db_current
 
+    # Ahead of the freshness gate, because that gate opens this database itself.
+    # Reaching an absent or empty authority through it surfaces a raw sqlite
+    # traceback naming a file path; this generator has a sentence for each of
+    # those conditions, naming what is wrong and the command that fixes it, and
+    # the sentence is worth more than the traceback.
+    require_usable_authority(authority_db_path())
     assert_db_current(authority_db_path(), "the observational-universe module")
 
     rows: list[dict] = []

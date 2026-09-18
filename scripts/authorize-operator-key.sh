@@ -64,9 +64,18 @@
 #     SSH stream, so a first connection to a substituted host would hand over
 #     the credential before anything about that host had been checked.
 #
-# Usage. Reads the sudo password from stdin, line 1:
+# Usage. Reads the sudo password from stdin, line 1.
 #
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/authorize-operator-key.sh \
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/authorize-operator-key.sh \
 #       --target staging --account footbag --operator "Julie Symons" \
 #       --key-line "ssh-ed25519 AAAAC3Nza... julie footbag"
 #
@@ -107,7 +116,7 @@ REMOVE=0
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/authorize-operator-key.sh \
+Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/authorize-operator-key.sh \
          --target <staging|production> --account <name> \
          --operator "<Full Name>" --key-line "<ssh public key>" [--remove]
 
@@ -221,7 +230,8 @@ REMOTE="${DEPLOY_TARGET:-footbag-${TARGET}}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/authorize-operator-key-remote.sh"
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing ${REMOTE_HALF}" >&2; exit 1; }
 
-require_operator_stdin "scripts/authorize-operator-key.sh --target ${TARGET} ..." || exit 1
+require_operator_stdin "scripts/authorize-operator-key.sh --target ${TARGET} ..." \
+  "$REMOTE" "$TARGET" || exit 1
 require_ssh_alias "$REMOTE" || exit 1
 require_host_ssh_opts || exit 1
 

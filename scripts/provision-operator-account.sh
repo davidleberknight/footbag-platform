@@ -9,9 +9,10 @@
 #
 # Either an operator who already has host access, provisioning somebody else, or
 # a new operator provisioning themselves from whatever shared credential got
-# them this far. Both are real: the second is what the first run of this script
-# will be, because the shared account it exists to retire is the only way in
-# until it has run once. The flags read the same either way, and --operator names
+# them this far. Both are real, and which one applies is decided by tier: a
+# joining super admin holds the shared account's sudo password and provisions
+# themselves, while anyone else is provisioned for. The flags read the same
+# either way, and --operator names
 # whoever the account is for rather than whoever is typing. Nothing here checks
 # which case it is, because nothing here can: the difference is a matter of who
 # holds the terminal, and it is the vault entry at the end that records the
@@ -19,10 +20,11 @@
 #
 # WHY THIS EXISTS.
 #
-# The operations rules are explicit that there are no shared shell accounts and
-# no shared private keys, and the single-maintainer account was always meant to
-# persist only until a second operator joined. Until now the procedure for that
-# moment lived in a runbook as a handful of hand-typed root commands, and the
+# The operations rules are explicit that no operator shares a shell account or a
+# private key for routine work, so every person gets an account of their own. The
+# shared account stays for the two jobs only it can do: the host's way back in,
+# and the bootstrap onto a host with nobody on it. The procedure for standing up
+# a named account once lived in a runbook as hand-typed root commands, and the
 # steps that get skipped under pressure are exactly the ones with no immediate
 # feedback: recording the password in the vault, adding the host-access
 # inventory line, and checking that sshd will actually admit the new name. A
@@ -68,9 +70,22 @@
 # Usage. Reads the sudo password from stdin, line 1, and shows the new account's
 # password on the terminal, so it needs both the redirect and a real terminal:
 #
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/provision-operator-account.sh \
-#       --target staging --account jsymons --operator "Julie Symons" \
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/provision-operator-account.sh \
+#       --target staging --account julie_symons --operator "Julie Symons" \
 #       --key-line "ssh-ed25519 AAAAC3Nza... julie@example"
+#
+# Which file belongs on the left is not a guess and not a preference: it follows
+# the account the alias connects as, and each account has its own file per
+# environment, because staging and production are separate hosts with separate
+# passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs. The line above is
+# the ordinary case, an operator who already has an account of their own
+# provisioning the next person; a joining super admin bootstrapping themselves
+# is connecting as the shared account and reads its file instead.
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default, never
@@ -153,14 +168,19 @@ KEY_ONLY=0
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/provision-operator-account.sh \
+Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/provision-operator-account.sh \
          --target <staging|production> --account <name> --operator "<Full Name>" \
          --key-line "<ssh public key>" \
          [--own-password] [--rotate [--key-only]] [--offboard]
 
-Reads the sudo password from stdin (line 1), so the redirect is not optional. It
-needs a terminal as well: every mode stops for a typed confirmation, and the
-modes that generate a password show it there and nowhere else.
+Reads the sudo password from stdin (line 1), so the redirect is not optional, and
+refuses an empty first line rather than sending an empty password to the host. It
+needs a terminal as well, for a different reason in each mode: --offboard stops
+for a typed APPLY before withdrawing access; the modes that generate a password
+show it on the terminal and nowhere else; and creating or rotating an account
+stops for a typed VAULTED afterwards, deliberately after the account exists and
+has been proven, because a declined attestation rolls the account back and
+nothing has been handed to anybody yet.
 
   --target <staging|production>  deployed environment; no default
   --account <name>               Linux account name to create
@@ -356,14 +376,6 @@ fi
 fi  # end of the key section, skipped when offboarding
 
 # ── The operator's own credential ────────────────────────────────────────────
-if [[ -t 0 ]]; then
-  echo "ERROR: must receive the sudo password on stdin." >&2
-  echo "       Run via: < ~/AWS/AWS_OPERATOR.txt bash scripts/provision-operator-account.sh ..." >&2
-  echo "" >&2
-  usage >&2
-  exit 1
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE="${DEPLOY_TARGET:-footbag-${TARGET}}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/provision-operator-account-remote.sh"
@@ -372,6 +384,33 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/provision-operator-account-remote.sh"
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+
+# The shared gate, as every sibling script uses, rather than the hand-rolled
+# check this used to carry. The difference is not cosmetic. The old one refused
+# an interactive stdin and stopped there, so an EMPTY credential file passed it:
+# the bare read further down then set an empty password, every sudo on the host
+# refused it, and the run reported what looked like a host problem. It also
+# named the staging credential file whatever the target was, so an operator
+# whose production run was refused was handed the wrong file to re-run with.
+#
+# Read ONCE, here, for both branches. A single stdin cannot serve two sessions
+# because the first consumer drains it, and the rollback path needs the
+# credential as much as the install does.
+require_operator_stdin \
+  "scripts/provision-operator-account.sh --target ${TARGET} --account ${ACCOUNT} ..." \
+  "${REMOTE}" "${TARGET}" || {
+  echo "" >&2
+  usage >&2
+  exit 1
+}
+
+# Operator-only preflight, and it follows the credential guard as in every
+# sibling script, so a run refused for a missing credential says so wherever it
+# runs. This was the one script of its family without it: a workstation with no
+# deploy-alias stanza got a bare "Permission denied (publickey)" from the
+# reachability probe below, which reads as a rejected key rather than as a name
+# ssh could not resolve, and sends the operator to look at the wrong thing.
+require_ssh_alias "$REMOTE" || exit 1
 
 # Used by both the creation summary and the offboarding row below.
 TODAY="$(date -u +%Y-%m-%d)"
@@ -456,7 +495,6 @@ if [[ "$OFFBOARD" -eq 1 ]]; then
     exit 1
   fi
 
-  IFS= read -r SUDO_PASS
   {
     printf '%s\n' "$SUDO_PASS"
     printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
@@ -616,9 +654,11 @@ provision_cleanup() {
 }
 trap provision_cleanup EXIT INT TERM
 
-# Read once. A single stdin cannot serve two sessions, because the first drains
-# it, and the rollback path above needs it as much as the install does.
-IFS= read -r SUDO_PASS
+# The credential was read once, by the shared gate above, for exactly the reason
+# this comment used to give: a single stdin cannot serve two sessions, because
+# the first consumer drains it, and the rollback path above needs it as much as
+# the install does. Reading it here as well consumed a second line that nobody
+# sends, which on an empty file left the password empty and unchecked.
 
 # ── Where the password comes from ────────────────────────────────────────────
 #

@@ -17,7 +17,13 @@
 # Reads sudo password from stdin (line 1). Run via:
 #   bash deploy_to_aws.sh -k
 # or, for STAGING only, invoke directly with stdin redirected:
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-code.sh
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-code.sh
+#
+# Which file holds that password follows the account the alias connects as: the
+# shared footbag account reads ~/AWS/AWS_OPERATOR.txt and your own named account
+# reads ~/AWS/HOST_OPERATOR.txt. A run started without the redirect names the one
+# it needs. Neither has a production counterpart on this path, because a
+# production deploy takes the host password at the terminal instead.
 #
 # Production has no direct form, and redirecting a credential file here does not
 # make one: this script refuses a production target unless a terminal is attached,
@@ -47,7 +53,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: bash deploy_to_aws.sh -k
-   or (staging only): < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-code.sh
+   or (staging only): < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-code.sh
 
 A production deploy runs only through deploy_to_aws.sh, which asks for the typed
 confirmation and takes the host password at the terminal. This script refuses a

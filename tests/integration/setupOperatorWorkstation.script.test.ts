@@ -165,6 +165,16 @@ const PINNED_ALIAS_LINES = [
   'stricthostkeychecking yes',
 ];
 
+/**
+ * The same alias connecting as a named person instead of the shared account.
+ * That one line is the whole of the identity switch, and it is also what decides
+ * which of the four credential files this workstation needs, so it has to be an
+ * input the test supplies rather than whatever the developer's own config says.
+ */
+const NAMED_ALIAS_LINES = PINNED_ALIAS_LINES.map((l) =>
+  l === 'user footbag' ? 'user ada_lovelace' : l,
+);
+
 /** Everything the run prints, since steps report to both streams. */
 function output(r: { stdout: string; stderr: string }): string {
   return `${r.stdout}\n${r.stderr}`;
@@ -217,7 +227,7 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     // section and a closing count, because a partial list with no verdict is
     // indistinguishable from a crash and tells the operator nothing about what
     // else is waiting for them.
-    const r = run(['--target', 'staging', '--check']);
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(PINNED_ALIAS_LINES));
     expect(r.status).toBe(1);
     const all = output(r);
     expect(all).toMatch(/Tools the deploy needs/);
@@ -237,7 +247,7 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     writeFileSync(cred, '', 'utf-8');
     chmodSync(cred, 0o600);
 
-    const r = run(['--target', 'staging', '--check']);
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(PINNED_ALIAS_LINES));
     const all = output(r);
     expect(all).toMatch(/holds 0 non-empty lines/);
     expect(all).not.toMatch(/syntax error/);
@@ -253,7 +263,7 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     writeFileSync(cred, 'a-password\n', 'utf-8');
     chmodSync(cred, 0o644);
 
-    const r = run(['--target', 'staging', '--check']);
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(PINNED_ALIAS_LINES));
     const all = output(r);
     expect(all).toMatch(/has mode 644/);
     expect(all).toMatch(/rotate the password/);
@@ -266,7 +276,7 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     writeFileSync(cred, 'a-password\nsomething-else\n', 'utf-8');
     chmodSync(cred, 0o600);
 
-    const r = run(['--target', 'staging', '--check']);
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(PINNED_ALIAS_LINES));
     expect(output(r)).toMatch(/holds 2 non-empty lines/);
   });
 
@@ -276,15 +286,47 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     writeFileSync(cred, 'a-password\n', 'utf-8');
     chmodSync(cred, 0o600);
 
-    const r = run(['--target', 'staging', '--check']);
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(PINNED_ALIAS_LINES));
     expect(output(r)).toMatch(/AWS_OPERATOR\.txt present, one line, mode 600/);
   });
 
   it('names the production credential file when the target is production', () => {
     // Different hosts, different passwords, so a run for one environment must
     // not report the other environment's file as though it were this one's.
-    const r = run(['--target', 'production', '--check']);
+    const r = run(['--target', 'production', '--check'], stubSshOnPath(PINNED_ALIAS_LINES));
     expect(output(r)).toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
+  });
+
+  it('names the personal file when the alias connects as a named account', () => {
+    // The alias's `User` line is the whole of the identity switch, and the
+    // credential follows it. A report that named the shared file here would send
+    // an operator to write their own password into the shared account's file,
+    // which is the one-file-two-meanings shape the four files exist to prevent.
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(NAMED_ALIAS_LINES));
+    const all = output(r);
+    expect(all).toMatch(/HOST_OPERATOR\.txt is missing/);
+    expect(all).not.toMatch(/AWS_OPERATOR\.txt is missing/);
+  });
+
+  it('reports the named account without calling it a mistake', () => {
+    // It used to say a named account did not exist yet and that the shared one
+    // was the account to use. Both halves are now wrong, and an operator part
+    // way through moving onto their own account would read it as an instruction
+    // to undo the move.
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(NAMED_ALIAS_LINES));
+    const all = output(r);
+    expect(all).toMatch(/connects as the named account 'ada_lovelace'/);
+    expect(all).not.toMatch(/does not exist yet/);
+  });
+
+  it('says which file it needs rather than guessing when the account cannot be read', () => {
+    // An ssh that answers nothing is a configuration it could not parse. No
+    // account means no rule, and naming a file anyway is how one account's
+    // password ends up filed under another's.
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath([]));
+    const all = output(r);
+    expect(all).toMatch(/cannot tell which credential file/);
+    expect(all).not.toMatch(/AWS_OPERATOR\.txt is missing/);
   });
 });
 
@@ -400,8 +442,10 @@ describe('the AWS identity is proved, not listed', () => {
   it('says a runtime profile is missing rather than that it cannot be assumed', () => {
     // Two different faults with two different owners: the installer writes a
     // missing profile, and nobody on this machine can grant an assume-role.
+    // The break-glass profile is present here because that is the tier the
+    // TODO is addressed to: only its holder can run the installer that fixes it.
     const env = stubAwsOnPath({
-      profiles: ['footbag-operator', 'footbag-staging-runtime'],
+      profiles: ['footbag-operator', 'footbag-operator-key', 'footbag-staging-runtime'],
       identities: {
         'footbag-operator': OPERATOR_ARN,
         'footbag-staging-runtime': STAGING_ROLE_ARN,
@@ -410,7 +454,7 @@ describe('the AWS identity is proved, not listed', () => {
     const all = output(run(['--target', 'staging', '--check'], env));
 
     expect(all).toMatch(/footbag-production-runtime is missing/);
-    expect(all).toMatch(/install-operator-key\.sh \(it writes both\)/);
+    expect(all).toMatch(/install-operator-sso-profile\.sh/);
     expect(all).not.toMatch(/does not assume its role/);
   });
 
@@ -429,7 +473,47 @@ describe('the AWS identity is proved, not listed', () => {
     const all = output(run(['--target', 'staging', '--check'], env));
 
     expect(all).toMatch(/does not assume its role/);
-    expect(all).toMatch(/assume-role permission on the shared IAM user/);
+    // The grant is on whichever principal that profile sources from, which is
+    // no longer one shared IAM user for everybody: a super admin's chain
+    // sources the break-glass key and a federated one would source the
+    // sign-in. Naming a single principal here sent the reader to the wrong
+    // trust policy.
+    expect(all).toMatch(/assume-role permission on whichever principal it sources from/);
+  });
+
+  it('does not fail a dev-and-tester for the production chain their role is denied', () => {
+    // Production's runtime role trusts the super-admin set and not the other,
+    // so for that tier the profile's absence is the boundary working. The
+    // staging chain is a finding for everybody, because the SSO installer
+    // writes it off their own sign-in and everybody can run that.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator'],
+      identities: { 'footbag-operator': STAGING_ROLE_ARN },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).toMatch(/\[note\][^\n]*footbag-production-runtime is not here/);
+    expect(all).not.toMatch(/\[TODO\][^\n]*footbag-production-runtime/);
+    expect(all).toMatch(/\[TODO\][^\n]*footbag-staging-runtime is missing/);
+    expect(all).toMatch(/install-operator-sso-profile\.sh/);
+  });
+
+  it('reports an absent break-glass profile without failing the run over it', () => {
+    // Correct for a dev-and-tester, who must never hold that key, and a gap for
+    // a super admin. Nothing on the machine says which its owner is, so this is
+    // reported and not counted: counting it would fail somebody for not holding
+    // a credential they are not allowed to have.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      identities: {
+        'footbag-operator': OPERATOR_ARN,
+        'footbag-staging-runtime': STAGING_ROLE_ARN,
+        'footbag-production-runtime': PRODUCTION_ROLE_ARN,
+      },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+    expect(all).toMatch(/\[note\].*footbag-operator-key/);
+    expect(all).not.toMatch(/\[TODO\][^\n]*footbag-operator-key/);
   });
 });
 

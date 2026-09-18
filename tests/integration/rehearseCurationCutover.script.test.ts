@@ -31,6 +31,7 @@ let tmp: string;
 let sshStub: string;
 let pinFile: string;
 let deployStub: string;
+let credHome: string;
 let credFile: string;
 let probeCounter: string;
 let actionLog: string;
@@ -55,7 +56,14 @@ function writeSshStub(probes: string[]): void {
     [
       '#!/usr/bin/env bash',
       'for a in "$@"; do',
-      '  if [[ "$a" == "-G" ]]; then echo "hostname 203.0.113.10"; exit 0; fi',
+      // The account line matters as much as the hostname: it is what selects
+      // the credential file, so leaving it to the developer's own ~/.ssh/config
+      // would decide these cases differently on each machine.
+      '  if [[ "$a" == "-G" ]]; then',
+      '    echo "hostname 203.0.113.10"',
+      '    printf "user %s\\n" "${FAKE_SSH_USER:-footbag}"',
+      '    exit 0',
+      '  fi',
       'done',
       'stream="$(cat)"',
       'action=probe',
@@ -144,7 +152,7 @@ function run(
       FOOTBAG_REHEARSAL_SSH: sshStub,
       FOOTBAG_REHEARSAL_DEPLOY_CMD: `bash ${deployStub}`,
       FOOTBAG_KNOWN_HOSTS: pinFile,
-      AWS_OPERATOR_FILE: credFile,
+      HOME: credHome,
       ...opts.env,
     },
     ...SPAWN_GUARD,
@@ -175,7 +183,12 @@ beforeAll(() => {
   probeCounter = path.join(tmp, 'probe-counter');
   actionLog = path.join(tmp, 'actions.log');
   argvLog = path.join(tmp, 'deploy-argv.log');
-  credFile = path.join(tmp, 'operator-credential');
+  // The credential lives at the fixed place the shared rule selects, under a
+  // throwaway home. Nothing points at it by variable any more: the account the
+  // alias connects as is the whole of the choice.
+  credHome = path.join(tmp, 'home');
+  credFile = path.join(credHome, 'AWS', 'AWS_OPERATOR.txt');
+  fs.mkdirSync(path.dirname(credFile), { recursive: true });
   fs.writeFileSync(pinFile, '[203.0.113.10]:22 ssh-ed25519 AAAA\n');
   fs.writeFileSync(credFile, 'hunter2\n', { mode: 0o600 });
   writeSshStub([healthyProbe()]);
@@ -297,32 +310,56 @@ describe('rehearse-curation-cutover.sh preconditions', () => {
     expect(res.stderr).toContain('missing or unreadable');
   });
 
+  /**
+   * A throwaway home holding one credential file, or none. The file's name is
+   * the rule's to decide, so a case states the account and the contents and
+   * lets the script work out where to look; a fixture that wrote the path
+   * directly could not catch the rule choosing the wrong one.
+   */
+  function homeWith(name: string | null, contents = 'hunter2\n', mode = 0o600): string {
+    const home = fs.mkdtempSync(path.join(tmp, 'case-home-'));
+    fs.mkdirSync(path.join(home, 'AWS'), { recursive: true });
+    if (name) {
+      fs.writeFileSync(path.join(home, 'AWS', name), contents, { mode });
+    }
+    return home;
+  }
+
   it('refuses when the operator credential file is not readable', () => {
     const res = run(['--target', 'staging', '--trick', 'clipper'], {
-      env: { AWS_OPERATOR_FILE: path.join(tmp, 'no-such-credential-file') },
+      env: { HOME: homeWith(null) },
     });
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain('credential source unavailable');
+    expect(res.stderr).toContain('AWS_OPERATOR.txt is missing or unreadable');
   });
 
   it('refuses a credential file that anyone but its owner can read', () => {
-    const loose = path.join(tmp, 'loose-credential');
-    fs.writeFileSync(loose, 'hunter2\n', { mode: 0o644 });
     const res = run(['--target', 'staging', '--trick', 'clipper'], {
-      env: { AWS_OPERATOR_FILE: loose },
+      env: { HOME: homeWith('AWS_OPERATOR.txt', 'hunter2\n', 0o644) },
     });
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain('expected 600');
+    expect(res.stderr).toContain('must be 600 or 400');
+    expect(res.stderr).toContain('Rotate the password');
   });
 
   it('refuses a credential file whose first line is empty', () => {
-    const empty = path.join(tmp, 'empty-credential');
-    fs.writeFileSync(empty, '\n', { mode: 0o600 });
     const res = run(['--target', 'staging', '--trick', 'clipper'], {
-      env: { AWS_OPERATOR_FILE: empty },
+      env: { HOME: homeWith('AWS_OPERATOR.txt', '\n') },
     });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('first line is empty');
+  });
+
+  it('reads the personal file when the alias connects as a named account', () => {
+    // The rehearsal exists to prove the deploy path, and the deploy now picks
+    // its credential the same way. A rehearsal that read the shared account's
+    // password while connecting as a person would be rehearsing a path nobody
+    // takes.
+    const res = run(['--target', 'staging', '--trick', 'clipper'], {
+      env: { HOME: homeWith('AWS_OPERATOR.txt'), FAKE_SSH_USER: 'ada_lovelace' },
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('HOST_OPERATOR.txt is missing or unreadable');
   });
 });
 

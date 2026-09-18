@@ -512,3 +512,164 @@ describe('the chained runtime profiles are written, not left to be hand-edited',
     expect(r.stdout).toMatch(/err=.*not a regular file/);
   });
 });
+
+/**
+ * Moving the key off one profile name and onto another.
+ *
+ * A workstation set up before the key and the federated sign-in were separated
+ * has the key under the name the sign-in now needs, and the two cannot share it:
+ * the AWS tools resolve a stored key ahead of a sign-in session on the same
+ * name and say nothing about doing so. So the key moves, and two things have to
+ * move with it or the move reports a failure it caused itself. The chained
+ * runtime profiles point at the old name, and the old section has to outlive
+ * every check that could still fail.
+ */
+describe('moving a profile: the pointer follows, and the removal is last', () => {
+  const configPath = () => join(workDir, 'config');
+
+  it('removes a section and keeps every other byte of the file', () => {
+    const file = credFile(
+      '[keepme]\naws_access_key_id = AKIAKEEP\n\n[footbag-operator]\naws_access_key_id = AKIAOLD\naws_secret_access_key = old\n',
+    );
+    const r = inLib(`aws_cred_remove_section "${file}" footbag-operator; echo "rc=$?"`);
+    expect(r.stdout).toContain('rc=0');
+    const after = readFileSync(file, 'utf-8');
+    expect(after).not.toContain('[footbag-operator]');
+    expect(after).not.toContain('AKIAOLD');
+    expect(after).toContain('[keepme]');
+    expect(after).toContain('AKIAKEEP');
+  });
+
+  it('says so rather than failing when the section is already gone', () => {
+    // A re-run of a move that already happened is a normal thing to do, and a
+    // failure there sends the operator looking for a problem that is not one.
+    const file = credFile('[keepme]\naws_access_key_id = AKIAKEEP\n');
+    const r = inLib(`aws_cred_remove_section "${file}" footbag-operator || echo "rc=$?"`);
+    expect(r.stdout).toContain('rc=2');
+    expect(readFileSync(file, 'utf-8')).toContain('AKIAKEEP');
+  });
+
+  it('leaves the credentials file readable by its owner alone after a removal', () => {
+    const file = credFile('[a]\naws_access_key_id = AKIAA\n\n[b]\naws_access_key_id = AKIAB\n');
+    inLib(`aws_cred_remove_section "${file}" b`);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+  });
+
+  it('repoints a chained profile that sourced the old name, and names what it moved', () => {
+    writeFileSync(
+      configPath(),
+      '[profile footbag-staging-runtime]\nrole_arn = arn:aws:iam::1:role/staging\nsource_profile = footbag-operator\nregion = us-east-1\n',
+      'utf-8',
+    );
+    const r = inLib(
+      `aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key; echo "rc=$?"`,
+    );
+    expect(r.stdout).toContain('rc=0');
+    expect(r.stdout).toContain('profile footbag-staging-runtime');
+    const after = readFileSync(configPath(), 'utf-8');
+    expect(after).toMatch(/source_profile\s+= footbag-operator-key/);
+    // Everything else in the section is a setting somebody may have chosen, and
+    // only the pointer this tooling wrote is ours to change.
+    expect(after).toMatch(/role_arn = arn:aws:iam::1:role\/staging/);
+    expect(after).toMatch(/region = us-east-1/);
+  });
+
+  it('leaves a chained profile that sourced something else alone', () => {
+    writeFileSync(
+      configPath(),
+      '[profile mine]\nrole_arn = arn:aws:iam::1:role/mine\nsource_profile = some-other-account\n',
+      'utf-8',
+    );
+    const r = inLib(
+      `aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key || echo "rc=$?"`,
+    );
+    expect(r.stdout).toContain('rc=2');
+    expect(readFileSync(configPath(), 'utf-8')).toContain('source_profile = some-other-account');
+  });
+
+  it('does not repoint a profile whose source merely starts with the old name', () => {
+    // `footbag-operator-key` begins with `footbag-operator`. A prefix match here
+    // would repoint an already-moved workstation onto a name ending in -key-key.
+    writeFileSync(
+      configPath(),
+      '[profile already-moved]\nsource_profile = footbag-operator-key\n',
+      'utf-8',
+    );
+    const r = inLib(
+      `aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key || echo "rc=$?"`,
+    );
+    expect(r.stdout).toContain('rc=2');
+    expect(readFileSync(configPath(), 'utf-8')).toContain('source_profile = footbag-operator-key');
+  });
+
+  it('keeps every other section byte for byte while repointing one', () => {
+    writeFileSync(
+      configPath(),
+      '[profile keepme]\nregion = eu-west-1\noutput = text\n\n[profile rt]\nsource_profile = footbag-operator\n',
+      'utf-8',
+    );
+    inLib(`aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key`);
+    const after = readFileSync(configPath(), 'utf-8');
+    expect(after).toContain('[profile keepme]');
+    expect(after).toContain('region = eu-west-1');
+    expect(after).toContain('output = text');
+  });
+});
+
+describe('install-operator-key.sh — the move, refused before a secret is typed', () => {
+  function runMove(args: string[]) {
+    const res = spawnSync('bash', [SCRIPT, ...args], {
+      encoding: 'utf-8',
+      input: '',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        AWS_SHARED_CREDENTIALS_FILE: join(workDir, 'credentials'),
+        AWS_CONFIG_FILE: join(workDir, 'config'),
+        INSTALL_OPERATOR_KEY_AWS_BIN: '/bin/false',
+      },
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  it('refuses a move whose source and destination are the same name', () => {
+    // The move exists only because two credentials cannot share a name, so a
+    // move to the name it is already under is a typo, not a no-op.
+    const r = runMove(['--from-profile', 'footbag-operator-key']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/nowhere to move to/);
+  });
+
+  it('refuses a move whose source section does not exist, before asking for anything', () => {
+    writeFileSync(join(workDir, 'credentials'), '[somebody-else]\naws_access_key_id = AKIAX\n', 'utf-8');
+    const r = runMove(['--from-profile', 'footbag-operator']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/no \[footbag-operator\] section/);
+    expect(r.stderr).toMatch(/nothing has been changed/i);
+  });
+
+  it('removes the old section only after the proof, and repoints before it', () => {
+    // Asserted against the script's own source because the install path needs a
+    // terminal and belongs to the operator, and this is the one property of it
+    // that cannot be recovered from if it is wrong: the secret in that section
+    // exists in exactly two places, this file and the vault, so removing it
+    // while the replacement is unproved leaves a workstation with no way in.
+    const source = readFileSync(SCRIPT, 'utf-8');
+    const repoint = source.indexOf('aws_config_repoint_source_profile "$CONFIG_FILE"');
+    const prove = source.indexOf('aws_identity_require_chain $RUNTIME_PROFILES');
+    const remove = source.indexOf('aws_cred_remove_section "$CRED_FILE"');
+    expect(repoint).toBeGreaterThan(-1);
+    expect(prove).toBeGreaterThan(-1);
+    expect(remove).toBeGreaterThan(-1);
+    expect(repoint).toBeLessThan(prove);
+    expect(prove).toBeLessThan(remove);
+  });
+
+  it('names the flag in its own help, so the move is discoverable', () => {
+    const r = runMove(['--help']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('--from-profile');
+    expect(r.stdout).toMatch(/removes the\n#                      old section LAST|old section LAST/);
+  });
+});

@@ -15,6 +15,13 @@
 # nothing schedules that read, deliberately: rotation here is for cause and
 # never on a clock.
 #
+# The two human-identity paths fail the same silent way. Both runtime trust
+# policies name the super-admin user and the federated operator role by literal
+# ARN, and AWS resolves each of those to an internal id at save time, so a user
+# or a permission set recreated under the same name leaves a trust policy that
+# still reads correctly and refuses every AssumeRole, with no terraform plan
+# diff to show for it. Only a comparison against the live ARN catches it.
+#
 # So this reads all of it in one pass and exits non-zero on anything failing,
 # which makes it usable as a gate rather than only as a report.
 #
@@ -49,11 +56,24 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 
 AWS_BIN="${ACCOUNT_BASELINE_AWS_BIN:-aws}"
-# The emergency identity, and the two roles whose trust policies name it. Both
+# The super-admin identity, and the two roles whose trust policies name it. Both
 # are checked below because nothing else in the tree watches either, and losing
 # either one strands every operator on a path that has no replacement yet.
-BREAK_GLASS_USER="footbag-operator"
-RUNTIME_ROLES=("footbag-staging-app-runtime" "footbag-production-app-runtime")
+SUPER_ADMIN_USER="footbag-operator"
+STAGING_RUNTIME_ROLE="footbag-staging-app-runtime"
+PRODUCTION_RUNTIME_ROLE="footbag-production-app-runtime"
+RUNTIME_ROLES=("$STAGING_RUNTIME_ROLE" "$PRODUCTION_RUNTIME_ROLE")
+# The two human-operator permission sets. Identity Center generates the IAM role
+# behind each with a suffix nobody chooses, so both live ARNs are read back and
+# compared against the trust policies rather than assumed to still match.
+#
+# They are checked against different documents, which is the point of the split:
+# the super-admin role belongs in both runtime trust policies, and the
+# dev-and-tester role belongs in staging's and in no other. Production naming it
+# is a finding rather than a pass, because production's tree declares no variable
+# that could put it there.
+SUPER_ADMIN_PERMISSION_SET="FootbagSuperAdmin"
+DEV_TESTER_PERMISSION_SET="FootbagDevTester"
 PROFILE=""
 QUIET=0
 
@@ -241,17 +261,17 @@ else
   note "idle long enough that its existence is no longer justified"
 fi
 
-# ── 7. The break-glass identity, and the two paths that depend on it ─────────
+# ── 7. The super-admin identity, and the two paths that depend on it ─────────
 #
 # The section above reports every key; this one asserts the three things whose
 # ABSENCE is the finding, which is the opposite direction and the reason it is
 # separate.
 #
-# The design retains this IAM user deliberately as the emergency identity: the
+# The design retains this IAM user permanently as the super-admin identity: the
 # one directly authenticated way in, kept unfederated so a failure of the
-# identity provider cannot take the normal route and the emergency route down
+# identity provider cannot take the normal route and the way back in down
 # together. Federation is added beside it, never in place of it. So a run that
-# finds no active key here has found the emergency route gone.
+# finds no active key here has found that fallback gone.
 #
 # The two runtime trust policies name that user by literal ARN, and the chained
 # runtime profiles resolve through them. Removing either entry cannot be undone
@@ -259,14 +279,14 @@ fi
 # Nothing else in this tree reads those policies, which is why they are here
 # rather than left to surface as a deploy failing weeks later.
 echo ""
-echo "Break-glass identity"
-BG_ROWS="$(aws_q iam list-access-keys --user-name "$BREAK_GLASS_USER" \
+echo "Super-admin identity"
+BG_ROWS="$(aws_q iam list-access-keys --user-name "$SUPER_ADMIN_USER" \
   --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text || true)"
 if [[ -z "$BG_ROWS" || "$BG_ROWS" == "None" ]]; then
-  fail "${BREAK_GLASS_USER} holds no active access key, or could not be read"
+  fail "${SUPER_ADMIN_USER} holds no active access key, or could not be read"
   note "it is the way back in when the federated path itself is what has failed"
 else
-  pass "${BREAK_GLASS_USER} holds an active access key"
+  pass "${SUPER_ADMIN_USER} holds an active access key"
 fi
 
 for role in "${RUNTIME_ROLES[@]}"; do
@@ -274,14 +294,181 @@ for role in "${RUNTIME_ROLES[@]}"; do
     --query 'Role.AssumeRolePolicyDocument' --output json || true)"
   if [[ -z "$TRUST" ]]; then
     fail "${role}: could not read the trust policy"
-  elif printf '%s' "$TRUST" | grep -qF ":user/${BREAK_GLASS_USER}"; then
-    pass "${role} still trusts ${BREAK_GLASS_USER}"
+  elif printf '%s' "$TRUST" | grep -qF ":user/${SUPER_ADMIN_USER}"; then
+    pass "${role} still trusts ${SUPER_ADMIN_USER}"
   else
-    fail "${role} no longer names ${BREAK_GLASS_USER} in its trust policy"
+    fail "${role} no longer names ${SUPER_ADMIN_USER} in its trust policy"
     note "the chained runtime profiles resolve through this, and a recreated"
     note "user is a different principal, so this is not undone by recreating it"
   fi
 done
+
+# ── 8. The federated operator role, and the suffix that silently invalidates ──
+#
+# Identity Center generates the IAM role behind the permission set as
+# AWSReservedSSO_<name>_<suffix>, and the suffix is generated. Both runtime trust
+# policies name that role by literal ARN, so deleting and recreating the
+# permission set produces a new suffix and leaves both policies pointing at a
+# principal that no longer exists. Nothing reports that: the trust reads
+# correctly, terraform plan shows no diff because the configuration still holds
+# the old string, and the failure surfaces weeks later as an AssumeRole that
+# refuses.
+#
+# The alternative was to trust the reserved SSO path by pattern, which survives
+# recreation but widens the trust to any SSO role in the account. A check that
+# already runs costs less than that.
+#
+# Before the federated path exists this section has nothing to say, and says so
+# rather than failing: the role's absence is the current state of the estate, not
+# a finding.
+echo ""
+echo "Federated operator role"
+
+# The instance first, because it is the thing the console enable produced and
+# nothing else in this tree reads it. Without this an operator asking whether the
+# enable took has no scripted way to find out, and the answer arrives as a
+# hand-typed CLI call — which is the shape this whole script exists to replace.
+SSO_INSTANCE="$(aws_q sso-admin list-instances \
+  --query 'Instances[].[InstanceArn,IdentityStoreId]' --output text || true)"
+if [[ -z "$SSO_INSTANCE" || "$SSO_INSTANCE" == "None" ]]; then
+  note "no IAM Identity Center instance: the federated path is not stood up, and"
+  note "every operator action is still attributed to ${SUPER_ADMIN_USER}"
+else
+  pass "Identity Center instance: ${SSO_INSTANCE}"
+fi
+
+# The exit status is kept rather than discarded, because a read that could not be
+# made and a role that does not exist both arrive here as an empty string. Only
+# the second is the current state of the estate; the first is an access denial, a
+# throttle or an expired credential, and reporting it as "nothing stood up yet"
+# silences the comparison below and lets the whole gate exit green while having
+# checked nothing.
+#
+# What each answer means differs between the two permission sets, so this reads
+# one and reports on it, and the caller decides which trust documents must name
+# it. GENERATED_ROLE_STATUS carries the verdict: `ok` with an ARN to compare,
+# `absent` for a set no role has been generated behind yet, and `failed` or
+# `ambiguous` for the two cases it has already reported.
+GENERATED_ROLE_ARN=""
+GENERATED_ROLE_STATUS=""
+
+read_generated_role() {
+  local set_name="$1"
+  local answer="" count=0
+  GENERATED_ROLE_ARN=""
+  GENERATED_ROLE_STATUS="ok"
+
+  if ! answer="$(aws_q iam list-roles --path-prefix '/aws-reserved/sso.amazonaws.com/' \
+    --query "Roles[?starts_with(RoleName, \`AWSReservedSSO_${set_name}_\`)].Arn" \
+    --output text)"; then
+    fail "could not read the generated ${set_name} role"
+    note "this is not the same as the role being absent: the call itself did not"
+    note "answer, so the comparison against the runtime trust policies below was"
+    note "skipped rather than passed. Check the profile still authenticates and that"
+    note "it carries iam:ListRoles on the reserved SSO path."
+    GENERATED_ROLE_STATUS="failed"
+    return
+  fi
+
+  # `--output text` separates a list with tabs, so two matching roles arrive
+  # joined on one line. Used whole, that string is a needle no trust document can
+  # contain, and every runtime role then fails the comparison below even when its
+  # trust is correct — which reads as a broken trust policy rather than as the
+  # recreated permission set it actually is.
+  if [[ -n "$answer" && "$answer" != "None" ]]; then
+    # shellcheck disable=SC2086
+    set -- $answer
+    count=$#
+    GENERATED_ROLE_ARN="$1"
+  fi
+
+  if (( count > 1 )); then
+    fail "${count} roles match AWSReservedSSO_${set_name}_*"
+    note "the suffix is generated, so a permission set that was deleted and recreated"
+    note "leaves a role behind under the old one. Which of them the operators actually"
+    note "assume is the question, so nothing is compared against a guess:"
+    # shellcheck disable=SC2086
+    printf '        %s\n' $answer
+    GENERATED_ROLE_ARN=""
+    GENERATED_ROLE_STATUS="ambiguous"
+    return
+  fi
+
+  if [[ -z "$GENERATED_ROLE_ARN" ]]; then
+    GENERATED_ROLE_STATUS="absent"
+    return
+  fi
+
+  pass "${set_name} role: ${GENERATED_ROLE_ARN}"
+}
+
+# One runtime role's trust document, or an empty string when it could not be
+# read. Which principals it names is the question every comparison below asks.
+read_trust() {
+  aws_q iam get-role --role-name "$1" --query 'Role.AssumeRolePolicyDocument' \
+    --output json || true
+}
+
+# The super-admin role belongs in both trust policies: its job is the whole
+# estate, and production is reachable from no other federated role.
+read_generated_role "$SUPER_ADMIN_PERMISSION_SET"
+SUPER_ADMIN_ROLE_ARN="$GENERATED_ROLE_ARN"
+if [[ "$GENERATED_ROLE_STATUS" == "absent" ]]; then
+  note "no ${SUPER_ADMIN_PERMISSION_SET} role yet: operators still authenticate as"
+  note "${SUPER_ADMIN_USER}, which keeps the super-admin work the roles do not"
+  note "carry. Nothing to compare until the identity tree is applied."
+elif [[ "$GENERATED_ROLE_STATUS" == "ok" ]]; then
+  for role in "${RUNTIME_ROLES[@]}"; do
+    TRUST="$(read_trust "$role")"
+    if [[ -z "$TRUST" ]]; then
+      fail "${role}: could not read the trust policy to compare the operator role"
+    elif printf '%s' "$TRUST" | grep -qF "$SUPER_ADMIN_ROLE_ARN"; then
+      pass "${role} trusts the live ${SUPER_ADMIN_PERMISSION_SET} role"
+    else
+      fail "${role} does not name the live ${SUPER_ADMIN_PERMISSION_SET} role ARN"
+      note "the generated suffix changes whenever the permission set is recreated,"
+      note "and the stale ARN keeps reading as a valid trust while granting nothing"
+      note "set super_admin_sso_role_arn to the ARN above and apply both environments"
+    fi
+  done
+fi
+
+# The dev-and-tester role is checked against both documents too, but for opposite
+# answers. Staging must name it, because the reads a deploy makes are that job.
+# Production must not, and its absence there cannot be asserted from that tree's
+# configuration: production declares no variable to set it, so an ARN found in
+# that trust was put there by hand and nothing else would ever report it.
+read_generated_role "$DEV_TESTER_PERMISSION_SET"
+DEV_TESTER_ROLE_ARN="$GENERATED_ROLE_ARN"
+if [[ "$GENERATED_ROLE_STATUS" == "absent" ]]; then
+  note "no ${DEV_TESTER_PERMISSION_SET} role yet: either the identity tree has not"
+  note "been applied, or nobody on the roster holds that job. An unassigned"
+  note "permission set generates no role, and staging then names no such principal."
+elif [[ "$GENERATED_ROLE_STATUS" == "ok" ]]; then
+  STAGING_TRUST="$(read_trust "$STAGING_RUNTIME_ROLE")"
+  if [[ -z "$STAGING_TRUST" ]]; then
+    fail "${STAGING_RUNTIME_ROLE}: could not read the trust policy to compare the dev-and-tester role"
+  elif printf '%s' "$STAGING_TRUST" | grep -qF "$DEV_TESTER_ROLE_ARN"; then
+    pass "${STAGING_RUNTIME_ROLE} trusts the live ${DEV_TESTER_PERMISSION_SET} role"
+  else
+    fail "${STAGING_RUNTIME_ROLE} does not name the live ${DEV_TESTER_PERMISSION_SET} role ARN"
+    note "a dev-and-tester can sign in and reach nothing a deploy needs, which reads"
+    note "as a broken account rather than as a missing principal"
+    note "set dev_tester_sso_role_arn to the ARN above and apply staging"
+  fi
+
+  PRODUCTION_TRUST="$(read_trust "$PRODUCTION_RUNTIME_ROLE")"
+  if [[ -z "$PRODUCTION_TRUST" ]]; then
+    fail "${PRODUCTION_RUNTIME_ROLE}: could not read the trust policy to check the dev-and-tester role is absent"
+  elif printf '%s' "$PRODUCTION_TRUST" | grep -qF "$DEV_TESTER_ROLE_ARN"; then
+    fail "${PRODUCTION_RUNTIME_ROLE} names the ${DEV_TESTER_PERMISSION_SET} role"
+    note "that role's job is staging, and this grant is the one thing the split into"
+    note "two roles exists to prevent. Nothing in production's tree can produce it,"
+    note "so it was added by hand: remove the principal and apply production."
+  else
+    pass "${PRODUCTION_RUNTIME_ROLE} does not name the ${DEV_TESTER_PERMISSION_SET} role"
+  fi
+fi
 
 echo ""
 if (( FINDINGS == 0 )); then

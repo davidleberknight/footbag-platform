@@ -1,9 +1,11 @@
 /**
  * scripts/setup_private_repo.sh — wiring a checkout to its companion.
  *
- * Six symlinks for an ordinary operator: the companion-checkout root and the
- * five values files. A seventh, the read-only legacy clone, is considered only
- * when `--legacy-repo` is passed, so a bare run and a bare `--check` report six.
+ * Eight symlinks for an ordinary operator: the companion-checkout root and the
+ * seven values files. A ninth, the read-only legacy clone, is considered only
+ * when `--legacy-repo` is passed, so a bare run and a bare `--check` report
+ * eight. Two of the seven values files are not environments: one declares what
+ * an operator may do, the other is the roster of who they are.
  * They were hand-typed `ln -s` commands in an onboarding document that wired
  * two of them and never mentioned the rest. Every way they go wrong is
  * silent: a missing values link fails at terraform with a message about
@@ -38,7 +40,7 @@ import {
   existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
@@ -51,6 +53,8 @@ const VALUES_LINKS = [
   ['terraform/production/terraform.tfvars', 'production.tfvars'],
   ['terraform/production/secrets.auto.tfvars', 'production.secrets.auto.tfvars'],
   ['terraform/shared/terraform.tfvars', 'shared.tfvars'],
+  ['terraform/identity/terraform.tfvars', 'identity.tfvars'],
+  ['terraform/operators/terraform.tfvars', 'operators.tfvars'],
 ] as const;
 
 let root: string;
@@ -61,17 +65,17 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'footbag-test-wiring-'));
 
   // A throwaway checkout carrying only what the script reaches for: its own
-  // copy of the script, the shared libraries it sources, and the three
-  // terraform directories.
+  // copy of the script, the shared libraries it sources, and one directory per
+  // tree that takes a values file.
   fakeRepo = join(root, 'platform');
   mkdirSync(join(fakeRepo, 'scripts'), { recursive: true });
   spawnSync('cp', ['-r', LIB, join(fakeRepo, 'scripts', 'lib')], SPAWN_GUARD);
   spawnSync('cp', [SCRIPT, join(fakeRepo, 'scripts', 'setup_private_repo.sh')], SPAWN_GUARD);
-  for (const dir of ['terraform/staging', 'terraform/production', 'terraform/shared']) {
-    mkdirSync(join(fakeRepo, dir), { recursive: true });
+  for (const [path] of VALUES_LINKS) {
+    mkdirSync(join(fakeRepo, dirname(path)), { recursive: true });
   }
 
-  // A companion checkout carrying all five values files.
+  // A companion checkout carrying every values file.
   privateRepo = join(root, 'ops');
   mkdirSync(join(privateRepo, 'terraform'), { recursive: true });
   for (const [, name] of VALUES_LINKS) {
@@ -100,7 +104,7 @@ function wire(extra: string[] = []) {
 }
 
 describe('setup_private_repo.sh — wiring an unwired tree', () => {
-  it('creates all six links and verifies each one resolves', () => {
+  it('creates every link and verifies each one resolves', () => {
     const r = wire();
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(fakeRepo, 'footbag_private_repo'))).toBe(true);
@@ -112,7 +116,7 @@ describe('setup_private_repo.sh — wiring an unwired tree', () => {
   });
 
   it('keeps the values links relative and routed through the root link', () => {
-    // This is what makes the five identical on every machine: only the root
+    // This is what makes them identical on every machine: only the root
     // link is machine-specific. An absolute target would wire one laptop.
     wire();
     for (const [path, name] of VALUES_LINKS) {

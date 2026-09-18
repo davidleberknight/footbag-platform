@@ -2,7 +2,8 @@
 # apply-bucket-tls-baseline.sh
 #
 # Applies the bucket TLS-deny baseline and the session-secret move out of
-# Terraform state, across all three trees, in the one order that is safe.
+# Terraform state, across the three trees that declare buckets, in the one order
+# that is safe.
 #
 # WHY THIS HAS ITS OWN SCRIPT.
 #
@@ -135,8 +136,8 @@ Dry run. A real run would, in this order:
                               its own state. On failure, print the one recovery
                               call and the identity it needs.
   step 4  the repository's bucket baseline check. It reads the Terraform source
-                              of all three trees, not the applied estate, so it
-                              proves the baseline is declared rather than live.
+                              of every tree, not the applied estate, so it proves
+                              the baseline is declared rather than live.
 
 Nothing was planned, applied or read.
 PLAN
@@ -490,8 +491,9 @@ if (( FROM_STEP <= 4 )); then
   echo ""
 fi
 
-echo "Done. All three trees carry the deny, plaintext is refused, log delivery was"
-echo "checked either side of the apply, and Terraform still reaches its own state."
+echo "Done. All three bucket-bearing trees carry the deny, plaintext is refused,"
+echo "log delivery was checked either side of the apply, and Terraform still"
+echo "reaches its own state."
 echo ""
 echo "The session secret was not rotated: Terraform no longer owns that value, and"
 echo "the plan gate above refuses any apply that would change it. Confirm with:"

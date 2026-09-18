@@ -260,9 +260,9 @@ describe('the whole check, against a live firewall', () => {
   });
 
   it('reports the source-IP alias without counting it as coverage', () => {
-    // The alias admits browser SSH, which is a permanent operator path and a
-    // separate way onto the host. Counting it would replace one false positive
-    // with another.
+    // The alias admits the Lightsail access path, which is the way back in and
+    // a separate way onto the host. Counting it would replace one false
+    // positive with another.
     const r = check({ address: '198.51.100.23', port: 22, firewall: TWO_PORT_FIREWALL });
     expect(r.verdict).toBe('uncovered');
     expect(r.detail).toContain('lightsail-connect');

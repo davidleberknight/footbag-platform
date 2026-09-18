@@ -48,6 +48,16 @@ const KNOWN_PASSWORD = 'CorrectPassword123!';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let argonBaselineMs: number;
 
+// Every duration here comes from the monotonic clock rather than the wall
+// clock. Both the baseline and the login timings are elapsed intervals, and a
+// wall clock is free to jump: a host that steps its time while an interval is
+// open hands back a duration short by that step, or a negative one, which
+// arrives as a floor failure reading like a login that skipped argon2 entirely.
+// The monotonic clock cannot be stepped, so a failure here is about the code.
+function elapsedMsSince(start: number): number {
+  return performance.now() - start;
+}
+
 // The floor, measured rather than hardcoded: one argon2 verify at the cost
 // the login path pays, timed in this process under whatever load the run
 // has. A constant would be a statement about the author's machine.
@@ -55,9 +65,9 @@ async function measureArgonBaselineMs(): Promise<number> {
   const probe = await argon2.hash('baseline-probe');
   const samples: number[] = [];
   for (let i = 0; i < 3; i += 1) {
-    const start = Date.now();
+    const start = performance.now();
     await argon2.verify(probe, 'wrong-password');
-    samples.push(Date.now() - start);
+    samples.push(elapsedMsSince(start));
   }
   samples.sort((a, b) => a - b);
   return samples[1];
@@ -88,12 +98,12 @@ afterAll(() => cleanupTestDb(dbPath));
 
 async function timeLogin(email: string, password: string): Promise<number> {
   const app = createApp();
-  const start = Date.now();
+  const start = performance.now();
   await request(app)
     .post('/login')
     .type('form')
     .send({ email, password });
-  return Date.now() - start;
+  return elapsedMsSince(start);
 }
 
 describe('login wall-clock equalisation (anti-enumeration)', () => {
@@ -107,7 +117,7 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     // the measured baseline sits between the two outcomes at any load.
     expect(
       absentTime,
-      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
+      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs.toFixed(0)} ms)`,
     ).toBeGreaterThan((argonBaselineMs * 3) / 4);
   });
 
@@ -132,11 +142,11 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     // Both medians sit above the same measured floor as the case above.
     expect(
       presentMedian,
-      `present-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
+      `present-email login must pay argon2 cost (baseline ${argonBaselineMs.toFixed(0)} ms)`,
     ).toBeGreaterThan((argonBaselineMs * 3) / 4);
     expect(
       absentMedian,
-      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs} ms)`,
+      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs.toFixed(0)} ms)`,
     ).toBeGreaterThan((argonBaselineMs * 3) / 4);
 
     // Ratio bound: neither path should be >4x the other. Generous tolerance

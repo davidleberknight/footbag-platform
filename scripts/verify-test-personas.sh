@@ -22,13 +22,11 @@
 #
 # Password handling: the remote query needs sudo (docker compose exec), and
 # this script must run non-interactively (the smoke suite invokes it with no
-# terminal). The sudo password comes from the operator credential file the
-# deploy scripts use — line 1 of $HOME/AWS/AWS_OPERATOR.txt (or
-# AWS_OPERATOR_PRODUCTION.txt for the production alias; AWS_OPERATOR_FILE
-# overrides both) — and travels only as the first line of the ssh stdin
-# stream into `sudo -k -S -p ""`, the same wire-pattern the deploy scripts use:
-# never on any process's argv, never echoed, never logged, and the resolved
-# credential path is never printed.
+# terminal). The sudo password comes from line 1 of the credential file the
+# shared rule selects, which is the file holding the sudo password of whatever
+# account the alias connects as. It travels only as the first line of the ssh
+# stdin stream into `sudo -k -S -p ""`, the same wire pattern the deploy scripts
+# use: never on any process's argv, never echoed, never logged.
 #
 # Usage:
 #   scripts/verify-test-personas.sh                       # defaults to footbag-staging
@@ -42,23 +40,22 @@ set -euo pipefail
 
 SSH_ALIAS="${1:-footbag-staging}"
 
-# Resolve the operator credential file exactly as the deploy wrapper does:
-# explicit AWS_OPERATOR_FILE wins; otherwise the path is per-environment so a
-# stale env bleed cannot feed staging credentials at a production host. The
-# error is generic on purpose: never print the resolved path.
-if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
-  if [[ "$SSH_ALIAS" == "footbag-production" ]]; then
-    AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR_PRODUCTION.txt"
-  else
-    AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR.txt"
-  fi
-fi
-if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
-  echo "ERROR: operator credential source unavailable. This check runs on the operator workstation only; testers cannot (and need not) run it." >&2
-  echo "Recommendation: verify the configured credential location is readable." >&2
+# Resolve the credential file exactly as the deploy wrapper does, through the
+# one shared rule: the account the alias connects as picks the pair, the
+# environment picks the file within it, and nothing else is read in its place.
+# Building the path here from $HOME would be a second copy of the rule, and a
+# second copy is what lets a named operator's run read the shared account's
+# password and fail at sudo on the host.
+_CRED_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/operator-credential.sh"
+# shellcheck source=lib/operator-credential.sh
+source "$_CRED_LIB"
+_CRED_TARGET="staging"
+[[ "$SSH_ALIAS" == "footbag-production" ]] && _CRED_TARGET="production"
+if ! require_operator_credential "$SSH_ALIAS" "$_CRED_TARGET"; then
+  echo "This check runs on the operator workstation only; testers cannot (and need not) run it." >&2
   exit 1
 fi
-IFS= read -r SUDO_PASS < "$AWS_OPERATOR_FILE"
+IFS= read -r SUDO_PASS < "$OPERATOR_CREDENTIAL_FILE"
 
 echo "Querying persona-seed state on $SSH_ALIAS." >&2
 

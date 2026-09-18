@@ -228,7 +228,7 @@ each release contains is §1.3.
     - [SYS_Rebuild_Hashtag_Stats](#sys_rebuild_hashtag_stats)
     - [SYS_Freestyle_Content_Source_Of_Truth_Cutover](#sys_freestyle_content_source_of_truth_cutover)
     - [SYS_Handle_Stripe_Webhooks](#sys_handle_stripe_webhooks)
-    - [SYS_Handle_SES_Bounce_And_Complaint_Webhooks](#sys_handle_ses_bounce_and_complaint_webhooks)
+    - [SYS_Handle_SES_Bounce_And_Complaint_Feed](#sys_handle_ses_bounce_and_complaint_feed)
     - [SYS_Cross_Region_Replication](#sys_cross_region_replication)
     - [SYS_Continuous_Database_Backup](#sys_continuous_database_backup)
 - [9. System Administrator Stories](#9-system-administrator-stories)
@@ -3793,7 +3793,7 @@ Success Criteria:
 - Acknowledgment recorded in audit log.
 - Alarms include at least: Abnormally high email bounce or complaint rates. Backup failures or missed runs. Approaching or exceeding monthly cost thresholds. Processor, memory, or storage pressure on the host. Loss of origin availability.
 - When an alarm is acknowledged, the system records: Who acknowledged it. When it was acknowledged. An optional note describing actions taken.
-- Platform alarms reach the application over a signed notification webhook: the notification service posts each alarm state change to a dedicated endpoint authenticated by a shared secret carried in the subscription URL, by verification of the payload signature, and by the publishing topic matching the one the platform expects. A signature alone proves only that some topic in some account signed the payload, so all three are required and a feed with no expected topic configured refuses every delivery. Each notification, including a subscription confirmation, is processed exactly once by claiming its message identifier. Undelivered notifications are held in a dead-letter queue rather than discarded, because the sender retries an endpoint only briefly before dropping the message.
+- Platform alarms reach the application over a polled queue rather than a pushed endpoint: each alarm state change is published to a notification topic and read from a queue the background worker polls, and the platform exposes no endpoint for them. The read is authorized by the host's runtime role, so the feed carries no shared secret. The worker rejects any message whose publishing topic is not the one configured for the feed, which establishes that a message belongs to this feed rather than to another subscription onto the same queue, and a feed with no expected topic configured refuses every delivery. Each notification, including a subscription confirmation, is processed exactly once by claiming its message identifier. A message the platform fails to record is left on the queue and delivered again, and the queue's dead-letter policy holds one the platform can never handle rather than letting it block the rest.
 - A state change into alarm is recorded as an active alarm naming the alarm and the reason given; a state change into insufficient-data is recorded the same way at warning severity; a state change back to normal clears the most recent recorded alarm of that name. A redelivered notification leaves the record as it stands.
 - An acknowledged alarm stays on record as acknowledged, clears when the platform reports that alarm back to normal, and a later recurrence of the same alarm is raised afresh for the admins to see.
 
@@ -3885,7 +3885,7 @@ Success Criteria:
 
 # 8. Background System Jobs
 
-System jobs are not User Stories. Instead they represent automated processes that execute on schedules (a DevOps concern), or in response to system events (webhooks). All system job actions are logged so that they can be viewed via the admin dashboard. These jobs are required in order to ensure the success criteria for the User Stories given above are met.
+System jobs are not User Stories. Instead they represent automated processes that execute on schedules (a DevOps concern), or in response to system events (webhooks and polled feeds). All system job actions are logged so that they can be viewed via the admin dashboard. These jobs are required in order to ensure the success criteria for the User Stories given above are met.
 
 ### SYS_Check_Active_Player_Expiry
 
@@ -4129,14 +4129,14 @@ Success Criteria:
 - On successful payment events, the system updates the relevant local payment records and triggers the correct downstream effects (e.g., membership tier upgrades, receipts) consistent with the relevant member/admin stories.
 - Failures are logged with sufficient metadata for debugging, and webhook failure counts/time-since-last-success are surfaced in the admin Stripe dashboard health indicators.
 
-### SYS_Handle_SES_Bounce_And_Complaint_Webhooks
+### SYS_Handle_SES_Bounce_And_Complaint_Feed
 Access: This event-driven process runs under the system role when SES reports bounces/complaints. Only admins can view detailed logs.
 
 Story: The system processes SES bounce/complaint notifications so that mailing lists remain healthy and future sends avoid problematic addresses.
 
 Success Criteria:
 
-- SES webhook events update MailingListSubscription status (bounced/complained) and any global member email suppression as applicable.
+- Bounce and complaint notifications read from the feed queue update MailingListSubscription status (bounced/complained) and any global member email suppression as applicable.
 - Member subscriptions stay consistent with subscription status so future sends skip suppressed addresses.
 - Bounce/complaint rates are tracked and can trigger alarms.
 

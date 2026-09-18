@@ -119,13 +119,31 @@ done
 require_target "$TARGET" staging production || exit 2
 
 ALIAS="footbag-${TARGET}"
-CRED_FILE="${HOME}/AWS/AWS_OPERATOR.txt"
-[[ "$TARGET" == "production" ]] && CRED_FILE="${HOME}/AWS/AWS_OPERATOR_PRODUCTION.txt"
 PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
+
+# Which credential file this workstation needs follows the account the alias
+# connects as, by the shared rule rather than a second copy of it here. The
+# selection can fail on a machine this script is meant to report on rather than
+# refuse -- no ssh yet, or a config that does not parse -- so a failure leaves
+# the name empty and the step below says so. Guessing a name instead is exactly
+# how one account's password ends up filed under another's.
+CRED_FILE=""
+CRED_ACCOUNT=""
+if operator_credential_select "$ALIAS" "$TARGET" 2>/dev/null; then
+  CRED_FILE="$OPERATOR_CREDENTIAL_FILE"
+  CRED_ACCOUNT="$OPERATOR_CREDENTIAL_ACCOUNT"
+fi
 
 ok()   { printf '  [ok]    %s\n' "$1"; }
 todo() { printf '  [TODO]  %s\n' "$1" >&2; TODO=$(( TODO + 1 )); }
 step() { printf '\n== %s\n' "$1"; }
+# Deliberately not counted, and deliberately not [ok]. For a state that is
+# correct for one tier and a gap for another, which this script cannot tell
+# apart because nothing on the machine says which tier its owner is. Counting it
+# would fail a dev-and-tester for not holding a credential they must not hold;
+# calling it ok would tell a super admin their break-glass route is fine when it
+# is absent.
+note() { printf '  [note]  %s\n' "$1"; }
 
 # ── 1. Tools ─────────────────────────────────────────────────────────────────
 #
@@ -167,7 +185,7 @@ fi
 # ── 2. The two gitignored Terraform variable files ───────────────────────────
 #
 # BEFORE the wiring, and that order is the whole point. The wiring script links
-# all five values files and refuses, all or nothing, when the checkout lacks one
+# all seven values files and refuses, all or nothing, when the checkout lacks one
 # — and its refusal blames a stale clone and suggests a `git pull`, which is the
 # wrong diagnosis: these two are gitignored and are the operator's to create, so
 # a correct clone always lands there. Checked after the wiring, this step could
@@ -256,14 +274,38 @@ else
   # same thing twice and would have to guess which of those two it was.
   ok "that identity authenticates against AWS"
 
+  # The break-glass key, reported separately from the identity above because it
+  # is a property of the tier rather than of the machine. A super admin holds it
+  # and their machine carries a second profile for it; a dev-and-tester never
+  # holds it, so its absence is the correct state and not a finding.
+  _has_key_profile=0
+  if aws_profile_exists "$FOOTBAG_OPERATOR_KEY_PROFILE"; then
+    _has_key_profile=1
+    ok "the break-glass profile ${FOOTBAG_OPERATOR_KEY_PROFILE} is configured"
+  else
+    note "no ${FOOTBAG_OPERATOR_KEY_PROFILE} profile here, which is correct unless you are a super admin holding the directly authenticated key. If you are: bash scripts/install-operator-key.sh"
+  fi
+
   # Missing and unassumable are different faults with different owners, so they
   # are reported separately: the installer writes a missing profile, whereas a
   # profile that resolves to its own source identity means the assume-role grant
-  # on the shared IAM user is absent, which is not the newcomer's to fix.
+  # on the principal it sources from is absent, which is not the newcomer's to
+  # fix.
+  #
+  # The staging chain is a finding for everybody, because everybody can produce
+  # it: the SSO installer writes it, chained off the sign-in rather than off a
+  # key. The production chain is a finding only for somebody who could have it.
+  # It is written for the super-admin set alone, because production's runtime
+  # role trusts that role and not the dev-and-tester one, so for that tier its
+  # absence is the boundary working rather than a gap.
   _runtime_missing=0
   for rt in footbag-staging-runtime footbag-production-runtime; do
     if ! aws_profile_exists "$rt"; then
-      todo "$rt is missing — run: bash scripts/install-operator-key.sh (it writes both)"
+      if [[ "$rt" == *production* ]] && (( ! _has_key_profile )); then
+        note "$rt is not here. It is written only for the super-admin permission set, because production's runtime role does not trust the dev-and-tester one: a profile that resolved and then could not assume would read as a fault rather than as that boundary working"
+      else
+        todo "$rt is missing — run: bash scripts/install-operator-sso-profile.sh (it writes the staging chain, and the production one for a super admin)"
+      fi
       _runtime_missing=1
     fi
   done
@@ -271,10 +313,10 @@ else
     if aws_identity_require_chain footbag-staging-runtime footbag-production-runtime; then
       ok "both chained runtime profiles assume their roles"
     else
-      todo "a chained runtime profile is configured but does not assume its role. That is the assume-role permission on the shared IAM user rather than anything on this machine, so report it rather than reinstalling."
+      todo "a chained runtime profile is configured but does not assume its role. That is the assume-role permission on whichever principal it sources from, rather than anything on this machine, so report it rather than reinstalling."
     fi
   fi
-  unset _runtime_missing
+  unset _runtime_missing _has_key_profile
 fi
 
 # ── 5. The SSH alias ─────────────────────────────────────────────────────────
@@ -303,12 +345,19 @@ if command -v ssh >/dev/null 2>&1; then
   else
     ok "${ALIAS} resolves to ${RESOLVED_HOST}, connecting as ${RESOLVED_USER} on port ${RESOLVED_PORT}"
     [[ "$RESOLVED_PORT" == "2222" ]] || todo "${ALIAS} resolves to port ${RESOLVED_PORT}; the deploy alias uses 2222"
-    # The User line is the whole identity switch, so reporting it without
-    # testing it is reporting nothing. An alias naming an account that does not
-    # exist yet fails the first connection with `Permission denied (publickey)`,
-    # which reads as a broken key and is not one.
-    if [[ "$RESOLVED_USER" != "footbag" ]]; then
-      todo "${ALIAS} connects as '${RESOLVED_USER}', but the account to use today is the shared 'footbag'. A named account is separate work and does not exist yet; connecting as one that does not exist fails as Permission denied (publickey), which looks like a broken key."
+    # The User line is the whole identity switch. It decides which account the
+    # host sees AND, through the shared credential rule, which of the four files
+    # every script on this path reads, so changing this one line is the entire
+    # act of switching identity. Both answers are legitimate, which is why
+    # neither is a TODO; what is worth saying out loud is which one this alias
+    # has chosen, because an alias naming an account that does not exist on the
+    # host fails the first connection as `Permission denied (publickey)`, and
+    # that reads as a broken key and is not one. The sudo proof at the end of
+    # this run is what actually settles it.
+    if [[ "$RESOLVED_USER" == "$OPERATOR_SHARED_ACCOUNT" ]]; then
+      ok "${ALIAS} connects as the shared '${RESOLVED_USER}' account"
+    else
+      ok "${ALIAS} connects as the named account '${RESOLVED_USER}', which must already exist on the host"
     fi
     # IdentitiesOnly matters: without it ssh offers every key the agent holds and
     # the server can refuse the lot before reaching hers.
@@ -336,7 +385,9 @@ fi
 # the single-line shape, and the check that it is not empty. A stray character
 # becomes part of the password and fails on the host as a permissions problem.
 step "Operator credential file"
-if [[ -f "$CRED_FILE" ]]; then
+if [[ -z "$CRED_FILE" ]]; then
+  todo "cannot tell which credential file this workstation needs, because the account ${ALIAS} connects as could not be read. Fix the SSH alias first: the account picks the file, and the shared account's file is not a safe default for a named one"
+elif [[ -f "$CRED_FILE" ]]; then
   mode="$(stat -c '%a' "$CRED_FILE" 2>/dev/null || echo "")"
   # `|| true`, not `|| echo 0`: `grep -c` PRINTS its count and THEN exits 1 when
   # that count is zero, so the fallback appended a second line and the arithmetic
@@ -357,7 +408,8 @@ elif (( CHECK )); then
 else
   mkdir -p -m 700 "${HOME}/AWS"
   if terminal_present --with-stdin; then
-    echo "  The ${TARGET} host sudo password, from the vault. It is not shown as you type."
+    echo "  The ${TARGET} host sudo password for '${CRED_ACCOUNT}', the account ${ALIAS}"
+    echo "  connects as. It is not shown as you type."
     printf '  Password: '
     IFS= read -rs typed < /dev/tty || typed=""
     printf '\n'
@@ -483,9 +535,8 @@ if [[ -f "$CRED_FILE" ]] && command -v ssh >/dev/null 2>&1 && require_pinned_kno
     # socket opened before an account was retired, a key was withdrawn or a
     # password was rotated reports success on the strength of an authentication
     # that happened earlier, which is exactly the case an operator runs this to
-    # rule out. The runbook step that retires the host's default account is the
-    # one where that matters most: it removes an account's keys and then asks
-    # for proof that another account still works.
+    # rule out. Offboarding is where that matters most: it withdraws an
+    # account's keys and then asks for proof that another account still works.
     #
     # ControlPath rather than ControlMaster: ControlMaster=no only declines to
     # BECOME a master, and still joins an existing socket. Setting the path to

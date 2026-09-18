@@ -53,10 +53,27 @@
 # relying on this script for anything you could not afford to lose.
 #
 # Reads the sudo password from stdin (line 1), like every other operator script
-# here, so nothing secret reaches an argument list on either machine:
+# here, so nothing secret reaches an argument list on either machine.
+#
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   DEPLOY_TARGET=footbag-staging \
+#     < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-migrate.sh --migration change.sql
 #   DEPLOY_TARGET=footbag-production \
-#     < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-migrate.sh --migration change.sql
-#     (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt, selected by DEPLOY_TARGET)
+#     < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/deploy-migrate.sh --migration change.sql
+#
+# The production form asks every time and has no unattended form. It requires a
+# terminal, and --yes is refused there rather than honoured: this is the one
+# deploy that can destroy rows no rebuild can recreate, and what the typed
+# confirmation establishes is that a person is present, which no flag can say.
+# The redirect supplies the password; it does not supply the person.
 #
 # DEPLOY_TARGET is required and has no default: see the refusal below for why.
 # ============================================================================
@@ -66,15 +83,21 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage: DEPLOY_TARGET=<footbag-staging|footbag-production> \
-         < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-migrate.sh --migration <file.sql> [options]
-         (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt)
+         < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-migrate.sh --migration <file.sql> [options]
+         (production: ~/AWS/HOST_OPERATOR_PRODUCTION.txt)
+
+A production migrate asks every time and has no unattended form. It needs a
+terminal, and --yes is refused rather than honoured there. The redirect supplies
+the password, not the person.
 
   DEPLOY_TARGET       Required, no default. Which host to migrate. Unset is
                       refused rather than sent to staging, where a migration is
                       skipped and the deploy reports success having done nothing.
   --migration <file>  Required. SQL applied to the live database in one transaction.
                       A bare name resolves against database/migrations/.
-  --yes               Skip the confirmation prompt (for a scripted recovery).
+  --yes               Skip the confirmation prompt, on STAGING only (for a
+                      scripted recovery). Refused on production, which asks
+                      every time.
   -h, --help          This message.
 
 Every other option and environment variable behaves exactly as in
@@ -163,6 +186,18 @@ echo "A copy of the database is taken immediately beforehand and restored if"
 echo "the migration or its integrity checks fail."
 echo
 
+# Production asks every time, and no flag supplies the answer in advance. --yes
+# exists for staging, which is fed unattended by design and whose data is
+# disposable; on production it is refused rather than honoured, because this is
+# the one deploy that can destroy rows no rebuild can recreate and the thing the
+# confirmation establishes is that a person is present, which a flag cannot say.
+# A run with no terminal is refused outright for the same reason: there is no
+# unattended form of this, so a scheduled job, a CI runner or an agent session
+# cannot reach it.
+if [[ "$DEPLOY_TARGET" == "footbag-production" && "$ASSUME_YES" == "yes" ]]; then
+  die "--yes does not apply to a production migration: it asks every time, from the terminal, because a flag cannot establish that somebody is there. Re-run without --yes"
+fi
+
 if [[ "$ASSUME_YES" != "yes" ]]; then
   # From the terminal, never stdin: stdin carries the sudo password, and a read
   # against it would consume the credential as the answer and echo it on the
@@ -173,7 +208,7 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
   # address" -- so the permission test reports a terminal that is not there and
   # the prompt dies on its own redirection instead of refusing.
   { true >/dev/tty; } 2>/dev/null \
-    || die "no terminal available to confirm on; pass --yes deliberately instead"
+    || die "no terminal available to confirm on, and a production migration has no unattended form; on staging, pass --yes deliberately instead"
   printf 'Type APPLY to continue: ' > /dev/tty
   IFS= read -r reply < /dev/tty
   [[ "$reply" == "APPLY" ]] || die "not confirmed; nothing was deployed and nothing was migrated"

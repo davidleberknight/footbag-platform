@@ -1,0 +1,25 @@
+# Reference copy of this tree's variable values. A real terraform.tfvars is
+# never created here: it lives in the maintainers' private operations checkout
+# and is reached from this directory by a gitignored symlink. To add or change a
+# value, edit the private file the symlink points at. Without that checkout you
+# cannot apply this tree at all.
+#
+# This tree is the one-time bootstrap: it owns the Terraform state bucket that
+# every other tree keeps its state in, and the account-level baseline. It is
+# applied rarely — about once a year — and it stops for a typed APPLY before it
+# does, because it holds every environment's state.
+#
+# It declares nothing sensitive, so unlike staging and production it has no
+# companion secrets file.
+#
+# Both values below are small, and the second is the one that matters: the state
+# bucket's name is built from it, every tree's backend block names that bucket,
+# and a bucket name is globally unique across all of AWS. Changing it after the
+# bucket exists does not rename anything — it points every tree at a bucket that
+# is not there.
+
+aws_region = "us-east-1"
+
+# A short random string making the bucket name unique. Set once, at bootstrap,
+# and never afterwards.
+state_bucket_suffix = "TODO-set-unique-suffix"

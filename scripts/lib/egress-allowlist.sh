@@ -34,8 +34,8 @@
 #   - Answer "covered" from anything other than live port state. Every failure to
 #     read — no address, no alias, no answer from AWS, an answer it cannot parse —
 #     is "unknown", which the caller turns into a question. Unknown is never fine.
-#   - Count a source-IP alias as coverage. The alias admits browser SSH, which the
-#     design keeps as a permanent operator path, and in both Terraform trees it
+#   - Count a source-IP alias as coverage. The alias admits the Lightsail access
+#     path, which the design keeps as the way back in, and in both Terraform trees it
 #     sits on port 22 while the deploy alias connects on 2222. Counting it would
 #     replace one false positive with another. It is reported as context instead.
 #   - Assume a port. Which port the deploy uses is a property of the operator's
@@ -236,8 +236,8 @@ ${port} at all, so nothing can reach it there, from this address or any other."
     esac
   done <<< "$cidrs"
 
-  # Reported, never counted. The alias admits Lightsail's browser SSH, which is a
-  # permanent operator path rather than a fallback, but it is a separate path
+  # Reported, never counted. The alias admits the Lightsail access path, which is
+  # the way back in rather than a routine path, and it is a separate path
   # from this one: it carries no key from this workstation and, where it sits on
   # a different port from the deploy alias, it says nothing whatever about
   # whether the deploy can connect.

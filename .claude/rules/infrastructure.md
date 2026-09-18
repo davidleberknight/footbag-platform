@@ -6,7 +6,8 @@ paths:
 # Infrastructure rules
 
 Conventions for the Terraform trees (`terraform/staging`, `terraform/production`,
-`terraform/shared`). Authority order lives in root `CLAUDE.md`; this rule never
+`terraform/shared`, and the account-level `terraform/identity` and
+`terraform/operators`). Authority order lives in root `CLAUDE.md`; this rule never
 restates it. Concrete AWS facts, record values,
 and activation procedures live in `AWS_OPERATIONS.md` (private GitHub repo) and
 `DEVOPS_GUIDE.md` (private GitHub repo); this rule covers how to write the code,

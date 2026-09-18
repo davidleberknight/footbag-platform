@@ -45,12 +45,28 @@
 #
 # Flags:
 #   --profile <name>   Section to write in the credentials file. Defaults to
-#                      the single human operator identity, because there is
-#                      exactly one and naming it here is what makes a typo
-#                      impossible.
+#                      the profile that carries the directly authenticated IAM
+#                      user's key, which is a DIFFERENT name from the one
+#                      everyday work goes out on. Writing this key under the
+#                      everyday name would shadow the federated sign-in there:
+#                      the SDK prefers a static key to an SSO session on the
+#                      same profile, silently, and every run would keep using
+#                      the long-lived key with nothing to say so.
 #   --user <name>      IAM user the pasted key must resolve to. Defaults to the
-#                      same. A key that authenticates as somebody else is a
-#                      refusal, not a warning.
+#                      single human operator identity, named here rather than
+#                      taken from the profile, because the two are no longer
+#                      spelled the same and a key that authenticates as somebody
+#                      else is a refusal, not a warning.
+#   --from-profile <name>
+#                      Move the key off an older profile name in the same run.
+#                      For a workstation set up before the key and the federated
+#                      sign-in were separated, where the key still sits under the
+#                      name the sign-in now needs. It writes the new section,
+#                      carries any chained runtime profile that pointed at the
+#                      old name across with it, proves all three, and removes the
+#                      old section LAST. Anything that fails before that leaves
+#                      the workstation exactly as it was, still working on the
+#                      old name.
 #
 # The credentials file is $AWS_SHARED_CREDENTIALS_FILE when set, which is what
 # the AWS tools themselves honour, and ~/.aws/credentials otherwise.
@@ -75,6 +91,12 @@ source "${SCRIPT_DIR}/lib/aws-credentials-file.sh"
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # shellcheck source=lib/aws-identity.sh
 source "${SCRIPT_DIR}/lib/aws-identity.sh"
+# Sourced for the profile NAMES alone. Nothing here settles an identity from the
+# library: this run strips the ambient profile and proves the pasted key on its
+# own, which is why it is exempt from the gate that asks every other script to
+# take its identity from there.
+# shellcheck source=lib/aws-profile.sh
+source "${SCRIPT_DIR}/lib/aws-profile.sh"
 
 AWS_BIN="${INSTALL_OPERATOR_KEY_AWS_BIN:-aws}"
 AWS_IDENTITY_BIN="$AWS_BIN"
@@ -97,8 +119,17 @@ CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 STAGING_ROLE_ARN="${INSTALL_OPERATOR_KEY_STAGING_ROLE_ARN:-arn:aws:iam::041904915126:role/footbag-staging-app-runtime}"
 PRODUCTION_ROLE_ARN="${INSTALL_OPERATOR_KEY_PRODUCTION_ROLE_ARN:-arn:aws:iam::041904915126:role/footbag-production-app-runtime}"
 
-PROFILE="footbag-operator"
+PROFILE="$FOOTBAG_OPERATOR_KEY_PROFILE"
+
+# The IAM user, spelled here rather than derived from the profile name. They
+# used to be the same word, and the default for one was the other; they are not
+# the same word any more, because the everyday profile now names a federated
+# sign-in and this key had to move off that name to stop shadowing it. Deriving
+# the user from the profile would now send this run looking for an IAM user that
+# does not exist and refuse a perfectly good key.
+DEFAULT_USER_NAME="footbag-operator"
 USER_NAME=""
+FROM_PROFILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -110,15 +141,38 @@ while [[ $# -gt 0 ]]; do
       USER_NAME="${2:-}"
       shift 2 || { echo "ERROR: --user requires an argument" >&2; exit 2; }
       ;;
+    --from-profile)
+      FROM_PROFILE="${2:-}"
+      shift 2 || { echo "ERROR: --from-profile requires an argument" >&2; exit 2; }
+      ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
   esac
 done
 
 [[ -n "$PROFILE" ]] || { echo "ERROR: --profile was given with no value." >&2; exit 2; }
-[[ -n "$USER_NAME" ]] || USER_NAME="$PROFILE"
+[[ -n "$USER_NAME" ]] || USER_NAME="$DEFAULT_USER_NAME"
+
+if [[ -n "$FROM_PROFILE" && "$FROM_PROFILE" == "$PROFILE" ]]; then
+  echo "ERROR: --from-profile and --profile are both '${PROFILE}', so there is" >&2
+  echo "       nowhere to move to. The move exists because a stored key and a" >&2
+  echo "       federated sign-in cannot share one profile name." >&2
+  exit 2
+fi
 
 CRED_FILE="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
+
+# Refused here rather than at the removal step, and ahead of the terminal check,
+# because a move whose source does not exist is either a name typed wrong or a
+# move already done. Both deserve an answer before the operator is asked for a
+# terminal, let alone for a secret.
+if [[ -n "$FROM_PROFILE" ]] && ! aws_cred_has_section "$CRED_FILE" "$FROM_PROFILE"; then
+  echo "ERROR: there is no [${FROM_PROFILE}] section in ${CRED_FILE}, so there is" >&2
+  echo "       nothing to move. If the move has already been done, run this" >&2
+  echo "       without --from-profile." >&2
+  echo "       Nothing has been read and nothing has been changed." >&2
+  exit 1
+fi
 
 if [[ "$AWS_BIN" != "aws" ]]; then
   echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
@@ -146,6 +200,16 @@ Installing the operator access key.
   profile section    [${PROFILE}]
   must authenticate  user/${USER_NAME}
   currently recorded ${CURRENT_KEY:-(no key in that section)}
+EOF
+
+if [[ -n "$FROM_PROFILE" ]]; then
+  cat <<EOF
+  moving from        [${FROM_PROFILE}], which is removed last, once the
+                     replacement and both chained profiles are proved
+EOF
+fi
+
+cat <<EOF
 
 Take both values from the vault entry for this identity: the access key id is
 in its Notes, the secret is the Password field. Nothing is written until the
@@ -355,6 +419,32 @@ for _rt in $RUNTIME_PROFILES; do
 done
 unset _rt _role _rc
 
+# ── Carry the chain across, when this run is a move ──────────────────────────
+#
+# A runtime profile written before the move points at the old name, and the
+# additive write above leaves it exactly as it was, correctly: it exists, so it
+# is the operator's. But its source_profile now names a section that is about to
+# stop holding a credential, so the proof below would fail on a correct install
+# for a reason that has nothing to do with the key. Repointed here, before the
+# proof, so what the proof reports is the truth about the finished state.
+if [[ -n "$FROM_PROFILE" ]]; then
+  echo ""
+  echo "==> Repointing chained profiles that still source [${FROM_PROFILE}]"
+  _rc=0
+  _moved="$(aws_config_repoint_source_profile "$CONFIG_FILE" "$FROM_PROFILE" "$PROFILE")" || _rc=$?
+  case $_rc in
+    0) printf '    %s: source_profile -> %s\n' "$_moved" "$PROFILE" ;;
+    2) echo "    nothing sourced [${FROM_PROFILE}]; the chain needed no change" ;;
+    *)
+      echo "ERROR: could not repoint the chained profiles: ${AWS_CRED_ERROR}" >&2
+      echo "       Nothing has been removed: [${FROM_PROFILE}] is still there and" >&2
+      echo "       still works." >&2
+      exit 1
+      ;;
+  esac
+  unset _rc _moved
+fi
+
 echo ""
 echo "==> Proving the installed profile and both chained runtime profiles"
 FAILED=0
@@ -368,7 +458,38 @@ if (( FAILED )); then
   echo "Nothing is broken by stopping here: the credential is in place and the" >&2
   echo "old key, if it still exists, is untouched. Fix the chain before retiring" >&2
   echo "anything." >&2
+  if [[ -n "$FROM_PROFILE" ]]; then
+    echo "" >&2
+    echo "[${FROM_PROFILE}] has NOT been removed, deliberately. Removing it while" >&2
+    echo "the replacement is unproved would leave this machine with no working" >&2
+    echo "identity and nothing on disk to go back to." >&2
+  fi
   exit 1
+fi
+
+# ── The removal, last, and only now ──────────────────────────────────────────
+#
+# Everything above is reversible by doing nothing. This is not, so it happens
+# after the replacement and the whole chain have been proved against AWS, and
+# never before. The secret in that section exists in exactly two places, this
+# file and the vault, so removing it on an unproved replacement is how a
+# workstation ends up with no way in at all.
+if [[ -n "$FROM_PROFILE" ]]; then
+  echo ""
+  _rc=0
+  aws_cred_remove_section "$CRED_FILE" "$FROM_PROFILE" || _rc=$?
+  case $_rc in
+    0) echo "    [${FROM_PROFILE}] removed; the key now answers only to [${PROFILE}]" ;;
+    2) echo "    [${FROM_PROFILE}] was already gone; nothing to remove" ;;
+    *)
+      echo "ERROR: could not remove [${FROM_PROFILE}]: ${AWS_CRED_ERROR}" >&2
+      echo "       The new profile is installed and proved, so this machine works." >&2
+      echo "       What remains is one stale section, and while it is there the" >&2
+      echo "       federated sign-in cannot be written under that name." >&2
+      exit 1
+      ;;
+  esac
+  unset _rc
 fi
 
 echo ""

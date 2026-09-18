@@ -412,6 +412,43 @@ describe('the operator-facing script', () => {
     expect(res.stderr).toContain('does not default');
   });
 
+  it('refuses --yes on production, because a flag cannot say a person is there', () => {
+    // This is the one deploy that can destroy rows no rebuild can recreate, and
+    // the confirmation exists to establish that somebody is present rather than
+    // to slow anybody down. A flag that answered it in advance would leave a
+    // scripted caller, a scheduled job or an agent session able to migrate the
+    // live database unattended, which is exactly what the rule forbids.
+    const res = runOperator(['--migration', ordinaryMigration(), '--yes'], {
+      DEPLOY_TARGET: 'footbag-production',
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('--yes does not apply to a production migration');
+  });
+
+  it('keeps --yes working on staging, which is fed unattended by design', () => {
+    // Refusing it here would break the scripted recovery path for a host whose
+    // data is disposable, so the production refusal has to be the narrow one
+    // rather than the blanket one.
+    const res = runOperator(['--migration', ordinaryMigration(), '--yes'], {
+      DEPLOY_TARGET: 'footbag-staging',
+    });
+    expect(res.stderr).not.toContain('--yes does not apply');
+    // It gets past the gate and fails later, with no terminal and no host to
+    // reach; what this pins is that the confirmation did not stop it.
+    expect(res.stderr).not.toContain('no terminal available to confirm on');
+  });
+
+  it('refuses a production migration with no terminal at all', () => {
+    // The other half of the same rule: no unattended form, whether the operator
+    // reaches for the flag or simply has no terminal attached.
+    const res = runOperator(['--migration', ordinaryMigration()], {
+      DEPLOY_TARGET: 'footbag-production',
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('no terminal available to confirm on');
+    expect(res.stderr).toContain('no unattended form');
+  });
+
   it('resolves a bare name against the migrations directory', () => {
     // The usual invocation names the migration rather than a path into the
     // checkout. Proved against a throwaway checkout rather than the real one:

@@ -267,7 +267,7 @@ after go-live unless a canonical doc explicitly retains one.
 ## Dev/staging/prod parity sweep
 
 Inspect as design evidence: Dockerfiles; compose files and committed `docker/env/*.env`
-runtime env files; Terraform (staging, production, shared); GitHub Actions workflows;
+runtime env files; Terraform (staging, production, shared, identity, operators); GitHub Actions workflows;
 deploy scripts and `run_all_tests.sh`; `ops/systemd/*` units and timers; `.githooks/`;
 environment templates; config docs; adapter interfaces; `package.json` scripts; staging
 persona docs; production runbooks.

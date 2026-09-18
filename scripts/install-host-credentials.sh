@@ -38,12 +38,22 @@
 #   - jq available locally
 #
 # Usage. The install reads the sudo password from stdin, line 1, and shows the
-# new key on the terminal, so it needs a real terminal as well as the redirect:
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+# new key on the terminal, so it needs a real terminal as well as the redirect.
+#
+# Which file holds that password follows the account the alias connects as, and
+# each account has its own file per environment, because staging and production
+# are separate hosts with separate passwords:
+#
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#
+# A run started without the redirect names the one it needs.
+#
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt \
 #     bash scripts/install-host-credentials.sh --target production
 #
 # Rotating, as three separate runs with an observation window between them:
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt \
 #     bash scripts/install-host-credentials.sh --target production --rotate
 #   bash scripts/install-host-credentials.sh --target production --retire <id>
 #   bash scripts/install-host-credentials.sh --target production --delete <id>
@@ -82,8 +92,8 @@ AWS_PROFILE_ARG=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-host-credentials.sh --target staging <keys-file>
-   or: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-host-credentials.sh --target production <keys-file>
+Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/install-host-credentials.sh --target staging <keys-file>
+   or: < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/install-host-credentials.sh --target production <keys-file>
 
   --target <staging|production>   deployed environment to install onto.
                                   Required; there is deliberately no default.
@@ -190,11 +200,14 @@ fi
 # prove there.
 if [[ "$ACTION" != "delete" && -t 0 ]]; then
   echo "ERROR: must receive the host sudo password on stdin." >&2
-  if [[ "$TARGET" == "production" ]]; then
-    echo "       Run via: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
-  else
-    echo "       Run via: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
-  fi
+  # Named by the shared rule rather than guessed, so the line is pasteable by
+  # whoever is running it: an operator on a named account and one on the shared
+  # account need different files, and naming either outright is wrong for the
+  # other half of the operators.
+  _cred="~/AWS/<your credential file>"
+  operator_credential_select "$SSH_ALIAS" "$TARGET" 2>/dev/null \
+    && _cred="$OPERATOR_CREDENTIAL_DISPLAY"
+  echo "       Run via: < ${_cred} bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
   echo "" >&2
   usage >&2
   exit 1

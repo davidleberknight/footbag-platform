@@ -38,7 +38,8 @@ view-model inside it is `<Entity>ViewModel` (e.g. `NetTeamViewModel`); the templ
 `src/views/<section>/<page>.hbs`. Every page service method returns `PageViewModel<TContent>`;
 inline controller renders type the arg with `satisfies PageViewModel<TContent>`.
 
-Home is the one intentional composition-page exception (DESIGN_DECISIONS §4.1): it uses a bespoke
+Home is the one intentional composition-page exception (DESIGN_DECISIONS "Server-rendered HTML
+with Handlebars Templates"): it uses a bespoke
 view model but still uses the shared layout, design tokens, section identity, thin-controller
 discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt from this contract.
 
@@ -94,9 +95,10 @@ surface needing more weight than prose and less than a button will otherwise inv
 The inline-action tier exists for the mirror case, and its absence had the same effect. A control
 that posts must be a `<button>`, but a delete inside a table row or a "Download My Data" inside a
 list item cannot carry a bordered button without putting enclosing chrome where the callout policy
-reserves it (DESIGN_DECISIONS §4.15). The tier carries no box, inherits the surrounding font, and
-takes a resting underline, because colour and a resting underline are what mark a control as a link
-(§4.14) and the underline is the cue a reader who cannot use the colour still gets. Both classes
+reserves it (DESIGN_DECISIONS "Callout and Box Policy"). The tier carries no box, inherits the
+surrounding font, and takes a resting underline, because colour and a resting underline are what
+mark a control as a link (DESIGN_DECISIONS "Link and Disclosure Affordances") and the underline is
+the cue a reader who cannot use the colour still gets. Both classes
 carry a visible focus ring: a control drawn as text has nothing else to show the keyboard where it
 is, and a change of underline is not a focus indicator. Which of the two a destructive control takes
 is decided by where it sits, not by which page it is on: inline in a row or a list, `.btn .btn-outline
@@ -105,7 +107,8 @@ is decided by where it sits, not by which page it is on: inline in a row or a li
 Three constraints bind every tier. No control appends a decorative arrow to its label, in template
 text or through a pseudo-element; colour, underline, and wording carry the affordance, and glyphs
 that carry meaning (sort direction, notation, sequence separators, position markers) are content,
-not decoration (DESIGN_DECISIONS §4.14). A link never renders at `color: inherit` with no resting underline;
+not decoration (DESIGN_DECISIONS "Link and Disclosure Affordances"). A link never renders at
+`color: inherit` with no resting underline;
 the global underline on links in running text is a colour-blind affordance, not decoration. And a
 control's visible label names where it goes or what it does, per the truthful-controls rule in
 `template-conventions.md`.
@@ -229,10 +232,12 @@ profile's label system. A page picks the one that fits its content and uses noth
 does not introduce a fourth.
 
 Font sizes come from the bounded ramp, and running prose carries a reading-measure cap; a section
-heading always outranks the body text beneath it in both size and colour (DESIGN_DECISIONS §4.12,
-§4.13). Disclosure controls keep the browser's native marker: no surface suppresses it or draws a
-substitute caret (§4.14). Enclosing chrome is reserved for notices, cards, empty states, and
-technical-notation panels, and a callout accent bar takes one of three role colours (§4.15).
+heading always outranks the body text beneath it in both size and colour (DESIGN_DECISIONS
+"Bounded Type-Size Ramp" and "Reading Measure"). Disclosure controls keep the browser's native
+marker: no surface suppresses it or draws a substitute caret, per the same link-and-disclosure
+rule. Enclosing chrome is reserved for notices, cards, empty states, and
+technical-notation panels, and a callout accent bar takes one of three role colours, per the
+callout and box policy.
 
 Within a page, section headings
 are one size, one case, one weight, one color; content cards are one padding, one radius, one elevation;
@@ -242,10 +247,10 @@ default. The member profile is the reference: it composes entirely from `.profil
 `.profile-section-heading`, and `tests/unit/profile-section-conformance.test.ts` enforces that no
 profile-owned markup reintroduces the competing system.
 
-The durable visual decisions live in DESIGN_DECISIONS §4 and are mechanically enforced by
-`scripts/ci/assert_conventions.sh`: one type system with body-font notation (§4.6), canonical
-breakpoints 480 / 768 / 1024 (§4.7), accessible responsive HTML-first design (§4.4), and the
-stylesheet / template convention gates (§4.8) — colors from `:root` tokens (no raw hex in rule
+The durable visual decisions live in the design document's front-end part and are mechanically
+enforced by `scripts/ci/assert_conventions.sh`: one type system with body-font notation, canonical
+breakpoints 480 / 768 / 1024, accessible responsive HTML-first design, and the
+stylesheet / template convention gates — colors from `:root` tokens (no raw hex in rule
 bodies), `--radius*` tokens for corners, `--font-body` / `--font-mono` only, no inline `style` or
 `script`, no nested `<form>`, and template-class-to-`style.css` correspondence.
 

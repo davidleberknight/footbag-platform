@@ -84,10 +84,12 @@ This repository doubles as a worked example of a production Claude Code harness:
 ## Project Documentation
 
 - [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): AI coding instructions as rules, procedures as skills, question-asking scheme, guardrails, and token-use efficiency / context-window management harness.
+- [docs/DATA_GOVERNANCE.md](docs/DATA_GOVERNANCE.md): privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure).
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding, but not contributing (refer to private GitHub repo).
 - [docs/DIAGRAMS.md](docs/DIAGRAMS.md): solution architecture diagrams.
+- [docs/FREESTYLE.md](docs/FREESTYLE.md): the freestyle subsystem, what it covers, who owns each fact, and how to change it safely.
 - [docs/GLOSSARY.md](docs/GLOSSARY.md): terminology and jargon.
 - Legacy-data migration: the design lives in the Legacy Data Migration decision in [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md) and the claim and onboarding user stories, and the pipeline validation gates are in [docs/TESTING.md](docs/TESTING.md). The go-live gate index, operational readiness, rollback posture, cutover sequencing, and stakeholder coordination live in GO_LIVE_PLAN.md (private GitHub repo), which is the source of truth for go-live planning.
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.

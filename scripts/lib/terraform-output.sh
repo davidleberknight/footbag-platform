@@ -9,8 +9,8 @@
 #
 #   - the tree has never been initialised, so there is no state to read;
 #   - the AWS profile in the ambient chain no longer authenticates, because the
-#     access key behind it was deactivated or rotated away;
-#   - the operator profile is not installed on this machine at all, so there is
+#     sign-in behind it has expired or the key behind it was rotated away;
+#   - the operator profile is not set up on this machine at all, so there is
 #     no identity for the read to use.
 #
 # Terraform says which of those it is, in one clear sentence, and the deploy
@@ -109,8 +109,8 @@ tf_output_explain() {
   echo "" >&2
   echo "       Three causes look identical here, so check all three:" >&2
   echo "         - the tree has not been initialised (terraform -chdir=${dir} init);" >&2
-  echo "         - the access key behind your AWS profile has been deactivated," >&2
-  echo "           deleted or rotated, so it no longer authenticates;" >&2
-  echo "         - the operator profile is not installed on this machine" >&2
-  echo "           (bash scripts/install-operator-key.sh installs and proves it)." >&2
+  echo "         - your sign-in has expired, which is the ordinary one" >&2
+  echo "           (aws sso login --profile ${FOOTBAG_OPERATOR_PROFILE});" >&2
+  echo "         - the operator profile is not set up on this machine at all" >&2
+  echo "           (bash scripts/install-operator-sso-profile.sh --help)." >&2
 }

@@ -239,12 +239,38 @@ describe('terraform-apply.sh: argument handling', () => {
   it('refuses an unknown environment name', () => {
     const res = run(['--target', 'prod', '--dry-run'], false);
     expect(res.exitCode).toBe(2);
-    expect(res.stderr).toMatch(/must be 'staging', 'production' or 'shared'/);
+    expect(res.stderr).toMatch(/must be 'staging', 'production', 'shared' or 'operators'/);
   });
 
   it('accepts the shared tree, which owns the state bucket', () => {
     const res = run(['--target', 'shared', '--dry-run'], false);
     expect(res.exitCode).toBe(0);
+  });
+
+  it('accepts the operators tree, because hiring and firing are ordinary work', () => {
+    // The roster is applied by an operator as themselves. Routing it through a
+    // privileged sign-in would put ceremony in front of revoking access, which
+    // is the one moment speed matters most.
+    const res = run(['--target', 'operators', '--dry-run'], false);
+    expect(res.exitCode).toBe(0);
+  });
+
+  it('asks for the typed word on the operators tree', () => {
+    // Its plan is a person gaining or losing access to the account. Short diff,
+    // so reading it costs nothing, and neither direction should be skimmed past.
+    const res = run(['--target', 'operators', '--dry-run'], false);
+    expect(res.stdout).toMatch(/take a typed APPLY/);
+  });
+
+  it('refuses the identity tree by name, and says where to go instead', () => {
+    // That tree declares what the operator roles may do, and a role is denied
+    // every write to its own definition, so it cannot apply it. An operator who
+    // reaches for it here has most likely come to hire or fire somebody, which
+    // is the roster.
+    const res = run(['--target', 'identity', '--dry-run'], false);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/not applied through this wrapper/);
+    expect(res.stderr).toMatch(/--target operators/);
   });
 
   it('refuses a step number outside the two steps it has', () => {
@@ -299,7 +325,7 @@ describe('terraform-apply.sh: argument handling', () => {
     expect(calls()).toMatch(/apply /);
   });
 
-  it.each([['production'], ['shared']])(
+  it.each([['production'], ['shared'], ['operators']])(
     'refuses --yes when breaking the %s state lock, before any terraform runs',
     (target) => {
       // The refusal used to sit below the stale-lock block, which exits on its
@@ -308,6 +334,13 @@ describe('terraform-apply.sh: argument handling', () => {
       // and force-unlock ran against that tree's state with nothing typed.
       // Breaking a lock while a run is genuinely live lets two runs write state
       // at once, which is why this is refused rather than merely discouraged.
+      //
+      // The roster tree belongs in this list for the same reason it takes a typed
+      // APPLY: its state is the record of who can sign in to the account, so two
+      // runs writing it at once can leave somebody admitted who was being
+      // removed. Staging is the only tree whose lock --yes still answers for,
+      // because its data is disposable and its state is shared with nothing that
+      // is not.
       writeTerraformStub();
       const res = run(['--target', target, '--break-stale-lock', '--i-killed-that-run', '--yes']);
       expect(res.exitCode).toBe(2);

@@ -104,3 +104,19 @@ archive_platform_url         = ""
 # email_send_armed    = "armed"
 # url_screening_armed = "armed"
 # reachability_armed  = "armed"
+
+# ── Federated operator identity ───────────────────────────────────────────────
+# The generated reserved-SSO role behind the super-admin permission
+# set, read back from IAM by scripts/standup-identity-center.sh after the
+# identity and roster trees are applied, and written here by that script rather
+# than pasted. Left unset the tree still applies: the trust policy carries only
+# the host source profile and the super-admin identity until these are filled in.
+#
+# The super-admin identity stays in that trust policy permanently alongside them.
+#
+# Staging carries both roles. The dev-and-tester role's job is staging and the
+# reads a deploy makes, so it chains into this environment's runtime role; the
+# production tree has no equivalent line, which is how that role is kept off
+# production rather than by anyone remembering.
+# super_admin_sso_role_arn = "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/us-east-1/AWSReservedSSO_FootbagSuperAdmin_0000000000000000"
+# dev_tester_sso_role_arn  = "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/us-east-1/AWSReservedSSO_FootbagDevTester_0000000000000000"

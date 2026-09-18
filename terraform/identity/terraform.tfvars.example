@@ -1,0 +1,18 @@
+# Reference copy of this tree's variable values. A real terraform.tfvars is
+# never created here: it lives in the maintainers' private operations checkout
+# and is reached from this directory by a gitignored symlink. To add or change a
+# value, edit the private file the symlink points at. Without that checkout you
+# cannot apply this tree at all.
+#
+# This tree declares what an operator MAY DO. Who the operators are is the
+# roster, and it is in terraform/operators.
+#
+# It is applied by the directly authenticated identity, never by the operator
+# role it declares: that role is denied every write to its own definition, so it
+# cannot apply the tree that defines it. That is the only tree with that
+# restriction, and it is why the roster is not in here — hiring and firing are
+# ordinary work and must not require it.
+
+aws_region     = "us-east-1"
+aws_account_id = "TODO-123456789012"
+domain_name    = "footbag.org"

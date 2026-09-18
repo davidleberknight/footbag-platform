@@ -65,8 +65,9 @@
 # that check defends against, a credential file consumed as the answer, cannot
 # arise here: nothing in this script reads stdin.
 #
-# Usage (the sudo password is read from the operator credential file, whose
-# location AWS_OPERATOR_FILE overrides; nothing is redirected in):
+# Usage (the sudo password is read from the credential file the shared rule
+# selects, the one holding the sudo password of the account this alias connects
+# as; nothing is redirected in and nothing selects it by hand):
 #   bash scripts/rehearse-curation-cutover.sh --target staging --trick <slug>
 #   bash scripts/rehearse-curation-cutover.sh --target staging --trick <slug> --dry-run
 #
@@ -172,21 +173,12 @@ source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # mistake the secret-transport rule warns about by name: handing an operator a
 # `< credfile bash <script>` form feeds the password into the first prompt that
 # reads stdin. Nothing here reads stdin now, and the value never reaches argv.
-AWS_OPERATOR_FILE="${AWS_OPERATOR_FILE:-$HOME/AWS/AWS_OPERATOR.txt}"
-if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
-  echo "ERROR: operator credential source unavailable." >&2
-  echo "       Verify the configured credential location is readable." >&2
-  exit 1
-fi
-# Same bar the deploy applies. A readable-by-others credential file must be
-# assumed to have been read, so this refuses rather than trusting the mode.
-_cred_mode="$(stat -c '%a' "$AWS_OPERATOR_FILE" 2>/dev/null || echo "")"
-if [[ "$_cred_mode" != "600" && "$_cred_mode" != "400" ]]; then
-  echo "ERROR: operator credential file has mode ${_cred_mode:-unknown}; expected 600 (or 400)." >&2
-  echo "       Restrict it to its owner, then rotate the password it holds." >&2
-  exit 1
-fi
-IFS= read -r SUDO_PASS < "$AWS_OPERATOR_FILE" || true
+#
+# Which file, and the mode bar it has to meet, both come from the shared rule:
+# the account the alias connects as picks the pair. A second copy of either here
+# is how one of them drifts from the deploy this script is meant to rehearse.
+require_operator_credential "$SSH_ALIAS" "$TARGET" || exit 1
+IFS= read -r SUDO_PASS < "$OPERATOR_CREDENTIAL_FILE" || true
 if [[ -z "$SUDO_PASS" ]]; then
   echo "ERROR: the credential file's first line is empty; expected the host sudo password." >&2
   exit 1

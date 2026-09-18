@@ -25,9 +25,17 @@
  * must never read the operator's pin: a suite that does passes on the one
  * machine that has it installed and fails everywhere else.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  chmodSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -59,6 +67,20 @@ const PIN_LINE = '[203.0.113.10]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY
  */
 const FAKE_SSH = `#!/usr/bin/env bash
 set -euo pipefail
+# \`ssh -G\` is a configuration query rather than a connection, and it is where the
+# credential rule reads the account an alias connects as. Answering it here is what
+# keeps this suite's verdict off whichever ~/.ssh/config the developer happens to
+# have: FAKE_SSH_USER is the account under test, and the shared one is the default
+# because that is what every case here that is not about the rule assumes.
+# An explicitly empty FAKE_SSH_USER prints no user line at all, which is what a
+# config ssh cannot parse looks like from the caller's side.
+if [[ "\${1:-}" == "-G" ]]; then
+  if [[ -n "\${FAKE_SSH_USER-footbag}" ]]; then
+    printf 'user %s\\n' "\${FAKE_SSH_USER-footbag}"
+  fi
+  printf 'hostname 203.0.113.10\\n'
+  exit 0
+fi
 IFS= read -r first_line || true
 printf '%s' "$first_line" > "$FAKE_SSH_FIRST_LINE"
 exec bash
@@ -156,7 +178,7 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
     writeFileSync(src, 'TRUST_PROXY=2\nSTRIPE_WEBHOOK_SECRET=whsec_abc\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${dest}" "" "${src}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${dest}" "" "${src}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -182,7 +204,7 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
     writeFileSync(src, content, 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${dest}" "" "${src}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${dest}" "" "${src}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -195,7 +217,7 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
     writeFileSync(src, 'SECRET=1\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${dest}" "" "${src}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${dest}" "" "${src}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -210,7 +232,7 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
     writeFileSync(src, 'TRUST_PROXY=2\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${dest}" "${report}" "${src}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${dest}" "${report}" "${src}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -224,7 +246,7 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
   it('fails loudly when the file is absent rather than returning an empty one', () => {
     const dest = join(workDir, 'out-e');
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${dest}" "" "${join(workDir, 'no-such-file')}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${dest}" "" "${join(workDir, 'no-such-file')}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).not.toBe(0);
@@ -240,7 +262,7 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(staged, 'NEW=2\nSECRET=shhh\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -256,7 +278,7 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(staged, 'NEW=2\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -272,7 +294,7 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(staged, '', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).not.toBe(0);
@@ -289,14 +311,14 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(host, original, 'utf-8');
 
     const fetch = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${fetched}" "" "${host}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${fetched}" "" "${host}"`,
       `${PASSWORD}\n`,
     );
     expect(fetch.exitCode).toBe(0);
     writeFileSync(rewritten, `${readFileSync(fetched, 'utf-8')}D=added\n`, 'utf-8');
 
     const install = runWithLib(
-      `require_operator_stdin "x" && host_env_install host "${rewritten}" "${host}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${rewritten}" "${host}"`,
       `${PASSWORD}\n`,
     );
     expect(install.exitCode).toBe(0);
@@ -311,7 +333,7 @@ describe('the host-key pin gates the connection', () => {
     writeFileSync(src, 'SECRET=1\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_fetch host "${dest}" "" "${src}"`,
+      `require_operator_stdin "x" host staging && host_env_fetch host "${dest}" "" "${src}"`,
       `${PASSWORD}\n`,
       { FOOTBAG_KNOWN_HOSTS: join(workDir, 'no-such-pin') },
     );
@@ -332,7 +354,7 @@ describe('the host-key pin gates the connection', () => {
     writeFileSync(staged, 'NEW=2\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
       `${PASSWORD}\n`,
       { FOOTBAG_KNOWN_HOSTS: join(workDir, 'no-such-pin') },
     );
@@ -345,7 +367,10 @@ describe('the host-key pin gates the connection', () => {
 
 describe('the credential guard', () => {
   it('refuses an empty first line and names the invocation that supplies one', () => {
-    const r = runWithLib(`require_operator_stdin "scripts/example.sh --target staging"`, '\n');
+    const r = runWithLib(
+      `require_operator_stdin "scripts/example.sh --target staging" host staging`,
+      '\n',
+    );
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr).toMatch(/expected the host sudo password/);
     expect(r.stderr).toMatch(/scripts\/example\.sh --target staging/);
@@ -356,11 +381,164 @@ describe('the credential guard', () => {
     // second line here would mean some other secret silently became part of a
     // remote command stream.
     const r = runWithLib(
-      `require_operator_stdin "x" && printf 'GOT=[%s]\\n' "$SUDO_PASS"`,
+      `require_operator_stdin "x" host staging && printf 'GOT=[%s]\\n' "$SUDO_PASS"`,
       `${PASSWORD}\nAWS_SECRET=do-not-read-me\nMORE=nor-me\n`,
     );
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain(`GOT=[${PASSWORD}]`);
     expect(r.stdout).not.toContain('do-not-read-me');
+  });
+});
+
+/**
+ * Which of the four credential files a run reads.
+ *
+ * The rule is mechanical and the operator chooses nothing: the account the ssh
+ * alias connects as picks the pair, the environment picks the file within it,
+ * and each file holds one credential permanently. The failure it exists to
+ * prevent is quiet — a named operator's run reading the shared account's
+ * password succeeds at the connection and fails at sudo, which reads as a broken
+ * account or a mistyped password and is neither.
+ *
+ * Every case here supplies its own account through the stand-in ssh and its own
+ * home directory, because both are otherwise properties of the machine the suite
+ * happens to run on, and the branch that matters would be unreachable on the one
+ * that has them.
+ */
+describe('the credential file follows the account the alias connects as', () => {
+  function select(user: string, target: string, home = workDir) {
+    return runWithLib(
+      `operator_credential_select host ${target} && printf '%s|%s\\n' ` +
+        `"$OPERATOR_CREDENTIAL_NAME" "$OPERATOR_CREDENTIAL_ACCOUNT"`,
+      '',
+      { FAKE_SSH_USER: user, HOME: home },
+    );
+  }
+
+  it('reads the shared account pair when the alias connects as the shared account', () => {
+    expect(select('footbag', 'staging').stdout.trim()).toBe('AWS_OPERATOR.txt|footbag');
+    expect(select('footbag', 'production').stdout.trim()).toBe(
+      'AWS_OPERATOR_PRODUCTION.txt|footbag',
+    );
+  });
+
+  it('reads the personal pair when the alias connects as a named account', () => {
+    expect(select('ada_lovelace', 'staging').stdout.trim()).toBe(
+      'HOST_OPERATOR.txt|ada_lovelace',
+    );
+    expect(select('ada_lovelace', 'production').stdout.trim()).toBe(
+      'HOST_OPERATOR_PRODUCTION.txt|ada_lovelace',
+    );
+  });
+
+  it('refuses a target that is neither environment rather than picking one', () => {
+    // Otherwise a caller passing something unexpected gets the staging file by
+    // falling off the end of the condition, and a production run reads a
+    // staging credential.
+    const r = select('footbag', 'prod');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/needs 'staging' or 'production'/);
+  });
+
+  it('refuses when the alias names no account rather than assuming the shared one', () => {
+    const r = runWithLib(`operator_credential_select host staging`, '', {
+      FAKE_SSH_USER: '',
+      HOME: workDir,
+    });
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/could not read which account/);
+  });
+});
+
+describe('the credential file is refused by name, never swapped for the other pair', () => {
+  let home: string;
+
+  function writeCredential(name: string, mode: number): string {
+    const dir = join(home, 'AWS');
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, name);
+    writeFileSync(path, `${PASSWORD}\n`, 'utf-8');
+    chmodSync(path, mode);
+    return path;
+  }
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'footbag-test-hostcred-'));
+  });
+
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+
+  function require_(user: string, target: string) {
+    return runWithLib(`require_operator_credential host ${target}`, '', {
+      FAKE_SSH_USER: user,
+      HOME: home,
+    });
+  }
+
+  it('accepts the selected file at mode 600 and says which one it read', () => {
+    writeCredential('HOST_OPERATOR.txt', 0o600);
+    const r = require_('ada_lovelace', 'staging');
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain('~/AWS/HOST_OPERATOR.txt');
+    expect(r.stderr).toContain('ada_lovelace');
+  });
+
+  it('accepts mode 400, which is the same credential with one fewer way to change it', () => {
+    writeCredential('AWS_OPERATOR.txt', 0o400);
+    expect(require_('footbag', 'staging').exitCode).toBe(0);
+  });
+
+  it('refuses a mode anything else can read, and says to rotate rather than chmod', () => {
+    // Narrowing the mode afterwards undoes nothing: whatever could read the file
+    // has read it. A message that says to fix the permissions leaves a live
+    // credential in place and reads like the problem was solved.
+    writeCredential('AWS_OPERATOR.txt', 0o644);
+    const r = require_('footbag', 'staging');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/must be 600 or 400/);
+    expect(r.stderr).toMatch(/Rotate the password/);
+  });
+
+  it('refuses by name when the selected file is absent, with the other pair sitting right there', () => {
+    // The whole point. A fallback would run as one identity under another's
+    // credential, the sudo failure would land on the host rather than here, and
+    // nothing afterwards would record which identity the run meant.
+    writeCredential('AWS_OPERATOR.txt', 0o600);
+    const r = require_('ada_lovelace', 'staging');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toContain('~/AWS/HOST_OPERATOR.txt');
+    expect(r.stderr).toMatch(/Nothing else is read in its place/);
+    expect(r.stderr).not.toContain('AWS_OPERATOR.txt (');
+  });
+
+  it('refuses the shared file when the alias connects as the shared account and it is absent', () => {
+    writeCredential('HOST_OPERATOR.txt', 0o600);
+    const r = require_('footbag', 'staging');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toContain('~/AWS/AWS_OPERATOR.txt');
+  });
+});
+
+describe('the stdin guard names the file it expects and does not claim to have checked it', () => {
+  it('prints the selected file on a successful read', () => {
+    // The library never opens the credential file: the password arrives on
+    // stdin. Printing what the rule chose is the only thing that makes a run
+    // unambiguous about which identity it meant.
+    const r = runWithLib(`require_operator_stdin "x" host staging`, `${PASSWORD}\n`, {
+      FAKE_SSH_USER: 'ada_lovelace',
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain('~/AWS/HOST_OPERATOR.txt');
+    expect(r.stderr).toMatch(/not checked against it/);
+  });
+
+  it('refuses a call that passes no alias, because there is then nothing to select from', () => {
+    // A caller that forgets the alias would otherwise fall back to a guess, and
+    // the guess would be right for the shared account and silently wrong for
+    // everybody else.
+    const r = runWithLib(`require_operator_stdin "x"`, `${PASSWORD}\n`);
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/needs the ssh alias and the target/);
+    expect(r.stderr).toMatch(/defect in the calling script/);
   });
 });

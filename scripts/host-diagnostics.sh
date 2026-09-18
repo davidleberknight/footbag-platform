@@ -92,20 +92,18 @@ done
 require_target "$TARGET" staging production || exit 2
 
 ALIAS="footbag-${TARGET}"
-CRED_FILE="${HOME}/AWS/AWS_OPERATOR.txt"
-[[ "$TARGET" == "production" ]] && CRED_FILE="${HOME}/AWS/AWS_OPERATOR_PRODUCTION.txt"
 
 [[ -r "$DIAGNOSTICS" ]] || {
   echo "ERROR: cannot read ${DIAGNOSTICS}" >&2
   exit 1
 }
 
-if [[ ! -r "$CRED_FILE" ]]; then
-  echo "ERROR: operator credential file unavailable." >&2
-  echo "       The diagnostics use sudo on the host, so they need the same" >&2
-  echo "       credential every other script on this path reads." >&2
-  exit 1
-fi
+# The shared rule rather than another copy of it. The diagnostics use sudo on the
+# host, so they need the sudo password of whatever account the alias connects as,
+# and building the path here from the environment alone is how a run reads the
+# shared account's password while connecting as a named person.
+require_operator_credential "$ALIAS" "$TARGET" || exit 1
+CRED_FILE="$OPERATOR_CREDENTIAL_FILE"
 
 require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10")

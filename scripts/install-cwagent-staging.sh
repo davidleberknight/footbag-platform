@@ -45,8 +45,14 @@
 # predecessor has none, so a rotation left to memory ends with two live keys.
 #
 # Usage. The install reads the sudo password from stdin, line 1, and shows the
-# new key on the terminal, so it needs a real terminal as well as the redirect:
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/install-cwagent-staging.sh
+# new key on the terminal, so it needs a real terminal as well as the redirect.
+#
+# Which file holds that password follows the account the alias connects as: the
+# shared footbag account reads ~/AWS/AWS_OPERATOR.txt and your own named account
+# reads the file below. A run started without the redirect names the one it
+# needs. Production is its own script, with its own pair of files.
+#
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/install-cwagent-staging.sh
 #
 # The retire and delete runs touch no host and take no password, so they are run
 # plainly:
@@ -79,7 +85,7 @@ OLD_KEY=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-cwagent-staging.sh [--rotate] [--profile <p>]
+Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/install-cwagent-staging.sh [--rotate] [--profile <p>]
    or: bash scripts/install-cwagent-staging.sh --retire <old-key-id> [--profile <p>]
    or: bash scripts/install-cwagent-staging.sh --delete <old-key-id> [--profile <p>]
 
@@ -129,19 +135,29 @@ if [[ "$ACTION" != "install" && "$ROTATE" == "1" ]]; then
   exit 2
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REMOTE="${DEPLOY_TARGET:-footbag-staging}"
+
 # Only the install carries a credential to a host. Demanding the redirect on the
 # retire runs would make the operator point a password file at a command that
 # has no use for one, which is how a password ends up answering a prompt.
+#
+# The file it names comes from the shared rule, so the line is pasteable by
+# whoever is actually running it: an operator on a named account and one on the
+# shared account need different files, and a message that named either one
+# outright would be wrong for the other half of the operators.
 if [[ "$ACTION" == "install" && -t 0 ]]; then
+  # shellcheck source=lib/operator-credential.sh
+  source "${SCRIPT_DIR}/lib/operator-credential.sh"
+  _cred="~/AWS/<your credential file>"
+  operator_credential_select "$REMOTE" staging 2>/dev/null \
+    && _cred="$OPERATOR_CREDENTIAL_DISPLAY"
   echo "ERROR: must receive sudo password on stdin." >&2
-  echo "       Run via: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-cwagent-staging.sh" >&2
+  echo "       Run via: < ${_cred} bash scripts/install-cwagent-staging.sh" >&2
   echo "" >&2
   usage >&2
   exit 1
 fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REMOTE="${DEPLOY_TARGET:-footbag-staging}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/install-cwagent-remote.sh"
 VERIFY_METRICS="${SCRIPT_DIR}/verify-cwagent-metrics.sh"
 

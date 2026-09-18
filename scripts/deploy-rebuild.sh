@@ -28,7 +28,11 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage (staging only): < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-rebuild.sh
+Usage (staging only): < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-rebuild.sh
+
+That file is your own named account's staging sudo password. An operator whose
+alias still connects as the shared footbag account reads ~/AWS/AWS_OPERATOR.txt
+instead; a run started without the redirect names the one it needs.
 
 A production run has no direct form. It goes through deploy_to_aws.sh, which asks
 for the typed confirmation and takes the host password at the terminal; this

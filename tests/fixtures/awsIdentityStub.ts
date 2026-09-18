@@ -22,9 +22,19 @@ import { join } from 'node:path';
 /** The identity the stub resolves to, recognisable in output as a fixture. */
 export const STUB_OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
 
+/**
+ * The profiles an operator workstation carries: the one everyday work goes out
+ * on, and the one holding the directly authenticated key. Two names because a
+ * static key and a federated session cannot share one, and the scripts that
+ * need the second name it rather than falling back to it, so a stub listing
+ * only the first sends those scripts into their "no such profile" refusal
+ * before they reach the behaviour under test.
+ */
+export const STUB_OPERATOR_PROFILES = ['footbag-operator', 'footbag-operator-key'];
+
 export interface AwsIdentityStubOptions {
-  /** Profile name the stub reports as configured. */
-  profile?: string;
+  /** Profile names the stub reports as configured. */
+  profile?: string | string[];
   /** ARN the identity resolves to. */
   arn?: string;
 }
@@ -36,15 +46,16 @@ export interface AwsIdentityStubOptions {
  */
 export function awsIdentityStubEnv(
   dir: string,
-  { profile = 'footbag-operator', arn = STUB_OPERATOR_ARN }: AwsIdentityStubOptions = {},
+  { profile = STUB_OPERATOR_PROFILES, arn = STUB_OPERATOR_ARN }: AwsIdentityStubOptions = {},
 ): Record<string, string> {
+  const names = Array.isArray(profile) ? profile : [profile];
   const path = join(dir, 'aws-identity-stub.sh');
   writeFileSync(
     path,
     [
       '#!/usr/bin/env bash',
       'if [[ "$1" == "configure" && "$2" == "list-profiles" ]]; then',
-      `  printf '%s\\n' ${JSON.stringify(profile)}`,
+      `  printf '%s\\n' ${names.map((n) => JSON.stringify(n)).join(' ')}`,
       '  exit 0',
       'fi',
       'if [[ "$1" == "sts" && "$2" == "get-caller-identity" ]]; then',

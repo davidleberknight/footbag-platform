@@ -31,7 +31,15 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,13 +141,25 @@ afterAll(() => {
   rmSync(workdir, { recursive: true, force: true });
 });
 
+/**
+ * Every Terraform tree in the repository, read from disk rather than listed
+ * here. The gate names its trees in a loop, so a tree added without being added
+ * to that loop is never validated and nothing says so — the run stays green
+ * because the gate simply does less. Counting what is actually on disk is what
+ * makes that visible.
+ */
+const TREES = readdirSync(join(REPO_ROOT, 'terraform'), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && existsSync(join(REPO_ROOT, 'terraform', e.name, 'providers.tf')))
+  .map((e) => e.name);
+
 describe('gate_terraform', () => {
-  it('runs and invokes terraform for fmt and for each stack', () => {
+  it('runs and invokes terraform for fmt and for every tree on disk', () => {
     expect(gateStatus).toBe(0);
-    // fmt once, then init + validate for staging, production and shared.
-    expect(invocations.length).toBe(7);
-    expect(invocations.filter((i) => i.argv.includes('validate')).length).toBe(3);
-    expect(invocations.filter((i) => i.argv.includes('init')).length).toBe(3);
+    expect(TREES.length).toBeGreaterThanOrEqual(3);
+    // fmt once, then init + validate for each tree.
+    expect(invocations.length).toBe(1 + TREES.length * 2);
+    expect(invocations.filter((i) => i.argv.includes('validate')).length).toBe(TREES.length);
+    expect(invocations.filter((i) => i.argv.includes('init')).length).toBe(TREES.length);
   });
 
   it.each([
@@ -159,7 +179,7 @@ describe('gate_terraform', () => {
 
   it('initializes into a throwaway data directory, never the operator’s .terraform', () => {
     const inits = invocations.filter((i) => i.argv.includes('init'));
-    expect(inits.length).toBe(3);
+    expect(inits.length).toBe(TREES.length);
     for (const init of inits) {
       // Without this, `-backend=false` reuses whatever the operator initialized,
       // which is the entire defect: the S3 backend, and an STS call with it.
@@ -172,7 +192,7 @@ describe('gate_terraform', () => {
   it('leaves the operator’s own initialized trees untouched', () => {
     // gate_smoke reads outputs from terraform/staging/.terraform, so the gate must
     // not re-initialize or remove it. Anything the gate writes goes under LOG_DIR.
-    for (const stack of ['staging', 'production', 'shared']) {
+    for (const stack of TREES) {
       const dataDir = join(REPO_ROOT, 'terraform', stack, '.terraform');
       if (!existsSync(dataDir)) continue;
       const touched = invocations.some((i) => i.env.TF_DATA_DIR === dataDir);

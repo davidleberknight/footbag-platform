@@ -5,11 +5,11 @@
  * Every deploy read of a terraform output used to redirect stderr to /dev/null,
  * tolerate the failure, and then guess at the cause on an empty value. The
  * guess named one cause, an uninitialised tree, while at least three produce
- * exactly that symptom: an uninitialised tree, an access key that no longer
- * authenticates because it was deactivated or rotated, and an operator profile
- * that was never installed on the machine at all. So a deploy run during a key
- * rotation reads as an infrastructure fault and sends the operator to the wrong
- * place.
+ * exactly that symptom: an uninitialised tree, a credential that no longer
+ * authenticates because the sign-in expired or the key behind it was rotated,
+ * and an operator profile that was never set up on the machine at all. So a
+ * deploy run the morning after a sign-in lapsed reads as an infrastructure
+ * fault and sends the operator to the wrong place.
  *
  * What is pinned here:
  *
@@ -198,8 +198,15 @@ describe('tf_output_explain', () => {
       stub,
     );
     expect(r.stderr).toMatch(/has not been initialised/);
-    expect(r.stderr).toMatch(/deactivated/);
-    expect(r.stderr).toMatch(/operator profile is not installed on this machine/);
+    expect(r.stderr).toMatch(/sign-in has expired/);
+    expect(r.stderr).toMatch(/operator profile is not set up on this machine/);
+    // The remedy for each is named, and the one for an absent profile is the
+    // script that writes a sign-in rather than the one that installs a key: the
+    // key belongs under a different profile name, and naming its installer here
+    // would be an instruction to shadow the sign-in.
+    expect(r.stderr).toContain('aws sso login --profile footbag-operator');
+    expect(r.stderr).toContain('bash scripts/install-operator-sso-profile.sh');
+    expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
     // And terraform's own sentence, which is the one that distinguishes them.
     expect(r.stderr).toContain('Error: nope');
   });

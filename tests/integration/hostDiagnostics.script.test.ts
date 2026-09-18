@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { connectingAs, SHARED_ACCOUNT, NAMED_ACCOUNT } from '../fixtures/sshConfigStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/host-diagnostics.sh');
 
@@ -36,6 +37,9 @@ function run(args: string[], extraEnv: NodeJS.ProcessEnv = {}) {
       ...process.env,
       HOME: fakeHome,
       FOOTBAG_KNOWN_HOSTS: join(fakeHome, 'AWS', 'footbag_known_hosts'),
+      // The stand-in ssh answers the one question the credential rule asks: the
+      // developer's own ~/.ssh/config would otherwise decide the verdict here.
+      ...connectingAs(SHARED_ACCOUNT, fakeHome),
       ...extraEnv,
     },
     ...SPAWN_GUARD,
@@ -43,9 +47,19 @@ function run(args: string[], extraEnv: NodeJS.ProcessEnv = {}) {
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
-function writeCredential(target: 'staging' | 'production', contents: string): void {
+/**
+ * `who` is the account the alias connects as, not a file name: the rule derives
+ * the name, so a fixture that named the file directly could not catch the rule
+ * getting it wrong.
+ */
+function writeCredential(
+  target: 'staging' | 'production',
+  contents: string,
+  who: 'shared' | 'named' = 'shared',
+): void {
   mkdirSync(join(fakeHome, 'AWS'), { recursive: true });
-  const name = target === 'production' ? 'AWS_OPERATOR_PRODUCTION.txt' : 'AWS_OPERATOR.txt';
+  const pair = who === 'shared' ? 'AWS_OPERATOR' : 'HOST_OPERATOR';
+  const name = target === 'production' ? `${pair}_PRODUCTION.txt` : `${pair}.txt`;
   const path = join(fakeHome, 'AWS', name);
   writeFileSync(path, contents, 'utf-8');
   chmodSync(path, 0o600);
@@ -60,6 +74,7 @@ function writePin(): void {
 
 beforeEach(() => {
   fakeHome = mkdtempSync(join(tmpdir(), 'footbag-test-hostdiag-'));
+  connectingAs(SHARED_ACCOUNT, fakeHome);
 });
 
 afterEach(() => {
@@ -100,12 +115,34 @@ describe('host-diagnostics.sh — argument guards', () => {
 
 describe('host-diagnostics.sh — what it refuses before connecting', () => {
   it('refuses without the operator credential file', () => {
-    // The diagnostics use sudo on the host, so they need the same credential
-    // every other script on this path reads.
+    // The diagnostics use sudo on the host, so they need the sudo password of
+    // whatever account the alias connects as.
     writePin();
     const r = run(['--target', 'staging']);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/operator credential file unavailable/);
+    expect(r.stderr).toMatch(/AWS_OPERATOR\.txt is missing or unreadable/);
+  });
+
+  it('reads the personal file, not the shared one, when the alias connects as a person', () => {
+    // The failure this prevents is quiet: connecting as a named account and
+    // piping the shared account's password succeeds at the connection and fails
+    // at sudo, on the host, which reads as a broken account and is not one.
+    writePin();
+    writeCredential('staging', 'pw\n', 'shared');
+    const r = run(['--target', 'staging'], { FAKE_SSH_USER: NAMED_ACCOUNT });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/HOST_OPERATOR\.txt is missing or unreadable/);
+    expect(r.stderr).toMatch(/Nothing else is read in its place/);
+  });
+
+  it('refuses a credential file anything else on the machine can read', () => {
+    writePin();
+    writeCredential('staging', 'pw\n');
+    chmodSync(join(fakeHome, 'AWS', 'AWS_OPERATOR.txt'), 0o644);
+    const r = run(['--target', 'staging']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/must be 600 or 400/);
+    expect(r.stderr).toMatch(/Rotate the password/);
   });
 
   it('refuses on an empty credential file rather than sending a blank password', () => {
@@ -133,7 +170,7 @@ describe('host-diagnostics.sh — what it refuses before connecting', () => {
     writeCredential('staging', 'pw\n');
     const r = run(['--target', 'production']);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/operator credential file unavailable/);
+    expect(r.stderr).toMatch(/AWS_OPERATOR_PRODUCTION\.txt is missing or unreadable/);
   });
 });
 

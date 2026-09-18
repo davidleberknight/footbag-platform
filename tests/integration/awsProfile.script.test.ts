@@ -2,9 +2,12 @@
  * scripts/lib/aws-profile.sh — the operator's AWS identity, supplied by the
  * tooling rather than by the operator.
  *
- * An operator workstation carries one named profile and no default section, so
- * a fresh terminal has no AWS identity at all and the first command needing one
- * fails with the SDK's words about locating credentials. Asking the operator to
+ * An operator workstation carries no default section for anything to fall back
+ * to, so a fresh terminal has no AWS identity at all and the first command
+ * needing one fails with the SDK's words about locating credentials. A super
+ * admin's machine carries two named profiles, the everyday federated one and
+ * the break-glass key beside it; a dev-and-tester's carries only the first.
+ * Asking the operator to
  * export a variable in every new shell puts a step in a person's head that has
  * to be repeated in every terminal, and it is recorded in the operations
  * reference as a common cause of failure partway through a bring-up.
@@ -212,7 +215,7 @@ describe('aws_profile_ensure treats half a key pair as no identity', () => {
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stdout).toContain('rc=1');
-    expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
+    expect(r.stderr).toContain('bash scripts/install-operator-sso-profile.sh');
   });
 });
 
@@ -304,7 +307,23 @@ describe('aws_profile_ensure refuses rather than guessing', () => {
     });
     expect(r.stdout).toContain('rc=1');
     expect(r.stderr).toMatch(/no AWS profile named 'footbag-operator'/);
-    expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
+    expect(r.stderr).toContain('bash scripts/install-operator-sso-profile.sh');
+  });
+
+  it('names the sign-in too, since a written profile is not yet a session', () => {
+    // Writing the profile and signing in through it are two acts, and a run
+    // that named only the first would leave the operator at the same refusal.
+    const r = withLib('aws_profile_ensure', { ...stubEnv(['some-unrelated-profile']) });
+    expect(r.stderr).toContain('aws sso login --profile footbag-operator');
+  });
+
+  it('names the sign-in as the ordinary cause when the credential has expired', () => {
+    // A federated session that ran out is the common case behind this refusal
+    // and costs one command, so it is named ahead of the rotated-key case.
+    const r = withLib('aws_profile_ensure', {
+      ...stubEnv(['footbag-operator'], { refuses: 'The SSO session has expired' }),
+    });
+    expect(r.stderr).toContain('aws sso login --profile footbag-operator');
   });
 
   it('refuses when the AWS binary cannot be run at all', () => {
@@ -330,6 +349,83 @@ describe('what the run says about itself', () => {
       ...stubEnv(['footbag-operator']),
     });
     expect(r.stderr).toMatch(/the AWS binary is stubbed for this run/);
+  });
+});
+
+/**
+ * A handful of runs do not get to take whatever identity the operator signed in
+ * as: the tree they apply accepts exactly one principal, so an inherited profile
+ * there is not a preference to respect, it is an apply that gets part way
+ * through and stops on an access denial having already made some of the changes.
+ */
+describe('aws_profile_use settles the run on one named identity', () => {
+  it('takes the named profile even when the shell already chose another', () => {
+    const r = withLib('aws_profile_use footbag-operator-key "why."; echo "p=$AWS_PROFILE"', {
+      AWS_PROFILE: 'footbag-operator',
+      ...stubEnv(['footbag-operator', 'footbag-operator-key']),
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('p=footbag-operator-key');
+  });
+
+  it('announces the identity it moved to, even after an earlier run said which it had', () => {
+    // The whole point of the call is that the identity changed, so a run that
+    // named the first one and went quiet through the change is the wrong way
+    // round.
+    const r = withLib(
+      'aws_profile_ensure; aws_profile_use footbag-operator-key "why."',
+      { ...stubEnv(['footbag-operator', 'footbag-operator-key']) },
+    );
+    expect(r.stderr).toMatch(/required by this script/);
+  });
+
+  it('refuses rather than overriding a whole key pair in the environment', () => {
+    // Exporting a profile does not displace key material: the SDK prefers the
+    // environment, so the run would announce one identity and use another.
+    const r = withLib('aws_profile_use footbag-operator-key "the tree takes one principal."; echo "rc=$?"', {
+      AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+      AWS_SECRET_ACCESS_KEY: 'notasecret/notasecret/notasecret/notasec',
+      ...stubEnv(['footbag-operator-key']),
+    });
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/exports AWS_ACCESS_KEY_ID/);
+    expect(r.stderr).toContain('the tree takes one principal.');
+  });
+
+  it('refuses when the named profile is not on the machine, saying what it was for', () => {
+    const r = withLib('aws_profile_use footbag-operator-key "the tree takes one principal."; echo "rc=$?"', {
+      ...stubEnv(['footbag-operator']),
+    });
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/no AWS profile named 'footbag-operator-key'/);
+    expect(r.stderr).toContain('the tree takes one principal.');
+  });
+
+  it('names the key installer only for the profile that holds a key', () => {
+    const r = withLib('aws_profile_use footbag-operator-key "why."', {
+      ...stubEnv(['footbag-operator']),
+    });
+    expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
+  });
+
+  it('never tells an operator to install a key under the federated name', () => {
+    // That advice is an instruction to write a static key under the name the
+    // sign-in needs, which the SDK then silently prefers: the shadowing the
+    // whole split exists to prevent, arriving from the tooling itself.
+    const r = withLib('aws_profile_use footbag-operator "why."', {
+      ...stubEnv(['some-unrelated-profile']),
+    });
+    expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
+    expect(r.stderr).toContain('bash scripts/install-operator-sso-profile.sh');
+    expect(r.stderr).toContain('aws sso login --profile footbag-operator');
+  });
+
+  it('leaves no profile exported when the one it named does not authenticate', () => {
+    const r = withLib(
+      'aws_profile_use footbag-operator-key "why." || true; echo "p=${AWS_PROFILE:-none}"',
+      { ...stubEnv(['footbag-operator-key'], { refuses: 'could not be found' }) },
+    );
+    expect(r.stdout).toContain('p=none');
   });
 });
 
@@ -360,6 +456,6 @@ describe('the terraform reader settles the identity before reading', () => {
     });
     expect(res.stdout).toContain('rc=1');
     expect(res.stdout).toContain('err=no AWS identity is available for this read');
-    expect(res.stderr).toContain('bash scripts/install-operator-key.sh');
+    expect(res.stderr).toContain('bash scripts/install-operator-sso-profile.sh');
   });
 });

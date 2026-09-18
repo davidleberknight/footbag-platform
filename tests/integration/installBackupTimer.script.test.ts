@@ -17,6 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { connectingAs, SHARED_ACCOUNT, NAMED_ACCOUNT } from '../fixtures/sshConfigStub';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -28,10 +29,11 @@ interface RunResult {
   stderr: string;
 }
 
-function runScript(args: string[]): RunResult {
+function runScript(args: string[], extraEnv: NodeJS.ProcessEnv = {}): RunResult {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
+    env: { ...process.env, ...extraEnv },
     ...SPAWN_GUARD,
   });
   return {
@@ -134,13 +136,24 @@ describe('install-backup-timer.sh — credential handling', () => {
     // and cannot be reached without a tty. Both must name the remedy, because
     // a script that refuses without saying how to satisfy it sends the
     // operator back to the source to find out.
-    const result = runScript(['--target', 'staging']);
+    const result = runScript(['--target', 'staging'], connectingAs(SHARED_ACCOUNT));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/expected the host sudo password/);
-    // The remedy names the actual per-target credential file rather than a
-    // placeholder, so the line can be pasted. A placeholder here is what sent
-    // an operator to the source to find out where the file lives.
+    // The remedy names the actual credential file rather than a placeholder, so
+    // the line can be pasted. A placeholder here is what sent an operator to the
+    // source to find out where the file lives.
     expect(result.stderr).toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
     expect(result.stderr).toMatch(/install-backup-timer\.sh --target staging/);
+  });
+
+  it('names the personal file when the alias connects as a named account', () => {
+    // The pasteable line is the whole value of naming a file, and pasting the
+    // shared account's file while connected as a person pipes one identity's
+    // password into another's sudo. That fails on the host, where it reads as a
+    // broken account rather than as the wrong file.
+    const result = runScript(['--target', 'staging'], connectingAs(NAMED_ACCOUNT));
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/~\/AWS\/HOST_OPERATOR\.txt/);
+    expect(result.stderr).not.toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
   });
 });
