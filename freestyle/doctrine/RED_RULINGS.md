@@ -202,6 +202,31 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   distinct named sets. The registry stores count-bearing sets in the same table as
   modifiers, so blazing's `modifier_type=set` records it as a set within that
   shared storage model; the storage convention is not a claim that it modifies.
+- **Blazing and flailing side reference** (curator-relayed, 2026-09-17): the side
+  the set originates from establishes the reference. A following component on that
+  side is same-side; crossing to the other side is opposite. This closes both
+  halves of the blazing question rather than one: the following component's
+  relation directly, and the opening dexterity's side by making it definitional,
+  since the set's origin is the reference rather than a separate fact to
+  establish. It closes the flailing positional question on the same terms, which
+  asked where a positional qualifier lands inside the atomic-symposium chassis.
+  The corpus already reads this way and was waiting on the rule rather than
+  disagreeing with it: every published flailing name carrying the same-side
+  qualifier shows a same-side token on the component after the set's dexterity,
+  and the two carrying no qualifier show the opposite, six rows for six. What this
+  unblocks is the eight blazing compound notations, the bare blazing row, and the
+  flailing identities whose notation was held for this reason alone.
+- **Near and far** (curator ruling, 2026-09-18): in this context near is the
+  same-side form and far the opposite-side form, so a far-qualified name and an
+  opposite-side reading are one claim rather than two. This is the platform's
+  working equivalence for the positional vocabulary, consistent with the
+  source-register mapping already recorded in `POSITIONAL_IDENTITY.md`.
+- **Butterfly implies far** (curator ruling, 2026-09-18): the butterfly default is
+  the far, opposite-side execution, and only a near execution needs asserting,
+  which is why the same-side form is the separately named row. A far-qualified
+  butterfly name is therefore the base trick under a spelling that states what the
+  base already means, not a variant of it. Infinity names the clipper-set
+  butterfly; the set is what distinguishes it, not the side.
 - **Surging = spinning + stepping**: not a primitive modifier and never a
   `trick_modifiers` row; the standalone `surging` dictionary row keeps its
   named-trick identity while compounds decompose.

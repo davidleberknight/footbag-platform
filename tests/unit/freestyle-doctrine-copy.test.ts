@@ -488,48 +488,32 @@ describe('the modifier-versus-trick lesson uses operators, not sets', () => {
   });
 });
 
-describe('an unresolved side relationship stays unresolved in the platform voice', () => {
-  // Blazing is ruled a distinct set on the whirling chassis, and which side its
-  // opening dex takes is explicitly not ruled. A source may state a side and the
-  // platform may quote it; what the platform may not do is adopt one. So the
-  // source-attributed fields are exempt by construction and the platform's own
-  // prose is not.
+describe('the ruled side relationship is stated, and the source keeps its own claim', () => {
+  // The side question is answered: the side a set originates from is the
+  // reference, a following component on that side is same-side, and crossing is
+  // opposite. Four cases here used to enforce the opposite, that no platform
+  // surface may name a side for blazing, and they are gone rather than inverted:
+  // a prohibition kept past its ruling is how a corpus ends up unable to say what
+  // it knows.
   //
-  // One token, because one token is what is open. Remove the entry when the side
-  // question is answered.
-  const UNRESOLVED_SIDE_TOKENS = ['blazing'];
+  // What survives is the pair of claims the ruling does not touch. The
+  // compilation's own reading stays attributed rather than absorbed, and the two
+  // sets stay distinct, because what remains unruled is the kind rather than the
+  // side: the compilation reads a whirling variant where the platform reads a set.
   const setEntry = (slug: string) => CANONICAL_SETS.find((s) => s.slug === slug)!;
 
-  it('the set page states the movement without choosing a side', () => {
-    const offenders = UNRESOLVED_SIDE_TOKENS
-      .filter((slug) => namesASide(setEntry(slug).movementExplanation));
-    expect(offenders).toEqual([]);
+  it('the set page states the side relation rather than an open question', () => {
+    const blazing = setEntry('blazing');
+    expect(blazing.movementExplanation).toMatch(/side the set originates from/);
+    expect(blazing.movementExplanation).not.toMatch(/not settled/);
   });
 
-  it('the token label states the movement without choosing a side', () => {
-    const labels = tokenLabels();
-    const offenders = UNRESOLVED_SIDE_TOKENS
-      .filter((slug) => namesASide(labels.get(slug) ?? ''));
-    expect(offenders).toEqual([]);
-  });
-
-  it('the compositional platform reading, note and card choose no side', () => {
-    const platformVoice = UNRESOLVED_SIDE_TOKENS.flatMap((slug) => {
-      const name = setEntry(slug).displayName;
-      const row = COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === name)!;
-      const card = COMPOSITIONAL_SET_FAMILIES.flatMap((f) => f.members)
-        .find((m) => m.name === name)!;
-      return [row.platformReading ?? '', row.note ?? '', card.structuralNote ?? ''];
-    });
-    expect(platformVoice.filter((text) => namesASide(text))).toEqual([]);
-  });
-
-  it('the set-education prose neither collapses the set nor chooses a side', () => {
+  it('the set-education prose does not collapse the set into whirling', () => {
+    // The side half of this check retired with the ruling. Collapsing the two
+    // sets is a different claim and is still wrong.
     const edu = read('src/services/symbolicSetEducation.ts');
     const blazingLines = edu.split('\n').filter((l) => /blazing/i.test(l));
-    const offenders = blazingLines.filter((l) =>
-      /\bnot an independent set\b/.test(l)
-      || /\bop[- ]side\b|\bopposite[- ]side[- ]terminal\b/i.test(l));
+    const offenders = blazingLines.filter((l) => /\bnot an independent set\b/.test(l));
     expect(offenders).toEqual([]);
   });
 
@@ -546,24 +530,11 @@ describe('an unresolved side relationship stays unresolved in the platform voice
     expect(unattributed).toEqual([]);
   });
 
-  it('the cross-reference labels between the pair name no side', () => {
-    // The two sets point at each other from their related-systems lists, and a
-    // label there is the platform describing the pair in its own voice. Naming a
-    // side in one states the relation the ruling left open, so neither may.
-    // Sibling pairs whose sides ARE settled keep theirs; this is scoped to the
-    // pair with the open question.
-    const offenders = CANONICAL_SETS
-      .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
-      .flatMap((s) => s.relatedSystems.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))
-      .filter((r) => r.to === 'blazing' || r.to === 'whirling')
-      .filter((r) => namesASide(r.label))
-      .map((r) => `${r.from} -> ${r.to}: ${r.label}`);
-    expect(offenders).toEqual([]);
-  });
-
   it('neither set is cross-referenced as a variant or alias of the other', () => {
-    // The ruling holds them apart as distinct named sets precisely because the
-    // relation that would rank one under the other is unruled.
+    // They stay distinct named sets because what would rank one under the other
+    // is the kind question, which is unruled. The side is no longer the reason,
+    // and the companion check that forbade a side in these labels retired with
+    // the ruling.
     const offenders = CANONICAL_SETS
       .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
       .flatMap((s) => s.relatedSystems.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))

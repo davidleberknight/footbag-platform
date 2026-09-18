@@ -128,12 +128,15 @@ describe('the label follows the source of the formula, not the lead of the citat
     expect(labelFor('flailing')).not.toMatch(/Red/);
   });
 
-  it('blazing keeps the compilation formula and the unsettled side alongside it', () => {
+  it('blazing keeps the compilation formula while the ruling explains its side', () => {
     const blazing = findCanonicalSetBySlug('blazing')!;
     expect(blazing.formula).toBe('CLIP > OP IN [DEX] > (op side component)');
-    // The attribution exists so this side component cannot read as a platform
-    // ruling; the prose beside it must go on saying the relation is open.
-    expect(blazing.movementExplanation).toMatch(/side relation is not settled/);
+    // The formula is still the compilation's string, so the attribution must not
+    // read as though the platform authored it. What the platform did rule is how
+    // the side is read, and the prose beside the formula now carries that rather
+    // than an open question.
+    expect(blazing.movementExplanation).toMatch(/side the set originates from is the reference/);
+    expect(blazing.movementExplanation).not.toMatch(/not settled/);
   });
 });
 

@@ -462,14 +462,14 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
     holdenReading:   'SET > (no plant while) OP OUT [BOD] [DEX] >; Holden: Symposium Reverse Miraging.',
     platformReading: 'Ruled a Symposium Atomic set contributing +2, corpus-settled across the six published atomic-symposium compounds.',
     status:          'partial',
-    note:            'Notation is recorded as Holden wrote it, with its unusual explicit no-plant constraint. The readings diverge: Holden reads a reversed miraging body dex, and the platform reads the symposium and atomic treatments combined. Where a positional qualifier lands inside that chassis is not settled.',
+    note:            'Notation is recorded as Holden wrote it, with its unusual explicit no-plant constraint. The readings diverge: Holden reads a reversed miraging body dex, and the platform reads the symposium and atomic treatments combined. A positional qualifier now reads against the side the set originates from, which leaves the divergence of reading as the only open part.',
   },
   {
     holdenName:      'Blazing',
     holdenReading:   'CLIP > OP IN [DEX] > (op side component); whirling op-side variant.',
     platformReading: 'Ruled a distinct named set on the whirling chassis, an uptime whirl the following trick is performed off of, contributing +1.',
     status:          'partial',
-    note:            'Notation is recorded as Holden wrote it. Holden additionally separates blazing from whirling by terminal side; that side relation is not settled, so the two stand as distinct named sets.',
+    note:            'Notation is recorded as Holden wrote it. Holden separates blazing from whirling by terminal side, and that relation is settled: the side the set originates from is the reference, and the component that follows sits opposite it. What remains open is the kind rather than the side, Holden reading a whirling variant where the platform reads a distinct named set.',
   },
 
   // ── Conflict (substantive decomposition disagreement) ────────────────

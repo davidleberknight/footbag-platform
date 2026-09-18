@@ -264,11 +264,17 @@ So the folk names unpack the set rather than stacking on it: Flailing Symposium
 Mirage is mirage 2 plus flailing 2 = 4, Flailing Symposium Whirl is 5, and
 Flailing Symposium Eggbeater is 5. No repeated-operator question arises.
 
-**Not settled here: the positional qualifier.** Several flailing names carry `ss`
-or `far`, and nothing above says what that qualifier modifies or where its
-SAME/OP relation lands inside the atomic-symposium chassis. The six exemplars
-carry no positional form, so they cannot answer it. That question is why the one
-blank-notation flailing row stays blank.
+**Not derived here, but since ruled: the positional qualifier.** Several flailing
+names carry `ss` or `far`, and nothing in the arithmetic above says what that
+qualifier modifies or where its SAME/OP relation lands inside the
+atomic-symposium chassis. The six exemplars carry no positional form, so the
+corpus could not answer it either. The side-reference ruling in `RED_RULINGS.md`
+settles it from outside the derivation: the side the set originates from is the
+reference, so a qualifier reads against that origin rather than against the
+chassis. The corpus agrees once read that way, four qualified names showing a
+same-side token on the component after the set's dexterity and two unqualified
+ones showing the opposite, which is why this section records the gap rather than
+the answer: the answer is a ruling, not a derivation.
 
 ## Explicitly NOT derived (the boundary of what is proven)
 

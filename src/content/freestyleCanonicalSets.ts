@@ -554,8 +554,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'A Symposium Atomic set: the atomic dex leads and the base\'s own leading dex ' +
       'becomes a no-plant body dex, so the launch reads as one movement rather than two. ' +
       'As a set treatment it contributes +2, and a Symposium written alongside Flailing in ' +
-      'a folk name expands this set rather than adding a second symposium treatment. Where ' +
-      'a positional qualifier lands inside this chassis is not settled.',
+      'a folk name expands this set rather than adding a second symposium treatment. A ' +
+      'positional qualifier reads against the side the set originates from: on that side ' +
+      'is same-side, crossing to the other is opposite.',
     equivalenceNotes: [
       { reading: 'Symposium Atomic', citation: 'Red ruling (curator-relayed)' },
       { reading: 'Symposium Reverse Miraging', citation: 'Holden parenthetical' },
@@ -801,8 +802,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > (op side component)',
     movementExplanation:
       'A whirling set: an uptime whirl that the following trick is performed off of. ' +
-      'Holden additionally separates blazing from whirling by terminal side; that side ' +
-      'relation is not settled, so the two stand as distinct named sets.',
+      'The side the set originates from is the reference, so the component that follows ' +
+      'sits opposite it here; Holden separates blazing from whirling by exactly that ' +
+      'relation, and the two stand as distinct named sets.',
     equivalenceNotes: [
       { reading: 'whirling (op-side terminal variant)', citation: 'Holden distinction' },
     ],
@@ -1193,8 +1195,9 @@ export function canonicalSetsBySubtype(subtype: SetSubtype): readonly CanonicalS
 // the citation's opening clause: blazing and flailing both open with the ruling
 // that settled their identity while their formula is still the compilation's
 // notation, so the opening clause would credit the ruling for a string it did
-// not author. On blazing that would read as the platform having settled the
-// terminal side, which is the open question the page says is unsettled.
+// not author. On blazing that would read as the platform having authored the
+// terminal-side notation, when the ruling settled how the side is read and the
+// compilation still wrote the string.
 //
 // So the rules look for the source actually responsible for the notation, and
 // the compilation is tested first for exactly that reason. A formula whose

@@ -50,13 +50,7 @@ from _freestyle_db_freshness import (  # noqa: E402
 # effect. Listed rather than ignored: the point of the list is that adding to it
 # takes a deliberate act, and the entry states what is known rather than
 # inventing a ruling.
-KNOWN_ABSENT = {
-    "far_butterfly": (
-        "five corrections for a trick no committed input creates, so nothing can "
-        "apply them; whether the trick should exist or the rows should be retired "
-        "is a curator question rather than a structural one"
-    ),
-}
+KNOWN_ABSENT: dict[str, str] = {}
 
 
 def _present_slugs() -> set:

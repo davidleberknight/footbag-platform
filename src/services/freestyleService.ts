@@ -6455,7 +6455,7 @@ function shapeDictEntry(
   // Aliases the governance layer marks not-for-surface (surfaceOnBrowse:false)
   // are held out of the visible alias set on the detail page too, matching the
   // browse "Also called" line, so a name the site does not present as an exact
-  // alias (e.g. Infinity on the side-either Butterfly) never renders here.
+  // alias (e.g. Infinity on Butterfly) never renders here.
   let aliases: string[] = [...aliasesFromTable].filter(a => {
     const gov = getAliasGovernanceEntry(row.slug, a);
     return !(gov && gov.surfaceOnBrowse === false);
