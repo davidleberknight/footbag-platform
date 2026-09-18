@@ -33,26 +33,21 @@ from built_db import DB_PATH, require_loaded
 # The adjudicated cohort of active canonical tricks allowed to carry blank
 # operational notation, each with the reason it is pending.
 KNOWN_INCOMPLETE_NOTATION = {
-    # blazing compounds: the blazing operator's structure is pending an expert
-    # definition, so their notation cannot be authored yet (the ADD is evidenced).
-    "blazing_butterfly",
-    "blazing_drifter",
-    "blazing_illusion",
-    "blazing_legover",
-    "blazing_mirage",
+    # The blazing compounds are authored, bar one. The side ruling settled what the
+    # component after the set does, and seven derived from the chassis and their
+    # own base chains. This one collided with it: the paradox whirl base opens on a
+    # same-side dex while blazing requires the following component to cross, so
+    # what the paradox rides on is a structural question rather than a spelling.
     "blazing_paradox_whirl",
-    "blazing_symposium_mirage",
-    "blazing_torque",
     # terraging compounds and the bare terrage: the terraging-chain arithmetic is
     # pending an expert ruling, so the notation is held.
     "terrage",
     "terraging_illusion",
     "terraging_legover",
     "terraging_mirage",
-    # blazing entered the active non-modifier cohort when Red's ruling
-    # reclassified it as a set. Its set identity and +1 are settled, but its
-    # terminal-side decomposition remains unresolved; blank operational notation
-    # is therefore intentional pending that narrower ruling.
+    # The bare blazing row. Its set identity and +1 are settled and the side rule
+    # now describes how it composes, but a set row carries no ADD of its own here
+    # and its standalone decomposition has never been authored.
     "blazing",
     # flailing's operator definition is pending an expert confirm/deny, so this
     # compound's notation is held: doctrine-blocked, not curator-ready.
