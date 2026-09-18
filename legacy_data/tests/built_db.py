@@ -34,6 +34,7 @@ REQUIRE_ENV = "FOOTBAG_REQUIRE_DB"
 # file calls require_loaded without being listed here, and the continuous
 # integration runner reads this list so the two cannot drift.
 REQUIRED_DB_INTEGRITY_GUARDS = (
+    "test_curator_corrections_in_effect.py",
     "test_freestyle_atw_direction.py",
     "test_freestyle_butterfly_side_default.py",
     "test_freestyle_canonical_name_uniqueness.py",

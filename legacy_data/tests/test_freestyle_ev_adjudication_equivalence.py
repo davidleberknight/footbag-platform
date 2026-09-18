@@ -486,6 +486,14 @@ def test_editing_the_ledger_no_longer_changes_the_generated_content(
     (scratch / "freestyle").mkdir(parents=True)
     for part in ("inputs", "doctrine", "scripts"):
         shutil.copytree(REPO_ROOT / "freestyle" / part, scratch / "freestyle" / part)
+    # The generator resolves its imports from the root of whatever tree it sits
+    # in, and it imports the freshness check from the repository's own script
+    # directory. Without it the scratch run dies on a missing module before it
+    # reaches the behaviour under test, which reads as a broken generator rather
+    # than an incomplete copy.
+    (scratch / "scripts").mkdir()
+    shutil.copy2(REPO_ROOT / "scripts" / "_freestyle_db_freshness.py",
+                 scratch / "scripts" / "_freestyle_db_freshness.py")
 
     scratch_ledger = scratch / "freestyle" / "inputs" / "observational" / "EV_FORMULA_IDENTITY_ROWS.csv"
     with scratch_ledger.open(newline="", encoding="utf-8") as f:

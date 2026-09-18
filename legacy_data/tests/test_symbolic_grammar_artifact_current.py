@@ -42,6 +42,18 @@ from built_db import DB_PATH, REPO_ROOT, require_loaded
 GENERATOR = REPO_ROOT / "freestyle" / "scripts" / "build_symbolic_grammar_2.py"
 COMMITTED = REPO_ROOT / "freestyle" / "symbolic_grammar"
 
+# What the generator reaches for outside its own directory, as repository-relative
+# paths so each lands in the same place under the throwaway root. It imports the
+# freshness check from the repository's script directory, and that check in turn
+# compares the database against the curator ledger, so the ledger travels too.
+# Named rather than inferred: a missing import fails loudly, but a missing data
+# file fails as a file-not-found from inside somebody else's module, which reads
+# like a broken checkout rather than an incomplete copy.
+GENERATOR_DEPENDENCIES = (
+    Path("scripts") / "_freestyle_db_freshness.py",
+    Path("freestyle") / "inputs" / "curated" / "tricks" / "red_corrections_2026_04_20.csv",
+)
+
 # Written by hand, never regenerated, so it is not part of this comparison.
 NOT_GENERATED = {"glossary_crosslinks.csv"}
 
@@ -54,13 +66,27 @@ TIMEOUT_SECONDS = 300
 def _regenerate_into(root: Path) -> Path:
     """Run the generator against a throwaway root and return its output directory.
 
-    The generator resolves both its database and its output directory relative to
-    its own location, so giving it a private root is what keeps this check from
-    writing into the repository it is checking.
+    The generator resolves its database, its output directory AND its imports
+    relative to its own location, so giving it a private root is what keeps this
+    check from writing into the repository it is checking, and is also what makes
+    the private root have to carry everything it reaches for. A dependency the
+    generator gains at the repository root is not beside it here, and the symptom
+    is an import error rather than a drift report: the check cannot run at all,
+    which is why the copy is driven by a named list rather than by the one file
+    anybody remembers.
     """
     (root / "freestyle" / "scripts").mkdir(parents=True)
     (root / "database").mkdir()
     shutil.copy2(GENERATOR, root / "freestyle" / "scripts" / GENERATOR.name)
+    for relative in GENERATOR_DEPENDENCIES:
+        source = REPO_ROOT / relative
+        assert source.exists(), (
+            f"{relative} is named as a generator dependency and does not exist. Either it "
+            f"moved, in which case this list needs updating, or the checkout is incomplete."
+        )
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
     # Symlinked rather than copied: the database is large and only read.
     (root / "database" / "footbag.db").symlink_to(DB_PATH)
 
