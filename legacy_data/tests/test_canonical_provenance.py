@@ -127,3 +127,97 @@ def test_an_acknowledgement_never_advances_the_produced_by_fingerprint():
     assert ack["current_fingerprint"] != ledger["produced_by"]["fingerprint"], (
         "the acknowledgement names the same fingerprint as produced_by, so either it is "
         "meaningless or produced_by was advanced without a regeneration")
+
+
+# ---------------------------------------------------------------------------
+# The ledger is only as good as what advances it. A ledger nobody stamps drifts
+# behind the code that produced the bytes, and the gate above then reports a
+# staleness that is not there, which is how a gate stops being read. So the
+# stamp is the orchestrator's job, and which runs carry it is asserted here
+# rather than left to whoever edits the mode dispatch next.
+# ---------------------------------------------------------------------------
+
+ORCHESTRATOR = LEGACY / "run_pipeline.sh"
+STAMP_CALL = "run_stamp_canonical_provenance"
+BACKBONE_CALL = "run_v0_backbone"
+
+# The modes that actually rebuild the canonical artifacts, against the mode that
+# bootstraps from the committed snapshot and produces nothing.
+REGENERATING_MODES = ("full", "canonical_only")
+BOOTSTRAP_MODE = "csv_only"
+
+
+def _orchestrator_text() -> str:
+    assert ORCHESTRATOR.exists(), f"{ORCHESTRATOR} is missing"
+    return ORCHESTRATOR.read_text(encoding="utf-8")
+
+
+def _mode_block(text: str, mode: str) -> str:
+    """The commands one mode of the dispatch runs, in order."""
+    import re
+
+    match = re.search(rf"^\s+{re.escape(mode)}\)\n(.*?)^\s+;;", text, re.M | re.S)
+    assert match, (
+        f"the {mode} mode is not in the dispatch at all, so what it runs cannot be "
+        "checked. Either it was renamed or the dispatch was restructured.")
+    return match.group(1)
+
+
+def test_the_regenerating_modes_stamp_after_the_backbone():
+    text = _orchestrator_text()
+    for mode in REGENERATING_MODES:
+        block = _mode_block(text, mode)
+        assert STAMP_CALL in block, (
+            f"the {mode} mode rebuilds the canonical artifacts and never stamps the "
+            "ledger, so the committed ledger will keep naming whichever generators "
+            "produced the previous rebuild.")
+        assert BACKBONE_CALL in block, (
+            f"the {mode} mode no longer runs the backbone, so what this test believes "
+            "about that mode is wrong rather than merely unmet")
+        assert block.index(BACKBONE_CALL) < block.index(STAMP_CALL), (
+            f"the {mode} mode stamps before the backbone runs, which records a "
+            "regeneration against artifacts the run has not produced yet")
+
+
+def test_the_bootstrap_mode_never_stamps():
+    # Stamping here would assert a regeneration that did not happen: this mode
+    # reads the committed artifacts rather than producing them, so advancing
+    # produced_by would retire the evidence of how old they really are.
+    block = _mode_block(_orchestrator_text(), BOOTSTRAP_MODE)
+    assert STAMP_CALL not in block, (
+        f"the {BOOTSTRAP_MODE} mode stamps the provenance ledger, but it bootstraps "
+        "from the committed snapshot and generates nothing, so the stamp would claim a "
+        "rebuild that never ran")
+
+
+def test_a_failing_stage_ends_the_run_before_it_can_stamp():
+    # The stamp sits after the backbone, whose own quality gate runs inside it.
+    # Both halves of that are load-bearing: without the abort, a run whose QC
+    # failed would still stamp, recording provenance for output nobody accepted.
+    import re
+
+    # Anchored to a line of its own: the same words appear inside a comment
+    # further down, so a substring test passes with the real directive deleted.
+    text = _orchestrator_text()
+    assert re.search(r"^set -euo pipefail$", text, re.M), (
+        "the orchestrator no longer aborts on a failing stage, so a run that fails its "
+        "quality gate would continue to the provenance stamp and record a regeneration "
+        "whose output was rejected")
+    assert f"{STAMP_CALL}() {{" in text, (
+        "the stamp is not defined as its own step, so whether a failing stage can reach "
+        "it is no longer decidable from the dispatch")
+
+
+def test_the_stamp_step_invokes_the_ledger_rather_than_writing_it():
+    # Named explicitly so a renamed flag fails here rather than silently turning
+    # the stamp into a no-op that leaves every run reporting stale artifacts.
+    import re
+
+    # Anchored at the end of the line rather than matched as a substring: a
+    # lengthened flag such as --stampit contains --stamp, so a substring test
+    # accepts the exact typo it is meant to catch.
+    text = _orchestrator_text()
+    assert re.search(r"canonical_provenance\.py --stamp[ \t]*$", text, re.M), (
+        "the stamp step no longer runs the ledger's own stamp command, so either the "
+        "flag was renamed or the orchestrator now writes the ledger by hand, which "
+        "would bypass the fingerprint it is supposed to record")

@@ -607,6 +607,34 @@ run_v0_backbone() {
 }
 
 # =============================================================================
+# CANONICAL PROVENANCE STAMP
+#
+# The backbone has just rewritten event_results/canonical_input/. The ledger
+# beside those artifacts records which generators produced them, and a gate over
+# the test suite compares it against the generators as they stand. That gate is
+# only as good as the stamp: a regeneration that does not stamp leaves the ledger
+# naming code that did not produce the bytes on disk, and the gate then reports a
+# staleness that is not there, which is how a gate stops being read.
+#
+# Outside run_v0_backbone deliberately. That function is preserved verbatim, so
+# the stamp is the caller's step rather than an edit to the backbone. It
+# therefore runs after the backbone's own QC gate, and under set -e a failing
+# stage ends the run before reaching it. That leaves artifacts newer than the
+# ledger, which the gate reports as unacknowledged staleness: loud, and cleared
+# by the next run that completes.
+#
+# Only the modes that actually regenerate call this. csv_only bootstraps from the
+# committed snapshot and produces nothing, so stamping there would record a
+# regeneration that never happened.
+# =============================================================================
+run_stamp_canonical_provenance() {
+    echo ""
+    echo "── CANONICAL PROVENANCE ───────────────────────────────"
+    python pipeline/canonical_provenance.py --stamp
+    echo ""
+}
+
+# =============================================================================
 # PHASE C — Membership enrichment
 # Reads:    membership/inputs/membership_input_normalized.csv
 #           event_results/canonical_input/persons.csv
@@ -816,6 +844,7 @@ case "$MODE" in
         run_full_mode_preflight
         run_phase_b_mirror_extract
         run_v0_backbone
+        run_stamp_canonical_provenance
         run_phase_clubs_seed_load
         run_phase_net
         run_phase_c
@@ -833,6 +862,7 @@ case "$MODE" in
 
     canonical_only)
         run_v0_backbone
+        run_stamp_canonical_provenance
         ;;
 
     enrichment_only)
