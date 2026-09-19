@@ -353,8 +353,14 @@ async function runChain(
              ['--seed', chain.clubsCsv, '--dump', chain.dumpPath])) {
     return out;
   }
+  // The member extractor filters its rows to the clubs the reconciled seed
+  // contains, so it is pointed at the clubs.csv this chain has just produced
+  // rather than the committed one. Both sides of the chain then describe one
+  // club universe, which is the property the whole redirected run exists to
+  // check.
   if (!stage('extract_club_members', 'extract_club_members.py',
-             ['--out-dir', chain.scratchSeed, '--force'])) {
+             ['--out-dir', chain.scratchSeed, '--force',
+              '--clubs-csv', chain.clubsCsv])) {
     return out;
   }
 
