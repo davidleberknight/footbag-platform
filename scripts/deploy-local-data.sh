@@ -72,10 +72,13 @@ Options:
                   The AWS deploy path passes this flag on any --all-data deploy
                   (the full migration load) to whichever target it deploys.
   --cutover-clubs Cutover club set (only with --all-data): exports CLUBS_SEED=no
-                  so the dev-convenience clubs seed (all 311 seed clubs) is
-                  skipped and the cutover pre-populated-clubs step is the sole
-                  creator of live clubs rows. Without it a build carries the
-                  full dev club set.
+                  so the dev-convenience clubs seed is skipped and the cutover
+                  pre-populated-clubs step is the sole creator of live clubs
+                  rows. --all-data now implies this, because that mode IS the
+                  cutover build and its club population is the pre-populate
+                  cohort whether or not the flag is typed. The flag remains
+                  accepted so existing commands keep working, and it stays
+                  meaningful as a statement of intent.
 
 This script orchestrates LOCAL DB preparation only. For AWS staging deploy,
 see scripts/deploy-rebuild.sh.
@@ -142,10 +145,17 @@ if [[ "$CUTOVER_CLUBS" == "yes" && "$MODE" != "--all-data" ]]; then
   echo "ERROR: --cutover-clubs is only meaningful with --all-data" >&2
   exit 1
 fi
-if [[ "$CUTOVER_CLUBS" == "yes" ]]; then
-  # Inherited by the clubs seed loader through reset-local-db.sh: the
-  # dev-convenience seed skips, and the cutover pre-populated-clubs step is
-  # the sole creator of live clubs rows.
+if [[ "$CUTOVER_CLUBS" == "yes" || "$MODE" == "--all-data" ]]; then
+  # Assigned here rather than inherited, and --all-data implies it rather than
+  # waiting to be asked. --all-data is the cutover build, its club population is
+  # the pre-populate cohort alone, and that is a property of the build rather
+  # than of whether an operator remembered a flag. The recorded production
+  # command does not pass --cutover-clubs, and without this line it would ship
+  # every seeded club including the junk cohort, whose descriptions the public
+  # club page renders.
+  #
+  # Assigning unconditionally also means an exported CLUBS_SEED cannot reach the
+  # loader through this path: the value a caller set is overwritten, never read.
   export CLUBS_SEED=no
   echo "==> cutover clubs: CLUBS_SEED=no (dev clubs seed skipped; cutover pre-populated clubs only)"
 fi

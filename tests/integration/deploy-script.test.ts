@@ -512,15 +512,23 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     }
   });
 
-  it('--all-data without --cutover-clubs keeps the dev clubs seed on', () => {
+  // --all-data IS the cutover build, so it takes the cutover club set whether or
+  // not the flag is typed. It used to wait to be asked, and the recorded
+  // production command does not ask: that build loaded every seeded club,
+  // including the cohort classified junk, whose descriptions the public club
+  // page renders. The club population at cutover is the pre-populate cohort,
+  // and that is a property of the build rather than of an operator's memory.
+  it('--all-data takes the cutover club set without being asked', () => {
     const tmpRoot = scaffoldAllDataRoot();
     try {
       const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data', '--dry-run'], {
         cwd: tmpRoot,
+        // The permissive value the loader used to obey, exported by the caller.
+        env: { CLUBS_SEED: 'yes' },
       });
       expect(r.status).toBe(0);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
-      expect(combined).not.toMatch(/CLUBS_SEED=no/);
+      expect(combined).toMatch(/CLUBS_SEED=no/);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }

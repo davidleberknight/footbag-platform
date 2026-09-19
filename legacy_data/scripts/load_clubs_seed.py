@@ -53,6 +53,33 @@ VERDICTS_PATH = Path(__file__).parent.parent / "seed" / "clubs_url_verdicts.csv"
 # so a pair declared once suppresses the dropped row everywhere: this loader, the
 # candidate classifier and the pre-populated-club cutover all read this one file.
 DUPLICATE_OVERRIDES_PATH = Path(__file__).parent.parent / "overrides" / "club_duplicates.csv"
+CANDIDATES_PATH = Path(__file__).parent.parent / "clubs" / "out" / "legacy_club_candidates.csv"
+
+
+def load_junk_keys(path: Path = CANDIDATES_PATH) -> tuple[set[str], bool]:
+    """The club keys the classifier ruled junk, and whether it could be asked.
+
+    A junk-classified candidate is not a club. The cohort holds advertisements
+    carried in a club description, and the public club detail page renders that
+    description, so a junk row reaching the clubs table is a public exposure
+    rather than untidy data. This loader is the only path that could create one:
+    the cutover creates rows for bootstrap-eligible candidates alone.
+
+    Refusing them is unconditional and reads no environment variable. The
+    protection for the production build is that it never runs this loader at
+    all; this is the second barrier, for any build that does.
+
+    A missing classifier output means the classification is unknown rather than
+    empty, which the caller is told about so it can say so. It is the expected
+    state on a fresh clone, where no club has been classified yet and none of
+    this has run.
+    """
+    if not path.is_file():
+        return set(), False
+    with path.open(newline="", encoding="utf-8") as handle:
+        return ({(row.get("legacy_club_key") or "").strip()
+                 for row in csv.DictReader(handle)
+                 if (row.get("classification") or "").strip() == "junk"}, True)
 
 
 def now_iso() -> str:
@@ -199,6 +226,10 @@ def main() -> None:
     ap.add_argument("--clubs-csv", default=str(CSV_PATH))
     ap.add_argument("--verdicts-csv", default=str(VERDICTS_PATH))
     ap.add_argument("--duplicates-csv", default=str(DUPLICATE_OVERRIDES_PATH))
+    ap.add_argument(
+        "--candidates-csv", default=str(CANDIDATES_PATH),
+        help="classifier output naming each club's classification; its junk "
+             "cohort is never loaded, whatever the environment asks for")
     args = ap.parse_args()
 
     refuse_if_deployed_target(args.db)
@@ -229,6 +260,13 @@ def main() -> None:
     rows = load_csv(clubs_csv)
     verdicts = load_verdicts(verdicts_csv)
     duplicate_drop_keys = load_duplicate_drop_keys(Path(args.duplicates_csv))
+    junk_keys, classification_known = load_junk_keys(Path(args.candidates_csv))
+    if not classification_known:
+        print(
+            f"NOTE: no classifier output at {args.candidates_csv}, so no club can "
+            f"be recognised as junk here. Expected on a fresh clone. The "
+            f"production build does not reach this loader at all."
+        )
     ts = now_iso()
 
     con = sqlite3.connect(db_path)
@@ -256,6 +294,7 @@ def main() -> None:
     # already in the database from an earlier run.
     skipped_duplicates = 0
     skipped_present = 0
+    skipped_junk = 0
     stamped_verdicts = 0
 
     with con:
@@ -263,6 +302,11 @@ def main() -> None:
             key = row["legacy_club_key"]
             if key in duplicate_drop_keys:
                 skipped_duplicates += 1
+                continue
+            if key in junk_keys:
+                # Not a club. The cohort carries advertisements inside club
+                # descriptions, and the public detail page renders them.
+                skipped_junk += 1
                 continue
             name = row["name"]
 
@@ -384,6 +428,7 @@ def main() -> None:
     print(
         f"Done. tags inserted: {inserted_tags}, clubs inserted: {inserted_clubs}, "
         f"clubs skipped (retired as duplicate): {skipped_duplicates}, "
+        f"clubs skipped (classified junk): {skipped_junk}, "
         f"clubs skipped (already present): {skipped_present}, "
         f"url verdicts stamped: {stamped_verdicts}."
     )
