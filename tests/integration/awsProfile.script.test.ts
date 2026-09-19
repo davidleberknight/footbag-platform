@@ -138,14 +138,14 @@ describe('aws_profile_ensure leaves a chosen identity alone', () => {
     const r = withLib(
       'aws_profile_ensure; echo "profile=${AWS_PROFILE:-none}"; echo "key=${AWS_ACCESS_KEY_ID:-none}"',
       {
-        AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+        AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
         AWS_SECRET_ACCESS_KEY: 'examplesecretexamplesecretexamplesecret1',
         ...stubEnv(['footbag-operator']),
       },
     );
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('profile=none');
-    expect(r.stdout).toContain('key=AKIAEXAMPLEEXAMPLE12');
+    expect(r.stdout).toContain('key=AKIAIOSFODNN7EXAMPLE');
     expect(r.stderr).not.toMatch(/half an AWS key pair/);
   });
 
@@ -165,7 +165,7 @@ describe('aws_profile_ensure treats half a key pair as no identity', () => {
     const r = withLib(
       'aws_profile_ensure; echo "profile=${AWS_PROFILE:-none}"; echo "key=${AWS_ACCESS_KEY_ID:-none}"',
       {
-        AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+        AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
         ...stubEnv(['footbag-operator']),
       },
     );
@@ -191,7 +191,7 @@ describe('aws_profile_ensure treats half a key pair as no identity', () => {
 
   it('clears the session token with the half pair it belonged to', () => {
     const r = withLib('aws_profile_ensure; echo "token=${AWS_SESSION_TOKEN:-none}"', {
-      AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+      AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
       AWS_SESSION_TOKEN: 'example-session-token',
       ...stubEnv(['footbag-operator']),
     });
@@ -202,7 +202,7 @@ describe('aws_profile_ensure treats half a key pair as no identity', () => {
     const r = withLib(
       'aws_profile_ensure; bash -c \'echo "child_key=${AWS_ACCESS_KEY_ID:-none} child_profile=${AWS_PROFILE:-none}"\'',
       {
-        AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+        AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
         ...stubEnv(['footbag-operator']),
       },
     );
@@ -211,7 +211,7 @@ describe('aws_profile_ensure treats half a key pair as no identity', () => {
 
   it('still refuses when the half pair is cleared and no operator profile exists', () => {
     const r = withLib('aws_profile_ensure; echo "rc=$?"', {
-      AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+      AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stdout).toContain('rc=1');
@@ -383,7 +383,7 @@ describe('aws_profile_use settles the run on one named identity', () => {
     // Exporting a profile does not displace key material: the SDK prefers the
     // environment, so the run would announce one identity and use another.
     const r = withLib('aws_profile_use footbag-operator-key "the tree takes one principal."; echo "rc=$?"', {
-      AWS_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE12',
+      AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
       AWS_SECRET_ACCESS_KEY: 'notasecret/notasecret/notasecret/notasec',
       ...stubEnv(['footbag-operator-key']),
     });

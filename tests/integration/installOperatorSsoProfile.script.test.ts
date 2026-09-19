@@ -36,7 +36,7 @@ const PORTAL = 'https://d-9067example.awsapps.com/start';
 const FAKE_ACCOUNT = '000000000000';
 // Shaped like the real thing so the shape check is exercised, but plainly not a
 // credential: the id is neither 20 characters nor of the AKIA form.
-const FAKE_KEY_ID = 'AKIAEXAMPLEEXAMPLE99';
+const FAKE_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';
 
 let workDir: string;
 let configFile: string;

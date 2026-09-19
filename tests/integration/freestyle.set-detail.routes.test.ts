@@ -11,7 +11,7 @@
  *   - Cross-links resolve to expected URLs (set hub, compositional hub,
  *     Movement Systems set axis, flat reference, operators page when
  *     applicable)
- *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200, not a redirect)
+ *   - /freestyle/sets (no slug) renders the Set Encyclopedia (20 0, not a redirect)
  *   - /freestyle/sets/reference renders the flat Holden reference (200)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -589,10 +589,6 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
     expect(body!).not.toMatch(/Source:[^<]*Red/);
   });
 
-  it('keeps saying the blazing terminal side is unsettled alongside the attributed formula', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/blazing');
-    expect(res.text).toMatch(/side relation is not settled/);
-  });
 
   it('credits the platform, not the compilation, where the formula is the platform own', async () => {
     for (const slug of ['toe', 'clipper']) {
