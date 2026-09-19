@@ -152,10 +152,19 @@ for file in "${FILES[@]}"; do
 
   # Sourced by name, however the path to it is spelled: several files reach a
   # sibling library through a computed directory rather than a literal path.
-  if printf '%s\n' "$code" | grep -qE 'aws-profile\.sh|aws_profile_ensure'; then
+  #
+  # Read from a here-string, never piped in. `grep -q` exits on its first match,
+  # which closes the pipe, and the writer ahead of it dies on SIGPIPE; under
+  # pipefail that death is the pipeline's status, so an exemption sitting near
+  # the top of a long file reads as no exemption at all. Which files it hits
+  # depends on timing, which is the worst form this can take: a compliant script
+  # is reported as a violation on one run and not the next, and the gate teaches
+  # people to re-run it rather than read it. The credentials gate carries the
+  # same fix for the same reason.
+  if grep -qE 'aws-profile\.sh|aws_profile_ensure' <<<"$code"; then
     continue
   fi
-  if printf '%s\n' "$code" | grep -qE 'terraform-output\.sh|tf_output_read'; then
+  if grep -qE 'terraform-output\.sh|tf_output_read' <<<"$code"; then
     continue
   fi
 

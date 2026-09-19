@@ -169,6 +169,41 @@ describe('what the gate accepts', () => {
   });
 });
 
+describe('the exemption survives a long file, run after run', () => {
+  // The bug this pins: the exemption lookup piped the stripped file into
+  // `grep -q`, which exits on its first match and closes the pipe, killing the
+  // writer with SIGPIPE; under pipefail that death became the pipeline's
+  // status, and a compliant script read as a violation. It only bit where the
+  // match sits near the top of a long file, because that is where the writer
+  // still has work to do when grep leaves, so every short fixture above passed
+  // throughout. In this repository it hit verify-host-env.sh, 823 lines with
+  // its source line at 54, and reported it as reaching AWS with no identity on
+  // roughly one run in eighty.
+  //
+  // The fixture is long enough to make that window wide rather than
+  // theoretical: measured at 27 losses in 50 against the piped form, and none
+  // against the here-string. Ten runs therefore catch a regression with
+  // near-certainty, while a single run would not.
+  const COMPLIANT_LONG = [
+    'source "$(dirname "${BASH_SOURCE[0]}")/lib/aws-profile.sh"',
+    'aws_profile_ensure || exit 1',
+    'terraform -chdir=terraform/staging output -raw thing',
+    ...Array.from({ length: 4000 }, (_, n) => `echo "filler line ${n}"`),
+  ].join('\n');
+
+  it('accepts a compliant script ten times running, never once in ten', () => {
+    const verdicts = Array.from({ length: 10 }, () =>
+      inFixtureRepo({ 'scripts/thing.sh': script(COMPLIANT_LONG) }),
+    );
+    const refused = verdicts.filter((res) => res.exitCode !== 0);
+    expect(
+      refused.length,
+      `the gate refused a compliant script ${refused.length} time(s) in 10. ` +
+        `First refusal: ${refused[0]?.stderr ?? ''}`,
+    ).toBe(0);
+  });
+});
+
 describe('the gate fails closed', () => {
   it('refuses to report a pass when it matched no files at all', () => {
     // An empty scope is a broken check, not a clean tree: a scan that stops
