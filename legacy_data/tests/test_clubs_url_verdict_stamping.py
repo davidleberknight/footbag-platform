@@ -136,7 +136,14 @@ def test_cutover_stamps_verdicts_at_load(tmp_path, monkeypatch):
     mod = _load_module("cutover_under_test", CUTOVER_PATH)
     monkeypatch.setattr(mod, "SEED_CSV", clubs_csv)
     monkeypatch.setattr(mod, "VERDICTS_CSV", verdicts_csv)
-    monkeypatch.setattr(sys, "argv", ["06_cutover.py", "--db", str(db_path)])
+    # --apply because the loader plans and stops without it, and the artifacts go
+    # beside the test database rather than into the repository directory their
+    # defaults name.
+    monkeypatch.setattr(sys, "argv", [
+        "06_cutover.py", "--db", str(db_path), "--apply",
+        "--audit-out", str(db_path.parent / "cutover_audit.csv"),
+        "--rollback-out", str(db_path.parent / "cutover_rollback.sql"),
+    ])
     assert mod.main() == 0
 
     conn = sqlite3.connect(db_path)

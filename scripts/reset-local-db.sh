@@ -232,7 +232,14 @@ fi
 # clubs rows on first run; here those rows already exist so it only links.
 if [[ -f legacy_data/seed/clubs.csv ]]; then
   echo "  → Stamping mapped_club_id for matching candidates..."
-  "${PYTHON}" legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py --db "${DB_FILE}"
+  # --apply because the loader defaults to a dry run: it plans, writes its audit
+  # and rollback artifacts, and stops. Opting in is the orchestrator's job, and a
+  # rebuild that omitted the flag would report success having stamped nothing.
+  "${PYTHON}" legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py \
+    --db "${DB_FILE}" \
+    --apply \
+    --audit-out legacy_data/clubs/out/club_cutover_audit.csv \
+    --rollback-out legacy_data/clubs/out/club_cutover_rollback.sql
 else
   echo "  → Skipping mapped_club_id stamping (legacy_data/seed/clubs.csv absent)."
 fi
@@ -244,7 +251,11 @@ fi
 # the CSV is owned by the James-track classifier and is not regenerated here.
 if [[ -f legacy_data/clubs/out/club_bootstrap_leaders.csv ]]; then
   echo "  → Loading club bootstrap leaders..."
-  "${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db "${DB_FILE}"
+  "${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py \
+    --db "${DB_FILE}" \
+    --apply \
+    --audit-out legacy_data/clubs/out/bootstrap_leaders_audit.csv \
+    --rollback-out legacy_data/clubs/out/bootstrap_leaders_rollback.sql
 else
   echo "  → Skipping club bootstrap leaders (legacy_data/clubs/out/club_bootstrap_leaders.csv absent)."
 fi
@@ -257,7 +268,11 @@ fi
 # owned by the James-track classifier and is not regenerated here.
 if [[ -f legacy_data/clubs/out/club_bootstrap_leader_signals.csv ]]; then
   echo "  → Loading club bootstrap leader signals..."
-  "${PYTHON}" legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py --db "${DB_FILE}"
+  "${PYTHON}" legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py \
+    --db "${DB_FILE}" \
+    --apply \
+    --audit-out legacy_data/clubs/out/bootstrap_leader_signals_audit.csv \
+    --rollback-out legacy_data/clubs/out/bootstrap_leader_signals_rollback.sql
 else
   echo "  → Skipping club bootstrap leader signals (legacy_data/clubs/out/club_bootstrap_leader_signals.csv absent)."
 fi

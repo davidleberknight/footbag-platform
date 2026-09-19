@@ -97,8 +97,15 @@ def _run_cutover(db_path: Path) -> subprocess.CompletedProcess:
     # The script resolves SEED_CSV via a path relative to its own location;
     # it does not honor an env var. Running from repo root keeps that
     # resolution working.
+    #
+    # --apply because the loader plans and stops without it. The audit and
+    # rollback artifacts go beside the test database: their default is a real
+    # repository directory, and a test that writes there is modifying tracked
+    # data to exercise a loader.
     return subprocess.run(
-        [sys.executable, str(CUTOVER_SCRIPT), "--db", str(db_path)],
+        [sys.executable, str(CUTOVER_SCRIPT), "--db", str(db_path), "--apply",
+         "--audit-out", str(db_path.parent / "cutover_audit.csv"),
+         "--rollback-out", str(db_path.parent / "cutover_rollback.sql")],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,

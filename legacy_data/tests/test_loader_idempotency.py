@@ -221,6 +221,11 @@ def test_cutover_loader_idempotent(tmp_path: Path) -> None:
     loader = [
         "legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py",
         "--db", str(db),
+        # Redirect both artifacts to the temp dir; the defaults point at
+        # legacy_data/clubs/out/ (a real-data tree) which tests must never write.
+        "--audit-out", str(tmp_path / "cutover_audit.csv"),
+        "--rollback-out", str(tmp_path / "cutover_rollback.sql"),
+        "--apply",
     ]
     n = assert_idempotent(db, loader, "clubs")
     assert n == 1

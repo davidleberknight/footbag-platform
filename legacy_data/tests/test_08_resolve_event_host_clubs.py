@@ -131,11 +131,17 @@ def _write_events_csv(path: Path) -> None:
 
 
 def _run(db_path: Path, events_csv: Path) -> subprocess.CompletedProcess[str]:
+    # --apply because the resolver plans and stops without it, and the artifacts
+    # go beside the test database rather than into the repository directory
+    # their defaults name.
     return subprocess.run(
         [
             sys.executable, str(SCRIPT),
             "--db", str(db_path),
             "--events-csv", str(events_csv),
+            "--apply",
+            "--audit-out", str(db_path.parent / "host_clubs_audit.csv"),
+            "--rollback-out", str(db_path.parent / "host_clubs_rollback.sql"),
         ],
         cwd=str(REPO_ROOT),
         capture_output=True,

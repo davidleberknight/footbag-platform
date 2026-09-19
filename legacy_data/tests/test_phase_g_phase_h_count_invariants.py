@@ -118,8 +118,13 @@ def _seed_mixed_candidates(db_path: Path) -> None:
 
 
 def _run_cutover(db_path: Path) -> subprocess.CompletedProcess[str]:
+    # --apply because the loader plans and stops without it, and the artifacts
+    # go beside the test database rather than into the repository directory
+    # their defaults name.
     return subprocess.run(
-        [sys.executable, str(CUTOVER_SCRIPT), "--db", str(db_path)],
+        [sys.executable, str(CUTOVER_SCRIPT), "--db", str(db_path), "--apply",
+         "--audit-out", str(db_path.parent / "cutover_audit.csv"),
+         "--rollback-out", str(db_path.parent / "cutover_rollback.sql")],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,

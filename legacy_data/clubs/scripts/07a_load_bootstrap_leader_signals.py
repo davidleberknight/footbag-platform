@@ -44,10 +44,49 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
 from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _cutover_write_contract import (  # noqa: E402
+    CutoverWrite, add_contract_args, report_artifacts, sql_literal,
+)
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent
 SIGNALS_CSV = LEGACY_DATA_ROOT / "clubs" / "out" / "club_bootstrap_leader_signals.csv"
+
+SIGNAL_COLUMNS = (
+    "id", "created_at", "created_by", "updated_at", "updated_by", "version",
+    "bootstrap_leader_id", "signal_type", "signal_payload_json", "is_present",
+    "source",
+)
+
+AUDIT_FIELDS = [
+    "action", "club_key", "bootstrap_leader_id", "signal_type", "is_present",
+    "source", "reason",
+]
+
+INSERT_SQL = f"""
+    INSERT INTO club_bootstrap_leader_signals ({', '.join(SIGNAL_COLUMNS)})
+    VALUES ({', '.join('?' * len(SIGNAL_COLUMNS))})
+"""
+
+
+def snapshot_signals(conn):
+    """Every row this loader is about to clear, in full."""
+    return conn.execute(
+        f"SELECT {', '.join(SIGNAL_COLUMNS)} FROM club_bootstrap_leader_signals"
+    ).fetchall()
+
+
+def rollback_statements(existing) -> list[str]:
+    """Restore the table to exactly the rows read from the database just now."""
+    columns = ", ".join(SIGNAL_COLUMNS)
+    lines = ["DELETE FROM club_bootstrap_leader_signals;"]
+    for row in existing:
+        values = ", ".join(sql_literal(value) for value in row)
+        lines.append(
+            f"INSERT INTO club_bootstrap_leader_signals ({columns}) VALUES ({values});")
+    return lines
 
 
 def now_iso() -> str:
@@ -84,6 +123,8 @@ def main() -> int:
         default=SIGNALS_CSV,
         help="Path to club_bootstrap_leader_signals.csv (default: legacy_data/clubs/out/)",
     )
+    add_contract_args(ap, audit_default="bootstrap_leader_signals_audit.csv",
+                      rollback_default="bootstrap_leader_signals_rollback.sql")
     args = ap.parse_args()
 
     assert_maintainer_db_target(args.db, "07a_load_bootstrap_leader_signals.py")
@@ -119,98 +160,133 @@ def main() -> int:
     }
 
     total = len(csv_rows)
-    inserted = 0
     missing_leader = 0
     duplicates = 0
     bad_rows = 0
+    planned: list[tuple] = []
+    planned_keys: set[tuple[str, str]] = set()
+    insert_audit: list[dict] = []
+    skip_audit: list[dict] = []
     sample_inserts: list[dict] = []
 
-    with con:
-        cur = con.cursor()
-        # Defensive idempotency: parent DELETE in 07 cascades through this
-        # table, but a standalone re-run (no leaders DELETE) would hit
-        # UNIQUE(bootstrap_leader_id, signal_type). Local DELETE keeps both
-        # paths equivalent.
-        cleared = cur.execute("DELETE FROM club_bootstrap_leader_signals").rowcount
+    # Planned without writing, so the audit and the rollback can be rendered
+    # before the transaction opens. The uniqueness the database would have
+    # enforced on an attempted insert is checked against the planned set here.
+    for row in csv_rows:
+        club_key   = (row.get("club_key") or "").strip()
+        legacy_mid = (row.get("mirror_member_id") or "").strip()
+        role_raw   = (row.get("role") or "").strip()
+        signal_type   = (row.get("signal_type") or "").strip()
+        is_present_s = (row.get("is_present") or "").strip()
+        payload_json = (row.get("signal_payload_json") or "").strip()
+        source       = (row.get("source") or "").strip() or "pipeline_04a"
 
-        for row in csv_rows:
-            club_key   = (row.get("club_key") or "").strip()
-            legacy_mid = (row.get("mirror_member_id") or "").strip()
-            role_raw   = (row.get("role") or "").strip()
-            signal_type   = (row.get("signal_type") or "").strip()
-            is_present_s = (row.get("is_present") or "").strip()
-            payload_json = (row.get("signal_payload_json") or "").strip()
-            source       = (row.get("source") or "").strip() or "pipeline_04a"
+        def skipped(reason: str, *, leader_id: str = "") -> None:
+            skip_audit.append({
+                "action": "skip", "club_key": club_key,
+                "bootstrap_leader_id": leader_id, "signal_type": signal_type,
+                "is_present": is_present_s, "source": source, "reason": reason,
+            })
 
-            if (not club_key or not legacy_mid or not role_raw
-                    or not signal_type or is_present_s not in ("0", "1")
-                    or not payload_json):
-                bad_rows += 1
-                print(
-                    f"  WARN: bad row — club_key={club_key!r} "
-                    f"legacy_mid={legacy_mid!r} role={role_raw!r} "
-                    f"signal={signal_type!r} is_present={is_present_s!r}"
-                )
-                continue
+        if (not club_key or not legacy_mid or not role_raw
+                or not signal_type or is_present_s not in ("0", "1")
+                or not payload_json):
+            bad_rows += 1
+            skipped("required field empty or is_present outside 0/1")
+            print(
+                f"  WARN: bad row — club_key={club_key!r} "
+                f"legacy_mid={legacy_mid!r} role={role_raw!r} "
+                f"signal={signal_type!r} is_present={is_present_s!r}"
+            )
+            continue
 
-            role = normalize_role(role_raw)
-            leader_id = stable_id("cbl", club_key, legacy_mid, role)
+        role = normalize_role(role_raw)
+        leader_id = stable_id("cbl", club_key, legacy_mid, role)
 
-            if leader_id not in known_leader_ids:
-                missing_leader += 1
-                print(
-                    f"  WARN: no parent leader for club_key={club_key!r} "
-                    f"legacy_mid={legacy_mid!r} role={role!r} "
-                    f"(leader_id={leader_id!r}) — was 07 run?"
-                )
-                continue
+        if leader_id not in known_leader_ids:
+            missing_leader += 1
+            skipped("no parent leader row", leader_id=leader_id)
+            print(
+                f"  WARN: no parent leader for club_key={club_key!r} "
+                f"legacy_mid={legacy_mid!r} role={role!r} "
+                f"(leader_id={leader_id!r}) — was 07 run?"
+            )
+            continue
 
-            signal_id = stable_id("cbls", leader_id, signal_type)
-            is_present = int(is_present_s)
+        if (leader_id, signal_type) in planned_keys:
+            duplicates += 1
+            skipped("duplicate: this leader and signal type are already planned",
+                    leader_id=leader_id)
+            print(
+                f"  WARN: duplicate — leader_id={leader_id!r} "
+                f"signal={signal_type!r} appears more than once"
+            )
+            continue
 
-            try:
-                ins = cur.execute(
-                    """
-                    INSERT INTO club_bootstrap_leader_signals (
-                      id, created_at, created_by, updated_at, updated_by, version,
-                      bootstrap_leader_id, signal_type, signal_payload_json,
-                      is_present, source
-                    ) VALUES (?, ?, 'loader_07a', ?, 'loader_07a', 1,
-                             ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        signal_id, ts, ts,
-                        leader_id, signal_type, payload_json, is_present, source,
-                    ),
-                )
-                if ins.rowcount:
-                    inserted += 1
-                    if len(sample_inserts) < 5:
-                        sample_inserts.append({
-                            "club_key":  club_key,
-                            "leader_id": leader_id,
-                            "signal":    signal_type,
-                            "is_present": is_present,
-                        })
-            except sqlite3.IntegrityError as e:
-                # UNIQUE(bootstrap_leader_id, signal_type) or CHECK violation.
-                duplicates += 1
-                print(
-                    f"  WARN: integrity error — leader_id={leader_id!r} "
-                    f"signal={signal_type!r}: {e}"
-                )
+        signal_id = stable_id("cbls", leader_id, signal_type)
+        is_present = int(is_present_s)
+
+        planned_keys.add((leader_id, signal_type))
+        planned.append((
+            signal_id, ts, "loader_07a", ts, "loader_07a", 1,
+            leader_id, signal_type, payload_json, is_present, source,
+        ))
+        insert_audit.append({
+            "action": "insert", "club_key": club_key,
+            "bootstrap_leader_id": leader_id, "signal_type": signal_type,
+            "is_present": is_present, "source": source, "reason": "",
+        })
+        if len(sample_inserts) < 5:
+            sample_inserts.append({
+                "club_key":  club_key,
+                "leader_id": leader_id,
+                "signal":    signal_type,
+                "is_present": is_present,
+            })
+
+    existing = snapshot_signals(con)
+    cleared = len(existing)
+    delete_audit = [{
+        "action": "delete", "club_key": "", "bootstrap_leader_id": row[6],
+        "signal_type": row[7], "is_present": row[9], "source": row[10],
+        "reason": "cleared before the rebuild",
+    } for row in existing]
+
+    contract = CutoverWrite("07a_load_bootstrap_leader_signals.py", args,
+                            audit_fields=AUDIT_FIELDS)
+    contract.plan(
+        con,
+        snapshot=snapshot_signals,
+        audit_rows=delete_audit + insert_audit + skip_audit,
+        rollback_sql=rollback_statements(existing),
+        rollback_note=("Restores club_bootstrap_leader_signals to the rows it held "
+                       "before this run. Apply it AFTER the leaders rollback: these "
+                       "rows reference club_bootstrap_leaders, whose own rollback "
+                       "puts the parent rows back."),
+    )
+    report_artifacts(contract, len(planned))
+
+    def write(cur) -> None:
+        # The parent DELETE in 07 cascades through this table, but a standalone
+        # re-run does not, so the local clear keeps both paths equivalent.
+        cur.execute("DELETE FROM club_bootstrap_leader_signals")
+        cur.executemany(INSERT_SQL, planned)
+
+    written = contract.apply(con, write)
+    inserted = len(planned) if written else 0
 
     con.close()
 
     print("\nBootstrap leader signals load complete:")
     print(f"  CSV total rows:           {total}")
     print(f"  Pre-DELETE cleared:       {cleared}")
+    print(f"  Planned inserts:          {len(planned)}")
     print(f"  Inserted:                 {inserted}")
     print(f"  Missing parent leader:    {missing_leader}")
     print(f"  Duplicate / CHECK error:  {duplicates}")
     print(f"  Bad rows (empty fields):  {bad_rows}")
 
-    accounted = inserted + missing_leader + duplicates + bad_rows
+    accounted = len(planned) + missing_leader + duplicates + bad_rows
     if accounted != total:
         print(
             f"  WARN: counter mismatch — {accounted} accounted, {total} total"

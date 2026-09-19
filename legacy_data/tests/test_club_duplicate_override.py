@@ -206,7 +206,11 @@ def test_phase_h_06_creates_only_one_club_when_override_suppresses_duplicate(
     _seed_les_pieds_candidates(fresh_db)
 
     result = subprocess.run(
-        [sys.executable, str(CUTOVER_SCRIPT), "--db", str(fresh_db)],
+        # --apply because the loader plans and stops without it; artifacts beside
+        # the test database rather than in the repository directory they default to.
+        [sys.executable, str(CUTOVER_SCRIPT), "--db", str(fresh_db), "--apply",
+         "--audit-out", str(fresh_db.parent / "cutover_audit.csv"),
+         "--rollback-out", str(fresh_db.parent / "cutover_rollback.sql")],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,

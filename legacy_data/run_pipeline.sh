@@ -754,14 +754,34 @@ run_phase_h() {
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  PHASE H: CLUB CUTOVER + BOOTSTRAP LEADERS           ║"
     echo "╚══════════════════════════════════════════════════════╝"
+    # --apply on every one of these, because each defaults to a dry run. The
+    # default is the right way round: these four run against the workstation
+    # database that already holds the one-shot member import, so a hand
+    # invocation writing by default is the mistake worth making impossible.
+    # Opting in is this orchestrator's job and it is done here, once, in the open.
+    # Each writes its audit CSV and its rollback SQL to clubs/out/ before it
+    # opens a transaction; those two files are what undo a bad club phase
+    # without redoing the member load.
     python clubs/scripts/06_cutover_pre_populated_clubs.py \
-        --db "${REPO_ROOT}/database/footbag.db"
+        --db "${REPO_ROOT}/database/footbag.db" \
+        --apply \
+        --audit-out clubs/out/club_cutover_audit.csv \
+        --rollback-out clubs/out/club_cutover_rollback.sql
     python clubs/scripts/07_load_bootstrap_leaders.py \
-        --db "${REPO_ROOT}/database/footbag.db"
+        --db "${REPO_ROOT}/database/footbag.db" \
+        --apply \
+        --audit-out clubs/out/bootstrap_leaders_audit.csv \
+        --rollback-out clubs/out/bootstrap_leaders_rollback.sql
     python clubs/scripts/07a_load_bootstrap_leader_signals.py \
-        --db "${REPO_ROOT}/database/footbag.db"
+        --db "${REPO_ROOT}/database/footbag.db" \
+        --apply \
+        --audit-out clubs/out/bootstrap_leader_signals_audit.csv \
+        --rollback-out clubs/out/bootstrap_leader_signals_rollback.sql
     python clubs/scripts/08_resolve_event_host_clubs.py \
-        --db "${REPO_ROOT}/database/footbag.db"
+        --db "${REPO_ROOT}/database/footbag.db" \
+        --apply \
+        --audit-out clubs/out/event_host_clubs_audit.csv \
+        --rollback-out clubs/out/event_host_clubs_rollback.sql
     echo ""
 }
 

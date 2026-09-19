@@ -149,11 +149,17 @@ def _build_signal_rows(
 
 
 def _run_loader(db_path: Path, signals_csv: Path) -> subprocess.CompletedProcess:
+    # --apply because the loader plans and stops without it, and the artifacts
+    # go beside the test database rather than into the repository directory
+    # their defaults name.
     return subprocess.run(
         [
             sys.executable, str(LOADER_SCRIPT),
             "--db", str(db_path),
             "--signals-csv", str(signals_csv),
+            "--apply",
+            "--audit-out", str(db_path.parent / "signals_audit.csv"),
+            "--rollback-out", str(db_path.parent / "signals_rollback.sql"),
         ],
         cwd=str(REPO_ROOT),
         capture_output=True, text=True, check=False,

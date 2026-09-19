@@ -51,6 +51,97 @@ from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from club_curation import load_club_duplicate_pairs  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _cutover_write_contract import (  # noqa: E402
+    CutoverWrite, add_contract_args, report_artifacts, sql_literal,
+)
+
+
+AUDIT_FIELDS = [
+    "action", "legacy_club_key", "club_id", "tag_id", "club_name",
+    "old_mapped_club_id", "new_mapped_club_id", "reason",
+]
+
+TAG_INSERT_SQL = """
+    INSERT OR IGNORE INTO tags
+      (id, created_at, created_by, updated_at, updated_by, version,
+       tag_normalized, tag_display, is_standard, standard_type)
+    VALUES (?, ?, 'cutover_06', ?, 'cutover_06', 1, ?, ?, 1, 'club')
+"""
+
+CLUB_INSERT_SQL = """
+    INSERT OR IGNORE INTO clubs
+      (id, created_at, created_by, updated_at, updated_by, version,
+       name, description, city, region, country,
+       external_url, external_url_validated_at,
+       external_url_quarantine_reason, status, hashtag_tag_id)
+    VALUES (?, ?, 'cutover_06', ?, 'cutover_06', 1,
+            ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+"""
+
+STAMP_SQL = """
+    UPDATE legacy_club_candidates
+    SET mapped_club_id = ?,
+        updated_at = ?,
+        updated_by = 'cutover_06',
+        version = version + 1
+    WHERE legacy_club_key = ?
+"""
+
+
+class CutoverPlan:
+    """What this run would write, decided before anything is written.
+
+    The loop that fills this used to discover half of it by attempting the
+    writes: whether a club row existed, whether a stamp was a no-op. Those are
+    now read and simulated, because a plan that only exists as a sequence of
+    attempted statements cannot be written to a file before the transaction.
+    """
+
+    def __init__(self) -> None:
+        self.tag_inserts: list[tuple] = []
+        self.club_inserts: list[tuple] = []
+        self.stamps: list[tuple] = []
+        self.audit: list[dict] = []
+        self.before_candidates: list[tuple] = []
+        self.counters: dict[str, int] = {}
+        self.candidates_seen = 0
+        self.missing_seed: list[str] = []
+
+
+def make_snapshot(candidate_keys: set[str], club_ids: set[str], tag_ids: set[str]):
+    """The rows this run would disturb: the candidates it would stamp, and the
+    presence of the club and tag ids it would insert."""
+    def snapshot(conn):
+        rows = [("candidate",) + tuple(row) for row in conn.execute(
+            "SELECT legacy_club_key, mapped_club_id, updated_at, updated_by, version "
+            "FROM legacy_club_candidates ORDER BY legacy_club_key"
+        ) if row[0] in candidate_keys]
+        rows += [("club", row[0]) for row in conn.execute(
+            "SELECT id FROM clubs ORDER BY id") if row[0] in club_ids]
+        rows += [("tag", row[0]) for row in conn.execute(
+            "SELECT id FROM tags ORDER BY id") if row[0] in tag_ids]
+        return rows
+    return snapshot
+
+
+def rollback_statements(plan: CutoverPlan) -> list[str]:
+    """Undo in the order the foreign keys allow: unstamp the candidates that
+    point at the new clubs, then drop those clubs, then the tags they carried."""
+    lines = []
+    for key, mapped, updated_at, updated_by, version in plan.before_candidates:
+        lines.append(
+            f"UPDATE legacy_club_candidates SET mapped_club_id = {sql_literal(mapped)}, "
+            f"updated_at = {sql_literal(updated_at)}, "
+            f"updated_by = {sql_literal(updated_by)}, "
+            f"version = {sql_literal(version)} "
+            f"WHERE legacy_club_key = {sql_literal(key)};")
+    for row in plan.club_inserts:
+        lines.append(f"DELETE FROM clubs WHERE id = {sql_literal(row[0])};")
+    for row in plan.tag_inserts:
+        lines.append(f"DELETE FROM tags WHERE id = {sql_literal(row[0])};")
+    return lines
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent  # legacy_data/
@@ -198,6 +289,8 @@ def main() -> int:
         "--db",
         default=os.environ.get("FOOTBAG_DB_PATH", "database/footbag.db"),
     )
+    add_contract_args(ap, audit_default="club_cutover_audit.csv",
+                      rollback_default="club_cutover_rollback.sql")
     args = ap.parse_args()
 
     assert_maintainer_db_target(args.db, "06_cutover_pre_populated_clubs.py")
@@ -221,7 +314,16 @@ def main() -> int:
     con = sqlite3.connect(db_path)
     con.execute("PRAGMA foreign_keys = ON")
 
-    with con:
+    def plan_cutover():
+        """Decide every write without making one.
+
+        Returns an exit code when the run should stop before writing anything,
+        and otherwise the plan. The early exits below are the original
+        preflights, unchanged: they are reasons not to write at all, which is
+        now simply the value this function hands back.
+        """
+        plan = CutoverPlan()
+
         # Iterate all candidates (not just bootstrap_eligible). Linkage is
         # written for every candidate whose clubs row exists. Fallback INSERT
         # of a missing clubs row is restricted to bootstrap_eligible=1 (the
@@ -232,11 +334,18 @@ def main() -> int:
         # mapped_club_id stamped here, no fallback INSERT runs.
         all_candidates = con.execute(
             """
-            SELECT legacy_club_key, display_name, city, country, bootstrap_eligible, classification
+            SELECT legacy_club_key, display_name, city, country, bootstrap_eligible,
+                   classification, mapped_club_id, updated_at, updated_by, version
             FROM legacy_club_candidates
             ORDER BY legacy_club_key
             """
         ).fetchall()
+        # The stamp's own no-op predicate, read rather than attempted: a stamp
+        # already pointing at the right club changes nothing, and that has to be
+        # known here for the audit to say so before the write.
+        current_mapping = {row[0]: row[6] for row in all_candidates}
+        candidate_before = {row[0]: (row[0], row[6], row[7], row[8], row[9])
+                            for row in all_candidates}
 
         if not all_candidates:
             print(
@@ -306,7 +415,8 @@ def main() -> int:
         # state (some pre_populate clubs exist, some don't). Fail-fast here
         # keeps Phase H writes atomic across the bootstrap-eligible cohort.
         preflight_missing_seed: list[str] = []
-        for _legacy_key, _, _, _, _bootstrap_eligible, _ in all_candidates:
+        for _candidate in all_candidates:
+            _legacy_key, _bootstrap_eligible = _candidate[0], _candidate[4]
             if not _bootstrap_eligible:
                 continue
             _club_id = stable_id("club", _legacy_key)
@@ -353,8 +463,14 @@ def main() -> int:
                 "SELECT tag_normalized FROM tags WHERE standard_type = 'club'"
             )
         }
-        for _, _, _, country, _, _ in all_candidates:
-            existing_tags.add(f"#club_{slugify(country or '')}")
+        for _candidate in all_candidates:
+            existing_tags.add(f"#club_{slugify(_candidate[3] or '')}")
+
+        # Simulated as the loop goes, because an earlier iteration's planned club
+        # is what a later duplicate's canonical-exists check has to see. Reading
+        # the database each time would answer for the state before this run.
+        clubs_present = {r[0] for r in con.execute("SELECT id FROM clubs")}
+        tags_present = {r[0] for r in con.execute("SELECT id FROM tags")}
 
         clubs_inserted = 0
         clubs_existed = 0
@@ -368,7 +484,23 @@ def main() -> int:
 
         dup_map = load_duplicate_canonical_map()
 
-        for legacy_key, display_name, city, country, bootstrap_eligible, _classification in all_candidates:
+        def stamp(legacy_key: str, club_id: str) -> bool:
+            """Plan the mapped_club_id stamp, answering whether it changes anything.
+
+            Idempotent exactly as the UPDATE was: a candidate already pointing at
+            this club is left alone, and says so in the audit rather than being
+            rewritten to the same value with a bumped version.
+            """
+            if current_mapping.get(legacy_key) == club_id:
+                return False
+            plan.stamps.append((club_id, ts, legacy_key))
+            plan.before_candidates.append(candidate_before[legacy_key])
+            current_mapping[legacy_key] = club_id
+            return True
+
+        for _candidate in all_candidates:
+            (legacy_key, display_name, city, country, bootstrap_eligible,
+             _classification) = _candidate[:6]
             # Dedup: if this is a known duplicate (entry B), point at
             # entry A's club row instead. No tag/club INSERT for B.
             canonical_key = dup_map.get(legacy_key)
@@ -380,35 +512,34 @@ def main() -> int:
                 # clubs row to point at; stamping mapped_club_id here would
                 # FK-fail. Leave the duplicate unmapped, exactly like any other
                 # non-promoted candidate: it still surfaces through onboarding.
-                canonical_exists = con.execute(
-                    "SELECT 1 FROM clubs WHERE id = ?", (canonical_club_id,)
-                ).fetchone() is not None
-                if not canonical_exists:
+                if canonical_club_id not in clubs_present:
                     duplicates_unmapped += 1
+                    plan.audit.append({
+                        "action": "skip", "legacy_club_key": legacy_key,
+                        "club_id": canonical_club_id, "tag_id": "",
+                        "club_name": display_name or "",
+                        "old_mapped_club_id": current_mapping.get(legacy_key) or "",
+                        "new_mapped_club_id": "",
+                        "reason": "duplicate whose canonical club was not promoted",
+                    })
                     continue
-                cur = con.execute(
-                    """
-                    UPDATE legacy_club_candidates
-                    SET mapped_club_id = ?,
-                        updated_at = ?,
-                        updated_by = 'cutover_06',
-                        version = version + 1
-                    WHERE legacy_club_key = ?
-                      AND (mapped_club_id IS NULL OR mapped_club_id != ?)
-                    """,
-                    (canonical_club_id, ts, legacy_key, canonical_club_id),
-                )
-                if cur.rowcount:
+                if stamp(legacy_key, canonical_club_id):
                     duplicates_merged += 1
+                    plan.audit.append({
+                        "action": "stamp", "legacy_club_key": legacy_key,
+                        "club_id": canonical_club_id, "tag_id": "",
+                        "club_name": display_name or "",
+                        "old_mapped_club_id": candidate_before[legacy_key][1] or "",
+                        "new_mapped_club_id": canonical_club_id,
+                        "reason": "duplicate merged onto the canonical club",
+                    })
                 continue
 
             club_id = stable_id("club", legacy_key)
             tag_id = stable_id("tag", "club", legacy_key)
 
             # Does the clubs row already exist? Common case after load_clubs_seed.
-            club_exists = con.execute(
-                "SELECT 1 FROM clubs WHERE id = ?", (club_id,)
-            ).fetchone() is not None
+            club_exists = club_id in clubs_present
 
             if not club_exists:
                 if not bootstrap_eligible:
@@ -433,16 +564,11 @@ def main() -> int:
                 )
                 existing_tags.add(tag_normalized)
 
-                cur = con.execute(
-                    """
-                    INSERT OR IGNORE INTO tags
-                      (id, created_at, created_by, updated_at, updated_by, version,
-                       tag_normalized, tag_display, is_standard, standard_type)
-                    VALUES (?, ?, 'cutover_06', ?, 'cutover_06', 1, ?, ?, 1, 'club')
-                    """,
-                    (tag_id, ts, ts, tag_normalized, tag_normalized),
-                )
-                tags_inserted += cur.rowcount
+                if tag_id not in tags_present:
+                    plan.tag_inserts.append(
+                        (tag_id, ts, ts, tag_normalized, tag_normalized))
+                    tags_present.add(tag_id)
+                    tags_inserted += 1
 
                 # Club contact is leader-supplied during onboarding, never
                 # carried from the legacy seed, so no legacy contact email is
@@ -459,59 +585,109 @@ def main() -> int:
                     ext_validated_at = verdict["validated_at"]
                     ext_quarantine = verdict["quarantine_reason"]
 
-                cur = con.execute(
-                    """
-                    INSERT OR IGNORE INTO clubs
-                      (id, created_at, created_by, updated_at, updated_by, version,
-                       name, description, city, region, country,
-                       external_url, external_url_validated_at,
-                       external_url_quarantine_reason, status, hashtag_tag_id)
-                    VALUES (?, ?, 'cutover_06', ?, 'cutover_06', 1,
-                            ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
-                    """,
-                    (
-                        club_id, ts, ts,
-                        seed_row["name"],
-                        seed_row.get("description", ""),
-                        seed_row["city"],
-                        seed_row.get("region") or None,
-                        seed_row["country"],
-                        ext_url,
-                        ext_validated_at,
-                        ext_quarantine,
-                        tag_id,
-                    ),
-                )
-                if cur.rowcount:
-                    clubs_inserted += 1
-                else:
-                    clubs_existed += 1
+                plan.club_inserts.append((
+                    club_id, ts, ts,
+                    seed_row["name"],
+                    seed_row.get("description", ""),
+                    seed_row["city"],
+                    seed_row.get("region") or None,
+                    seed_row["country"],
+                    ext_url,
+                    ext_validated_at,
+                    ext_quarantine,
+                    tag_id,
+                ))
+                clubs_present.add(club_id)
+                clubs_inserted += 1
+                plan.audit.append({
+                    "action": "insert_club", "legacy_club_key": legacy_key,
+                    "club_id": club_id, "tag_id": tag_id,
+                    "club_name": seed_row["name"],
+                    "old_mapped_club_id": current_mapping.get(legacy_key) or "",
+                    "new_mapped_club_id": club_id,
+                    "reason": "bootstrap-eligible candidate with no live club row",
+                })
             else:
                 clubs_existed += 1
 
             # Stamp mapped_club_id for every candidate whose clubs row exists.
-            # Idempotent: UPDATE no-ops when already set to the right value.
-            cur = con.execute(
-                """
-                UPDATE legacy_club_candidates
-                SET mapped_club_id = ?,
-                    updated_at = ?,
-                    updated_by = 'cutover_06',
-                    version = version + 1
-                WHERE legacy_club_key = ?
-                  AND (mapped_club_id IS NULL OR mapped_club_id != ?)
-                """,
-                (club_id, ts, legacy_key, club_id),
-            )
-            if cur.rowcount:
+            if stamp(legacy_key, club_id):
                 mappings_written += 1
+                plan.audit.append({
+                    "action": "stamp", "legacy_club_key": legacy_key,
+                    "club_id": club_id, "tag_id": "",
+                    "club_name": display_name or "",
+                    "old_mapped_club_id": candidate_before[legacy_key][1] or "",
+                    "new_mapped_club_id": club_id, "reason": "",
+                })
             else:
                 mappings_unchanged += 1
 
+        plan.candidates_seen = len(all_candidates)
+        plan.missing_seed = missing_seed
+        plan.counters = {
+            "clubs_inserted": clubs_inserted,
+            "clubs_existed": clubs_existed,
+            "tags_inserted": tags_inserted,
+            "mappings_written": mappings_written,
+            "mappings_unchanged": mappings_unchanged,
+            "duplicates_merged": duplicates_merged,
+            "duplicates_unmapped": duplicates_unmapped,
+            "candidates_skipped_no_club": candidates_skipped_no_club,
+        }
+        return plan
+
+    outcome = plan_cutover()
+    if isinstance(outcome, int):
+        con.close()
+        return outcome
+    plan = outcome
+
+    contract = CutoverWrite("06_cutover_pre_populated_clubs.py", args,
+                            audit_fields=AUDIT_FIELDS)
+    contract.plan(
+        con,
+        snapshot=make_snapshot(
+            {key for _club, _ts, key in plan.stamps},
+            {row[0] for row in plan.club_inserts},
+            {row[0] for row in plan.tag_inserts},
+        ),
+        audit_rows=plan.audit,
+        rollback_sql=rollback_statements(plan),
+        rollback_note=("Unstamps the candidates this run would map, then removes the "
+                       "club rows it would create and the tags they carry, in that "
+                       "order because the foreign keys point that way. Clubs and tags "
+                       "that were already there are not touched."),
+    )
+    report_artifacts(
+        contract,
+        len(plan.club_inserts) + len(plan.tag_inserts) + len(plan.stamps),
+    )
+
+    def write(cur) -> None:
+        cur.executemany(TAG_INSERT_SQL, plan.tag_inserts)
+        cur.executemany(CLUB_INSERT_SQL, plan.club_inserts)
+        cur.executemany(STAMP_SQL, plan.stamps)
+
+    written = contract.apply(con, write)
+
     con.close()
 
+    counters = plan.counters
+    clubs_inserted = counters["clubs_inserted"] if written else 0
+    clubs_existed = counters["clubs_existed"]
+    tags_inserted = counters["tags_inserted"] if written else 0
+    mappings_written = counters["mappings_written"] if written else 0
+    mappings_unchanged = counters["mappings_unchanged"]
+    duplicates_merged = counters["duplicates_merged"] if written else 0
+    duplicates_unmapped = counters["duplicates_unmapped"]
+    candidates_skipped_no_club = counters["candidates_skipped_no_club"]
+    missing_seed = plan.missing_seed
+
     print("Club cutover (live clubs + linkage) complete:")
-    print(f"  candidates seen:           {len(all_candidates)}")
+    print(f"  candidates seen:           {plan.candidates_seen}")
+    print(f"  clubs rows planned:        {len(plan.club_inserts)}")
+    print(f"  candidate stamps planned:  {len(plan.stamps)}")
     print(f"  clubs rows inserted:       {clubs_inserted}")
     print(f"  clubs rows pre-existed:    {clubs_existed}")
     print(f"  tags rows inserted:        {tags_inserted}")
