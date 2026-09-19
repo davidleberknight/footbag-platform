@@ -11,7 +11,7 @@
  *   - Cross-links resolve to expected URLs (set hub, compositional hub,
  *     Movement Systems set axis, flat reference, operators page when
  *     applicable)
- *   - /freestyle/sets (no slug) renders the Set Encyclopedia (20 0, not a redirect)
+ *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200, not a redirect)
  *   - /freestyle/sets/reference renders the flat Holden reference (200)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -566,9 +566,10 @@ describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fa
 
 // A set formula is usually quoted from an outside compilation rather than
 // authored here, so the page names its source before showing the notation. The
-// case that matters is blazing: it shows the compilation's notation carrying a
-// terminal-side component while the platform has not ruled that side, and
-// without the attribution a reader has no way to tell those apart.
+// case that matters is blazing: the compilation's notation is shown as the
+// compilation wrote it, while the side rule the page states in prose is the
+// platform's own. Without the attribution a reader has no way to tell those
+// apart, and would read the quoted string as the platform's ruling.
 describe('/freestyle/sets/:slug — formula provenance', () => {
   const formulaSection = (html: string): string | null => {
     const m = /aria-label="Formula">([\s\S]*?)<\/section>/.exec(html);
@@ -589,6 +590,24 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
     expect(body!).not.toMatch(/Source:[^<]*Red/);
   });
 
+  // The rendered counterpart of the ruling, on the two pages that state it. The
+  // set page carries it beside the quoted formula, and the whirling page carries
+  // it in the confusion pair that distinguishes the two sets. Both said the
+  // relation was unsettled before the ruling, and a page that still says so
+  // contradicts the dictionary it sits beside.
+  it('states the settled side reference on the blazing page, beside the quoted formula', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/blazing');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/side the set originates from is the reference/);
+    expect(res.text).not.toMatch(/side relation is not settled/);
+  });
+
+  it('states the settled side reference where whirling is distinguished from blazing', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/whirling');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/side the set originates from is the reference/);
+    expect(res.text).not.toMatch(/side relation is not settled/);
+  });
 
   it('credits the platform, not the compilation, where the formula is the platform own', async () => {
     for (const slug of ['toe', 'clipper']) {

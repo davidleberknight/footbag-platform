@@ -521,7 +521,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
     {
       heading: 'Whirling vs blazing',
       prose:
-        'Blazing is its own named set on the whirl chassis, not a second name for whirling: it is an uptime whirl that the following trick is performed off of, and it carries its own +1. Holden additionally separates the two by terminal side; that side relation is not settled, so the two stand as distinct named sets and the relation is left open.',
+        'Blazing is its own named set on the whirl chassis, not a second name for whirling: it is an uptime whirl that the following trick is performed off of, and it carries its own +1. Holden additionally separates the two by terminal side, and that relation is settled: the side the set originates from is the reference, and the component that follows sits opposite it. The two stand as distinct named sets.',
     },
     {
       heading: 'Whirling is a launch, not a body movement',
