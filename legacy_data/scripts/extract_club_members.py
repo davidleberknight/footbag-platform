@@ -41,10 +41,47 @@ CLUBS_CLUBID_DIR = MIRROR_ROOT / "clubs"
 OUTPUT_DIR = Path(__file__).parent.parent / "seed"
 OUTPUT_FILENAME = "club_members.csv"
 OUTPUT_CSV = OUTPUT_DIR / OUTPUT_FILENAME
+DEFAULT_CLUBS_CSV = OUTPUT_DIR / "clubs.csv"
 
 FIELDNAMES = ["legacy_club_key", "mirror_member_id", "display_name", "alias"]
 
 PROFILE_RE = re.compile(r"/members/profile/(\d+)/")
+
+
+def approved_club_keys(clubs_csv: Path) -> set[str]:
+    """The club universe this seed is allowed to name.
+
+    The club seed is reconciled against the dump's approved ClubID set by
+    overlay_clubs_from_dump.py, which drops any key the dump no longer approves.
+    This walk of the mirror has no such reconciliation of its own: the capture
+    still holds a showmembers page for a club that was unapproved afterwards, and
+    without this the roster would be written for a club the seed does not
+    contain. Reading the reconciled seed rather than the dump keeps one producer
+    deciding the universe, so the two cannot drift into disagreeing about which
+    clubs exist.
+
+    Refuses an absent or empty file rather than treating it as an empty universe.
+    Filtering against nothing would silently write an empty member seed, and a
+    seed emptied by a missing input is worse than a run that stops.
+    """
+    if not clubs_csv.is_file():
+        raise SystemExit(
+            f"ERROR: club seed not found at {clubs_csv}. It is the approved club "
+            f"universe this extractor filters against, produced by "
+            f"scripts/extract_clubs.py and reconciled by "
+            f"scripts/overlay_clubs_from_dump.py, both of which run before this "
+            f"step in ./run_pipeline.sh. Run those first, or name another copy "
+            f"with --clubs-csv.")
+    with clubs_csv.open(newline="", encoding="utf-8") as handle:
+        keys = {(row.get("legacy_club_key") or "").strip()
+                for row in csv.DictReader(handle)}
+    keys.discard("")
+    if not keys:
+        raise SystemExit(
+            f"ERROR: {clubs_csv} names no club keys, so every member row would be "
+            f"filtered out and the seed written empty. Regenerate the club seed "
+            f"before this step rather than letting an empty universe through.")
+    return keys
 
 
 def parse_showmembers(html_path: Path, legacy_club_key: str) -> list[dict]:
@@ -91,6 +128,12 @@ def parse_showmembers(html_path: Path, legacy_club_key: str) -> list[dict]:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     add_output_arguments(parser)
+    parser.add_argument(
+        "--clubs-csv", type=Path, default=DEFAULT_CLUBS_CSV,
+        help="the reconciled club seed whose keys bound this output (default: "
+             "the committed seed/clubs.csv). A run comparing fresh output "
+             "against the committed copy points this at the clubs.csv from the "
+             "same comparison run, so both sides describe one universe.")
     args = parser.parse_args()
 
     if not CLUBS_SHOW_DIR.is_dir():
@@ -119,9 +162,13 @@ def main():
             )
         sys.exit(skip_exit_code(redirected))
 
+    approved = approved_club_keys(args.clubs_csv)
+
     all_rows = []
     clubs_processed = 0
     clubs_skipped = 0
+    unapproved_rows = 0
+    unapproved_clubs = []
 
     for club_dir in sorted(CLUBS_SHOW_DIR.iterdir()):
         legacy_club_key = club_dir.name
@@ -131,6 +178,15 @@ def main():
             continue
 
         rows = parse_showmembers(showmembers_html, legacy_club_key)
+        if legacy_club_key not in approved:
+            # The capture still serves this club's roster; the approved universe
+            # no longer contains the club. Named rather than dropped quietly,
+            # because a roster disappearing from the seed is a fact about the
+            # club's standing and someone should be able to read it in the log.
+            unapproved_rows += len(rows)
+            unapproved_clubs.append(legacy_club_key)
+            continue
+
         all_rows.extend(rows)
         clubs_processed += 1
 
@@ -144,6 +200,13 @@ def main():
         f"{clubs_processed} clubs to {output_csv} "
         f"({clubs_skipped} club dirs had no showmembers page)."
     )
+    if unapproved_clubs:
+        print(
+            f"  {unapproved_rows} row(s) across {len(unapproved_clubs)} club(s) "
+            f"were left out: the capture holds a roster, {args.clubs_csv.name} "
+            f"does not hold the club. "
+            f"{', '.join(sorted(unapproved_clubs))}"
+        )
 
 
 if __name__ == "__main__":

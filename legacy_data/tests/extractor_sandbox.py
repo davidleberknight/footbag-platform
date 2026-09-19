@@ -12,6 +12,7 @@ The synthetic mirror pages carry only the markup the parsers actually read.
 """
 from __future__ import annotations
 
+import csv
 import os
 import shutil
 import subprocess
@@ -85,18 +86,35 @@ MEMBERS = {
 }
 
 
-def build_sandbox(tmp_path: Path, script_name: str, helpers: list[str]) -> Path:
+def build_sandbox(tmp_path: Path, script_name: str, helpers: list[str],
+                  club_seed: bool = False) -> Path:
     """Copy one extractor plus its helpers into a temporary mirror layout.
 
     Returns the path of the copied extractor. Its default seed target and its
     mirror both resolve inside the temporary tree, so nothing the run does can
     reach the checkout.
+
+    `club_seed` writes the club seed the member extractor filters against, naming
+    exactly the sandbox's own clubs. It is an input the sandbox has to own: the
+    default resolves inside the sandbox, so without it the member extractor finds
+    no universe and stops, and a fixture pointing at the checkout's copy would
+    make the result depend on a file this test does not control.
     """
     root = tmp_path / "sandbox"
     scripts = root / "legacy_data" / "scripts"
     scripts.mkdir(parents=True)
     for name in [script_name, *helpers]:
         shutil.copy2(SCRIPTS_DIR / name, scripts / name)
+
+    if club_seed:
+        seed = root / "legacy_data" / "seed"
+        seed.mkdir(parents=True, exist_ok=True)
+        with (seed / "clubs.csv").open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["legacy_club_key", "name"],
+                                    lineterminator="\n")
+            writer.writeheader()
+            for club in CLUBS:
+                writer.writerow({"legacy_club_key": club["key"], "name": club["name"]})
 
     mirror = root / "footbag_legacy_mirror" / "www.footbag.org" / "clubs"
     for club in CLUBS:

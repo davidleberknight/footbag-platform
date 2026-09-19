@@ -54,6 +54,10 @@ MEMBERS = {
     "filename": "club_members.csv",
     "expected_rows": 4,
     "expected_values": ["Ada Lovelace", "Karen Sparck Jones"],
+    # This extractor filters its output to the clubs the club seed contains, so
+    # the sandbox writes one naming its own clubs. Without it the run stops,
+    # which is the refusal working rather than a harness gap.
+    "club_seed": True,
 }
 
 EXTRACTORS = [pytest.param(CLUBS, id="clubs"), pytest.param(MEMBERS, id="club_members")]
@@ -80,7 +84,8 @@ def _assert_real_output(csv_path: Path, spec: dict) -> list[dict]:
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_no_arguments_writes_to_the_committed_default_target(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
 
     result = run(script)
 
@@ -91,7 +96,8 @@ def test_no_arguments_writes_to_the_committed_default_target(tmp_path, spec):
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_out_dir_writes_only_beneath_the_requested_directory(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     out_dir = tmp_path / "diagnostic"
 
     result = run(script, "--out-dir", str(out_dir))
@@ -112,7 +118,8 @@ def test_redirected_run_leaves_the_checkout_seed_file_untouched(tmp_path, spec):
     committed = REPO_ROOT / "legacy_data" / "seed" / spec["filename"]
     before = _fingerprint(committed)
 
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     result = run(script, "--out-dir", str(tmp_path / "diagnostic"), "--force")
 
     assert result.returncode == 0, result.stderr
@@ -121,7 +128,8 @@ def test_redirected_run_leaves_the_checkout_seed_file_untouched(tmp_path, spec):
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_existing_newer_output_is_skipped_without_force(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     target = default_seed_csv(script, spec["filename"])
     make_newer_than_script(target, script)
 
@@ -134,7 +142,8 @@ def test_existing_newer_output_is_skipped_without_force(tmp_path, spec):
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_existing_newer_output_is_regenerated_with_force(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     target = default_seed_csv(script, spec["filename"])
     make_newer_than_script(target, script)
 
@@ -148,7 +157,8 @@ def test_existing_newer_output_is_regenerated_with_force(tmp_path, spec):
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_redirected_skip_exits_nonzero_and_says_nothing_was_written(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     out_dir = tmp_path / "diagnostic"
     out_dir.mkdir()
     make_newer_than_script(out_dir / spec["filename"], script)
@@ -162,7 +172,8 @@ def test_redirected_skip_exits_nonzero_and_says_nothing_was_written(tmp_path, sp
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_force_alone_does_not_choose_an_output_directory(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
 
     result = run(script, "--force")
 
@@ -173,7 +184,8 @@ def test_force_alone_does_not_choose_an_output_directory(tmp_path, spec):
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_relative_out_dir_resolves_against_the_working_directory(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     workdir = tmp_path / "workdir"
     workdir.mkdir()
 
@@ -189,7 +201,8 @@ def test_relative_out_dir_resolves_against_the_working_directory(tmp_path, spec)
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_out_dir_that_is_a_file_fails_with_an_actionable_message(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     occupied = tmp_path / "not-a-directory"
     occupied.write_text("", encoding="utf-8")
 
@@ -202,7 +215,8 @@ def test_out_dir_that_is_a_file_fails_with_an_actionable_message(tmp_path, spec)
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_out_dir_beneath_a_file_fails_with_an_actionable_message(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     blocker = tmp_path / "blocker"
     blocker.write_text("", encoding="utf-8")
 
@@ -214,7 +228,8 @@ def test_out_dir_beneath_a_file_fails_with_an_actionable_message(tmp_path, spec)
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_target_path_occupied_by_a_directory_fails_with_an_actionable_message(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     out_dir = tmp_path / "diagnostic"
     (out_dir / spec["filename"]).mkdir(parents=True)
 
@@ -226,7 +241,8 @@ def test_target_path_occupied_by_a_directory_fails_with_an_actionable_message(tm
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
 def test_repeated_forced_runs_over_identical_input_are_byte_identical(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"])
+    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
+                           spec.get("club_seed", False))
     first = tmp_path / "run-one"
     second = tmp_path / "run-two"
 

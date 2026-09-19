@@ -922,6 +922,7 @@ legacy_club_key,mirror_member_id,display_name,alias
 1243385700,80936,Brady S. Curtin,desktop58
 1246472708,80045,Derek A. Littlefield,DerekL55
 1246472708,82909,Loren J. Dobson,B1nary0
+1246559727,44251,Todd A. Calhoon,tcalhoon
 1248836922,32530,Aric R. McIntosh,HackeysackHacker
 1248836922,79566,Jordan Klingel,deadsleep
 1248906214,78940,Sergio Garcia,seronoser
@@ -1166,7 +1167,6 @@ legacy_club_key,mirror_member_id,display_name,alias
 1600007360,83872,Vladimir A. Sharonov,VS
 1624226901,82905,Essex M. Coons,dizzywings
 1630823010,83209,Tasia Lyn Colin,Tasialyn
-1630823010,39584,Loren D. Baum,Bum
 1631873277,83931,Evan Z. Fischer,ezfischer
 1651468984,54154,Jim Ball,kickorlando
 1651603122,83955,Avery Bills,NavyAvery
@@ -1205,6 +1205,7 @@ legacy_club_key,mirror_member_id,display_name,alias
 1763411634,65620,Kevin J. Crowley,Sporatical_Distractions
 1768623634,81769,Sarah Femmel,sfemmel
 1773110747,84229,Zane Eli Gardner,zaner
+1779370908,84322,Henry Nichols,Henry.nichols
 932271763,12487,Erik Chan,ChanMan
 932271763,12304,Joel Dion,Joel
 932271763,66154,Andrew T. Grant,Hacksterbator
@@ -1300,7 +1301,6 @@ legacy_club_key,mirror_member_id,display_name,alias
 941371717,82517,Felix Vogelsanger,fogelsanger
 941371717,82783,Loui Bordini,Loui
 944090321,83295,Audrey Tumelin,audreytumelin
-944090321,81342,Quentin Isackson,Kant
 944090321,12790,Grischa Tellenbach,grischa.tellenbach
 944090321,12813,Tom Yard,tom.yard
 944090321,43429,Olivier Z. Baillon,olivierbaillon
@@ -1336,6 +1336,7 @@ legacy_club_key,mirror_member_id,display_name,alias
 944090321,78892,Corto Barthelemy,corto257
 944090321,79760,Pablo P. Glangetas,pablatch
 944090321,79863,Sébastien Lefay,Seboost
+944090321,81342,Quentin Isackson,Kant
 944090321,81410,Julien Coblence,jsquare
 944090321,81561,Ugo Ash Montironi,alartash
 944090321,82444,Benjamin De Bastos,bastos
@@ -1840,7 +1841,7 @@ auckland,69593,Leigh J. Reily,spyda
 auckland,75895,Nemo Burkhard,Inform3r
 auckland,78218,Jason Heard,Crunk
 auckland,83560,Liam Dallas,liamdallas
-austin,12046,Tina Lewis,tinalewis
+austin,12046,Tina L Lewis,tinalewis
 austin,12939,Laura J. Zeller,sylph
 austin,14291,Curtis R. Alexander,calex
 austin,14292,Chris Payne,Insanepain
@@ -1953,8 +1954,8 @@ czech-republic,79249,Michal M. Smola,Majky
 czech-republic,80043,Jindra Smola,jindrasmola
 czech-republic,80117,Radim B. Pekárek,RadimPekarek
 czech-republic,83283,Olda Pláteník,Dropmaster
-dallas-tx,12097,Derric Scalf,derric
 dallas-tx,12098,James Roberts,jr
+dallas-tx,12097,Derric Scalf,derric
 dallas-tx,12418,Matt Strong,mstrong
 dallas-tx,12440,Casey Zacek,cz
 dallas-tx,12474,Ariel Santesteban,ariel
