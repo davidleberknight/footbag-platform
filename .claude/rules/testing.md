@@ -55,8 +55,11 @@ was vitest's browser-mode default. The refusal names the cause instead.
 
 `npm run test:pre-pr` is the fast loop beneath it — build, lint, the conventions gate, the secret
 scan, and the vitest tiers — for the check before a commit rather than before a push. Every
-continuous-integration job is reachable from one of those two or carries a written reason it cannot
-be, and `scripts/ci/check_ci_parity.sh` fails the build if that stops holding, in both directions.
+continuous-integration job, and every command its steps invoke, is reachable from one of those two
+or carries a written reason it cannot be, and `scripts/ci/check_ci_parity.sh` fails the build if
+that stops holding, in both directions. It also binds the runner's own list of the gates that stand
+for a push-gate job, so a gate whose absence should stop a run reporting green cannot quietly drop
+off that list.
 
 Targeted runs verify a change; only a full run verifies the tree.
 

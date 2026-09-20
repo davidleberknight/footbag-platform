@@ -3,13 +3,17 @@
 # aws-identity.sh — what a profile actually resolves to, asserted rather than
 # assumed.
 #
-# Two scripts need the same two answers, and for the same reason: an operator
-# key is about to be installed, or one is about to be cut, and either step is
-# only safe if the credential in play is the one the operator believes they are
-# holding. A zero exit from the CLI is not that. A profile can succeed while
-# resolving to a different user entirely, and a chained profile can succeed
-# while quietly returning its own source identity, which means the assume-role
-# step never happened and the role's permissions were never in play.
+# Several scripts need the same answers, and for the same reason: an operator
+# key is about to be installed, or one is about to be cut, or an identity is
+# about to be administered, and every one of those is only safe if the
+# credential in play is the one the operator believes they are holding. A zero
+# exit from the CLI is not that. A profile can succeed while resolving to a
+# different user entirely, and a chained profile can succeed while quietly
+# returning its own source identity, which means the assume-role step never
+# happened and the role's permissions were never in play.
+#
+# The question is asked two ways, because the callers reach their credential
+# differently: of a named profile, and of whatever the run has already settled.
 #
 # Both checks read the outcome, not the invocation. And both environments are
 # always checked, never just the one nearest to hand: proving staging alone
@@ -49,6 +53,50 @@ aws_identity_require_user() {
   esac
 
   echo "ERROR: '${profile}' resolves to ${arn}," >&2
+  echo "       which is not user/${expected}. Acting on the strength of some" >&2
+  echo "       other identity's success proves nothing. Nothing done." >&2
+  return 1
+}
+
+# aws_identity_require_direct_user <expected-iam-user>
+#
+# The same demand as above, asked of the identity the run has already settled
+# rather than of a profile name. Two callers need it and they reach their
+# credential differently: one settles a profile through the shared helper, the
+# other may be running on keys exported into the shell, and neither has a
+# profile name to hand that is guaranteed to be the thing that authenticated.
+#
+# It exists as one function rather than as a test each caller writes because the
+# invariant is the same invariant: administering a human operator, and applying
+# the tree that declares what a human operator may do, are both refused to every
+# assumed role, including the job role itself, which is denied every write to
+# its own definition. Two copies of that check is how one of them drifts.
+aws_identity_require_direct_user() {
+  local expected="$1"
+
+  if [[ -z "$AWS_IDENTITY_ARN" ]]; then
+    aws_identity_resolve "${AWS_PROFILE:-}" || return 1
+  fi
+
+  case "$AWS_IDENTITY_ARN" in
+    *":user/${expected}")
+      return 0
+      ;;
+    *":assumed-role/"*)
+      echo "ERROR: this run is authenticated as ${AWS_IDENTITY_ARN}," >&2
+      echo "       which is an assumed role. This is refused to every role," >&2
+      echo "       including the job role operators use for everyday work: a" >&2
+      echo "       role is denied every write to its own definition, so a run" >&2
+      echo "       started this way would fail partway through rather than at" >&2
+      echo "       the door, leaving half a change behind." >&2
+      echo "" >&2
+      echo "       Re-run as the directly authenticated ${expected}." >&2
+      echo "       Nothing done." >&2
+      return 1
+      ;;
+  esac
+
+  echo "ERROR: this run is authenticated as ${AWS_IDENTITY_ARN}," >&2
   echo "       which is not user/${expected}. Acting on the strength of some" >&2
   echo "       other identity's success proves nothing. Nothing done." >&2
   return 1

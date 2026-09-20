@@ -25,6 +25,24 @@ All implementation-state language belongs exclusively in the maintainers' privat
 
 **Where implementation detail lives.** Durable design intent and rationale live in `docs/DESIGN_DECISIONS.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in DESIGN_DECISIONS §4.
 
+## No superseded history
+
+A canonical doc states the design in force. It never narrates how it got there. A ruling that has been reversed is DELETED: not marked superseded, not dated, not kept "so the reasoning is not relitigated". A reader who meets both the old position and the new one has to work out which binds them, and that is the failure this rule prevents.
+
+Delete on sight rather than write:
+
+- "Ruled <date>, reversing ...", "This replaces the earlier ...", "Previously ..."
+- "An earlier version of this rule was narrower and is recorded here so ..."
+- "X was considered and rejected", unless that rejection is itself a live constraint somebody would otherwise re-propose within the same document.
+- A superseded block kept under a banner instead of removed.
+- "Added <date>", "Corrected <date>", "still true as of <date>" on a statement that is simply true.
+
+Two things are not history and stay. A dated ruling that is IN FORCE, where the date is provenance rather than narration. And a change-note area a document maintains as its own versioning mechanism, which outside this repository means the credential vault index and nothing else.
+
+Where a reversal needs a durable record it is a private-tracker issue or a versioned artifact's change note, never prose left in a document body.
+
+No CI check enforces this one: the difference between a live dated ruling and a narrated dead one is a judgement about meaning, and a pattern that could match the second would refuse the first. It is enforced by the `doc-sync` procedure and by review.
+
 ## Temporary deviations live in the tracker only
 
 Substitute patterns, transitional shortcuts, and other deviations with explicit unblock conditions are issues labeled `bug` in the maintainers' private tracker (the `tracker-ops` skill). Never duplicate substitute-aware callouts into DEV_ONBOARDING.md or other canonical docs: a volunteer reads the tracker first for deviations, then the canonical step. When the deviation resolves, close the issue; the canonical doc needs no change.

@@ -493,8 +493,15 @@ aws_config_append_section() {
 # Nothing here is a secret: a role ARN and a profile name are not credentials.
 # The atomic rename is kept anyway, because a half-written config file breaks
 # every AWS call on the machine and the operator has no copy of what was there.
+# The optional sixth argument is the role session name. Omit it and the SDK
+# invents one, currently `botocore-session-<epoch>`, which is fine for a role
+# that does not care who assumed it and fatal for one that does: a trust policy
+# conditioned on the session name matching the assuming user refuses every
+# generated name, and the refusal reads as a broken credential rather than as a
+# missing config line. Where the role carries that condition, pass it.
 aws_config_add_role_profile() {
   local file="$1" profile="$2" role_arn="$3" source_profile="$4" region="$5"
+  local session_name="${6:-}"
   local dir tmp
 
   AWS_CRED_ERROR=""
@@ -555,91 +562,9 @@ aws_config_add_role_profile() {
     printf '[profile %s]\n' "$profile"
     printf 'role_arn       = %s\n' "$role_arn"
     printf 'source_profile = %s\n' "$source_profile"
+    [[ -n "$session_name" ]] && printf 'role_session_name = %s\n' "$session_name"
     [[ -n "$region" ]] && printf 'region         = %s\n' "$region"
   } >> "$tmp"
-
-  chmod 600 "$tmp"
-  if ! mv -f -- "$tmp" "$file"; then
-    rm -f -- "$tmp"
-    AWS_CRED_ERROR="could not install ${file}"
-    return 1
-  fi
-  return 0
-}
-
-# aws_config_repoint_source_profile <config-file> <old> <new>
-#
-# Rewrites every `source_profile` whose value is exactly <old> to <new>, and
-# prints the name of each section it changed, one per line, so the caller can
-# show the operator what moved. Returns 2 when nothing pointed at <old>.
-#
-# This is the one function here that EDITS a config section rather than
-# appending one, and the exception is deliberate and narrow. Everything else
-# leaves an existing section alone because it is the operator's: it may carry a
-# duration, an output format or an mfa_serial set for a reason this tooling
-# cannot see. `source_profile` is not that. It is a pointer this tooling wrote
-# itself, at the same moment it wrote the section, and it names a profile this
-# tooling also wrote. When that profile is renamed the pointer is not a setting
-# somebody chose, it is a dangling reference, and leaving it dangling breaks
-# every chained call with a credential error naming the wrong thing.
-#
-# Only the value is touched. Key order, comments, and every other line in the
-# section survive byte for byte.
-aws_config_repoint_source_profile() {
-  local file="$1" old="$2" new="$3"
-  local dir tmp line norm section="" changed=0
-
-  AWS_CRED_ERROR=""
-
-  if [[ -z "$file" || -z "$old" || -z "$new" ]]; then
-    AWS_CRED_ERROR="aws_config_repoint_source_profile needs a file, an old name and a new one"
-    return 1
-  fi
-
-  [[ -f "$file" ]] || return 2
-
-  if [[ -L "$file" ]]; then
-    local resolved
-    if ! resolved="$(readlink -f -- "$file")" || [[ -z "$resolved" ]]; then
-      AWS_CRED_ERROR="${file} is a symlink whose target cannot be resolved"
-      return 1
-    fi
-    file="$resolved"
-  fi
-
-  dir="$(dirname -- "$file")"
-  tmp="$(umask 077 && mktemp "${dir}/.aws-config.XXXXXX")" || {
-    AWS_CRED_ERROR="could not create a temp file beside ${file}"
-    return 1
-  }
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    norm="${line//[[:space:]]/}"
-    if [[ "$norm" == \[*\] ]]; then
-      # Taken from the line rather than from the whitespace-stripped copy, which
-      # is for matching only: a section reported as `profilefootbag-staging`
-      # names nothing the operator can find in their own file.
-      section="${line#*[}"
-      section="${section%%]*}"
-      printf '%s\n' "$line" >> "$tmp"
-      continue
-    fi
-    if [[ "$norm" == "source_profile=${old}" ]]; then
-      # Spelled the way this library writes it rather than preserving the
-      # operator's spacing: the line being replaced is one this tooling wrote,
-      # so there is no hand formatting to lose.
-      printf 'source_profile = %s\n' "$new" >> "$tmp"
-      printf '%s\n' "$section"
-      changed=1
-      continue
-    fi
-    printf '%s\n' "$line" >> "$tmp"
-  done < "$file"
-
-  if (( ! changed )); then
-    rm -f -- "$tmp"
-    return 2
-  fi
 
   chmod 600 "$tmp"
   if ! mv -f -- "$tmp" "$file"; then

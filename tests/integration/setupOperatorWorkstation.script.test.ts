@@ -94,6 +94,10 @@ type AwsStubSpec = { profiles: string[]; identities?: Record<string, string> };
 const OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
 const STAGING_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/footbag-staging-app-runtime/s';
 const PRODUCTION_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/footbag-production-app-runtime/s';
+// The shared job role, with a session named for the person holding it: the
+// trailing element is the whole of the attribution on a role several people
+// use, so a fixture that dropped it would leave that check unexercised.
+const DEV_TESTER_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/test_operator';
 
 /**
  * An `aws` stub, on PATH and on both library seams at once.
@@ -440,12 +444,13 @@ describe('the AWS identity is proved, not listed', () => {
   });
 
   it('says a runtime profile is missing rather than that it cannot be assumed', () => {
-    // Two different faults with two different owners: the installer writes a
+    // Two different faults with two different owners: an install writes a
     // missing profile, and nobody on this machine can grant an assume-role.
-    // The break-glass profile is present here because that is the tier the
-    // TODO is addressed to: only its holder can run the installer that fixes it.
+    // The directly authenticated profile is present here because that is the
+    // tier the TODO is addressed to: only its holder can run the install that
+    // fixes it.
     const env = stubAwsOnPath({
-      profiles: ['footbag-operator', 'footbag-operator-key', 'footbag-staging-runtime'],
+      profiles: ['footbag-operator', 'footbag-staging-runtime'],
       identities: {
         'footbag-operator': OPERATOR_ARN,
         'footbag-staging-runtime': STAGING_ROLE_ARN,
@@ -454,7 +459,7 @@ describe('the AWS identity is proved, not listed', () => {
     const all = output(run(['--target', 'staging', '--check'], env));
 
     expect(all).toMatch(/footbag-production-runtime is missing/);
-    expect(all).toMatch(/install-operator-sso-profile\.sh/);
+    expect(all).toMatch(/install-operator-key\.sh/);
     expect(all).not.toMatch(/does not assume its role/);
   });
 
@@ -482,38 +487,62 @@ describe('the AWS identity is proved, not listed', () => {
   });
 
   it('does not fail a dev-and-tester for the production chain their role is denied', () => {
-    // Production's runtime role trusts the super-admin set and not the other,
-    // so for that tier the profile's absence is the boundary working. The
-    // staging chain is a finding for everybody, because the SSO installer
-    // writes it off their own sign-in and everybody can run that.
+    // Production's runtime role trusts the directly authenticated user and not
+    // the job role, so for that tier the profile's absence is the boundary
+    // working. The staging chain is a finding for everybody, because the
+    // onboarding writes it off the job role and everybody has one.
     const env = stubAwsOnPath({
-      profiles: ['footbag-operator'],
-      identities: { 'footbag-operator': STAGING_ROLE_ARN },
+      profiles: ['footbag-devtester'],
+      identities: { 'footbag-devtester': DEV_TESTER_ROLE_ARN },
     });
     const all = output(run(['--target', 'staging', '--check'], env));
 
     expect(all).toMatch(/\[note\][^\n]*footbag-production-runtime is not here/);
     expect(all).not.toMatch(/\[TODO\][^\n]*footbag-production-runtime/);
     expect(all).toMatch(/\[TODO\][^\n]*footbag-staging-runtime is missing/);
-    expect(all).toMatch(/install-operator-sso-profile\.sh/);
+    expect(all).toMatch(/manage-human-operator\.sh --onboard/);
   });
 
-  it('reports an absent break-glass profile without failing the run over it', () => {
-    // Correct for a dev-and-tester, who must never hold that key, and a gap for
-    // a super admin. Nothing on the machine says which its owner is, so this is
-    // reported and not counted: counting it would fail somebody for not holding
-    // a credential they are not allowed to have.
+  it('reports an absent directly authenticated profile without failing the run over it', () => {
+    // Correct for a dev-and-tester, who must never hold that key, and a gap
+    // for the super admin. Nothing on the machine says which its owner is, so
+    // this is reported and not counted: counting it would fail somebody for
+    // not holding a credential they are not allowed to have.
     const env = stubAwsOnPath({
-      profiles: ['footbag-operator', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      profiles: ['footbag-devtester', 'footbag-staging-runtime'],
       identities: {
-        'footbag-operator': OPERATOR_ARN,
+        'footbag-devtester': DEV_TESTER_ROLE_ARN,
+        'footbag-staging-runtime': STAGING_ROLE_ARN,
+      },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+    expect(all).toMatch(/\[note\].*no footbag-operator profile here/);
+    expect(all).not.toMatch(/\[TODO\][^\n]*no footbag-operator profile/);
+  });
+
+  it('reads the session name out of the job-role chain, which is the attribution', () => {
+    // On a shared role the session name IS who did it. A chain that resolves
+    // under somebody else's name works perfectly and records this person's
+    // actions as theirs, so resolving is not enough to check.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-devtester', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      identities: {
+        'footbag-devtester': DEV_TESTER_ROLE_ARN,
         'footbag-staging-runtime': STAGING_ROLE_ARN,
         'footbag-production-runtime': PRODUCTION_ROLE_ARN,
       },
     });
     const all = output(run(['--target', 'staging', '--check'], env));
-    expect(all).toMatch(/\[note\].*footbag-operator-key/);
-    expect(all).not.toMatch(/\[TODO\][^\n]*footbag-operator-key/);
+    expect(all).toMatch(/footbag-devtester assumes FootbagDevTester as test_operator/);
+  });
+
+  it('catches a job-role profile that resolved to something else entirely', () => {
+    const env = stubAwsOnPath({
+      profiles: ['footbag-devtester'],
+      identities: { 'footbag-devtester': OPERATOR_ARN },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+    expect(all).toMatch(/\[TODO\][^\n]*is not a FootbagDevTester session/);
   });
 });
 

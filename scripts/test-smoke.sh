@@ -64,11 +64,12 @@ if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.
   echo "ERROR: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine," >&2
   echo "       and this suite reaches AWS through it rather than through your own identity." >&2
   echo "" >&2
-  echo "         bash scripts/install-operator-sso-profile.sh --help" >&2
+  echo "         bash scripts/manage-human-operator.sh --onboard <your-name>" >&2
   echo "" >&2
-  echo "       writes it, chained off your own sign-in. A production target additionally" >&2
-  echo "       needs the super-admin permission set: production's runtime role does not" >&2
-  echo "       trust the dev-and-tester one, and that boundary is deliberate." >&2
+  echo "       writes it, chained off the job role your own IAM user assumes. A" >&2
+  echo "       production target additionally needs the directly authenticated" >&2
+  echo "       identity: production's runtime role does not trust the job role," >&2
+  echo "       and that boundary is deliberate." >&2
   exit 1
 fi
 if [[ ! -d "$TF_DIR/.terraform" ]]; then

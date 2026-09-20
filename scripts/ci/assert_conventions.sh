@@ -1517,7 +1517,7 @@ delegate "no terraform state/plan artifacts tracked" check_no_terraform_artifact
 delegate "no sensitive variable assigned in a tracked tfvars example" check_tfvars_sensitive.sh
 delegate "every S3 bucket carries the encryption, public-access and deny-plaintext baseline" check_bucket_baseline.sh
 delegate "config seed / Configurable Parameters parity" check_config_seed_parity.sh
-delegate "every CI job has a local gate or a recorded reason it cannot" check_ci_parity.sh
+delegate "every CI job and invoked command has a local gate or a recorded reason" check_ci_parity.sh
 
 # Rule: no concrete CloudFront distribution hostname in any tracked file. The
 # staging environment is protected by its address staying unpublished, so a
@@ -1532,6 +1532,41 @@ delegate "every CI job has a local gate or a recorded reason it cannot" check_ci
 # check ran before it: a real CloudFront violation was reported under the name
 # of the continuous-integration parity rule above, which had passed, sending the
 # reader to a rule with nothing wrong with it.
+check "no superseded operator-identity model in tracked files"
+# The human-operator model was IAM Identity Center federation, and it is gone:
+# no permission sets, no directory roster, no generated reserved-SSO roles, no
+# second profile name holding a key. What replaced it is a named IAM user per
+# person assuming one ordinary shared role.
+#
+# This exists because that model was removed from roughly forty files at once,
+# and the failure mode of a straggler is not a broken build. It is a runbook
+# step, a help string or a policy action that still instructs somebody toward a
+# path that no longer works, read by the one person least placed to know it was
+# superseded. Nothing else in the tree would report it.
+#
+# The identifiers are forbidden; the WORDS are not. "SSO" and "federation" are
+# canonical AWS vocabulary, and the design record needs them in order to say
+# which guidance this project deliberately departs from. A check that banned
+# them would force that passage to be written in euphemism.
+#
+# `footbag-operator-key` excludes `aws-footbag-operator-keys`, which is the
+# vault entry holding the super admin's key and is still correct.
+# Two suites are exempt by path, and only two: the ones whose entire subject is
+# that these strings are absent from the Terraform. They have to name what they
+# forbid. Exempting by path rather than by line is deliberate — a line that can
+# excuse itself is not a check — and the cost is bounded, because both files are
+# short and neither instructs an operator to do anything.
+old_model_hits=$(git grep -nE 'standup-identity-center\.sh|install-operator-sso-profile\.sh|footbag-operator-key([^s]|$)|super_admin_sso_role_arn|dev_tester_sso_role_arn|AWSReservedSSO|also_assume|aws sso login|aws_ssoadmin_|aws_identitystore_|"sso:|"identitystore:' -- . \
+  | grep -v 'scripts/ci/assert_conventions\.sh' \
+  | grep -v '^tests/unit/operator-permission-set-policy\.test\.ts:' \
+  | grep -v '^tests/unit/operator-runtime-trust\.test\.ts:' \
+  || true)
+if [ -n "$old_model_hits" ]; then
+  echo "$old_model_hits" >&2
+  echo "  FAIL: the superseded IAM Identity Center operator model is gone; a named IAM user assumes the shared FootbagDevTester role" >&2
+  violations=$((violations + 1))
+fi
+
 check "no concrete CloudFront hostnames tracked"
 # Exempt the two documented fake hosts (the onboarding guide's "something
 # like" example domain and the Terraform bootstrap placeholder value), plus the

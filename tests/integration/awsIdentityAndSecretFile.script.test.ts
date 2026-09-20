@@ -120,6 +120,84 @@ describe('aws_identity_require_user', () => {
   });
 });
 
+/**
+ * The same demand asked of the identity a run has already settled, rather than
+ * of a profile name. Two callers need it: administering a human operator's
+ * identity, and applying the tree that declares what a human operator may do.
+ * Both are refused to every role, including the job role operators use for
+ * everyday work, because a role is denied every write to its own definition —
+ * so a run started that way fails partway through rather than at the door, and
+ * leaves half a change behind.
+ */
+describe('aws_identity_require_direct_user', () => {
+  it('accepts the directly authenticated user the caller named', () => {
+    const r = runIdentity(
+      `AWS_IDENTITY_ARN=${OPERATOR}; aws_identity_require_direct_user footbag-operator; echo "rc=$?"`,
+      { p: OPERATOR },
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+  });
+
+  it('refuses an assumed role, and says why a role cannot do this at all', () => {
+    const r = runIdentity(
+      [
+        'AWS_IDENTITY_ARN=arn:aws:sts::111122223333:assumed-role/FootbagDevTester/someone',
+        'aws_identity_require_direct_user footbag-operator; echo "rc=$?"',
+      ].join('; '),
+      { p: OPERATOR },
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/is an assumed role/);
+    expect(r.stderr).toMatch(/denied every write to its own definition/);
+    expect(r.stderr).toMatch(/Nothing done/);
+  });
+
+  it('refuses a different directly authenticated user', () => {
+    const r = runIdentity(
+      [
+        'AWS_IDENTITY_ARN=arn:aws:iam::111122223333:user/somebody-else',
+        'aws_identity_require_direct_user footbag-operator; echo "rc=$?"',
+      ].join('; '),
+      { p: OPERATOR },
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/is not user\/footbag-operator/);
+    expect(r.stderr).not.toMatch(/assumed role/);
+  });
+
+  it('does not match a user whose name merely ends with the expected one', () => {
+    const r = runIdentity(
+      [
+        'AWS_IDENTITY_ARN=arn:aws:iam::111122223333:user/not-footbag-operator',
+        'aws_identity_require_direct_user footbag-operator; echo "rc=$?"',
+      ].join('; '),
+      { p: OPERATOR },
+    );
+    expect(r.stdout).toContain('rc=1');
+  });
+
+  it('resolves the identity itself when the run has not settled one yet', () => {
+    // The caller may reach the account through a profile the shared helper
+    // settled, or through keys exported into the shell. Neither hands this a
+    // profile name it can trust, so an unresolved run asks AWS rather than
+    // refusing for want of an argument.
+    const r = runIdentity(
+      'AWS_PROFILE=p; aws_identity_require_direct_user footbag-operator; echo "rc=$?"',
+      { p: OPERATOR },
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+  });
+
+  it('refuses when the identity cannot be resolved at all', () => {
+    const r = runIdentity(
+      'AWS_PROFILE=missing; aws_identity_require_direct_user footbag-operator; echo "rc=$?"',
+      { p: OPERATOR },
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/did not authenticate against AWS/);
+  });
+});
+
 describe('aws_identity_require_chain', () => {
   it('accepts when every named profile assumes a role', () => {
     const r = runIdentity('aws_identity_require_chain a b; echo "rc=$?"', {

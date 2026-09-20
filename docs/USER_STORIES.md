@@ -3467,7 +3467,7 @@ Success Criteria:
 - All sends logged to audit trail.
 - Every bulk email to a subscription-backed list carries the one-click unsubscribe headers, per `M_Unsubscribe_One_Click`. A group-backed list carries none: membership of the group is what puts the member on it, so the message tells the reader how to leave the group on the site instead.
 - Delivery status visible: senders see sent, bounced, and suppressed counts.
-- Each mailing list has a configurable outbound alias/from-identity (e.g., directors@…, sanctioning@…). This can be set to no-reply, a special case.
+- Each mailing list has a configurable outbound alias/from-identity (e.g., directors@…, sanctioning@…), or the no-reply sender. Whichever is set, it sends without accepting replies.
 - Each sent mailing list email is archived (subject/body/sender/list/timestamp/recipient count) and browseable by admins.
 - Email body is plain text (no HTML).
 - No approval workflow is required; controls are permissions, audit logging, the one-click unsubscribe headers, and rate limits where applicable.
@@ -3810,7 +3810,7 @@ Success Criteria:
 - Form includes: name (required, max 80 chars, not required to be globally unique); slug (required, unique, the group's URL identity); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); state (enum: `active`, `inactive`, `archived`, default `active`); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
 - At most one group may carry `type='board'`. Creating a second is rejected with a specific message naming the existing one. Creating a board group confers nothing on anybody by itself: the roster follows standing an administrator has set, per `A_Grant_HoF_BAP_Board_Status`.
 - If `email_enabled=true`, the system creates the associated group-backed `MailingList` naming the new group, sends it from a no-reply identity, and applies admin-set initial values for `subject_prefix` and `restricted_sending`, which the group's owner maintains thereafter. The list's recipients are the group's members, so it needs no seeding.
-- This story provisions new platform groups only. Legacy IFPA `@ifpa.footbag.org` list addresses are dispositioned separately as part of the legacy email transition, and no group reproduces one: a platform group has no address of its own, because the platform receives no inbound email. Group mail is composed on the group page and distributed via SES.
+- This story provisions new platform groups only. The legacy `@ifpa.footbag.org` subdomain retires: IFPA ratified that surviving committee and sanctioning functions consolidate onto apex `@footbag.org` addresses, and no group reproduces one of its list addresses: a platform group has no address of its own, because the platform receives no inbound email. Group mail is composed on the group page and distributed via SES.
 - The initial owner receives an email notification with the group name, type, and owner responsibilities.
 - Admin sees a clear success message and a link to the newly created group's page.
 - Validation errors (e.g., invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.
@@ -3963,7 +3963,7 @@ Success Criteria:
 - Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 30 seconds), sends via SES, and records sent/failed status.
 - Failed email deliveries are logged and retried up to 5 times with exponential backoff; after the maximum retry count the outbox item is moved to a dead-letter queue/folder for admin review and possible replay.
 - Email templates are stored as plain text in the database and are editable by Administrators through the email-template editor (`A_Manage_Email_Templates`). Template changes are audit-logged. 
-- Different mailing lists can have different from addresses configured and this job will use them. The special no-reply from address will be an option. Otherwise, all other reply addresses must go to a real inbox for a human to receive replies.
+- Different mailing lists can have different from addresses configured and this job will use them. No list from-identity is a monitored inbox: every one is either the no-reply sender or a role address that sends without accepting replies, and a reply to platform mail is rejected rather than delivered. The route to a person is the in-platform request flow for members, and the contact address published on the legal page for everyone else. A from-identity configured here must also appear in the environment's permitted-sender list, or the send is refused at the outbox drain after appearing to succeed at compose.
 - All sent emails are logged to CloudWatch with template ID, member ID, outbox message ID, timestamp, and delivery result (do not log raw email addresses or full subject lines).
 
 ### SYS_Open_Vote

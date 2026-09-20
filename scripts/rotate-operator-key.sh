@@ -2,10 +2,11 @@
 # rotate-operator-key.sh
 #
 # Rotates the human operator's AWS access key: the credential of the directly
-# authenticated identity that stays outside federation, and the one every
-# chained runtime profile resolves from. Everyday work does not go out on it any
-# more — that is the federated sign-in — which is why it sits under a profile
-# name of its own and is reached by being named.
+# authenticated super-admin identity, and the one every chained runtime profile
+# resolves from. It goes out under the profile name every operator script
+# already reaches for, and this script still makes you name that profile rather
+# than defaulting to it, because which credential a rotation is about to
+# replace is not a thing to leave implied.
 #
 # WHY THIS EXISTS.
 #
@@ -43,34 +44,32 @@
 # Usage. Three steps, deliberately separate runs, because the operator has work
 # to do between them and a window to observe in:
 #
-#   bash scripts/rotate-operator-key.sh --profile footbag-operator-key --issue
+#   bash scripts/rotate-operator-key.sh --profile footbag-operator --issue
 #     Mints the second key, shows it once, and requires it to be vaulted.
 #     Afterwards, install it with scripts/install-operator-key.sh.
 #
-#   bash scripts/rotate-operator-key.sh --profile footbag-operator-key \
+#   bash scripts/rotate-operator-key.sh --profile footbag-operator \
 #       --retire <old-key-id>
 #     Proves the new key resolves this identity and both runtime roles, then
 #     deactivates the old key.
 #
-#   bash scripts/rotate-operator-key.sh --profile footbag-operator-key \
+#   bash scripts/rotate-operator-key.sh --profile footbag-operator \
 #       --delete <old-key-id>
 #     Removes it, once it has stayed quiet.
 #
-#   The profile is spelled out above rather than left as a placeholder because
-#   the obvious guess is now the wrong one: the everyday name resolves to an
-#   assumed role, and the refusal that follows reads as a broken credential
-#   rather than as the wrong profile. It is still required rather than
-#   defaulted, for the reason under the flag below.
+#   The profile is spelled out above rather than left as a placeholder so the
+#   whole command can be pasted. It is still required rather than defaulted,
+#   for the reason under the flag below.
+#
+#   This script is for the directly authenticated identity's key alone. A named
+#   operator's key is not rotated: it is reissued by onboarding them again,
+#   which mints a fresh one at their keyboard, because no shared copy of it
+#   exists for anything here to replace.
 #
 # Flags:
 #   --profile <name>   AWS CLI profile to act through. Required, no default:
 #                      which credentials a rotation runs on is the operator's
-#                      decision and not one this script may make quietly. The
-#                      key being rotated is the directly authenticated IAM
-#                      user's, and it sits under its own profile name rather
-#                      than the one everyday work goes out on: see
-#                      FOOTBAG_OPERATOR_KEY_PROFILE in scripts/lib/aws-profile.sh
-#                      for which name that is and why the two are separate.
+#                      decision and not one this script may make quietly.
 #   --user <name>      The IAM user. Defaults to the single human operator
 #                      identity, because there is exactly one and naming it
 #                      here is what makes a typo impossible.

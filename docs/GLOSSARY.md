@@ -54,7 +54,7 @@
 
 **DKIM (DomainKeys Identified Mail)**: Email authentication method verifying sender identity using cryptographic signatures. Footbag.org configures DKIM through AWS SES to improve email deliverability and prevent spoofing.
 
-**DMARC (Domain-based Message Authentication, Reporting and Conformance)**: Email authentication policy framework building on SPF and DKIM. Footbag.org publishes DMARC policies instructing receiving servers to reject unauthenticated emails claiming to be from footbag.org.
+**DMARC (Domain-based Message Authentication, Reporting and Conformance)**: Email authentication policy framework building on SPF and DKIM. Footbag.org publishes a DMARC policy for the domain and an aggregate-report mailbox to receive what receiving servers report about mail claiming to be from it. The policy is published monitor-only and tightens to quarantine and then rejection once the aggregate reports confirm the full sender list, because tightening ahead of that evidence rejects legitimate senders not yet covered by the SPF record.
 
 **DNS (Domain Name System)**: Internet system translating human-readable domain names (footbag.org) into IP addresses computers use to locate servers. Footbag.org uses AWS Route 53 for DNS management (alias records to the CloudFront distribution); there is no Route 53 health check or automatic failover, and when the origin is unavailable CloudFront serves a static maintenance page from S3.
 

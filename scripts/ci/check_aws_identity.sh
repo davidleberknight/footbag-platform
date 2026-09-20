@@ -61,11 +61,6 @@ is_exempt() {
     # AWS_PROFILE to prove the pasted credential on its own. Supplying an
     # identity underneath it would be circular.
     scripts/install-operator-key.sh) return 0 ;;
-    # It creates the everyday federated profile and reaches AWS not at all: it
-    # writes a stanza saying where to sign in and as what, and leaves the
-    # sign-in itself to the operator. There is no identity for this gate to
-    # supply, and one supplied would prove nothing about the file it wrote.
-    scripts/install-operator-sso-profile.sh) return 0 ;;
     # It requires an explicit profile and proves the chained runtime profiles
     # before cutting a key. A defaulted identity would let a rotation act on the
     # strength of the wrong credential.

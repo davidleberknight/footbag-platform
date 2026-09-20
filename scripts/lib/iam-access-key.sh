@@ -16,7 +16,11 @@
 # a forgotten retirement means a rotation that ends with two live keys and
 # retires nothing. All three failures are silent.
 #
-# So the whole lifecycle lives here, on a trap:
+# So the whole lifecycle lives here, on a trap. The first three below describe
+# the default delivery, where a human reads the secret and records it; a caller
+# that writes the secret into a local credentials profile in the same run sets
+# IAM_KEY_DELIVERY and they do not apply, for the reasons given there. The rest
+# hold either way.
 #
 #   - Refuse before minting anything if there is no terminal to show the secret
 #     on. A credential nobody can read is not a failed run, it is a live
@@ -61,6 +65,47 @@ IAM_KEY_AWS_ARGS=()
 # caller supplies bare sentences. A caller that sets nothing gets a vault entry
 # that says only what the key is called, which is a record nobody can act on.
 IAM_KEY_VAULT_NOTES=""
+
+# Where the minted secret is going, which decides whether a human has to read it.
+#
+#   vault    the default and the original shape: the secret is shown once on the
+#            terminal device, the operator records it in the credential vault,
+#            and a typed confirmation is what lets the run continue. Used for
+#            every credential whose destination is somebody else's machine, a
+#            deployed host, or a service, because the vault is the only copy
+#            that survives the run.
+#   install  the caller writes the secret straight into a local AWS credentials
+#            profile in this same run and nothing else ever holds it. No human
+#            reads it, so there is nothing to show and nothing to confirm, and
+#            the terminal requirement below drops with them: that requirement
+#            exists because a secret is about to be displayed, and here none is.
+#            The human-operator lifecycle is the only caller, and it is the only
+#            caller by design — a human's own access key is deliberately never
+#            copied into the shared vault, so a vault prompt here would be
+#            asking the operator to break the custody rule.
+#
+# The state machine below is the same either way. In install mode the credential
+# stays `minted` when this returns, so the caller's own failure still withdraws
+# it, and the caller calls iam_key_commit only once the write has succeeded.
+IAM_KEY_DELIVERY="${IAM_KEY_DELIVERY:-vault}"
+
+# Whether retiring the identity's LAST active key is allowed.
+#
+# The default refusal below exists for a rotation: cutting the only credential
+# a working identity has leaves it unable to authenticate at all, and an
+# inactive key left behind is not a way back in. That is a real failure and it
+# stays the default.
+#
+# It is the wrong answer in exactly two situations, and both are deliberate
+# rather than accidental. An identity being stood down is supposed to end with
+# nothing — leaving it one live key is the failure there. And an identity being
+# re-onboarded has a retired key in the way of the fresh one, which the
+# two-key account limit would otherwise turn into a refusal on a perfectly
+# ordinary run.
+#
+# Set per call site, never globally, so the refusal is what a caller gets by
+# forgetting rather than what it loses.
+IAM_KEY_ALLOW_LAST="${IAM_KEY_ALLOW_LAST:-0}"
 
 # How far the credential has travelled, which is what decides whether an
 # unfinished run may delete it. The distinction is load-bearing: a key that
@@ -142,6 +187,18 @@ iam_key_provision() {
   local user="$1" vault_entry="$2" rotate="$3"
   IAM_KEY_USER="$user"
 
+  # Checked before anything is read, because an unrecognised value would
+  # otherwise fall through to the vault branch and show a secret the caller
+  # meant to keep off the screen.
+  case "$IAM_KEY_DELIVERY" in
+    vault|install) ;;
+    *)
+      echo "ERROR: IAM_KEY_DELIVERY is '${IAM_KEY_DELIVERY}', which is neither" >&2
+      echo "       'vault' nor 'install'. Nothing has been created." >&2
+      return 1
+      ;;
+  esac
+
   if [[ "$IAM_KEY_AWS_BIN" != "aws" ]]; then
     echo "SYNTHETIC: aws='${IAM_KEY_AWS_BIN}' -- no real credential is involved." >&2
   fi
@@ -179,8 +236,9 @@ iam_key_provision() {
 
   # Checked before minting rather than before printing. A secret that exists and
   # cannot be shown has already done the damage: it is live in the account and
-  # recorded nowhere.
-  if ! terminal_present; then
+  # recorded nowhere. Install delivery shows nothing, so there is nothing this
+  # would protect and a terminal is not required.
+  if [[ "$IAM_KEY_DELIVERY" == "vault" ]] && ! terminal_present; then
     echo "ERROR: no terminal to show the new access key on." >&2
     echo "       The secret is displayed once and must not land in a captured" >&2
     echo "       stream. Re-run from an interactive shell." >&2
@@ -206,6 +264,17 @@ iam_key_provision() {
     return 1
   fi
   IAM_KEY_STATE="minted"
+
+  # Install delivery ends here, one step short of the vault branch and
+  # deliberately in the `minted` state: the secret is in IAM_KEY_SAK, nobody
+  # else holds it, and the trap the caller armed still withdraws it if the
+  # write that follows does not land. The caller calls iam_key_commit after it
+  # does.
+  if [[ "$IAM_KEY_DELIVERY" == "install" ]]; then
+    echo "    minted ${IAM_KEY_AKID}; the secret goes straight into the local"
+    echo "    credentials file and is not displayed."
+    return 0
+  fi
 
   {
     echo ""
@@ -291,7 +360,7 @@ iam_key_retire() {
     | grep -v -F "$akid" \
     | awk -F'\t' '$2 == "Active"' \
     | grep -c . || true)"
-  if [[ "$remaining_active" -lt 1 ]]; then
+  if [[ "$remaining_active" -lt 1 && "$IAM_KEY_ALLOW_LAST" != "1" ]]; then
     echo "REFUSING: retiring ${akid} would leave ${user} with no active key." >&2
     echo "       The identity would have no way to authenticate at all. An" >&2
     echo "       inactive key left on the user is not a way back in." >&2

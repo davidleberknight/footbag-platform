@@ -238,7 +238,18 @@ count_generation_objects() {
   out="$(aws_read s3api list-objects-v2 \
     --bucket "$bucket" --prefix "$prefix" --max-keys 2 \
     --query 'length(Contents)' --output text 2>/dev/null)" || out=""
-  [[ -z "$out" || "$out" == "None" ]] && out=0
+  # A listing that could not be read is not a generation holding nothing, and
+  # the two are distinguishable here: the query returns the literal "None" for
+  # a prefix that exists and is empty, so that is the real zero and an empty
+  # answer means the read did not happen. Both refuse below, so the safety is
+  # the same either way; what differs is what the operator is told. "holds: 0"
+  # states the backups are gone, at the one moment somebody is already worried
+  # about backups, and sends them hunting a gap that may not exist.
+  if [[ -z "$out" ]]; then
+    printf 'unknown'
+    return 0
+  fi
+  [[ "$out" == "None" ]] && out=0
   printf '%s' "$out"
 }
 
@@ -329,6 +340,19 @@ if (( ! VERIFY_ONLY )); then
   echo "  hourly/ holds: $HOURLY (of the first 2 listed), newest ${HOURLY_AGE}h old"
   echo "  daily/  holds: $DAILY (of the first 2 listed), newest ${DAILY_AGE}h old"
   echo ""
+
+  # An unreadable count refuses on its own rather than falling into the check
+  # below, which would reach the same exit through arithmetic that reads a
+  # non-numeric value as zero -- the right outcome for the wrong reason, and a
+  # message that names a cause this run did not establish.
+  if [[ "$HOURLY" == "unknown" || "$DAILY" == "unknown" ]]; then
+    echo "REFUSING: could not read how much history the promoted generations hold." >&2
+    echo "" >&2
+    echo "  The listing failed rather than coming back empty, so this run cannot tell a" >&2
+    echo "  bucket that is still filling from one it could not reach. Check the profile" >&2
+    echo "  resolves and that it can list this bucket, then re-run." >&2
+    exit 1
+  fi
 
   if (( HOURLY < 2 || DAILY < 2 )); then
     echo "REFUSING: the promoted generations do not hold history yet." >&2

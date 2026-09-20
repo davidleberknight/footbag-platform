@@ -23,14 +23,14 @@ import { join } from 'node:path';
 export const STUB_OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
 
 /**
- * The profiles an operator workstation carries: the one everyday work goes out
- * on, and the one holding the directly authenticated key. Two names because a
- * static key and a federated session cannot share one, and the scripts that
- * need the second name it rather than falling back to it, so a stub listing
- * only the first sends those scripts into their "no such profile" refusal
- * before they reach the behaviour under test.
+ * The profile a super-admin workstation carries: the directly authenticated
+ * IAM user's, which is the one the shared library supplies when a shell has no
+ * identity of its own. A dev-and-tester's machine carries their own named
+ * profile and the job-role profile instead, and a suite exercising that tier
+ * names those itself rather than taking them from here, because the whole
+ * point of the second tier is that the names differ per person.
  */
-export const STUB_OPERATOR_PROFILES = ['footbag-operator', 'footbag-operator-key'];
+export const STUB_OPERATOR_PROFILES = ['footbag-operator'];
 
 export interface AwsIdentityStubOptions {
   /** Profile names the stub reports as configured. */

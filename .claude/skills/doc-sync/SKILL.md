@@ -55,7 +55,7 @@ Before making any recommendation, read selectively:
 - the touched code files
 - the file-header JSDoc of any touched service (the authoritative service contract; JSDoc that no longer matches the service is drift to fix in the same pass)
 - the path-scoped rules in `.claude/rules/*` and the `.claude/skills/*` procedures relevant to the touched area; these are canonical and are drift-checked like any doc
-- the private operations docs, whenever the change touches infrastructure, the deploy path, host configuration, a credential, or an operator procedure: `AWS_OPERATIONS.md` for concrete AWS facts, `DEVOPS_GUIDE.md` for runbooks, `VAULT_README.md` for the vault's entry map and schema, `VAULT_GOVERNANCE.md` for custody rulings, and `GO_LIVE_PLAN.md` for gate rows. Reach them through the `footbag_private_repo/` symlink; when it is absent, say so in one line and continue with the public half.
+- the private operations docs, whenever the change touches infrastructure, the deploy path, host configuration, a credential, or an operator procedure: `AWS_OPERATIONS.md` for concrete AWS facts, `DEVOPS_GUIDE.md` for runbooks, `VAULT_README_V<n>.md` for the vault's entry map and schema, whose filename carries the vault version it describes, so the highest n in that checkout is the current one, `VAULT_GOVERNANCE.md` for custody rulings, and `GO_LIVE_PLAN.md` for gate rows. Reach them through the `footbag_private_repo/` symlink; when it is absent, say so in one line and continue with the public half.
 - any schema/configuration needed to understand the change
 
 ## Workflow
@@ -96,6 +96,7 @@ Drift exists only when the docs:
 - omit information needed to understand current behavior
 - describe old behavior as if it were current
 - use identifiers or boundaries that are no longer correct
+- narrate a superseded position: a reversed ruling kept under a banner, a dated "this replaces the earlier ...", an "an earlier version of this rule" paragraph. The fix is deletion, not a marker. See "No superseded history" in `.claude/rules/doc-governance.md`.
 
 Do not treat these as drift:
 - style differences

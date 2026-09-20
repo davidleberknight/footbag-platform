@@ -509,9 +509,3 @@ jobs:
         run: |
           terraform init -backend=false
           terraform validate
-
-      - name: terraform validate (operators)
-        working-directory: terraform/operators
-        run: |
-          terraform init -backend=false
-          terraform validate

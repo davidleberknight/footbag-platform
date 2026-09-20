@@ -109,8 +109,9 @@ tf_output_explain() {
   echo "" >&2
   echo "       Three causes look identical here, so check all three:" >&2
   echo "         - the tree has not been initialised (terraform -chdir=${dir} init);" >&2
-  echo "         - your sign-in has expired, which is the ordinary one" >&2
-  echo "           (aws sso login --profile ${FOOTBAG_OPERATOR_PROFILE});" >&2
-  echo "         - the operator profile is not set up on this machine at all" >&2
-  echo "           (bash scripts/install-operator-sso-profile.sh --help)." >&2
+  echo "         - your access key no longer authenticates, because it was" >&2
+  echo "           deactivated or replaced (bash scripts/manage-human-operator.sh" >&2
+  echo "           --verify <your-name> says which);" >&2
+  echo "         - no operator profile is set up on this machine at all" >&2
+  echo "           (bash scripts/setup-operator-workstation.sh)." >&2
 }

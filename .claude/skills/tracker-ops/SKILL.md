@@ -143,7 +143,7 @@ never carry an issue number; the issue cites the file and line.
 The private checkout carries four private ops docs. `AWS_OPERATIONS.md` (private GitHub repo)
 holds concrete AWS facts, `DEVOPS_GUIDE.md` (private GitHub repo) holds operating runbooks,
 `VAULT_GOVERNANCE.md` (private GitHub repo) holds vault and board governance, and
-`VAULT_README.md` (private GitHub repo) holds the credential vault's entry map and entry
+`VAULT_README_V<n>.md` (private GitHub repo) holds the credential vault's entry map and entry
 schema: what the vault holds, what it is designed to hold, and what is deliberately excluded
 with the reason. It carries no secret value, and the vault's own README entry is a pasted copy
 of it. Cite their content by section title, never by section number. Linking is

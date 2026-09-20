@@ -39,59 +39,33 @@ interface Estate {
   /** Whether each runtime role's trust policy still names it; null is unreadable. */
   trustsStaging?: boolean | null;
   trustsProduction?: boolean | null;
-  /** The Identity Center instance and its identity store; null is not enabled. */
+  /** The dormant Identity Center instance and its store; null is none at all. */
   ssoInstance?: string | null;
+  /** How many permission sets the dormant instance carries. */
+  ssoPermissionSets?: string;
+  /** How many users its directory holds. */
+  ssoUsers?: string;
   /**
-   * The live generated role behind the operator permission set; null is none
-   * yet. An array stands for a permission set that has been recreated, leaving a
-   * role behind under the old suffix, which `--output text` returns tab-joined
-   * on one line.
+   * The dormancy read itself does not answer: an access denial, a throttle, an
+   * expired credential. Distinct from a count of zero, which is the estate's
+   * intended state rather than a fault.
    */
-  ssoRole?: string | string[] | null;
-  /**
-   * The role read itself does not answer: an access denial, a throttle, an
-   * expired credential. Distinct from there being no role, which is the estate's
-   * current state rather than a fault.
-   */
-  ssoRoleReadFails?: boolean;
-  /** The operator role ARN the two trust policies actually carry, if any. */
-  trustedSsoRole?: string | null;
-  /**
-   * The live generated role behind the dev-and-tester permission set. Null is
-   * none: either the tree has not been applied, or nobody on the roster holds
-   * that job, and an unassigned permission set generates no role.
-   */
-  devTesterRole?: string | string[] | null;
-  /** The dev-and-tester role ARN each trust policy actually carries, if any. */
-  stagingTrustedDevTesterRole?: string | null;
-  productionTrustedDevTesterRole?: string | null;
+  ssoPermissionSetsReadFails?: boolean;
+  /** Whether the shared job role exists at all. */
+  devTesterRole?: boolean;
+  /** Whether each runtime trust policy names the job role. */
+  stagingTrustsDevTester?: boolean;
+  productionTrustsDevTester?: boolean;
 }
 
 const OPERATOR = 'footbag-operator';
-const SSO_ROLE =
-  'arn:aws:iam::111122223333:role/aws-reserved/sso.amazonaws.com/us-east-1/AWSReservedSSO_FootbagSuperAdmin_1111111111111111';
 /**
- * The dev-and-tester's generated role, with a different suffix from the
- * super-admin one. The two are told apart only by the name embedded in each, so a
- * check that matched any reserved-SSO role would report one under the other's
- * name and never say so.
+ * The job role's ARN, which unlike the thing that stood here before it is
+ * predictable from the account id and the name this project chose. There is no
+ * generated suffix to go stale, which is why the checks around it are about
+ * the two trust documents rather than about reading the role's name back.
  */
-const DEV_TESTER_ROLE =
-  'arn:aws:iam::111122223333:role/aws-reserved/sso.amazonaws.com/us-east-1/AWSReservedSSO_FootbagDevTester_9999999999999999';
-
-/**
- * One `list-roles` answer. A real `--output text` list is tab-separated on one
- * line, and the tab has to be a real one: printf interprets escapes in its format
- * string, never in a %s argument, so joining in JavaScript would emit a literal
- * backslash-t and two roles would arrive as one word.
- */
-function listRolesAnswer(roles: string | string[] | null): string {
-  if (roles === null) return "printf ''";
-  if (Array.isArray(roles)) {
-    return `printf '%s\\t' ${roles.map((r) => JSON.stringify(r)).join(' ')}; printf '\\n'`;
-  }
-  return `printf '%s\\n' ${JSON.stringify(roles)}`;
-}
+const DEV_TESTER_ROLE_ARN = 'arn:aws:iam::111122223333:role/FootbagDevTester';
 
 function trustDocument(names: boolean, extras: Array<string | null>): string {
   const principals = names
@@ -132,16 +106,19 @@ const HEALTHY: Required<Estate> = {
   superAdminKeyActive: true,
   trustsStaging: true,
   trustsProduction: true,
-  // No federated path yet, which is the account as it stands: operators still
-  // authenticate as the super-admin identity. Its absence is the current state of
-  // the estate rather than a finding, so the healthy sheet carries it.
-  ssoInstance: null,
-  ssoRole: null,
-  ssoRoleReadFails: false,
-  trustedSsoRole: null,
-  devTesterRole: null,
-  stagingTrustedDevTesterRole: null,
-  productionTrustedDevTesterRole: null,
+  // The dormant instance is PRESENT on the healthy sheet, because it is present
+  // in the account and being present is not the fault. Empty is the healthy
+  // state, and the counts below are what say so.
+  ssoInstance: 'arn:aws:sso:::instance/ssoins-abc\td-123456',
+  ssoPermissionSets: '0',
+  ssoUsers: '0',
+  ssoPermissionSetsReadFails: false,
+  // The identity tree has not been applied, so there is no job role yet and
+  // nothing to compare against either trust document. That is the estate as it
+  // stands rather than a finding.
+  devTesterRole: false,
+  stagingTrustsDevTester: false,
+  productionTrustsDevTester: false,
 };
 
 function awsStub(estate: Estate): string {
@@ -183,7 +160,17 @@ function awsStub(estate: Estate): string {
         }),
       )}`,
       '    ;;',
-      `  list-users) ${e.users === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.users)}`} ;;`,
+      // Two services answer to this subcommand, and they are different
+      // questions: `iam list-users` is the account's IAM user inventory, and
+      // `identitystore list-users` is the dormancy check on the directory. A
+      // stub keyed on the subcommand alone would answer one with the other.
+      '  list-users)',
+      '    if [[ "$1" == "identitystore" ]]; then',
+      `      printf '%s\\n' ${JSON.stringify(e.ssoUsers)}`,
+      '    else',
+      `      ${e.users === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.users)}`}`,
+      '    fi',
+      '    ;;',
       // Two different calls land on this arm. The per-user inventory asks for
       // every key with its dates; the super-admin check asks only for the Active
       // ones, and is told apart by `Active` appearing in its query.
@@ -196,13 +183,17 @@ function awsStub(estate: Estate): string {
       '    ;;',
       '  get-access-key-last-used) printf \'2026-09-16T00:00:00Z\\n\' ;;',
       '  get-role)',
+      // The job role itself, asked for by name. A non-zero exit is how the
+      // script learns it does not exist, which is the pre-apply state.
+      `    if [[ "$*" == *FootbagDevTester* ]]; then ${
+        e.devTesterRole ? "printf '{}\\n'" : 'exit 254'
+      }; fi`,
       `    if [[ "$*" == *footbag-staging-app-runtime* ]]; then ${
         e.trustsStaging === null
           ? 'exit 1'
           : `printf '%s' ${JSON.stringify(
               trustDocument(e.trustsStaging !== false, [
-                e.trustedSsoRole,
-                e.stagingTrustedDevTesterRole,
+                e.stagingTrustsDevTester ? DEV_TESTER_ROLE_ARN : null,
               ]),
             )}`
       }; fi`,
@@ -211,33 +202,27 @@ function awsStub(estate: Estate): string {
           ? 'exit 1'
           : `printf '%s' ${JSON.stringify(
               trustDocument(e.trustsProduction !== false, [
-                e.trustedSsoRole,
-                e.productionTrustedDevTesterRole,
+                e.productionTrustsDevTester ? DEV_TESTER_ROLE_ARN : null,
               ]),
             )}`
       }; fi`,
       '    ;;',
-      // The generated role behind the operator permission set, whose name suffix
-      // nobody chooses. Absent before the federated path is stood up.
-      // A real `--output text` list is tab-separated on one line, and the tab has
-      // to be a real one: printf interprets escapes in its format string, never
-      // in a %s argument, so joining in JavaScript would emit a literal
-      // backslash-t and two roles would arrive as one word.
-      // Each permission set is asked about by name, one call each, so the answer
-      // depends on which name the query carries. A stub answering the same list
-      // either way would let a check that matched any reserved-SSO role pass
-      // while reporting one role's ARN under the other's name.
-      '  list-roles)',
-      '    if [[ "$*" == *AWSReservedSSO_FootbagDevTester_* ]]; then',
-      `      ${listRolesAnswer(e.devTesterRole)}`,
-      '    else',
-      `      ${e.ssoRoleReadFails ? 'exit 254' : listRolesAnswer(e.ssoRole)}`,
-      '    fi',
-      '    ;;',
-      // The instance the console enable produced, reported so nobody has to ask
-      // the CLI by hand whether it took.
+      // The dormant instance and the two counts that say it is still dormant.
+      // A real `--output text` pair is tab-separated on one line, and the tab
+      // has to be a real one: printf interprets escapes in its format string,
+      // never in a %s argument, so joining in JavaScript would emit a literal
+      // backslash-t and the instance ARN and store id would arrive as one word,
+      // which is the difference between the store being read and being skipped.
       `  list-instances) ${
-        e.ssoInstance === null ? "printf ''" : `printf '%s\\n' ${JSON.stringify(e.ssoInstance)}`
+        e.ssoInstance === null
+          ? "printf ''"
+          : `printf '%s\\t%s\\n' ${e.ssoInstance
+              .split('\t')
+              .map((v) => JSON.stringify(v))
+              .join(' ')}`
+      } ;;`,
+      `  list-permission-sets) ${
+        e.ssoPermissionSetsReadFails ? 'exit 254' : `printf '%s\\n' ${JSON.stringify(e.ssoPermissionSets)}`
       } ;;`,
       'esac',
       'exit 0',
@@ -409,10 +394,10 @@ describe('verify-account-baseline.sh — how it behaves', () => {
  *
  * These read the opposite way round from every check above: what is asserted is
  * that something is still THERE. The IAM user is retained permanently as the
- * super-admin identity, kept unfederated so that a failure of the identity
- * provider cannot take the normal route and the way back in down with it, and
- * federation is added beside it rather than in place of it. So its absence is
- * the finding.
+ * super-admin identity, reached without assuming anything so that whatever
+ * breaks the shared job role cannot take the normal route and the way back in
+ * down with it, and every named operator's path is added beside it rather than
+ * in place of it. So its absence is the finding.
  *
  * The trust policies are the pair that strands everyone. Both name that user by
  * literal ARN and the chained runtime profiles resolve through them, and a
@@ -466,185 +451,132 @@ describe('verify-account-baseline.sh — the super-admin identity', () => {
 });
 
 /**
- * The federated operator role, and the generated suffix that silently
- * invalidates the two trust policies naming it.
+ * The shared job role every named human operator assumes, checked against the
+ * same two runtime trust policies for opposite answers.
  *
- * Identity Center generates the IAM role behind the super-admin
- * permission set with a suffix nobody chooses, and both runtime trust policies
- * name that role by literal ARN. Delete and recreate the permission set and the
- * suffix changes: the old ARN keeps reading as a valid trust, terraform reports
- * no diff because the configuration still holds the old string, and the failure
- * surfaces weeks later as an AssumeRole that refuses. Comparing the live ARN
- * against what each policy carries is the only thing that catches it early.
+ * Staging must name it, because the reads a deploy makes are that job.
+ * Production must not, and nothing else in the estate would ever say so:
+ * production's tree declares no variable that could put it there, so a plan of
+ * that tree shows nothing, and an ARN sitting in that trust document grants
+ * the one thing the boundary between the two environments exists to prevent.
  */
-describe('verify-account-baseline.sh — the federated operator role', () => {
-  it('reports the Identity Center instance, so nobody asks the CLI by hand', () => {
-    // The console enable happens once and nothing else in the tree reads its
-    // result. Without this the only answer to "did the enable take" is a
-    // hand-typed AWS call, which is the shape every operator script replaces.
-    const r = run({ ssoInstance: 'arn:aws:sso:::instance/ssoins-abc\td-123456' });
+describe('verify-account-baseline.sh — the human operator job role', () => {
+  it('reports the role once it exists, with the ARN it actually has', () => {
+    const r = run({ devTesterRole: true, stagingTrustsDevTester: true });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/Identity Center instance: .*ssoins-abc/);
-    expect(r.stdout).toMatch(/d-123456/);
+    expect(r.stdout).toMatch(/FootbagDevTester: arn:aws:iam::111122223333:role\/FootbagDevTester/);
   });
 
-  it('says the federated path is not stood up when no instance exists', () => {
-    const r = run({ ssoInstance: null });
+  it('says nothing is owed before the identity tree has been applied', () => {
+    // An absent role is the state of the estate rather than a finding. Failing
+    // on it would leave a standing gate permanently red for something nobody
+    // has done yet, which is how a gate stops being read.
+    const r = run({ devTesterRole: false });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/no IAM Identity Center instance/);
-    expect(r.stdout).toMatch(/still attributed to footbag-operator/);
+    expect(r.stdout).toMatch(/no FootbagDevTester role yet/);
+    expect(r.stdout + r.stderr).not.toMatch(/does not name arn:aws:iam/);
   });
 
-  it('says nothing is owed while the federated path does not exist yet', () => {
-    // Operators still authenticate as the super-admin identity, which keeps the
-    // super-admin work the roles do not carry. An absent role here is
-    // the state of the estate, not a finding, and failing on it would leave a
-    // permanently red check for something nobody has done yet.
-    const r = run({ ssoRole: null });
+  it('passes when staging names it and production does not', () => {
+    const r = run({ devTesterRole: true, stagingTrustsDevTester: true });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/no FootbagSuperAdmin role yet/);
+    expect(r.stdout).toMatch(/footbag-staging-app-runtime trusts FootbagDevTester/);
+    expect(r.stdout).toMatch(/footbag-production-app-runtime does not name FootbagDevTester/);
   });
 
-  it('raises a finding when the role read itself does not answer', () => {
-    // An access denial, a throttle and an expired credential all return nothing,
-    // exactly as an absent role does. Reporting them as the absent role silences
-    // the comparison below and lets the whole gate exit green having checked
-    // nothing, which is the one outcome a standing gate must not produce.
-    const r = run({ ssoRoleReadFails: true });
-    expect(r.status).not.toBe(0);
-    expect(r.stderr).toMatch(/could not read the generated FootbagSuperAdmin role/);
-    expect(r.stdout + r.stderr).toMatch(/not the same as the role being absent/);
-  });
-
-  it('refuses to compare when a recreated permission set leaves two matching roles', () => {
-    // The two ARNs arrive tab-joined on one line. Used whole, that string is a
-    // needle no trust document can contain, so both runtime roles fail the
-    // comparison even when their trust is correct, and the report blames the
-    // trust policies for a permission set that was recreated.
-    const stale = SSO_ROLE.replace('_1111111111111111', '_9999999999999999');
-    const r = run({ ssoRole: [stale, SSO_ROLE], trustedSsoRole: SSO_ROLE });
-    expect(r.status).not.toBe(0);
-    expect(r.stderr).toMatch(/2 roles match AWSReservedSSO_FootbagSuperAdmin_\*/);
-    expect(r.stdout + r.stderr).not.toMatch(/does not name the live FootbagSuperAdmin role/);
-  });
-
-  it('passes when both trust policies name the live role', () => {
-    const r = run({ ssoRole: SSO_ROLE, trustedSsoRole: SSO_ROLE });
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/footbag-staging-app-runtime trusts the live FootbagSuperAdmin role/);
-    expect(r.stdout).toMatch(/footbag-production-app-runtime trusts the live FootbagSuperAdmin role/);
-  });
-
-  it('fails when a trust policy carries a stale generated ARN', () => {
-    // The recreated-permission-set case, and the whole reason this check exists:
-    // a well-formed ARN for a principal that no longer exists.
-    const stale = SSO_ROLE.replace('_1111111111111111', '_2222222222222222');
-    const r = run({ ssoRole: SSO_ROLE, trustedSsoRole: stale });
+  it('fails when production trusts it, which no apply of that tree can produce', () => {
+    // The finding this whole section exists for. The grant reaches the
+    // production runtime role, the tree that owns production carries no
+    // variable that could have written it, and nothing else looks at it.
+    const r = run({
+      devTesterRole: true,
+      stagingTrustsDevTester: true,
+      productionTrustsDevTester: true,
+    });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/footbag-staging-app-runtime does not name the live FootbagSuperAdmin role/);
-    expect(r.stderr).toMatch(/footbag-production-app-runtime does not name the live FootbagSuperAdmin role/);
+    expect(r.stderr).toMatch(/footbag-production-app-runtime names FootbagDevTester/);
+    expect(r.stdout + r.stderr).toMatch(/added by hand/);
   });
 
-  it('names the suffix as the cause, so the fix is not guessed at', () => {
-    const r = run({ ssoRole: SSO_ROLE, trustedSsoRole: null });
-    expect(r.stdout + r.stderr).toMatch(/generated suffix changes whenever the permission set is recreated/);
-    expect(r.stdout + r.stderr).toMatch(/super_admin_sso_role_arn/);
+  it('fails when staging does not name it, and says which value sets it', () => {
+    // A named operator can then authenticate and reach nothing a deploy needs,
+    // which reads as a broken account rather than as a missing principal.
+    const r = run({ devTesterRole: true, stagingTrustsDevTester: false });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/footbag-staging-app-runtime does not name arn:aws:iam/);
+    expect(r.stdout + r.stderr).toMatch(/dev_tester_role_arn/);
   });
 
-  it('fails rather than passes when the comparison cannot be made', () => {
+  it('fails rather than passes when a trust policy cannot be read', () => {
     // An unreadable trust policy is not evidence that the role is named in it.
-    const r = run({ ssoRole: SSO_ROLE, trustsProduction: null });
+    const r = run({ devTesterRole: true, trustsProduction: null });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not read the trust policy to compare the operator role/);
+    expect(r.stderr).toMatch(/could not read the trust policy to check the job role is absent/);
   });
 
-  it('keeps the super-admin identity trust entry a separate assertion', () => {
+  it('keeps the directly authenticated identity a separate assertion', () => {
     // The two checks answer different questions and one passing says nothing
-    // about the other: the federated role being present does not make the
-    // way back in present, and that route is what the design turns on.
-    const r = run({ ssoRole: SSO_ROLE, trustedSsoRole: SSO_ROLE, trustsStaging: false });
+    // about the other: the job role being trusted does not make the way back in
+    // present, and that route is what the design turns on.
+    const r = run({ devTesterRole: true, stagingTrustsDevTester: true, trustsStaging: false });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/footbag-staging-app-runtime no longer names footbag-operator/);
   });
 });
 
 /**
- * The dev-and-tester role, which is checked against the same two trust policies
- * for opposite answers.
+ * The dormant Identity Center instance, and the standing assertion that it
+ * stays dormant.
  *
- * Staging must name it, because the reads a deploy makes are that job. Production
- * must not, and nothing else in the estate would ever say so: production's tree
- * declares no variable that could put it there, so a plan of that tree shows
- * nothing, and an ARN sitting in that trust document grants the one thing the
- * split into two roles exists to prevent.
+ * An instance and an organization exist in this account. They were created by
+ * hand while a federated operator model was being evaluated, Terraform was
+ * never applied against them, and the model was abandoned. They are kept
+ * rather than deleted: both are inert, both are free, both are prerequisites
+ * if federation is revisited, and the organization is the prerequisite for the
+ * separate emergency-access account AWS break-glass guidance recommends.
+ *
+ * Kept is not unwatched. An instance that grows a permission set or a
+ * directory user is a second way into this account that no Terraform plan
+ * shows a diff for and no operator has reason to check.
  */
-describe('verify-account-baseline.sh — the dev-and-tester role', () => {
-  it('tells the two generated roles apart by the name in each', () => {
-    // The suffixes are unpredictable and both roles sit under the same reserved
-    // path, so the embedded permission-set name is the only thing distinguishing
-    // them. Matching loosely would report one under the other's name.
-    const r = run({
-      ssoRole: SSO_ROLE,
-      trustedSsoRole: SSO_ROLE,
-      devTesterRole: DEV_TESTER_ROLE,
-      stagingTrustedDevTesterRole: DEV_TESTER_ROLE,
-    });
+describe('verify-account-baseline.sh — Identity Center dormancy', () => {
+  it('reports the dormant instance as expected rather than as a finding', () => {
+    const r = run();
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/FootbagSuperAdmin role: .*AWSReservedSSO_FootbagSuperAdmin_/);
-    expect(r.stdout).toMatch(/FootbagDevTester role: .*AWSReservedSSO_FootbagDevTester_/);
+    expect(r.stdout).toMatch(/the dormant instance is present, which is expected/);
+    expect(r.stdout).toMatch(/it carries no permission sets/);
+    expect(r.stdout).toMatch(/its directory holds no users/);
   });
 
-  it('passes when staging names it and production does not', () => {
-    const r = run({
-      ssoRole: SSO_ROLE,
-      trustedSsoRole: SSO_ROLE,
-      devTesterRole: DEV_TESTER_ROLE,
-      stagingTrustedDevTesterRole: DEV_TESTER_ROLE,
-    });
+  it('passes when the account has no instance at all', () => {
+    const r = run({ ssoInstance: null });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/footbag-staging-app-runtime trusts the live FootbagDevTester role/);
-    expect(r.stdout).toMatch(/footbag-production-app-runtime does not name the FootbagDevTester role/);
+    expect(r.stdout).toMatch(/no Identity Center instance in this account/);
   });
 
-  it('fails when production trusts it, which no apply of that tree can produce', () => {
-    // This is the finding the whole section exists for. The grant reaches the
-    // production runtime role, the tree that owns production carries no variable
-    // that could have written it, and nothing else in the estate looks at it.
-    const r = run({
-      ssoRole: SSO_ROLE,
-      trustedSsoRole: SSO_ROLE,
-      devTesterRole: DEV_TESTER_ROLE,
-      stagingTrustedDevTesterRole: DEV_TESTER_ROLE,
-      productionTrustedDevTesterRole: DEV_TESTER_ROLE,
-    });
+  it('fails when the dormant instance has grown a permission set', () => {
+    // Nothing in this repository creates one, so it was made by hand, and it
+    // is a way into the account that no other check here looks at.
+    const r = run({ ssoPermissionSets: '2' });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/footbag-production-app-runtime names the FootbagDevTester role/);
-    expect(r.stdout + r.stderr).toMatch(/added by hand/);
+    expect(r.stderr).toMatch(/the dormant instance carries 2 permission set\(s\)/);
+    expect(r.stdout + r.stderr).toMatch(/no Terraform plan shows/);
   });
 
-  it('fails when staging does not name it, and says which value sets it', () => {
-    // A dev-and-tester can then sign in and reach nothing a deploy needs, which
-    // reads as a broken account rather than as a missing principal.
-    const r = run({
-      ssoRole: SSO_ROLE,
-      trustedSsoRole: SSO_ROLE,
-      devTesterRole: DEV_TESTER_ROLE,
-      stagingTrustedDevTesterRole: null,
-    });
+  it('fails when the dormant directory has grown a user', () => {
+    const r = run({ ssoUsers: '1' });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(
-      /footbag-staging-app-runtime does not name the live FootbagDevTester role/,
-    );
-    expect(r.stdout + r.stderr).toMatch(/dev_tester_sso_role_arn/);
+    expect(r.stderr).toMatch(/the dormant directory holds 1 user\(s\)/);
   });
 
-  it('says nothing is owed when nobody holds the dev-and-tester role', () => {
-    // An unassigned permission set generates no role, so an absent one here is a
-    // roster with nobody on that tier rather than a fault. Failing on it would
-    // leave a standing gate red for a state the design allows.
-    const r = run({ ssoRole: SSO_ROLE, trustedSsoRole: SSO_ROLE, devTesterRole: null });
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/no FootbagDevTester role yet/);
-    expect(r.stdout + r.stderr).not.toMatch(/does not name the live FootbagDevTester role/);
+  it('fails when the dormancy read itself does not answer', () => {
+    // An access denial, a throttle and an expired credential all come back the
+    // same way an empty instance does. Reporting the first as the second lets
+    // this gate exit green having checked nothing, which is the one outcome a
+    // standing check must never produce.
+    const r = run({ ssoPermissionSetsReadFails: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read the permission sets of the dormant instance/);
+    expect(r.stdout + r.stderr).toMatch(/not the same as there being none/);
   });
 });

@@ -69,6 +69,10 @@ TARGET=""
 CHECK=0
 TODO=0
 PRIVATE_REPO=""
+# The shared job role a named operator assumes. Spelled here because this check
+# reads the role out of a resolved ARN, which is a different thing from the
+# profile name the library owns.
+DEV_TESTER_ROLE_NAME="FootbagDevTester"
 # Whether this run has an AWS identity that actually authenticates. Every step
 # below that reaches AWS reads it, so that one dead credential is reported once,
 # where it can be fixed, instead of three times in three other vocabularies.
@@ -274,16 +278,40 @@ else
   # same thing twice and would have to guess which of those two it was.
   ok "that identity authenticates against AWS"
 
-  # The break-glass key, reported separately from the identity above because it
-  # is a property of the tier rather than of the machine. A super admin holds it
-  # and their machine carries a second profile for it; a dev-and-tester never
-  # holds it, so its absence is the correct state and not a finding.
+  # Which tier this machine belongs to, reported rather than assumed, because
+  # the two carry different profiles and half the findings below depend on
+  # which one this is. The directly authenticated profile is the super admin's
+  # and a dev-and-tester never holds it, so its absence is the correct state
+  # for them and not a finding.
   _has_key_profile=0
-  if aws_profile_exists "$FOOTBAG_OPERATOR_KEY_PROFILE"; then
+  if aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
     _has_key_profile=1
-    ok "the break-glass profile ${FOOTBAG_OPERATOR_KEY_PROFILE} is configured"
+    ok "the directly authenticated profile ${FOOTBAG_OPERATOR_PROFILE} is configured"
   else
-    note "no ${FOOTBAG_OPERATOR_KEY_PROFILE} profile here, which is correct unless you are a super admin holding the directly authenticated key. If you are: bash scripts/install-operator-key.sh"
+    note "no ${FOOTBAG_OPERATOR_PROFILE} profile here, which is correct unless you are the super admin holding that key. If you are: bash scripts/install-operator-key.sh"
+  fi
+
+  # The job role a named operator assumes for everyday work, and the session
+  # name it carries. On a shared role the session name IS the attribution, so a
+  # chain that resolves under the wrong name is worse than one that does not
+  # resolve: it works, and it records this person's actions as somebody else's.
+  if aws_profile_exists "$FOOTBAG_DEV_TESTER_PROFILE"; then
+    # Resolved rather than merely listed, and then read: the ARN is what says
+    # both that the assume-role step happened and whose name the session
+    # carries. Either alone would pass on a chain that works and misattributes.
+    if aws_identity_resolve "$FOOTBAG_DEV_TESTER_PROFILE"; then
+      if [[ "$AWS_IDENTITY_ARN" == *":assumed-role/${DEV_TESTER_ROLE_NAME}/"* ]]; then
+        ok "${FOOTBAG_DEV_TESTER_PROFILE} assumes ${DEV_TESTER_ROLE_NAME} as ${AWS_IDENTITY_ARN##*/}"
+      else
+        todo "${FOOTBAG_DEV_TESTER_PROFILE} resolves to ${AWS_IDENTITY_ARN}, which is not a ${DEV_TESTER_ROLE_NAME} session, so the assume-role step did not happen"
+      fi
+    else
+      todo "${FOOTBAG_DEV_TESTER_PROFILE} is configured but does not resolve; ask the super admin to re-run the onboarding for you"
+    fi
+  elif (( _has_key_profile )); then
+    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, which is correct for a machine that works as the directly authenticated identity"
+  else
+    todo "${FOOTBAG_DEV_TESTER_PROFILE} is missing — ask the super admin to run, at this keyboard: bash scripts/manage-human-operator.sh --onboard <your-name>"
   fi
 
   # Missing and unassumable are different faults with different owners, so they
@@ -293,18 +321,21 @@ else
   # fix.
   #
   # The staging chain is a finding for everybody, because everybody can produce
-  # it: the SSO installer writes it, chained off the sign-in rather than off a
-  # key. The production chain is a finding only for somebody who could have it.
-  # It is written for the super-admin set alone, because production's runtime
-  # role trusts that role and not the dev-and-tester one, so for that tier its
+  # it: the onboarding writes it for a named operator, chained off the job
+  # role, and the key install writes it for the super admin. The production
+  # chain is a finding only for somebody who could have it. It is written for
+  # the directly authenticated identity alone, because production's runtime
+  # role trusts that user and not the job role, so for a dev-and-tester its
   # absence is the boundary working rather than a gap.
   _runtime_missing=0
   for rt in footbag-staging-runtime footbag-production-runtime; do
     if ! aws_profile_exists "$rt"; then
       if [[ "$rt" == *production* ]] && (( ! _has_key_profile )); then
-        note "$rt is not here. It is written only for the super-admin permission set, because production's runtime role does not trust the dev-and-tester one: a profile that resolved and then could not assume would read as a fault rather than as that boundary working"
+        note "$rt is not here. It is written only for the directly authenticated identity, because production's runtime role does not trust ${DEV_TESTER_ROLE_NAME}: a profile that resolved and then could not assume would read as a fault rather than as that boundary working"
+      elif (( _has_key_profile )); then
+        todo "$rt is missing — run: bash scripts/install-operator-key.sh (it writes both chains for the directly authenticated identity)"
       else
-        todo "$rt is missing — run: bash scripts/install-operator-sso-profile.sh (it writes the staging chain, and the production one for a super admin)"
+        todo "$rt is missing — ask the super admin to run, at this keyboard: bash scripts/manage-human-operator.sh --onboard <your-name>"
       fi
       _runtime_missing=1
     fi
@@ -551,7 +582,7 @@ if [[ -f "$CRED_FILE" ]] && command -v ssh >/dev/null 2>&1 && require_pinned_kno
             'sudo -k -S -p "" true' >/dev/null 2>&1; then
       ok "connected as the alias account and sudo accepted the password"
     else
-      todo "could not connect to ${ALIAS} and run sudo. Either the host is unreachable, the key is not accepted, the pinned host key does not match, or the password in $(basename "$CRED_FILE") is wrong. Run 'bash scripts/install-known-hosts.sh --target ${TARGET} --check' first; if the pin is current, the password is the next thing to check."
+      todo "could not connect to ${ALIAS} and run sudo. Either your SSH key is passphrase-protected and no agent is holding it, the host is unreachable, the key is not accepted, the pinned host key does not match, or the password in $(basename "$CRED_FILE") is wrong. Check the passphrase case first, because it is the one that looks like a rejected key: run 'ssh-add -l' and, if it says the agent has no identities, run 'ssh-add' and try again. Otherwise run 'bash scripts/install-known-hosts.sh --target ${TARGET} --check'; if the pin is current, the password is the next thing to check."
     fi
   fi
   unset _probe_pass

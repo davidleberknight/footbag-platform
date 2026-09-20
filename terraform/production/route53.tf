@@ -459,6 +459,17 @@ resource "aws_route53_record" "origin_caa" {
 # subdomains. A CAA at the apex is inherited by www and archive, and by any
 # subdomain that does not carry its own; origin carries its own, above.
 #
+# That inheritance holds only while no child zone exists. A CA reads the CAA
+# record set at the closest node, so a delegated subzone publishing its own CAA
+# overrides this one entirely and its operator can obtain a publicly trusted
+# certificate for a footbag.org name from any authority. This apex record is
+# therefore authoritative for the whole domain only because the namespace is
+# closed: see the Closed Namespace decision in DESIGN_DECISIONS, which rules that
+# from go-live every name under footbag.org is operated by IFPA and no subzone is
+# delegated. Do not add an NS record set for a child of this zone. There is none
+# today, the committed zone capture confirms no child delegation exists, and the
+# guard below asserts that rather than leaving it to convention.
+#
 # It lands with the alias flip rather than at the zone move. Note what that
 # ordering is NOT for: an "amazon.com" record would never have blocked ACM,
 # since ACM issues from that authority, so deferring it was never protecting
@@ -476,3 +487,21 @@ resource "aws_route53_record" "caa" {
     "0 issuewild \"amazon.com\"",
   ]
 }
+
+# NO CHILD ZONE IS DELEGATED UNDER footbag.org, and nothing in this file creates
+# one. The mirrored record maps carry A, CNAME, MX and TXT types only, so a
+# delegation cannot arrive through them: it would take a deliberate new
+# aws_route53_record of type NS, and adding one is a design change rather than a
+# configuration change.
+#
+# What it would cost, so the next person does not have to rediscover it: a
+# delegated child publishes its own CAA, which overrides the apex record above
+# and lets its operator obtain a publicly trusted certificate for a footbag.org
+# name from any authority. It publishes its own SPF, DKIM and DMARC, which take
+# precedence over the apex policy, so it can send mail that authenticates as the
+# domain. Browsers offer saved footbag.org credentials on any name under the
+# domain. And the archive's access cookies must carry the parent-domain scope, so
+# any delegated name answering over HTTPS receives a signed-in member's archive
+# credentials. None of that is preventable by agreement with whoever runs it.
+#
+# The governing rule is the Closed Namespace decision in DESIGN_DECISIONS.

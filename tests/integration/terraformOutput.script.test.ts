@@ -198,15 +198,16 @@ describe('tf_output_explain', () => {
       stub,
     );
     expect(r.stderr).toMatch(/has not been initialised/);
-    expect(r.stderr).toMatch(/sign-in has expired/);
-    expect(r.stderr).toMatch(/operator profile is not set up on this machine/);
-    // The remedy for each is named, and the one for an absent profile is the
-    // script that writes a sign-in rather than the one that installs a key: the
-    // key belongs under a different profile name, and naming its installer here
-    // would be an instruction to shadow the sign-in.
-    expect(r.stderr).toContain('aws sso login --profile footbag-operator');
-    expect(r.stderr).toContain('bash scripts/install-operator-sso-profile.sh');
-    expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
+    expect(r.stderr).toMatch(/access key no longer authenticates/);
+    expect(r.stderr).toMatch(/no operator profile is set up on this machine/);
+    // A remedy is named for each, and the one for a dead credential points at
+    // the check that says WHICH of the two it is rather than at either fix: a
+    // named operator's key and the directly authenticated one are reinstalled
+    // by different people through different commands, and guessing wrong here
+    // sends somebody looking for a vault entry that deliberately does not
+    // exist.
+    expect(r.stderr).toContain('bash scripts/manage-human-operator.sh');
+    expect(r.stderr).toContain('bash scripts/setup-operator-workstation.sh');
     // And terraform's own sentence, which is the one that distinguishes them.
     expect(r.stderr).toContain('Error: nope');
   });

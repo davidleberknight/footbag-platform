@@ -335,8 +335,13 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" \
 # ── Step 3: Build images locally (workstation, where memory is plentiful) ────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build;
 # any boot-time or deploy-time `compose build` on the host OOMs and wedges
-# sshd. The workstation has more RAM than any reasonable Lightsail bundle,
-# so building here is safer and faster.
+# sshd. So the build happens here instead.
+#
+# This step needs real memory on the workstation, and "more than the host" is
+# not the bar. A second operator hit a V8 heap exhaustion at 957 MB available
+# and succeeded at 2.4 GB, so budget 2 GB free as the floor and 3 GB to be
+# comfortable. On a machine running a desktop session and a browser, free
+# memory rather than installed memory is what decides it.
 
 echo "==> Building Docker images locally (workstation)..."
 # Build with the base compose only. The prod overlay is runtime-only (mounts,

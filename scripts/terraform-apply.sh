@@ -54,8 +54,8 @@
 # did, not a way past a check you found inconvenient.
 #
 # The typed APPLY is asked for on production, on the shared tree, which holds
-# every environment's state, and on the operators tree, where the plan is a
-# person gaining or losing access to this account. Staging applies without it:
+# every environment's state, and on the identity tree, where the plan is what
+# every human operator in this account may do. Staging applies without it:
 # its data is meant to be thrown away, and a word typed on every iteration is one
 # that stops being read. --break-stale-lock asks on every tree, staging included,
 # because what it removes is not staging's disposable data.
@@ -274,27 +274,20 @@ done
 # No default target. Which tree an apply lands on is exactly the decision this
 # script must not make for the operator.
 #
-# `operators` is the roster: who holds which human-operator role. It is here
-# because hiring and firing are ordinary work and must be runnable by a super
-# admin as themselves. `identity`, which declares what those roles may DO, is
-# deliberately absent: a role is denied every write to its own definition, so
-# it cannot apply that tree, and scripts/standup-identity-center.sh owns it
-# instead.
+# `identity` declares what a human operator may do. It is applied through here
+# like any other tree, but only by the directly authenticated identity, which
+# is asserted below once a credential has actually been settled: the job role
+# is denied every write to its own definition, so a run started under it would
+# stop on an access denial partway through an apply rather than at the door,
+# having already made some of the changes.
+#
+# Who the operators ARE is not a tree at all. Hiring and firing mint and revoke
+# key material that must never enter Terraform state, so
+# scripts/manage-human-operator.sh owns that instead.
 case "$TARGET" in
-  staging|production|shared|operators) ;;
-  '') echo "ERROR: --target is required ('staging', 'production', 'shared' or 'operators')" >&2; exit 2 ;;
-  identity)
-    echo "ERROR: the identity tree is not applied through this wrapper." >&2
-    echo "       It declares the operator roles' own definitions, and a role is denied" >&2
-    echo "       every write to that definition, so no role can apply it. Use" >&2
-    echo "       scripts/standup-identity-center.sh, which runs as the directly" >&2
-    echo "       authenticated identity." >&2
-    echo "" >&2
-    echo "       If you meant to hire or fire somebody, that is the roster:" >&2
-    echo "         scripts/terraform-apply.sh --target operators" >&2
-    exit 2
-    ;;
-  *) echo "ERROR: --target must be 'staging', 'production', 'shared' or 'operators' (got '$TARGET')" >&2; exit 2 ;;
+  staging|production|shared|identity) ;;
+  '') echo "ERROR: --target is required ('staging', 'production', 'shared' or 'identity')" >&2; exit 2 ;;
+  *) echo "ERROR: --target must be 'staging', 'production', 'shared' or 'identity' (got '$TARGET')" >&2; exit 2 ;;
 esac
 
 if [[ ! "$FROM_STEP" =~ ^[1-2]$ ]]; then
@@ -347,7 +340,7 @@ if (( DRY_RUN )); then
     echo "     right now, then refuse unless the lock names this machine, was taken by"
     echo "     a plan, is older than $(( STALE_LOCK_MIN_AGE_SECS / 60 )) minutes, and no terraform is running here."
     echo "     Then a typed APPLY, then force-unlock, then a read proving it is gone."
-  elif [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "operators" ]]; then
+  elif [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" ]]; then
     echo "  2. terraform -chdir=terraform/$TARGET plan into a mode-600 file shredded on"
     echo "     every exit path, show it, take a typed APPLY, then apply that exact plan."
   else
@@ -375,14 +368,14 @@ fi
 # the outcome this mode's four checks exist to prevent, and a flag passed in
 # advance is not the operator's judgement that the holding run is gone.
 #
-# The operators tree is here for the same reason it takes a typed APPLY: its
-# state is the record of who can sign in to this account, so two runs writing it
-# at once can leave somebody admitted who was being removed. Staging is the only
+# The identity tree is here for the same reason it takes a typed APPLY: its
+# state is the record of what every human operator may do, so two runs writing
+# it at once can leave a grant standing that was being removed. Staging is the only
 # tree that keeps --yes here. Its lock prompt is the one place staging still
 # stops, and an explicitly typed flag is entitled to answer it; the tree's data
 # is disposable and its state is not shared with anything that is not.
 if (( BREAK_LOCK )) && [[ "$ASSUME_YES" == "yes" ]] \
-   && [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "operators" ]]; then
+   && [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" ]]; then
   echo "ERROR: --yes does not carry breaking the ${TARGET} state lock." >&2
   echo "       Removing a lock while a run is genuinely live lets two runs write" >&2
   echo "       state at once, so the word is typed rather than passed in advance." >&2
@@ -395,6 +388,20 @@ fi
 # argument refusals and the dry run, which need no credential at all: a run that
 # was only going to print what it would do should not fail for want of one.
 aws_profile_ensure || exit 1
+
+# The identity tree declares the job role's own definition, and that role is
+# denied every write to it. Asserted here rather than left to AWS because the
+# denial lands mid-apply: terraform would create some resources, refuse on the
+# role itself, and leave the tree half applied with a state file that says so.
+# This invariant used to live in the separate script that owned this tree; it
+# lives on the apply path now so there is one way in and one place that checks.
+#
+# The IAM user is named as a literal rather than taken from the profile name
+# the library owns. They happen to agree today, and a check that reads the name
+# from the same place the credential came from is not a check.
+if [[ "$TARGET" == "identity" ]]; then
+  aws_identity_require_direct_user "footbag-operator" || exit 1
+fi
 
 # ── Breaking a stale state lock ──────────────────────────────────────────────
 #
@@ -784,17 +791,18 @@ fi
 # bucket the other two trees need in order to exist at all. It also costs
 # nothing: the shared tree changes about once a year.
 #
-# The operators tree asks for a different reason: its plan is a person gaining or
-# losing access to this account. A removed entry deletes somebody's sign-in, an
-# added one admits somebody; neither is a change to skim past, and the diff is
-# short enough that reading it costs nothing. Asking here does not make hiring or
-# firing ceremonial — it still runs as the operator themselves, with no
-# privileged sign-in — it only makes the moment deliberate.
+# The identity tree asks for a different reason: its plan is what every human
+# operator in this account is permitted to do. A widened statement hands
+# everybody something, a narrowed one takes it away mid-incident; neither is a
+# change to skim past, and the diff is short enough that reading it costs
+# nothing. It is also the one tree whose plan the reader cannot sanity-check
+# against a running system afterwards, because a policy that is too broad looks
+# exactly like one that is correct until somebody uses it.
 #
 # The plan is still printed in full on every tree, and the warning below still
 # says what to look for, because the reading is the part that matters and it is
 # not what the prompt was buying.
-if [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "operators" ]]; then
+if [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" ]]; then
   echo "Read the plan above before answering. It covers this whole environment, not only"
   echo "the change you came for: anything else pending in the tree is applied with it."
   echo "A destroy or a replacement you did not expect is a reason to stop, not to confirm."

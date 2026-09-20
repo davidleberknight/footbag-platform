@@ -120,6 +120,11 @@ For the local Docker parity check (§1.13), also install or verify these:
   §1.13, which covers all three.
 - `docker compose` support (the `docker-compose-plugin` package on native Linux)
 - Cursor on Windows
+- Free memory, if you will also deploy: the image build runs on your workstation rather than on
+  the host, and it needs roughly 2 GB free as a floor, 3 GB to be comfortable. A build with under
+  a gigabyte available fails as a V8 heap exhaustion partway through rather than as a clear
+  out-of-memory message. Free memory is what counts, not installed memory, so close the browser
+  before a deploy on a smaller machine.
 
 The AWS CLI and Terraform install as part of the AWS deployment steps in AWS_OPERATIONS.md (private GitHub repo), not here.
 
@@ -1092,8 +1097,7 @@ This guide preserves these project constraints:
 
 - [AWS CLI install](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [AWS CLI quickstart](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
-- [IAM Identity Center with AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)
-- [aws configure sso](https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html) — the hand-typed flow, for background; here the operator profile is written by `scripts/install-operator-sso-profile.sh`, which also refuses to write it over a stored key
+- [Using an IAM role in the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-role.html) — the hand-typed flow, for background; here the operator's own profile and the job-role profile that chains from it are written by `scripts/manage-human-operator.sh`
 - [Root user best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
 - [IAM best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
 - [Lightsail SSH keys and connection overview](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html)

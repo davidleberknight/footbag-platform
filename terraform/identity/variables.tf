@@ -4,7 +4,7 @@
 # =============================================================================
 
 variable "aws_region" {
-  description = "Region the IAM Identity Center instance runs in. An organization runs Identity Center in exactly one Region and changing it means deleting the instance and creating another, so this must match the Region the instance was enabled in."
+  description = "Region this tree's provider runs in. IAM is global, so the job role and its policy are the same whichever Region applies them; this exists so the provider has one and matches the rest of the estate."
   type        = string
   default     = "us-east-1"
 }
@@ -19,12 +19,8 @@ variable "aws_account_id" {
   }
 }
 
-variable "domain_name" {
-  description = "Apex domain whose Route 53 hosted zone the operator policy is scoped to. Looked up by name rather than supplied as a zone id, so this tree cannot point at a zone the estate does not own."
-  type        = string
-  default     = "footbag.org"
-}
-
-# The roster — who the operators are — is deliberately not declared here. It is
-# `var.operators` in terraform/operators, because hiring and firing are ordinary
-# work and this tree is the one an operator cannot apply.
+# Who the operators are is deliberately not declared here, and not in Terraform
+# at all. Onboarding mints an access key, and a secret Terraform creates is a
+# secret held in its state, so the named human users are created and retired by
+# scripts/manage-human-operator.sh instead. This tree declares only what the job
+# role may do.

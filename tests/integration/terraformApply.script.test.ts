@@ -21,6 +21,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
   mkdtempSync,
+  mkdirSync,
   writeFileSync,
   readFileSync,
   readdirSync,
@@ -223,6 +224,22 @@ function calls(): string {
   return existsSync(callLog) ? readFileSync(callLog, 'utf-8') : '';
 }
 
+/**
+ * An identity that resolves to an assumed role rather than to a user.
+ *
+ * Written into a directory of its own, because the stub file is named after
+ * the directory it is put in and the run helper writes the default one at the
+ * same moment: sharing a directory means whichever call lands second decides
+ * what the run sees, which is not a thing a test should depend on.
+ */
+function assumedRoleIdentity(): NodeJS.ProcessEnv {
+  const dir = join(tmpDir, 'as-role');
+  mkdirSync(dir, { recursive: true });
+  return awsIdentityStubEnv(dir, {
+    arn: 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/someone',
+  });
+}
+
 function plannedPath(): string {
   const line = calls().split('\n').find((l) => l.includes('-out='));
   expect(line, 'the run planned to a file').toBeTruthy();
@@ -239,7 +256,7 @@ describe('terraform-apply.sh: argument handling', () => {
   it('refuses an unknown environment name', () => {
     const res = run(['--target', 'prod', '--dry-run'], false);
     expect(res.exitCode).toBe(2);
-    expect(res.stderr).toMatch(/must be 'staging', 'production', 'shared' or 'operators'/);
+    expect(res.stderr).toMatch(/must be 'staging', 'production', 'shared' or 'identity'/);
   });
 
   it('accepts the shared tree, which owns the state bucket', () => {
@@ -247,30 +264,31 @@ describe('terraform-apply.sh: argument handling', () => {
     expect(res.exitCode).toBe(0);
   });
 
-  it('accepts the operators tree, because hiring and firing are ordinary work', () => {
-    // The roster is applied by an operator as themselves. Routing it through a
-    // privileged sign-in would put ceremony in front of revoking access, which
-    // is the one moment speed matters most.
-    const res = run(['--target', 'operators', '--dry-run'], false);
+  it('accepts the identity tree, which has one way in rather than a script of its own', () => {
+    // It used to be refused here and applied by a separate script, so that the
+    // one principal allowed to apply it could be asserted somewhere. That
+    // invariant lives on this path now, which leaves one entry point carrying
+    // the saved-plan, confirmation and cleanup discipline the other one had to
+    // reimplement.
+    const res = run(['--target', 'identity', '--dry-run'], false);
     expect(res.exitCode).toBe(0);
   });
 
-  it('asks for the typed word on the operators tree', () => {
-    // Its plan is a person gaining or losing access to the account. Short diff,
-    // so reading it costs nothing, and neither direction should be skimmed past.
-    const res = run(['--target', 'operators', '--dry-run'], false);
+  it('asks for the typed word on the identity tree', () => {
+    // Its plan is what every human operator in the account may do, and it is
+    // the one tree whose plan cannot be sanity-checked against a running
+    // system afterwards: a policy that is too broad looks exactly like a
+    // correct one until somebody uses it.
+    const res = run(['--target', 'identity', '--dry-run'], false);
     expect(res.stdout).toMatch(/take a typed APPLY/);
   });
 
-  it('refuses the identity tree by name, and says where to go instead', () => {
-    // That tree declares what the operator roles may do, and a role is denied
-    // every write to its own definition, so it cannot apply it. An operator who
-    // reaches for it here has most likely come to hire or fire somebody, which
-    // is the roster.
-    const res = run(['--target', 'identity', '--dry-run'], false);
+  it('no longer knows the roster tree, which is not a tree any more', () => {
+    // Who the operators are mints and revokes key material, and a secret must
+    // never enter Terraform state, so that lifecycle belongs to a script.
+    const res = run(['--target', 'operators', '--dry-run'], false);
     expect(res.exitCode).toBe(2);
-    expect(res.stderr).toMatch(/not applied through this wrapper/);
-    expect(res.stderr).toMatch(/--target operators/);
+    expect(res.stderr).toMatch(/must be 'staging', 'production', 'shared' or 'identity'/);
   });
 
   it('refuses a step number outside the two steps it has', () => {
@@ -325,7 +343,36 @@ describe('terraform-apply.sh: argument handling', () => {
     expect(calls()).toMatch(/apply /);
   });
 
-  it.each([['production'], ['shared'], ['operators']])(
+  it('refuses the identity tree to an assumed role, before terraform runs', () => {
+    // The job role is denied every write to its own definition, and that
+    // denial lands mid-apply: terraform would create some resources, refuse on
+    // the role itself, and leave the tree half applied with a state file
+    // saying so. The invariant used to live in the separate script that owned
+    // this tree, which is why it has to be here now that the tree does not
+    // have one.
+    writeTerraformStub();
+    const res = run(['--target', 'identity'], true, assumedRoleIdentity());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/is an assumed role/);
+    expect(calls(), 'terraform was never invoked').toBe('');
+  });
+
+  it('lets the directly authenticated identity reach the plan', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'identity'], true);
+    expect(res.stderr).not.toMatch(/is an assumed role/);
+    expect(calls()).toMatch(/plan/);
+  });
+
+  it('applies the caller rule to the identity tree alone', () => {
+    // Every other tree is ordinary work for whoever the operator signed in as.
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--yes'], true, assumedRoleIdentity());
+    expect(res.exitCode).toBe(0);
+    expect(res.stderr).not.toMatch(/is an assumed role/);
+  });
+
+  it.each([['production'], ['shared'], ['identity']])(
     'refuses --yes when breaking the %s state lock, before any terraform runs',
     (target) => {
       // The refusal used to sit below the stale-lock block, which exits on its
@@ -335,10 +382,10 @@ describe('terraform-apply.sh: argument handling', () => {
       // Breaking a lock while a run is genuinely live lets two runs write state
       // at once, which is why this is refused rather than merely discouraged.
       //
-      // The roster tree belongs in this list for the same reason it takes a typed
-      // APPLY: its state is the record of who can sign in to the account, so two
-      // runs writing it at once can leave somebody admitted who was being
-      // removed. Staging is the only tree whose lock --yes still answers for,
+      // The identity tree belongs in this list for the same reason it takes a
+      // typed APPLY: its state is the record of what every human operator may
+      // do, so two runs writing it at once can leave a grant standing that was
+      // being removed. Staging is the only tree whose lock --yes still answers for,
       // because its data is disposable and its state is shared with nothing that
       // is not.
       writeTerraformStub();

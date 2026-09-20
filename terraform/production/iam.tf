@@ -20,16 +20,16 @@ resource "aws_iam_role" "app_runtime" {
   #     the operator-workstation chained-AssumeRole path used by
   #     tests/smoke/staging-readiness.test.ts via
   #     AWS_PROFILE=footbag-production-runtime)
-  #   - the generated reserved-SSO role behind the super-admin
-  #     permission set, once the identity tree has been applied
   #
-  # All three entries stay. The super-admin identity's ARN is what lets a
-  # directly authenticated principal reach this role when the identity provider
-  # is the thing that failed, and AWS resolves a literal-ARN trust to that user's
-  # internal unique id, so removing it is not undone by recreating the user: a
-  # recreated user is a different principal and this breaks with no plan diff to
-  # warn anyone. What changes once federation carries the routine work is the
-  # entry's PURPOSE, which is invisible here.
+  # Both entries stay. The super-admin identity's ARN is what lets a directly
+  # authenticated principal reach this role, and AWS resolves a literal-ARN trust
+  # to that user's internal unique id, so removing it is not undone by recreating
+  # the user: a recreated user is a different principal and this breaks with no
+  # plan diff to warn anyone.
+  #
+  # No human job role appears here. The dev-and-tester role that staging trusts
+  # reaches no production resource, and the way that is enforced is by this tree
+  # having no variable to set and no principal to add.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -38,12 +38,7 @@ resource "aws_iam_role" "app_runtime" {
       Principal = {
         AWS = compact([
           aws_iam_user.source_profile.arn,
-          "arn:aws:iam::${var.aws_account_id}:user/footbag-operator",
-          # Only the super-admin role. There is deliberately no dev-and-tester
-          # variable in this tree: the role that reaches no production resource
-          # cannot chain into the production runtime role either, and the way
-          # that is enforced is by there being nothing here to set.
-          var.super_admin_sso_role_arn
+          "arn:aws:iam::${var.aws_account_id}:user/footbag-operator"
         ])
       }
       Action = "sts:AssumeRole"

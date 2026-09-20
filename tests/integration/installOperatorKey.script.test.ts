@@ -463,6 +463,30 @@ describe('the chained runtime profiles are written, not left to be hand-edited',
     expect(statSync(configPath()).mode & 0o777).toBe(0o600);
   });
 
+  it('omits the session name when none is asked for', () => {
+    // The runtime roles do not condition on it, and writing one anyway would
+    // put a name in the trail that means nothing.
+    const r = inLib(
+      `aws_config_add_role_profile "${configPath()}" footbag-staging-runtime `
+      + `arn:aws:iam::1:role/staging footbag-operator us-east-1; echo "rc=$?"`,
+    );
+    expect(r.stdout).toContain('rc=0');
+    expect(readFileSync(configPath(), 'utf-8')).not.toContain('role_session_name');
+  });
+
+  it('writes the session name when one is given, because some roles require it', () => {
+    // Omit it and the SDK invents one. That is harmless on a role that does not
+    // care who assumed it and fatal on one whose trust policy requires the
+    // session name to equal the assuming user: every call is refused, and the
+    // refusal names the role rather than the missing line.
+    const r = inLib(
+      `aws_config_add_role_profile "${configPath()}" footbag-devtester `
+      + `arn:aws:iam::1:role/FootbagDevTester someone us-east-1 someone; echo "rc=$?"`,
+    );
+    expect(r.stdout).toContain('rc=0');
+    expect(readFileSync(configPath(), 'utf-8')).toMatch(/role_session_name\s+= someone/);
+  });
+
   it('leaves an existing profile of the same name exactly as it is', () => {
     // Additive rather than replacing, and the opposite of how the credentials
     // section is handled. A config section may carry an mfa_serial or a session
@@ -555,69 +579,10 @@ describe('moving a profile: the pointer follows, and the removal is last', () =>
     expect(statSync(file).mode & 0o777).toBe(0o600);
   });
 
-  it('repoints a chained profile that sourced the old name, and names what it moved', () => {
-    writeFileSync(
-      configPath(),
-      '[profile footbag-staging-runtime]\nrole_arn = arn:aws:iam::1:role/staging\nsource_profile = footbag-operator\nregion = us-east-1\n',
-      'utf-8',
-    );
-    const r = inLib(
-      `aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key; echo "rc=$?"`,
-    );
-    expect(r.stdout).toContain('rc=0');
-    expect(r.stdout).toContain('profile footbag-staging-runtime');
-    const after = readFileSync(configPath(), 'utf-8');
-    expect(after).toMatch(/source_profile\s+= footbag-operator-key/);
-    // Everything else in the section is a setting somebody may have chosen, and
-    // only the pointer this tooling wrote is ours to change.
-    expect(after).toMatch(/role_arn = arn:aws:iam::1:role\/staging/);
-    expect(after).toMatch(/region = us-east-1/);
-  });
-
-  it('leaves a chained profile that sourced something else alone', () => {
-    writeFileSync(
-      configPath(),
-      '[profile mine]\nrole_arn = arn:aws:iam::1:role/mine\nsource_profile = some-other-account\n',
-      'utf-8',
-    );
-    const r = inLib(
-      `aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key || echo "rc=$?"`,
-    );
-    expect(r.stdout).toContain('rc=2');
-    expect(readFileSync(configPath(), 'utf-8')).toContain('source_profile = some-other-account');
-  });
-
-  it('does not repoint a profile whose source merely starts with the old name', () => {
-    // `footbag-operator-key` begins with `footbag-operator`. A prefix match here
-    // would repoint an already-moved workstation onto a name ending in -key-key.
-    writeFileSync(
-      configPath(),
-      '[profile already-moved]\nsource_profile = footbag-operator-key\n',
-      'utf-8',
-    );
-    const r = inLib(
-      `aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key || echo "rc=$?"`,
-    );
-    expect(r.stdout).toContain('rc=2');
-    expect(readFileSync(configPath(), 'utf-8')).toContain('source_profile = footbag-operator-key');
-  });
-
-  it('keeps every other section byte for byte while repointing one', () => {
-    writeFileSync(
-      configPath(),
-      '[profile keepme]\nregion = eu-west-1\noutput = text\n\n[profile rt]\nsource_profile = footbag-operator\n',
-      'utf-8',
-    );
-    inLib(`aws_config_repoint_source_profile "${configPath()}" footbag-operator footbag-operator-key`);
-    const after = readFileSync(configPath(), 'utf-8');
-    expect(after).toContain('[profile keepme]');
-    expect(after).toContain('region = eu-west-1');
-    expect(after).toContain('output = text');
-  });
 });
 
-describe('install-operator-key.sh — the move, refused before a secret is typed', () => {
-  function runMove(args: string[]) {
+describe('install-operator-key.sh — the profile it writes', () => {
+  function runKey(args: string[]) {
     const res = spawnSync('bash', [SCRIPT, ...args], {
       encoding: 'utf-8',
       input: '',
@@ -633,43 +598,23 @@ describe('install-operator-key.sh — the move, refused before a secret is typed
     return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
   }
 
-  it('refuses a move whose source and destination are the same name', () => {
-    // The move exists only because two credentials cannot share a name, so a
-    // move to the name it is already under is a typo, not a no-op.
-    const r = runMove(['--from-profile', 'footbag-operator-key']);
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/nowhere to move to/);
-  });
-
-  it('refuses a move whose source section does not exist, before asking for anything', () => {
-    writeFileSync(join(workDir, 'credentials'), '[somebody-else]\naws_access_key_id = AKIAX\n', 'utf-8');
-    const r = runMove(['--from-profile', 'footbag-operator']);
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/no \[footbag-operator\] section/);
-    expect(r.stderr).toMatch(/nothing has been changed/i);
-  });
-
-  it('removes the old section only after the proof, and repoints before it', () => {
-    // Asserted against the script's own source because the install path needs a
-    // terminal and belongs to the operator, and this is the one property of it
-    // that cannot be recovered from if it is wrong: the secret in that section
-    // exists in exactly two places, this file and the vault, so removing it
-    // while the replacement is unproved leaves a workstation with no way in.
-    const source = readFileSync(SCRIPT, 'utf-8');
-    const repoint = source.indexOf('aws_config_repoint_source_profile "$CONFIG_FILE"');
-    const prove = source.indexOf('aws_identity_require_chain $RUNTIME_PROFILES');
-    const remove = source.indexOf('aws_cred_remove_section "$CRED_FILE"');
-    expect(repoint).toBeGreaterThan(-1);
-    expect(prove).toBeGreaterThan(-1);
-    expect(remove).toBeGreaterThan(-1);
-    expect(repoint).toBeLessThan(prove);
-    expect(prove).toBeLessThan(remove);
-  });
-
-  it('names the flag in its own help, so the move is discoverable', () => {
-    const r = runMove(['--help']);
+  it('defaults to the profile the directly authenticated identity goes out on', () => {
+    // There is one credential and one name for it. A second name would mean a
+    // workstation where the everyday profile and the stored key disagree about
+    // which identity a command runs as, and the SDK resolves that silently.
+    const r = runKey(['--help']);
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain('--from-profile');
-    expect(r.stdout).toMatch(/removes the\n#                      old section LAST|old section LAST/);
+    expect(r.stdout).toMatch(/Defaults to\n#\s+the profile the directly authenticated/);
+  });
+
+  it('offers no way to move a key between profile names', () => {
+    // The move existed for a workstation whose stored key sat under the name a
+    // federated sign-in needed. There is no federated sign-in and no second
+    // name, so a flag that renames a credential section is a way to break a
+    // working workstation and nothing else.
+    const r = runKey(['--from-profile', 'anything']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/unknown argument/);
+    expect(readFileSync(SCRIPT, 'utf-8')).not.toContain('--from-profile');
   });
 });

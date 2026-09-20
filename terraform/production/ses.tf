@@ -70,9 +70,16 @@ variable "ses_sender_identity" {
 variable "ses_permitted_from_addresses" {
   description = <<-EOT
     Every From address the runtime role may send as. Empty means the sender
-    identity alone, which is the state today: no mailing list sets its own from
-    address and no caller passes one, so every message goes out as
-    ses_sender_identity.
+    identity alone.
+
+    IT MUST NOT BE LEFT EMPTY IN PRODUCTION. The community announce list is
+    seeded with its own from address in database/schema.sql and the broadcast
+    service passes it through to the send, so `announce@footbag.org` belongs in
+    this list. Without it that condition permits only the environment's default
+    sender and every community announcement is refused at the outbox drain,
+    after the member has already been told the send succeeded. An earlier version
+    of this description asserted that no mailing list sets its own from address;
+    that was never true of the announce list.
 
     This exists because the send grant's resource cannot narrow far enough on
     its own. While a single verified address is the identity, naming it as the

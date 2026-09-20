@@ -31,44 +31,27 @@ variable "aws_account_id" {
   type        = string
 }
 
-# The IAM role IAM Identity Center generates behind the super-admin
-# permission set, read out of the identity tree. Empty until that tree has been
-# applied, which is why this tree keeps applying cleanly without it.
+# The shared job role a named human operator assumes, declared in the identity
+# tree. It exists in this tree and deliberately not in production's: the job is
+# staging and the reads a deploy makes, so it chains into this environment's
+# runtime role and no other. Production carries no equivalent variable at all,
+# which is what makes "reaches no production resource" a property of the
+# configuration rather than of somebody's care.
 #
-# It has to be added while the super-admin identity still works, and that
-# identity's own ARN stays alongside it permanently: AWS resolves a literal-ARN
-# trust to the principal's internal unique id, so dropping it is not undone by
-# recreating the user, and it is the only route into this role when the identity
-# provider is what failed.
-#
-# The suffix in the generated name is regenerated if the permission set is ever
-# deleted and recreated, which breaks this trust silently. Nothing in a plan
-# diff reports that, so scripts/verify-account-baseline.sh reads the live role
-# ARN back and compares it against what this policy actually carries.
-variable "super_admin_sso_role_arn" {
-  description = "ARN of the generated AWSReservedSSO_FootbagSuperAdmin_* role. scripts/standup-identity-center.sh reads it back from IAM, matching on the permission set's name, and writes it here. Empty before the identity and roster trees are applied."
+# Empty until the identity tree has been applied, which is why this tree keeps
+# applying cleanly without it. The directly authenticated operator's own ARN
+# stays in the trust alongside it permanently: AWS resolves a literal-ARN trust
+# to the principal's internal unique id, so dropping it is not undone by
+# recreating the user, and it is the only route into this role when the job
+# role itself is what cannot be assumed.
+variable "dev_tester_role_arn" {
+  description = "ARN of the shared FootbagDevTester job role. Predictable from the account id and the role name rather than generated, so it is written here directly once the identity tree has been applied."
   type        = string
   default     = ""
 
   validation {
-    condition     = var.super_admin_sso_role_arn == "" || can(regex("^arn:aws:iam::[0-9]{12}:role/aws-reserved/sso\\.amazonaws\\.com/", var.super_admin_sso_role_arn))
-    error_message = "super_admin_sso_role_arn must be the generated reserved-SSO role ARN, which lives under role/aws-reserved/sso.amazonaws.com/. The permission set's own ARN is a different thing and trusting it grants nothing."
-  }
-}
-
-# The dev-and-tester role, which exists in this tree and deliberately not in
-# production's. Its job is staging and the reads a deploy makes, so it chains
-# into this environment's runtime role and no other. Production carries no
-# equivalent variable at all, which is what makes "reaches no production
-# resource" a property of the configuration rather than of somebody's care.
-variable "dev_tester_sso_role_arn" {
-  description = "ARN of the generated AWSReservedSSO_FootbagDevTester_* role, written here by scripts/standup-identity-center.sh alongside the super-admin one. Empty before the identity and roster trees are applied."
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = var.dev_tester_sso_role_arn == "" || can(regex("^arn:aws:iam::[0-9]{12}:role/aws-reserved/sso\\.amazonaws\\.com/", var.dev_tester_sso_role_arn))
-    error_message = "dev_tester_sso_role_arn must be the generated reserved-SSO role ARN, which lives under role/aws-reserved/sso.amazonaws.com/. The permission set's own ARN is a different thing and trusting it grants nothing."
+    condition     = var.dev_tester_role_arn == "" || can(regex("^arn:aws:iam::[0-9]{12}:role/FootbagDevTester$", var.dev_tester_role_arn))
+    error_message = "dev_tester_role_arn must be an ordinary IAM role ARN ending in exactly role/FootbagDevTester. A path-prefixed or differently named role is a different principal and trusting it grants the operators nothing."
   }
 }
 

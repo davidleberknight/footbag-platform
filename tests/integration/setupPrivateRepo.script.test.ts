@@ -54,7 +54,6 @@ const VALUES_LINKS = [
   ['terraform/production/secrets.auto.tfvars', 'production.secrets.auto.tfvars'],
   ['terraform/shared/terraform.tfvars', 'shared.tfvars'],
   ['terraform/identity/terraform.tfvars', 'identity.tfvars'],
-  ['terraform/operators/terraform.tfvars', 'operators.tfvars'],
 ] as const;
 
 let root: string;

@@ -241,16 +241,11 @@ enable_archive_custom_domain = false
 # url_screening_armed = "armed"
 # reachability_armed  = "armed"
 
-# ── Federated operator identity ───────────────────────────────────────────────
-# The generated reserved-SSO role behind the super-admin permission
-# set, read back from IAM by scripts/standup-identity-center.sh after the
-# identity and roster trees are applied, and written here by that script rather
-# than pasted. Left unset the tree still applies: the trust policy carries only
-# the host source profile and the super-admin identity until this is filled in.
+# ── Human operator job role ───────────────────────────────────────────────────
+# There is deliberately nothing to set here. Staging carries a dev_tester_role_arn
+# for the shared job role a named human operator assumes; production does not,
+# because that role reaches no production resource, and having no line to fill in
+# is what enforces it rather than anyone remembering.
 #
-# The super-admin identity stays in that trust policy permanently alongside it.
-#
-# There is only one such line here, and that is deliberate. Staging carries a
-# second for the dev-and-tester role; production does not, because that role
-# reaches no production resource, and having nothing to set is what enforces it.
-# super_admin_sso_role_arn = "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/us-east-1/AWSReservedSSO_FootbagSuperAdmin_0000000000000000"
+# Production's runtime role is reached by the host source profile and by the
+# directly authenticated operator, both named in the trust policy itself.

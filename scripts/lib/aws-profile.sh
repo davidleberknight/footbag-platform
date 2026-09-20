@@ -11,12 +11,13 @@
 # credentials" or "no valid credential sources" — a message about the SDK, not
 # about the operator's setup, which sends the reader looking at the wrong thing.
 #
-# What a workstation carries depends on the tier. Everybody has the everyday
-# profile below, written by scripts/install-operator-sso-profile.sh and backed by
-# a federated sign-in. A super admin also holds the break-glass key, which needs
-# a second profile name of its own for the reason given where that name is
-# declared. A dev-and-tester never holds that key, so their machine has one
-# profile and learns no second name.
+# What a workstation carries depends on the tier, and the two tiers do not
+# share a profile name. The directly authenticated identity keeps the name every
+# operator script already uses, written by scripts/install-operator-key.sh from
+# the vault, and only the super admin holds it. A dev-and-tester holds a profile
+# named for themselves, carrying their own IAM user's key, and beside it the
+# job-role profile that chains from it; scripts/manage-human-operator.sh writes
+# both, and neither machine ever learns the other's name.
 #
 # The answer used to be a line in a runbook telling the operator to export
 # AWS_PROFILE in every new shell. That is a step held in a person's head, it has
@@ -65,29 +66,24 @@
 # profile's name, so every workstation spells this identically and no script has
 # to know who is running it.
 #
-# It names the federated sign-in: the operator signs in as themselves and
-# assumes whichever of the two human-operator roles their job needs. The name is
-# the same one the workstation has always used for everyday work, and the
-# credential behind it is what the move to federated identity replaced, so no
-# script, runbook step or workstation had to learn a second name.
+# It names the directly authenticated IAM user and its long-lived key: the
+# super admin, the identity both runtime trust policies name by ARN, and the
+# way back in when anything else is what failed. It keeps this name and this
+# credential, so no script, runbook step or established workstation has to
+# learn a different one.
 FOOTBAG_OPERATOR_PROFILE="${FOOTBAG_OPERATOR_PROFILE:-footbag-operator}"
 
-# The profile carrying the directly authenticated IAM user's access key: the
-# identity that stays permanently outside federation, as the way back in when
-# the identity provider itself is what failed.
+# The shared job role a named operator assumes for everyday work, chaining from
+# their own named-user profile.
 #
-# A SECOND NAME, not a second credential under the first, and that is the whole
-# reason this exists. The SDK resolves a static key in the credentials file
-# ahead of an SSO session configured under the same profile name, and says
-# nothing about doing so. One name holding both would mean the federated sign-in
-# was written, looked configured, and was never used: every run would keep going
-# out on the long-lived key, and no message anywhere would report it.
-#
-# Nothing falls back to this. It is reached by being named, and only three
-# places name it: installing the key, rotating it, and standing up the identity
-# tree, which the permission set's own denials put beyond the reach of every
-# federated role. Everything else uses the profile above.
-FOOTBAG_OPERATOR_KEY_PROFILE="${FOOTBAG_OPERATOR_KEY_PROFILE:-footbag-operator-key}"
+# Reached as the fallback below rather than as the first choice, and the order
+# is deliberate. The super admin's machine carries both names, and their work
+# is the whole estate rather than the staging scope this role is bounded to, so
+# defaulting them into it would narrow every run they make and surface as an
+# access denial partway through rather than as a choice anybody made. A
+# dev-and-tester's machine carries this one and never the other, so the
+# fallback is what makes their shell work with nothing exported.
+FOOTBAG_DEV_TESTER_PROFILE="${FOOTBAG_DEV_TESTER_PROFILE:-footbag-devtester}"
 
 # The identity a settled profile actually resolves to is proved rather than
 # assumed, and that proof already exists for the key install and rotation
@@ -187,13 +183,14 @@ aws_profile_announce() {
     echo "       nothing here can reach AWS. Two things end up here, and the" >&2
     echo "       profile name says which one you are looking at." >&2
     echo "" >&2
-    echo "       A federated sign-in that has simply expired, which is the" >&2
-    echo "       ordinary case and costs one command:" >&2
-    echo "         aws sso login --profile ${AWS_PROFILE:-${FOOTBAG_OPERATOR_PROFILE}}" >&2
-    echo "" >&2
-    echo "       Or a long-lived key that was rotated away. Install the current" >&2
-    echo "       one from the vault entry aws-footbag-operator-keys:" >&2
+    echo "       The super admin's own key, rotated or deactivated away. Install" >&2
+    echo "       the current one from the vault entry aws-footbag-operator-keys:" >&2
     echo "         bash scripts/install-operator-key.sh" >&2
+    echo "" >&2
+    echo "       Or a named operator's key, which nothing here can reinstall for" >&2
+    echo "       you, because no shared copy of it exists anywhere: ask the super" >&2
+    echo "       admin to run the onboarding again, which mints a fresh one and" >&2
+    echo "       writes it on your machine." >&2
     return 1
   fi
 
@@ -224,25 +221,39 @@ aws_profile_ensure() {
 
   aws_profile_note_stub
 
-  if ! aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
-    echo "ERROR: no AWS profile named '${FOOTBAG_OPERATOR_PROFILE}' on this machine," >&2
-    echo "       and your shell carries no AWS credentials of its own, so nothing" >&2
-    echo "       here can authenticate." >&2
+  # Two names, tried in the order the two tiers make sensible. The super admin's
+  # machine has the first and the work they do is the whole estate, so they get
+  # it. A dev-and-tester's machine has only the second, and reaching it by
+  # fallback rather than by an exported variable is the whole point of this
+  # file: a profile an operator has to remember to name in every shell is the
+  # step this exists to remove.
+  local supplied=""
+  if aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
+    supplied="$FOOTBAG_OPERATOR_PROFILE"
+  elif aws_profile_exists "$FOOTBAG_DEV_TESTER_PROFILE"; then
+    supplied="$FOOTBAG_DEV_TESTER_PROFILE"
+  fi
+
+  if [[ -z "$supplied" ]]; then
+    echo "ERROR: this machine has neither '${FOOTBAG_OPERATOR_PROFILE}' nor" >&2
+    echo "       '${FOOTBAG_DEV_TESTER_PROFILE}' configured, and your shell carries" >&2
+    echo "       no AWS credentials of its own, so nothing here can authenticate." >&2
     echo "" >&2
-    echo "       This is the profile you sign in through, so writing it is a" >&2
-    echo "       workstation step rather than a credential to fetch. It needs" >&2
-    echo "       the access portal URL from your invitation mail and whichever" >&2
-    echo "       permission set your job carries:" >&2
-    echo "         bash scripts/install-operator-sso-profile.sh --help" >&2
+    echo "       If you are a dev-and-tester, both of your profiles are written" >&2
+    echo "       for you by the onboarding, which the super admin runs at your" >&2
+    echo "       keyboard because it mints your key onto this machine and there" >&2
+    echo "       is no other copy of it anywhere:" >&2
+    echo "         bash scripts/manage-human-operator.sh --onboard <your-name>" >&2
     echo "" >&2
-    echo "       Then sign in once:" >&2
-    echo "         aws sso login --profile ${FOOTBAG_OPERATOR_PROFILE}" >&2
+    echo "       If you are the super admin, install your key from the vault" >&2
+    echo "       entry aws-footbag-operator-keys:" >&2
+    echo "         bash scripts/install-operator-key.sh" >&2
     echo "" >&2
     echo "       Nothing else here asks you to export anything." >&2
     return 1
   fi
 
-  export AWS_PROFILE="$FOOTBAG_OPERATOR_PROFILE"
+  export AWS_PROFILE="$supplied"
   if ! aws_profile_announce "profile '${AWS_PROFILE}', supplied by this script."; then
     # Withdrawn rather than left behind: a profile that does not authenticate is
     # not an identity, and leaving it exported would make the next call through
@@ -291,19 +302,18 @@ aws_profile_use() {
     echo "" >&2
     echo "       ${purpose}" >&2
     echo "" >&2
-    # Which command installs it depends on which of the two names was asked for,
-    # and getting that wrong here would be worse than saying nothing. Naming the
-    # key installer for the federated profile is an instruction to write a static
-    # key under the name the sign-in needs, which is the silent shadowing the
-    # whole split exists to prevent, arriving as advice from the tooling itself.
-    if [[ "$want" == "$FOOTBAG_OPERATOR_KEY_PROFILE" ]]; then
+    # Which command writes it depends on which name was asked for, and getting
+    # that wrong here would be worse than saying nothing: sending somebody to
+    # the vault for a named operator's key is an instruction to look for
+    # something that deliberately does not exist, arriving as advice from the
+    # tooling itself.
+    if [[ "$want" == "$FOOTBAG_OPERATOR_PROFILE" ]]; then
       echo "       Install it from the vault entry aws-footbag-operator-keys:" >&2
       echo "         bash scripts/install-operator-key.sh" >&2
     else
-      echo "       That is a federated sign-in rather than a stored key, so it is" >&2
-      echo "       written rather than fetched:" >&2
-      echo "         bash scripts/install-operator-sso-profile.sh --help" >&2
-      echo "         aws sso login --profile ${want}" >&2
+      echo "       That profile is written by the human-operator onboarding, and" >&2
+      echo "       only at the keyboard of the person it belongs to:" >&2
+      echo "         bash scripts/manage-human-operator.sh --onboard <name>" >&2
     fi
     return 1
   fi

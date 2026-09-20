@@ -146,6 +146,159 @@ describe('access key provisioning refusals', () => {
   });
 });
 
+/**
+ * The second delivery, where the caller writes the secret into a local
+ * credentials profile in the same run and no human ever reads it. The human
+ * operator lifecycle is the only caller, and it is the only one by design: a
+ * person's own access key is deliberately never copied into the shared vault,
+ * so the vault prompt would be asking the operator to break the custody rule.
+ *
+ * Three properties carry the safety here. Nothing is displayed, which is what
+ * lets the terminal requirement drop. Nothing is confirmed, because there is
+ * no record for the operator to make. And the credential stays in the state
+ * that an unfinished run withdraws, so a caller whose install fails does not
+ * leave a live key behind — which is the whole reason the vault branch had a
+ * confirmation in the first place.
+ */
+describe('access key provisioning, install delivery', () => {
+  it('mints with no terminal attached, because nothing is displayed', () => {
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=install',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0; echo "rc=$?"',
+      ].join('\n'),
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+    expect(r.stderr).not.toContain('no terminal to show the new access key on');
+    expect(calls().some((c) => c.includes('create-access-key'))).toBe(true);
+  });
+
+  it('never prints the secret, on either stream', () => {
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=install',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0',
+      ].join('\n'),
+    );
+    expect(r.stdout).not.toContain('secret-value-not-real');
+    expect(r.stderr).not.toContain('secret-value-not-real');
+    expect(r.stdout).toContain('AKIAFAKE');
+  });
+
+  it('asks for no vault confirmation, so an unattended caller is not left hanging', () => {
+    // Asserted on the return code rather than on the absence of the prompt.
+    // The prompt goes to the terminal device, which a spawned test does not
+    // have, so a run that DID take the vault branch would also print nothing
+    // here — and would then withdraw the key for want of an answer. The
+    // difference between the two is entirely in the status.
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=install',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0; echo "rc=$?"',
+      ].join('\n'),
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+    expect(r.stderr).not.toContain('Not vaulted');
+  });
+
+  it('leaves the credential in the state an unfinished run withdraws', () => {
+    // The vault branch ends at `vaulted`, which cleanup deliberately keeps,
+    // because the operator has written the secret somewhere this code cannot
+    // edit. Install delivery has made no such record, so it must end one step
+    // earlier or a caller that fails between minting and writing leaves a live
+    // key in the account and nowhere else.
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=install',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0; echo "rc=$?"',
+        'echo "state=${IAM_KEY_STATE}"',
+        'iam_key_cleanup',
+      ].join('\n'),
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+    expect(r.stdout).toContain('state=minted');
+    expect(r.stderr).toContain('is being deleted');
+    expect(calls().some((c) => c.includes('delete-access-key'))).toBe(true);
+  });
+
+  it('keeps the key once the caller reports the install landed', () => {
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=install',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0; echo "rc=$?"',
+        'iam_key_commit',
+        'iam_key_cleanup',
+      ].join('\n'),
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+    expect(r.stderr).not.toContain('is being deleted');
+    expect(calls().some((c) => c.includes('delete-access-key'))).toBe(false);
+  });
+
+  it('refuses an unrecognised delivery before reading anything', () => {
+    // Falling through to the vault branch would show a secret the caller meant
+    // to keep off the screen, so a typo is a refusal rather than a default.
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=intall',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0; echo "rc=$?"',
+      ].join('\n'),
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toContain("IAM_KEY_DELIVERY is 'intall'");
+    expect(calls()).toHaveLength(0);
+  });
+
+  it('retires the last key when the caller has said that is the intent', () => {
+    // The default refusal is written for a rotation, where cutting the only
+    // credential leaves a working identity unable to authenticate. Two callers
+    // want the opposite outcome and say so: an identity being stood down is
+    // supposed to end with nothing, and one being re-onboarded has a retired
+    // key in the way of the fresh one that the two-key account limit would
+    // otherwise turn into a refusal.
+    const r = runSnippet(
+      'IAM_KEY_ALLOW_LAST=1 iam_key_retire someone AKIAONE deactivate; echo "rc=$?"',
+      { keyRows: 'AKIAONE\\tActive\\n' },
+    );
+    expect(r.stdout, r.stderr).toContain('rc=0');
+    expect(calls().some((c) => c.includes('update-access-key'))).toBe(true);
+  });
+
+  it('still refuses the last key by default, so forgetting the flag is safe', () => {
+    const r = runSnippet('iam_key_retire someone AKIAONE deactivate; echo "rc=$?"', {
+      keyRows: 'AKIAONE\\tActive\\n',
+    });
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toContain('no active key');
+    expect(calls().some((c) => c.includes('update-access-key'))).toBe(false);
+  });
+
+  it('still refuses to delete an active key even when the last one is allowed', () => {
+    // The two guards are independent. Permission to end with nothing is not
+    // permission to skip the deactivate-then-delete order, which is what makes
+    // the irreversible step the second one.
+    const r = runSnippet(
+      'IAM_KEY_ALLOW_LAST=1 iam_key_retire someone AKIAONE delete; echo "rc=$?"',
+      { keyRows: 'AKIAONE\\tActive\\n' },
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toContain('still active');
+    expect(calls().some((c) => c.includes('delete-access-key'))).toBe(false);
+  });
+
+  it('still refuses a second key unless a rotation was asked for', () => {
+    const r = runSnippet(
+      [
+        'IAM_KEY_DELIVERY=install',
+        'iam_key_provision footbag-staging-cwagent-publisher "" 0; echo "rc=$?"',
+      ].join('\n'),
+      { existingKeys: 1 },
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(calls().some((c) => c.includes('create-access-key'))).toBe(false);
+  });
+});
+
 describe('access key cleanup', () => {
   it('deletes a key that was minted and never recorded anywhere', () => {
     const r = runSnippet(

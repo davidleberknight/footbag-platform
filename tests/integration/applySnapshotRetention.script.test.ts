@@ -64,6 +64,12 @@ interface AwsStubOptions {
   dailyAgeHours: number;
   /** The timestamp read comes back empty, as an unreadable listing would. */
   ageUnreadable: boolean;
+  /**
+   * The COUNT read fails, which is a different thing from a generation holding
+   * nothing. The query returns the literal "None" for a prefix that exists and
+   * is empty, so an empty answer means the read did not happen.
+   */
+  countUnreadable: boolean;
   /** 'unfiltered' is the pre-change rule the apply was supposed to replace. */
   replication: 'scoped' | 'unfiltered' | 'none' | 'scoped-disabled';
   /** 'daily-disabled' is a rule that exists and expires nothing. */
@@ -90,6 +96,7 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
     hourlyAgeHours: 0,
     dailyAgeHours: 0,
     ageUnreadable: false,
+    countUnreadable: false,
     replication: 'scoped',
     generationRules: 'all',
     alarms: 'present',
@@ -122,8 +129,8 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
       // below would otherwise swallow them.
       `  *hourly/*LastModified*|*LastModified*hourly/*) ${stamp(o.hourlyAgeHours)} ;;`,
       `  *daily/*LastModified*|*LastModified*daily/*)   ${stamp(o.dailyAgeHours)} ;;`,
-      `  *list-objects-v2*hourly/*) echo "${hourly}" ;;`,
-      `  *list-objects-v2*daily/*)  echo "${daily}" ;;`,
+      `  *list-objects-v2*hourly/*) ${o.countUnreadable ? 'exit 254' : `echo "${hourly}"`} ;;`,
+      `  *list-objects-v2*daily/*)  ${o.countUnreadable ? 'exit 254' : `echo "${daily}"`} ;;`,
       '  *get-bucket-lifecycle-configuration*-dr*|*-dr*get-bucket-lifecycle-configuration*)',
       ...(o.drLifecycle === 'unreadable'
         ? ['    exit 254 ;;']
@@ -326,6 +333,23 @@ describe('apply-snapshot-retention.sh: the generation-history gate', () => {
     const res = run(['--target', 'production', '--yes']);
     expect(res.exitCode).toBe(0);
     expect(calls()).toMatch(/terraform .*plan/);
+  });
+
+  it('says the generation counts are unknown when the listing cannot be read, never zero', () => {
+    // A listing the credential cannot read is not a generation holding nothing.
+    // Either way the run refuses, so the safety is the same; what differs is
+    // what the operator is told. "holds: 0" states that the backups are gone,
+    // at the one moment somebody is already worried about backups, and sends
+    // them hunting a gap that may not exist. The age read beside it already
+    // distinguishes the two and reports "unknown".
+    writeAwsStub(2, 2, { countUnreadable: true });
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/holds: 0/);
+    expect(res.stdout).toMatch(/hourly\/ holds: unknown/);
+    expect(res.stdout).toMatch(/daily\/ {2}holds: unknown/);
+    expect(res.stderr).toMatch(/REFUSING: could not read how much history the promoted generations hold/);
+    expect(calls()).not.toMatch(/terraform .*plan/);
   });
 
   it('refuses a populated hourly/ whose newest promotion is older than the cadence', () => {

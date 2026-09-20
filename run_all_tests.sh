@@ -38,10 +38,11 @@
 #     with no standalone form; the audit gate here covers the whole tree.
 #
 # That list is no longer prose anyone has to keep true by hand:
-# scripts/ci/check_ci_parity.sh fails the convention gate when the workflow
-# gains a job that has neither a local gate nor a recorded reason it cannot have
-# one. The list above drifted before that check existed, naming three jobs when
-# there were four.
+# scripts/ci/check_ci_parity.sh fails the convention gate when the workflow gains
+# a job, or a step invoking a command, that has neither a local gate nor a
+# recorded reason it cannot have one. The list above drifted before that check
+# existed, naming three jobs when there were four. The same check binds
+# PUSH_GATE_EQUIVALENTS below to that mapping, so the two cannot drift apart.
 #
 # The live-AWS adapter smoke suite (test:smoke) is likewise not part of the
 # default run:
@@ -415,7 +416,7 @@ gate_terraform() {
   ( cd terraform && aws_isolated_run terraform fmt -check -recursive )
   local d data_dir
   local plugin_arg=()
-  for d in staging production shared identity operators; do
+  for d in staging production shared identity; do
     # `-backend=false` disables *configuring* a backend, not *using* one:
     # terraform's own help says it uses "what was previously initialized
     # instead". An operator's `terraform init` leaves a .terraform holding the S3
