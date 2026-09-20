@@ -345,6 +345,23 @@ sqlite3 "$LOCAL_DB" \
   exit 1
 }
 
+# Prove the outcome rather than the invocation. The build leaves the developer-only
+# configuration out when it is told the database is destined for a host, but this
+# path also ships a database it did not build (SKIP_DB_REBUILD=yes), and such a
+# file carries whatever the developer's own run put in it. The row lives in the
+# file and would travel to the host, where every poll costs work and a log line
+# for an affordance only a developer watching a local page benefits from.
+_dev_only_rows="$(sqlite3 "$LOCAL_DB" \
+  "SELECT count(*) FROM system_config WHERE id = 'cfg_dev_outbox_poll';")"
+if [[ "${_dev_only_rows}" != "0" ]]; then
+  echo "ERROR: $LOCAL_DB carries developer-only configuration and must not be shipped." >&2
+  echo "  The fast local outbox poll (system_config id 'cfg_dev_outbox_poll') is in the file." >&2
+  echo "  Rebuild through the orchestrator, which builds without it:" >&2
+  echo "    bash deploy_to_aws.sh --from-csv" >&2
+  exit 1
+fi
+unset _dev_only_rows
+
 # The shipped database carries whatever the build produced, member intake
 # included: --all-data applies the real member rows as part of the full migration
 # load. A destructive production database replace runs only under the wrapper's

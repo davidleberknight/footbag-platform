@@ -99,6 +99,14 @@ PYTHON="${VENV}/bin/python3"
 phase_slate() {
 echo "Resetting database: ${DB_FILE}"
 
+# Say what the rebuild costs, with nothing between saying it and doing it. The
+# text lives in its own script so a test can run it; reaching it here means
+# running the real rebuild, which tests must not do. It prints and never asks:
+# this script is invoked non-interactively by the launcher and by the deploy, so
+# a prompt would hang them, and a second confirmation beside the positive guards
+# above is the thing an operator learns to reach past.
+"$(dirname "${BASH_SOURCE[0]}")/internal/print-reset-notice.sh" "${DB_FILE}"
+
 rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
 
 # Apply schema
@@ -127,10 +135,16 @@ done
 #
 # Skipped when this database is being built to be shipped. The row lives in the
 # file, so a rebuild-and-replace deploy carries it to whatever host it lands on,
-# and a host polling every two seconds does thirty times the work and thirty
+# and a host polling every two seconds does fifteen times the work and fifteen
 # times the logging for an affordance only a developer watching a local page
 # benefits from. Appending a correcting row afterwards would leave both on the
 # permanent record for a reader to reconcile; not writing it is cleaner.
+#
+# The flag is set by the deploy orchestrator around the step that builds the
+# database a deploy ships, and by the rebuild deploy for its own direct
+# invocation. It is deliberately not set by the local data deploy in between,
+# which developers also reach through the launcher and which must keep writing
+# this row for them.
 if [[ "${FOOTBAG_DB_FOR_DEPLOY:-}" == "1" ]]; then
   echo "  → Skipping the fast local outbox poll interval (database is being built for a host)."
 else

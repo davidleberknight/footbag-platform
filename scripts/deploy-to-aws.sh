@@ -623,6 +623,14 @@ fi
 #       mirror. Regenerates committed canonical_input/*.csv, name
 #       variants, and seed/*.csv as a side effect; working tree will show
 #       diffs after the run.
+# The database Step 1 builds is the one Step 2 ships, so it is built without the
+# affordances that only make sense on a developer's own machine. The flag belongs
+# here rather than in deploy-local-data.sh, which developers also reach through
+# run_dev.sh: setting it there would strip the fast local outbox poll from every
+# developer's own database. Step 2 sets it again for its own direct invocation,
+# which this path skips.
+export FOOTBAG_DB_FOR_DEPLOY=1
+
 if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
   echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --soup-to-nuts"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --soup-to-nuts

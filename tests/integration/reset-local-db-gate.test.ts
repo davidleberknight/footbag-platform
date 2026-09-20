@@ -99,19 +99,23 @@ describe('scripts/reset-local-db.sh — environment refusal gate', () => {
 describe('the database built for a host carries no local-only affordances', () => {
   const SOURCE = fs.readFileSync(path.join(REPO_ROOT, SCRIPT), 'utf8');
   const REBUILD = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-rebuild.sh'), 'utf8');
+  const ORCHESTRATOR = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-to-aws.sh'), 'utf8');
 
   it('writes the fast outbox poll only when the database stays on this machine', () => {
     // The override lives in the database file, so a rebuild-and-replace deploy
     // carries it to whatever host it lands on. A host polling every two seconds
-    // does thirty times the work and thirty times the logging, for an
+    // does fifteen times the work and fifteen times the logging, for an
     // affordance only a developer watching a local page benefits from.
-    const guarded = SOURCE.slice(SOURCE.indexOf('FOOTBAG_DB_FOR_DEPLOY'));
-    expect(guarded).toContain('outbox_poll_interval_seconds');
-    // The insert sits on the else branch: reached only when the flag is absent.
+    //
+    // Anchored on the guard's own message rather than on the flag name. The name
+    // appears wherever the flag is discussed, so a bare search for it can land
+    // somewhere else in the file entirely and then pass with the guard deleted.
+    const flagAt = SOURCE.indexOf('Skipping the fast local outbox poll interval');
     const insertAt = SOURCE.indexOf("'outbox_poll_interval_seconds', '2'");
-    const flagAt = SOURCE.indexOf('FOOTBAG_DB_FOR_DEPLOY');
     expect(flagAt).toBeGreaterThan(-1);
     expect(insertAt).toBeGreaterThan(flagAt);
+    // The insert sits on the else branch: reached only when the flag is absent.
+    expect(SOURCE.slice(flagAt, insertAt)).toContain('else');
   });
 
   it('is asked for that by the deploy path that ships the database', () => {
@@ -125,4 +129,109 @@ describe('the database built for a host carries no local-only affordances', () =
       /FOOTBAG_DB_FOR_DEPLOY=1 FOOTBAG_DB_PATH="\$LOCAL_DB" bash "\$REPO_ROOT\/scripts\/reset-local-db\.sh"/,
     );
   });
+
+  it('is asked for by the orchestrator too, which builds the database the deploy ships', () => {
+    // The line above is on the rebuild leaf, and the orchestrator skips it: every
+    // dispatch exports SKIP_DB_REBUILD=yes because the database was already built
+    // a step earlier. So the leaf's flag alone left every orchestrated deploy
+    // shipping the developer-only row, with the assertion above reporting the
+    // guard as wired.
+    const flagAt = ORCHESTRATOR.indexOf('export FOOTBAG_DB_FOR_DEPLOY=1');
+    const buildAt = ORCHESTRATOR.indexOf('deploy-local-data.sh" --soup-to-nuts');
+    expect(flagAt).toBeGreaterThan(-1);
+    expect(buildAt).toBeGreaterThan(flagAt);
+  });
+
+  it('refuses to ship a database that carries the developer-only row', () => {
+    // The flag settles what a build produces; it cannot settle what an operator
+    // hands over. The rebuild deploy also ships a database it did not build, so
+    // the outcome is checked rather than the invocation.
+    expect(REBUILD).toContain("WHERE id = 'cfg_dev_outbox_poll'");
+    expect(REBUILD).toContain('carries developer-only configuration and must not be shipped');
+  });
+});
+
+describe('the loss is stated before the database is deleted', () => {
+  // What the notice SAYS is proved by running it, in
+  // print-reset-notice.script.test.ts. What this file owns is where it is called
+  // from and what surrounds it, which is the reset script's decision alone.
+  const SOURCE = fs.readFileSync(path.join(REPO_ROOT, SCRIPT), 'utf8');
+  const NOTICE_CALL = 'internal/print-reset-notice.sh';
+  // The delete matched as a whole line rather than as one long literal, so a
+  // second deletion spelled any other way is still counted.
+  const DELETE_LINES = /^[ \t]*rm\b.*DB_FILE.*$/gm;
+
+  /**
+   * A miss returns -1, and slicing from -1 yields the whole string rather than
+   * nothing, so an unchecked index turns a broken locator into a passing test
+   * instead of a failing one.
+   */
+  function indexOrFail(haystack: string, needle: string): number {
+    const at = haystack.indexOf(needle);
+    expect(at, `expected to find ${needle} in ${SCRIPT}`).toBeGreaterThan(-1);
+    return at;
+  }
+
+  it('calls the notice, and the deletion comes after it', () => {
+    const noticeAt = indexOrFail(SOURCE, NOTICE_CALL);
+    const deletions = SOURCE.match(DELETE_LINES) ?? [];
+    expect(deletions).toHaveLength(1);
+    expect(indexOrFail(SOURCE, deletions[0])).toBeGreaterThan(noticeAt);
+  });
+
+  it('puts nothing between the notice and the deletion', () => {
+    // Anything landing in the gap can fail, and a run that dies there has told
+    // the operator their work is gone without having touched it.
+    const noticeAt = indexOrFail(SOURCE, NOTICE_CALL);
+    const callLineEnd = SOURCE.indexOf('\n', noticeAt);
+    expect(callLineEnd).toBeGreaterThan(-1);
+    const deletions = SOURCE.match(DELETE_LINES) ?? [];
+    expect(deletions).toHaveLength(1);
+    const between = SOURCE.slice(callLineEnd + 1, indexOrFail(SOURCE, deletions[0]));
+    expect(between.trim()).toBe('');
+  });
+
+  it('adds no way around the notice', () => {
+    // Positive guards only: no force flag, no escape hatch, and no prompt. The
+    // reason for no prompt is not taste — the launcher and the deploy both invoke
+    // this script non-interactively, so a prompt would hang them rather than
+    // protect anything.
+    //
+    // Read against code alone, since the header explains the absent flag by
+    // naming it and a comment must not be able to fail this.
+    const code = SOURCE.split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
+    expect(code).not.toMatch(/--force|--yes|ASSUME_YES/);
+    expect(code).not.toMatch(/^\s*read\s+(-|[A-Za-z_])/m);
+    expect(code).not.toContain('confirm_from_tty');
+  });
+
+  it('says nothing destructive on a run it refuses', () => {
+    // A refused run must not tell an operator their work was destroyed when
+    // nothing was touched. Driven from a throwaway working directory, which exits
+    // at the missing-fixture preflight: that sits below the environment refusal
+    // and below the pre-cutover guard, so this covers every placement above the
+    // slate phase rather than only the topmost one.
+    const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-reset-notice-gate-'));
+    try {
+      // The database has to exist for this to mean anything. Against an absent
+      // file the notice prints its harmless shape, so a misplaced notice would
+      // slip past the assertions below saying nothing about the placement. The
+      // preflight refuses above the slate phase, so this file is never deleted.
+      fs.mkdirSync(path.join(sandbox, 'database'));
+      fs.writeFileSync(path.join(sandbox, 'database', 'footbag-gate-test.db'), '');
+
+      const r = run({ FOOTBAG_DB_PATH: './database/footbag-gate-test.db' }, sandbox);
+      expect(r.status).not.toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).not.toMatch(/WARNING: this deletes/);
+      expect(combined).not.toMatch(/adjudication drafts/);
+      // And it is still there, which is the other half of "nothing was touched".
+      expect(fs.existsSync(path.join(sandbox, 'database', 'footbag-gate-test.db'))).toBe(true);
+    } finally {
+      fs.rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
 });

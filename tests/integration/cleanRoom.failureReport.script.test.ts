@@ -73,7 +73,11 @@ exit 0
   writeFileSync(path.join(dir, 'npm'), `#!/bin/bash\n${npmBody}\n`, { mode: 0o755 });
 
   // Refusing to build a virtual environment is a state the script already
-  // handles: the Python gates record NOT RUN. --quick never reaches them.
+  // handles: whatever needs that environment records NOT RUN rather than
+  // failing. The later Python gates are out of reach under --quick, but the
+  // integration tier is not, and one of its suites drives the legacy extractors
+  // through an interpreter carrying the pipeline's dependencies, so a quick run
+  // with this stub ends INCOMPLETE rather than green.
   writeFileSync(path.join(dir, 'python3'), '#!/bin/bash\nexit 1\n', { mode: 0o755 });
 
   return dir;
@@ -135,7 +139,17 @@ describe('run_clean_room.sh: a failed gate says why, at the end of the run', () 
   it('prints no recap section when every gate passes', () => {
     const { status, out } = runCleanRoom(stubBin('passes', NPM_ALL_PASS));
 
-    expect(status, out).toBe(0);
+    // Exit 77, not 0. The stubbed python3 refuses to build a virtual
+    // environment, and one integration suite drives the legacy club extractors
+    // through an interpreter that needs the pipeline's dependencies. That suite
+    // is excluded and recorded NOT RUN, which ends the run INCOMPLETE. Nothing
+    // failed: a room that could not build what a suite needs has not tested it,
+    // and saying so is the difference between a short answer and a wrong one.
+    expect(status, out).toBe(77);
+    expect(out).toContain('CLEAN ROOM INCOMPLETE');
+    expect(out).toContain('integration-club-chain');
+    // The recap exists for failed gates. A gate that did not run has nothing to
+    // re-show, so the run still carries no recap section.
     expect(out).toContain('CLEAN ROOM SUMMARY');
     expect(out).not.toContain('clean-room failure details');
   });

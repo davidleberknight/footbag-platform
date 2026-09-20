@@ -235,7 +235,23 @@ fi
 
 gate build       npm run build
 gate unit        npm run test:unit
-gate integration npm run test:integration
+
+# One integration suite drives the legacy club extractors as real subprocesses,
+# and they parse mirror HTML with BeautifulSoup, so it needs the pinned
+# environment the block above builds. Without that environment the suite fails on
+# its own dependency probe, and the room then reports a failed gate and says the
+# runner will see the same — which it will not, because the runner installs these
+# requirements. An environment the room could not build is not a verdict on the
+# tests. So the tier runs without that one suite and the suite is named NOT RUN,
+# which is the same treatment the gates below give a missing sqlite3, and the run
+# ends INCOMPLETE rather than green.
+PY_ONLY_SUITE="tests/integration/clubChainRedirected.test.ts"
+if (( PY_READY )); then
+  gate integration npm run test:integration
+else
+  gate integration npm run test:integration -- --exclude "$PY_ONLY_SUITE"
+  unrun integration-club-chain "the pinned Python environment could not be built"
+fi
 
 if (( QUICK == 0 )); then
   gate lint              npm run lint
