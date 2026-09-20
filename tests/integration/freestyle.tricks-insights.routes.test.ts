@@ -199,29 +199,31 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'phase3-mixed-media', canonical_name: 'phase3-mixed-media', adds: '3', sort_order: 98,
   });
-  // Tutorial-only: one tt_youtube clip.
+  // Tutorial-only: one clip that says it teaches. The content type is the
+  // clip's own tag; the source id no longer decides it.
   insertTtLesson(db, {
     uploader_member_id: phase3Uploader, ttNumber: 700,
     trickSlug: 'phase3-tutorial-only', videoId: 'phase3-tut-only',
-    lessonTitle: 'Phase3 Tutorial Only',
+    lessonTitle: 'Phase3 Tutorial Only', extraTags: ['#curated', '#tutorial'],
   });
-  // Demo-only: one footbag_finland clip (insertTtLesson is generic; the
-  // source_id override drives tier classification).
+  // Demo-only: one clip showing the trick without teaching it.
   insertTtLesson(db, {
     uploader_member_id: phase3Uploader, ttNumber: 701,
     trickSlug: 'phase3-demo-only', videoId: 'phase3-demo-only',
     lessonTitle: 'Phase3 Demo Only', source_id: 'footbag_finland',
+    extraTags: ['#curated', '#demo'],
   });
-  // Mixed: one tutorial-tier + one demo-tier clip.
+  // Mixed: one of each on the same trick.
   insertTtLesson(db, {
     uploader_member_id: phase3Uploader, ttNumber: 702,
     trickSlug: 'phase3-mixed-media', videoId: 'phase3-mixed-tut',
-    lessonTitle: 'Phase3 Mixed Tutorial',
+    lessonTitle: 'Phase3 Mixed Tutorial', extraTags: ['#curated', '#tutorial'],
   });
   insertTtLesson(db, {
     uploader_member_id: phase3Uploader, ttNumber: 703,
     trickSlug: 'phase3-mixed-media', videoId: 'phase3-mixed-demo',
     lessonTitle: 'Phase3 Mixed Demo', source_id: 'footbag_finland',
+    extraTags: ['#curated', '#demo'],
   });
 
   // ── role-aware notation rendering fixtures ──────────────────────

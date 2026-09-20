@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=u_3ajzm_0O4",
   "videoPlatform": "youtube",
-  "title": "Pigbeater \u2014 PassBack demo",
+  "title": "Pigbeater — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#passback_tutorials",
     "#pigbeater",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

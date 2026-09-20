@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=ColWUylKEJc",
   "videoPlatform": "youtube",
-  "title": "Fusion \u2014 PassBack demo",
+  "title": "Fusion — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#fusion",
     "#passback_tutorials",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

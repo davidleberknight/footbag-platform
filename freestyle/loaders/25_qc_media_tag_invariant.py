@@ -37,6 +37,11 @@ from _trick_tag_invariant import (  # noqa: E402
     validate_media_tags,
 )
 
+# What a curated trick clip is for. The three replaced a sidecar `tier` field
+# that was a lookup from the source id, and they are the only categorisation a
+# member sees.
+CONTENT_TYPE_TAGS = frozenset({"#tutorial", "#demo", "#record"})
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(
@@ -84,6 +89,29 @@ def main() -> int:
             )
         except MediaTagInvariantError as e:
             failures.append(str(e))
+
+        # Content type, for a curated clip that names a trick. Exactly one of the
+        # three, because the tags are the only categorisation a member sees and a
+        # clip carrying two would report whichever was read first. Scoped by the
+        # trick tag rather than by directory: a shred routine and a discipline or
+        # event clip name no trick and carry none of the three, which is the
+        # ruling for them rather than an oversight.
+        clip_tags = [t.lower() for t in tags_by_media.get(it["id"], [])]
+        if "#curated" not in clip_tags:
+            continue
+        names_a_trick = any(
+            t.lstrip("#") in active or t.lstrip("#") in pending or t.lstrip("#") in aliases
+            for t in clip_tags
+        )
+        if not names_a_trick:
+            continue
+        content_types = sorted({t for t in clip_tags if t in CONTENT_TYPE_TAGS})
+        if len(content_types) != 1:
+            failures.append(
+                f"{label}: names a trick and carries {content_types or 'no'} content-type "
+                f"tag; a curated trick clip carries exactly one of "
+                f"{', '.join(sorted(CONTENT_TYPE_TAGS))}"
+            )
 
     total = len(items)
     print("=" * 72)

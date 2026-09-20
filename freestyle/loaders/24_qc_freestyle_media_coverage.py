@@ -75,19 +75,19 @@ REPORT_DIR = LEGACY_DATA_DIR / "reports"
 REPORT_PATH = REPORT_DIR / "freestyle_media_coverage.csv"
 REPORT_MD_PATH = REPORT_DIR / "freestyle_media_coverage.md"
 
-# Coverage strength is derived from a curated item's source_id (the unified
-# media graph carries no per-item tier column). STRONG = a teaching-tier source;
-# DEMO = demonstration-tier; RECORD = a record clip. A blank source_id on a
-# curated item is treated as weak (covered, but not strong). A non-blank source
-# not recognized here is flagged by validation.
-STRONG_TUTORIAL_SOURCES = {
-    "tt_youtube", "anz_trikz", "footbagspot_passback", "passback_tutorials",
-    "footbagspot_tutorials", "footbag_foundations", "polini_pointers",
-    "everything_footbag", "passback_basics",
-}
-DEMO_SOURCES = {"shred_global", "footbag_finland", "flipsider_footbag", "passback_demos"}
-RECORD_SOURCES = {"passback_records"}
-KNOWN_SOURCES = STRONG_TUTORIAL_SOURCES | DEMO_SOURCES | RECORD_SOURCES
+# Coverage strength is what the clip says it is. Each curated trick clip carries
+# exactly one content-type tag, and that is the only categorisation a member
+# sees, so it is the one this report counts.
+#
+# It used to be derived from the source id through three hand-maintained sets.
+# That could not describe a clip differing from its source, and it hard-failed
+# the whole run on a source id nobody had added to the map yet — a registration
+# chore masquerading as a data check. What matters is whether a trick has
+# teaching coverage, and a clip now answers that directly.
+TUTORIAL_TAG = "#tutorial"
+DEMO_TAG = "#demo"
+RECORD_TAG = "#record"
+CONTENT_TYPE_TAGS = (TUTORIAL_TAG, DEMO_TAG, RECORD_TAG)
 # Strength labels that count as strong primary coverage.
 STRONG_STRENGTHS = {"STRONG_TUTORIAL", "HIGH_QUALITY_DEMO"}
 
@@ -179,18 +179,18 @@ def load_embedded_coverage() -> dict[str, list[str]]:
     return out
 
 
-def classify_primary_strength(source_id: str) -> str:
-    """Map a curated item's source_id to a coverage-strength label.
+def classify_primary_strength(content_type_tags: set[str]) -> str:
+    """Map a curated clip's content-type tag to a coverage-strength label.
 
-    Returns STRONG_TUTORIAL / HIGH_QUALITY_DEMO / WEAK_RECORD. A blank or
-    unrecognized source_id is treated as weak (covered, not strong); an
-    unrecognized non-blank source is additionally flagged by validation.
+    Returns STRONG_TUTORIAL / HIGH_QUALITY_DEMO / WEAK_RECORD. A clip carrying
+    no content-type tag counts as a demonstration, the same default both public
+    readers apply: a teaching claim is made rather than assumed.
     """
-    if source_id in STRONG_TUTORIAL_SOURCES:
+    if TUTORIAL_TAG in content_type_tags:
         return "STRONG_TUTORIAL"
-    if source_id in DEMO_SOURCES:
-        return "HIGH_QUALITY_DEMO"
-    return "WEAK_RECORD"
+    if RECORD_TAG in content_type_tags:
+        return "WEAK_RECORD"
+    return "HIGH_QUALITY_DEMO"
 
 
 def classify_status(is_active: int, primary_strength: str, total_links: int) -> str:
@@ -243,6 +243,16 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
                       WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
     """))
 
+    # Each curated clip's content-type tag, read once rather than per trick tag:
+    # a clip tagged for three tricks is one clip with one content type.
+    content_types: dict[str, set[str]] = {}
+    for media_id, tag in conn.execute("""
+        SELECT t.media_id, lower(t.tag_display)
+        FROM media_tags t
+        WHERE lower(t.tag_display) IN ('#tutorial', '#demo', '#record')
+    """):
+        content_types.setdefault(media_id, set()).add(tag)
+
     by_slug: dict[str, list[dict]] = {}
     for tag, media_id, source_id, caption in item_rows:
         body = trick_tag_body(tag)
@@ -250,7 +260,7 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             continue
         by_slug.setdefault(body, []).append({
             "media_id": media_id, "source_id": source_id, "caption": caption,
-            "strength": classify_primary_strength(source_id),
+            "strength": classify_primary_strength(content_types.get(media_id, set())),
         })
 
     embedded = load_embedded_coverage()
@@ -327,20 +337,29 @@ def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     if len(rows) != n_tricks:
         errors.append(f"row count mismatch: report={len(rows)} tricks_table={n_tricks}")
 
-    # 2. curated media with an unrecognized (non-blank) source_id. Blank is
-    #    allowed (weak/unsourced); a non-blank unknown source means the strength
-    #    map is stale, so name it.
-    bad_src = sorted({
+    # 2. a curated trick clip carrying more than one content-type tag. One clip
+    #    is one content type; two would make the strength it reports depend on
+    #    which tag happened to be read first. A clip carrying none is not an
+    #    error here: it counts as a demonstration, the same default both public
+    #    readers apply, and the media-tag invariant is where completeness is
+    #    enforced.
+    #
+    #    This replaced a check that hard-failed the run on any source id missing
+    #    from a hand-maintained map. That was a registration chore rather than a
+    #    data defect, and it stopped the whole rebuild over one.
+    multi_typed = sorted({
         r[0] for r in conn.execute("""
-            SELECT DISTINCT COALESCE(mi.source_id, '') FROM media_items mi
-            WHERE EXISTS (SELECT 1 FROM media_tags c
-                          WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
-              AND COALESCE(mi.source_id, '') <> ''
+            SELECT t.media_id FROM media_tags t
+            WHERE lower(t.tag_display) IN ('#tutorial', '#demo', '#record')
+              AND EXISTS (SELECT 1 FROM media_tags c
+                          WHERE c.media_id = t.media_id
+                            AND lower(c.tag_display) = '#curated')
+            GROUP BY t.media_id
+            HAVING COUNT(DISTINCT lower(t.tag_display)) > 1
         """)
-        if r[0] not in KNOWN_SOURCES
     })
-    if bad_src:
-        errors.append(f"curated media with unrecognized source_id (update strength map): {bad_src}")
+    if multi_typed:
+        errors.append(f"curated media carrying more than one content-type tag: {multi_typed}")
 
     # 3. embedded-coverage manifest slugs must resolve to real trick slugs
     #    (both the embedded trick and its host). A typo here would silently
@@ -422,15 +441,18 @@ def build_link_health(conn: sqlite3.Connection) -> dict:
     """Media-health metrics for the unified curated graph."""
     valid_slugs = {r[0] for r in conn.execute("SELECT slug FROM freestyle_tricks")}
     orphan_tags = sorted(t for t in curated_trick_tags(conn) if t not in valid_slugs)
-    unrecognized_sources = sorted({
-        r[0] for r in conn.execute("""
-            SELECT DISTINCT COALESCE(mi.source_id, '') FROM media_items mi
-            WHERE EXISTS (SELECT 1 FROM media_tags c
-                          WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
-              AND COALESCE(mi.source_id, '') <> ''
-        """)
-        if r[0] not in KNOWN_SOURCES
-    })
+    # Curated trick clips carrying no content-type tag. Reported rather than
+    # failed: they count as demonstrations, which is a defensible reading, but a
+    # growing number means curation is drifting away from saying what a clip is
+    # for. The hard gate on the vocabulary lives in the media-tag invariant.
+    untyped_clips = conn.execute("""
+        SELECT COUNT(DISTINCT mi.id) FROM media_items mi
+        WHERE EXISTS (SELECT 1 FROM media_tags c
+                      WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
+          AND NOT EXISTS (SELECT 1 FROM media_tags ct
+                          WHERE ct.media_id = mi.id
+                            AND lower(ct.tag_display) IN ('#tutorial', '#demo', '#record'))
+    """).fetchone()[0]
     blank_source = conn.execute("""
         SELECT COUNT(DISTINCT mi.id) FROM media_items mi
         WHERE EXISTS (SELECT 1 FROM media_tags c
@@ -439,7 +461,7 @@ def build_link_health(conn: sqlite3.Connection) -> dict:
     """).fetchone()[0]
     return {
         "orphan_curated_tags": orphan_tags,
-        "unrecognized_sources": unrecognized_sources,
+        "curated_items_untyped": untyped_clips,
         "curated_items_blank_source": blank_source,
     }
 
@@ -558,8 +580,8 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     push("|---|---|---|")
     orphan = link_health["orphan_curated_tags"]
     push(f"| orphan_curated_tags | {len(orphan)} | {orphan or '-'} |")
-    bad_src = link_health["unrecognized_sources"]
-    push(f"| unrecognized_sources | {len(bad_src)} | {bad_src or '-'} |")
+    push(f"| curated_items_untyped | {link_health['curated_items_untyped']} | "
+         f"(no content-type tag; counted as demonstrations) |")
     push(f"| curated_items_blank_source | {link_health['curated_items_blank_source']} | (counted as weak coverage) |")
     push("")
 

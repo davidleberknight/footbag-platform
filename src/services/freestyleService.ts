@@ -1083,57 +1083,12 @@ export const SOURCE_LABELS: Readonly<Record<string, string>> = {
   passback_tutorials:   'PassBack Tutorials',
 };
 
-// Single source-of-truth tier registry for the badge logic and the
-// trick-detail Reference Media split (Tutorials vs Demos). The prior
-// TUTORIAL_SOURCE_IDS / DEMO_SOURCE_IDS Sets were folded into this map so
-// all source-id classification reads from one place. Per-clip override
-// (sidecar `tier` field flowing into DB) is deferred until that override
-// path is wired end-to-end through curator ingest.
-//
-// Tier semantics:
-//   - TUTORIAL:      explicit teaching intent (technique cues, breakdown).
-//                    Drives the 'tutorial' coverage state and the tutorialMedia
-//                    bucket.
-//   - DEMONSTRATION: single-clip "what the trick looks like done well",
-//                    no teaching intent. Drives the 'demo' coverage state.
-//   - RECORD:        competitive consecutive-completion clips. Surfaced via
-//                    /freestyle/records and the Passback Records table on
-//                    trick-detail; never appears in the Reference Media
-//                    Tutorial/Demo split.
-export type MediaTier = 'TUTORIAL' | 'DEMONSTRATION' | 'RECORD';
-
-export const SOURCE_TIER: Record<string, MediaTier> = {
-  // Canonical / strong tutorial sources.
-  tt_youtube:            'TUTORIAL',
-  footbagspot_tutorials: 'TUTORIAL',
-  polini_pointers:       'TUTORIAL',
-  footbag_foundations:   'TUTORIAL',
-  everything_footbag:    'TUTORIAL',
-  passback_basics:       'TUTORIAL',
-  passback_tutorials:    'TUTORIAL',
-
-  // Mixed-character sources held at TUTORIAL until the per-clip override
-  // path lands. Blanket reclassification would drop real instructional
-  // clips inside these sources, so sidecar-level override is the right fix.
-  anz_trikz:             'TUTORIAL',
-  footbagspot_passback:  'TUTORIAL',
-
-  // Demonstration sources: single-trick showcase clips with no teaching
-  // intent. shred_global entries follow the caption pattern
-  //   "Footbag Freestyle Trick: <name> (<add>add) by <player>".
-  shred_global:          'DEMONSTRATION',
-  footbag_finland:       'DEMONSTRATION',
-  flipsider_footbag:     'DEMONSTRATION',
-  passback_demos:        'DEMONSTRATION',
-
-  // Record-tier: never bucketed as Tutorial/Demo on trick-detail.
-  passback_records:      'RECORD',
-};
-
-export function tierOf(sourceId: string | null | undefined): MediaTier | null {
-  if (!sourceId) return null;
-  return SOURCE_TIER[sourceId] ?? null;
-}
+// What a curated clip is for is carried by the clip, as exactly one of
+// #tutorial, #demo or #record, and read from its tags wherever it matters.
+// A source-id lookup used to stand in for it: it said nothing the source id
+// did not, it could not describe a clip that differed from its source, and
+// it spent a fourth meaning of a word this repository already uses for
+// membership tier, ADD tier and display tier.
 
 function shapeReferenceMedia(
   row: TrickRefMediaRow,
@@ -6195,7 +6150,7 @@ function buildTrickIndexShapingContext(
   // href stable across rebuilds.
   const galleryTagBySlug = new Map<string, string>();
   for (const r of mediaCoverageRows) {
-    const isTutorial = tierOf(r.source_id) === 'TUTORIAL';
+    const isTutorial = r.is_tutorial === 1;
     const current = mediaCoverageBySlug.get(r.slug);
     // 'tutorial' wins over 'demo'; once tutorial set, never downgrade.
     if (isTutorial) {
@@ -7668,18 +7623,19 @@ export const freestyleService = {
         const demoMedia: TrickReferenceMediaItem[] = [];
         let refMediaCount = 0;
         for (const r of allRefMedia) {
-          const tier = tierOf(r.source_id);
+          const clipTags = tagsByMediaId.get(r.id) ?? [];
           refMediaCount++;
-          if (tier === 'RECORD') continue;
-          const shaped = shapeReferenceMedia(r, tagsByMediaId.get(r.id) ?? []);
-          if (tier === 'TUTORIAL') {
+          if (clipTags.includes('#record')) continue;
+          const shaped = shapeReferenceMedia(r, clipTags);
+          // A clip is a tutorial only if it says so. Anything else is a
+          // demonstration, including a clip carrying no content-type tag: the
+          // instructional claim is the one that has to be made rather than
+          // assumed, and this is also what the dictionary index reads, which the
+          // two surfaces previously disagreed about.
+          if (clipTags.includes('#tutorial')) {
             tutorialMedia.push(shaped);
-          } else if (tier === 'DEMONSTRATION') {
-            demoMedia.push(shaped);
           } else {
-            // Unclassified source — default to tutorial bucket so new
-            // sources surface visibly while curator updates the registry.
-            tutorialMedia.push(shaped);
+            demoMedia.push(shaped);
           }
         }
         const hasReferenceMedia = refMediaCount > 0;

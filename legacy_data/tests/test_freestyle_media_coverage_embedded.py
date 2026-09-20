@@ -98,14 +98,20 @@ def test_clipper_kick_excluded_clipper_stall_included():
 
 # ── unified-graph migration ────────────────────────────────────────────────
 
-def test_classify_primary_strength_by_source():
-    assert mod.classify_primary_strength("tt_youtube") == "STRONG_TUTORIAL"
-    assert mod.classify_primary_strength("anz_trikz") == "STRONG_TUTORIAL"
-    assert mod.classify_primary_strength("shred_global") == "HIGH_QUALITY_DEMO"
-    assert mod.classify_primary_strength("passback_records") == "WEAK_RECORD"
-    # blank / unknown source → weak (covered, not strong)
-    assert mod.classify_primary_strength("") == "WEAK_RECORD"
-    assert mod.classify_primary_strength("some_unknown_src") == "WEAK_RECORD"
+def test_classify_primary_strength_reads_the_clips_content_type_tag():
+    # Coverage strength is what the clip says it is. A teaching claim has to be
+    # made on the clip itself; it is never inferred from where the clip came
+    # from, so the same clip reads the same way on every surface that asks.
+    assert mod.classify_primary_strength({"#tutorial"}) == "STRONG_TUTORIAL"
+    assert mod.classify_primary_strength({"#demo"}) == "HIGH_QUALITY_DEMO"
+    assert mod.classify_primary_strength({"#record"}) == "WEAK_RECORD"
+
+
+def test_classify_primary_strength_defaults_an_untyped_clip_to_demonstration():
+    # The default is the weaker of the two strong labels, matching both public
+    # readers: an untyped clip demonstrates, it does not claim to teach.
+    assert mod.classify_primary_strength(set()) == "HIGH_QUALITY_DEMO"
+    assert mod.classify_primary_strength({"#curated", "#freestyle"}) == "HIGH_QUALITY_DEMO"
 
 
 def test_trick_tag_body_filters_non_trick_tags():
@@ -131,14 +137,18 @@ def _seed_minimal_db(path):
         ("gauntlet", "Gauntlet", "compound", 5, 1, "curated", "", "gauntlet"),
         ("memberonly", "Member Only", "compound", 4, 1, "curated", "", "x"),
     ])
+    # Both curated clips carry the same source id, and they classify
+    # differently, because each says on itself what it is for.
     con.executemany("INSERT INTO media_items VALUES (?,?,?)", [
-        ("m1", "tt_youtube", "35 - Torque Stall"),     # curated strong tutorial
-        ("m2", "shred_global", "Gauntlet demo"),       # curated demo (still strong)
+        ("m1", "tt_youtube", "35 - Torque Stall"),     # curated, says it teaches
+        ("m2", "tt_youtube", "Gauntlet demo"),         # curated, says it demonstrates
         ("m3", "", "a member clip"),                   # NOT curated
     ])
     con.executemany("INSERT INTO media_tags VALUES (?,?)", [
         ("m1", "#curated"), ("m1", "#freestyle"), ("m1", "#trick"), ("m1", "#torque"),
-        ("m2", "#curated"), ("m2", "#freestyle"), ("m2", "#trick"), ("m2", "#gauntlet"), ("m2", "#shred_global"),
+        ("m1", "#tutorial"),
+        ("m2", "#curated"), ("m2", "#freestyle"), ("m2", "#trick"), ("m2", "#gauntlet"),
+        ("m2", "#demo"),
         ("m3", "#memberonly"),  # member upload, no #curated → must be excluded
     ])
     con.commit()
@@ -162,7 +172,11 @@ def test_build_rows_reads_unified_graph_and_counts_curated_media():
     assert rows["torque"]["priority_bucket"] == "COMPLETE"
     assert rows["torque"]["total_media_items"] == 1
 
-    # gauntlet covered via a curated demo-tier item (HIGH_QUALITY_DEMO is strong)
+    # gauntlet is covered by a clip from the same source that classifies as a
+    # demonstration, which is still strong coverage. The two rows differ on
+    # nothing but the content-type tag, which is what pins classification to the
+    # clip rather than to where it came from.
+    assert rows["gauntlet"]["primary_strength"] == "HIGH_QUALITY_DEMO"
     assert rows["gauntlet"]["is_strong"] == 1
     assert rows["gauntlet"]["status"] == "ACTIVE_STRONG_PRIMARY"
 

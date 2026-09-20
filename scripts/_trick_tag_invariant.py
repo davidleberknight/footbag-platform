@@ -57,6 +57,14 @@ UTILITY_EXACT: frozenset[str] = frozenset({
     # Curator-applied status marker, NOT a source: db.ts filters items tagged
     # #unavailable_embed out of all media surfaces (always-on exclusion).
     "unavailable_embed",
+    # The content type of a curated trick clip, and the only categorisation a
+    # member sees. Exactly one of the three sits on every trick-media clip: what
+    # the clip is for, rather than where it came from, which the source tags
+    # above already say. They replaced a sidecar `tier` field that was a lookup
+    # from the source id, said nothing the source id did not, and spent a fourth
+    # meaning of a word this repository already uses for membership, ADD and
+    # display. A shred routine carries none of them: it is not trick media.
+    "tutorial", "demo", "record",
 })
 
 SEMANTIC_PREFIXES: tuple[str, ...] = (

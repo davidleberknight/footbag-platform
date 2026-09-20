@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=u9qf-LB2Who",
   "videoPlatform": "youtube",
-  "title": "Blizzard \u2014 PassBack demo",
+  "title": "Blizzard — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#blizzard",
     "#freestyle",
     "#passback_tutorials",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

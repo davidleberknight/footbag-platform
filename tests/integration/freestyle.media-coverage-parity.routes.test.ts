@@ -136,21 +136,25 @@ beforeAll(async () => {
     extraTags: ['#unavailable_embed'],
   });
 
-  // Ordinary curated tutorial clip.
+  // Ordinary curated tutorial clip. The clip says it teaches: content type is
+  // carried by the clip rather than inferred from its source.
   insertTtLesson(db, {
     uploader_member_id: uploader,
     ttNumber: 1,
     trickSlug: CURATED,
     videoId: 'curatedvid1',
+    extraTags: ['#curated', '#tutorial'],
   });
 
-  // A gallery item whose source is the competition-records channel.
+  // A record clip: counted as the trick's media, never bucketed as tutorial or
+  // demo, because it renders in the records table on the same page.
   insertTtLesson(db, {
     uploader_member_id: uploader,
     ttNumber: 3,
     trickSlug: RECORD_SOURCE,
     videoId: 'recordsourcevid1',
     source_id: 'passback_records',
+    extraTags: ['#curated', '#record'],
   });
 
   // Footage on the record row itself; nothing in the media library.

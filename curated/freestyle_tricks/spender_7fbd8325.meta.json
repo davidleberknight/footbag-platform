@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=DFKZi_6wGI4",
   "videoPlatform": "youtube",
-  "title": "Spender \u2014 PassBack demo",
+  "title": "Spender — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#passback_tutorials",
     "#spender",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

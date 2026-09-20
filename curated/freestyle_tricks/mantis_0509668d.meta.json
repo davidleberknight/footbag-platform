@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=Ekdxe311ZE8",
   "videoPlatform": "youtube",
-  "title": "Mantis \u2014 PassBack demo",
+  "title": "Mantis — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#mantis",
     "#passback_tutorials",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

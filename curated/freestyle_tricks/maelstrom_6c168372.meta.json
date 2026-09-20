@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=NuHv_cjPyL0",
   "videoPlatform": "youtube",
-  "title": "Maelstrom \u2014 PassBack demo",
+  "title": "Maelstrom — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#maelstrom",
     "#passback_tutorials",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

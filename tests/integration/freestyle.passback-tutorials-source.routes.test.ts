@@ -1,10 +1,15 @@
 /**
- * A curated media clip from the PassBack Tutorials source (source_id
- * 'passback_tutorials'), tagged to a trick, classifies as a TUTORIAL on the
- * browse surface because the source is registered in SOURCE_TIER. Without the
- * registration tierOf returns null and the clip falls to demo/default coverage
- * inconsistently. The friendly coverage text is rendered; the raw source key
- * never appears as visible browse copy.
+ * A curated clip tagged to a trick classifies as tutorial coverage because the
+ * clip says so, through its own #tutorial tag.
+ *
+ * It used to classify because its source id was registered in a tier map, which
+ * meant an unregistered source fell to the default and the same clip read
+ * differently on the two surfaces that consulted it. The source is still carried
+ * here, and still gets its friendly label, but it no longer decides what the
+ * clip is for.
+ *
+ * The friendly coverage text is rendered; the raw source key never appears as
+ * visible browse copy.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -29,11 +34,13 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
     operational_notation: 'SET > OP IN [DEX] > SAME TOE [DEL]',
   });
-  // A PassBack Tutorials clip tagged to the trick (the trick-tagged case the
-  // registry gap left unclassified).
+  // A PassBack Tutorials clip tagged to the trick. The clip says it teaches,
+  // through its own #tutorial tag: classification stopped being a property of
+  // the source id, so the source alone no longer decides how this reads.
   insertTtLesson(db, {
     uploader_member_id: uploader, ttNumber: 1, trickSlug: 'pbt_trick',
     videoId: 'pbtvid1', source_id: 'passback_tutorials',
+    extraTags: ['#curated', '#tutorial'],
   });
   db.close();
   createApp = await importApp();

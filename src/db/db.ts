@@ -3252,11 +3252,20 @@ export const freestyleMediaLinks = {
   // gallery filters on one literal token and never expands aliases, so a
   // link built from the canonical slug of an alias-only-tagged trick lands
   // on an empty gallery; the caller picks a tag from here that resolves.
+  // is_tutorial answers what the clip is for, which the clip's own tags say and
+  // the source id does not. It is an EXISTS over the clip's tags rather than a
+  // second join, the shape the gallery queries already use for #unavailable_embed,
+  // because a join would multiply each coverage row by its tag count.
   get listCoveredTrickSlugsWithSource() { return db.prepare(`
     SELECT DISTINCT
       ft.slug          AS slug,
       mi.source_id     AS source_id,
-      t.tag_normalized AS media_tag
+      t.tag_normalized AS media_tag,
+      EXISTS (
+        SELECT 1 FROM media_tags ct
+        INNER JOIN tags ctt ON ctt.id = ct.tag_id
+        WHERE ct.media_id = mi.id AND ctt.tag_normalized = '#tutorial'
+      )                AS is_tutorial
     FROM media_items_linkable_video mi
     INNER JOIN media_tags mt ON mt.media_id = mi.id
     INNER JOIN tags t        ON t.id        = mt.tag_id
@@ -3268,7 +3277,12 @@ export const freestyleMediaLinks = {
     SELECT DISTINCT
       ft.slug          AS slug,
       mi.source_id     AS source_id,
-      t.tag_normalized AS media_tag
+      t.tag_normalized AS media_tag,
+      EXISTS (
+        SELECT 1 FROM media_tags ct
+        INNER JOIN tags ctt ON ctt.id = ct.tag_id
+        WHERE ct.media_id = mi.id AND ctt.tag_normalized = '#tutorial'
+      )                AS is_tutorial
     FROM media_items_linkable_video mi
     INNER JOIN media_tags mt ON mt.media_id = mi.id
     INNER JOIN tags t        ON t.id        = mt.tag_id
@@ -3285,6 +3299,10 @@ export interface FreestyleMediaCoveredSourceRow {
   // The '#'-prefixed normalized tag the clip carries: the trick's canonical
   // slug tag, or one of its alias slug tags.
   media_tag: string;
+  // 1 when the clip carries #tutorial. Every other curated trick clip carries
+  // #demo or #record, and anything untagged counts as a demonstration: the
+  // instructional claim is the one that has to be made rather than assumed.
+  is_tutorial: number;
 }
 
 export interface FreestyleModifierUsageRow {

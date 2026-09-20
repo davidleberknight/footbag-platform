@@ -1,130 +1,115 @@
 /**
- * Registry invariants for the media-source label and tier maps.
+ * What a curated trick clip is for is carried by the clip, exactly once.
  *
- * SOURCE_TIER (Tutorial vs Demonstration vs Record) and SOURCE_LABELS (friendly
- * display name) are the single sources of truth consulted by the trick-detail
- * Reference Media split and the dictionary-index tier badge. Every source that
- * active curated freestyle media actually uses must be registered in BOTH maps,
- * so no in-use source falls back to a raw key or to an inconsistent default tier.
+ * This suite used to pin a source-id-to-tier registry: a map that decided a
+ * clip's content type from where it came from. That map said nothing the source
+ * id did not, could not describe a clip differing from its source, and spent a
+ * fourth meaning of a word already used here for membership tier, ADD tier and
+ * display tier. Three tags replaced it, and tags are the only categorisation a
+ * member sees.
  *
- * The coverage invariant derives its source keys from the committed curated media
- * sidecars under every curated freestyle_ directory (the freestyle reference-
- * media domain these registries govern), not from a hand-written list that can
- * drift the same way the maps do. The individual-shred gallery
- * (curated/individual_shred/, source bap_individual_shred) is a separate media
- * domain and is intentionally out of scope for these freestyle registries.
+ * So the invariant moved with the concept. It is no longer "every in-use source
+ * is registered in both maps" but "every curated trick clip carries exactly one
+ * of #tutorial, #demo or #record" — a property of the data rather than of a
+ * lookup table, which is why it is derived from the committed sidecars rather
+ * than from a hand-written list that can drift the way the map did.
+ *
+ * The friendly-label registry stays and is still checked: a display name is a
+ * genuine property of a source, unlike its content type.
+ *
+ * The individual-shred gallery is a separate media domain: a shred routine is
+ * not trick media and carries none of the three. That is asserted rather than
+ * skipped, because "no content-type tag" is the ruling for those clips and a
+ * tag appearing there would mean the domains had been confused.
  */
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'fs';
+import { readdirSync, readFileSync, existsSync } from 'fs';
 import path from 'path';
-import { SOURCE_TIER, SOURCE_LABELS, tierOf, type MediaTier } from '../../src/services/freestyleService';
+import { SOURCE_LABELS } from '../../src/services/freestyleService';
 
-const VALID_TIERS: ReadonlySet<string> = new Set<MediaTier>(['TUTORIAL', 'DEMONSTRATION', 'RECORD']);
 const CURATED_ROOT = path.join(__dirname, '../../curated');
+const CONTENT_TYPE_TAGS = ['#tutorial', '#demo', '#record'] as const;
 
-// Distinct non-null source keys used by active curated freestyle media, derived
-// from the committed sidecars under every curated freestyle_ directory.
-function activeFreestyleSourceKeys(): string[] {
-  const keys = new Set<string>();
+interface Sidecar { file: string; sourceId: string | null; tags: string[]; tier?: unknown }
+
+function sidecarsIn(dirFilter: (dir: string) => boolean): Sidecar[] {
+  const out: Sidecar[] = [];
   for (const dir of readdirSync(CURATED_ROOT)) {
-    if (!dir.startsWith('freestyle_')) continue;
-    for (const file of readdirSync(path.join(CURATED_ROOT, dir))) {
+    if (!dirFilter(dir)) continue;
+    const full = path.join(CURATED_ROOT, dir);
+    if (!existsSync(full)) continue;
+    for (const file of readdirSync(full)) {
       if (!file.endsWith('.meta.json')) continue;
-      const meta = JSON.parse(
-        readFileSync(path.join(CURATED_ROOT, dir, file), 'utf8'),
-      ) as { sourceId?: string | null };
-      if (meta.sourceId) keys.add(meta.sourceId);
+      const raw = JSON.parse(readFileSync(path.join(full, file), 'utf8')) as Record<string, unknown>;
+      out.push({
+        file: `${dir}/${file}`,
+        sourceId: (raw.sourceId as string | undefined) ?? null,
+        tags: (raw.tags as string[] | undefined) ?? [],
+        tier: raw.tier,
+      });
     }
   }
-  return [...keys].sort();
+  return out;
 }
 
-const FREESTYLE_SOURCE_KEYS = activeFreestyleSourceKeys();
+const trickMedia = () => sidecarsIn((dir) => dir.startsWith('freestyle_'));
+const shredMedia = () => sidecarsIn((dir) => dir === 'individual_shred');
 
-describe('active freestyle media source coverage (data-derived)', () => {
-  it('derives a non-empty set of in-use freestyle source keys, including passback_tutorials', () => {
-    expect(FREESTYLE_SOURCE_KEYS.length).toBeGreaterThan(0);
-    expect(FREESTYLE_SOURCE_KEYS).toContain('passback_tutorials');
-    // The individual-shred gallery source is a separate domain, not a freestyle
-    // reference-media source, so it never enters this invariant.
-    expect(FREESTYLE_SOURCE_KEYS).not.toContain('bap_individual_shred');
+describe('every curated trick clip carries exactly one content type', () => {
+  it('finds curated trick sidecars to check at all', () => {
+    // A filter that matched nothing would make every assertion below vacuous.
+    expect(trickMedia().length).toBeGreaterThan(100);
   });
 
-  it.each(FREESTYLE_SOURCE_KEYS)('source "%s" has a non-empty public label from the registry', (key) => {
-    const label = SOURCE_LABELS[key];
-    expect(label, `${key} is missing from SOURCE_LABELS`).toBeTruthy();
-    expect(typeof label).toBe('string');
-    expect(label).not.toBe(key);                          // not the raw source key
-    expect(label.toLowerCase()).not.toContain('unknown'); // not a generic fallback
+  it('carries one of tutorial, demo or record, never none and never two', () => {
+    const wrong = trickMedia()
+      .map((s) => ({ file: s.file, found: s.tags.filter((t) => (CONTENT_TYPE_TAGS as readonly string[]).includes(t)) }))
+      .filter(({ found }) => found.length !== 1);
+    expect(wrong, `${wrong.length} clip(s) do not carry exactly one content-type tag: `
+      + `${wrong.slice(0, 5).map((w) => `${w.file} -> [${w.found.join(', ')}]`).join('; ')}`)
+      .toEqual([]);
   });
 
-  it.each(FREESTYLE_SOURCE_KEYS)('source "%s" has a valid tier from the registry', (key) => {
-    const tier = SOURCE_TIER[key];
-    expect(tier, `${key} is missing from SOURCE_TIER`).toBeTruthy();
-    expect(VALID_TIERS.has(tier)).toBe(true);
-    expect(tierOf(key)).toBe(tier);                       // resolves via the shared registry, not a fallback
-  });
-});
-
-describe('PassBack Tutorials source registration', () => {
-  it('has the intended friendly label', () => {
-    expect(SOURCE_LABELS.passback_tutorials).toBe('PassBack Tutorials');
-  });
-
-  it('has the intended tier (TUTORIAL — explicit teaching content, matching passback_basics)', () => {
-    expect(SOURCE_TIER.passback_tutorials).toBe('TUTORIAL');
-    expect(tierOf('passback_tutorials')).toBe('TUTORIAL');
+  it('carries no leftover tier field', () => {
+    // The field the tags replaced. One left behind would mean two authorities
+    // for the same question, which is the state this work ended.
+    const leftovers = trickMedia().filter((s) => s.tier !== undefined).map((s) => s.file);
+    expect(leftovers, `${leftovers.length} sidecar(s) still carry a tier key`).toEqual([]);
   });
 });
 
-describe('SOURCE_TIER taxonomy', () => {
-  it('classifies the canonical tutorial sources', () => {
-    expect(SOURCE_TIER.tt_youtube).toBe('TUTORIAL');
-    expect(SOURCE_TIER.footbagspot_tutorials).toBe('TUTORIAL');
-    expect(SOURCE_TIER.polini_pointers).toBe('TUTORIAL');
-    expect(SOURCE_TIER.footbag_foundations).toBe('TUTORIAL');
-    expect(SOURCE_TIER.everything_footbag).toBe('TUTORIAL');
-    expect(SOURCE_TIER.passback_basics).toBe('TUTORIAL');
+describe('a shred routine is not trick media', () => {
+  it('finds the shred sidecars', () => {
+    expect(shredMedia().length).toBeGreaterThan(50);
   });
 
-  it('holds anz_trikz and footbagspot_passback at TUTORIAL pending per-clip review', () => {
-    // Mixed-character corpora; blanket reclass would lose real instructional
-    // clips. Per-clip override support is required before reclassification.
-    expect(SOURCE_TIER.anz_trikz).toBe('TUTORIAL');
-    expect(SOURCE_TIER.footbagspot_passback).toBe('TUTORIAL');
+  it('carries no content-type tag', () => {
+    const tagged = shredMedia()
+      .map((s) => ({ file: s.file, found: s.tags.filter((t) => (CONTENT_TYPE_TAGS as readonly string[]).includes(t)) }))
+      .filter(({ found }) => found.length > 0);
+    expect(tagged, 'a shred routine carries no content-type tag: it is a routine, not a '
+      + 'clip of one trick').toEqual([]);
   });
 
-  it('classifies shred_global as DEMONSTRATION', () => {
-    // Every shred_global entry is a single-trick showcase, not instructional
-    // content, so it belongs in DEMONSTRATION rather than TUTORIAL.
-    expect(SOURCE_TIER.shred_global).toBe('DEMONSTRATION');
-  });
-
-  it('classifies the demonstration-only sources', () => {
-    expect(SOURCE_TIER.footbag_finland).toBe('DEMONSTRATION');
-    expect(SOURCE_TIER.flipsider_footbag).toBe('DEMONSTRATION');
-    expect(SOURCE_TIER.passback_demos).toBe('DEMONSTRATION');
-  });
-
-  it('classifies passback_records as RECORD (excluded from Tutorial/Demo split)', () => {
-    expect(SOURCE_TIER.passback_records).toBe('RECORD');
+  it('carries no tier field either', () => {
+    const leftovers = shredMedia().filter((s) => s.tier !== undefined).map((s) => s.file);
+    expect(leftovers).toEqual([]);
   });
 });
 
-describe('tierOf()', () => {
-  it('returns the mapped tier for known sources', () => {
-    expect(tierOf('tt_youtube')).toBe('TUTORIAL');
-    expect(tierOf('shred_global')).toBe('DEMONSTRATION');
-    expect(tierOf('passback_records')).toBe('RECORD');
+describe('the source label registry', () => {
+  // A display name is a real property of a source, unlike its content type.
+  it('names every source in-use curated trick media actually carries', () => {
+    const inUse = new Set(trickMedia().map((s) => s.sourceId).filter((k): k is string => !!k));
+    expect(inUse.size).toBeGreaterThan(0);
+    const unlabelled = [...inUse].filter((key) => !SOURCE_LABELS[key]);
+    expect(unlabelled, `${unlabelled.length} in-use source(s) have no friendly label: `
+      + `${unlabelled.join(', ')}`).toEqual([]);
   });
 
-  it('returns null for null or undefined', () => {
-    expect(tierOf(null)).toBeNull();
-    expect(tierOf(undefined)).toBeNull();
-  });
-
-  it('returns null for unknown source ids', () => {
-    expect(tierOf('not_a_real_source')).toBeNull();
-    expect(tierOf('')).toBeNull();
+  it('keeps the labels it is relied on for', () => {
+    expect(SOURCE_LABELS.tt_youtube).toBeTruthy();
+    expect(SOURCE_LABELS.passback_tutorials).toBeTruthy();
+    expect(SOURCE_LABELS.passback_records).toBeTruthy();
   });
 });

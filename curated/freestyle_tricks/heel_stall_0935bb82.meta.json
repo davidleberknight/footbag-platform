@@ -4,7 +4,6 @@
   "title": "Anz' Trikz - Basic Stalls",
   "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
-  "tier": "CANONICAL_TUTORIAL",
   "tags": [
     "#anz_trikz",
     "#freestyle",
@@ -12,6 +11,7 @@
     "#inside_stall",
     "#outside_stall",
     "#toe_stall",
-    "#trick"
+    "#trick",
+    "#tutorial"
   ]
 }

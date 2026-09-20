@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=Oy1w2wLISrw",
   "videoPlatform": "youtube",
-  "title": "Tombstone \u2014 PassBack demo",
+  "title": "Tombstone — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#passback_tutorials",
     "#tombstone",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }

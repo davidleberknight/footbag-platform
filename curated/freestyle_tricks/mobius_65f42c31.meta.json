@@ -1,15 +1,15 @@
 {
   "videoUrl": "https://www.youtube.com/watch?v=YP-KO398JmQ",
   "videoPlatform": "youtube",
-  "title": "Mobius \u2014 PassBack demo",
+  "title": "Mobius — PassBack demo",
   "creator": "",
   "sourceId": "passback_demos",
-  "tier": "HIGH_QUALITY_DEMO",
   "tags": [
     "#freestyle",
     "#mobius",
     "#passback_tutorials",
     "#trick",
-    "#passback_advanced"
+    "#passback_advanced",
+    "#demo"
   ]
 }
