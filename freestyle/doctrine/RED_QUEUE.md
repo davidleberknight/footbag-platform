@@ -196,19 +196,6 @@ defines the movement, and its weight where the weight is not yet evidenced.
 
 Each is separable and answered on its own.
 
-- **Blazing paradox whirl: what the paradox rides on.** The side ruling authored
-  seven of the eight blazing compounds cleanly, and collided with this one. The
-  paradox whirl base is `CLIP > SAME IN [PDX] [DEX] > OP CLIP [XBD] [DEL]`, whose
-  first dex is same-side, while blazing requires the component after the set to
-  cross to the opposite side. So: does the paradox dex belong to the following
-  paradox whirl in its ordinary same-side relation, or does blazing create a
-  second front-whirl structure on which the paradox relation is defined? The
-  outside source takes the second reading (`Clip > Front Whirl (DEX) >> Op Front
-  Whirl (DEX)(PDX) > Op Clip (XBD)(DEL)`), but one source is not enough to
-  restructure a base. Flipping the base's same-side dex to opposite is explicitly
-  not an option: it changes the paradox whirl identity rather than setting it.
-  Unlocks the one remaining blazing notation. Tracked with the blank-notation
-  cohort.
 - **Cross-body and OP.** Does a cross-body `[XBD]` token inherently encode an OP side
   relationship, or is side independent of it? Carried in `POSITIONAL_IDENTITY.md`
   under the atom-level foundations; it governs how every cross-body terminal's side

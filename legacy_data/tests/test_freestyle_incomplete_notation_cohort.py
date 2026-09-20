@@ -33,12 +33,6 @@ from built_db import DB_PATH, require_loaded
 # The adjudicated cohort of active canonical tricks allowed to carry blank
 # operational notation, each with the reason it is pending.
 KNOWN_INCOMPLETE_NOTATION = {
-    # The blazing compounds are authored, bar one. The side ruling settled what the
-    # component after the set does, and seven derived from the chassis and their
-    # own base chains. This one collided with it: the paradox whirl base opens on a
-    # same-side dex while blazing requires the following component to cross, so
-    # what the paradox rides on is a structural question rather than a spelling.
-    "blazing_paradox_whirl",
     # terraging compounds and the bare terrage: the terraging-chain arithmetic is
     # pending an expert ruling, so the notation is held.
     "terrage",

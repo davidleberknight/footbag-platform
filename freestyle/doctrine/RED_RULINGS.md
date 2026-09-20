@@ -216,6 +216,26 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   and the two carrying no qualifier show the opposite, six rows for six. What this
   unblocks is the eight blazing compound notations, the bare blazing row, and the
   flailing identities whose notation was held for this reason alone.
+- **The blazing dex is the set, and the move after it is judged on its own**
+  (curator-relayed, 2026-09-19): blazing works the way stepping does. Its dex
+  belongs to the set, and what follows is evaluated independently. In blazing
+  paradox whirl the paradox contribution belongs to the whirl's own dex, because
+  that whirl independently satisfies the paradox requirements; blazing neither
+  creates that relationship nor alters it.
+  This settles what the paradox rides on, and it settles it by removing the
+  question. The collision was never in the notation: it came from describing the
+  seven already-authored compounds as crossing the component after the set to the
+  opposite side. They do no such thing. Each carries its base's chain over
+  unchanged and replaces only the set, and all seven bases happen to open on an
+  opposite-side dex, which is why the wrong generalisation fitted every one of
+  them. Paradox whirl is the first base that opens same-side, so it was the first
+  to expose the description rather than the rule.
+  What follows: a base chain is preserved under a set, never rewritten to suit
+  it. The same-side dex of the paradox whirl stays same-side, which is also why
+  the outside source's second front-whirl reading is not needed. Any prose
+  asserting that a component following a set sits opposite it describes the
+  blazing chassis's own whirl, not a rule about bases, and is worth re-reading
+  against this.
 - **Near and far** (curator ruling, 2026-09-18): in this context near is the
   same-side form and far the opposite-side form, so a far-qualified name and an
   opposite-side reading are one claim rather than two. This is the platform's
