@@ -521,7 +521,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
     {
       heading: 'Whirling vs blazing',
       prose:
-        'Blazing is its own named set on the whirl chassis, not a second name for whirling: it is an uptime whirl that the following trick is performed off of, and it carries its own +1. Holden additionally separates the two by terminal side, and that relation is settled: the side the set originates from is the reference, and the component that follows sits opposite it. The two stand as distinct named sets.',
+        'Blazing is its own named set on the whirl chassis, not a second name for whirling: it is an uptime whirl that the following trick is performed off of, and it carries its own +1. Holden additionally separates the two by terminal side, and that relation is settled: the side the set originates from is the reference, and the whirl forming the set crosses to the opposite side of it. That crossing belongs to the set; a trick performed off it keeps its own side relations rather than being rewritten to suit the set. The two stand as distinct named sets.',
     },
     {
       heading: 'Whirling is a launch, not a body movement',
@@ -594,7 +594,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
     },
     {
       name:  'blazing',
-      prose: 'A distinct named set on the same whirl chassis: an uptime whirl the following trick is performed off of, contributing +1. Holden separates it from whirling by terminal side; that side relation is unsettled.',
+      prose: 'A distinct named set on the same whirl chassis: an uptime whirl the following trick is performed off of, contributing +1. Holden separates it from whirling by terminal side, and that relation is settled: the side the set originates from is the reference, and the whirl forming the set crosses to the opposite side of it.',
     },
     {
       name:  'blistering',

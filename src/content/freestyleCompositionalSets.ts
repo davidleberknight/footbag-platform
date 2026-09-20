@@ -469,7 +469,7 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
     holdenReading:   'CLIP > OP IN [DEX] > (op side component); whirling op-side variant.',
     platformReading: 'Ruled a distinct named set on the whirling chassis, an uptime whirl the following trick is performed off of, contributing +1.',
     status:          'partial',
-    note:            'Notation is recorded as Holden wrote it. Holden separates blazing from whirling by terminal side, and that relation is settled: the side the set originates from is the reference, and the component that follows sits opposite it. What remains open is the kind rather than the side, Holden reading a whirling variant where the platform reads a distinct named set.',
+    note:            'Notation is recorded as Holden wrote it. Holden separates blazing from whirling by terminal side, and that relation is settled: the side the set originates from is the reference, and the whirl forming the set crosses to the opposite side of it. The crossing belongs to the set, not to whatever follows: a trick performed off this set keeps its own side relations. What remains open is the kind rather than the side, Holden reading a whirling variant where the platform reads a distinct named set.',
   },
 
   // ── Conflict (substantive decomposition disagreement) ────────────────

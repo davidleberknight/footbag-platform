@@ -802,9 +802,12 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > (op side component)',
     movementExplanation:
       'A whirling set: an uptime whirl that the following trick is performed off of. ' +
-      'The side the set originates from is the reference, so the component that follows ' +
-      'sits opposite it here; Holden separates blazing from whirling by exactly that ' +
-      'relation, and the two stand as distinct named sets.',
+      'The side the set originates from is the reference, and the whirl forming the set ' +
+      'crosses to the opposite side of it; Holden separates blazing from whirling by ' +
+      'exactly that terminal relation, and the two stand as distinct named sets. The ' +
+      'crossing belongs to the set. A trick performed off it keeps its own side ' +
+      'relations, which is why each blazing compound reads as this set followed by its ' +
+      'base written as the base is written.',
     equivalenceNotes: [
       { reading: 'whirling (op-side terminal variant)', citation: 'Holden distinction' },
     ],

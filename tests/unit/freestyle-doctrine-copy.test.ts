@@ -530,6 +530,40 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
     expect(unattributed).toEqual([]);
   });
 
+  it('the crossing is attributed to the set, not to whatever follows it', () => {
+    // The correction this pins. The side ruling was written up as "the component
+    // that follows sits opposite", and that description fitted the first seven
+    // blazing compounds because every one of their bases happens to open on an
+    // opposite-side dex. It is not what they do: each carries its base's chain
+    // over unchanged and replaces only the set. Paradox whirl is the first base
+    // that opens same-side, and it showed the description was wrong rather than
+    // the notation.
+    //
+    // Stated over every surface that teaches this rather than over the one that
+    // was corrected first: the earlier sweep fixed three files and missed a
+    // fourth, which then told readers the relation was unsettled for a further
+    // two days.
+    const surfaces = [
+      'src/content/freestyleCanonicalSets.ts',
+      'src/content/freestyleCompositionalSets.ts',
+      'src/services/symbolicSetEducation.ts',
+      'src/services/freestyleService.ts',
+    ];
+    const offenders = surfaces.flatMap((path) =>
+      read(path)
+        .split('\n')
+        .map((line, index) => ({ path, line, number: index + 1 }))
+        .filter(({ line }) => /component that follows sits opposite/i.test(line)
+          || /side relation is (?:un|not )settled/i.test(line))
+        .map(({ path: p, number, line }) => `${p}:${number}: ${line.trim().slice(0, 90)}`),
+    );
+    expect(offenders).toEqual([]);
+
+    const blazing = setEntry('blazing');
+    expect(blazing.movementExplanation).toMatch(/whirl forming the set/);
+    expect(blazing.movementExplanation).toMatch(/keeps its own side relations/);
+  });
+
   it('neither set is cross-referenced as a variant or alias of the other', () => {
     // They stay distinct named sets because what would rank one under the other
     // is the kind question, which is unruled. The side is no longer the reason,
