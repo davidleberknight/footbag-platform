@@ -10,7 +10,8 @@
 #   G1: no email value is shared across accounts, taken across the three
 #       legacy email columns (legacy_email/legacy_email2/legacy_email3)
 #   G2: legacy_user_id unique where non-NULL
-#   G3: import_source provenance populated on every legacy_members row
+#   G3: import_source provenance populated on every legacy_members row, with
+#       export-loaded rows and surviving system fixtures counted separately
 #   G4: profile/contact field shape (null ratios for real_name, country)
 #   G5: legacy_member_id format + uniqueness + completeness
 #   G6: tier-mapping fallback readiness (at least one HoF or BAP honor flag present)
@@ -76,18 +77,47 @@ else
   emit_gate G2 FAIL "${g2_dupes} duplicate legacy_user_id value(s) found"
 fi
 
-# G3: import-source provenance. The gate checks that every legacy_members row
-# carries a populated import_source value, so a row missing it can be routed to
-# admin review rather than silently trusted.
+# G3: import-source provenance. Every legacy_members row must carry a populated
+# import_source value, so a row missing one is routed to admin review rather than
+# silently trusted.
+#
+# Populated is not the same as loaded. The local build seeds this table with
+# system fixtures: rows carrying a curated display name and nothing else, whose
+# purpose is to give historical references a stable parent identity before any
+# real export exists. Those rows satisfy "import_source is non-empty" perfectly,
+# so a check that stops there reports a clean pass on a database the final export
+# has never touched, and reports the same clean pass on one where the export ran
+# and left fixtures behind. Those are different states and the cutover cares
+# about the difference.
+#
+# So the count is broken out. A fixture surviving the export is not an error by
+# itself -- a curated identity may legitimately be absent from a dirty export,
+# and the ruling default is to keep it -- but it is never invisible: it is named
+# here so the cutover report can attribute it to the exclusion rule that dropped
+# it, or to another known reason. Whether the checklist should refuse to proceed
+# on a survivor carrying no recorded disposition is deliberately not decided
+# here, because nothing yet provides a place for such a disposition to live.
 g3_total=$(q "SELECT COUNT(*) FROM legacy_members;")
 g3_with_source=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source IS NOT NULL AND import_source <> '';")
+g3_exported=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source = 'legacy_site_data';")
+g3_fixtures=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source = 'system_fixture';")
 if [[ "${g3_total}" -eq 0 ]]; then
   emit_gate G3 FAIL "zero legacy_members rows present (dump not loaded?)"
-elif [[ "${g3_with_source}" -eq "${g3_total}" ]]; then
-  emit_gate G3 PASS "all ${g3_total} legacy_members carry import_source provenance"
-else
+elif [[ "${g3_with_source}" -ne "${g3_total}" ]]; then
   missing=$((g3_total - g3_with_source))
   emit_gate G3 FAIL "${missing} of ${g3_total} legacy_members missing import_source"
+elif [[ "${g3_exported}" -eq 0 ]]; then
+  # No export row at all: this is a pre-load database, and saying so is more use
+  # than announcing that provenance is populated on rows nothing has loaded yet.
+  emit_gate G3 PASS "all ${g3_total} legacy_members carry import_source provenance; \
+no export-loaded rows yet (${g3_fixtures} system fixture(s)), so this is a pre-load database"
+elif [[ "${g3_fixtures}" -eq 0 ]]; then
+  emit_gate G3 PASS "all ${g3_total} legacy_members carry import_source provenance; \
+${g3_exported} export-loaded, no surviving fixtures"
+else
+  emit_gate G3 PASS "all ${g3_total} legacy_members carry import_source provenance; \
+${g3_exported} export-loaded, ${g3_fixtures} surviving system fixture(s) the export did not \
+cover -- each needs a recorded reason in the cutover report"
 fi
 
 # G4: profile/contact field shape. We require real_name to be populated on
@@ -145,9 +175,11 @@ fi
 echo "validate-legacy-import-gates: ${fail} gate(s) FAILED" >&2
 
 # real_name and the HoF/BAP + tier-status flags are supplied only by the
-# authoritative legacy-site export. A purely mirror-derived seed (every
-# legacy_members row import_source='mirror') cannot carry them, so G4 and G6
-# fail there for want of data, not a data defect. Report that provenance with a
+# authoritative legacy-site export. A database holding only the local seed cannot
+# carry them, so G4 and G6 fail there for want of data, not a data defect. That
+# seed writes import_source='system_fixture', the schema's own term for a
+# platform-seeded stub; it wrote 'mirror' when this was first described, and the
+# value moved. Report that provenance with a
 # distinct exit status so an orchestrator running against a dev seed can choose
 # to skip these gates, while a consumer that blocks on any non-zero (the
 # pre-cutover checklist) still stops. The export stamps its own provenance value
