@@ -720,7 +720,7 @@ Zulu Far Pickup,zulufarpickup,,zulu_pickup,formula-identity,alias,alias,,A,,,hig
 Full Symp Kiwi,fullsympkiwi,,,,folk,folk,ambiguous-terminal-mechanic,F,,,high,PB,section=parser intake=low_confidence identity=unrulable-reject-2026-07-13-no-footage-found-and-source-internal-contradiction-tapping-paradon-alias-vs-full-symposium-reading-search-exhausted-repo-staging-plus-four-channel-inventories-plus-public-term-search,source-fragment,contradictory,,none
 "POD, Pixie Over Down",podpixieoverdown,pixie + over-down (the setting leg performs the pixie dex and returns for the second downtime dex),pixie_over_down,promoted-canonical,canonical,canonical,,A,,,high,PB,section=doctrine intake=doctrine_unresolved identity=ruled-POD-2026-07-13-from-footage-distinct-from-dimmier-pixie-DOD promoted=2026-07-14-james-session-1-A0 alias-pod-retargeted-from-pixie_double_over_down,complete-trick,verified-footage,,mechanical
 BS Fusion,bsfusion,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
-BS Paste,bspaste,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
+BS Paste,bspaste,,backside_paste,,folk,folk,unknown-modifier-token,A,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 BS Pigbeater,bspigbeater,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 BS Reactor,bsreactor,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 Bubba Beater,bubbabeater,,,,folk,folk,unknown-modifier-token,F,,,medium,FM,section=parser intake=low_confidence,observational-name,folk-name-only,,none
@@ -736,9 +736,9 @@ Delusional Butterfly,delusionalbutterfly,,,,folk,folk,unknown-modifier-token,F,,
 Double Down,doubledown,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,generic-term,folk-name-only,,mechanical
 Double Helix,doublehelix,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Double Over Downing Osis,doubleoverdowningosis,,,,folk,folk,unknown-modifier-token,F,,,medium,FM,section=parser intake=low_confidence,observational-name,folk-name-only,,none
-Double Reverse ATW,doublereverseatw,,,,folk,folk,folk-name-opacity,F,,,medium,SG,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Double Reverse ATW,doublereverseatw,,double_orbit,,folk,folk,folk-name-opacity,A,,,medium,SG,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Double Whip,doublewhip,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-double-dex ATW,doubledexatw,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+double-dex ATW,doubledexatw,,double_around_the_world,,folk,folk,folk-name-opacity,A,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 double-dex Twist,doubledextwist,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Far Double Switchover,fardoubleswitchover,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Far Triple Over Down,fartripleoverdown,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
@@ -750,8 +750,8 @@ Frantic Clipper,franticclipper,,,,folk,folk,folk-name-opacity,F,,,medium,SG,sect
 Frenzy,frenzy,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Frozen Butterfly,frozenbutterfly,,,,folk,folk,unknown-modifier-token,F,,,medium,FM,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 Fusing Clipper,fusingclipper,,,,folk,folk,folk-name-opacity,F,,,medium,SG,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-Grifter (same side),griftersameside,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-Gryo DLO,gryodlo,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Grifter (same side),griftersameside,,reverse_drifter,,folk,folk,folk-name-opacity,A,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Gryo DLO,gryodlo,,gyro_double_leg_over,,folk,folk,folk-name-opacity,A,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Ill Frenzy,illfrenzy,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Illusioning Clipper (Grifter),illusioningclippergrifter,,reverse_drifter,name-or-alias-resolution,alias,alias,folk-name-opacity,A,,,medium,SG,section=folk intake=low_confidence requeue=ev-restructure-2026-07-14-live-identity-resolution,complete-trick,compositional-name-only,,mechanical
 Illusioning far Clipper,illusioningfarclipper,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
@@ -762,7 +762,7 @@ Johny Vodka,johnyvodka,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk
 Jolimont ss Mirage,jolimontssmirage,,,,folk,folk,unknown-modifier-token,F,,,medium,FM,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 Kill Frenzy,killfrenzy,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Kiss Of The Scorpion,kissofthescorpion,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-Leaning Jowler,leaningjowler,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Leaning Jowler,leaningjowler,,surging_mirage,,folk,folk,folk-name-opacity,A,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Mama Curve,mamacurve,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Massacre,massacre,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Midtime Toe near Illusion,midtimetoenearillusion,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
@@ -775,7 +775,7 @@ Peeking Osis,peekingosis,,,,folk,folk,unknown-modifier-token,F,,,medium,SG,secti
 Pixie ss Original Tap,pixiessoriginaltap,,,,folk,folk,unknown-modifier-token,F,,,medium,FM,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 Pyro Torque,pyrotorque,,,,doctrine,doctrine,unknown-modifier-token,C,undefined-operator:fyro,,medium,FM,section=parser intake=low_confidence requeue=ev-restructure-2026-07-14-likely-fyro-misspelling ruled=james-session-1-2026-07-14-fold=fyro-spelling-variant-survivor-fyro,complete-trick,compositional-name-only,Q02,james+red
 Quasi Whirl,quasiwhirl,,,,folk,folk,unknown-modifier-token,F,,,medium,SG,section=parser intake=low_confidence,observational-name,folk-name-only,,none
-Rasmus,rasmus,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Rasmus,rasmus,,atomic_ducking_mirage,,folk,folk,folk-name-opacity,A,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Rev. Big Apple,revbigapple,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Reverse Walkover,reversewalkover,,,,folk,folk,folk-name-opacity,F,,,medium,SG,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 S&M Smasher,sandmsmasher,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
@@ -804,8 +804,8 @@ Toe set ss Triple Over Down,toesetsstripleoverdown,,,,folk,folk,folk-name-opacit
 Toe Stall dragged from Xbd position,toestalldraggedfromxbdposition,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,malformed,none,,mechanical
 Triple ATW in-out,tripleatwinout,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Triple ATW out-in,tripleatwoutin,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-Triple Reverse ATW,triplereverseatw,,,,folk,folk,folk-name-opacity,F,,,medium,SG,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-triple-dex ATW,tripledexatw,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Triple Reverse ATW,triplereverseatw,,triple_orbit,,folk,folk,folk-name-opacity,A,,,medium,SG,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+triple-dex ATW,tripledexatw,,triple_around_the_world,,folk,folk,folk-name-opacity,A,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Twinspinning (nuclear inspinning),twinspinningnuclearinspinning,,,,folk,folk,folk-name-opacity,F,,,medium,FB,section=folk intake=low_confidence,set-operator,folk-name-only,,mechanical
 Twisting near Toe,twistingneartoe,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 UNS set,unsset,,,,folk,folk,folk-name-opacity,F,,,medium,FB,section=folk intake=low_confidence,generic-term,folk-name-only,,mechanical
@@ -814,7 +814,7 @@ Whipping Osis,whippingosis,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,sec
 Whirlwind Swirl,whirlwindswirl,,,,folk,folk,unknown-modifier-token,F,,,medium,PB,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 Wiggle Butterfly,wigglebutterfly,,,,folk,folk,unknown-modifier-token,F,,,medium,FM,section=parser intake=low_confidence,observational-name,folk-name-only,,none
 Xbd Outside Stall,xbdoutsidestall,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
-Xbd Sole Stall,xbdsolestall,,,,folk,folk,folk-name-opacity,F,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
+Xbd Sole Stall,xbdsolestall,,cross_body_sole_stall,,folk,folk,folk-name-opacity,A,,,medium,PB,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Your Mom,yourmom,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Your Sister,yoursister,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
 Zulu Le Loup,zululeloup,,,,folk,folk,folk-name-opacity,F,,,medium,FM,section=folk intake=low_confidence,observational-name,folk-name-only,,none
