@@ -267,6 +267,38 @@ export interface FreestyleTrickEditModifierLink {
   detachHref: string;
 }
 
+/**
+ * The row columns the notation parser reads, and therefore the edits that make a
+ * stored parse wrong.
+ *
+ * The parse is not a function of the notation alone. The parser decomposes the
+ * canonical name into a base plus operators and grades the result against the
+ * asserted ADD, reading the family, the base trick, the category and the active
+ * flag along the way. An edit to any of them leaves the stored decomposition
+ * describing the row as it was, while the maintainer's grammar panel presents it
+ * as current.
+ *
+ * `slug` is deliberately absent although the parser selects it: it is the row's
+ * identity and the key the update is issued against, not an input that can change
+ * underneath a parse.
+ *
+ * This list is one declaration on purpose. It used to be three field names
+ * written inline, which was how a rename — the parser's primary input — went on
+ * leaving a parse of the former name in place. A test pins it against the
+ * parser's own select list, so widening what the parser reads cannot silently
+ * narrow what invalidates it.
+ */
+export const PARSE_INPUT_FIELDS = [
+  'canonical_name',
+  'adds',
+  'base_trick',
+  'trick_family',
+  'category',
+  'is_active',
+  'notation',
+  'operational_notation',
+] as const;
+
 export interface FreestyleTrickEditFields {
   canonicalName: string;
   adds: string;
@@ -2171,14 +2203,14 @@ export const freestyleCurationService = {
     if (pronunciation !== (current.pronunciation ?? null))      changedFields.push('pronunciation');
     if (operationalNotationSource !== (current.operational_notation_source ?? null)) changedFields.push('operational_notation_source');
 
-    // The stored notation parse is derived from the two notation fields and is
-    // graded against the asserted ADD, so an edit to any of the three leaves it
-    // describing a row that no longer exists. Nothing in the application can
-    // re-derive it (the parse is produced by the content pipeline), so the honest
-    // outcome is to drop it and let the public grammar panel fall silent until it
-    // is derived again, rather than keep serving a parse of the previous notation.
+    // The stored notation parse is derived from the row, so an edit to anything
+    // the parser reads leaves it describing a row that no longer exists. Nothing
+    // in the application can re-derive it (the parse is produced by the content
+    // pipeline), so the honest outcome is to drop it and let the grammar panel
+    // fall silent until it is derived again, rather than keep serving a parse of
+    // the previous row.
     const parseInputsChanged = changedFields.some(
-      (field) => field === 'notation' || field === 'operational_notation' || field === 'adds',
+      (field) => (PARSE_INPUT_FIELDS as readonly string[]).includes(field),
     );
 
     // The row leaving the held-out candidate set is publication, and the ruling

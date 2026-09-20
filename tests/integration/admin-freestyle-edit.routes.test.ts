@@ -340,6 +340,13 @@ beforeAll(async () => {
   });
   insertFreestyleTrick(db, { ...seededParse, slug: 'parse_prose', canonical_name: 'Parse Prose' });
   insertFreestyleTrick(db, { ...seededParse, slug: 'parse_noop', canonical_name: 'Parse Noop' });
+  // The parser's primary input is the canonical name: it decomposes that into a
+  // base plus operators. A rename left the previous name's decomposition in
+  // place, because the trigger named the notation fields and the ADD and nothing
+  // else. One row per remaining input, for the same reason as above.
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_rename', canonical_name: 'Parse Rename' });
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_family', canonical_name: 'Parse Family' });
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_base', canonical_name: 'Parse Base' });
 
   createApp = await importApp();
 });
@@ -607,6 +614,53 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
     const after = parseRow('parse_adds');
     expect(after.structural_parse_json).toBeNull();
     expect(after.add_formula_status).toBeNull();
+  });
+
+  // trickRow above reads the columns the older cases assert on; the parse inputs
+  // this block added are not among them.
+  function structuralRow(slug: string) {
+    return db.prepare(
+      'SELECT canonical_name, trick_family, base_trick FROM freestyle_tricks WHERE slug = ?',
+    ).get(slug) as { canonical_name: string; trick_family: string | null; base_trick: string | null };
+  }
+
+  it('clears the stored parse when the canonical name changes, since the parser reads the name', async () => {
+    // The case that was live. The parse decomposes the canonical name, so a name
+    // change leaves the maintainer panel presenting a decomposition of a name the
+    // row no longer carries, as though it were current.
+    //
+    // The new name still folds to the same slug, because the editor requires
+    // that: a display name that folded elsewhere would be a different trick. So
+    // the edit available here is the one a curator actually makes — fixing how
+    // the name reads — and it changes the parser's primary input just the same.
+    const res = await post('/admin/freestyle/tricks/parse_rename/edit', admin(),
+      validBody({ canonicalName: 'PARSE RENAME' }));
+    expect(res.status).toBe(303);
+    expect(structuralRow('parse_rename').canonical_name).toBe('PARSE RENAME');
+
+    const after = parseRow('parse_rename');
+    expect(after.structural_parse_json).toBeNull();
+    expect(after.computed_add_formula).toBeNull();
+    expect(after.computed_adds).toBeNull();
+    expect(after.add_formula_status).toBeNull();
+  });
+
+  it('clears the stored parse when the family changes', async () => {
+    const res = await post('/admin/freestyle/tricks/parse_family/edit', admin(),
+      validBody({ canonicalName: 'Parse Family', family: 'butterfly' }));
+    expect(res.status).toBe(303);
+    expect(structuralRow('parse_family').trick_family).toBe('butterfly');
+
+    expect(parseRow('parse_family').structural_parse_json).toBeNull();
+  });
+
+  it('clears the stored parse when the base trick changes', async () => {
+    const res = await post('/admin/freestyle/tricks/parse_base/edit', admin(),
+      validBody({ canonicalName: 'Parse Base', baseTrick: 'butterfly' }));
+    expect(res.status).toBe(303);
+    expect(structuralRow('parse_base').base_trick).toBe('butterfly');
+
+    expect(parseRow('parse_base').structural_parse_json).toBeNull();
   });
 
   it('keeps the stored parse when the save changes neither notation nor the ADD', async () => {
