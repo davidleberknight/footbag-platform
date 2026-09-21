@@ -17,13 +17,12 @@
 #
 # WHY THE SIMULATOR, AND WHY IT IS SAFE TO RUN NOW.
 #
-# Mail to the simulator is delivered to nobody, works while the account is still
-# in the sandbox, does not count against the daily sending quota, and does not
-# affect the PROVIDER's bounce rate, complaint rate, or any of its deliverability
-# metrics. The bounce address is not added to the suppression list. So a five
-# hundred message rehearsal costs a few cents of per-message billing and no
-# reputation at all, which is what makes it worth doing BEFORE production access
-# is granted rather than after.
+# Mail to the simulator is delivered to nobody, does not count against the daily
+# sending quota, and does not affect the PROVIDER's bounce rate, complaint rate,
+# or any of its deliverability metrics. The bounce address is not added to the
+# suppression list. So a five hundred message rehearsal costs a few cents of
+# per-message billing and no reputation at all, which is what makes it repeatable
+# as often as a change warrants.
 #
 # IT IS NOT NEUTRAL FOR THE PLATFORM'S OWN HALT, AND THAT SURPRISES PEOPLE.
 #

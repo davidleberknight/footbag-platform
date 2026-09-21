@@ -232,19 +232,10 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
         # written this way, and naming the sender identity here instead is a
         # divergence that breaks sending rather than tightening it.
         #
-        # Two reasons, and the second is the one that bites today. Which identity
-        # object covers the sender address changes when domain authentication is
-        # enabled, so a grant naming the address identity silently stops
-        # authorising the moment sending moves under the domain identity, at send
-        # time rather than at apply time. And while the account is still in the
-        # SES sandbox, SES authorises every send against the DESTINATION identity
-        # as well as the sender: a resource pinned to the sender can never satisfy
-        # that, so each message to a real verified address is refused as
-        # unauthorised on the recipient's identity ARN while the simulator
-        # addresses succeed. The wildcard does not bypass the sandbox check, which
-        # still requires each recipient to be verified; it only lets the role
-        # reach identities in this account. Once production access is granted the
-        # recipient check disappears and this may be narrowed to the sender.
+        # The reason: which identity object covers the sender address changes
+        # when domain authentication is enabled, so a grant naming the address
+        # identity silently stops authorising the moment sending moves under the
+        # domain identity, at send time rather than at apply time.
         Resource = "*"
         # And the address, not only the identity that covers it. While the
         # identity is a single verified address the resource above already

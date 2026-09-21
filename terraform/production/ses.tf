@@ -33,11 +33,15 @@
 #    the interim address later needs a fresh click-link verification sent to an
 #    address the design keeps unmonitored.
 #
-# 3. Apex SPF, DMARC, and the custom MAIL FROM records
-#    (var.ses_enable_mail_records) go in on the day inbound mail moves. They
-#    replace the apex SPF the previous mail host published, so publishing
-#    them early would leave that host's own mail unauthorised while it is
-#    still sending. This flag requires the domain-auth flag to be on.
+# 3. The mail-day records (var.ses_enable_mail_records): the apex SPF, the
+#    DMARC record, the custom MAIL FROM subdomain records, the Workspace
+#    signing key when one is supplied, and the repoint of the apex MX to
+#    Google, all in one apply. The MX repoint is what ties the group to the
+#    day inbound mail moves, because it redirects live delivery. The apex SPF
+#    is replaced rather than extended, which drops the previous mail host's
+#    explicit authorisation; the replacement ends in softfail, so that host's
+#    residual sending stays deliverable through the window. This flag
+#    requires the domain-auth flag to be on.
 #
 # Without DKIM-aligned DMARC the platform's password-reset / claim / verify
 # emails land in spam at Gmail / Outlook / iCloud.
@@ -100,8 +104,10 @@ variable "ses_permitted_from_addresses" {
 variable "ses_enable_domain_auth" {
   description = <<-EOT
     Set to true to provision the SES domain identity, its DNS verification
-    token, and the DKIM CNAMEs. Required before exiting SES sandbox and
-    before any meaningful deliverability. Touches no apex record, so it is
+    token, and the DKIM CNAMEs. Not required for production sending access,
+    which this account already holds without a domain identity; what it buys
+    is signing under the domain, which is what lets the reporting policy
+    tighten past monitor-only. Touches no apex record, so it is
     safe to flip while another host still handles the domain's mail. Turning
     it on retires the single-address sender identity, so flip it before
     production sending goes live. Default FALSE: until the zone move
@@ -116,10 +122,13 @@ variable "ses_enable_domain_auth" {
 
 variable "ses_enable_mail_records" {
   description = <<-EOT
-    Set to true to publish the apex SPF, the DMARC record, and the custom
-    MAIL FROM subdomain records. These replace the apex SPF that the previous
-    mail host published, so they belong to the day inbound mail moves, not to
-    the earlier domain-auth step. Requires ses_enable_domain_auth to be true.
+    Set to true on the day inbound mail moves: publishes the apex SPF, the
+    DMARC record, the custom MAIL FROM subdomain records and the Workspace
+    signing key when one is supplied, and repoints the apex MX to Google in
+    the same apply. Flip it only once every published address is provisioned
+    on Google and Gmail has served the domain long enough for the signing key
+    to exist, because the repoint sends live inbound delivery there
+    immediately. Requires ses_enable_domain_auth to be true.
   EOT
   type        = bool
   default     = false
@@ -410,9 +419,12 @@ variable "google_dkim_txt" {
   default     = ""
 }
 
-# Gated on a non-empty key as well as the flag, because the key only exists once
-# Gmail has been serving the domain for a day or more: mail day publishes the MX
-# with no signature, and this record follows when the console can generate it.
+# Gated on a non-empty key as well as the flag, so the group can still apply if
+# the key is not in hand. The intended sequence publishes this record with the
+# MX repoint, which is why the domain is added to the Workspace and Gmail
+# enabled on it at least three days ahead. Falling back to a later apply is the
+# recovery for a missed window, not the plan: it leaves Workspace outbound
+# unsigned from the repoint until the follow-up lands.
 resource "aws_route53_record" "google_dkim" {
   count   = var.ses_enable_mail_records && var.google_dkim_txt != "" ? 1 : 0
   zone_id = local.zone_id

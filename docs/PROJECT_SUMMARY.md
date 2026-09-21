@@ -412,7 +412,7 @@ The platform could run on any cloud provider (Azure, Google Cloud, DigitalOcean)
 
 All AWS services accessed with least-privilege IAM (Identity and Access Management) policies:
 
-- Deployed workload runtime assumed role(s) limited to: S3 operations on primary/backup buckets only, SES send operations on verified domain only, Parameter Store read-only on /footbag/ namespace, and CloudWatch put metrics/logs as required. The Lightsail host does not rely on an EC2-style instance role attachment; runtime AWS access uses explicit runtime role assumption.
+- Deployed workload runtime assumed role(s) limited to: S3 operations on primary/backup buckets only, SES send operations bounded to the permitted From addresses by policy condition, Parameter Store read-only on /footbag/ namespace, and CloudWatch put metrics/logs as required. The Lightsail host does not rely on an EC2-style instance role attachment; runtime AWS access uses explicit runtime role assumption.
 - Parameter Store uses AWS SecureString encryption.
 - KMS keys have minimal access per security rules.
 - S3 bucket policies deny access except from the application runtime assumed role(s) and approved administrator IAM principals (different from the application-administrator role).

@@ -53,10 +53,12 @@
 #     too, and reports it rather than refusing, because blocking an arm for a
 #     degraded bounce record would be the wrong trade.
 #
-#     What this script genuinely cannot see: whether the sender identity is
-#     verified with AWS, whether the account is out of the SES sandbox, and
-#     whether domain authentication is aligned. Those three stay an attestation,
-#     because nothing on the workstation can settle them.
+#     Whether the account is out of the SES sandbox is read from AWS when a
+#     profile is given, and a sandboxed account is refused rather than reported:
+#     an armed adapter there reaches only individually verified addresses while
+#     the platform records every send as successful. What this script genuinely
+#     cannot see is whether the sender identity is verified with AWS and whether
+#     domain authentication is aligned. Those two stay an attestation.
 #
 #     Both host reads need the credential file for the account the ssh alias
 #     connects as (see The credential file below). Without a usable one they
@@ -358,6 +360,25 @@ read_ssm_armed() {
     --profile "$AWS_PROFILE_ARG" 2>/dev/null || echo "<unreadable>"
 }
 
+# Whether the account can send to an unverified recipient. In the sending
+# sandbox it cannot, so an armed adapter delivers only to individually verified
+# addresses and every other member is silently unreached. That is a precondition
+# this workstation can settle, so it is read rather than asked. Anything other
+# than a clean true or false leaves it unchecked and the operator attests
+# instead, which is the same fallback the host reads use.
+read_ses_production_access() {
+  [[ -z "$AWS_PROFILE_ARG" ]] && { echo "unchecked"; return 0; }
+  local answer
+  answer="$(aws sesv2 get-account \
+    --query 'ProductionAccessEnabled' --output text \
+    --profile "$AWS_PROFILE_ARG" 2>/dev/null || true)"
+  case "${answer,,}" in
+    true) echo "enabled" ;;
+    false) echo "sandbox" ;;
+    *) echo "unchecked" ;;
+  esac
+}
+
 TFVARS_PATH="$(resolve_tfvars)"
 CURRENT_TFVARS="$(read_tfvars_armed "$TFVARS_PATH")"
 
@@ -376,8 +397,8 @@ fi
 WEBHOOK_PATH="/payments/webhook"
 
 # Which direction of which switch has a provider-side precondition, and what it
-# is. Payments needs one on the way down, email on the way up, and each is
-# something this script cannot verify from the workstation.
+# is. Payments needs one on the way down, email on the way up. What the script
+# can settle from here it settles; the rest is stated and attested to.
 PRECONDITION=""
 if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then
   PRECONDITION="stripe-endpoint"
@@ -415,6 +436,7 @@ fi
 # that it never looked for.
 HOST_SES_IDENTITY_STATE="unchecked"
 HOST_SES_QUEUE_STATE="unchecked"
+SES_PRODUCTION_ACCESS_STATE="unchecked"
 
 # Which file that is, is not this script's to decide and not the operator's to
 # set. It follows the account the ssh alias connects as, by the shared rule, so
@@ -737,6 +759,26 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
     exit 1
   fi
 
+  SES_PRODUCTION_ACCESS_STATE="$(read_ses_production_access)"
+
+  # Refused rather than asked, for the same reason as the value above: this one
+  # is readable from here. In the sending sandbox an armed adapter reaches only
+  # individually verified addresses, so registration and reset mail to everyone
+  # else is accepted by the platform and silently delivered to nobody.
+  if [[ "$SES_PRODUCTION_ACCESS_STATE" == "sandbox" ]]; then
+    echo "REFUSING: the AWS account is in the SES sending sandbox." >&2
+    echo "" >&2
+    echo "  Arming email makes the mail adapter live, but in the sandbox SES accepts a" >&2
+    echo "  send only to an individually verified recipient. Every other member gets" >&2
+    echo "  nothing, and the platform reports the send as successful, so the failure is" >&2
+    echo "  invisible from inside the application." >&2
+    echo "" >&2
+    echo "  Request production access for the account, then re-run." >&2
+    echo "" >&2
+    echo "  Nothing has been changed. Email stays dark, which is the safe state." >&2
+    exit 1
+  fi
+
   echo "Arming email with any of these unmet does harm rather than nothing:"
   echo ""
   case "$HOST_SES_IDENTITY_STATE" in
@@ -780,20 +822,37 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "  b. The queue is subscribed to the feedback topic, which the same apply"
   echo "     does, and the worker is running a build that polls it."
   echo "  c. The sender identity is VERIFIED with AWS, not Pending."
-  echo "  d. The account is OUT of the SES sandbox. Inside it, mail is accepted and"
-  echo "     delivered only to individually verified addresses, so 'live' silently"
-  echo "     reaches nobody."
+  case "$SES_PRODUCTION_ACCESS_STATE" in
+    enabled)
+      echo "  d. The account is out of the SES sandbox . CHECKED, production access (aws)"
+      ;;
+    *)
+      echo "  d. The account is OUT of the SES sandbox. Inside it, mail is accepted and"
+      echo "     delivered only to individually verified addresses, so 'live' silently"
+      echo "     reaches nobody. Not read: re-run with --profile and this one is"
+      echo "     settled here rather than asked."
+      ;;
+  esac
   echo "  e. Domain authentication is on and DMARC is DKIM-aligned. Without it the"
   echo "     password-reset, claim and verify emails land in spam at the major"
   echo "     providers, which is worse than dark: dark at least renders the"
   echo "     verification link on screen where the member can use it."
   echo ""
-  if [[ "$HOST_SES_IDENTITY_STATE" == "present" && "$HOST_SES_QUEUE_STATE" != "unchecked" ]]; then
-    echo "Items 0 and a were read off the host just now. You are attesting to b-e,"
-    echo "which this workstation cannot see."
-    printf "Type 'APPLY' only if every one of b-e is true: "
+  # Whatever this run settled for itself drops out of the typed list, so the
+  # operator is never asked to confirm something already marked CHECKED above.
+  if [[ "$SES_PRODUCTION_ACCESS_STATE" == "enabled" ]]; then
+    ATTESTED_ITEMS="b, c and e"
+    ATTESTED_ITEMS_ALL="0, a, b, c and e"
   else
-    printf "Type 'APPLY' only if every one of 0 and a-e is true: "
+    ATTESTED_ITEMS="b-e"
+    ATTESTED_ITEMS_ALL="0 and a-e"
+  fi
+  if [[ "$HOST_SES_IDENTITY_STATE" == "present" && "$HOST_SES_QUEUE_STATE" != "unchecked" ]]; then
+    echo "Everything marked CHECKED was read just now, from the host or from AWS."
+    printf "You are attesting to %s, which this workstation cannot see.\n" "$ATTESTED_ITEMS"
+    printf "Type 'APPLY' only if every one of %s is true: " "$ATTESTED_ITEMS"
+  else
+    printf "Type 'APPLY' only if every one of %s is true: " "$ATTESTED_ITEMS_ALL"
   fi
   read -r TYPED
   if [[ "$TYPED" != "APPLY" ]]; then

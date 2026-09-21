@@ -4,15 +4,8 @@
 # and is not a real recipient) and, optionally, to one operator-supplied real
 # inbox for an end-to-end deliverability + DKIM confirmation.
 #
-# The SES sandbox bounds what this proves; it does not block the run, and an
-# earlier version of this header said otherwise. The simulator accepts inside the
-# sandbox, so the sender identity, the runtime role's grant and the --host-alias
-# outbox leg are all provable there, which is the whole reason the email arming
-# flag is flipped early on the interim sender rather than at cutover. What waits
-# for production access is delivery to an arbitrary address: in the sandbox a
-# real --inbox has to be an identity already verified in the account, and SES
-# refuses anything else. So run it in the sandbox and read the result for what it
-# is, rather than deferring the check and learning nothing until the cutover.
+# A real --inbox can be any address: with production access on the account, SES
+# does not require the recipient to be a verified identity.
 #
 # With --host-alias, additionally runs the outbox leg (validation gate G10):
 # the outbox send-path smoke executes inside the web container on the host,
