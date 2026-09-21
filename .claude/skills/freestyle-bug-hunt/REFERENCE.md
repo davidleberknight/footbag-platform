@@ -57,7 +57,7 @@ Read-only query recipes (adjust table/column names against `database/schema.sql`
 sqlite3 -readonly database/footbag.db "SELECT slug, canonical_name, official_add, notation, status FROM freestyle_tricks ORDER BY RANDOM() LIMIT 40;"
 sqlite3 -readonly database/footbag.db "SELECT slug FROM freestyle_tricks WHERE slug LIKE '%-%';"   # §F17: hyphenated slugs
 sqlite3 -readonly database/footbag.db "SELECT t.slug, mt.tag FROM media_tags mt LEFT JOIN freestyle_tricks t ON ... ;"  # §F10: tags with no active/pending slug
-rg -n "buildFamilyGroup|shapeDictionaryTrickCard|classifyFrontier|SOURCE_TIER|SOURCE_LABELS" src/services/
+rg -n "buildFamilyGroup|shapeDictionaryTrickCard|SOURCE_LABELS" src/services/
 rg -n "view=" src/views/freestyle/ src/controllers/freestyleController.ts
 ```
 

@@ -214,8 +214,10 @@ decision is not recorded as a bug; it goes in the report's owner-question list, 
 decision per question, per `.claude/rules/asking.md`.
 
 **Severity** follows the risk rubric in `docs/TESTING.md` §3, with domain calibrations:
-a wrong SOURCE_TIER is presentation (`inconsistent`, Low/Medium — per the curated-media
-skill, never `broken`); a naming/slug/hashtag violation on a public page is Medium; a
+a wrong content-type tag on a clip is presentation (`inconsistent`, Low/Medium — per the
+curated-media skill, never `broken`), but a missing one on a curated clip that names a
+trick is `broken`, because the media-tag invariant refuses it and the refresh stops; a
+naming/slug/hashtag violation on a public page is Medium; a
 propagation miss that shows a visitor wrong canonical data is Medium/High; a tag-invariant
 break that corrupts gallery membership is High; anything that crosses into privacy,
 security, or payment territory is bug-hunt's rubric and severity.
