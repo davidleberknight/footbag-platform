@@ -216,9 +216,9 @@ def load_slug_sets_from_csvs(
     """Return (active_slugs, pending_slugs, alias_slugs, nontrick_slugs) read
     directly from the curated CSVs. Useful for tools that run before a DB reset.
     """
-    tricks_csv     = repo_root / "freestyle" / "inputs" / "noise"   / "tricks.csv"
+    tricks_csv     = repo_root / "freestyle" / "inputs" / "base_dictionary" / "tricks.csv"
     red_additions  = repo_root / "freestyle" / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
-    aliases_csv    = repo_root / "freestyle" / "inputs" / "noise"   / "trick_aliases.csv"
+    aliases_csv    = repo_root / "freestyle" / "inputs" / "base_dictionary" / "trick_aliases.csv"
 
     def name_to_slug(name: str) -> str:
         return re.sub(r"\s+", "_", name.strip().lower())

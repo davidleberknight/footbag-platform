@@ -60,7 +60,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SNIPPETS_CSV = REPO_ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "snippet_candidates.csv"
+SNIPPETS_CSV = REPO_ROOT / "freestyle" / "tools" / "trick_video_discovery" / "snippet_candidates.csv"
 SIDECAR_DIR  = REPO_ROOT / "curated" / "freestyle_tricks"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
