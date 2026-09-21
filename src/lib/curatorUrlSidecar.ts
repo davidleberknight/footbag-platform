@@ -23,7 +23,6 @@ export interface UrlSidecarData {
   title: string | null;
   creator?: string | null;
   sourceId?: string | null;
-  tier?: string | null;
   thumbnailUrl?: string | null;
   startSeconds?: number | null;
   endSeconds?: number | null;
@@ -110,8 +109,12 @@ export function urlRefMediaId(videoPlatform: string, videoUrl: string): string {
 
 // Two-space JSON with trailing newline, matching the existing sidecar
 // formatting so file diffs in git stay clean. Field order mirrors the
-// existing 94 sidecars: videoUrl, videoPlatform, title, creator,
-// sourceId, tier, thumbnailUrl, startSeconds, endSeconds, tags.
+// sidecars on disk: videoUrl, videoPlatform, title, creator, sourceId,
+// thumbnailUrl, startSeconds, endSeconds, tags.
+//
+// What a clip is for is a tag, not a field here. It is the only
+// categorisation a member sees, so it lives where a member can see it,
+// and a clip may differ from others sharing its source.
 export function formatUrlSidecarJson(data: UrlSidecarData): string {
   const ordered: Record<string, unknown> = {
     videoUrl: data.videoUrl,
@@ -120,7 +123,6 @@ export function formatUrlSidecarJson(data: UrlSidecarData): string {
   if (data.title != null) ordered.title = data.title;
   if (data.creator != null) ordered.creator = data.creator;
   if (data.sourceId != null) ordered.sourceId = data.sourceId;
-  if (data.tier != null) ordered.tier = data.tier;
   if (data.thumbnailUrl != null && data.videoPlatform === 'vimeo') {
     ordered.thumbnailUrl = data.thumbnailUrl;
   }

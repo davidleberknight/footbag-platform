@@ -26,8 +26,8 @@ A row is promotion-eligible when:
   "title":         "<from row.notes or default>",
   "creator":       "<row.player_name or source default>",
   "sourceId":      "<row.source_id>",
-  "tier":          "<inferred from source_id>",
-  "tags":          ["#<trick-slug>", "#freestyle", "#trick"],
+  "tags":          ["#<trick-slug>", "#freestyle", "#trick",
+                    "#tutorial" | "#demo" | "#record"],
   "startSeconds":  <int, optional>,
   "endSeconds":    <int, optional>
 }
@@ -73,20 +73,29 @@ from _trick_tag_invariant import (  # noqa: E402
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
-# tier-by-source mapping; default falls back to STRONG_TUTORIAL.
-TIER_BY_SOURCE = {
-    "tt_youtube":          "CANONICAL_TUTORIAL",
-    "footbagspot_passback": "CANONICAL_TUTORIAL",
-    "footbagspot_tutorials":"STRONG_TUTORIAL",
-    "shred_global":         "STRONG_TUTORIAL",
-    "polini_pointers":      "STRONG_TUTORIAL",
-    "passback_records":     "RECORD",
-    "anz_trikz":            "STRONG_TUTORIAL",
-    "footbag_finland":      "STRONG_TUTORIAL",
-    "flipsider_footbag":    "STRONG_TUTORIAL",
-    "passback_demos":       "HIGH_QUALITY_DEMO",
-    "passback_basics":      "STRONG_TUTORIAL",
+# What a clip from each source is for, as the tag the readers and the QC
+# surfaces consult. The source is a starting point and never the last word: a
+# curator who knows a particular clip teaches, demonstrates or records
+# something other than its source's habit edits the tag on the sidecar, which a
+# lookup from the source id could not express.
+CONTENT_TYPE_BY_SOURCE = {
+    "tt_youtube":           "#tutorial",
+    "footbagspot_passback": "#tutorial",
+    "footbagspot_tutorials": "#tutorial",
+    "shred_global":         "#tutorial",
+    "polini_pointers":      "#tutorial",
+    "passback_records":     "#record",
+    "anz_trikz":            "#tutorial",
+    "footbag_finland":      "#tutorial",
+    "flipsider_footbag":    "#tutorial",
+    "passback_demos":       "#demo",
+    "passback_basics":      "#tutorial",
 }
+
+# An unregistered source demonstrates. Teaching is a positive claim, so it is
+# made rather than assumed, and this is the same default both public readers
+# and the coverage QC apply to a clip carrying no content type.
+DEFAULT_CONTENT_TYPE = "#demo"
 
 CREATOR_BY_SOURCE = {
     "tt_youtube": "Kenny Shults",
@@ -221,8 +230,8 @@ def make_creator(row: dict) -> str:
     return CREATOR_BY_SOURCE.get(row.get("source_id", ""), "")
 
 
-def make_tier(row: dict) -> str:
-    return TIER_BY_SOURCE.get(row.get("source_id", ""), "STRONG_TUTORIAL")
+def make_content_type_tag(row: dict) -> str:
+    return CONTENT_TYPE_BY_SOURCE.get(row.get("source_id", ""), DEFAULT_CONTENT_TYPE)
 
 
 def short_id(video_id: str) -> str:
@@ -246,7 +255,7 @@ def emit_sidecar(
         return None
 
     source_id = (row.get("source_id") or "").strip()
-    tags = [f"#{slug}", "#freestyle", "#trick"]
+    tags = [f"#{slug}", "#freestyle", "#trick", make_content_type_tag(row)]
     if source_id == "passback_records":
         tags.append("#passback_records")
 
@@ -263,7 +272,6 @@ def emit_sidecar(
         "title":         make_title(row),
         "creator":       make_creator(row),
         "sourceId":      source_id,
-        "tier":          make_tier(row),
         "tags":          tags,
     }
     start = (row.get("start_seconds") or "").strip()

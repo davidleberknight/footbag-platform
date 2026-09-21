@@ -649,8 +649,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
       videoPlatform: 'youtube',
       videoId: `YT_${slug}`,
       caption: 'Original title',
-      tier: 'CANONICAL_TUTORIAL',
-      tags: ['#freestyle', '#trick', `#${slug}`],
+      tags: ['#freestyle', '#trick', `#${slug}`, '#tutorial'],
     });
     db.close();
 
@@ -1170,10 +1169,9 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'Around the world tutorial',
       creator: 'Synthetic Creator',
       sourceId: 'tt_youtube',
-      tier: 'CANONICAL_TUTORIAL',
       startSeconds: null,
       endSeconds: null,
-      tags: ['#freestyle', '#trick', '#around-the-world'],
+      tags: ['#freestyle', '#trick', '#around-the-world', '#tutorial'],
     });
 
     expect(verifier.callCount()).toBe(1);
@@ -1192,10 +1190,12 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'Around the world tutorial',
       creator: 'Synthetic Creator',
       sourceId: 'tt_youtube',
-      tier: 'CANONICAL_TUTORIAL',
     });
     expect(sidecar.thumbnailUrl).toBeUndefined();
-    expect(sidecar.tags).toEqual(['#around-the-world', '#freestyle', '#trick']);
+    // What the clip is for is one of its tags. The sidecar carries no separate
+    // field for it, so a reader cannot find two answers to the same question.
+    expect(sidecar.tags).toEqual(['#around-the-world', '#freestyle', '#trick', '#tutorial']);
+    expect(Object.keys(sidecar)).not.toContain('tier');
 
     const db = openDb();
     // URL-ref now writes the media_items row directly (parallel to photo /
@@ -1249,7 +1249,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'Vimeo demo',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#blender'],
@@ -1278,7 +1277,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'Legover Variation',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#legover'],
@@ -1305,7 +1303,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'first title',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#mobius'],
@@ -1356,7 +1353,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'Pickup demo',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#demo', '#pickup'],
@@ -1384,7 +1380,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'X',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#quantum'],
@@ -1409,7 +1404,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'X',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#mirage'],
@@ -1434,7 +1428,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'X',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#illusion'],
@@ -1459,7 +1452,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       title: 'X',
       creator: null,
       sourceId: null,
-      tier: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#curated', '#freestyle', '#trick', '#drifter'],

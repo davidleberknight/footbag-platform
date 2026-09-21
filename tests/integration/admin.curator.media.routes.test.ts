@@ -457,8 +457,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       caption: `Title for ${slug}`,
       creator: 'Original Creator',
       sourceId: 'src_route',
-      tier: 'CANONICAL_TUTORIAL',
-      tags: ['#freestyle', '#trick', `#${slug}`],
+      tags: ['#freestyle', '#trick', `#${slug}`, '#tutorial'],
     });
     db.close();
     return { ...result, videoUrl };
@@ -477,7 +476,11 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.text).toContain(`value="Title for ${slug}"`);
     expect(res.text).toContain('value="Original Creator"');
     expect(res.text).toContain('value="src_route"');
-    expect(res.text).toContain('value="CANONICAL_TUTORIAL"');
+    // What the clip is for reaches the form as one of its tags, and the form
+    // offers no separate control for it: a second control would be a second
+    // place to answer one question, and only the tag reaches a member.
+    expect(res.text).toContain('#tutorial');
+    expect(res.text).not.toContain('name="tier"');
     // The URL is rendered inside <code>; Handlebars HTML-escapes `=` to
     // `&#x3D;`. Match on the unique YouTube id portion instead.
     expect(res.text).toContain(`ROUTE_${slug}`);
@@ -516,10 +519,9 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .type('form')
       .send({
         caption: newCaption,
-        tags: `#freestyle #trick #${slug}`,
+        tags: `#freestyle #trick #${slug} #demo`,
         creator: newCreator,
         sourceId: 'src_route_edited',
-        tier: 'HIGH_QUALITY_DEMO',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/media');
@@ -528,7 +530,11 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(sidecar.title).toBe(newCaption);
     expect(sidecar.creator).toBe(newCreator);
     expect(sidecar.sourceId).toBe('src_route_edited');
-    expect(sidecar.tier).toBe('HIGH_QUALITY_DEMO');
+    // What the clip is for travels as a tag, so an edit changes it the same way
+    // it changes any other tag, and the sidecar carries no separate field for it.
+    expect(sidecar.tags).toContain('#demo');
+    expect(sidecar.tags).not.toContain('#tutorial');
+    expect(Object.keys(sidecar)).not.toContain('tier');
   });
 
   it('POST delete on sidecar-backed item unlinks sidecar and redirects with flash', async () => {

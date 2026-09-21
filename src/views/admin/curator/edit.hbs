@@ -49,7 +49,7 @@
       <div class="form-field">
         <label for="curator-edit-tags">Tags</label>
         <input type="text" id="curator-edit-tags" name="tags" value="{{content.media.tagsString}}">
-        <small class="form-hint">Space-separated, lowercase, each starting with <code>#</code>.</small>
+        <small class="form-hint">Space-separated, lowercase, each starting with <code>#</code>. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
       </div>
 
       <div class="form-field">
@@ -75,10 +75,6 @@
             <label for="curator-edit-source-id">Source id</label>
             <input type="text" id="curator-edit-source-id" name="sourceId" value="{{content.media.sourceId}}">
             <small class="form-hint">Must exist in <code>media_sources.source_id</code>.</small>
-          </div>
-          <div class="form-field">
-            <label for="curator-edit-tier">Tier</label>
-            <input type="text" id="curator-edit-tier" name="tier" value="{{content.media.tier}}" placeholder="CANONICAL_TUTORIAL | HIGH_QUALITY_DEMO | RECORD">
           </div>
           <div class="form-field">
             <label for="curator-edit-start-seconds">Start (seconds)</label>

@@ -144,11 +144,21 @@ describe('formatUrlSidecarJson', () => {
     });
   });
 
-  it('omits null optional fields (creator, sourceId, tier)', () => {
+  it('omits null optional fields (creator, sourceId)', () => {
     const out = formatUrlSidecarJson(youtubeBase());
     expect(out).not.toContain('"creator"');
     expect(out).not.toContain('"sourceId"');
-    expect(out).not.toContain('"tier"');
+  });
+
+  it('writes no field saying what the clip is for; that is one of its tags', () => {
+    // A field beside the tag would be a second place to answer one question,
+    // and only the tag reaches a member or any reader that consults the clip.
+    const out = formatUrlSidecarJson({
+      ...youtubeBase(),
+      tags: ['#freestyle', '#trick', '#x', '#tutorial'],
+    });
+    expect(Object.keys(JSON.parse(out))).not.toContain('tier');
+    expect(JSON.parse(out).tags).toContain('#tutorial');
   });
 
   it('preserves field order: videoUrl first, tags last', () => {
@@ -158,12 +168,13 @@ describe('formatUrlSidecarJson', () => {
       title: 'T',
       creator: 'C',
       sourceId: 'src',
-      tier: 'CANONICAL_TUTORIAL',
+      startSeconds: 12,
       tags: ['#freestyle', '#trick', '#x'],
     });
     expect(out.indexOf('"videoUrl"')).toBeLessThan(out.indexOf('"videoPlatform"'));
     expect(out.indexOf('"creator"')).toBeLessThan(out.indexOf('"sourceId"'));
-    expect(out.indexOf('"tags"')).toBeGreaterThan(out.indexOf('"tier"'));
+    expect(out.indexOf('"sourceId"')).toBeLessThan(out.indexOf('"startSeconds"'));
+    expect(out.indexOf('"tags"')).toBeGreaterThan(out.indexOf('"startSeconds"'));
   });
 });
 

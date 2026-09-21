@@ -128,11 +128,6 @@
               <input type="text" id="curator-upload-source-id" name="sourceId" value="{{content.formValues.sourceId}}">
               <small class="form-hint">Foreign key into <code>media_sources</code>. Optional.</small>
             </div>
-            <div class="form-field">
-              <label for="curator-upload-tier">Tier</label>
-              <input type="text" id="curator-upload-tier" name="tier" value="{{content.formValues.tier}}">
-              <small class="form-hint">For example <code>CANONICAL_TUTORIAL</code> or <code>HIGH_QUALITY_DEMO</code>. Optional.</small>
-            </div>
           </fieldset>
         </div>
       </div>
@@ -167,7 +162,7 @@
       <div class="form-field">
         <label for="curator-upload-tags">Tags</label>
         <input id="curator-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #trick #around-the-world">
-        <small class="form-hint">Space-separated, lowercase, each starting with <code>#</code>. Do not include <code>#curated</code>; it is applied automatically.</small>
+        <small class="form-hint">Space-separated, lowercase, each starting with <code>#</code>. Do not include <code>#curated</code>; it is applied automatically. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
       </div>
       <div class="form-field">
         <label for="curator-upload-external-url">External URL</label>

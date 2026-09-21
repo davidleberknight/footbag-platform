@@ -177,11 +177,11 @@ export const adminCuratorController = {
       // poster). Capping at 2 silently dropped the poster. 4 has headroom
       // for the 3 expected parts without admitting genuinely abusive
       // multi-file submissions.
-      // fields: 24 — the upload form posts up to 12 non-file fields today
+      // fields: 24 — the upload form posts up to 11 non-file fields today
       // (mediaType, newCategory, videoPlatform, videoUrl, primarySlug,
-      // title, creator, sourceId, tier, caption, tags, externalUrl). The
-      // cap was previously 10, which silently dropped the trailing fields
-      // on the wire (busboy emits no warning when truncating). 24 leaves
+      // title, creator, sourceId, caption, tags, externalUrl). A cap at or
+      // near the current count silently drops the trailing fields on the
+      // wire, because busboy emits no warning when it truncates. 24 leaves
       // headroom for near-term form additions without re-tuning.
       limits: { fileSize: PER_FILE_LIMIT, files: 4, fields: 24 },
     });
@@ -302,7 +302,6 @@ export const adminCuratorController = {
         title: fields.title ?? '',
         creator: fields.creator ?? '',
         sourceId: fields.sourceId ?? '',
-        tier: fields.tier ?? '',
         externalUrl: fields.externalUrl ?? '',
       };
 
@@ -339,8 +338,6 @@ export const adminCuratorController = {
         const creator = creatorRaw.length === 0 ? null : creatorRaw;
         const sourceIdRaw = (fields.sourceId ?? '').trim();
         const sourceId = sourceIdRaw.length === 0 ? null : sourceIdRaw;
-        const tierRaw = (fields.tier ?? '').trim();
-        const tier = tierRaw.length === 0 ? null : tierRaw;
 
         if (videoPlatformRaw !== 'youtube' && videoPlatformRaw !== 'vimeo') {
           renderForm(res.status(422), { errorMessage: 'Choose YouTube or Vimeo.', formValues, existingCategories });
@@ -377,7 +374,6 @@ export const adminCuratorController = {
             title,
             creator,
             sourceId,
-            tier,
             startSeconds: null,
             endSeconds: null,
             tags,
@@ -584,7 +580,6 @@ export const adminCuratorController = {
       };
       if (req.body?.creator !== undefined) editInput.creator = trimToNull(req.body.creator);
       if (req.body?.sourceId !== undefined) editInput.sourceId = trimToNull(req.body.sourceId);
-      if (req.body?.tier !== undefined) editInput.tier = trimToNull(req.body.tier);
       if (req.body?.thumbnailUrl !== undefined) editInput.thumbnailUrl = trimToNull(req.body.thumbnailUrl);
       if (req.body?.startSeconds !== undefined) editInput.startSeconds = parseIntOrNull(req.body.startSeconds);
       if (req.body?.endSeconds !== undefined) editInput.endSeconds = parseIntOrNull(req.body.endSeconds);

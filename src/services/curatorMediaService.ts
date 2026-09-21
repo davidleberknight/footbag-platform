@@ -367,7 +367,6 @@ export interface CuratorUrlReferenceInput {
   title: string | null;
   creator: string | null;
   sourceId: string | null;
-  tier: string | null;
   startSeconds: number | null;
   endSeconds: number | null;
   // See CuratorPhotoInput.externalUrl. For url-reference items the URL
@@ -437,8 +436,8 @@ export interface MemberUploadResult {
 }
 
 // Member-self edit form's view-model shape (caption + tags + external URL).
-// Sidecar / creator / tier / clip-range fields are admin-only and not
-// surfaced on the member edit page.
+// Sidecar / creator / clip-range fields are admin-only and not surfaced on
+// the member edit page.
 export interface MemberMediaItem {
   mediaId: string;
   mediaType: 'photo' | 'video';
@@ -917,13 +916,11 @@ export interface CuratorMediaEditInput {
   tags?: string[];
   // URL-ref sidecar fields (only honored when the row is sidecar-backed,
   // i.e. video_platform IN ('youtube','vimeo')). The service merges these
-  // into the sidecar JSON; ignored on DB-direct rows. `creator`/`sourceId`/
-  // `tier` accept null to clear the field; absent (undefined) leaves the
-  // existing sidecar value alone. `startSeconds`/`endSeconds` follow the
-  // same rule.
+  // into the sidecar JSON; ignored on DB-direct rows. `creator`/`sourceId`
+  // accept null to clear the field; absent (undefined) leaves the existing
+  // sidecar value alone. `startSeconds`/`endSeconds` follow the same rule.
   creator?: string | null;
   sourceId?: string | null;
-  tier?: string | null;
   startSeconds?: number | null;
   endSeconds?: number | null;
   thumbnailUrl?: string | null;
@@ -970,7 +967,6 @@ export interface CuratorMediaListItem {
   // form is the only consumer that needs them.
   creator: string | null;
   sourceId: string | null;
-  tier: string | null;
   startSeconds: number | null;
   endSeconds: number | null;
   // External URL on the media_items row (DD §3.17 vetted). NULL when
@@ -1835,7 +1831,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         title: input.title,
         creator: input.creator,
         sourceId: input.sourceId,
-        tier: input.tier,
         thumbnailUrl,
         startSeconds: input.startSeconds,
         endSeconds: input.endSeconds,
@@ -2023,7 +2018,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         // trip via formatUrlSidecarJson omits cleared keys).
         if (input.creator !== undefined) updated.creator = input.creator;
         if (input.sourceId !== undefined) updated.sourceId = input.sourceId;
-        if (input.tier !== undefined) updated.tier = input.tier;
         if (input.startSeconds !== undefined) updated.startSeconds = input.startSeconds;
         if (input.endSeconds !== undefined) updated.endSeconds = input.endSeconds;
         if (input.thumbnailUrl !== undefined) updated.thumbnailUrl = input.thumbnailUrl;
@@ -2228,7 +2222,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // form blank fields over stored values and let a save discard them.
       let creator: string | null = null;
       let sourceId: string | null = row.source_id ?? null;
-      let tier: string | null = null;
       let startSeconds: number | null = row.start_seconds ?? null;
       let endSeconds: number | null = row.end_seconds ?? null;
       // The remaining authoring-only fields have no column, so they can be
@@ -2240,7 +2233,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           try {
             const sidecar = await readUrlSidecarFile(sidecarFilePath);
             creator = sidecar.creator ?? null;
-            tier = sidecar.tier ?? null;
           } catch {
             // Malformed sidecar; leave fields null.
           }
@@ -2264,7 +2256,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         videoUrl: row.video_url,
         creator,
         sourceId,
-        tier,
         startSeconds,
         endSeconds,
         externalUrl: row.external_url,
@@ -2326,7 +2317,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         // would otherwise re-parse 94+ JSON files per page.
         creator: null,
         sourceId: null,
-        tier: null,
         startSeconds: null,
         endSeconds: null,
         externalUrl: r.external_url,
@@ -3018,8 +3008,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // db.ts statement filters by uploader_member_id, so a row owned by
     // anyone else returns undefined → caller renders 404. Returns the
     // minimal shape the edit view needs (caption, tags, external URL);
-    // FH-curator sidecar fields (creator/tier/clip range) are not
-    // surfaced on the member surface.
+    // FH-curator sidecar fields (creator/clip range) are not surfaced on
+    // the member surface.
     getMemberMediaItem(mediaId: string, ownerMemberId: string): MemberMediaItem | null {
       const row = runSqliteRead('getMemberMediaItemById', () =>
         media.getMemberMediaItemById.get(mediaId, ownerMemberId),
@@ -3670,7 +3660,6 @@ export interface CuratorUploadFormValues {
   title?: string;
   creator?: string;
   sourceId?: string;
-  tier?: string;
   externalUrl?: string;
 }
 
@@ -3733,7 +3722,6 @@ export interface CuratorMediaEditContent {
     videoUrl: string | null;
     creator: string;
     sourceId: string;
-    tier: string;
     startSeconds: number | string;
     endSeconds: number | string;
     externalUrl: string;
@@ -3998,7 +3986,6 @@ export async function getCuratorMediaEditPage(
       videoUrl: item.videoUrl,
       creator: item.creator ?? '',
       sourceId: item.sourceId ?? '',
-      tier: item.tier ?? '',
       startSeconds: item.startSeconds ?? '',
       endSeconds: item.endSeconds ?? '',
       externalUrl: item.externalUrl ?? '',
@@ -4030,7 +4017,6 @@ export function getCuratorMediaEditErrorPage(
       videoUrl: null,
       creator: '',
       sourceId: '',
-      tier: '',
       startSeconds: '',
       endSeconds: '',
       externalUrl: '',

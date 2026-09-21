@@ -428,7 +428,7 @@ describe('POST /admin/curator/upload — photo', () => {
 
   it('regression: tags-drop bug — full form post preserves tags (busboy fields cap)', async () => {
     // Pre-existing bug: busboy `fields: 10` cap silently dropped trailing
-    // form fields. The video form posts up to 12 non-file fields; this test
+    // form fields. The video form posts up to 11 non-file fields; this test
     // posts every named field on the photo path to confirm the wider cap
     // delivers tags + externalUrl all the way to the row + sidecar.
     const app = createApp();
@@ -448,7 +448,6 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('title', '')
       .field('creator', '')
       .field('sourceId', '')
-      .field('tier', '')
       .field('caption', uniqueCaption)
       .field('tags', uniqueTag)
       .field('externalUrl', 'https://example.com/x')
