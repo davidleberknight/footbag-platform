@@ -1,7 +1,7 @@
 # footbag-platform
 
-[![CI](https://github.com/davidleberknight/footbag-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/davidleberknight/footbag-platform/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+![CI](https://github.com/davidleberknight/footbag-platform/actions/workflows/ci.yml/badge.svg)
+![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 
 > Modernizing **footbag.org** under the auspices of the **International Footbag Players Association (IFPA)**.
 
@@ -13,8 +13,6 @@ This repository contains the open-source modernization project for the global fo
 
 Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
-[![Footbag Worldwide homepage (staging preview)](.github/images/screenshot-homepage.png)](https://doye1nvv64qep.cloudfront.net/)
-
 ## Start Here
 
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
@@ -24,11 +22,9 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 ## Current Project State
 
-Most functionality required for Go-Live is done and deployed on AWS. This is the baseline for ongoing work.
+Most functionality required for Go-Live is done and deployed on AWS. This is the baseline for ongoing work. Stay tuned for a go-live date! We are working through the final details.
 
 Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doye1nvv64qep.cloudfront.net/)
-
-- We are actively revising the User Stories to define the Minimum Viable Product (MVP) scope. We will add some new stories with the goal to fully eliminate the need to keep the legacy site running in parallel.
 
 ## Quickstart
 
@@ -41,6 +37,8 @@ npm install
 ./run_dev.sh   # first run seeds the database, then serves the site locally
 npm test       # unit and integration tiers
 ```
+
+
 
 ## Architecture
 
@@ -62,6 +60,8 @@ flowchart TB
     IMG -->|photo variants| S3M
 ```
 
+
+
 The full diagram set (infrastructure topology, four-layer software architecture, auth and request flows, environment parity) is in [docs/DIAGRAMS.md](docs/DIAGRAMS.md).
 
 ## Claude Code
@@ -73,13 +73,17 @@ This repository doubles as a worked example of a production Claude Code harness:
 - 17 skills (repeatable procedures), 16 path-scoped rules (per-layer coding conventions), and 14 fixture-tested hooks, including an obfuscation-resistant read-only Bash auto-approver and a Stop hook that blocks low-quality questions to the human.
 - Defense in depth: a version-proof permission floor in `.claude/settings.json` with guard hooks layered on top, and a CI self-check (`scripts/ci/assert_claude_harness.sh`) that fails the build when the harness drifts.
 
+
+
 ## Contributing
 
 - Talk to Dave.
 - You can run this code locally (see Quickstart above), but to contribute you must have an invitation to the private repo. Access to it is also a hard prerequisite for all operations work: every environment's Terraform values live there and are reached by symlink, so without it no AWS environment can be planned or applied. Local development and the test suite need none of it.
 - [CONTRIBUTING.md](CONTRIBUTING.md).
 - [SECURITY.md](SECURITY.md) for vulnerability reporting (Bug reporting is in the separate private GitHub repo).
-- **Do not report security vulnerabilities in public.** 
+- **Do not report security vulnerabilities in public.**
+
+
 
 ## Project Documentation
 

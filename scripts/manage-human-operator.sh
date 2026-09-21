@@ -676,3 +676,46 @@ echo "trail to keep naming."
 echo ""
 echo "One thing this cannot do: a role session issued before now stays valid until"
 echo "it expires, which is up to four hours. Nothing revokes one already in flight."
+
+# The host side of a departure, which this script cannot take and which nothing
+# else prompts for. Terraform owns the SSH allow-list and its values live in the
+# private operations checkout, so pruning an address is an edit there followed by
+# an apply -- not something to do from here. Left undone it is a standing hole in
+# the firewall for an address nobody is using any more, and because it breaks
+# nothing, nobody notices: the allow-list simply accumulates departed operators.
+#
+# The current entries are printed rather than described, because an operator who
+# can see the list can see at a glance which line is theirs. A file that cannot
+# be read says so; it does not print nothing and let that read as an empty list.
+echo ""
+echo "Still owed, on the host side, and this script cannot do it:"
+echo "  ${OPERATOR}'s address is still on the SSH allow-list. Remove their /32 from"
+echo "  operator_cidrs in the private operations checkout, then apply staging and"
+echo "  production. Terraform owns that firewall, so an edit here would be reverted."
+# The values tree, overridable so a test can own this input rather than
+# inheriting whichever private checkout the machine happens to have wired. A
+# workstation with no private checkout gets a dangling symlink here, which is
+# the same unreadable case, and it must report "unknown" rather than print
+# nothing and let that read as an empty allow-list.
+VALUES_DIR="${MANAGE_OPERATOR_VALUES_DIR:-${SCRIPT_DIR}/../terraform}"
+for cidr_env in staging production; do
+  cidr_file="${VALUES_DIR}/${cidr_env}/terraform.tfvars"
+  if [[ -r "$cidr_file" ]]; then
+    # `|| true` on the grep alone, not on the whole pipeline. Under pipefail a
+    # grep that matches nothing exits 1 and takes the assignment, and with set -e
+    # that aborts the run -- here, after the grant and every key have already
+    # gone, so a completed revocation reports as a failure. Tolerating only the
+    # no-match exit keeps a genuinely failed read failing: an empty allow-list is
+    # a real answer, an unreadable file is not, and the branch above already
+    # separated them.
+    cidr_list="$(sed -n '/^operator_cidrs[[:space:]]*=/,/^][[:space:]]*$/p' "$cidr_file" \
+      | { grep -oE '"[0-9./]+"' || true; } | tr -d '"' | tr '\n' ' ')"
+    if [[ -n "$cidr_list" ]]; then
+      echo "    ${cidr_env}: ${cidr_list}"
+    else
+      echo "    ${cidr_env}: no operator_cidrs found in the values file"
+    fi
+  else
+    echo "    ${cidr_env}: values file unreadable from here, so the current list is unknown"
+  fi
+done

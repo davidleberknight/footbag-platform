@@ -131,7 +131,7 @@ function args(overrides: Partial<Record<string, string>> = {}): string[] {
   const base: Record<string, string> = {
     '--target': 'staging',
     '--account': 'footbag',
-    '--operator': 'Julie Symons',
+    '--operator': 'Robin Fielder',
     '--key-file': VALID_KEY,
   };
   const merged = { ...base, ...overrides };
@@ -167,7 +167,7 @@ describe('authorize-operator-key.sh — invocation guards', () => {
   });
 
   it('refuses an account name the host would reject', () => {
-    const r = runScript(args({ '--account': 'Julie Symons' }));
+    const r = runScript(args({ '--account': 'Robin Fielder' }));
     expect(r.exitCode).toBe(2);
   });
 
@@ -462,7 +462,7 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
         'PRIMARY_GROUP="$(id -gn)"',
         `AUTH_FILE=${JSON.stringify(authFile)}`,
         `AUTHKEY_MODE=${JSON.stringify(opts.mode)}`,
-        `AUTHKEY_OPERATOR='Julie Symons'`,
+        `AUTHKEY_OPERATOR='Robin Fielder'`,
         `AUTHKEY_KEY_LINE=${JSON.stringify(line)}`,
         `AUTHKEY_FINGERPRINT=${JSON.stringify(fingerprintOf(opts.subject))}`,
         ...installStub(opts.write ?? 'faithful', keyLine(SECOND_KEY)),
@@ -580,7 +580,7 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
   it('recognises the same key under a different comment as already authorized', () => {
     // The comment is not part of the credential. Text comparison would install
     // a duplicate.
-    const stored = withComment(keyLine(VALID_KEY), 'julie@her-laptop');
+    const stored = withComment(keyLine(VALID_KEY), 'robin@laptop');
     const r = runCore({ mode: 'add', authorizedKeys: `${stored}\n`, subject: VALID_KEY });
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/Already authorized/);
@@ -615,11 +615,11 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
     const r = runCore({
       mode: 'remove',
       authorizedKeys:
-        `# Dave, workstation\n${keyLine(THIRD_KEY)}\n\n# Julie, bootstrap loan\n${keyLine(VALID_KEY)}\n`,
+        `# Casey, workstation\n${keyLine(THIRD_KEY)}\n\n# Robin, bootstrap loan\n${keyLine(VALID_KEY)}\n`,
       subject: VALID_KEY,
     });
     expect(r.status).toBe(0);
-    expect(r.after).toBe(`# Dave, workstation\n${keyLine(THIRD_KEY)}\n\n# Julie, bootstrap loan\n`);
+    expect(r.after).toBe(`# Casey, workstation\n${keyLine(THIRD_KEY)}\n\n# Robin, bootstrap loan\n`);
     expect(r.afterFingerprints).toEqual([fingerprintOf(THIRD_KEY)]);
   });
 

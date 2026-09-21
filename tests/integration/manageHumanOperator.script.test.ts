@@ -230,7 +230,7 @@ function awsStub(): string {
   return path;
 }
 
-function run(args: string[], account: Account = {}) {
+function run(args: string[], account: Account = {}, opts: { valuesDir?: string } = {}) {
   seed(account);
   const res = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
@@ -246,6 +246,11 @@ function run(args: string[], account: Account = {}) {
       AWS_CONFIG_FILE: configFile,
       AWS_SHARED_CREDENTIALS_FILE: credFile,
       MANAGE_OPERATOR_AWS_BIN: awsStub(),
+      // The allow-list report reads the values tree. Pointed at one the test
+      // owns, so the assertion does not depend on whether this machine has a
+      // private checkout wired: without the override the default resolves to
+      // whatever the developer happens to have.
+      ...(opts.valuesDir ? { MANAGE_OPERATOR_VALUES_DIR: opts.valuesDir } : {}),
     },
     ...SPAWN_GUARD,
   });
@@ -653,6 +658,72 @@ describe('manage-human-operator.sh — offboarding', () => {
     const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/stays valid until/);
+  });
+
+  it('names the host-side step it cannot take, and prints the addresses on the list', () => {
+    // Retiring the identity does nothing about the departed operator's address
+    // on the SSH allow-list. Terraform owns that firewall and its values live
+    // in the private operations checkout, so the script cannot prune it — but
+    // an offboarding that never mentions it leaves a standing hole for an
+    // address nobody uses, and because nothing breaks, nobody notices.
+    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      mkdirSync(join(values, 'staging'), { recursive: true });
+      mkdirSync(join(values, 'production'), { recursive: true });
+      writeFileSync(
+        join(values, 'staging', 'terraform.tfvars'),
+        'operator_cidrs = [\n  "203.0.113.4/32", # departing operator\n  "198.51.100.9/32",\n]\n',
+        'utf-8',
+      );
+      writeFileSync(
+        join(values, 'production', 'terraform.tfvars'),
+        'operator_cidrs = [\n  "203.0.113.4/32",\n]\n',
+        'utf-8',
+      );
+      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/Still owed, on the host side/);
+      expect(r.stdout).toMatch(/operator_cidrs/);
+      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32 198\.51\.100\.9\/32/);
+      expect(r.stdout).toMatch(/production: 203\.0\.113\.4\/32/);
+    } finally {
+      rmSync(values, { recursive: true, force: true });
+    }
+  });
+
+  it('completes rather than aborting when the allow-list is empty', () => {
+    // An empty list is a real answer and must not end the run. This sits after
+    // the grant and every key have already gone, so a non-zero exit here reports
+    // a completed revocation as a failure, and the turnover runbook then tells
+    // the operator not to record it as done.
+    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      mkdirSync(join(values, 'staging'), { recursive: true });
+      mkdirSync(join(values, 'production'), { recursive: true });
+      writeFileSync(join(values, 'staging', 'terraform.tfvars'), 'operator_cidrs = [\n]\n', 'utf-8');
+      writeFileSync(join(values, 'production', 'terraform.tfvars'), 'operator_cidrs = [\n]\n', 'utf-8');
+      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/staging: no operator_cidrs found in the values file/);
+    } finally {
+      rmSync(values, { recursive: true, force: true });
+    }
+  });
+
+  it('says the current allow-list is unknown when it cannot read the values', () => {
+    // A values file that cannot be read must say so. Printing nothing would
+    // read as an empty allow-list, which is the opposite of the truth. This is
+    // the ordinary case on a workstation with no private checkout wired, where
+    // the values symlink dangles.
+    const empty = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: empty });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/staging: values file unreadable from here/);
+      expect(r.stdout).toMatch(/the current list is unknown/);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
   });
 
   it('refuses a user this script does not manage', () => {

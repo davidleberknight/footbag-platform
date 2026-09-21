@@ -55,10 +55,15 @@ TFVAR_NAME="enable_cwagent_alarms"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/arm-cwagent-alarms.sh --target staging|production [--profile <p>]
+Usage: scripts/arm-cwagent-alarms.sh --target staging|production [--profile <p>] [--yes]
 
 Runs the metric proof, flips enable_cwagent_alarms in that environment's values
 file, applies, and confirms the three alarms exist. Refuses if the proof fails.
+
+  --yes   Accept the confirmation without being asked. The refusal a run with no
+          terminal prints does not name this flag, because most scripts that
+          share the confirmation helper do not take one; a caller that does says
+          so here, which is where a reader looks.
 EOF
 }
 

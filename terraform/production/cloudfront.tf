@@ -209,7 +209,8 @@ resource "aws_cloudfront_function" "apex_redirect" {
 # default behaviour, behind its own compile-time flag, served per-hostname with
 # the payment-webhook path exempt; this flag keeps the 5xx fallback and genuine
 # post-launch windows, where blanking every hostname is the intent. The ruling
-# is the DNS Cutover decision in the design record.
+# is the decision titled "How the footbag.org Namespace Is Served" in the design
+# record, which states why the two mechanisms are not interchangeable.
 #
 # On, every page path serves the page: the default behaviour swaps to the S3
 # origin, and 403/404 route back to the page because an OAC-read bucket with no

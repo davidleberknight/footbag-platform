@@ -99,6 +99,34 @@ describe('every operator script that reaches an environment has the guard', () =
     'test-smoke.sh': 'a test harness entry point rather than an operator script',
     'arming.sh': 'takes a lever name and a state; its environment is a property of the lever',
     'activate-payments.sh': 'payments exist in production only; the environment is not a choice',
+    'smoke-security.sh':
+      'a test harness entry point rather than an operator script, like test-smoke.sh; it probes a base URL and takes its environment from SMOKE_ENV to pick a seeded persona',
+  };
+
+  /**
+   * A case arm listing both deployed environments among its alternatives, in
+   * any position and alongside any other value.
+   *
+   * `staging|production)` is only the commonest spelling. A script that lists a
+   * third environment first, or trailing values after production, writes the
+   * same hand-rolled check; an anchored pattern does not see it, and such a
+   * script is then neither covered, nor reported as an offender, nor exempt. A
+   * guard whose whole job is to catch the script that quietly does its own
+   * thing must not be evaded by the order somebody wrote the alternatives in.
+   *
+   * What this fixes is ORDER, and only order. It still reads case arms, so a
+   * hand-rolled check written as an if-chain or a test expression is not
+   * matched, nor is a case arm with spaces around the alternation, nor one whose
+   * alternatives are individually quoted. Said plainly because a matcher
+   * described as general gets trusted as general, and the next person to widen
+   * it should know where the edge actually is.
+   */
+  const handRollsEnvironmentCheck = (body: string): boolean => {
+    for (const match of body.matchAll(/^[ \t]*([A-Za-z0-9_*?.|-]+)\)/gm)) {
+      const alternatives = match[1].split('|');
+      if (alternatives.includes('staging') && alternatives.includes('production')) return true;
+    }
+    return false;
   };
 
   const shellFiles = (dir: string): string[] =>
@@ -139,11 +167,7 @@ describe('every operator script that reaches an environment has the guard', () =
     const offenders = scanned()
       .filter(([, name]) => !(name in EXEMPT))
       .map(([path]) => path)
-      .filter((path) => {
-        const body = readFileSync(path, 'utf-8');
-        // The shape every copy shared: a case arm listing both environments.
-        return /^\s*staging\|production\)/m.test(body);
-      });
+      .filter((path) => handRollsEnvironmentCheck(readFileSync(path, 'utf-8')));
     expect(
       offenders,
       `these hand-roll the environment check; use require_target or add a reason to EXEMPT:\n${offenders.join('\n')}`,
@@ -155,14 +179,18 @@ describe('every operator script that reaches an environment has the guard', () =
     // and reads as load-bearing to the next editor: it looks like the reason
     // that script is allowed to differ, when in fact removing it changes no
     // outcome. Two such entries sat here, for the security smoke script and the
-    // repository-root deploy wrapper, neither of which hand-rolls the check.
-    // Why those two scripts take their environment differently is a property of
-    // the scripts and belongs in the operator-script rules, not in a list whose
+    // repository-root deploy wrapper, neither of which the scan flagged at the
+    // time. The security smoke entry has since come back, and legitimately: the
+    // matcher was widened to read a case arm's alternatives rather than one
+    // spelling, and that script's own arm lists three environments, so it is now
+    // matched and now needs excusing. The deploy wrapper's entry has not
+    // returned. Why a script takes its environment differently is a property of
+    // the script and belongs in the operator-script rules, not in a list whose
     // only job is to excuse a match.
     const dead = Object.keys(EXEMPT).filter((name) => {
       const hit = scanned().find(([, n]) => n === name);
       if (!hit) return true;
-      return !/^\s*staging\|production\)/m.test(readFileSync(hit[0], 'utf-8'));
+      return !handRollsEnvironmentCheck(readFileSync(hit[0], 'utf-8'));
     });
     expect(
       dead,

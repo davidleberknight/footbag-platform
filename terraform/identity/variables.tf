@@ -19,6 +19,12 @@ variable "aws_account_id" {
   }
 }
 
+# Which instance and which key the job role may reach is not a variable either.
+# Both are decided by the Environment tag the environment's own provider puts on
+# them, so the policy denies everything not tagged staging rather than naming a
+# resource whose id is generated. A value copied in by hand after every rebuild
+# would be a control that depends on somebody remembering to re-copy it.
+
 # Who the operators are is deliberately not declared here, and not in Terraform
 # at all. Onboarding mints an access key, and a secret Terraform creates is a
 # secret held in its state, so the named human users are created and retired by

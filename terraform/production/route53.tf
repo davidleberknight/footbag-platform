@@ -58,8 +58,10 @@ output "route53_name_servers" {
 # record instead: a resolver that took the nameserver set from this zone rather
 # than from the registry holds it for two days, so a revert made shortly after
 # the move would take that long to reach everyone. Lowering it ahead of the move
-# makes the reversal window minutes, and the whole of its effect lands after
-# delegation arrives, so applying it early costs nothing.
+# takes this zone's own half of that window down to five minutes, leaving the
+# .org registry's 3600-second delegation lifetime as the bound, so a revert
+# reaches resolvers in about an hour rather than two days. The whole of its
+# effect lands after delegation arrives, so applying it early costs nothing.
 #
 # allow_overwrite is true here, and this is the one record in the tree where it
 # belongs. Everywhere else the flag would hide a collision with a record applied
@@ -173,9 +175,19 @@ resource "aws_route53_record" "apex_a" {
 # What it costs, and only until the freeze: a CNAME answers a query of any type
 # by chasing it to the target, while an alias answers only its own type. A mail
 # lookup against www currently reaches the apex MX and afterwards gets an empty
-# answer. Every mail-carrying name in the zone snapshot is elsewhere, and from
-# the freeze both shapes behave identically because www points at the
-# distribution either way.
+# answer.
+#
+# Four names change behaviour, not one. v, worlds and worldchampionships are
+# CNAMEs onto www, so today they chase www to the apex and reach the apex mail
+# pair the same way, and afterwards they reach nothing. fi and ftp point straight
+# at the apex and are unaffected, which is why the count is four rather than the
+# five that ride the apex and www between them. Their own records are identical
+# in both zones, so a record-by-record comparison of the mirror reports nothing
+# for them: what changes is what a chased query returns.
+#
+# Every name that publishes its own mail routing in the zone snapshot is
+# elsewhere, and from the freeze both shapes behave identically because www
+# points at the distribution either way.
 resource "aws_route53_record" "www" {
   count   = local.apex_alias_mode || var.enable_legacy_mirror_records ? 1 : 0
   zone_id = local.zone_id
@@ -448,10 +460,20 @@ resource "aws_route53_record" "origin_caa" {
   type    = "CAA"
   ttl     = 300
 
-  # Let's Encrypt only, and deliberately no issuewild: this name takes a
-  # single-name certificate by DNS-01, so a wildcard grant would widen what may
-  # be issued for it without widening what is used.
-  records = ["0 issue \"letsencrypt.org\""]
+  # Let's Encrypt only, and an explicit wildcard refusal beside it.
+  #
+  # The refusal has to be written. Omitting issuewild does not withhold wildcard
+  # issuance: RFC 8659 says that when no issuewild set is present, the issue set
+  # governs wildcard requests too, so a record carrying only the issue line
+  # authorises *.origin.<domain> as readily as the name itself. The comment here
+  # previously claimed the opposite, which is the kind of mistake that survives
+  # because the record looks narrower than it is.
+  #
+  # This name takes a single-name certificate by DNS-01, so nothing is lost.
+  records = [
+    "0 issue \"letsencrypt.org\"",
+    "0 issuewild \";\"",
+  ]
 }
 
 # CAA constrains TLS certificate issuance to Amazon's certificate authority (the
@@ -467,24 +489,53 @@ resource "aws_route53_record" "origin_caa" {
 # closed: see the Closed Namespace decision in DESIGN_DECISIONS, which rules that
 # from go-live every name under footbag.org is operated by IFPA and no subzone is
 # delegated. Do not add an NS record set for a child of this zone. There is none
-# today, the committed zone capture confirms no child delegation exists, and the
-# guard below asserts that rather than leaving it to convention.
+# today, the committed zone capture confirms no child delegation exists, and
+# scripts/ci/check_closed_namespace.sh refuses one in this tree rather than
+# leaving the absence to convention.
 #
-# It lands with the alias flip rather than at the zone move. Note what that
-# ordering is NOT for: an "amazon.com" record would never have blocked ACM,
-# since ACM issues from that authority, so deferring it was never protecting
-# issuance. What the deferral avoids is publishing an Amazon-only policy across
-# the whole zone during the window in which the origin certificate is first
-# obtained from a different authority, before that name carries its own record.
+# It lands WITH THE ZONE, ungated, like the apex NS set above and for the same
+# reason: the zone is inert until the registrar delegates to it, so a record
+# declared here changes nothing a resolver sees until the move, and from the move
+# it is in force.
+#
+# It used to wait for the alias flip, which is the last step of the cutover, and
+# that ordering was examined and dropped. What it was avoiding was publishing an
+# Amazon-only policy across the whole zone during the window in which the origin
+# certificate is first obtained from a different authority. That window cannot
+# occur: origin.<domain> carries its own CAA record, created on the same flag as
+# the name itself so no ordering can separate them, and a CAA set at a child node
+# replaces its ancestor's rather than adding to it. The deferral was dissolved
+# when those two records were put on one flag.
+#
+# What deferring cost, against nothing gained: the mirrored legacy names resolve
+# to hosts IFPA does not control and stand until the post-cutover cleanup, which
+# is AFTER the flip. With no CAA published, any of those hosts can answer an
+# HTTP challenge for its own footbag.org name and obtain a publicly trusted
+# certificate from any authority -- and certificate transparency shows that has
+# already happened once for rimu2.footbag.org, in 2015 and 2016. A certificate
+# obtained before this record lands stays valid for its full life, up to 200
+# days under the current maximum, so the window this closes is an opportunity
+# window and closing it late does not shorten the exposure it already allowed.
+#
+# Checked before moving it, rather than assumed: nothing under the domain holds
+# a working certificate today, the apex and www refuse port 443 outright, and the
+# four Workspace-served names abort the handshake rather than presenting a
+# Google-issued certificate that this record would refuse to authorise. ACM
+# issues from this authority, and AWS documents the four accepted values of which
+# "amazon.com" is one.
 resource "aws_route53_record" "caa" {
-  count   = local.apex_alias_mode ? 1 : 0
   zone_id = local.zone_id
   name    = var.domain_name
   type    = "CAA"
   ttl     = 300
   records = [
     "0 issue \"amazon.com\"",
-    "0 issuewild \"amazon.com\"",
+    # A refusal, not a grant. `issuewild ";"` authorises no authority at all to
+    # issue a wildcard, and nothing in this estate needs one: every certificate
+    # here names its hosts. Written as `issuewild "amazon.com"` it was inert
+    # beside the issue line above, granting exactly what was already granted,
+    # which is a line that reads like a control and is not one.
+    "0 issuewild \";\"",
   ]
 }
 
@@ -493,8 +544,10 @@ resource "aws_route53_record" "caa" {
 # delegation cannot arrive through them: it would take a deliberate new
 # aws_route53_record of type NS. The Closed Namespace decision permits one before
 # go-live, as a bridge while an outgoing operator relocates what they run, so
-# adding it for that window is a configuration change; one surviving past go-live
-# is a design change.
+# adding it for that window is a reviewed change to the closed-namespace gate,
+# recorded there with the name, the reason and the end date; one surviving past
+# go-live needs a reason given in writing, with technical merit, that IFPA
+# accepts, and the acceptance is what the decision weighs rather than this file.
 #
 # What it would cost, so the next person does not have to rediscover it: a
 # delegated child publishes its own CAA, which overrides the apex record above

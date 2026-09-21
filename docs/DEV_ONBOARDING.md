@@ -1059,8 +1059,6 @@ Why this matters:
 - it keeps deterministic seeded scenarios from drifting silently
 - it can be reused locally, in Docker parity mode, against the origin, and through CloudFront by changing `BASE_URL`
 
-A `smoke-public.sh` script has not yet been created.
-
 ### 4.4 Authoritative project facts preserved by this guide
 
 This guide preserves these project constraints:

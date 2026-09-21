@@ -50,6 +50,12 @@
 # --verify changes nothing and exits non-zero on any disagreement, so it can be
 # used as a gate. --repair is only meaningful alongside it.
 #
+# --yes accepts the confirmation without being asked. The refusal a run with no
+# terminal prints does not name it, because most scripts sharing the
+# confirmation helper take no such flag and naming one there sends a reader to a
+# parser that rejects it; a caller that does take one says so in its own usage,
+# which is here.
+#
 # --mode is the money-safety floor: it is checked against the key's own prefix,
 # so a test key cannot create the live endpoint and a live key cannot quietly
 # create a rehearsal one.

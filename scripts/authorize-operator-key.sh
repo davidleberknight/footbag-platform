@@ -76,8 +76,8 @@
 # A run started without the redirect names the one it needs.
 #
 #   < ~/AWS/HOST_OPERATOR.txt bash scripts/authorize-operator-key.sh \
-#       --target staging --account footbag --operator "Julie Symons" \
-#       --key-line "ssh-ed25519 AAAAC3Nza... julie footbag"
+#       --target staging --account footbag --operator "Robin Fielder" \
+#       --key-line "ssh-ed25519 AAAAC3Nza... robin footbag"
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default, never

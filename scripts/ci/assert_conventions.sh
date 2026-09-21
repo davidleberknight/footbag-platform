@@ -1516,6 +1516,7 @@ delegate "copied runtime assets readable by the image's non-root account" check_
 delegate "no terraform state/plan artifacts tracked" check_no_terraform_artifacts.sh
 delegate "no sensitive variable assigned in a tracked tfvars example" check_tfvars_sensitive.sh
 delegate "every S3 bucket carries the encryption, public-access and deny-plaintext baseline" check_bucket_baseline.sh
+delegate "no child of the DNS zone is delegated away" check_closed_namespace.sh
 delegate "config seed / Configurable Parameters parity" check_config_seed_parity.sh
 delegate "every CI job and invoked command has a local gate or a recorded reason" check_ci_parity.sh
 

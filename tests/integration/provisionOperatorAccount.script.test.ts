@@ -178,8 +178,8 @@ function runScript(
 function args(overrides: Partial<Record<string, string>> = {}): string[] {
   const base: Record<string, string> = {
     '--target': 'staging',
-    '--account': 'julie_symons',
-    '--operator': 'Julie Symons',
+    '--account': 'robin_fielder',
+    '--operator': 'Robin Fielder',
     '--key-file': VALID_KEY,
     ...overrides,
   };
@@ -231,7 +231,7 @@ describe('provision-operator-account.sh — invocation guards', () => {
   });
 
   it('rejects an account name the host would refuse, before opening a connection', () => {
-    const result = runScript(args({ '--account': 'Julie Symons' }));
+    const result = runScript(args({ '--account': 'Robin Fielder' }));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toMatch(/not a usable Linux account name/);
   });
@@ -355,7 +355,7 @@ describe('provision-operator-account.sh — what it accepts as a public key', ()
     const result = runScript([
       ...args({ '--key-file': '' }),
       '--key-line',
-      'ssh-ed25519 this-is-not-a-key julie@example',
+      'ssh-ed25519 this-is-not-a-key robin@example',
     ]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/cannot read .* as a public key file/);
@@ -690,7 +690,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     // Requiring the departing person's key to remove their access would be a
     // precondition nobody can always meet.
     const r = runScript(
-      ['--target', 'staging', '--account', 'julie_symons', '--operator', 'Julie Symons', '--offboard'],
+      ['--target', 'staging', '--account', 'robin_fielder', '--operator', 'Robin Fielder', '--offboard'],
       { existingAccount: true },
     );
     expect(r.stderr).not.toMatch(/public key is required/);
@@ -710,8 +710,8 @@ describe('provision-operator-account.sh — offboarding', () => {
     const r = runScript(
       [
         '--target', 'staging',
-        '--account', 'julie_symons',
-        '--operator', 'Julie Symons',
+        '--account', 'robin_fielder',
+        '--operator', 'Robin Fielder',
         '--offboard',
         '--rotate',
       ],
@@ -737,7 +737,7 @@ describe('provision-operator-account.sh — offboarding', () => {
 
   it('takes a typed confirmation, and touches nothing without one', () => {
     const r = runScript(
-      ['--target', 'staging', '--account', 'julie_symons', '--operator', 'Julie Symons', '--offboard'],
+      ['--target', 'staging', '--account', 'robin_fielder', '--operator', 'Robin Fielder', '--offboard'],
       { existingAccount: true },
     );
     expect(r.exitCode).toBe(1);
@@ -748,7 +748,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     // The operator has to know which of the two acts they are approving; they
     // are not interchangeable and only one is reversible.
     const r = runScript(
-      ['--target', 'staging', '--account', 'julie_symons', '--operator', 'Julie Symons', '--offboard'],
+      ['--target', 'staging', '--account', 'robin_fielder', '--operator', 'Robin Fielder', '--offboard'],
       { existingAccount: true },
     );
     expect(r.stdout).toMatch(/disabled, not deleted/);
@@ -994,8 +994,8 @@ describe('provision-operator-account.sh — replacing only the key', () => {
     const r = runScript(
       [
         '--target', 'staging',
-        '--account', 'julie_symons',
-        '--operator', 'Julie Symons',
+        '--account', 'robin_fielder',
+        '--operator', 'Robin Fielder',
         '--offboard',
         '--key-only',
       ],
@@ -1233,17 +1233,17 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
     const theirs = fingerprintOf(VALID_KEY);
     const survivor = keyLine(SECOND_KEY);
     const r = runSweep({
-      departing: 'julie_symons',
+      departing: 'robin_fielder',
       theirFingerprints: [theirs],
       accounts: [
-        { name: 'julie_symons', keys: [keyLine(VALID_KEY)] },
+        { name: 'robin_fielder', keys: [keyLine(VALID_KEY)] },
         {
           name: 'footbag',
           keys: [
-            '# Dave, workstation',
+            '# Casey, workstation',
             survivor,
             '',
-            withComment(keyLine(VALID_KEY), 'julie@her-laptop'),
+            withComment(keyLine(VALID_KEY), 'robin@laptop'),
           ],
         },
         { name: 'deploy', keys: [withOptions(keyLine(VALID_KEY)), survivor] },
@@ -1261,7 +1261,7 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
     expect(r.files.footbag).not.toContain(keyLine(VALID_KEY).split(/\s+/)[1]);
     expect(r.files.deploy).not.toContain(keyLine(VALID_KEY).split(/\s+/)[1]);
     // Everyone else's access, and the human notes around it, are untouched.
-    expect(r.files.footbag).toBe(`# Dave, workstation\n${survivor}\n\n`);
+    expect(r.files.footbag).toBe(`# Casey, workstation\n${survivor}\n\n`);
     expect(r.files.deploy).toBe(`${survivor}\n`);
     expect(r.files.bystander).toBe(`${survivor}\n`);
   });
@@ -1273,15 +1273,15 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
     const theirs = fingerprintOf(VALID_KEY);
     const own = keyLine(VALID_KEY);
     const r = runSweep({
-      departing: 'julie_symons',
+      departing: 'robin_fielder',
       theirFingerprints: [theirs],
       accounts: [
-        { name: 'julie_symons', keys: [own] },
+        { name: 'robin_fielder', keys: [own] },
         { name: 'footbag', keys: [own, keyLine(SECOND_KEY)] },
       ],
     });
     expect(r.status).toBe(0);
-    expect(r.files.julie_symons).toBe(`${own}\n`);
+    expect(r.files.robin_fielder).toBe(`${own}\n`);
     expect(r.stdout).toMatch(/Swept their keys from 1 other account\(s\)/);
   });
 
@@ -1291,10 +1291,10 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
     // that the filtered copy never reached it.
     const theirs = fingerprintOf(VALID_KEY);
     const r = runSweep({
-      departing: 'julie_symons',
+      departing: 'robin_fielder',
       theirFingerprints: [theirs],
       accounts: [
-        { name: 'julie_symons', keys: [keyLine(VALID_KEY)] },
+        { name: 'robin_fielder', keys: [keyLine(VALID_KEY)] },
         { name: 'footbag', keys: [keyLine(VALID_KEY), keyLine(SECOND_KEY)] },
       ],
       writeFailsFor: ['footbag'],
@@ -1309,10 +1309,10 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
 
   it('sweeps nothing and says so when no other account holds a key of theirs', () => {
     const r = runSweep({
-      departing: 'julie_symons',
+      departing: 'robin_fielder',
       theirFingerprints: [fingerprintOf(VALID_KEY)],
       accounts: [
-        { name: 'julie_symons', keys: [keyLine(VALID_KEY)] },
+        { name: 'robin_fielder', keys: [keyLine(VALID_KEY)] },
         { name: 'footbag', keys: [keyLine(SECOND_KEY)] },
       ],
     });
@@ -1327,10 +1327,10 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
     // fingerprint list must leave every file alone.
     const untouched = `${keyLine(VALID_KEY)}\n${keyLine(SECOND_KEY)}\n`;
     const r = runSweep({
-      departing: 'julie_symons',
+      departing: 'robin_fielder',
       theirFingerprints: [],
       accounts: [
-        { name: 'julie_symons' },
+        { name: 'robin_fielder' },
         { name: 'footbag', keys: [keyLine(VALID_KEY), keyLine(SECOND_KEY)] },
       ],
     });

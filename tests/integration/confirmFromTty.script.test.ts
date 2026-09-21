@@ -63,6 +63,23 @@ describe('confirm_from_tty: the human-present guard', () => {
     expect(res.stderr).toContain('[--yes]');
   });
 
+  it('offers no flag in the refusal, because most callers that reach it accept none', () => {
+    // Seven of the scripts calling this helper parse no bypass flag at all, and
+    // several refuse one correctly: they mint a credential, delete an access key
+    // or replace a live database, where a non-interactive path is the thing that
+    // must not exist. A refusal naming a flag the caller's own parser rejects
+    // costs the reader a second failed run to discover that an interactive shell
+    // is the only answer.
+    //
+    // The alternative, a variable each caller sets to declare that it does take
+    // the flag, is a convention every new script must remember and nothing can
+    // enforce from outside. A caller that takes one documents it in its usage.
+    const res = runConfirm('no');
+    expect(res.stderr).toContain('no terminal to confirm on');
+    expect(res.stderr).not.toMatch(/pass --yes/);
+    expect(res.stderr).toMatch(/--help says so/);
+  });
+
   it('decides on the standard streams and not on the terminal device alone', () => {
     // Opening /dev/tty is necessary but not sufficient: it succeeds inside a
     // harness whose output is captured. The stream test is what makes the

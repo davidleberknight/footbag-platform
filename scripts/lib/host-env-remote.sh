@@ -487,6 +487,20 @@ require_target() {
 # refusal deterministic wherever output is captured. stdin is deliberately not
 # checked: under the credential-pipe pattern it belongs to the piped secret, which
 # is the whole reason this reads from /dev/tty instead.
+#
+# The refusal names no flag, and that is deliberate. Sixteen callers accept
+# --yes and seven do not, and several of the seven refuse it correctly: they
+# mint a credential, delete an access key, or replace a live database, and a
+# non-interactive bypass is the thing that must not exist on those. A refusal
+# offering a way out that the caller's own parser rejects costs the reader a
+# second failed run before they work out that an interactive shell is the only
+# answer. The alternative, a variable each caller sets to declare that it does
+# accept the flag, is rejected on principle: a safety or accuracy property that
+# depends on every script independently remembering something belongs where
+# every script already goes, not in a convention no test can enforce from
+# outside. A caller that does take
+# --yes documents it in its own usage text, which is where a reader looks for a
+# flag.
 confirm_from_tty() {
   local prompt="$1" expected="$2" answer=""
   if [[ "$ASSUME_YES" == "yes" ]]; then
@@ -495,8 +509,9 @@ confirm_from_tty() {
   fi
   if ! terminal_present; then
     echo "" >&2
-    echo "ERROR: no terminal to confirm on, and --yes was not given." >&2
-    echo "       Re-run from an interactive shell, or pass --yes to accept this change." >&2
+    echo "ERROR: no terminal to confirm on." >&2
+    echo "       Re-run this from an interactive shell. If this script accepts a" >&2
+    echo "       flag to confirm without asking, its --help says so." >&2
     return 1
   fi
   printf '%s' "$prompt" > /dev/tty

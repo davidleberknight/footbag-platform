@@ -97,9 +97,14 @@ describe('the job role carries exactly the statements it is meant to', () => {
     // should not be possible to land one without this line changing.
     expect(assembled()).toEqual([
       'project_buckets',
+      'state_bucket_listing',
       'project_scoped_services',
       'project_keys_by_alias',
       'calls_that_carry_no_resource',
+      'publish_staging_metrics',
+      'lightsail_staging_lifecycle',
+      'cloudfront_project_surfaces',
+      'ses_staging_configuration',
       'iam_read_everywhere',
       'iam_write_project',
       'chain_into_runtime_roles',
@@ -108,6 +113,10 @@ describe('the job role carries exactly the statements it is meant to', () => {
       'never_touch_super_admin_identity',
       'never_administer_a_human_operator',
       'never_touch_this_role',
+      'never_rewrite_a_role_we_can_assume',
+      'never_graft_an_alias_onto_production',
+      'never_rewrite_a_production_edge_function',
+      'never_pass_a_role_to_budgets',
       'never_reach_a_host_shell',
     ]);
   });
@@ -165,7 +174,6 @@ describe('the job role grants what a terraform plan actually calls', () => {
     expect(list).toEqual([
       'cloudwatch:GetMetricStatistics',
       'cloudwatch:ListMetrics',
-      'cloudwatch:PutMetricData',
       'kms:CreateKey',
       'kms:ListKeys',
       'kms:ListAliases',
@@ -182,14 +190,34 @@ describe('the job role grants what a terraform plan actually calls', () => {
       'sts:GetCallerIdentity',
       'route53:ListHostedZones',
       'route53:GetChange',
-      'ses:*',
-      'acm:*',
-      'cloudfront:*',
-      'lightsail:*',
-      'budgets:*',
     ]);
     expect(list).not.toContain('kms:PutKeyPolicy');
     expect(list).not.toContain('kms:ScheduleKeyDeletion');
+
+    // No service wildcard survives here. Four of them did, on the reasoning
+    // that an environment cannot be written into a Lightsail, CloudFront, ACM
+    // or SES ARN. That much is true and it does not license the action set: a
+    // service that cannot be scoped by resource is scoped by action instead.
+    // Each is asserted separately so a regression names the service it restored.
+    for (const wildcard of ['ses:*', 'acm:*', 'cloudfront:*', 'lightsail:*', 'budgets:*']) {
+      expect(list).not.toContain(wildcard);
+    }
+    // Metric publication left this statement for one of its own, because the
+    // namespace condition is the whole point of it and a condition cannot be
+    // attached to one action inside a shared list.
+    expect(list).not.toContain('cloudwatch:PutMetricData');
+  });
+
+  it('publishes metrics only into the staging namespace', () => {
+    // Unconditioned, this was write access to every namespace in the account,
+    // production's included. One injected zero suppresses the backup-promotion
+    // alarm, which triggers on a minimum; a flood buries the trail-derived
+    // security alarms. Both runtime principals in the estate already carry this
+    // condition, so its absence here was the outlier.
+    expect(actions('PublishStagingMetricsOnly')).toEqual(['cloudwatch:PutMetricData']);
+    const s = statement('PublishStagingMetricsOnly');
+    expect(s).toContain('"cloudwatch:namespace" = "Footbag/staging"');
+    expect(s).not.toContain('Footbag/production');
   });
 
   it('reads IAM everywhere and writes it only where the project declares it', () => {
@@ -295,27 +323,108 @@ describe('the job role cannot become an administrator', () => {
     expect(s).toContain(':mfa/*"');
   });
 
-  it('is never allowed to pass a role, which is denied by absence rather than by a rule', () => {
-    // iam:PassRole is how a principal hands a service a role it could not
-    // assume itself, and it is the standard way an IAM write grant becomes
-    // administrator. There is no Deny for it because there is no Allow: the
-    // iam:* Allow is scoped to footbag-staging-* names, so a PassRole against
-    // anything else is refused by default. Asserted as absence, because a rule
-    // that appeared later would be the thing to notice.
-    expect(source).not.toMatch(/iam:PassRole/);
+  it('may not hand a role to the budget service, which would re-arm itself', () => {
+    // A budget action applies an IAM policy on its own schedule, under a role
+    // it is passed, after the person who created it is gone. The iam:* Allow is
+    // scoped to footbag-staging-* names and carries PassRole with it, so the
+    // role a departing operator created there is passable. The budgets wildcard
+    // that made the action reachable is gone; this denial is what stops it
+    // returning through the IAM grant.
+    expect(actions('NeverPassARoleToBudgets')).toEqual(['iam:PassRole']);
+    expect(statement('NeverPassARoleToBudgets')).toContain(
+      '"iam:PassedToService" = "budgets.amazonaws.com"',
+    );
   });
 
-  it('is denied the one call that opens a shell on a host', () => {
-    // Lightsail supports no resource-level permission, so the production host
-    // cannot be put out of this role's reach by scoping. This call mints the
-    // short-lived certificate that lands on the default login account, which
-    // has passwordless sudo, so denying it is what keeps this role off the
-    // production host.
+  it('may not widen the one role it is allowed to assume', () => {
+    // Two Allows meet here: iam:* over role/footbag-staging-*, and AssumeRole
+    // on footbag-staging-app-runtime, which is inside that name pattern. So the
+    // role could attach AdministratorAccess to it and assume it — two calls to
+    // administrator over the whole account, since both environments share one
+    // account and the staging prefix is a naming convention rather than a
+    // boundary. It leaves nothing for an offboard to find and shows no plan
+    // diff, because the staging tree declares inline policies only.
+    //
+    // Inverted rather than enumerated, like the two denials it sits beside, so
+    // an IAM action added later is denied by default. Reads stay, because a
+    // policy simulation against the role is how a grant is checked.
+    const s = statement('NeverRewriteARoleWeCanAssume');
+    expect(s).toContain('Effect');
+    expect(s).toContain('"Deny"');
+    expect(s).toContain('NotAction = ["iam:Get*", "iam:List*", "iam:Simulate*"]');
+    expect(s).toContain('local.scope.runtime_roles');
+  });
+
+  it('may not graft a staging-shaped alias onto a production key', () => {
+    // The key grant matches on the aliases a key already carries, and alias
+    // creation carries no resource of its own, so a staging-shaped alias could
+    // be pointed at a production key and the condition would then match it:
+    // signing with the key that signs session tokens, decrypting every
+    // production secret, or scheduling both for deletion. Denied by tag rather
+    // than by ARN, because the call names the alias and not the key it targets.
+    expect(actions('NeverGraftAnAliasOntoProduction')).toEqual([
+      'kms:CreateAlias',
+      'kms:UpdateAlias',
+      'kms:DeleteAlias',
+    ]);
+    // Stated in the negative, so an untagged key is denied too. A denial naming
+    // production covers only what is already labelled production.
+    expect(statement('NeverGraftAnAliasOntoProduction')).toContain(
+      'StringNotEquals = { "aws:ResourceTag/Environment" = "staging" }',
+    );
+  });
+
+  it('may not rewrite the edge function on the live distribution', () => {
+    // The production viewer-request function runs on every page request the
+    // public makes. Publishing code there needs no host access, no deploy and
+    // no Terraform, and surfaces only when somebody next applies the production
+    // tree, which this role cannot do. Function ARNs carry the name, so unlike
+    // the rest of the service this scopes exactly.
+    expect(actions('NeverRewriteAProductionEdgeFunction')).toEqual([
+      'cloudfront:UpdateFunction',
+      'cloudfront:PublishFunction',
+      'cloudfront:DeleteFunction',
+    ]);
+    expect(statement('NeverRewriteAProductionEdgeFunction')).toContain(
+      'function/footbag-production-*',
+    );
+  });
+
+  it('is denied the calls that reach a live host, on every instance but staging', () => {
+    // This set mints the shell, reopens the firewall, and deletes the host
+    // whose database is on local disk. It used to deny the first of them on
+    // every instance, on the premise that Lightsail supports no resource-level
+    // permission. It supports one here, and the blanket form had a cost:
+    // install-known-hosts.sh accepts staging and makes exactly that call,
+    // because the host-key pin is built from it and from nothing else, so a
+    // dev-and-tester could not pin the host they deploy to.
+    //
+    // Keyed on the Environment tag and stated in the negative, so it fails
+    // closed: production, any instance added later, and an instance carrying no
+    // tag at all are all denied, because an absent condition key makes a
+    // negated match true. Naming the staging instance by ARN would have worked
+    // too and would have meant a generated id copied into a values file by hand
+    // and re-copied after every rebuild, which is a control that depends on
+    // somebody remembering.
     const s = statement('NeverMintHostAccessDetails');
-    expect(s).toContain('Effect   = "Deny"');
+    expect(s).toContain('"Deny"');
     expect(actions('NeverMintHostAccessDetails')).toEqual([
       'lightsail:GetInstanceAccessDetails',
+      'lightsail:PutInstancePublicPorts',
+      'lightsail:OpenInstancePublicPorts',
+      'lightsail:CloseInstancePublicPorts',
+      'lightsail:DeleteInstance',
     ]);
+    expect(s).toContain('StringNotEquals = { "aws:ResourceTag/Environment" = "staging" }');
+    // Never a denial that names production, which covers nothing the day an
+    // untagged instance appears, and never an unconditioned wildcard, which
+    // would take staging down with it.
+    expect(s).not.toContain('footbag-production');
+    expect(s).not.toContain('"Environment" = "production"');
+    // No hand-maintained resource id anywhere in the policy: an identifier
+    // copied in after a rebuild is a control nobody re-runs.
+    expect(source).not.toMatch(/Instance\/[0-9a-f]{8}-/);
+    expect(source).not.toContain('staging_lightsail_instance_arn');
   });
 });
 
@@ -324,7 +433,12 @@ describe('the job role reaches staging and nothing else', () => {
     const scope = scopeBlock();
     expect(scope).toContain('arn:aws:s3:::footbag-staging-*');
     expect(scope).toContain('parameter/footbag/staging/*');
-    expect(scope).toContain('alias/footbag-staging-*');
+    // Asserted as the assignment rather than as the string, because the string
+    // appears in the comment above it explaining why the hyphen came out, and a
+    // substring check is satisfied by prose. The staging tree names its main
+    // key alias/footbag-staging with nothing after it, so a hyphen here leaves
+    // every SecureString keyed on that alias unreadable under this policy.
+    expect(scope).toMatch(/kms_alias\s*=\s*"alias\/footbag-staging\*"/);
     expect(scope).toContain('role/footbag-staging-*');
     expect(scope).toContain('footbag-staging-app-runtime');
     expect(scope).not.toContain('footbag-production-app-runtime');

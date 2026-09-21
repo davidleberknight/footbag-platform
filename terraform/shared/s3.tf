@@ -55,8 +55,22 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 # value as a bare false rather than the string, a NotPrincipal — takes effect
 # the instant PutBucketPolicy returns, and the run locks itself out. Recovery
 # needs a principal outside the deny calling DeleteBucketPolicy, and
-# prevent_destroy on the bucket does not help. Apply this one alone and
-# targeted, with a break-glass session already open.
+# prevent_destroy on the bucket does not help.
+#
+# A deny over Principal "*" reaches every IAM principal in the account,
+# administrators included, so no IAM identity is a way back in. The principal
+# that recovers is the account root user, which an S3 bucket policy cannot lock
+# out of DeleteBucketPolicy. Do not generalise that: it is a property of S3, not
+# of resource policies. A KMS key policy that omits root leaves the key
+# unmanageable once its named principals are gone, and AWS documents the way
+# back as contacting Support rather than anything you can do from the console.
+#
+# Root's credentials and second factor are in the vault. Emergency-access
+# guidance expects exactly this: a break-glass path that bypasses the control,
+# used rarely and deliberately. So before applying this one, confirm you can
+# reach root -- that the password and the second factor are current and in your
+# hands -- rather than opening a session and leaving it idle. Apply it alone and
+# targeted.
 data "aws_iam_policy_document" "terraform_state" {
   statement {
     sid    = "DenyPlaintextAccess"

@@ -71,8 +71,8 @@
 # password on the terminal, so it needs both the redirect and a real terminal:
 #
 #   < ~/AWS/HOST_OPERATOR.txt bash scripts/provision-operator-account.sh \
-#       --target staging --account julie_symons --operator "Julie Symons" \
-#       --key-line "ssh-ed25519 AAAAC3Nza... julie@example"
+#       --target staging --account robin_fielder --operator "Robin Fielder" \
+#       --key-line "ssh-ed25519 AAAAC3Nza... robin@example"
 #
 # Which file belongs on the left is not a guess and not a preference: it follows
 # the account the alias connects as, and each account has its own file per
@@ -509,8 +509,7 @@ if [[ "$OFFBOARD" -eq 1 ]]; then
   echo ""
   echo "Then the rest of the offboarding, which is not this host's business and"
   echo "is not done by this script: their AWS identity, the vault, repository and"
-  echo "CI access, and any alerting subscription in their name. While the operator"
-  echo "AWS identity is shared, a departure is a rotation trigger for it."
+  echo "CI access, and any alerting subscription in their name."
   exit 0
 fi
 

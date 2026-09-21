@@ -284,11 +284,7 @@ done
 # Who the operators ARE is not a tree at all. Hiring and firing mint and revoke
 # key material that must never enter Terraform state, so
 # scripts/manage-human-operator.sh owns that instead.
-case "$TARGET" in
-  staging|production|shared|identity) ;;
-  '') echo "ERROR: --target is required ('staging', 'production', 'shared' or 'identity')" >&2; exit 2 ;;
-  *) echo "ERROR: --target must be 'staging', 'production', 'shared' or 'identity' (got '$TARGET')" >&2; exit 2 ;;
-esac
+require_target "$TARGET" staging production shared identity || exit 2
 
 if [[ ! "$FROM_STEP" =~ ^[1-2]$ ]]; then
   echo "ERROR: --from-step takes a step number from 1 to 2 (got '$FROM_STEP')." >&2

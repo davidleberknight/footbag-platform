@@ -439,9 +439,9 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
   });
 
   it('refuses a lock held by another machine, and names the holder', () => {
-    const res = breakRun({ lockHeldBy: 'julie@HER-LAPTOP', lockCreated: OLD });
+    const res = breakRun({ lockHeldBy: 'robin@OTHER-LAPTOP', lockCreated: OLD });
     expect(res.exitCode).toBe(2);
-    expect(res.stderr).toMatch(/julie@HER-LAPTOP, not this machine/);
+    expect(res.stderr).toMatch(/robin@OTHER-LAPTOP, not this machine/);
     expect(calls()).not.toMatch(/force-unlock/);
   });
 
@@ -493,7 +493,7 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
   });
 
   it('waives the floor and nothing else: another machine is still refused', () => {
-    const res = breakRunAttested({ lockHeldBy: 'julie@HER-LAPTOP', lockCreated: OLD });
+    const res = breakRunAttested({ lockHeldBy: 'robin@OTHER-LAPTOP', lockCreated: OLD });
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toMatch(/not this machine/);
     expect(calls()).not.toMatch(/force-unlock/);
@@ -655,7 +655,7 @@ describe('terraform-apply.sh: a state lock refusing the plan', () => {
   it('never offers to break a lock held by another machine', () => {
     // Whether breaking a lock is safe turns on the holding process being dead,
     // and only the holder's own machine can answer that.
-    writeTerraformStub({ lockHeldBy: 'julie@HER-LAPTOP' });
+    writeTerraformStub({ lockHeldBy: 'robin@OTHER-LAPTOP' });
     const res = run(['--target', 'staging'], true, { TERRAFORM_APPLY_PROC_COUNT: '0' });
     expect(res.stderr).toMatch(/names another machine/);
     expect(res.stderr).not.toMatch(/force-unlock/);
