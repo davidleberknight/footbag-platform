@@ -491,8 +491,10 @@ resource "aws_route53_record" "caa" {
 # NO CHILD ZONE IS DELEGATED UNDER footbag.org, and nothing in this file creates
 # one. The mirrored record maps carry A, CNAME, MX and TXT types only, so a
 # delegation cannot arrive through them: it would take a deliberate new
-# aws_route53_record of type NS, and adding one is a design change rather than a
-# configuration change.
+# aws_route53_record of type NS. The Closed Namespace decision permits one before
+# go-live, as a bridge while an outgoing operator relocates what they run, so
+# adding it for that window is a configuration change; one surviving past go-live
+# is a design change.
 #
 # What it would cost, so the next person does not have to rediscover it: a
 # delegated child publishes its own CAA, which overrides the apex record above
