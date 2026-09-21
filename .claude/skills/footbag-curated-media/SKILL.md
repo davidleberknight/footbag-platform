@@ -56,7 +56,13 @@ Every trick-media sidecar **must** have, at minimum:
 "#<canonical-trick-slug>"   ← matches freestyle_tricks.slug; e.g. "#double_leg_over"
 "#freestyle"                ← utility marker
 "#trick"                    ← utility marker
+"#tutorial"|"#demo"|"#record"  ← exactly one; what the clip is for (§11)
 ```
+
+The content type is not optional and not a convention. A curated clip that names
+a trick and carries none of the three, or more than one, is refused by
+`freestyle/loaders/25_qc_media_tag_invariant.py`, which is a hard gate on the
+freestyle refresh.
 
 Source/gallery tags **may** be added to mark the curated source the sidecar came from:
 
@@ -76,7 +82,7 @@ Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tag
 
 ## 4. PassBack-specific lessons (worked examples: do not re-litigate)
 
-- **PassBack Records is record/performance evidence, not tutorial.** `tier=RECORD` in sidecars; never promoted to `STRONG_TUTORIAL` for primary-clip selection (rules in `freestyle/loaders/24_qc_freestyle_media_coverage.py`).
+- **PassBack Records is record/performance evidence, not tutorial.** `#record` on the sidecar's tags; it never reads as a tutorial for primary-clip selection (rules in `freestyle/loaders/24_qc_freestyle_media_coverage.py`).
 - **Same trick can have TT tutorial AND PassBack record media**: that is not a duplicate. The two complement each other (how-to vs. proof). Do not skip a PassBack row because the trick already has a TT sidecar.
 - **`#passback_records` is on the source-tag whitelist**, so every PassBack sidecar carries it: a backfill appended it to the pre-existing PassBack sidecars and `promote_snippet_candidates.py` adds it to new ones (both idempotent).
 - **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation: glossary terms don't go in `freestyle_tricks`). Stage them in `freestyle/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
@@ -181,8 +187,7 @@ When in doubt about whether a change reaches the application-code or schema laye
   "title":         "Footbag Lessons - Tricks of the Trade #12 - Forehead Stall",
   "creator":       "Kenny Shults",
   "sourceId":      "tt_youtube",
-  "tier":          "CANONICAL_TUTORIAL",
-  "tags":          ["#forehead_stall", "#freestyle", "#trick", "#tricks_of_the_trade"]
+  "tags":          ["#forehead_stall", "#freestyle", "#trick", "#tricks_of_the_trade", "#tutorial"]
 }
 ```
 
@@ -197,8 +202,7 @@ Filename: `curated/freestyle_tricks/forehead_stall_<sha1[:8]>.meta.json`. Promot
   "title":         "Passback record by Norek",
   "creator":       "Norek",
   "sourceId":      "passback_records",
-  "tier":          "RECORD",
-  "tags":          ["#blurry_whirl", "#freestyle", "#trick", "#passback_records"]
+  "tags":          ["#blurry_whirl", "#freestyle", "#trick", "#passback_records", "#record"]
 }
 ```
 
@@ -210,12 +214,12 @@ The two sidecars below coexist legitimately:
 
 ```jsonc
 // TT tutorial: how to do DLO
-{ "sourceId": "tt_youtube", "tier": "CANONICAL_TUTORIAL",
-  "tags": ["#double_leg_over", "#freestyle", "#trick", "#tricks_of_the_trade"], ... }
+{ "sourceId": "tt_youtube",
+  "tags": ["#double_leg_over", "#freestyle", "#trick", "#tricks_of_the_trade", "#tutorial"], ... }
 
 // PassBack record: proof of N consecutive DLO reps
-{ "sourceId": "passback_records", "tier": "RECORD",
-  "tags": ["#double_leg_over", "#freestyle", "#trick", "#passback_records"], ... }
+{ "sourceId": "passback_records",
+  "tags": ["#double_leg_over", "#freestyle", "#trick", "#passback_records", "#record"], ... }
 ```
 
 Same `trick_slug` (`double_leg_over`), distinct `(source_id, video_url)` → distinct sidecars → not a duplicate. Both render in the trick-detail page's reference media; each renders in its own source-specific gallery.
@@ -232,68 +236,102 @@ Unique Fearless,,,Vasek Klouda,6/1/2005,19,5,5,Unique 5-ADD,DVD: Feet on Fire (r
 
 No `trick_slug` column. No sidecar emission. Surfacing decision deferred: the file is preservation, not auto-import.
 
-## 11. Tier convention
+## 11. Content type: what a clip is for
 
-The `tier` field on each sidecar drives primary-clip selection (per the promotion rules in §3) and visual hierarchy on trick / family pages. Tier is set at sidecar emit time and persists into the seeded `media_items` row. There is no DB-schema-level constraint on tier values; the convention lives here.
+Every curated clip that names a trick carries exactly one of three tags, and that
+tag is the only thing that says what the clip is for:
 
-### Tier semantics
+| Tag | Meaning |
+|---|---|
+| `#tutorial` | The clip teaches the trick: someone breaks the movement down. |
+| `#demo` | The clip shows the trick performed clearly, without teaching it. |
+| `#record` | The clip is record evidence, with countable reps. |
 
-| Tier | Meaning | When to use |
-|---|---|---|
-| `CANONICAL_TUTORIAL` | Authoritative single-trick instructional video by a recognized creator/series | TT lessons (Kenny Shults), AnzTrikz tutorials (Anssi Sundberg), FootbagSpot Levels 1–5, similar; the "this is THE tutorial for this trick" tier |
-| `STRONG_TUTORIAL` | Clear single-trick demo / instructional from a registered tutorial-tier source, less editorial polish than CANONICAL_TUTORIAL | Shred Global single-trick demos by named players (Will Digges, Zac Miley, etc.); Polini Pointers; similar |
-| `HIGH_QUALITY_DEMO` | Named-trick demonstration footage that's not formally instructional | Footbag Finland trick demos; Flipsider clips; multi-take community demos that show the trick clearly without explicit teaching framing |
-| `RECORD` | Record-attempt clip with countable kicks (PassBack-style) | Default for `source_id='passback_records'` sidecars |
-| `WEAK_RECORD` | Record clip with low confidence or unverifiable count | Reserved; rare |
+This is enforced, not conventional. `freestyle/loaders/25_qc_media_tag_invariant.py`
+refuses a curated clip that names a trick and carries none of the three or more
+than one, and it is a hard gate on the freestyle refresh. The gate is scoped by
+the presence of a trick tag, never by directory: a clip that names no trick (a
+shred routine, a chinlone film, a net demonstration, an event clip) carries none
+of the three and that is correct, while a set or concept lesson may carry one
+because it genuinely is one.
 
-### Source-default mapping (curator-asserted at emit time)
+### The default
 
-The tier registry is **not codified in code or schema**. Each sidecar's tier is decided when the sidecar is created. The defaults below are conventions, not enforcement:
+A clip carrying no content type reads as a demonstration everywhere: both public
+readers and the coverage QC treat it that way. Teaching is a positive claim, so
+it is made rather than assumed. Never lean on the default for a trick clip, since
+the hard gate refuses it.
 
-| `source_id` | Default tier | Notes |
-|---|---|---|
-| `tt_youtube` | CANONICAL_TUTORIAL | Kenny Shults TT series |
-| `anz_trikz` | CANONICAL_TUTORIAL | Anssi Sundberg AnzTrikz tutorials |
-| `footbagspot_passback` | CANONICAL_TUTORIAL | PassBack Levels 1–5 curriculum |
-| `footbagspot_tutorials` | CANONICAL_TUTORIAL | FootbagSpot tutorial library proper |
-| `shred_global` | HIGH_QUALITY_DEMO | Single-trick demos by named players (Boychuk, Digges, Miley, Monistere, Ścierski, etc.). **Demo-tier, not tutorial:** caption pattern is uniformly "Footbag Freestyle Trick: <name> (<add>add) by <player>": single-trick demo, no teaching breakdown. SOURCE_TIER in `freestyleService.ts` mirrors this as DEMONSTRATION. |
-| `polini_pointers` | STRONG_TUTORIAL | Nick Polini's instructional content |
-| `everything_footbag` | STRONG_TUTORIAL | Hardik's educational content |
-| `footbag_foundations` | STRONG_TUTORIAL | Erik Chan's content |
-| `footbag_finland` | HIGH_QUALITY_DEMO | Named-trick demos; demonstration-style, not instructional |
-| `flipsider_footbag` | HIGH_QUALITY_DEMO | Mixed; default to demo |
-| `passback_records` | RECORD | Always; never promote to tutorial-tier |
+### Source is a starting point, never the last word
 
-### Promotion / primary-clip selection (already in §3, re-stated for tier context)
+`CONTENT_TYPE_BY_SOURCE` in `scripts/promote_snippet_candidates.py` gives a
+promoted sidecar its first content type from the source id, and an unregistered
+source falls to `#demo`. That map is a convenience for bulk promotion and nothing
+more. The tag lives on the clip, so a curator who knows a particular clip teaches
+something its source usually only demonstrates edits the tag, and two clips
+sharing one source then classify differently. A lookup from a source id could not
+express that, which is why the sidecar field it replaced was removed.
 
-- **Primary candidates:** CANONICAL_TUTORIAL > STRONG_TUTORIAL > HIGH_QUALITY_DEMO. RECORD never serves as primary when a tutorial alternative exists.
-- **Family-page hero vs trick-page hero:** family pages may prefer multi-trick CANONICAL_TUTORIAL (e.g., AnzTrikz "Whirl and Reverse Whirl") over single-trick CANONICAL_TUTORIAL when the multi-trick coverage tells a better family story; trick-page hero prefers the focused single-trick clip. Both selections are curator decisions made at family / trick page render time.
-- **Multi-trick tutorial promotion:** see §3: only when each target trick is explicitly named in the title.
+Three sources default to `#demo` because their format is demonstrational: a
+single trick performed clearly with no teaching breakdown. Shred Global is the
+worked example, with captions uniformly of the form "Footbag Freestyle Trick:
+<name> by <player>"; Footbag Finland and Flipsider Footbag follow the same shape.
+Shred Global's existing clips are a mix of both kinds, which is exactly the case
+the tag exists for: a curator marks the individual clip that genuinely teaches.
 
-### Curator override
+### Coverage strength is the dashboard's vocabulary, not the sidecar's
 
-The default tier is a starting point, not a mandate. Curator may set a different tier on a per-sidecar basis when the content quality justifies it. Document the override reason in the sidecar's `notes` field if the deviation isn't self-evident.
+`freestyle/loaders/24_qc_freestyle_media_coverage.py` maps the content type onto
+its own strength labels: `#tutorial` to STRONG_TUTORIAL, `#demo` to
+HIGH_QUALITY_DEMO, `#record` to WEAK_RECORD, and an untyped clip to
+HIGH_QUALITY_DEMO. Those labels exist for the coverage dashboard; nothing writes
+them to a clip, and no sidecar carries one.
 
-### Source-default tier for shred_global and footbag_finland
+### A wrong content type is curator judgment; a missing one is a defect
 
-`shred_global` is a demo-tier source, so its `HIGH_QUALITY_DEMO` sidecars carry the correct tier; `footbag_finland` follows the same demo-tier default. The table above is authoritative for source defaults. Existing sidecars are not bulk-updated to match a default change; the convention applies forward.
+Choosing `#demo` where `#tutorial` fits better is a review finding, not a
+data-integrity violation. A trick clip with no content type at all is a different
+thing: the invariant refuses it, and the refusal names the clip.
 
-### Tier is presentation, not data integrity
+A sidecar carries no separate field naming what a clip is for. An older example
+found elsewhere may show one; it is not current, and a sidecar written with it
+today is a sidecar with two places to answer one question.
 
-A "wrong" tier is a curator-judgment finding, not a data-integrity violation. Tier does not gate validation or media seeding; it only influences primary-clip selection and visual hierarchy. The MLI audit's tier mismatches were classified as `inconsistent` (curator review needed), never `broken`.
+### Which clip leads a page
 
-## 12. Registering a new source — six coordinated points
+- **Primary candidates:** a tutorial leads, then a demonstration. A record clip
+  never leads while a tutorial or demonstration exists for the same trick.
+- **Family-page hero vs trick-page hero:** a family page may prefer a multi-trick
+  tutorial (AnzTrikz "Whirl and Reverse Whirl") when the broader coverage tells a
+  better family story; a trick page prefers the focused single-trick clip. Both
+  are curator decisions made at render time.
+- **Multi-trick tutorial promotion:** only when each target trick is explicitly
+  named in the title.
 
-A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires SIX coordinated edits. Doing only the obvious tier maps causes failures partway through promote → seed → QC — a source registered without points #4, #5, and #6 fails mid-run at exactly those steps:
+## 12. Registering a new source — four coordinated points
 
-1. `scripts/promote_snippet_candidates.py` `TIER_BY_SOURCE` — sidecar `tier` (e.g. `HIGH_QUALITY_DEMO`).
-2. `src/services/freestyleService.ts` `SOURCE_TIER` — render bucket (`TUTORIAL`/`DEMONSTRATION`/`RECORD`).
-3. `src/services/freestyleService.ts` `SOURCE_LABELS` — public source label (else the raw id renders).
-4. `legacy_data/inputs/curated/media/media_sources.csv` — a row for the source. **FK target:** `media_items.source_id REFERENCES media_sources(source_id)`; missing it makes `seed_fh_curator.py` fail mid-seed with `FOREIGN KEY constraint failed` (the txn rolls back).
-5. `freestyle/loaders/24_qc_freestyle_media_coverage.py` — `DEMO_SOURCES` / `STRONG_TUTORIAL_SOURCES` / `RECORD_SOURCES`. An unregistered source is an "unrecognized source_id" **hard-fail (exit 2)** AND mis-classifies clips as `WEAK_RECORD`.
-6. `tests/unit/freestyleSourceTier.test.ts` — the "exactly N known sources" guard count + a per-tier shape assertion (the guard intentionally fails until updated).
+A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires four coordinated
+edits. Doing only the obvious one causes failures partway through
+promote → seed → QC:
 
-Conditional: if the source emits a gallery TAG `#<source>`, whitelist it in `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` (NOT needed if promote emits no source tag — `passback_demos` emits only `#<slug> #freestyle #trick`).
+1. `legacy_data/inputs/curated/media/media_sources.csv` — a row for the source.
+   **FK target:** `media_items.source_id REFERENCES media_sources(source_id)`;
+   missing it makes `seed_fh_curator.py` fail mid-seed with
+   `FOREIGN KEY constraint failed` (the txn rolls back). This is the only one
+   whose absence stops a run.
+2. `src/services/freestyleService.ts` `SOURCE_LABELS` — the public source label,
+   or the raw id renders.
+3. `scripts/promote_snippet_candidates.py` `CONTENT_TYPE_BY_SOURCE` — the content
+   type a promoted sidecar from this source starts with. Optional: omit it and
+   the source falls to `#demo`, which is a correct default rather than an error.
+4. `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` — only if the source emits a
+   gallery tag `#<source>`. Not needed when promote emits no source tag
+   (`passback_demos` emits only `#<slug> #freestyle #trick` plus its content type).
+
+Nothing registers a render bucket any more and no test carries a source count.
+Classification is the clip's own tag, so an unregistered source is no longer a
+hard failure anywhere: it renders under its raw id and its clips default to
+demonstrations until someone says otherwise.
 
 ## Cross-references
 

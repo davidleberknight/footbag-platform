@@ -48,15 +48,15 @@ Verify external URLs before reviewer sign-off.
 - **YouTube oembed verification:** `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={id}&format=json` returns title + author; HTTP 400 if the id is malformed (YouTube IDs are exactly 11 chars). Use this to confirm any new YouTube URL before append.
 - **WorldFootbag channel inventory:** `yt-dlp --flat-playlist --dump-json https://www.youtube.com/@WorldFootbag/videos` enumerates the Tricks-of-the-Trade series (42 lessons #1–#42).
 
-### Source registry and tutorial-tier classification
+### Source registry and content-type classification
 
-The tutorial/demo/record source sets in `freestyle/loaders/24_qc_freestyle_media_coverage.py` are load-bearing for the coverage dashboard: a curated item counts as `STRONG_TUTORIAL` only if its `source_id` is in the strong-tutorial set. Registering a new trusted source updates both `media_sources` and the loader's source sets (the `footbag-curated-media` skill enumerates the full coordinated edit set).
+What a curated clip is for is the clip's own tag: exactly one of `#tutorial`, `#demo` or `#record` on every curated clip that names a trick, enforced by `freestyle/loaders/25_qc_media_tag_invariant.py`. The source id does not decide it, so two clips sharing a source can classify differently and a curator can say which. The coverage dashboard in `freestyle/loaders/24_qc_freestyle_media_coverage.py` reads that tag and maps it onto its own strength labels; it keeps no source sets of its own, so an unregistered source is no longer a hard failure there. Registering a new trusted source updates `media_sources` (the `footbag-curated-media` skill enumerates the full coordinated edit set).
 
-Source priority for primary selection: (1) AnzTrikz single/double-trick tutorial; (2) TT / Tricks-of-the-Trade single-trick lesson; (3) PassBack tutorial; (4) other verified tutorial source; (5) demonstration-tier source (single-trick demos, no teaching breakdown; `SOURCE_TIER` in `freestyleService.ts` is the load-bearing classification); (6) record/performance clip (never primary if a tutorial alternative exists).
+Priority for primary selection: (1) a clip tagged `#tutorial`, preferring an AnzTrikz single or double-trick lesson, then a Tricks-of-the-Trade single-trick lesson, then a PassBack tutorial, then any other verified instructional clip; (2) a clip tagged `#demo`, or carrying no content type, which reads as a demonstration everywhere; (3) a clip tagged `#record`, never primary when a tutorial or demonstration alternative exists.
 
 ### Primary clip is derived, not stored
 
-There is no `is_primary` flag and no write-time promotion step. A trick's primary clip is computed at report/render time as the strongest-strength curated item tagged to it, ranked by the source tier above; a record/performance-tier clip is never chosen as primary when a tutorial-tier alternative exists. Media for a pending (`is_active=0`) trick is still tagged and carried, but the trick surfaces no primary until it is active. For multi-trick tutorials, tag a target trick only when it is **explicitly named in the title**.
+There is no `is_primary` flag and no write-time promotion step. A trick's primary clip is computed at report/render time as the strongest curated item tagged to it, ranked by the content-type order above; a record clip is never chosen as primary when a tutorial or demonstration alternative exists. Media for a pending (`is_active=0`) trick is still tagged and carried, but the trick surfaces no primary until it is active. For multi-trick tutorials, tag a target trick only when it is **explicitly named in the title**.
 
 ### Reset-compatibility (HOLD / STAGED / SAFE)
 

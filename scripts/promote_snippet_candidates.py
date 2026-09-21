@@ -82,12 +82,18 @@ CONTENT_TYPE_BY_SOURCE = {
     "tt_youtube":           "#tutorial",
     "footbagspot_passback": "#tutorial",
     "footbagspot_tutorials": "#tutorial",
-    "shred_global":         "#tutorial",
+    # Three demonstrational sources. Their format is a single trick performed
+    # clearly with no teaching breakdown: Shred Global's captions are uniformly
+    # "Footbag Freestyle Trick: <name> by <player>". Every Footbag Finland and
+    # Flipsider clip in the corpus is a demonstration, and Shred Global's are
+    # mixed, which is the case the tag exists for: a curator marks the
+    # individual clip that genuinely teaches.
+    "shred_global":         "#demo",
+    "footbag_finland":      "#demo",
+    "flipsider_footbag":    "#demo",
     "polini_pointers":      "#tutorial",
     "passback_records":     "#record",
     "anz_trikz":            "#tutorial",
-    "footbag_finland":      "#tutorial",
-    "flipsider_footbag":    "#tutorial",
     "passback_demos":       "#demo",
     "passback_basics":      "#tutorial",
 }

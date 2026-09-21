@@ -185,7 +185,7 @@ Sequence and combo analysis is future work (streaks, transitions, connector tric
 
 Curated trick media (videos/images attached to tricks, players, events, records) and member-uploaded gallery content are **two parallel systems; never merge them.** Mixing breaks GOVERNANCE layer separation.
 
-Do not build new curated media on the legacy `freestyle_media_*` tables; the unified `media_items` + `media_tags` + curated-sidecar + `SOURCE_TIER` model is authoritative, and the polymorphic media→entity edge is expressed as namespaced tag conventions. The **media pipeline, source registry, tutorial-tier classification, primary-promotion rules, reset-compatibility, and coverage dashboard are owned by the `footbag-curated-media` skill and detailed in `REFERENCE.md`.**
+Do not build new curated media on the legacy `freestyle_media_*` tables; the unified `media_items` + `media_tags` + curated-sidecar model is authoritative, and the polymorphic media→entity edge is expressed as namespaced tag conventions. What a clip is for is one of those tags (`#tutorial`, `#demo`, `#record`), not a separate field or a lookup from its source. The **media pipeline, source registry, content-type classification, primary-promotion rules, reset-compatibility, and coverage dashboard are owned by the `footbag-curated-media` skill and detailed in `REFERENCE.md`.**
 
 ---
 

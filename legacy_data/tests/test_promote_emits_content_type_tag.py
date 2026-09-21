@@ -54,6 +54,22 @@ def test_a_record_source_and_a_tutorial_source_do_not_agree():
     assert mod.CONTENT_TYPE_BY_SOURCE["passback_demos"] == "#demo"
 
 
+def test_the_demonstrational_sources_start_a_clip_as_a_demonstration():
+    # Three sources whose format is a single trick performed clearly with no
+    # teaching breakdown. Every Footbag Finland and Flipsider clip in the corpus
+    # is a demonstration; Shred Global's are mixed, which is the case the tag
+    # exists for, since a curator marks the individual clip that teaches. A
+    # source default that claimed otherwise would put an instructional claim on
+    # clips nobody had reviewed.
+    mod = _load_promote_module()
+    for source_id in ("shred_global", "footbag_finland", "flipsider_footbag"):
+        assert mod.CONTENT_TYPE_BY_SOURCE[source_id] == "#demo", (
+            f"{source_id} starts a promoted clip as "
+            f"{mod.CONTENT_TYPE_BY_SOURCE[source_id]!r}; its format is "
+            f"demonstrational, so teaching is a claim a curator makes per clip"
+        )
+
+
 def test_an_unregistered_source_demonstrates_rather_than_teaches():
     mod = _load_promote_module()
     assert mod.DEFAULT_CONTENT_TYPE == "#demo"
