@@ -1057,6 +1057,11 @@ describe('curatorMediaService.listMedia', () => {
     const uniqueTagA = `#listalpha_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const uniqueTagB = `#listbeta_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const r1 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'first', tags: [uniqueTagA] });
+    // Load-bearing, not padding: the list is ordered by upload time, stamps
+    // are millisecond-resolution, and two uploads in one tick would tie and
+    // come back in whichever order the sort happened to produce. setTimeout
+    // guarantees a minimum, so the two stamps always differ. Do not remove it
+    // as a slow test; remove it only by giving the two rows explicit stamps.
     await new Promise((r) => setTimeout(r, 5));
     const r2 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'second', tags: [uniqueTagA, uniqueTagB] });
 

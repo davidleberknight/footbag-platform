@@ -22,6 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { committedBasenames } from '../fixtures/committedFiles';
 import { parseCsvRecords } from '../../scripts/verify-seed-urls';
 import { structuralUrlRejection } from '../../src/lib/externalUrlShape';
 
@@ -56,7 +57,11 @@ function clubSeedUrls(): SeedUrl[] {
 function gallerySidecarUrls(): SeedUrl[] {
   if (!fs.existsSync(GALLERY_DIR)) return [];
   const out: SeedUrl[] = [];
-  for (const file of fs.readdirSync(GALLERY_DIR)) {
+  // Committed sidecars, not whatever the directory holds. The claim is about
+  // the URLs this repository ships, and every test database in the suite is
+  // allowed to write sidecars into this same directory, so a listing can hand
+  // this scan another suite's fixture and fail on it.
+  for (const file of committedBasenames('curated/galleries')) {
     if (!file.endsWith('.json') || file === GALLERY_VERDICTS) continue;
     const sidecar = JSON.parse(fs.readFileSync(path.join(GALLERY_DIR, file), 'utf8')) as {
       id?: string;

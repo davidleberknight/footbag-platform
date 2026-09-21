@@ -35,19 +35,66 @@ if [ "$staged" -eq 1 ]; then
   native_args="git --staged --config .gitleaks.toml --no-banner"
   docker_args="git --staged --config /repo/.gitleaks.toml --no-banner"
 else
-  native_args="detect --source . --config .gitleaks.toml --no-banner"
-  docker_args="detect --source /repo --config /repo/.gitleaks.toml --no-banner"
+  # --redact -v, matching the flags the runner's action passes. Without them
+  # this printed a count and nothing else: "leaks found: 13" tells the reader a
+  # number and sends them to re-run the scanner by hand to learn which rule,
+  # which file, which commit. The runner has said all of that on every run.
+  # --redact keeps the matched value itself out of the output, which is what
+  # makes printing the rest safe in a terminal and a log.
+  native_args="detect --source . --config .gitleaks.toml --no-banner --redact -v"
+  docker_args="detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact -v"
+fi
+
+# The scanner version the runner installs, read from the workflow so there is
+# one place it is written down.
+#
+# It has to be pinned on both sides, and pinning the action does not do it: the
+# action pins the action, and the binary version is a default inside it. Nor is
+# "latest" locally the same thing by another route. The rule set is whichever
+# version runs, because .gitleaks.toml enables the defaults, so two versions are
+# two different scanners. On 2026-09-20 the runner's 8.24.3 reported two
+# findings in a test file that a workstation's 8.30.1 did not, and the first
+# anybody knew of it was a red push.
+#
+# Same shape as the Node check in run_clean_room.sh: read the workflow, and
+# refuse rather than guess if the value is not there.
+PINNED_VERSION="$(grep -m1 'GITLEAKS_VERSION:' "$(dirname "$0")/../../.github/workflows/ci.yml" \
+  | tr -d ' "' | cut -d: -f2)"
+if [ -z "$PINNED_VERSION" ]; then
+  echo "ERROR: no GITLEAKS_VERSION in .github/workflows/ci.yml, so the version the" >&2
+  echo "       runner uses is unknown and this scan cannot claim to match it." >&2
+  exit 1
 fi
 
 rc=0
+native_version=""
 if command -v gitleaks >/dev/null 2>&1; then
+  native_version="$(gitleaks version 2>/dev/null | tr -d 'v[:space:]')"
+fi
+
+if [ -n "$native_version" ] && [ "$native_version" = "$PINNED_VERSION" ]; then
+  echo "  gitleaks ${PINNED_VERSION} (native), matching the runner" >&2
   # shellcheck disable=SC2086
   gitleaks $native_args
   rc=$?
 elif command -v docker >/dev/null 2>&1; then
+  # An installed binary at the wrong version is worse than none: it answers
+  # confidently with a different rule set. Say which one was skipped and why,
+  # rather than quietly preferring the container.
+  if [ -n "$native_version" ]; then
+    echo "  gitleaks ${native_version} is installed; the runner uses ${PINNED_VERSION}." >&2
+    echo "  Using the pinned container instead, so this scan means something." >&2
+  fi
+  echo "  gitleaks ${PINNED_VERSION} (container), matching the runner" >&2
   # shellcheck disable=SC2086
-  docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:latest $docker_args
+  docker run --rm -v "$PWD:/repo" -w /repo "zricethezav/gitleaks:v${PINNED_VERSION}" $docker_args
   rc=$?
+elif [ -n "$native_version" ]; then
+  echo "ERROR: gitleaks ${native_version} is installed but the runner uses ${PINNED_VERSION}," >&2
+  echo "       and docker is not available to supply the pinned build. A scan at a" >&2
+  echo "       different version is not the scan the push gate runs." >&2
+  echo "       Install gitleaks ${PINNED_VERSION}, or start docker." >&2
+  exit 1
 else
   # On the runner the scanner is always present, so its absence there is a broken
   # job rather than a machine without the tool, and must fail rather than skip.

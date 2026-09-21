@@ -105,6 +105,18 @@ const NPM_INTEGRATION_FAILS = `if [ "$1" = run ] && [ "$2" = test:integration ];
 fi
 exit 0`;
 
+/** A violation line, printed first and then buried, the way the convention gate buries its own. */
+const EARLY_MARKER = 'STUB-VIOLATION-PRINTED-EARLY';
+
+/** npm whose integration gate names its problem up front, then emits 200 lines of nothing. */
+const NPM_FAILS_EARLY_THEN_BURIES = `if [ "$1" = run ] && [ "$2" = test:integration ]; then
+  echo "FAIL: ${EARLY_MARKER}"
+  i=1
+  while [ $i -le 200 ]; do echo "check $i passed"; i=$((i + 1)); done
+  exit 1
+fi
+exit 0`;
+
 describe('run_clean_room.sh: a failed gate says why, at the end of the run', () => {
   it('re-shows the failed gate output after the summary, where the outer runner will find it', () => {
     const { status, out } = runCleanRoom(stubBin('fails', NPM_INTEGRATION_FAILS));
@@ -152,5 +164,32 @@ describe('run_clean_room.sh: a failed gate says why, at the end of the run', () 
     // re-show, so the run still carries no recap section.
     expect(out).toContain('CLEAN ROOM SUMMARY');
     expect(out).not.toContain('clean-room failure details');
+  });
+
+  it('reaches a violation the gate printed before burying it under its own output', () => {
+    const { out } = runCleanRoom(stubBin('buried', NPM_FAILS_EARLY_THEN_BURIES));
+
+    const recapAt = out.indexOf('clean-room failure details');
+    expect(recapAt, 'a failed gate must still produce a recap').toBeGreaterThan(-1);
+
+    // The shape the convention gate has in real life: it names each violation
+    // the moment its check finds it, then runs sixty-four more checks that
+    // print nothing but progress. A recap selected by position reaches the
+    // progress and never the violation, which is how a full-run report came to
+    // say a rule had been violated and then show a clean run underneath.
+    expect(
+      out.slice(recapAt),
+      'the recap must select by what the line says, not by where it sat in the log',
+    ).toContain(EARLY_MARKER);
+  });
+
+  it('names the file holding the whole log, since the recap is a selection', () => {
+    const { out } = runCleanRoom(stubBin('names-log', NPM_INTEGRATION_FAILS));
+
+    const recap = out.slice(out.indexOf('clean-room failure details'));
+    // A recap chooses, and a choice can miss. The full output has to outlive
+    // the worktree the trap removes, or a miss costs the reader another run.
+    expect(recap).toContain('full output: ');
+    expect(recap).toContain('integration.log');
   });
 });

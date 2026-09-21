@@ -264,6 +264,28 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
       }
     ]
   })
+
+  # The permitted list replaces the default rather than extending it, so an
+  # address missing from it is not an apply error but an authorisation denial at
+  # the outbox drain, minutes after the sender was told the message went out, and
+  # reported against a recipient identity rather than the sender. These move both
+  # omissions to plan time. They belong here rather than in a test because the
+  # values file is a gitignored symlink into the maintainers' private checkout:
+  # a plan is the only place the real list can be read.
+  lifecycle {
+    precondition {
+      condition     = contains(local.ses_from_addresses, var.ses_sender_identity)
+      error_message = "ses_permitted_from_addresses omits ses_sender_identity (${var.ses_sender_identity}), so the platform's own transactional mail would be refused at the outbox drain. Name the sender in the list, or leave the list empty to fall back to it alone."
+    }
+    precondition {
+      # The address the community announce list is seeded with in
+      # database/schema.sql, which the broadcast service passes through to the
+      # send. Written out rather than derived, because the seed is a literal and
+      # a literal is what has to match it.
+      condition     = contains(local.ses_from_addresses, "announce@footbag.org")
+      error_message = "ses_permitted_from_addresses omits announce@footbag.org, the from address the community announce list is seeded with, so every community announcement would be refused at the outbox drain after the member was told it was sent."
+    }
+  }
 }
 
 # =============================================================================

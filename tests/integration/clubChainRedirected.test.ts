@@ -112,11 +112,22 @@ afterEach(() => {
 interface Entry {
   type: 'file' | 'dir' | 'other';
   size: number;
-  mtimeNs: string;
   sha256: string | null;
 }
 
-/** Recursive fingerprint: path, type, size, mtime in ns, and content hash. */
+/**
+ * Recursive fingerprint: path, type, size, and content hash.
+ *
+ * Modification time was in here and is deliberately out. The claim this guard
+ * makes is that the script under test did not change the committed trees, and
+ * content answers that. Modification time answers a different question, "did
+ * anything at all touch these files", which a checkout, a rebase, a formatter
+ * or an editor saving over an unchanged buffer all answer yes to while the
+ * content is identical. That turned an invariant about the script into one
+ * about everything else happening on the machine. The case it gives up is a
+ * rewrite that restores byte-identical content, which is not a loss worth
+ * having: nothing downstream can tell that apart from no write at all.
+ */
 function fingerprint(root: string): Record<string, Entry> {
   const out: Record<string, Entry> = {};
   if (!existsSync(root)) return out;
@@ -126,17 +137,16 @@ function fingerprint(root: string): Record<string, Entry> {
       const rel = path.relative(root, full);
       const st = lstatSync(full);
       if (st.isDirectory()) {
-        out[rel] = { type: 'dir', size: 0, mtimeNs: String(st.mtimeNs), sha256: null };
+        out[rel] = { type: 'dir', size: 0, sha256: null };
         walk(full);
       } else if (st.isFile()) {
         out[rel] = {
           type: 'file',
           size: st.size,
-          mtimeNs: String(st.mtimeNs),
           sha256: createHash('sha256').update(readFileSync(full)).digest('hex'),
         };
       } else {
-        out[rel] = { type: 'other', size: 0, mtimeNs: String(st.mtimeNs), sha256: null };
+        out[rel] = { type: 'other', size: 0, sha256: null };
       }
     }
   };

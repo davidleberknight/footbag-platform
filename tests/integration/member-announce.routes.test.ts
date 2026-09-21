@@ -8,6 +8,10 @@
  *   - the send rides the same path an administrator's list send takes: one
  *     outbox row per deliverable subscriber to the announce list, on the bulk
  *     stream, from the list's own address
+ *   - that address survives the drain and is the one handed to the sender, which
+ *     is where it has to be right: the send permission is bounded by the From
+ *     address, so a value lost between the row and the send is refused by the
+ *     mail provider after the member has been told the announcement went out
  *   - the record says a member announced to the community, not that an
  *     administrator mailed a list: its own archive type, and the member as actor
  *   - the daily limit answers 429 with Retry-After and sends nothing
@@ -46,6 +50,10 @@ const ANNOUNCE = `/members/${ORG_SLUG}/announce`;
 const PER_DAY = 5;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let getCommunicationService: typeof import('../../src/services/communicationService').getCommunicationService;
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let getStubSesAdapterForTests: typeof import('../../src/adapters/sesAdapter').getStubSesAdapterForTests;
 
 function organizerCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ORGANIZER })}`;
@@ -141,6 +149,10 @@ beforeAll(async () => {
   insertMember(db, { id: ADMIN,     slug: 'an_admin',   login_email: 'an-admin@example.com', is_admin: 1 });
   db.close();
   createApp = await importApp();
+  const commsMod = await import('../../src/services/communicationService');
+  const sesMod = await import('../../src/adapters/sesAdapter');
+  getCommunicationService = commsMod.getCommunicationService;
+  getStubSesAdapterForTests = sesMod.getStubSesAdapterForTests;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -151,6 +163,7 @@ beforeEach(() => {
     db.prepare('DELETE FROM email_archives').run();
     db.prepare('DELETE FROM mailing_list_subscriptions').run();
   });
+  getStubSesAdapterForTests()?.clear();
 });
 
 function seedSubscribers(): void {
@@ -235,6 +248,25 @@ describe('sending an announcement', () => {
     expect(rows[0]!.stream).toBe('bulk');
     expect(rows[0]!.from_identity).toBe('announce@footbag.org');
     expect(rows[0]!.subject).toBe('Worlds is open');
+  });
+
+  it('hands the sender the list address when the queue drains', async () => {
+    seedSubscribers();
+    const token = await formToken();
+
+    await request(createApp())
+      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
+      .send({ subject: 'Worlds is open', bodyText: 'Registration opens Monday.', sendToken: token });
+
+    const drained = await getCommunicationService().processSendQueue();
+    expect(drained.sent).toBe(2);
+
+    const stub = getStubSesAdapterForTests();
+    expect(stub).not.toBeNull();
+    expect(stub!.sentMessages.map((m) => m.from)).toEqual([
+      'announce@footbag.org',
+      'announce@footbag.org',
+    ]);
   });
 
   it('records it as a community announcement made by the member', async () => {

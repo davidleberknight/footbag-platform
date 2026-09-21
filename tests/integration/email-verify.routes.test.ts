@@ -110,14 +110,21 @@ describe('POST /register → check-email + outbox enqueue', () => {
     });
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const rows = db.prepare(
-      `SELECT template_key FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at`,
+      `SELECT template_key FROM outbox_emails WHERE recipient_email = ?`,
     ).all('verify-dup@example.com') as Array<{ template_key: string }>;
     db.close();
     // The first registration enqueued one verification email; the duplicate
     // enqueued an out-of-band account-exists notice (not a second verify link),
     // so the address owner is helped without revealing anything to the submitter.
-    const templates = rows.map((r) => r.template_key);
-    expect(templates).toEqual(['account_verify', 'account_exists_notice']);
+    //
+    // Sorted here rather than ordered by enqueue time. Both rows stamp
+    // created_at to the millisecond and the password hash between them is the
+    // cheap test one, so the two registrations can land inside the same
+    // millisecond, and the tie then breaks either way. Which
+    // mail was enqueued first is not the claim; which two mails exist is. This
+    // case passed alone and failed in the full run while it asserted the order.
+    const templates = rows.map((r) => r.template_key).sort();
+    expect(templates).toEqual(['account_exists_notice', 'account_verify']);
   });
 });
 

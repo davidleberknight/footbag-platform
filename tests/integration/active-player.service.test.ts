@@ -99,6 +99,13 @@ interface ApGrantRow {
   actor_member_id: string | null;
 }
 
+// The three readers below settle a created_at tie on rowid, not on id.
+//
+// Ids here are `prefix_<randomUUID hex>`, so ordering by id after a tie is
+// ordering at random, and these cases index the result by position: two service
+// calls inside one test land in the same millisecond often enough that the rows
+// swap and the assertions invert, passing or failing on the draw. rowid is
+// insertion order and is the only monotonic column these tables carry.
 function apGrants(memberId: string): ApGrantRow[] {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const rows = db
@@ -111,7 +118,7 @@ function apGrants(memberId: string): ApGrantRow[] {
               actor_member_id
        FROM active_player_grants
        WHERE member_id = ?
-       ORDER BY created_at, id`,
+       ORDER BY created_at, rowid`,
     )
     .all(memberId) as ApGrantRow[];
   db.close();
@@ -130,7 +137,7 @@ function vouchRows(targetId: string): Array<{
       `SELECT id, voucher_member_id, reason_text, new_active_player_expires_at
        FROM active_player_vouches
        WHERE target_member_id = ?
-       ORDER BY created_at, id`,
+       ORDER BY created_at, rowid`,
     )
     .all(targetId) as Array<{
       id: string;
@@ -166,7 +173,7 @@ function outboxFor(memberId: string): Array<{
       `SELECT recipient_email, subject, body_text, idempotency_key
        FROM outbox_emails
        WHERE recipient_member_id = ?
-       ORDER BY created_at, id`,
+       ORDER BY created_at, rowid`,
     )
     .all(memberId) as Array<{
       recipient_email: string | null;

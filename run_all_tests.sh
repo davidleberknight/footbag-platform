@@ -6,8 +6,10 @@
 # (vitest), the coverage thresholds, the blocking security probes, the
 # legacy-data pipeline suite (pytest), e2e (Playwright), and terraform
 # fmt/validate. Prints a per-gate pass/fail summary and exits non-zero if any
-# gate fails. Under --full the set of gates matches CI, save for the three CI
-# jobs listed below that cannot run here.
+# gate fails. Under --full the set of gates matches CI, save for the two
+# GitHub-hosted jobs listed below that cannot run here, and with the standing
+# caveat that the dependency audit reads the package registry at the moment it
+# runs rather than at the moment you push.
 #
 # SAFE BY DESIGN — never touches real data:
 #   - It NEVER invokes the loader-pipeline scripts (scripts/reset-local-db.sh,
@@ -271,6 +273,57 @@ fingerprint() {
 }
 declare -A FP_BEFORE=()
 for d in "${REAL_DATA_DIRS[@]}"; do FP_BEFORE["$d"]=$(fingerprint "$d"); done
+
+# -----------------------------------------------------------------------------
+# One-tree guard. A verdict is about a tree, and this run has to be about one.
+#
+# The gates here read the live checkout; the clean-room gate snapshots it when
+# its own turn starts, an hour in. So a tree edited while the run is in flight
+# is not one subject with several opinions, it is several subjects, and the
+# summary presents the last one as though it spoke for all of them. That is not
+# hypothetical: a run on 2026-09-21 reported on at least three trees, and the
+# convention gate it declared failed passed cleanly against the tree the reader
+# was looking at by the time they read it. An hour was spent on the difference.
+#
+# Asked of git rather than of the filesystem, and by content rather than by
+# modification time: what is compared is the commit this tree would produce.
+# Saving a file without changing it is not a different subject. Build output and
+# anything else ignored is excluded for the same reason, so a gate writing into
+# dist/ or a coverage directory cannot void its own run.
+# -----------------------------------------------------------------------------
+source_tree_state() {
+  {
+    git rev-parse HEAD 2>/dev/null || echo "no-head"
+    git diff --binary HEAD 2>/dev/null || true
+    git ls-files --others --exclude-standard -z 2>/dev/null \
+      | xargs -0 -r sha256sum 2>/dev/null || true
+  } | sha256sum | cut -d' ' -f1
+}
+SOURCE_TREE_BEFORE="$(source_tree_state)"
+SOURCE_TREE_LIST_BEFORE="$(git status --porcelain 2>/dev/null || true)"
+
+assert_source_tree_unchanged() {
+  local now
+  now="$(source_tree_state)"
+  [[ "$now" == "$SOURCE_TREE_BEFORE" ]] && return 0
+
+  echo "" >&2
+  echo "==============================================" >&2
+  echo " VERDICT VOID: the tree changed while this run was in flight" >&2
+  echo "==============================================" >&2
+  echo "  Not every gate above read the same source, so together they describe" >&2
+  echo "  no single commit and cannot tell you whether a push will pass. The" >&2
+  echo "  individual results are still true of whatever each gate happened to" >&2
+  echo "  read; the verdict over them is not." >&2
+  echo "" >&2
+  echo "  What differs, start of run against now:" >&2
+  diff <(printf '%s\n' "$SOURCE_TREE_LIST_BEFORE") \
+       <(git status --porcelain 2>/dev/null || true) >&2 || true
+  echo "" >&2
+  echo "  A file whose content came back to where it started is not reported" >&2
+  echo "  here and does not void the run. Re-run with the tree held still." >&2
+  return 1
+}
 
 assert_real_data_untouched() {
   local changed=0 d now
@@ -894,6 +947,15 @@ fi
 summarize
 dump_failures
 assert_real_data_untouched
+
+# After the table and the failure output, for the same reason the real-data
+# guard runs there: this ends the run, and ending it before the reader has the
+# per-gate results would throw away an hour of work over a condition that says
+# nothing about any individual gate. Before the verdict, though, because that is
+# exactly what it invalidates.
+if ! assert_source_tree_unchanged; then
+  exit 4
+fi
 
 if (( ANY_FAIL == 1 )); then
   echo "→ run_all_tests.sh: one or more gates FAILED." >&2

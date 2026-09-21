@@ -10,7 +10,8 @@
  * against a constant dummy hash. Both branches now incur argon2 cost.
  *
  * This test asserts a behavioural floor with no fixed millisecond constant:
- * one argon2 verify is measured in this process as a baseline, and both
+ * one argon2 verify is measured in this process as a baseline, interleaved
+ * with the logins it gates so both are timed under the same load, and both
  * branches must cost at least three quarters of it, so the floor scales with
  * the machine and with whatever else the suite is running beside it. The
  * absent-email branch must also stay in the same order of magnitude as the
@@ -46,7 +47,9 @@ const WRONG_PASSWORD = 'definitely-not-the-real-password';
 const KNOWN_PASSWORD = 'CorrectPassword123!';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
-let argonBaselineMs: number;
+// Hashed once in the setup hook and verified against inside each test's own
+// sampling loop. Building it is not the measurement; only the verify is.
+let argonProbe: string;
 
 // Every duration here comes from the monotonic clock rather than the wall
 // clock. Both the baseline and the login timings are elapsed intervals, and a
@@ -58,19 +61,26 @@ function elapsedMsSince(start: number): number {
   return performance.now() - start;
 }
 
-// The floor, measured rather than hardcoded: one argon2 verify at the cost
-// the login path pays, timed in this process under whatever load the run
-// has. A constant would be a statement about the author's machine.
-async function measureArgonBaselineMs(): Promise<number> {
-  const probe = await argon2.hash('baseline-probe');
-  const samples: number[] = [];
-  for (let i = 0; i < 3; i += 1) {
-    const start = performance.now();
-    await argon2.verify(probe, 'wrong-password');
-    samples.push(elapsedMsSince(start));
-  }
-  samples.sort((a, b) => a - b);
-  return samples[1];
+// The floor, measured rather than hardcoded: one argon2 verify at the cost the
+// login path pays. A constant would be a statement about the author's machine.
+//
+// Measured beside the samples it gates, never once up front. A baseline taken
+// in the setup hook is a reading of the most contended moment of the run, when
+// every other file in the tier is importing, while the logins it is compared
+// against are timed later under whatever load remains. Nothing in the code has
+// to be wrong for the two to disagree: this file failed at an absent-email
+// median of 131.9 ms against a 203 ms baseline while both branches were doing
+// identical work. Interleaving the two puts them under the same load, so the
+// comparison is about the code again.
+async function timeOneArgonVerify(probe: string): Promise<number> {
+  const start = performance.now();
+  await argon2.verify(probe, 'wrong-password');
+  return elapsedMsSince(start);
+}
+
+function median(samples: number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
 }
 
 beforeAll(async () => {
@@ -91,7 +101,7 @@ beforeAll(async () => {
     config.useCheapPasswordHash,
     'precondition: this file must run at production argon2 cost, or the absent-email floor means nothing',
   ).toBe(false);
-  argonBaselineMs = await measureArgonBaselineMs();
+  argonProbe = await argon2.hash('baseline-probe');
 }, 30000);
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -111,14 +121,23 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     // Warm-up call to amortise module load / lazy adapter init.
     await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
 
-    const absentTime = await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
+    // One bare verify per absent-email login, alternated, so both medians come
+    // out of the same stretch of wall clock and the same machine load.
+    const baselineSamples: number[] = [];
+    const absentSamples: number[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      baselineSamples.push(await timeOneArgonVerify(argonProbe));
+      absentSamples.push(await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD));
+    }
+    const baseline = median(baselineSamples);
+
     // Floor: a login that bypasses argon2 pays only the HTTP round trip, while
     // one that does the work pays that plus a full verify, so three quarters of
     // the measured baseline sits between the two outcomes at any load.
     expect(
-      absentTime,
-      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs.toFixed(0)} ms)`,
-    ).toBeGreaterThan((argonBaselineMs * 3) / 4);
+      median(absentSamples),
+      `absent-email login must pay argon2 cost (baseline ${baseline.toFixed(0)} ms)`,
+    ).toBeGreaterThan((baseline * 3) / 4);
   });
 
   it('absent-email and present-email-wrong-password login wall-clock are in the same order of magnitude', async () => {
@@ -126,28 +145,32 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     await timeLogin(KNOWN_EMAIL, WRONG_PASSWORD);
     await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
 
-    // Sample N times for each path, take median to dampen jitter.
+    // Sample N times for each path, take median to dampen jitter. The bare
+    // verify is sampled in the same rotation for the reason given on
+    // timeOneArgonVerify: a floor measured in a different stretch of time from
+    // the thing it gates is a reading of the load, not of the code.
     const N = 3;
+    const baselineSamples: number[] = [];
     const presentSamples: number[] = [];
     const absentSamples: number[] = [];
     for (let i = 0; i < N; i += 1) {
+      baselineSamples.push(await timeOneArgonVerify(argonProbe));
       presentSamples.push(await timeLogin(KNOWN_EMAIL, WRONG_PASSWORD));
       absentSamples.push(await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD));
     }
-    presentSamples.sort((a, b) => a - b);
-    absentSamples.sort((a, b) => a - b);
-    const presentMedian = presentSamples[Math.floor(N / 2)];
-    const absentMedian  = absentSamples[Math.floor(N / 2)];
+    const baseline      = median(baselineSamples);
+    const presentMedian = median(presentSamples);
+    const absentMedian  = median(absentSamples);
 
     // Both medians sit above the same measured floor as the case above.
     expect(
       presentMedian,
-      `present-email login must pay argon2 cost (baseline ${argonBaselineMs.toFixed(0)} ms)`,
-    ).toBeGreaterThan((argonBaselineMs * 3) / 4);
+      `present-email login must pay argon2 cost (baseline ${baseline.toFixed(0)} ms)`,
+    ).toBeGreaterThan((baseline * 3) / 4);
     expect(
       absentMedian,
-      `absent-email login must pay argon2 cost (baseline ${argonBaselineMs.toFixed(0)} ms)`,
-    ).toBeGreaterThan((argonBaselineMs * 3) / 4);
+      `absent-email login must pay argon2 cost (baseline ${baseline.toFixed(0)} ms)`,
+    ).toBeGreaterThan((baseline * 3) / 4);
 
     // Ratio bound: neither path should be >4x the other. Generous tolerance
     // accommodates CI jitter; tightening risks flake. The bug would push

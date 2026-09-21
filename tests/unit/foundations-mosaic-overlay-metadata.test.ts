@@ -14,17 +14,22 @@
  * source video files themselves are immutable and are not read here.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { committedBasenames } from '../fixtures/committedFiles';
 import { requireToolInCI } from '../fixtures/toolAvailability';
 import { join } from 'node:path';
 import { TRICKS_MOSAIC } from '../../src/content/freestyleTricksMosaic';
 
 const SITE_DIR = join(process.cwd(), 'curated/site');
-const sidecars = readdirSync(SITE_DIR).filter((f) => /^mosaic-.*\.meta\.json$/.test(f));
-const clips = readdirSync(SITE_DIR).filter((f) => /^mosaic-.*\.mp4$/.test(f));
+
+// Asked of git, not of the directory: the claim is about the twelve committed
+// clips, and the count below would otherwise fail on any stray matching file.
+const siteFiles = committedBasenames('curated/site');
+const sidecars = siteFiles.filter((f) => /^mosaic-.*\.meta\.json$/.test(f));
+const clips = siteFiles.filter((f) => /^mosaic-.*\.mp4$/.test(f));
 
 const ffprobeAvailable = requireToolInCI('ffprobe');
 

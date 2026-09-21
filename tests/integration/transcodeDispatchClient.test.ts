@@ -59,7 +59,11 @@ describe('transcode dispatch push', () => {
     answerImmediatelyWith = null;
     const DISPATCH_TIMEOUT_MS = 150;
     const client = createTranscodeDispatchClient({ timeoutMs: DISPATCH_TIMEOUT_MS });
-    const started = Date.now();
+    // Monotonic: this is an elapsed interval, and a wall clock is free to jump.
+    // A host that steps its time inside the interval hands back a duration
+    // short by that step, or a negative one, and the failure that arrives says
+    // the dispatcher waited too long when it did nothing of the sort.
+    const started = performance.now();
 
     await expect(client.dispatch('mediajob_wedged'))
       .rejects.toThrow(new RegExp(`timed out after ${DISPATCH_TIMEOUT_MS}ms`));
@@ -68,7 +72,7 @@ describe('transcode dispatch push', () => {
     // timeout rather than a fixed millisecond figure, so it states that
     // relationship instead of how fast the machine that wrote it happened to be,
     // and it follows the budget if the budget ever moves.
-    expect(Date.now() - started).toBeLessThan(DISPATCH_TIMEOUT_MS * 20);
+    expect(performance.now() - started).toBeLessThan(DISPATCH_TIMEOUT_MS * 20);
   });
 
   it('raises the timeout as a dispatch failure, so the caller handles it like any other', async () => {

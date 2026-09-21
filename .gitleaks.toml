@@ -32,4 +32,21 @@ regexes = [
   '''(sk_test|whsec)_synthetic\d+''',
   # Doc prose: a parameter name followed by '=' is not a key value.
   '''thumbnail_url=''',
+  # Synthetic AWS-key-shaped literals in the operator-script tests, by the same
+  # reasoning as the Stripe entry above: the bodies are fixed and obviously
+  # fake. Two are Amazon's own documented example keys, two spell EXAMPLE
+  # twice, and one is a zero-filled placeholder naming its role.
+  #
+  # Listed as exact bodies rather than as a path rule over tests/, deliberately.
+  # A path rule would stop the scanner looking at those files at all, and a real
+  # key pasted into one of them is exactly the accident worth catching there: a
+  # push on 2026-09-20 went red on two of these very lines, which is the system
+  # working. A real key cannot match any of these, because a real key's body is
+  # random and these five are not.
+  #
+  # Anything AWS-shaped that is not one of these five is a finding to triage.
+  # Adding a sixth synthetic key means adding it here on purpose.
+  # AKIA is a long-lived access key id, ASIA a temporary session one. Both
+  # prefixes appear in these tests and both are matched by the same rule.
+  '''(AKIA|ASIA)(IOSFODNN7EXAMPLE|I44QH8DHBEXAMPLE|EXAMPLEEXAMPLE[0-9]{2}|EXISTINGKEY0+)''',
 ]

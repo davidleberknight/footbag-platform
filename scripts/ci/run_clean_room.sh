@@ -35,8 +35,22 @@
 # WHAT IT CANNOT COVER.
 #
 # Two jobs are GitHub-hosted and have no local form at all: the CodeQL analysis
-# and the pull-request dependency review. Those are named in the summary every
-# run, so the residue is never silently forgotten.
+# and the pull-request dependency review.
+#
+# Five more have a local form that this room does not run: the secret scan, the
+# coverage thresholds, terraform, the browser suite and the security probes.
+# They belong to `./run_all_tests.sh --full`, which is the command that stands
+# for the push gate; this room is the isolation gate inside it and its value is
+# the empty home and the committed-only tree, not breadth. The distinction
+# matters because this script used to close by saying the runner saw the same
+# tree in the same conditions, which was a claim about all of CI made by
+# something running two thirds of it.
+#
+# And the dependency audit reads the registry at the moment it runs, so even
+# where it does run, a verdict from an hour ago is not a verdict about the push.
+#
+# All of it is printed in the summary every run, so the residue is never
+# silently forgotten.
 #
 # And configuration the machine holds outside the home directory. An empty HOME
 # does not deny the SSH client's system-wide config, so `ssh -G` resolves the
@@ -82,6 +96,11 @@ git rev-parse --git-dir >/dev/null 2>&1 || {
 # were resolved against. A different one here makes the answer this gate gives
 # about the runner worthless, so it refuses instead of reporting a result it
 # cannot stand behind.
+# Majors, because a major is all the workflow declares. Comparing exactly would
+# mean pinning an exact version there and bumping it on every Node release, for
+# a divergence that has never produced a failure here; and comparing exactly
+# against a declaration that is only a major would be comparing against a number
+# nobody wrote down. This is the ceiling the workflow permits, not an oversight.
 CI_NODE_MAJOR="$(grep -m1 "node-version:" .github/workflows/ci.yml | tr -dc '0-9')"
 LOCAL_NODE_MAJOR="$(node -v | tr -dc '0-9.' | cut -d. -f1)"
 if [[ -z "$CI_NODE_MAJOR" ]]; then
@@ -105,9 +124,17 @@ WORK_DIR="$(mktemp -d /tmp/footbag-clean-room.XXXXXX)"
 TREE="${WORK_DIR}/tree"
 CLEAN_HOME="${WORK_DIR}/home"
 # Per-gate output is captured here so a failed gate can be re-shown at the end.
-# Inside WORK_DIR, so the same trap that removes the worktree removes it too and
-# nothing of a run survives it.
-GATE_LOG_DIR="${WORK_DIR}/gate-logs"
+#
+# Deliberately OUTSIDE WORK_DIR, which the trap removes. A gate's full output is
+# the only thing that can answer why it failed, and the recap below is a
+# summary by construction: it selects, and a selection that turned out to be the
+# wrong one used to leave the reader with nothing at all, because the evidence
+# went with the worktree the moment the run ended. The whole log now outlives
+# the run and the path is printed, so the recap can be an aid rather than the
+# last copy. One run's worth is kept: the directory is emptied at the start of
+# each run, so this never grows and never becomes something to tidy.
+GATE_LOG_DIR="${TMPDIR:-/tmp}/footbag-clean-room-last"
+rm -rf "$GATE_LOG_DIR"
 mkdir -p "$CLEAN_HOME" "$GATE_LOG_DIR"
 
 cleanup() {
@@ -173,6 +200,41 @@ unrun() {
   ANY_UNRUN=1
 }
 
+# What a failed gate's log is reduced to at the end of the run.
+#
+# A blind tail was the wrong selection, and had been for as long as it existed.
+# The convention gate is the worked example: it prints each violation the moment
+# its check finds it, keeps going through all sixty-five checks, and names only
+# the rule at the end. Its evidence therefore sits thousands of lines above any
+# tail, and a reader was handed the last sixty lines of later checks passing,
+# under a heading saying a rule had been violated. That is not a report anyone
+# can act on, and it is the shape every gate that fails early shares.
+#
+# So the selection is by grammar rather than by position: the lines that say
+# something failed, wherever in the log they appeared, followed by the tail,
+# which is the context a bare grep throws away. Both are bounded, and the full
+# log is named underneath, so a selection that misses costs a scroll rather than
+# another hour.
+#
+# The `|| true` on the pipeline is load-bearing under `pipefail`: grep exits
+# non-zero when it matches nothing, and head closing the pipe early can leave
+# grep dead of SIGPIPE, either of which would otherwise end the run here, inside
+# the reporting, at the one moment the reader most needs output.
+FAILURE_GRAMMAR='FAIL|FAILED|ERROR|Error:|error TS[0-9]|AssertionError|Traceback|✕|✗|violat|REFUSED|not ok'
+
+recap_gate_log() {
+  local log="$1" hits total
+  hits="$(grep -nE "$FAILURE_GRAMMAR" "$log" | head -n 40 || true)"
+  if [[ -n "$hits" ]]; then
+    total="$(grep -cE "$FAILURE_GRAMMAR" "$log" || true)"
+    echo "  lines naming a failure (${total:-0} in the log, first 40, numbered into it):"
+    printf '%s\n' "$hits" | sed 's/^/    /'
+    echo ""
+  fi
+  echo "  last 20 lines:"
+  tail -n 20 "$log" | sed 's/^/    /'
+}
+
 gate() {
   local name="$1"; shift
   echo ""
@@ -220,7 +282,37 @@ PY_READY=0
 # will not build — a five-second fix and a real problem read identically. The log
 # lives under WORK_DIR, which the trap removes, so it is shown here or nowhere.
 PY_SETUP_LOG="${WORK_DIR}/python-setup.log"
-if command -v python3 >/dev/null 2>&1 && python3 -m venv "${WORK_DIR}/venv" >"$PY_SETUP_LOG" 2>&1; then
+
+# The interpreter the runner pins, not whichever python3 this machine has.
+#
+# Every Python job in the workflow sets a version; this read is the same shape
+# as the Node one above, from the same file, so the two cannot drift. The
+# difference is what happens on a mismatch: Node is refused outright, because a
+# suite built against another major is not a prediction at all, while an absent
+# pinned Python leaves the Python gates recorded as NOT RUN and the run ending
+# INCOMPLETE. That is the honest answer and not a hard stop, because a
+# workstation carrying only a newer interpreter can still get a true verdict on
+# everything else, and blocking the whole room over it would teach people to
+# reach for a flag that skips this.
+#
+# Concretely, and this is not hypothetical: the workflow pins 3.11, this
+# machine runs 3.12, and until now the room quietly built its virtual
+# environment from whichever it found. Anything valid in 3.12 and not in 3.11
+# passed here and failed there.
+CI_PYTHON="$(grep -m1 'python-version:' .github/workflows/ci.yml | tr -d " '\"" | cut -d: -f2)"
+if [[ -z "$CI_PYTHON" ]]; then
+  echo "ERROR: could not read python-version from .github/workflows/ci.yml." >&2
+  exit 1
+fi
+PY_BIN="python${CI_PYTHON}"
+if ! command -v "$PY_BIN" >/dev/null 2>&1; then
+  echo "→ the runner pins Python ${CI_PYTHON} and this machine has no ${PY_BIN} on PATH."
+  echo "  The Python gates will report NOT RUN rather than answer with a different"
+  echo "  interpreter. Install ${PY_BIN} to close them."
+  PY_BIN=""
+fi
+
+if [[ -n "$PY_BIN" ]] && "$PY_BIN" -m venv "${WORK_DIR}/venv" >"$PY_SETUP_LOG" 2>&1; then
   echo "→ installing the pinned Python requirements"
   if ( cd "$TREE" && clean_env PIP_CACHE_DIR="${HOME}/.cache/pip" \
          "${WORK_DIR}/venv/bin/pip" install -q -r legacy_data/requirements.txt ) >>"$PY_SETUP_LOG" 2>&1; then
@@ -296,9 +388,25 @@ for i in "${!GATE_NAMES[@]}"; do
   printf '  %-18s %s\n' "${GATE_NAMES[$i]}" "${GATE_RESULTS[$i]}"
 done
 echo "=============================================="
-echo "  Not covered here, and only ever on GitHub:"
+echo "  NOT PROVEN BY THIS RUN"
+echo ""
+echo "  Never provable here:"
 echo "    codeql              static analysis, GitHub-hosted"
 echo "    dependency-review   pull-request only, GitHub-hosted"
+echo "    dependency-audit    reads registry state at push time, not now"
+echo ""
+echo "  Carried by ./run_all_tests.sh --full, not by this room:"
+echo "    secret-scan  coverage  terraform  e2e  security-probes"
+echo ""
+echo "  This machine's, not the runner's:"
+echo "    ffmpeg  $(ffmpeg -version 2>/dev/null | head -1 | cut -d' ' -f3 || echo absent)"
+echo "    sqlite3 $(sqlite3 --version 2>/dev/null | cut -d' ' -f1 || echo absent)"
+echo "    The runner image ships its own; a test that reads one of these is"
+echo "    answered here by the version above and there by a different one."
+echo ""
+echo "  One order, not every order:"
+echo "    files were shuffled from a seed, printed by the vitest tiers above."
+echo "    Green here is green for that order."
 echo "=============================================="
 
 # Re-show the tail of every failed gate. Its output did stream past live, but by
@@ -312,17 +420,21 @@ echo "=============================================="
 if (( ${#FAIL_LOGS[@]} > 0 )); then
   echo ""
   echo "=============================================="
-  echo " clean-room failure details (${#FAIL_LOGS[@]} gate(s); last 60 lines each)"
+  echo " clean-room failure details (${#FAIL_LOGS[@]} gate(s))"
   echo "=============================================="
   for name in "${FAIL_LOGS[@]}"; do
     echo ""
     echo "──── clean-room:${name} ────"
-    if [[ -s "${GATE_LOG_DIR}/${name}.log" ]]; then
-      tail -n 60 "${GATE_LOG_DIR}/${name}.log"
+    log="${GATE_LOG_DIR}/${name}.log"
+    if [[ -s "$log" ]]; then
+      recap_gate_log "$log"
+      echo "  full output: ${log}"
     else
       echo "  (no captured output)"
     fi
   done
+  echo "=============================================="
+  echo " Every gate's full output, passing or failing: ${GATE_LOG_DIR}/"
   echo "=============================================="
 fi
 
@@ -335,4 +447,6 @@ if (( ANY_UNRUN )); then
   echo "so this run does not speak for them. Close them or accept a narrower answer." >&2
   exit 77
 fi
-echo "Clean room green. The runner sees the same tree in the same conditions."
+echo "Clean room green: every gate it ran passed, in an empty home with no"
+echo "inherited shell state and only committed material on disk. Read that"
+echo "against the block above, which says what it did not run."

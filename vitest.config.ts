@@ -38,6 +38,25 @@ const envWorkerCap = process.env.VITEST_MAX_FORKS
   : null;
 const workerCap = envWorkerCap ?? (ramBound ? memWorkerCap : null);
 
+// File order is an input to the suite, and until now it was an accidental one.
+// Vitest orders files by its cached durations when that cache exists and by file
+// size when it does not, so this machine (which has the cache) runs a different
+// order from a fresh install, which is what the runner and the clean room both
+// are. An order dependence therefore cannot be found here and is found on the
+// push instead. Shuffling makes it findable; seeding makes a red reproducible.
+//
+// Files only, never the cases inside one: a suite that builds state across its
+// own `it` blocks is an ordinary shape here, and shuffling within a file would
+// break working suites instead of exposing broken ones.
+//
+// The seed is printed on every run and honoured from VITEST_SEED, so reproducing
+// a failure is copying one number back. A fixed seed is the whole point of the
+// variable; do not read it as a way to switch the shuffle off.
+const seed = process.env.VITEST_SEED
+  ? Number.parseInt(process.env.VITEST_SEED, 10)
+  : Date.now() % 1_000_000;
+console.log(`[vitest] file order seed ${seed} (VITEST_SEED=${seed} to reproduce)`);
+
 export default defineConfig({
   test: {
     // Per-test ceiling with headroom for a slow or loaded box: the deploy
@@ -55,7 +74,20 @@ export default defineConfig({
     // such lifecycle. Each worker still gets its own module registry, so the
     // per-file env isolation the integration suites rely on is unchanged.
     pool: 'threads' as const,
+    // Vitest's default, declared rather than inherited, because forty test
+    // files depend on it and none of them says so. Each assigns process.env at
+    // module scope and never puts it back: production argon2 cost, a live SES
+    // adapter, FOOTBAG_ENV=production, a one-megabyte video cap, media
+    // directories pointing into trees the file deletes afterwards. Isolation is
+    // the only reason those stay inside the file that set them, because the
+    // defaults below are all `??=`, which is a default and not a reset, and
+    // would decline to correct an inherited value. Turning this off to buy
+    // speed would leak all forty into whatever ran next, silently and according
+    // to file order. Measured, not assumed: with isolation off, a value one
+    // file sets is visible to the next; with it on, it is not.
+    isolate: true,
     ...(workerCap ? { maxWorkers: workerCap } : {}),
+    sequence: { shuffle: { files: true, tests: false }, seed },
     // Proof, inside the worker, that this file is the config in force. A run
     // that resolves some other config, or none, silently takes vitest's own
     // defaults for every value above, and the first symptom is a timeout at a

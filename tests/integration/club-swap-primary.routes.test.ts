@@ -106,10 +106,15 @@ describe('swapping the primary club', () => {
   it('records each swap with the club it moved from and to', () => {
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
+      // rowid, not id, settles a created_at tie: audit ids are
+      // `prefix_<randomUUID hex>`, so ordering by id after a tie is ordering at
+      // random. Three route calls in one test collide on the millisecond
+      // readily, and the case below reads rows[0] by position, so the draw
+      // would decide the verdict. rowid is insertion order.
       const rows = db.prepare(`
         SELECT metadata_json FROM audit_entries
          WHERE action_type = 'club.primary_swapped' AND actor_member_id = ?
-         ORDER BY created_at ASC, id ASC
+         ORDER BY created_at ASC, rowid ASC
       `).all(MEMBER) as Array<{ metadata_json: string }>;
       expect(rows).toHaveLength(3);
       const first = JSON.parse(rows[0].metadata_json);

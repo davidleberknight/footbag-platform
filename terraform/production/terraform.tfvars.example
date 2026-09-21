@@ -32,6 +32,16 @@ ssh_public_key = "ssh-ed25519 AAAAC3Nza... TODO-your-production-deploy-key"
 # rejected by ses_sender_identity's variable validation in ses.tf.
 ses_sender_identity = "noreply@footbag.org"
 
+# Every From address the runtime role may send as. The list replaces the
+# default rather than extending it, so the sender above has to be named here
+# explicitly, and the community announce list's own from address has to be
+# named beside it or every announcement is refused at the outbox drain. A
+# precondition in iam.tf fails the apply when either is missing.
+ses_permitted_from_addresses = [
+  "noreply@footbag.org",
+  "announce@footbag.org",
+]
+
 # Aggregate-report mailbox for DMARC reports. Receives daily XML summaries
 # of SPF/DKIM pass/fail rates, one per reporting provider. Required: the
 # DMARC record carries this address, and its precondition fails the apply

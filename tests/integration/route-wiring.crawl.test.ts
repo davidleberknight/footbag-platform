@@ -45,6 +45,7 @@ import {
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { committedFiles } from '../fixtures/committedFiles';
 
 const { dbPath } = setTestEnv('3171');
 // Mount the /dev persona harness so its catalog page and switch links are
@@ -470,7 +471,13 @@ describe('route wiring crawl', () => {
 // template so states the crawl never reaches (wizard candidate cards) are covered
 // too.
 const VIEWS_DIR = path.join(process.cwd(), 'src', 'views');
-const ALL_TEMPLATES = fs.globSync('**/*.hbs', { cwd: VIEWS_DIR });
+// Committed templates, not a working-tree glob: the claim is about every
+// template this application ships, and a glob also collects an editor's swap
+// file or a partial someone is part-way through writing, then fails the build
+// on markup that is not in the repository.
+const ALL_TEMPLATES = committedFiles('src/views/**/*.hbs').map((rel) =>
+  path.relative(path.join('src', 'views'), rel),
+);
 
 function normalizeDestination(raw: string): string {
   return raw
