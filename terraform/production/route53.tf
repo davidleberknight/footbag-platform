@@ -49,6 +49,18 @@ output "route53_name_servers" {
   value       = aws_route53_zone.primary.name_servers
 }
 
+# The zone id, for the record-for-record verification that releases the registrar
+# change. That comparison runs in both directions, and DNS cannot answer "what
+# names exist" -- Route 53 refuses a zone transfer -- so the only way to see a
+# name the mirror serves and the capture lacks is to list the record sets, which
+# needs this id. Read from here for the same reason as the nameservers above: a
+# value transcribed from a console screen is a transcription error waiting to
+# happen at the step where one costs the domain.
+output "route53_zone_id" {
+  description = "The production hosted zone id. Pass it to scripts/verify-zone-mirror.sh, which lists the record sets to compare the mirror against the committed capture in both directions."
+  value       = aws_route53_zone.primary.zone_id
+}
+
 # The zone's own apex NS set, declared here for one reason: to lower its TTL.
 #
 # Route 53 creates this record set together with the hosted zone, at a TTL of
@@ -152,20 +164,19 @@ resource "aws_route53_record" "apex_a" {
 # changes, so the flip and its revert are each a single in-place update.
 #
 # The legacy zone reaches www by a CNAME onto the apex, and copying that shape
-# here would make the flip a type change. Type is ForceNew, so Route 53 would
-# have to delete the CNAME and then create the address record as two separate
-# calls -- Route 53 will not hold a CNAME and an address record at one name at
-# the same time -- and between them www does not exist.
+# here would make the flip a type change, because Route 53 will not hold a CNAME
+# and an address record at one name at the same time. The provider submits that
+# as a delete and a create in ONE transactional change batch, so no resolver sees
+# a gap in the ordinary case, and a comment claiming otherwise overstates it.
 #
-# Two exposures, and the second is the serious one. A resolver asking in that gap
-# caches the no-such-name answer for the shorter of the zone's SOA record TTL and
-# its minimum field, which on a Route 53 zone left at its defaults is 900 seconds:
-# fifteen minutes, an order of magnitude longer than the record TTL, so the gap
-# outlives the change that caused it.
-# The unbounded case is an apply that fails between the delete and the create,
-# which leaves the canonical hostname absent until someone notices and re-applies.
-# The rollback is the same change in reverse, so both exposures would land again
-# during an incident, which is when they are least affordable.
+# What it does cost is the failure case, and that is reason enough. An apply that
+# fails partway leaves the canonical hostname absent until someone notices and
+# re-applies, and a resolver asking in that gap caches the no-such-name answer for
+# the shorter of the zone's SOA record TTL and its minimum field -- 900 seconds on
+# a Route 53 zone, fifteen minutes, an order of magnitude longer than the record
+# TTL, so the gap outlives the change that caused it. The rollback is the same
+# change in reverse, so the same exposure lands again during an incident, which is
+# when it is least affordable.
 #
 # An alias avoids both outright, and Route 53 recommends an alias over a CNAME for
 # a name pointing at another record in the same zone anyway. The runbook's own
@@ -378,7 +389,12 @@ resource "aws_route53_record" "www_aaaa" {
 
 # preview.<domain> is the temporary pre-cutover platform hostname: it points
 # the operator at the real distribution for the pre-cutover exercises while
-# the apex and www still serve the legacy site. Verified against the live
+# the apex and www still serve the legacy site. Not every exercise: this name
+# makes the platform reachable, which is the zone's half of what production
+# needs. Anything depending on a published receiving address -- a reply path,
+# the reporting mailbox, the alarm channel -- waits on the apex mail records
+# instead, and those are a separate change on a separate day. Both are required
+# before the site is fully exercisable. Verified against the live
 # zone before creation (the name must have no record of any type there) and
 # retired in a separate later apply, NOT at cutover. Gated separately from the
 # apex flip so it can exist through the whole pre-cutover window and past it:
@@ -481,6 +497,19 @@ resource "aws_route53_record" "origin_caa" {
 # subdomains. A CAA at the apex is inherited by www and archive, and by any
 # subdomain that does not carry its own; origin carries its own, above.
 #
+# What it does NOT do, and the whole namespace argument turns on the difference:
+# it constrains WHICH authority may issue, not WHO may prove control to that
+# authority. The permitted authority accepts proof by mail to five fixed system
+# addresses at the domain -- administrator@, hostmaster@, postmaster@, webmaster@
+# and admin@ -- and strips a leading www, so a request for the canonical host is
+# proved at the apex set. It re-solicits them at renewal as well as at issuance,
+# so control of those mailboxes is a standing capability rather than a one-off.
+# The bound is therefore a PAIR: this record, and IFPA receiving all five of those
+# addresses. Whoever receives one of them can obtain a certificate this record
+# permits, for any name under the domain, and a certificate issued since June 2025
+# exports with its private key. Our own certificates are unaffected: they are
+# issued by DNS validation, which this tree performs in Terraform.
+#
 # That inheritance holds only while no child zone exists. A CA reads the CAA
 # record set at the closest node, so a delegated subzone publishing its own CAA
 # overrides this one entirely and its operator can obtain a publicly trusted
@@ -498,26 +527,27 @@ resource "aws_route53_record" "origin_caa" {
 # declared here changes nothing a resolver sees until the move, and from the move
 # it is in force.
 #
-# It used to wait for the alias flip, which is the last step of the cutover, and
-# that ordering was examined and dropped. What it was avoiding was publishing an
-# Amazon-only policy across the whole zone during the window in which the origin
-# certificate is first obtained from a different authority. That window cannot
-# occur: origin.<domain> carries its own CAA record, created on the same flag as
-# the name itself so no ordering can separate them, and a CAA set at a child node
-# replaces its ancestor's rather than adding to it. The deferral was dissolved
-# when those two records were put on one flag.
+# Landing it with the zone rather than at the alias flip costs nothing and is not
+# a trade. An Amazon-only policy at the apex cannot block the origin name's own
+# issuance from a different authority, because origin.<domain> carries its own CAA
+# on the same flag as the name itself, and a CAA set at a child node replaces its
+# ancestor's rather than adding to it.
 #
-# What deferring cost, against nothing gained: the mirrored legacy names resolve
-# to hosts IFPA does not control and stand until the post-cutover cleanup, which
-# is AFTER the flip. With no CAA published, any of those hosts can answer an
-# HTTP challenge for its own footbag.org name and obtain a publicly trusted
-# certificate from any authority -- and certificate transparency shows that has
-# already happened once for rimu2.footbag.org, in 2015 and 2016. A certificate
-# obtained before this record lands stays valid for its full life, up to 200
-# days under the current maximum, so the window this closes is an opportunity
-# window and closing it late does not shorten the exposure it already allowed.
+# What it buys across that window: the mirrored legacy names resolve to hosts IFPA
+# does not control and stand until the post-cutover cleanup, which is AFTER the
+# flip. This record stops any authority but Amazon's issuing for them, and
+# certificate transparency shows one of them, rimu2.footbag.org, held a
+# certificate from another authority in 2015 and 2016. A certificate obtained
+# before this record lands stays valid for its full life, up to 200 days under the
+# current maximum, so publishing it early closes an opportunity window that
+# publishing it late would not shorten.
 #
-# Checked before moving it, rather than assumed: nothing under the domain holds
+# What it does not buy across that window is the other half of the pair. The five
+# validation addresses reach the legacy host until the apex mail records move, so
+# an issuance proved through one of them is permitted by this record throughout.
+# That half closes on mail day, which the cutover sequence puts before the flip.
+#
+# Checked rather than assumed: nothing under the domain holds
 # a working certificate today, the apex and www refuse port 443 outright, and the
 # four Workspace-served names abort the handshake rather than presenting a
 # Google-issued certificate that this record would refuse to authorise. ACM
@@ -550,13 +580,14 @@ resource "aws_route53_record" "caa" {
 # accepts, and the acceptance is what the decision weighs rather than this file.
 #
 # What it would cost, so the next person does not have to rediscover it: a
-# delegated child publishes its own CAA, which overrides the apex record above
-# and lets its operator obtain a publicly trusted certificate for a footbag.org
-# name from any authority. It publishes its own SPF, DKIM and DMARC, which take
-# precedence over the apex policy, so it can send mail that authenticates as the
-# domain. Browsers offer saved footbag.org credentials on any name under the
-# domain. And the archive's access cookies must carry the parent-domain scope, so
-# any delegated name answering over HTTPS receives a signed-in member's archive
-# credentials. None of that is preventable by agreement with whoever runs it.
+# delegated child publishes its own CAA, which overrides the apex record above and
+# lets its operator obtain a footbag.org certificate from ANY authority, rather
+# than only from the one the apex record names. It publishes its own SPF, DKIM
+# and DMARC, which take precedence over the apex policy, so it can send mail that
+# authenticates as the domain. Browsers offer saved footbag.org credentials on any
+# name under the domain. And the archive's access cookies must carry the
+# parent-domain scope, so any delegated name answering over HTTPS receives a
+# signed-in member's archive credentials. None of that is preventable by
+# agreement with whoever runs it.
 #
 # The governing rule is the Closed Namespace decision in DESIGN_DECISIONS.

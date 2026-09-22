@@ -26,16 +26,21 @@
 # with the most of them. So the listing supplies the names, the queries supply
 # every value, and the comparison runs in both directions.
 #
-# FOUR DELIBERATE DEPARTURES, which are not defects. Two of them are reported in
-# the output, name by name: the apex nameserver set, and www. The other two are
-# dropped during parsing and so never reach a line of the report, which the
+# SIX DELIBERATE DEPARTURES, which are not defects. Three are reported in the
+# output, name by name: the apex nameserver set, the apex certificate-authorisation
+# record, and www. The other three never reach a line of the report, which the
 # summary at the end states rather than leaving the reader to infer. Getting any
-# of the four wrong in either direction is the failure this script exists to
+# of the six wrong in either direction is the failure this script exists to
 # prevent: a real difference dismissed as expected, or an expected one raising an
 # alarm during a cutover window.
 #
 #   The zone's own apex NS set and SOA differ by construction. The legacy zone
 #   advertises its operator's nameservers; the Route 53 copy advertises its own.
+#   The NS set is reported; the SOA is dropped at parse.
+#
+#   The zone's own apex certificate-authorisation record is ungated and lands with
+#   the hosted zone, so it is served here and absent from a capture of another
+#   operator's zone. Reported, from the mirror side.
 #
 #   Every cache lifetime differs, deliberately and downward, so values are
 #   compared and lifetimes are not.
@@ -62,8 +67,11 @@
 #   the zone, and a reader should not expect four lines in the report.
 #
 #   The shape is deliberate: the later flip would otherwise be a type change,
-#   which Route 53 can only do as a delete followed by a create, exposing the
-#   name to a negative cache in between and in any rollback.
+#   which Route 53 does as a delete and a create. The provider submits those in
+#   one transactional batch, so the ordinary case exposes no gap; what it costs
+#   is the failure case, where an apply stopping partway leaves the canonical
+#   hostname absent behind a 900-second negative cache, in the flip and again in
+#   any rollback.
 #
 # Usage:
 #   bash scripts/verify-zone-mirror.sh --capture <zone-file> --nameserver <ns> \
@@ -126,7 +134,11 @@ while [[ $# -gt 0 ]]; do
       shift 2 || { echo "ERROR: --out requires a path" >&2; exit 2; }
       ;;
     --help|-h)
-      sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'
+      # The whole header, found by reading to the first line that is not a
+      # comment rather than by a line number. A fixed range silently stops
+      # printing the tail of the header the moment the header grows past it, and
+      # the tail is where the flags, the exit contract and the test seams are.
+      sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
@@ -499,11 +511,13 @@ done <<< "$CAPTURE_KEYS"
 # The other direction: a name and type the mirror holds that the capture does
 # not. Walking the capture cannot see these by construction, and they are not a
 # theoretical worry -- the production tree declares the preview name, the origin
-# name, the apex and www address records, the certificate-authorisation records
-# and the validation records, none of which appears in a capture of the legacy
-# zone. They are gated off today and several are ON at the moment this gate
-# fires, so the run that releases the registrar change is the run with the most
-# of them.
+# name, the apex and www address records, the apex certificate-authorisation
+# record and the validation records, none of which appears in a capture of the
+# legacy zone. Most sit behind flags that are off at the run releasing the
+# registrar change, so a run that meets one has been run at the wrong moment and
+# should fail here. The apex authorisation record is the exception: it is ungated
+# and lands with the hosted zone, so it is declared as a departure below rather
+# than reported as a defect.
 #
 # Reported under their own heading rather than as differences. A record the
 # design adds deliberately is not a mirror defect; a record nobody can account
@@ -518,6 +532,17 @@ while IFS=$'\t' read -r name rtype; do
   # absent there by design, and the explicit check further down is what proves it
   # actually answers rather than merely being declared.
   if [[ "$rtype" == "SOA" ]] || [[ "$rtype" == "NS" && "$name" == "$APEX" ]]; then
+    continue
+  fi
+  # The apex certificate-authorisation record is the zone's own and is ungated: it
+  # lands with the hosted zone, so it is present here and absent from a capture of
+  # another operator's zone by construction, exactly as the apex nameserver set
+  # is. Reported by name rather than passed over silently, because an expected
+  # departure nobody can see in the report is indistinguishable from one the
+  # script failed to notice.
+  if [[ "$rtype" == "CAA" && "$name" == "$APEX" ]]; then
+    expected=$((expected + 1))
+    add_line "EXPECTED  ${name} ${rtype}  the zone publishes its own issuance authorisation"
     continue
   fi
   if [[ "$name" == "www.${APEX}" && ( "$rtype" == "A" || "$rtype" == "AAAA" ) ]]; then

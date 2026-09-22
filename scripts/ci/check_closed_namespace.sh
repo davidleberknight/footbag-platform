@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Closed-namespace gate. The design rules that from go-live the served set under
 # the domain is the apex, www and the archive, and that no subzone is delegated
-# to a third party. It also requires that the absence be ASSERTED rather than
-# left to convention, and this is that assertion. Until it existed, the only
-# thing standing between the zone and a delegated child was a comment in
-# route53.tf: adding an NS record set passed every gate in the tree.
+# to a third party. The platform's own preview and origin names are served from
+# the zone too; they are IFPA-operated, not delegations, and are outside what this
+# gate is about. The design also requires that the absence of a delegation be
+# ASSERTED rather than left to convention, and this is that assertion: without it
+# nothing but a comment in route53.tf stands between the zone and a delegated
+# child.
 #
 # Why the namespace rather than the arrangement. Certificate authorisation is
-# read at the closest node, so a delegated child publishing its own CAA can
-# obtain a publicly trusted certificate for a name under this domain. Relaxed
+# read at the closest node, so a delegated child publishing its own CAA overrides
+# the apex record for its whole subtree and can obtain a certificate for a name
+# under this domain from ANY authority, rather than only from the one the apex
+# record names. Relaxed
 # DMARC alignment lets a child that publishes its own sender policy send mail
 # that authenticates as the domain. The archive's access cookies are scoped to
 # the whole domain, because CloudFront requires it, and cookie matching is
@@ -27,9 +31,11 @@
 # to lower its TTL.
 #
 # A delegated child IS permitted BEFORE go-live, as a migration bridge, by the
-# same decision that closes the namespace after it. That permission ends at
-# launch. Honouring it is therefore a deliberate act: change this gate and
-# record why, rather than working around it.
+# same decision that closes the namespace after it. That bridge permission ends
+# at launch. It is not the only route: the same decision allows a name to survive
+# go-live on a technical reason given in writing, with merit, that IFPA accepts,
+# with the risks stated and explicitly accepted. Either way honouring it is a
+# deliberate act: change this gate and record why, rather than working around it.
 
 set -euo pipefail
 
@@ -116,8 +122,9 @@ while IFS= read -r tf; do
     }
 
     # A child hosted zone delegates just as surely as an NS record set does, and
-    # it additionally breaks the apex authorisation record, which is inherited
-    # only while no child zone exists.
+    # it additionally breaks the apex authorisation record, whose reach over the
+    # subtree holds only while no child zone exists. The child publishes its own,
+    # and any authority may then issue for a name beneath it.
     line ~ /^resource[[:space:]]+"aws_route53_zone"/ {
       inblock = 1; kind = "zone"; depth = 0; dvo = 0; name = ""; type = ""; recs = ""
       label = $3; gsub(/"/, "", label)
@@ -180,7 +187,7 @@ while IFS= read -r tf; do
       case "$name" in
         'var.domain_name'|'"${var.domain_name}"'|'local.zone_name'|'local.domain_name') ;;
         *)
-          violations="${violations}${file}: hosted zone '${label}' is declared for ${name}. A child zone is a delegation, and it breaks the apex CAA record, which is authoritative for the whole domain only while no child zone exists."$'\n'
+          violations="${violations}${file}: hosted zone '${label}' is declared for ${name}. A child zone is a delegation, and it breaks the apex CAA record, whose reach over the subtree holds only while no child zone exists: the child publishes its own, and any authority may then issue for a name beneath it."$'\n'
           ;;
       esac
       continue

@@ -5,7 +5,7 @@
 # two different days:
 #
 # 1. Email identity (`aws_ses_email_identity.sender`).
-#    Sufficient for SES sandbox sending. Operator supplies the verified
+#    Sufficient for sending on its own. Operator supplies the verified
 #    address in terraform.tfvars; SES emails a verification click-link to
 #    that address after first apply. It exists only while
 #    var.ses_enable_domain_auth is false: once the domain identity is in
@@ -15,7 +15,13 @@
 # 2. Domain identity + DKIM (var.ses_enable_domain_auth) go in first. They
 #    are invisible to whoever currently holds the domain's mail: nothing at
 #    the apex changes, so SES domain verification and the production-access
-#    request can complete well ahead of any mail move.
+#    request complete ahead of the mail move rather than waiting on it.
+#
+#    That is a statement about which records this flag writes, not about
+#    whether the mail move is required. It is: the site is not fully
+#    functional until the apex mail records are IFPA's, because they gate
+#    every address it publishes to receive on. The two are needed together
+#    and changed separately, which is why they land on different days.
 #
 #    This once said to flip the flag while the application still ran the
 #    stub adapter, so the identity swap could not interrupt live sending.
@@ -126,9 +132,12 @@ variable "ses_enable_mail_records" {
     DMARC record, the custom MAIL FROM subdomain records and the Workspace
     signing key when one is supplied, and repoints the apex MX to Google in
     the same apply. Flip it only once every published address is provisioned
-    on Google and Gmail has served the domain long enough for the signing key
-    to exist, because the repoint sends live inbound delivery there
-    immediately. Requires ses_enable_domain_auth to be true.
+    on Google, because the repoint sends live inbound delivery there
+    immediately, and only once the Workspace signing key is in hand: Google
+    will not issue it until 24 to 72 hours after Gmail is turned on, measured
+    from that console action and not from this repoint, so the domain is added
+    and Gmail enabled at least three days ahead. Requires ses_enable_domain_auth
+    to be true.
   EOT
   type        = bool
   default     = false

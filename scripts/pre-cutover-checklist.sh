@@ -336,9 +336,23 @@ else
   run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --phase handover
 fi
 
-# NOTE: the email-day MX and apex-TXT TTL is a separate, earlier shrink on the
-# same zone and is not checked here; the apex MX TTL is a day as served today, so
-# it has to lead the MX flip by at least that.
+# NOTE: the apex MX and TXT lifetimes are not checked here and need no separate
+# shrink step. The Terraform mirror publishes them at an hour and ten minutes
+# from the moment delegation lands, so the zone move performs the shrink itself.
+
+# 11. Certificate transparency for the domain. The apex authorisation record
+#     limits which authority may issue; it does not limit who may prove control
+#     to that authority, and the five addresses that authority accepts as proof
+#     reach the outgoing operator's host until the apex mail records move. So for
+#     that window the zone cannot tell you whether a certificate exists, and the
+#     public logs are the only place one shows up. Reads and never writes.
+if [[ "${MOCK_AWS}" -eq 1 ]]; then
+  run_step "CERT-TRANSPARENCY" env FOOTBAG_CURL_BIN="${FOOTBAG_CURL_BIN:-curl}" \
+    bash scripts/check-certificate-transparency.sh --domain "${DOMAIN_NAME:-footbag.org}"
+else
+  run_step "CERT-TRANSPARENCY" bash scripts/check-certificate-transparency.sh \
+    --domain "${DOMAIN_NAME:-footbag.org}"
+fi
 
 echo
 echo "=== pre-cutover summary ==="

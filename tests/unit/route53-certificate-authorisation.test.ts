@@ -2,30 +2,35 @@
  * Who may issue a certificate for a name under the domain, and when that becomes
  * true.
  *
- * A certificate-authorisation record is the only control that reaches a name the
- * project does not serve. Roughly forty legacy names are mirrored into the zone
- * and resolve to hosts IFPA does not control, and they stand until the
- * post-cutover cleanup; any of them can answer an HTTP challenge for its own
- * footbag.org name. Certificate transparency shows that has already happened
- * once, for rimu2.footbag.org in 2015 and 2016, under exactly this record shape.
- * With a valid certificate such a host answers over HTTPS under the domain, and
- * the archive's access cookies carry the parent-domain scope by necessity, so
- * they reach it.
+ * A certificate-authorisation record constrains WHICH authority may issue for a
+ * name under the domain. It does not constrain WHO may prove control to that
+ * authority: the permitted authority also accepts proof by mail to five fixed
+ * system addresses at the domain, and strips a leading www so a request for the
+ * canonical host is proved at the apex set. So the record is one half of a pair,
+ * and the other half is IFPA receiving those five addresses. This suite covers
+ * the half that lives in the zone; the address half is a mail-provisioning
+ * contract and is not assertable here.
+ *
+ * Why the half in the zone matters. Roughly forty legacy names are mirrored into
+ * the zone and resolve to hosts IFPA does not control, and they stand until the
+ * post-cutover cleanup. This record stops any authority but the permitted one
+ * issuing for them; certificate transparency shows one of those names held a
+ * certificate from another authority in 2015 and 2016. A host answering over
+ * HTTPS under the domain receives the archive's access cookies, which carry the
+ * parent-domain scope by necessity.
  *
  * Two properties therefore matter here, and neither is visible in a plan:
  *
- * WHEN. The apex record is ungated, so it publishes with the zone. It used to
- * wait for the alias flip, the last step of the cutover, which left the whole
- * pre-launch window with no issuance restriction at all while those names were
- * already resolving. A certificate obtained in that window stays valid for its
- * full life -- up to 200 days under the current maximum -- so closing the window
- * late does not shorten the exposure it already allowed.
+ * WHEN. The apex record is ungated, so it publishes with the zone rather than at
+ * a cutover flag, and is in force from the moment the registrar delegates. A
+ * certificate obtained before it lands stays valid for its full life, up to 200
+ * days under the current maximum, so the window it closes is an opportunity
+ * window: publishing late does not shorten an exposure already allowed.
  *
- * WHAT. Absent an issuewild set, RFC 8659 says the issue set governs wildcard
- * requests too. So a record carrying only an issue line authorises wildcards,
- * and the refusal has to be written rather than omitted. The origin record's own
- * comment claimed the opposite for a while, which is how a record that looks
- * narrower than it is survives review.
+ * WHAT. Absent an issuewild set, the authorisation standard has the issue set
+ * govern wildcard requests too. So a record carrying only an issue line
+ * authorises wildcards, and the refusal has to be written rather than omitted.
+ * That is how a record which looks narrower than it is survives review.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

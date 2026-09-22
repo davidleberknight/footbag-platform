@@ -20,6 +20,8 @@
 
 **better-sqlite3**: Synchronous Node.js library for SQLite providing a simple, high-performance API. Footbag.org uses better-sqlite3 as its only database dependency; it auto-resets prepared statements after execution, supports typed results, and enforces synchronous-only transactions, which aligns with the platform's constraint that transactions cannot span async operations.
 
+**CAA (Certification Authority Authorization)**: A DNS record naming which certificate authorities may issue certificates for a domain. Footbag.org publishes one at the apex permitting only the authority its own certificates come from, plus an explicit refusal of wildcards. It constrains *which* authority may issue, not *who* may prove control to that authority, so it works as one half of a pair with IFPA holding the five system addresses an authority accepts as proof. An authority reads the record set at the closest node in the name tree, so a delegated child publishing its own overrides the parent's for that branch.
+
 **CDN (Content Delivery Network)**: A geographically distributed network of servers that cache and deliver content from locations close to users. CloudFront serves Footbag.org content worldwide, reducing latency and offloading traffic from the origin server.
 
 **CLI (Command Line Interface)**: Text-based interface for interacting with software through typed commands. Developers and administrators use CLI tools to manage Footbag.org infrastructure, run deployments, and execute maintenance tasks.
@@ -48,11 +50,13 @@
 
 **CSV Injection**: Security vulnerability where formulas in CSV files (cells beginning with =, +, -, @) execute when opened in spreadsheet applications, potentially running malicious commands or exfiltrating data. Footbag.org prevents this by scanning event results CSVs for formula indicators and rejecting suspicious uploads.
 
+**Closed namespace**: The rule that from go-live every name under footbag.org is operated by IFPA, with no subzone delegated to a third party. It exists because browsers and mail systems attach credentials and trust by name without regard to who serves the content, so a name IFPA does not control can collect member credentials, receive the archive's access cookies, obtain a certificate under the domain, and send mail that authenticates as the domain. None of that is preventable by agreement with whoever operates the name, which is why the control is the namespace rather than the arrangement.
+
 **Cursor-Based Pagination**: Pagination technique using opaque tokens that encode the last item's sort key (e.g., base64 of {lastCreatedAt, lastId}). More consistent than offset-based pagination when underlying data changes between requests.
 
 **Dead Letter**: Final status for an outbox email entry that has exhausted all retry attempts without successful delivery. Footbag.org moves failed outbox entries to dead-letter status after maximum retries, triggering an alert for admin review so no email is silently lost.
 
-**DKIM (DomainKeys Identified Mail)**: Email authentication method verifying sender identity using cryptographic signatures. Footbag.org configures DKIM through AWS SES to improve email deliverability and prevent spoofing.
+**DKIM (DomainKeys Identified Mail)**: Email authentication method verifying sender identity using cryptographic signatures. Footbag.org has two signers and configures a key for each: AWS SES for the platform's own outbound, and Google Workspace for mail sent from a hosted role mailbox. Both improve deliverability and prevent spoofing, and a message signed by neither rests on the sender policy alone.
 
 **DMARC (Domain-based Message Authentication, Reporting and Conformance)**: Email authentication policy framework building on SPF and DKIM. Footbag.org publishes a DMARC policy for the domain and an aggregate-report mailbox to receive what receiving servers report about mail claiming to be from it. The policy is published monitor-only and tightens to quarantine and then rejection once the aggregate reports confirm the full sender list, because tightening ahead of that evidence rejects legitimate senders not yet covered by the SPF record.
 
@@ -133,6 +137,8 @@
 **Magic Byte Verification**: Security check that reads the first bytes of an uploaded file and confirms they match the known binary signature (magic bytes) for the declared file type (e.g., JPEG starts with FF D8 FF). Footbag.org rejects uploads whose magic bytes don't match their declared MIME type, preventing disguised executables from being processed by the Sharp image library.
 
 **Migration notice**: The small page the public footbag.org names serve during the one-time cutover window, returned as a 503 directly from the CloudFront edge function so the legacy host is untouched and the platform origin is not exposed. Distinct from the maintenance page (an S3 object served on origin failure and in deliberate post-launch windows): the notice is per-hostname, so the preview subdomain serves the real site through the same window. Go-live is the notice lifting.
+
+**MX (Mail Exchanger) record**: The DNS record naming which servers accept mail for a domain. It is independent of the address records the web uses in mechanism, so changing where the website points does not touch where mail goes and either is changed without the other. They are not independent in requirement: the site needs both the zone and the apex mail records under IFPA control to be fully functional, because the zone gates the certificates and authenticated sending while the mail records gate every address the site publishes to receive on. Mail stops reaching an address the moment its domain's mail record moves, not when the previous server is later switched off, so an address that does not exist at the new destination loses mail from the change itself.
 
 **Middleware**: Express function executing during request/response cycle before reaching route handlers. Footbag.org uses middleware for authentication (JWT validation), logging (request/response tracking), error handling (consistent error responses), and request parsing (JSON body parsing).
 
@@ -231,5 +237,7 @@
 **WAL (Write-Ahead Logging):** SQLite journal mode where changes are written to a separate WAL file before being committed to the main database file, allowing unlimited concurrent readers while a writer is active. Footbag.org enables WAL mode via journal_mode=WAL PRAGMA; the background worker periodically runs wal_checkpoint(TRUNCATE) to merge WAL changes back into the main database file, and the final checkpoint runs during graceful shutdown to ensure no data is lost before a backup upload.
 
 **Zod**: TypeScript schema validation library providing runtime type checking. Footbag.org uses Zod at controller boundaries to validate all incoming request data (required fields, types, formats, lengths) before reaching business logic.
+
+**Zone (DNS)**: The set of records answering for a domain and everything beneath it, held by whichever nameservers the registrar delegates to. Whoever holds the zone holds every record in it, including mail routing, which is why authority over the zone and the routing values inside it are separate questions: the values can be copied across unchanged while authority moves. A zone can be copied to a new set of nameservers record for record, so authority changes hands without any answer changing.
 
 **END OF GLOSSARY DOCUMENT**

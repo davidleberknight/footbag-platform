@@ -138,6 +138,51 @@ else
   exit 1
 fi
 
+# The custom bounce domain degrades silently by design, which is why it is read
+# here rather than trusted. The failure behaviour is left at its default, so if
+# SES cannot read the bounce domain's MX record it falls back to its own envelope
+# sender instead of refusing the send. That keeps mail flowing on a bad day,
+# which is the right failure for this site, but it drops the domain's
+# authentication to signature alignment alone and nothing bounces, alarms or
+# logs. A setup stuck at Pending or Failed is therefore invisible everywhere
+# except here. SES reports state changes to the address on the AWS account, which
+# is a maintainer's mailbox rather than the operational channel.
+#
+# Not fatal: the send legs below still prove sending works, and an operator
+# running this before mail day has no bounce domain configured at all. This
+# reports, and says plainly what an unhealthy state costs.
+if MAIL_FROM_STATUS=$(
+  aws sesv2 get-email-identity \
+    --email-identity "$SENDER" \
+    --region "$REGION" \
+    --profile "$PROFILE" \
+    --query 'MailFromAttributes.MailFromDomainStatus' --output text 2>&1
+); then
+  case "$MAIL_FROM_STATUS" in
+    SUCCESS)
+      echo "Custom bounce domain: healthy (aligned return path in use)"
+      ;;
+    None|none|"")
+      echo "Custom bounce domain: not configured (SES uses its own envelope sender)"
+      echo "  Expected before mail day. After it, this means the aligned return"
+      echo "  path is absent and the domain's authentication rests on the"
+      echo "  signature alone."
+      ;;
+    *)
+      echo "Custom bounce domain: $MAIL_FROM_STATUS -- NOT healthy"
+      echo "  SES is falling back to its own envelope sender, so mail still goes"
+      echo "  out but cannot align on the sender-policy route. Check the bounce"
+      echo "  domain's MX record: SES requires exactly one, and several make the"
+      echo "  setup fail. SES retries detection for 72 hours before giving up."
+      ;;
+  esac
+elif printf '%s' "$MAIL_FROM_STATUS" | grep -qiE 'accessdenied|not authorized'; then
+  echo "Custom bounce domain: status not readable by this profile"
+else
+  echo "Custom bounce domain: status could not be read"
+  printf '%s\n' "$MAIL_FROM_STATUS" | sed 's/^/  /'
+fi
+
 echo "Sending to mailbox simulator ($SIMULATOR)..."
 echo "  MessageId: $(send_one "$SIMULATOR")"
 

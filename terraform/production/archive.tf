@@ -335,8 +335,10 @@ resource "aws_ssm_parameter" "app_archive_login_redirect" {
 # certificate the production distribution depends on. us-east-1 because that is
 # where CloudFront reads certificates from.
 #
-# Issuance happens in a window with no CAA record published (the CAA lands with
-# the apex alias flip), which permits issuance rather than blocking it.
+# The apex certificate-authorisation record lands with the hosted zone and is
+# inherited here, and it names the authority this certificate is issued by, so it
+# permits this issuance rather than blocking it. Nothing about the archive needs
+# its own authorisation record.
 
 resource "aws_acm_certificate" "archive" {
   count             = var.enable_archive_custom_domain ? 1 : 0

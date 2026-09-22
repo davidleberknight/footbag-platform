@@ -22,9 +22,12 @@
 #                      nameservers, ahead of the flip at the write-freeze.
 #                      Default records: "footbag.org.,www.footbag.org.".
 #
-# The MX/TXT TTL before the mail cutover is a separate step on the same zone and
-# is not checked here: this reads A/AAAA only. The apex MX TTL is 1 day as served
-# today, so that pre-shrink has to lead the MX flip by at least that.
+# This reads A/AAAA only, and the apex mail and text TTLs are deliberately not
+# checked here. They need no pre-shrink step: the legacy zone serves the apex MX
+# at a day, and the Terraform mirror publishes it at an hour and the apex TXT at
+# ten minutes from the moment delegation lands, so the move performs the shrink
+# itself. Any instruction to lower the apex MX TTL by hand ahead of the mail move
+# is written for a world in which the legacy zone is still authoritative.
 #
 # Required env vars:
 #   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Hosted-zone id for the zone

@@ -308,11 +308,11 @@ describe('create-stripe-endpoint.sh --verify — disagreement', () => {
     expect(result.stderr).toMatch(/all events/);
   });
 
-  it('accepts the published domain the cutover re-points the endpoint to', () => {
-    // The endpoint is registered against the distribution's own name while the
-    // environment is pre-live and moved to the published name at cutover. Both
-    // are this environment's webhook. Pinning only the first meant the go-live
-    // gate that names this command could never pass once the move had happened.
+  it('accepts the canonical host as well as the distribution name', () => {
+    // The endpoint is registered against the distribution's own name and stays
+    // there, but an endpoint somebody has moved to the canonical host is this
+    // environment's webhook too. Pinning only the first would fail the go-live
+    // gate that names this command over a working endpoint.
     const result = runScript(['--target', 'production', '--mode', 'live', '--verify'], {
       list: [endpoint({ url: 'https://www.footbag.org/payments/webhook' })],
     });

@@ -140,12 +140,13 @@ DOMAIN="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/$TARGET" output -raw cloudfront
 [[ -n "$DOMAIN" ]] || { echo "ERROR: could not read cloudfront_domain from terraform output for $TARGET." >&2; exit 1; }
 URL="https://${DOMAIN}/payments/webhook"
 
-# The endpoint is registered against the distribution's own name while the
-# environment is pre-live, and the cutover re-points it at the published domain.
-# Both are this environment's webhook, so verification accepts either: pinning
-# only the first meant the gate that names --verify could never pass once the
-# re-point had happened. Creation still uses the distribution name above, which
-# is the only one that resolves here before the zone move.
+# The endpoint is registered against the distribution's own name and stays
+# there. That name serves this environment's webhook permanently, and nginx pins
+# the upstream Host to the canonical value whichever name the caller used, so
+# nothing about going live requires moving it. Verification still accepts the
+# canonical host as well: an endpoint somebody has moved there is this
+# environment's webhook too, and reporting it as a mismatch would fail the gate
+# that names --verify over a working endpoint.
 #
 # The published origin comes from terraform's own `platform_url` output rather
 # than being rebuilt here. That output is the canonical origin the site is served
@@ -268,7 +269,7 @@ if (( VERIFY )); then
   # receives nothing and still reads as healthy from the account's own list.
   if [[ "$EP_URL" != "$URL" && ( -z "$CANONICAL_URL" || "$EP_URL" != "$CANONICAL_URL" ) ]]; then
     echo "  MISMATCH url: expected $URL" >&2
-    [[ -n "$CANONICAL_URL" ]] && echo "                or $CANONICAL_URL after the cutover re-point" >&2
+    [[ -n "$CANONICAL_URL" ]] && echo "                or $CANONICAL_URL if it has been moved there" >&2
     FAILED=1
   fi
 
