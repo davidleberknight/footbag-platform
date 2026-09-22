@@ -347,8 +347,8 @@ fi
 #     that window the zone cannot tell you whether a certificate exists, and the
 #     public logs are the only place one shows up. Reads and never writes.
 if [[ "${MOCK_AWS}" -eq 1 ]]; then
-  run_step "CERT-TRANSPARENCY" env FOOTBAG_CURL_BIN="${FOOTBAG_CURL_BIN:-curl}" \
-    bash scripts/check-certificate-transparency.sh --domain "${DOMAIN_NAME:-footbag.org}"
+  run_step "CERT-TRANSPARENCY" bash scripts/check-certificate-transparency.sh \
+    --mock --domain "${DOMAIN_NAME:-footbag.org}"
 else
   run_step "CERT-TRANSPARENCY" bash scripts/check-certificate-transparency.sh \
     --domain "${DOMAIN_NAME:-footbag.org}"

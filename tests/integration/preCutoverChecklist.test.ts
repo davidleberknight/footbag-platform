@@ -184,13 +184,16 @@ describe('pre-cutover checklist orchestrator', () => {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
     // A gate that inspected nothing must not report the word a gate that looked
-    // reports. Both mock gates are in that position: the DNS gate makes no query
-    // and the QC gate opens no image. Saying PASS and disclaiming it in the same
-    // line puts the disclaimer where nobody reads it twice.
+    // reports. All three mock gates are in that position: the DNS gate makes no
+    // query, the QC gate opens no image, and the certificate gate reads no log.
+    // Saying PASS and disclaiming it in the same line puts the disclaimer where
+    // nobody reads it twice.
     expect(r.stdout).toMatch(/GATE: DNS-TTL SKIPPED: mock mode/);
     expect(r.stdout).toMatch(/GATE: QC-ABSENCE SKIPPED: mock mode/);
+    expect(r.stdout).toMatch(/GATE: CERT-TRANSPARENCY SKIPPED: mock mode/);
     expect(r.stdout).not.toMatch(/GATE: DNS-TTL[^\n]*PASS/);
     expect(r.stdout).not.toMatch(/GATE: QC-ABSENCE[^\n]*PASS/);
+    expect(r.stdout).not.toMatch(/GATE: CERT-TRANSPARENCY[^\n]*PASS/);
     // And the summary has to carry that up, or the distinction dies one line
     // before the operator reads it. This run also skips the smoke, e2e and
     // outbox steps, so the count is of every gate that did no work, not only

@@ -24,12 +24,18 @@
 #
 # Usage:
 #   bash scripts/check-certificate-transparency.sh --domain <name> [--out <path>]
+#   bash scripts/check-certificate-transparency.sh --mock --domain <name>
 #
 #   --domain   the registrable domain to read the logs for. Required, with no
 #              default: which domain a run reports on is exactly the thing that
 #              must not be inherited from ambient state.
 #   --out      write the report here as well as printing it. Put it in the
 #              private operations checkout beside the other cutover evidence.
+#   --mock     read nothing and say so. A mocked pre-cutover run attests to
+#              nothing outside the operator's own workstation, and this gate
+#              reads the public logs over the network, so a mocked run must not
+#              perform it at all. Prints the skip line the aggregator carries up
+#              and exits 0.
 #
 # Exits non-zero when a certificate covers a name outside the served set, or when
 # the logs could not be read. An empty result is a pass and says so: no
@@ -43,6 +49,7 @@ set -euo pipefail
 
 DOMAIN=""
 OUT=""
+MOCK=0
 CURL_BIN="${FOOTBAG_CURL_BIN:-curl}"
 
 if [[ -n "${FOOTBAG_CURL_BIN:-}" ]]; then
@@ -59,6 +66,10 @@ while [[ $# -gt 0 ]]; do
       OUT="${2:-}"
       shift 2 || { echo "ERROR: --out requires a path" >&2; exit 2; }
       ;;
+    --mock)
+      MOCK=1
+      shift
+      ;;
     --help|-h)
       # The whole header, found by reading to the first line that is not a
       # comment rather than by a line number, so the usage cannot outgrow it.
@@ -72,6 +83,14 @@ done
 if [[ -z "$DOMAIN" ]]; then
   echo "ERROR: --domain is required (the registrable domain to read the logs for)." >&2
   exit 2
+fi
+
+# A mocked run performs no lookup. Saying so in the gate line rather than
+# reporting a pass is the same rule the DNS and image gates follow: a gate that
+# inspected nothing must not read as one that looked and was satisfied.
+if [[ "${MOCK}" -eq 1 ]]; then
+  echo "GATE: CERT-TRANSPARENCY SKIPPED: mock mode (no log read; proves nothing about issuance)"
+  exit 0
 fi
 
 # The served set the design fixes, plus the two names the platform itself needs
