@@ -337,11 +337,11 @@ aws_config_has_section() {
 # the CONFIG file, and nothing when there is none.
 #
 # It exists because a static key is allowed to live in either file, and the one
-# question that matters before writing a federated profile is whether a static
-# key already occupies that name in either. A key found here resolves ahead of
-# the sign-in session the caller is about to write, silently, so a caller that
-# asked only about the credentials file would write a profile that looks
-# configured and is never used.
+# question that matters before writing a role-assuming section is whether a
+# static key already occupies that name in either. A key found here resolves
+# ahead of the role session the SDK would mint for the caller, silently, so a
+# caller that asked only about the credentials file would write a section that
+# looks configured and is never used.
 aws_config_profile_key_id() {
   local file="$1" profile="$2" line norm in_target=0
   [[ -f "$file" ]] || return 0
@@ -399,9 +399,10 @@ aws_config_profile_source() {
 # atomic for the same reason too: a half-written config file breaks every AWS
 # call on the machine and the operator has no copy of what was there.
 #
-# Nothing that goes through here is a secret. A start URL, an account id and a
-# role name are all public within the organization; the credential this section
-# describes is minted by the sign-in and never written to disk by us.
+# Nothing that goes through here is a secret. A role ARN, an account id and the
+# name of the section a chain sources from are not credentials; no key material
+# passes through this function, which is what separates it from aws_cred_put
+# above.
 aws_config_append_section() {
   local file="$1" header="$2"
   shift 2

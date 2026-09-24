@@ -125,6 +125,7 @@ case "\$name \$type" in
   "g.footbag.org. MX") echo -e "g.footbag.org.\\t60\\tIN\\tMX\\t10 AsPmx.L.Google.CoM." ;;
   "www.footbag.org. CNAME") echo "" ;;
   "www.footbag.org. A") echo -e "www.footbag.org.\\t60\\tIN\\tA\\t198.51.100.10" ;;
+  "footbag.org. CAA") echo -e "footbag.org.\\t300\\tIN\\tCAA\\t0 issue \\"amazon.com\\"\\nfootbag.org.\\t300\\tIN\\tCAA\\t0 issuewild \\";\\"" ;;
   *) echo "" ;;
 esac`;
 
@@ -299,6 +300,21 @@ describe('verify-zone-mirror.sh', () => {
     expect(r.exitCode).not.toBe(0);
     expect(r.stdout).toMatch(/DIFFERS {3}www\.footbag\.org\. A\/AAAA/);
     expect(r.stdout).toMatch(/has not actually happened/);
+  });
+
+  // The legacy zone has no certificate-authorisation record, so nothing in the
+  // capture asks for the apex one; a mirror that had never applied it used to pass.
+  // It must be served before the registrar is touched, so its absence fails.
+  it('fails when the apex certificate-authorisation record is not served', () => {
+    const noCaa = FAITHFUL.replace(/\n {2}"footbag\.org\. CAA"\)[^\n]*/, '');
+    const r = run(noCaa);
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stdout).toMatch(/DIFFERS {3}footbag\.org\. CAA/);
+  });
+
+  it('confirms the apex certificate-authorisation record permits only Amazon', () => {
+    const r = run(FAITHFUL);
+    expect(r.stdout).toMatch(/CHECKED {3}footbag\.org\. CAA permits only Amazon/);
   });
 
   // Reproduced against the real script before this was written: pointed at a

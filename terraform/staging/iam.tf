@@ -162,16 +162,15 @@ resource "aws_iam_role_policy" "app_s3_media" {
 # policy attached during the runtime AWS identity bring-up (AWS_OPERATIONS.md,
 # private GitHub repo).
 #
-# PARITY NOTE. Production's copy of this policy grants the two SES send actions
-# on whichever identity currently covers the sender address. Staging grants the
-# same two actions, scoped by From address instead, because the identity object
-# belongs to the production tree and the address is what actually needs
-# authorising. The two are equivalent in what they permit and differ only in how
-# they name it. The application still never sends from staging, the deploy
-# forcing the stub adapter onto every non-production host; the operator-run
-# readiness smoke tier does, which is what the grant is for. The resource name
-# keeps its jwt-ses form so the address matches production's; renaming it would
-# replace the inline policy for nothing.
+# PARITY NOTE, a deliberate divergence. Production's copy of this policy grants
+# the two SES send actions; staging's grants none. On staging, email is the
+# adapter stub and nothing else: the deploy forces the stub onto every
+# non-production host, and nothing that runs as this role sends. A send grant
+# here would also be reachable by every operator who can assume the shared job
+# role, since that role chains into this one, so withholding it keeps staging
+# from mailing anybody as the project. Real sending is first exercised on
+# production. The resource name keeps its jwt-ses form so the address matches
+# production's; renaming it would replace the inline policy for nothing.
 resource "aws_iam_role_policy" "app_jwt_ses" {
   name = "${local.prefix}-app-runtime-jwt-ses"
   role = aws_iam_role.app_runtime.id
@@ -187,40 +186,6 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
           "kms:GetPublicKey"
         ]
         Resource = aws_kms_key.jwt_signing.arn
-      },
-      {
-        Sid    = "OutboundEmailSmokeTier"
-        Effect = "Allow"
-        # Staging's application never sends: the deploy forces the stub adapter
-        # onto every non-production host. The operator-run AWS readiness smoke
-        # tier does, deliberately, constructing the live sender directly and
-        # bypassing the adapter accessor, so that the real send path is
-        # rehearsed against real SES before production arms sending. That tier
-        # runs as this role, so the grant belongs here and in Terraform rather
-        # than being attached by hand where no one reading this repository can
-        # see it.
-        #
-        # Both send calls, because the smoke tier exercises both: the simple
-        # call for transactional mail, and the raw-MIME call that carries the
-        # one-click unsubscribe headers on bulk mail. SES authorises the two
-        # separately, so granting one silently passes transactional sends and
-        # fails every bulk send.
-        Action = ["ses:SendEmail", "ses:SendRawEmail"]
-        # Scoped by the From address rather than by identity ARN, which is not
-        # a weaker control here but a more durable one. The two environments
-        # share one account and one sender identity, and that identity is
-        # production's to declare, so there is no resource in this tree to name.
-        # More to the point, which identity object covers the address changes
-        # when domain authentication is enabled, and a grant naming the
-        # address identity would silently stop authorising the moment sending
-        # moves under the domain identity. What this role should be allowed to
-        # do is send as this one address, which is exactly what this says.
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "ses:FromAddress" = var.ses_sender_identity
-          }
-        }
       }
     ]
   })

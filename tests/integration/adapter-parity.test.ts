@@ -7,9 +7,12 @@
  * free of environment-specific branching. These tests exercise both sides of
  * each seam with injected fake clients standing in for real AWS.
  *
- * Live-AWS parity (kms:Sign, ses:SendEmail actually reaching AWS) is covered
- * in tests/smoke/staging-readiness.test.ts, which is gated behind
- * RUN_STAGING_SMOKE=1 and excluded from the default npm test run.
+ * Live-AWS parity for kms:Sign is covered in
+ * tests/smoke/staging-readiness.test.ts, which is gated behind
+ * RUN_STAGING_SMOKE=1 and excluded from the default npm test run. The live
+ * SES send has no staging leg: on staging, email is the stub adapter and
+ * nothing else, so real sending is first exercised on production by the
+ * operator-run scripts/verify-prod-email.sh.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as crypto from 'node:crypto';

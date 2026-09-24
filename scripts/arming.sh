@@ -1106,8 +1106,11 @@ if (( FROM_STEP <= 4 )); then
     printf "  Is this address covered? (yes/no): "
     read -r COVERED
     if [[ "$COVERED" != "yes" ]]; then
-      echo "Aborted before the deploy. Add today's address to operator_cidrs (add, never" >&2
-      echo "replace, or the standing ranges are lost), terraform apply, then resume with" >&2
+      echo "Aborted before the deploy. Put today's address on the allow-list with" >&2
+      echo "  bash scripts/authorize-operator-address.sh --target ${TARGET} \\" >&2
+      echo "    --address <your-cidr> --for '<your_account>; <where>'" >&2
+      echo "which appends rather than replacing, so the standing ranges survive," >&2
+      echo "applies, and proves it against the live firewall. Then resume with" >&2
       echo "--from-step 4." >&2
       exit 1
     fi

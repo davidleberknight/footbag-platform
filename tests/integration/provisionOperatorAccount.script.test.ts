@@ -1,7 +1,7 @@
 /**
  * scripts/provision-operator-account.sh — the argument guards, the checks that
  * run before anything is created, and the refusal that protects an account
- * somebody is already working from.
+ * somebody is already using.
  *
  * The mutating half belongs to an operator with a real host and a real sudo
  * password, and is not exercised here. What is pinned instead is everything
@@ -185,6 +185,62 @@ function args(overrides: Partial<Record<string, string>> = {}): string[] {
   };
   return Object.entries(base).flatMap(([k, v]) => (v === '' ? [] : [k, v]));
 }
+
+/**
+ * The shared account's password is not this script's to set.
+ *
+ * Everything this script prints about a vault entry is written for a named
+ * operator: a redacted password, and a note saying the account belongs to one
+ * person and is not shared. For the shared account every word of that is
+ * backwards — its entry carries the real value, because a credential everybody
+ * is meant to hold is what a shared store is for. A run that set it here would
+ * tell the custodian to redact a value that must be kept, leaving the vault
+ * describing a credential nobody can retrieve.
+ */
+describe('provision-operator-account.sh — the shared account', () => {
+  it('refuses to create it, before anything on the host is touched', () => {
+    const r = runScript(args({ '--account': 'footbag' }));
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/is the shared account, and its password/);
+    expect(r.stderr).toMatch(/custody operation/);
+  });
+
+  it('refuses to rotate its password, which is the reachable way in', () => {
+    const r = runScript([...args({ '--account': 'footbag' }), '--rotate']);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/is the shared account/);
+  });
+
+  it('refuses it with --own-password too, where the operator types the value', () => {
+    const r = runScript([...args({ '--account': 'footbag' }), '--own-password']);
+    expect(r.exitCode).toBe(2);
+  });
+
+  it('names where the shared account keys are managed, rather than only refusing', () => {
+    const r = runScript(args({ '--account': 'footbag' }));
+    expect(r.stderr).toMatch(/authorize-operator-key\.sh/);
+    expect(r.stderr).not.toMatch(/--rotate --key-only/);
+  });
+
+  it('refuses replacing its keys, which would remove every other holder key', () => {
+    // Several holders' keys sit on the shared account, and a rotation writes
+    // authorized_keys whole with the one key it was given. Refused before any
+    // connection, so nothing on the host is reached.
+    const r = runScript([...args({ '--account': 'footbag' }), '--rotate', '--key-only'], {
+      existingAccount: true,
+    });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/its keys are not\s+replaced from here/);
+    expect(r.stderr).toMatch(/would remove every other holder's key/);
+    expect(r.stderr).toMatch(/authorize-operator-key\.sh/);
+    expect(r.stderr).toMatch(/Nothing done\./);
+  });
+
+  it('does not refuse retiring somebody else, which sets no password either', () => {
+    const r = runScript([...args({ '--account': 'robin_fielder', '--key-file': '' }), '--offboard']);
+    expect(r.stderr).not.toMatch(/is the shared account/);
+  });
+});
 
 describe('provision-operator-account.sh — invocation guards', () => {
   it('refuses to infer the environment, so a run never lands on an inherited target', () => {
@@ -439,9 +495,9 @@ describe('provision-operator-account.sh — preconditions on the host', () => {
     const result = runScript(args(), { existingAccount: true });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/already exists on/);
-    // The reason matters more than the refusal: the risk is to a vault entry
-    // somebody else is working from, not to the host.
-    expect(result.stderr).toMatch(/may already be working from the vault entry/);
+    // The reason matters more than the refusal: the risk is to the password
+    // its owner is already using, not to the host.
+    expect(result.stderr).toMatch(/may already be using the password it holds/);
     expect(result.stderr).toMatch(/re-run with --rotate/);
   });
 
@@ -511,6 +567,244 @@ describe('provision-operator-account.sh — when the cleanup is armed', () => {
   });
 });
 
+/**
+ * The sudo password reaches the host.
+ *
+ * It is read once from stdin, before anything else, and every privileged
+ * session sends it as line one for `sudo -k -S`. A later reset of the variable
+ * left the create and rotate sessions sending an empty line instead: sudo
+ * refused it, took the next two lines of the stream as its second and third
+ * attempts, and the run reported three incorrect passwords while the credential
+ * file was never tried at all.
+ *
+ * The create path needs a terminal to display the minted password on, so it is
+ * driven through `script`, with stdin still redirected from the credential file
+ * as the documented invocation does. The stubbed host records the first line of
+ * every privileged session it receives.
+ */
+describe('provision-operator-account.sh — the sudo password reaches the host', () => {
+  it('sends the credential line to sudo on the session that creates the account', () => {
+    const record = join(WORK_DIR, 'sudo-lines');
+    const cred = join(WORK_DIR, 'cred');
+    writeFileSync(cred, 'fixture-sudo-password\n');
+    chmodSync(cred, 0o600);
+    const stub = join(WORK_DIR, 'ssh-record');
+    writeFileSync(
+      stub,
+      [
+        '#!/usr/bin/env bash',
+        'for a in "$@"; do',
+        '  case "$a" in',
+        "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",
+        '    *"id -u"*) echo ABSENT; exit 0 ;;',
+        `    *"sudo -k -S"*) IFS= read -r first; printf '%s\\n' "$first" >> ${JSON.stringify(record)}; cat > /dev/null; exit 0 ;;`,
+        '  esac',
+        'done',
+        'cat > /dev/null',
+        'exit 0',
+      ].join('\n'),
+    );
+    chmodSync(stub, 0o755);
+
+    const inner = [
+      'bash',
+      JSON.stringify(SCRIPT),
+      ...args().map((a) => JSON.stringify(a)),
+      '<',
+      JSON.stringify(cred),
+    ].join(' ');
+    spawnSync('script', ['-qec', inner, '/dev/null'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      // Declines the vault prompt, so the run ends without a proof login.
+      input: 'no\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        FAKE_SSH_USER: 'footbag',
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
+        FOOTBAG_PROVISION_SSH: stub,
+        FOOTBAG_KNOWN_HOSTS: PIN,
+      },
+      ...SPAWN_GUARD,
+    });
+
+    expect(existsSync(record), 'no privileged session reached the host').toBe(true);
+    const lines = readFileSync(record, 'utf-8').split('\n').filter((l, i, all) => i < all.length - 1);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line).toBe('fixture-sudo-password');
+  });
+
+  it('does not report a finished run as unfinished', () => {
+    // A run that reached VAULTED and finished used to leave the cleanup armed,
+    // so it closed on "The run did not finish" beneath its own success message.
+    const cred = join(WORK_DIR, 'cred-finished');
+    writeFileSync(cred, 'fixture-sudo-password\n');
+    chmodSync(cred, 0o600);
+    const inner = ['bash', JSON.stringify(SCRIPT), ...args().map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
+    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+      encoding: 'utf-8',
+      input: 'VAULTED\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        FAKE_SSH_USER: 'footbag',
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
+        FOOTBAG_PROVISION_SSH: sshStub(false),
+        FOOTBAG_KNOWN_HOSTS: PIN,
+      },
+      ...SPAWN_GUARD,
+    });
+    expect(r.stdout).toMatch(/Account robin_fielder is ready/);
+    expect(r.stdout).not.toMatch(/The run did not finish/);
+  });
+});
+
+/**
+ * Your own account, existing, and reached by no key you hold: the key was lost.
+ *
+ * Nothing on this machine can tell a lost key of yours from somebody else's
+ * account under your name, so the run reads what the account accepts, shows
+ * it, and rotates only on the operator's typed attestation. The read changes
+ * nothing, a retired account is refused, and a missing APPLY changes nothing.
+ */
+describe('provision-operator-account.sh — attesting an unreachable account is yours', () => {
+  const LOST_KEY = '256 SHA256:lostKeyFingerprintForThisSuite0000000000000 david_leberknight (ED25519)';
+
+  /** A host that reports the account as existing and answers the inspection. */
+  function attestStub(inspect: string): { stub: string; sessions: string } {
+    const sessions = join(WORK_DIR, `sessions-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(sessions);
+    const answer = join(sessions, 'inspect-answer');
+    writeFileSync(answer, inspect);
+    const stub = join(sessions, 'ssh');
+    writeFileSync(
+      stub,
+      [
+        '#!/usr/bin/env bash',
+        'for a in "$@"; do',
+        '  case "$a" in',
+        "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",
+        '    *"id -u"*) echo EXISTS; exit 0 ;;',
+        '    *"sudo -k -S"*)',
+        `      f=${JSON.stringify(sessions)}/session-$(date +%s%N)`,
+        '      cat > "$f"',
+        `      grep -qx 'OPACC_MODE=inspect' "$f" && cat ${JSON.stringify(answer)}`,
+        '      exit 0 ;;',
+        '  esac',
+        'done',
+        'cat > /dev/null',
+        'exit 0',
+      ].join('\n'),
+    );
+    chmodSync(stub, 0o755);
+    return { stub, sessions };
+  }
+
+  function sessionModes(sessions: string): string[] {
+    const r = spawnSync('bash', ['-c', `cat ${JSON.stringify(sessions)}/session-* 2>/dev/null | grep '^OPACC_MODE='`], {
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    return (r.stdout ?? '').split('\n').filter(Boolean);
+  }
+
+  /** Every line every privileged session received, for the assignments it carried. */
+  function sessionLines(sessions: string): string[] {
+    const r = spawnSync('bash', ['-c', `cat ${JSON.stringify(sessions)}/session-* 2>/dev/null`], {
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    return (r.stdout ?? '').split('\n');
+  }
+
+  function runAttest(stub: string, opts: { terminal?: string } = {}) {
+    const argv = [...args({ '--account': 'david_leberknight', '--operator': 'David Leberknight' }), '--own-password', '--attest-own'];
+    const env = {
+      ...process.env,
+      ...NO_AWS_CREDENTIALS,
+      FAKE_SSH_USER: 'footbag',
+      PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
+      FOOTBAG_PROVISION_SSH: stub,
+      FOOTBAG_KNOWN_HOSTS: PIN,
+    };
+    if (opts.terminal === undefined) {
+      return spawnSync('bash', [SCRIPT, ...argv], {
+        encoding: 'utf-8',
+        input: 'fixture-sudo-password\n',
+        env,
+        ...SPAWN_GUARD,
+      });
+    }
+    const cred = join(WORK_DIR, 'attest-cred');
+    writeFileSync(cred, 'fixture-sudo-password\n');
+    chmodSync(cred, 0o600);
+    const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
+    return spawnSync('script', ['-qec', inner, '/dev/null'], {
+      encoding: 'utf-8',
+      input: opts.terminal,
+      env,
+      ...SPAWN_GUARD,
+    });
+  }
+
+  it('is refused without --own-password, since only your own account can be attested', () => {
+    const r = runScript([...args(), '--attest-own']);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/--attest-own needs --own-password/);
+  });
+
+  it('is refused alongside --rotate, since it decides the rotation itself', () => {
+    const r = runScript([...args(), '--own-password', '--attest-own', '--rotate']);
+    expect(r.exitCode).toBe(2);
+  });
+
+  const RETIRED_KEY = '256 SHA256:retiredKeyFingerprintForThisSuite00000000000 david_leberknight (ED25519)';
+  const RETIRED = `SHELL /sbin/nologin\nPASSWORD LK\nOFFBOARDED yes\nRETIRED ${RETIRED_KEY}\n`;
+
+  it('shows a retired account with the keys it was retired with, and changes nothing without APPLY', () => {
+    const { stub, sessions } = attestStub(RETIRED);
+    const r = runAttest(stub);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/was retired by an offboard/);
+    expect(r.stdout).toContain(RETIRED_KEY);
+    expect(r.stderr).toMatch(/is untouched/);
+    expect(sessionModes(sessions)).toEqual(['OPACC_MODE=inspect']);
+  });
+
+  it('reopens a retired account for its own person once the operator types APPLY', () => {
+    const { stub, sessions } = attestStub(RETIRED);
+    runAttest(stub, { terminal: 'APPLY\nfixture-own-password-1\nfixture-own-password-1\nno\n' });
+    expect(sessionModes(sessions)).toEqual(['OPACC_MODE=inspect', 'OPACC_MODE=rotate']);
+    expect(sessionLines(sessions)).toContain('OPACC_REOPEN=yes');
+  });
+
+  it('does not reopen an account that was never retired', () => {
+    const { stub, sessions } = attestStub(`SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${LOST_KEY}\n`);
+    runAttest(stub, { terminal: 'APPLY\nfixture-own-password-1\nfixture-own-password-1\nno\n' });
+    expect(sessionLines(sessions)).toContain('OPACC_REOPEN=no');
+    expect(sessionLines(sessions)).not.toContain('OPACC_REOPEN=yes');
+  });
+
+  it('shows the keys the account accepts and changes nothing without a typed APPLY', () => {
+    const { stub, sessions } = attestStub(`SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${LOST_KEY}\n`);
+    const r = runAttest(stub);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(LOST_KEY);
+    expect(r.stderr).toMatch(/is untouched/);
+    expect(sessionModes(sessions)).toEqual(['OPACC_MODE=inspect']);
+  });
+
+  it('rotates the account once the operator types APPLY', () => {
+    const { stub, sessions } = attestStub(`SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${LOST_KEY}\n`);
+    // APPLY, the new password twice, then a declined vault prompt, which leaves
+    // a rotated account in place rather than removing it.
+    const r = runAttest(stub, { terminal: 'APPLY\nfixture-own-password-1\nfixture-own-password-1\nno\n' });
+    expect(r.stdout).toContain(LOST_KEY);
+    expect(sessionModes(sessions)).toEqual(['OPACC_MODE=inspect', 'OPACC_MODE=rotate']);
+  });
+});
+
 describe('provision-operator-account.sh — a per-person password is not vaulted', () => {
   // The vault is shared between custodians. A personal credential kept there
   // lets any custodian act as any operator, so an access record naming one of
@@ -554,10 +848,12 @@ describe('provision-operator-account.sh — a per-person password is not vaulted
 
   it('names a recovery path that does not depend on a stored secret', () => {
     // A vault entry with no password is only workable if forgetting it has an
-    // answer. Re-issuing a one-time password is that answer, and saying so is
-    // what stops someone adding the password back for convenience.
+    // answer. The owner typing a new one is that answer, and saying so is what
+    // stops someone adding the password back for convenience. A bare --rotate
+    // would mint an expired one-time password, which is not a sanctioned path.
     expect(source).toMatch(/Forgotten password/);
-    expect(source).toMatch(/--rotate, which issues a fresh/);
+    expect(source).toMatch(/their own with --rotate --own-password/);
+    expect(source).not.toMatch(/--rotate, which issues a fresh/);
   });
 
   it('still refuses to leave an unrecorded account behind', () => {
@@ -572,6 +868,22 @@ describe('provision-operator-account.sh — a per-person password is not vaulted
     // date is the one field it held that the entry did not, so the entry took
     // it on rather than losing it.
     expect(source).toMatch(/Access approved: \$\{TODAY\}/);
+  });
+
+  it('records a rotation as a key replacement, never as a new approval of access', () => {
+    // A rotation reinstalls the key; it does not approve the access again. So the
+    // approval date already in the entry stays, and the rotation adds its own
+    // date beside it. The approval-dated line is printed only on a create.
+    const rotateBranch = source.slice(
+      source.indexOf('if [[ "$MODE" == "rotate" ]]; then\n    # A rotation reinstalls the key'),
+    );
+    expect(rotateBranch).toMatch(/Access approved: keep the date already recorded in the entry\./);
+    expect(rotateBranch).toMatch(/Key replaced: \$\{TODAY\}\./);
+    const approvedToday = source.indexOf('Access approved: ${TODAY}');
+    const rotateCheck = source.indexOf('# A rotation reinstalls the key; it does not approve');
+    expect(rotateCheck).toBeGreaterThan(0);
+    expect(approvedToday).toBeGreaterThan(rotateCheck);
+    expect(source).toMatch(/The entry already exists\. Update it: replace its fingerprint/);
   });
 
   it('names no separate access register anywhere', () => {
@@ -768,6 +1080,37 @@ describe('provision-operator-account.sh — offboarding', () => {
  * account just created is being removed".
  */
 /**
+ * What the script tells an operator to do with a credential or a host.
+ *
+ * The branch that shows a one-time password needs a real terminal, so its
+ * output cannot be driven here, and the rules it must follow are pinned on the
+ * text instead. A password is never handed over by voice: its delivery to a
+ * person not at this keyboard is sealed to their own key, and a script that
+ * told an operator to read it aloud would be the instruction they followed. And
+ * no step is a hand-typed ssh to a deployed host, which would skip the pinned
+ * host key every scripted connection carries.
+ */
+describe('provision-operator-account.sh — what it tells an operator to do', () => {
+  const source = readFileSync(SCRIPT, 'utf-8');
+  const echoed = source
+    .split('\n')
+    .filter((line) => /^\s*echo /.test(line))
+    .join('\n');
+
+  it('never tells anybody to hand a password over by voice', () => {
+    // The instruction form, which is what an operator would follow. The script
+    // does name voice, in order to rule it out.
+    expect(echoed).not.toMatch(/hand it over[^\n]*by voice/i);
+    expect(echoed).toMatch(/never handed over by voice or in any readable form/);
+  });
+
+  it('never hands the operator a raw ssh command against a host', () => {
+    expect(echoed).not.toMatch(/echo "\s*ssh /);
+    expect(echoed).not.toMatch(/'sudo userdel/);
+  });
+});
+
+/**
  * Provisioning your OWN account.
  *
  * The default flow generates a password, prints it, and expires it on the host
@@ -830,6 +1173,54 @@ describe('provision-operator-account.sh — --own-password', () => {
     const proof = source.slice(source.indexOf('Proving the account end to end'));
     expect(proof).toMatch(/NOT being removed/);
     expect(proof).toMatch(/re-run with --rotate/);
+  });
+
+  it('files the password into the credential file, since nothing else ever sees it', () => {
+    // It is typed straight into this script and never displayed or returned, so
+    // an operator asked to create that file afterwards would be retyping a
+    // secret from memory into a path they also have to get right. One character
+    // wrong in either arrives days later as a sudo failure on the host, which
+    // reads as a broken account and is neither.
+    const proof = source.slice(source.indexOf('Proving the account end to end'));
+    expect(proof).toMatch(/operator_credential_file_for "\$ACCOUNT" "\$TARGET"/);
+    expect(proof).toMatch(/umask 077/);
+    expect(proof).toMatch(/chmod 600/);
+  });
+
+  it('files it only after the proofs, so the value on disk is one shown to work', () => {
+    const proof = source.slice(source.indexOf('Proving the account end to end'));
+    const filing = proof.indexOf('operator_credential_file_for');
+    const sudoProof = proof.indexOf('sudo -k -S -p "" -v');
+    expect(sudoProof).toBeGreaterThan(-1);
+    expect(filing).toBeGreaterThan(sudoProof);
+    // And never on a run whose proofs failed.
+    expect(proof.slice(filing - 200, filing)).toMatch(/! PROOF_FAILED/);
+  });
+
+  it('takes the file name from the shared rule rather than spelling one here', () => {
+    // Two callers derive this name from different directions, and a second
+    // spelling is how a password comes to be filed under one name and looked
+    // for under another.
+    const proof = source.slice(source.indexOf('Proving the account end to end'));
+    expect(proof).not.toMatch(/HOST_OPERATOR.*\.txt/);
+  });
+
+  it('does not file the shared account password, which is not one person to file', () => {
+    // It is the host's way back in, every footbag-operator holder holds it, and the vault is
+    // its canonical copy. Writing it from one operator's run would put a shared
+    // credential on one machine and leave the vault describing a password that
+    // is no longer in use.
+    const proof = source.slice(source.indexOf('Proving the account end to end'));
+    const filing = proof.indexOf('operator_credential_file_for');
+    expect(proof.slice(0, filing)).toMatch(/ACCOUNT" == "\$OPERATOR_SHARED_ACCOUNT/);
+    expect(proof).toMatch(/is not filed here/);
+  });
+
+  it('does not file a password minted for somebody else', () => {
+    // That one is a bootstrap token for a machine which is not this one, and
+    // filing it here would leave their credential on the provisioner's disk.
+    const handOff = source.slice(source.indexOf('The next two checks run from'));
+    expect(handOff).not.toMatch(/operator_credential_file_for/);
   });
 
   it('wipes the password from memory on both paths once it is done with it', () => {
@@ -1032,28 +1423,6 @@ describe('provision-operator-account.sh — replacing only the key', () => {
     expect(source).toMatch(/fingerprint recorded in it is now/);
     expect(source).toMatch(/Type VAULTED/);
   });
-});
-
-describe('provision-operator-account.sh — offboarding sweeps their keys everywhere', () => {
-  const remote = readFileSync(REMOTE_HALF, 'utf-8');
-
-  // Disabling the named account is not the whole of a person's access.
-  // Onboarding puts their key on the SHARED account so they can get a shell at
-  // all, and that is a different file on a different account. A person
-  // offboarded with that key still in place keeps a root-capable shell as an
-  // account whose sudo password is in the shared vault.
-
-  it('collects their fingerprints before moving their authorized_keys aside', () => {
-    // Order is the whole trick: the account being offboarded is the only place
-    // on the host that knows which keys are theirs, and the file is about to
-    // be moved. Read it after, and the sweep has nothing to match on.
-    const collect = remote.indexOf('OPACC_THEIR_FPS="$(ssh-keygen -l -f "$ak"');
-    const moveAside = remote.indexOf('mv -- "$ak"');
-    expect(collect).toBeGreaterThan(-1);
-    expect(moveAside).toBeGreaterThan(-1);
-    expect(collect).toBeLessThan(moveAside);
-  });
-
 });
 
 /**

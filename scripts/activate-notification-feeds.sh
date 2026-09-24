@@ -450,8 +450,11 @@ if (( FROM_STEP <= 4 )); then
   printf '%s\n' "$EGRESS_DETAIL" | sed 's/^/  /'
   if [[ "$EGRESS_VERDICT" != "covered" ]]; then
     if ! confirm_from_tty "  Is this address covered? (yes/no): " "yes"; then
-      echo "Aborted before the deploy. Add today's address to operator_cidrs (add," >&2
-      echo "never replace), terraform apply, then resume with --from-step 4." >&2
+      echo "Aborted before the deploy. Put today's address on the allow-list with" >&2
+      echo "  bash scripts/authorize-operator-address.sh --target ${TARGET} \\" >&2
+      echo "    --address <your-cidr> --for '<your_account>; <where>'" >&2
+      echo "which appends rather than replacing, applies, and proves it against" >&2
+      echo "the live firewall. Then resume with --from-step 4." >&2
       exit 1
     fi
   fi

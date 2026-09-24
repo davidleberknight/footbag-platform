@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# aws-profile.sh — supply the operator's AWS profile, so no operator has to.
+# aws-profile.sh — supply the profile a run resolves its identity through, so no
+# operator has to name one.
+#
+# WHAT A PROFILE IS, BECAUSE THE NAMES IN THIS TREE INVITE THE WRONG ANSWER.
+#
+# There are two kinds of AWS principal here and nothing else: IAM users, among
+# them footbag-operator, and the IAM role FootbagDevTester that named IAM users
+# under /footbag-operators/ assume. A profile is neither. It is a named entry in
+# ~/.aws/config or ~/.aws/credentials, read by the client on one workstation. It
+# holds no authority, grants nothing, and AWS has never heard of it: it says
+# which key to sign with, or which role to assume with which key.
+#
+# Each profile is named for the principal it reaches, which makes the names
+# collide by design and is why every line here has to say which of the two it
+# means. footbag-operator is BOTH an IAM user and the profile holding that
+# user's key; FootbagDevTester is BOTH the role and the profile that assumes it.
+# A reader who takes a bare name for an identity is making exactly the mistake
+# this file once encoded. Nothing here may decide what a run is allowed to do by
+# reading a profile name. The only question worth asking is what
+# sts get-caller-identity returns, and the answers that count are
+# user/footbag-operator, or a session of FootbagDevTester carrying the assuming
+# user's own name.
 #
 # WHY THIS EXISTS.
 #
@@ -11,13 +32,15 @@
 # credentials" or "no valid credential sources" — a message about the SDK, not
 # about the operator's setup, which sends the reader looking at the wrong thing.
 #
-# What a workstation carries depends on the tier, and the two tiers do not
-# share a profile name. The directly authenticated identity keeps the name every
-# operator script already uses, written by scripts/install-operator-key.sh from
-# the vault, and only the super admin holds it. A dev-and-tester holds a profile
-# named for themselves, carrying their own IAM user's key, and beside it the
-# job-role profile that chains from it; scripts/manage-human-operator.sh writes
-# both, and neither machine ever learns the other's name.
+# Which profiles a workstation carries depends on which keys have been written
+# onto it, and the two are written by different commands. The profile holding
+# the directly authenticated user's key keeps the name every operator script
+# already uses, written by scripts/install-operator-key.sh from the vault. A
+# named operator's own key goes into a profile named for them, with a
+# role-assuming profile beside it whose role_arn is the job role; both are
+# written by the onboarding, on that operator's own machine. A footbag-operator
+# holder's machine can carry all of them; each run still acts as exactly one
+# identity, the one sts get-caller-identity returns.
 #
 # The answer used to be a line in a runbook telling the operator to export
 # AWS_PROFILE in every new shell. That is a step held in a person's head, it has
@@ -40,11 +63,11 @@
 # Whichever identity the run ends up with, supplied here or already in the
 # shell, is resolved against AWS once before the run does any work, and the
 # identity it resolved to is printed. A configured profile is not an
-# authenticating one: the key behind it can be deactivated, deleted, rotated
-# away or, once operator identity is federated, simply expired, and none of that
-# shows up in a list of profiles. Without the proof, the first tool to reach AWS
-# reports the dead credential in its own vocabulary, which is how a deploy came
-# to say that a perfectly healthy terraform tree had never been initialised.
+# authenticating one: the key behind it can be deactivated, deleted or rotated
+# away, and none of that shows up in a list of profiles. Without the proof, the
+# first tool to reach AWS reports the dead credential in its own vocabulary,
+# which is how a deploy came to say that a perfectly healthy terraform tree had
+# never been initialised.
 #
 # Half a key pair is the one thing here that is not an identity and is treated
 # as none. Nothing can sign with an access key id whose secret is absent, or
@@ -58,38 +81,59 @@
 # whichever shell they happened to start from, for the same reason as everything
 # else in this file.
 
-# The profile every operator script uses for everyday work.
+# The name of the profile holding the directly authenticated user's key.
 #
+# It is spelled the same as that IAM user, which is convenient and is also the
+# reason the rest of this file has to be careful: the profile is not the user.
 # One name rather than one per environment, and one name rather than one per
 # person. The environment is chosen by --target, never by which credential is
-# loaded. The person is carried by the identity behind the profile, not by the
-# profile's name, so every workstation spells this identically and no script has
-# to know who is running it.
-#
-# It names the directly authenticated IAM user and its long-lived key: the
-# super admin, the identity both runtime trust policies name by ARN, and the
-# way back in when anything else is what failed. It keeps this name and this
-# credential, so no script, runbook step or established workstation has to
-# learn a different one.
+# loaded, and who is running is carried by the identity the profile resolves to
+# rather than by its name, so every workstation spells this identically.
 FOOTBAG_OPERATOR_PROFILE="${FOOTBAG_OPERATOR_PROFILE:-footbag-operator}"
 
-# The shared job role a named operator assumes for everyday work, chaining from
-# their own named-user profile.
+# The name of the role-assuming profile: the one whose role_arn is the job role
+# below and whose source_profile is the profile holding the operator's own key.
 #
-# Reached as the fallback below rather than as the first choice, and the order
-# is deliberate. The super admin's machine carries both names, and their work
-# is the whole estate rather than the staging scope this role is bounded to, so
-# defaulting them into it would narrow every run they make and surface as an
-# access denial partway through rather than as a choice anybody made. A
-# dev-and-tester's machine carries this one and never the other, so the
-# fallback is what makes their shell work with nothing exported.
-FOOTBAG_DEV_TESTER_PROFILE="${FOOTBAG_DEV_TESTER_PROFILE:-footbag-devtester}"
+# Spelled exactly as the role it assumes, which is the rule for every profile
+# here: a profile is named for the principal it reaches, so the two holding a
+# user's key are named for those users and this one is named for the role.
+#
+# Tried second by aws_profile_ensure, which fills a vacuum for ordinary work and
+# proves whatever it settles on. That order is not a statement about who owns
+# the machine: one workstation can carry every profile named in this file.
+FOOTBAG_DEV_TESTER_PROFILE="${FOOTBAG_DEV_TESTER_PROFILE:-FootbagDevTester}"
+
+# Both profile names above can be replaced from the environment, which is how
+# the tests exercise a workstation whose profiles are named differently. A
+# replaced name changes which local credential a run reaches for, so it is
+# said out loud rather than taken silently.
+if [[ "$FOOTBAG_OPERATOR_PROFILE" != "footbag-operator" ]]; then
+  echo "==> NOTE: the profile name '${FOOTBAG_OPERATOR_PROFILE}' comes from the environment, not the default." >&2
+fi
+if [[ "$FOOTBAG_DEV_TESTER_PROFILE" != "FootbagDevTester" ]]; then
+  echo "==> NOTE: the profile name '${FOOTBAG_DEV_TESTER_PROFILE}' comes from the environment, not the default." >&2
+fi
+
+# The IAM role itself, which is the fact a run acting as the job role has to
+# prove. Every script that needs the role's name takes it from here rather than
+# spelling it again, so a rename cannot leave one copy behind.
+#
+# Fixed, not taken from the environment. Onboarding grants a new operator
+# permission to assume the role this names, so an exported value would let
+# ambient state in an operator's shell grant somebody a different role.
+FOOTBAG_DEV_TESTER_ROLE="FootbagDevTester"
 
 # The identity a settled profile actually resolves to is proved rather than
 # assumed, and that proof already exists for the key install and rotation
 # scripts.
 # shellcheck source=lib/aws-identity.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/aws-identity.sh"
+
+# One run acts as one person. This half records who the AWS side turned out to
+# be; the half that reads the SSH alias records who the host side would be, and
+# whichever of the two settles second compares them.
+# shellcheck source=lib/operator-identity-agreement.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/operator-identity-agreement.sh"
 
 # Test seam (CI only; operators never set this): replaces the aws binary used
 # for the profile-existence check. The script says on stderr when it is in use,
@@ -180,23 +224,44 @@ aws_profile_announce() {
   if ! aws_identity_resolve "${AWS_PROFILE:-}"; then
     echo "" >&2
     echo "       The identity this run would have used does not authenticate, so" >&2
-    echo "       nothing here can reach AWS. Two things end up here, and the" >&2
-    echo "       profile name says which one you are looking at." >&2
+    echo "       nothing here can reach AWS. Two things end up here, and which" >&2
+    echo "       key the profile names says which one you are looking at." >&2
     echo "" >&2
-    echo "       The super admin's own key, rotated or deactivated away. Install" >&2
+    echo "       The footbag-operator key, rotated or deactivated away. Install" >&2
     echo "       the current one from the vault entry aws-footbag-operator-keys:" >&2
     echo "         bash scripts/install-operator-key.sh" >&2
     echo "" >&2
     echo "       Or a named operator's key, which nothing here can reinstall for" >&2
-    echo "       you, because no shared copy of it exists anywhere: ask the super" >&2
-    echo "       admin to run the onboarding again, which mints a fresh one and" >&2
-    echo "       writes it on your machine." >&2
+    echo "       you, because no shared copy of it exists anywhere. It is reissued" >&2
+    echo "       by onboarding you again, which mints a fresh one for your own" >&2
+    echo "       machine; a footbag-operator holder arranges it with you." >&2
     return 1
   fi
 
   _FOOTBAG_PROFILE_ANNOUNCED="yes"
   echo "==> AWS identity: ${origin}" >&2
   echo "    ${AWS_IDENTITY_ARN}" >&2
+
+  # Who this run is acting as, where it is acting as a person at all. Only a
+  # session of the job role carries one: the role's trust policy binds the
+  # session name to the assuming user's own user name, which is what makes a
+  # shared role attribute anything. A directly authenticated user has no session
+  # name, and a runtime role's is generated and describes a workload, so neither
+  # sets this and neither is held to any host account.
+  # Cleared before the match, not only set inside it. A run that settles one
+  # identity and then another would otherwise keep the first one's session name
+  # and compare it as though it were the current one, which is exactly the stale
+  # value the agreement library refuses to let decide anything.
+  FOOTBAG_ACTING_AS_PERSON=""
+  case "$AWS_IDENTITY_ARN" in
+    *":assumed-role/${FOOTBAG_DEV_TESTER_ROLE}/"*)
+      FOOTBAG_ACTING_AS_PERSON="${AWS_IDENTITY_ARN##*/}"
+      ;;
+  esac
+  # Recorded and said out loud, never refused here: this runs on every AWS-
+  # touching run including the reports, and a report must be able to describe a
+  # workstation whose two halves disagree rather than die on it.
+  operator_identity_agreement_record
   return 0
 }
 
@@ -221,12 +286,15 @@ aws_profile_ensure() {
 
   aws_profile_note_stub
 
-  # Two names, tried in the order the two tiers make sensible. The super admin's
-  # machine has the first and the work they do is the whole estate, so they get
-  # it. A dev-and-tester's machine has only the second, and reaching it by
-  # fallback rather than by an exported variable is the whole point of this
-  # file: a profile an operator has to remember to name in every shell is the
-  # step this exists to remove.
+  # Two profile names, tried in a fixed order, filling a vacuum for work that
+  # does not care which identity it runs as. The order is not a claim about who
+  # owns the machine and nothing downstream may read it as one: whichever
+  # profile is settled on, the ARN behind it is proved below and printed, and
+  # that proof is the only statement of identity this function makes.
+  #
+  # Reaching a profile by this fallback rather than by an exported variable is
+  # the whole point of the file: a name an operator has to remember to give in
+  # every shell is the step this exists to remove.
   local supplied=""
   if aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
     supplied="$FOOTBAG_OPERATOR_PROFILE"
@@ -239,13 +307,16 @@ aws_profile_ensure() {
     echo "       '${FOOTBAG_DEV_TESTER_PROFILE}' configured, and your shell carries" >&2
     echo "       no AWS credentials of its own, so nothing here can authenticate." >&2
     echo "" >&2
-    echo "       If you are a dev-and-tester, both of your profiles are written" >&2
-    echo "       for you by the onboarding, which the super admin runs at your" >&2
-    echo "       keyboard because it mints your key onto this machine and there" >&2
-    echo "       is no other copy of it anywhere:" >&2
-    echo "         bash scripts/manage-human-operator.sh --onboard <your-name>" >&2
+    echo "       If your key is minted by the onboarding, the profile holding your" >&2
+    echo "       own key and the '${FOOTBAG_DEV_TESTER_PROFILE}' profile that chains" >&2
+    echo "       from it are written for you by it, on your own machine, because it mints your" >&2
+    echo "       key there and there is no other copy of it anywhere. A" >&2
+    echo "       footbag-operator holder onboarding themselves runs:" >&2
+    echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
+    echo "       A dev-and-tester's are delivered by a process that is designed and" >&2
+    echo "       not yet built." >&2
     echo "" >&2
-    echo "       If you are the super admin, install your key from the vault" >&2
+    echo "       For the directly authenticated key, install it from the vault" >&2
     echo "       entry aws-footbag-operator-keys:" >&2
     echo "         bash scripts/install-operator-key.sh" >&2
     echo "" >&2
@@ -307,13 +378,29 @@ aws_profile_use() {
     # the vault for a named operator's key is an instruction to look for
     # something that deliberately does not exist, arriving as advice from the
     # tooling itself.
+    #
+    # Three answers, not two. The branch used to send everything that was not
+    # the first name at the onboarding, which is wrong for the runtime chains:
+    # those are written by the key install for the directly authenticated
+    # identity, and telling its holder to be onboarded as a named operator is
+    # the mirror image of the harm this comment describes.
     if [[ "$want" == "$FOOTBAG_OPERATOR_PROFILE" ]]; then
       echo "       Install it from the vault entry aws-footbag-operator-keys:" >&2
       echo "         bash scripts/install-operator-key.sh" >&2
-    else
+    elif [[ "$want" == "$FOOTBAG_DEV_TESTER_PROFILE" ]]; then
       echo "       That profile is written by the human-operator onboarding, and" >&2
-      echo "       only at the keyboard of the person it belongs to:" >&2
+      echo "       only on the machine of the person whose key it chains from. A" >&2
+      echo "       footbag-operator holder onboarding themselves runs:" >&2
+      echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
+      echo "       A dev-and-tester's is delivered by a process that is designed and" >&2
+      echo "       not yet built." >&2
+    else
+      echo "       That is a chained runtime section. The onboarding writes the" >&2
+      echo "       staging one for a named operator; the key install writes both" >&2
+      echo "       for the directly authenticated identity. Which applies here is" >&2
+      echo "       a fact about whose key this machine holds:" >&2
       echo "         bash scripts/manage-human-operator.sh --onboard <name>" >&2
+      echo "         bash scripts/install-operator-key.sh" >&2
     fi
     return 1
   fi
@@ -329,10 +416,16 @@ aws_profile_use() {
   # said which one it was using before the change and stayed quiet through it is
   # exactly the wrong way round.
   _FOOTBAG_PROFILE_ANNOUNCED=""
+  # And for the same reason the verdict about who this run is acting as is
+  # forgotten: it was reached about the identity being left behind.
+  operator_identity_agreement_reset
   if ! aws_profile_announce "profile '${want}', required by this script."; then
     unset AWS_PROFILE
     return 1
   fi
+  # A caller reaching for one named identity is acting, not looking, so a run
+  # that would carry two different people's names stops here.
+  operator_identity_agreement_require || return 1
   return 0
 }
 

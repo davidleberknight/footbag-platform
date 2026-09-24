@@ -4,9 +4,10 @@
  *
  * An operator workstation carries no default section for anything to fall back
  * to, so a fresh terminal has no AWS identity at all and the first command
- * needing one fails with the SDK's words about locating credentials. A super
- * admin's machine carries two named profiles, the everyday federated one and
- * the break-glass key beside it; a dev-and-tester's carries only the first.
+ * needing one fails with the SDK's words about locating credentials. A
+ * workstation carries the section holding the directly authenticated user's
+ * key, or the section holding a named operator's own key with a role-assuming
+ * section beside it, or all of them on a machine whose owner is both.
  * Asking the operator to
  * export a variable in every new shell puts a step in a person's head that has
  * to be repeated in every terminal, and it is recorded in the operations
@@ -229,23 +230,23 @@ describe('aws_profile_ensure fills a vacuum', () => {
     expect(r.stderr).toMatch(/supplied by this script/);
   });
 
-  it('falls back to the job-role profile on a machine without the other one', () => {
-    // A dev-and-tester's workstation never carries the directly authenticated
-    // profile. Without this they would have to name theirs in every shell,
-    // which is the step this whole library exists to remove.
+  it('falls back to the role-assuming section on a machine without the other one', () => {
+    // Filling a vacuum, not a statement about who owns the machine. Without it
+    // an operator whose workstation carries only their own key would have to
+    // name a section in every shell, which is the step this library removes.
     const r = withLib('aws_profile_ensure; echo "profile=$AWS_PROFILE"', {
-      ...stubEnv(['someone', 'footbag-devtester']),
+      ...stubEnv(['someone', 'FootbagDevTester']),
     });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toContain('profile=footbag-devtester');
+    expect(r.stdout).toContain('profile=FootbagDevTester');
   });
 
   it('prefers the directly authenticated profile where the machine has both', () => {
-    // The super admin's work is the whole estate, and the job role is bounded
+    // footbag-operator's work is the whole estate, and the job role is bounded
     // to staging. Defaulting them into it would narrow every run they make and
     // surface as an access denial partway through rather than as a choice.
     const r = withLib('aws_profile_ensure; echo "profile=$AWS_PROFILE"', {
-      ...stubEnv(['footbag-devtester', 'footbag-operator']),
+      ...stubEnv(['FootbagDevTester', 'footbag-operator']),
     });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('profile=footbag-operator');
@@ -323,17 +324,18 @@ describe('aws_profile_ensure proves the identity it settles on', () => {
 });
 
 describe('aws_profile_ensure refuses rather than guessing', () => {
-  it('names both tiers when the machine carries neither profile', () => {
-    // A machine with neither is a machine nobody has set up yet, and the two
-    // tiers are set up by different people through different commands. Naming
-    // one would send half the readers at the wrong one.
+  it('names both commands when the machine carries neither section', () => {
+    // A machine with neither is one nobody has set up yet, and the two sections
+    // are written by different commands. Naming one would send half the readers
+    // at the wrong one.
     const r = withLib('aws_profile_ensure; echo "rc=$?"', {
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stdout).toContain('rc=1');
     expect(r.stderr).toMatch(/neither 'footbag-operator' nor/);
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
-    expect(r.stderr).toContain('bash scripts/manage-human-operator.sh --onboard');
+    expect(r.stderr).toContain('bash scripts/onboard-operator.sh');
+    expect(r.stderr).toMatch(/designed and\s+not yet built/);
   });
 
   it('says a named operator cannot reinstall their own key, because no copy exists', () => {
@@ -377,6 +379,33 @@ describe('what the run says about itself', () => {
     });
     expect(r.stderr).toMatch(/the AWS binary is stubbed for this run/);
   });
+
+  it('says on stderr when a profile name is replaced by the environment', () => {
+    const r = withLib('echo "op=$FOOTBAG_OPERATOR_PROFILE dt=$FOOTBAG_DEV_TESTER_PROFILE"', {
+      FOOTBAG_OPERATOR_PROFILE: 'some-operator-profile',
+      FOOTBAG_DEV_TESTER_PROFILE: 'some-role-profile',
+    });
+    expect(r.stdout).toContain('op=some-operator-profile dt=some-role-profile');
+    expect(r.stderr).toMatch(/profile name 'some-operator-profile' comes from the environment/);
+    expect(r.stderr).toMatch(/profile name 'some-role-profile' comes from the environment/);
+  });
+
+  it('says nothing about profile names when they are the defaults', () => {
+    const r = withLib('true', {});
+    expect(r.stderr).not.toMatch(/comes from the environment/);
+  });
+});
+
+describe('the job role is a fixed name', () => {
+  it('ignores an exported role name, so onboarding cannot be pointed at another role', () => {
+    // The role's name decides what onboarding grants a new operator permission
+    // to assume. An exported value choosing it would let ambient state in an
+    // operator's shell grant a person some other role entirely.
+    const r = withLib('echo "role=$FOOTBAG_DEV_TESTER_ROLE"', {
+      FOOTBAG_DEV_TESTER_ROLE: 'SomeOtherRole',
+    });
+    expect(r.stdout).toContain('role=FootbagDevTester');
+  });
 });
 
 /**
@@ -388,8 +417,8 @@ describe('what the run says about itself', () => {
 describe('aws_profile_use settles the run on one named identity', () => {
   it('takes the named profile even when the shell already chose another', () => {
     const r = withLib('aws_profile_use footbag-operator "why."; echo "p=$AWS_PROFILE"', {
-      AWS_PROFILE: 'footbag-devtester',
-      ...stubEnv(['footbag-operator', 'footbag-devtester']),
+      AWS_PROFILE: 'FootbagDevTester',
+      ...stubEnv(['footbag-operator', 'FootbagDevTester']),
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('p=footbag-operator');
@@ -400,8 +429,8 @@ describe('aws_profile_use settles the run on one named identity', () => {
     // named the first one and went quiet through the change is the wrong way
     // round.
     const r = withLib(
-      'aws_profile_ensure; aws_profile_use footbag-devtester "why."',
-      { ...stubEnv(['footbag-operator', 'footbag-devtester']) },
+      'aws_profile_ensure; aws_profile_use FootbagDevTester "why."',
+      { ...stubEnv(['footbag-operator', 'FootbagDevTester']) },
     );
     expect(r.stderr).toMatch(/required by this script/);
   });
@@ -421,7 +450,7 @@ describe('aws_profile_use settles the run on one named identity', () => {
 
   it('refuses when the named profile is not on the machine, saying what it was for', () => {
     const r = withLib('aws_profile_use footbag-operator "the tree takes one principal."; echo "rc=$?"', {
-      ...stubEnv(['footbag-devtester']),
+      ...stubEnv(['FootbagDevTester']),
     });
     expect(r.stdout).toContain('rc=1');
     expect(r.stderr).toMatch(/no AWS profile named 'footbag-operator'/);
@@ -430,7 +459,7 @@ describe('aws_profile_use settles the run on one named identity', () => {
 
   it('names the vault installer only for the profile the vault actually holds', () => {
     const r = withLib('aws_profile_use footbag-operator "why."', {
-      ...stubEnv(['footbag-devtester']),
+      ...stubEnv(['FootbagDevTester']),
     });
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
   });
@@ -439,12 +468,26 @@ describe('aws_profile_use settles the run on one named identity', () => {
     // A named operator's key exists in exactly one place, their own machine.
     // Pointing them at a vault entry is an instruction to hunt for something
     // that was deliberately never put there, arriving from the tooling itself.
-    const r = withLib('aws_profile_use footbag-devtester "why."', {
+    const r = withLib('aws_profile_use FootbagDevTester "why."', {
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
+    expect(r.stderr).toContain('bash scripts/onboard-operator.sh');
+    expect(r.stderr).toMatch(/only on the machine of the person whose key it chains from/);
+    expect(r.stderr).toMatch(/designed and\s+not yet built/);
+  });
+
+  it('names both writers for a chained runtime section, which either may own', () => {
+    // The branch used to send everything that was not the first name at the
+    // onboarding. The key install writes both runtime chains for the directly
+    // authenticated identity, so telling its holder to be onboarded as a named
+    // operator is the mirror of the harm the case above pins.
+    const r = withLib('aws_profile_use footbag-staging-runtime "why."', {
+      ...stubEnv(['some-unrelated-profile']),
+    });
+    expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
     expect(r.stderr).toContain('bash scripts/manage-human-operator.sh --onboard');
-    expect(r.stderr).toMatch(/only at the keyboard of the person it belongs to/);
+    expect(r.stderr).toMatch(/chained runtime section/);
   });
 
   it('leaves no profile exported when the one it named does not authenticate', () => {
@@ -483,6 +526,6 @@ describe('the terraform reader settles the identity before reading', () => {
     });
     expect(res.stdout).toContain('rc=1');
     expect(res.stdout).toContain('err=no AWS identity is available for this read');
-    expect(res.stderr).toContain('bash scripts/manage-human-operator.sh --onboard');
+    expect(res.stderr).toContain('bash scripts/onboard-operator.sh');
   });
 });

@@ -11,7 +11,7 @@
  * Everything that makes that safe is a refusal or a proof, and both are what is
  * pinned here:
  *
- *   - only the directly authenticated super-admin may run it, because every
+ *   - only the directly authenticated IAM user footbag-operator may run it, because every
  *     role in the account is denied every write to a human operator's identity,
  *     and a run started under one would fail partway through rather than at the
  *     door;
@@ -104,7 +104,7 @@ interface Account {
   login?: boolean;
   /** What get-caller-identity returns for the profile the run authenticates on. */
   caller?: string;
-  /** What the job-role profile resolves to, or absent for one that does not. */
+  /** What the role-assuming section resolves to, or absent for one that does not. */
   assumed?: string | null;
 }
 
@@ -173,16 +173,34 @@ function awsStub(): string {
       'done',
       'case "$2" in',
       '  get-caller-identity)',
+      // A freshly minted key is refused for a while after it is made. The
+      // count in "lag" is how many more calls on the new key are refused.
+      `    if [ "$profile" != footbag-operator ] && [ -s "$S/lag" ] && [ "$(cat "$S/lag")" -gt 0 ]; then`,
+      `      echo $(( $(cat "$S/lag") - 1 )) > "$S/lag"`,
+      '      echo "An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid." >&2',
+      '      exit 254',
+      '    fi',
       '    case "$profile" in',
       `      footbag-operator) cat "$S/caller" ;;`,
-      `      footbag-devtester)`,
+      `      FootbagDevTester)`,
       `        [ -f "$S/assumed" ] || { echo "profile could not be found" >&2; exit 255; }`,
       `        cat "$S/assumed" ;;`,
       `      ${OPERATOR})`,
       `        [ -f "$S/user" ] || { echo "profile could not be found" >&2; exit 255; }`,
-      `        printf '%s\\n' "arn:aws:iam::${ACCOUNT}:user/${OPERATOR}" ;;`,
+      `        printf '%s\\n' "arn:aws:iam::${ACCOUNT}:user${OPERATOR_PATH}${OPERATOR}" ;;`,
       '      *) echo "profile could not be found" >&2; exit 255 ;;',
       '    esac ;;',
+      // A fresh assume with the source key, never a cached session. It succeeds
+      // while the role is reachable ("assumed"), and for as many further calls
+      // as "revoke-lag" holds, which is how long IAM goes on honouring a key
+      // after it is deleted.
+      '  assume-role)',
+      `    if [ -s "$S/revoke-lag" ] && [ "$(cat "$S/revoke-lag")" -gt 0 ]; then`,
+      `      echo $(( $(cat "$S/revoke-lag") - 1 )) > "$S/revoke-lag"`,
+      `      printf '%s\\n' "arn:aws:sts::${ACCOUNT}:assumed-role/FootbagDevTester/${OPERATOR}"; exit 0`,
+      '    fi',
+      `    [ -f "$S/assumed" ] || { echo "An error occurred (InvalidClientTokenId) when calling the AssumeRole operation: The security token included in the request is invalid." >&2; exit 254; }`,
+      `    cat "$S/assumed" ;;`,
       `  get-role) [ -f "$S/role" ] || { echo NoSuchEntity >&2; exit 254; }; printf '{}\\n' ;;`,
       `  get-user) [ -f "$S/user" ] || { echo NoSuchEntity >&2; exit 254; }; cat "$S/user" ;;`,
       '  create-user)',
@@ -230,7 +248,11 @@ function awsStub(): string {
   return path;
 }
 
-function run(args: string[], account: Account = {}, opts: { valuesDir?: string } = {}) {
+function run(
+  args: string[],
+  account: Account = {},
+  opts: { valuesDir?: string; env?: NodeJS.ProcessEnv } = {},
+) {
   seed(account);
   const res = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
@@ -251,6 +273,7 @@ function run(args: string[], account: Account = {}, opts: { valuesDir?: string }
       // private checkout wired: without the override the default resolves to
       // whatever the developer happens to have.
       ...(opts.valuesDir ? { MANAGE_OPERATOR_VALUES_DIR: opts.valuesDir } : {}),
+      ...(opts.env ?? {}),
     },
     ...SPAWN_GUARD,
   });
@@ -322,6 +345,26 @@ describe('manage-human-operator.sh — the argument guards', () => {
     expect(calls()).toHaveLength(0);
   });
 
+  it('settles onto footbag-operator rather than refusing a job-role shell', () => {
+    // There is exactly one identity this can ever act as, so inheriting the
+    // wrong one from the work before it was never a decision to respect. It
+    // used to stop at the door and cost a re-run in a fresh shell: a refusal
+    // that was correct and that nobody should have had to meet.
+    const bothDir = join(workDir, 'both');
+    mkdirSync(bothDir, { recursive: true });
+    const r = run(['--verify', OPERATOR], INERT_MANAGED, {
+      env: {
+        AWS_PROFILE: 'FootbagDevTester',
+        ...awsIdentityStubEnv(bothDir, {
+          profile: ['footbag-operator', 'FootbagDevTester'],
+        }),
+      },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toMatch(/profile 'footbag-operator', required by this script/);
+    expect(r.stderr).not.toMatch(/is an assumed role/);
+  });
+
   it('refuses the directly authenticated identity as a target, under every flag', () => {
     for (const action of ['--onboard', '--offboard', '--verify']) {
       const r = run([action, 'footbag-operator', '--yes']);
@@ -329,6 +372,23 @@ describe('manage-human-operator.sh — the argument guards', () => {
       expect(r.stderr).toMatch(/not managed here, under any flag/);
     }
     expect(calls()).toHaveLength(0);
+  });
+});
+
+describe('manage-human-operator.sh — a replaced input says so', () => {
+  it('announces a staging runtime role taken from the environment', () => {
+    // The chain onboarding writes ends at this role, so a value replaced from
+    // the environment changes what an operator's workstation is set up to
+    // reach. A stubbed or redirected run must never look like a real one.
+    const r = run(['--verify', OPERATOR], READY, {
+      env: { MANAGE_OPERATOR_STAGING_ROLE_ARN: 'arn:aws:iam::111122223333:role/elsewhere' },
+    });
+    expect(r.stderr).toMatch(/staging runtime role .*role\/elsewhere.* comes from the environment/);
+  });
+
+  it('says nothing when the staging runtime role is the default', () => {
+    const r = run(['--verify', OPERATOR], READY);
+    expect(r.stderr).not.toMatch(/staging runtime role .* comes from the environment/);
   });
 });
 
@@ -428,10 +488,10 @@ describe('manage-human-operator.sh — onboarding a new operator', () => {
     expect(credentials()).toContain('AKIAEXISTINGKEY00000');
   });
 
-  it('writes the job-role profile chaining from the operator’s own', () => {
+  it('writes the role-assuming section chaining from the operator’s own key', () => {
     const r = run(['--onboard', OPERATOR, '--yes'], READY);
     expect(r.status, r.stderr).toBe(0);
-    expect(config()).toContain('[profile footbag-devtester]');
+    expect(config()).toContain('[profile FootbagDevTester]');
     // The library pads the keys into a column, so the assertions allow for it.
     expect(config()).toMatch(new RegExp(`role_arn\\s+= ${ROLE_ARN}`));
     expect(config()).toMatch(new RegExp(`source_profile\\s+= ${OPERATOR}`));
@@ -449,8 +509,8 @@ describe('manage-human-operator.sh — onboarding a new operator', () => {
     // line being present can.
     const r = run(['--onboard', OPERATOR, '--yes'], READY);
     expect(r.status, r.stderr).toBe(0);
-    const devtester = config().split('[profile ').find((s) => s.startsWith('footbag-devtester]'));
-    expect(devtester, 'the job-role profile was written').toBeTruthy();
+    const devtester = config().split('[profile ').find((s) => s.startsWith('FootbagDevTester]'));
+    expect(devtester, 'the role-assuming section was written').toBeTruthy();
     expect(devtester).toMatch(new RegExp(`role_session_name\\s+= ${OPERATOR}`));
   });
 
@@ -458,7 +518,7 @@ describe('manage-human-operator.sh — onboarding a new operator', () => {
     const r = run(['--onboard', OPERATOR, '--yes'], READY);
     expect(r.status, r.stderr).toBe(0);
     expect(config()).toContain('[profile footbag-staging-runtime]');
-    expect(config()).toMatch(/source_profile\s+= footbag-devtester/);
+    expect(config()).toMatch(/source_profile\s+= FootbagDevTester/);
   });
 
   it('writes no production runtime chain, and says why', () => {
@@ -472,6 +532,28 @@ describe('manage-human-operator.sh — onboarding a new operator', () => {
     const r = run(['--onboard', OPERATOR, '--yes'], READY);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/session name: test_operator/);
+  });
+
+  it('waits for a freshly minted key to take effect rather than rolling back', () => {
+    // AWS refuses a new access key for some seconds after minting it. Proving
+    // the chain at once read that as a broken identity and deleted everything.
+    writeFileSync(join(stateDir, 'lag'), '3\n', 'utf-8');
+    const r = run(['--onboard', OPERATOR, '--yes'], READY, {
+      env: { MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/waiting for the new key to take effect/);
+    expect(r.stdout).toMatch(/session name: test_operator/);
+  });
+
+  it('still fails and rolls back when the new key never takes effect', () => {
+    writeFileSync(join(stateDir, 'lag'), '1000\n', 'utf-8');
+    const r = run(['--onboard', OPERATOR, '--yes'], READY, {
+      env: { MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not resolve an identity/);
+    expect(r.stdout + r.stderr).toMatch(/Deleted\. Nothing was left behind\./);
   });
 
   it('refuses when the session comes back under somebody else’s name', () => {
@@ -508,6 +590,30 @@ describe('manage-human-operator.sh — onboarding an operator who already exists
     );
   });
 
+  it('reissues the key of an operator whose key is still active, retiring the old one', () => {
+    // A named operator's key is never rotated: a lost one is reissued by
+    // onboarding them again. The old key is still Active in that case, because
+    // losing a key does not deactivate it, so the re-onboard retires it rather
+    // than refusing for want of a free key slot.
+    const r = run(['--onboard', OPERATOR, '--yes'], {
+      role: true,
+      userPath: OPERATOR_PATH,
+      tags: MANAGED_TAGS,
+      policy: true,
+      keys: [[OLD_KEY_ID, 'Active']],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`Retiring the key being replaced: ${OLD_KEY_ID}`);
+    expect(keyRows().join('\n')).toContain(FAKE_KEY_ID);
+    expect(keyRows().join('\n')).not.toContain(OLD_KEY_ID);
+    // Matched as a whole flag value: "Inactive" contains "Active", and the
+    // deactivation that retiring the old key performs must not read as a
+    // reactivation.
+    expect(calls().some((c) => c.includes('update-access-key') && /--status Active\b/.test(c))).toBe(
+      false,
+    );
+  });
+
   it('refuses an unmanaged user of the same name, and changes nothing', () => {
     const r = run(['--onboard', OPERATOR, '--yes'], {
       role: true,
@@ -532,6 +638,23 @@ describe('manage-human-operator.sh — onboarding an operator who already exists
     expect(mutatingCalls()).toHaveLength(0);
   });
 
+  it('refuses before creating anything when this machine\'s role profile belongs to somebody else', () => {
+    // The role profile is written once per workstation, sourcing the operator
+    // it was written for. Onboarding a second person here would leave that
+    // profile as it is, the session-name proof would then name the first
+    // person, and the run would create the user, grant it, mint a key and
+    // unwind all of it. Refusing at the door says why instead.
+    writeFileSync(
+      configFile,
+      '[profile FootbagDevTester]\nrole_arn = arn:aws:iam::111122223333:role/FootbagDevTester\nsource_profile = someone_else\nrole_session_name = someone_else\n',
+      'utf-8',
+    );
+    const r = run(['--onboard', OPERATOR, '--yes'], READY);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/\[profile FootbagDevTester\] on this machine already sources\s+\[someone_else\]/);
+    expect(mutatingCalls()).toHaveLength(0);
+  });
+
   it('leaves a chained profile the operator already has, and says what it sources', () => {
     writeFileSync(
       configFile,
@@ -541,8 +664,10 @@ describe('manage-human-operator.sh — onboarding an operator who already exists
     const r = run(['--onboard', OPERATOR, '--yes'], READY);
     expect(r.status, r.stderr).toBe(0);
     expect(config()).toContain('source_profile = footbag-operator');
-    expect(config()).not.toMatch(/\[profile footbag-staging-runtime\][\s\S]*?source_profile\s+= footbag-devtester/);
-    expect(r.stdout).toMatch(/footbag-staging-runtime: already present, left untouched/);
+    expect(config()).not.toMatch(/\[profile footbag-staging-runtime\][\s\S]*?source_profile\s+= FootbagDevTester/);
+    expect(r.stdout).toMatch(
+      /\[profile footbag-staging-runtime\]: already present, left untouched/,
+    );
     expect(r.stdout).toMatch(/it chains from \[profile footbag-operator\]/);
   });
 });
@@ -682,10 +807,142 @@ describe('manage-human-operator.sh — offboarding', () => {
       );
       const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
       expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/Still owed, on the host side/);
-      expect(r.stdout).toMatch(/operator_cidrs/);
+      expect(r.stdout).toMatch(/Still owed/);
+      // The access path this script does NOT end is the one that reaches a
+      // shell. An operator who ran only this and saw it succeed would have a
+      // departed colleague still holding a host account, their key on it, and
+      // their address through the firewall. Naming the one command that ends
+      // all of it, at the moment the gap opens, is the whole point of this
+      // block, so the command is asserted rather than the heading.
+      expect(r.stdout).toMatch(/bash scripts\/offboard-operator\.sh --target <env> --account test_operator/);
+      expect(r.stdout).toMatch(/for each environment/);
+      // The owed firewall act names the command that performs it rather than a
+      // values file to edit by hand, and it says that the list printed below it
+      // comes from that file rather than from the firewall, because those two
+      // disagree for exactly as long as an apply is pending.
+      expect(r.stdout).toMatch(/authorize-operator-address\.sh/);
+      expect(r.stdout).toMatch(/--remove/);
+      expect(r.stdout).toMatch(/read from the values file/);
       expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32 198\.51\.100\.9\/32/);
       expect(r.stdout).toMatch(/production: 203\.0\.113\.4\/32/);
+    } finally {
+      rmSync(values, { recursive: true, force: true });
+    }
+  });
+
+  it('does not repeat the host step when the one-command offboard is driving it', () => {
+    // The parent has just retired the host account and prints what a
+    // departure still owes, so a host step printed here would tell the
+    // operator to do again what has just been done.
+    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      mkdirSync(join(values, 'staging'), { recursive: true });
+      mkdirSync(join(values, 'production'), { recursive: true });
+      writeFileSync(join(values, 'staging', 'terraform.tfvars'), 'operator_cidrs = [\n  "203.0.113.4/32",\n]\n', 'utf-8');
+      writeFileSync(join(values, 'production', 'terraform.tfvars'), 'operator_cidrs = ["203.0.113.4/32"]\n', 'utf-8');
+      const r = run(['--offboard', OPERATOR, '--yes', '--driven-by-offboard'], ACTIVE, {
+        valuesDir: values,
+      });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).not.toMatch(/Still owed/);
+      expect(r.stdout).not.toMatch(/offboard-operator\.sh/);
+      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32/);
+    } finally {
+      rmSync(values, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to call the identity retired while a console sign-in survives', () => {
+    // Onboarding already asserts there is no login profile at creation, and
+    // offboarding did not. Nothing in this script makes one, so one here
+    // arrived by another route, and it is a console sign-in with no second
+    // factor that neither the grant removal nor the key retirement touches.
+    // Without this the run reports a retired identity that can still sign in.
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...ACTIVE, login: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/still has a console login profile/);
+    expect(r.stderr).toMatch(/survives both/);
+  });
+
+  it('reads the single-line form, which is the shape production actually uses', () => {
+    // The two values files are written differently, and only one of them was
+    // ever fixtured here. Production declares the list on one line, so its
+    // closing bracket is mid-line; the range this used to use ended on a line
+    // that was nothing but a bracket, never matched, and printed to the end of
+    // the file. On the real file that still yielded the right answer, because
+    // nothing else quoted in it happens to look like an address -- so the bug
+    // was invisible and one unrelated quoted literal away from reporting a
+    // stranger's address as an operator's.
+    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      mkdirSync(join(values, 'staging'), { recursive: true });
+      mkdirSync(join(values, 'production'), { recursive: true });
+      writeFileSync(
+        join(values, 'staging', 'terraform.tfvars'),
+        'operator_cidrs = ["203.0.113.4/32"]\n',
+        'utf-8',
+      );
+      // Everything after the list is what the old range swallowed. None of it
+      // is an allow-list entry and all of it is quoted.
+      writeFileSync(
+        join(values, 'production', 'terraform.tfvars'),
+        'operator_cidrs = ["203.0.113.4/32"]\n' +
+          'lightsail_origin_dns = "198.51.100.77.nip.io"\n' +
+          'alarm_topic_name     = "192.0.2.1"\n',
+        'utf-8',
+      );
+      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32\s*$/m);
+      expect(r.stdout).toMatch(/production: 203\.0\.113\.4\/32\s*$/m);
+      expect(r.stdout).not.toMatch(/198\.51\.100\.77/);
+      expect(r.stdout).not.toMatch(/192\.0\.2\.1/);
+    } finally {
+      rmSync(values, { recursive: true, force: true });
+    }
+  });
+
+  it('does not report a commented-out entry as a live one', () => {
+    // A retired address is often left in place as a comment rather than
+    // deleted, which is how the reason it was removed survives. Reporting it as
+    // live sends an operator to prune something that is already gone, and the
+    // next person to read the list trusts it less.
+    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      mkdirSync(join(values, 'staging'), { recursive: true });
+      mkdirSync(join(values, 'production'), { recursive: true });
+      const body =
+        'operator_cidrs = [\n' +
+        '  "203.0.113.4/32", # current\n' +
+        '  # "198.51.100.9/32", withdrawn 2026-08-01, kept for the reason\n' +
+        ']\n';
+      writeFileSync(join(values, 'staging', 'terraform.tfvars'), body, 'utf-8');
+      writeFileSync(join(values, 'production', 'terraform.tfvars'), body, 'utf-8');
+      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32\s*$/m);
+      expect(r.stdout).not.toMatch(/198\.51\.100\.9/);
+    } finally {
+      rmSync(values, { recursive: true, force: true });
+    }
+  });
+
+  it('reports an IPv6 range rather than dropping it', () => {
+    // The old extraction matched a quoted run of digits, dots and slashes, so no
+    // IPv6 literal could match it at all. An operator on a v6 address was
+    // reported as absent from a list that carried them, which reads as "nothing
+    // to prune" on exactly the day that matters.
+    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
+    try {
+      mkdirSync(join(values, 'staging'), { recursive: true });
+      mkdirSync(join(values, 'production'), { recursive: true });
+      const body = 'operator_cidrs = [\n  "2001:db8:abcd::/48",\n  "203.0.113.4/32",\n]\n';
+      writeFileSync(join(values, 'staging', 'terraform.tfvars'), body, 'utf-8');
+      writeFileSync(join(values, 'production', 'terraform.tfvars'), body, 'utf-8');
+      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/2001:db8:abcd::\/48/);
+      expect(r.stdout).toMatch(/203\.0\.113\.4\/32/);
     } finally {
       rmSync(values, { recursive: true, force: true });
     }
@@ -786,13 +1043,236 @@ describe('manage-human-operator.sh — verify', () => {
   });
 
   it('names a wrong path as the reason the role would refuse the user', () => {
+    // A finding rather than a line to read past: the trust policy matches on
+    // the path, so a user outside it cannot assume the role whatever its own
+    // grants say, and a read-back that reports that and exits 0 is a report
+    // nobody acts on.
     const r = run(['--verify', OPERATOR], { role: true, userPath: '/', tags: MANAGED_TAGS });
-    expect(r.status, r.stderr).toBe(0);
+    expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/NOT \/footbag-operators\//);
+    expect(r.stderr).toMatch(/1 finding\(s\)/);
+  });
+
+  it('reports a retired identity without calling it a finding', () => {
+    // No policy and no active key is the correct state after an offboard, so a
+    // verify of a properly retired person passes. Counting it would fail the
+    // run for the outcome the offboard is supposed to produce.
+    const r = run(['--verify', OPERATOR], INERT_MANAGED);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/absent, so this identity reaches nothing/);
+  });
+
+  it('refuses a name that collides with a section it writes, by shape alone', () => {
+    // These were once refused twice: by the shape check, and by a list of
+    // reserved names below it that could never be reached, because every one
+    // of them carries a capital letter or a hyphen and the shape admits
+    // neither. The list is gone; the refusal is not.
+    for (const reserved of ['FootbagDevTester', 'footbag-staging-runtime', 'footbag-production-runtime']) {
+      const r = run(['--onboard', reserved, '--yes'], READY);
+      expect(r.status, `${reserved} must be refused`).toBe(2);
+      expect(mutatingCalls()).toEqual([]);
+    }
   });
 
   it('says plainly when the run is against a stub', () => {
     const r = run(['--verify', OPERATOR], READY);
     expect(r.stderr).toMatch(/SYNTHETIC/);
+  });
+});
+
+/**
+ * The workstation side of the two proofs that used to be hand-typed after the
+ * run: attempting the refused assume for real, and comparing the key a
+ * re-onboard mints against the one it replaced. Both were steps an operator
+ * performed at the end of a long sitting, which is when a step gets skipped,
+ * and the second produced "they look different" rather than an assertion.
+ */
+describe('manage-human-operator.sh — the proofs the run makes for itself', () => {
+  /** A profile list naming more than the one the shared helper offers. */
+  function profileListStub(names: string[]): string {
+    const path = join(workDir, 'profile-list-stub.sh');
+    writeFileSync(
+      path,
+      [
+        '#!/usr/bin/env bash',
+        'if [[ "$1" == "configure" && "$2" == "list-profiles" ]]; then',
+        `  printf '%s\\n' ${names.map((n) => JSON.stringify(n)).join(' ')}`,
+        '  exit 0',
+        'fi',
+        'exit 64',
+      ].join('\n'),
+      'utf-8',
+    );
+    chmodSync(path, 0o755);
+    return path;
+  }
+
+  /** The two sections an onboarded operator's workstation carries. */
+  function seedWorkstation(sourceProfile: string, keyId?: string) {
+    writeFileSync(
+      configFile,
+      [
+        `[profile FootbagDevTester]`,
+        `role_arn = ${ROLE_ARN}`,
+        `source_profile = ${sourceProfile}`,
+        `role_session_name = ${sourceProfile}`,
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    if (keyId) {
+      writeFileSync(
+        credFile,
+        [`[${OPERATOR}]`, `aws_access_key_id = ${keyId}`, `aws_secret_access_key = ${FAKE_SECRET}`, ''].join(
+          '\n',
+        ),
+        'utf-8',
+      );
+    }
+  }
+
+  const withChain = () => ({
+    env: { AWS_PROFILE_BIN: profileListStub(['footbag-operator', 'FootbagDevTester']) },
+  });
+
+  const RETIRING: Account = {
+    role: true,
+    userPath: OPERATOR_PATH,
+    tags: MANAGED_TAGS,
+    keys: [[FAKE_KEY_ID, 'Active']],
+    policy: true,
+  };
+
+  it('attempts the refused assume for real and reports what it said', () => {
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('a real role session: refused');
+    // The verbatim failure is the evidence the go-live gate asks for, so it is
+    // reproduced rather than summarised.
+    expect(r.stdout).toMatch(/InvalidClientTokenId/);
+  });
+
+  it('asks with the retired key itself, never a cached role session', () => {
+    // The CLI caches role sessions on disk, and a cached one stays valid until
+    // it expires whatever happens to the key. Asking through the role profile
+    // answered with that session and failed a retirement that had worked.
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    const calls = readFileSync(join(stateDir, 'calls.log'), 'utf-8');
+    expect(calls).toMatch(new RegExp(`sts assume-role --profile ${OPERATOR} --role-arn ${ROLE_ARN}`));
+    expect(calls).not.toMatch(/get-caller-identity --profile FootbagDevTester/);
+  });
+
+  it('waits for a deleted key to stop working rather than failing the retirement', () => {
+    // IAM goes on honouring a deleted key for some seconds.
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    writeFileSync(join(stateDir, 'revoke-lag'), '3\n', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, {
+      env: { ...withChain().env, MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/waiting for the retired key to stop working/);
+    expect(r.stdout).toContain('a real role session: refused');
+  });
+
+  it('keeps the simulator proof alongside it, since they answer different questions', () => {
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    expect(r.stdout).toContain('a new role session: refused by the policy simulator');
+  });
+
+  it('fails the offboard when the retired credentials still reach the role', () => {
+    // The case the simulator cannot see: policy evaluation says no while a
+    // credential that survived the retirement still authenticates.
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    const r = run(['--offboard', OPERATOR, '--yes'], RETIRING, {
+      env: { ...withChain().env, MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/still reached FootbagDevTester/);
+    expect(r.stderr).toMatch(/is NOT retired/);
+  });
+
+  it('does not attempt it against a chain belonging to somebody else', () => {
+    // A profile of that name sourcing another person's credentials would answer
+    // a question about them, and either answer would be misread as this one.
+    seedWorkstation('somebody_else', FAKE_KEY_ID);
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/chains from \[somebody_else\]/);
+    expect(r.stdout).not.toContain('a real role session: refused');
+  });
+
+  it('treats a chain named for the operator as evidence only when it signs with their key', () => {
+    // The section is called after them but signs with a key IAM never held for
+    // them, so its refusal says nothing about the retirement.
+    seedWorkstation(OPERATOR, OLD_KEY_ID);
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('a real role session: refused');
+    expect(r.stdout).toMatch(/signing with \S+, which is not one of\s+the keys IAM held/);
+  });
+
+  it('proves a chain that signs with their retired key, whatever its source is called', () => {
+    // Identity is the key, not the section name: a chain sourcing a section
+    // called something else but signing with their retired key is exactly the
+    // credential whose survival this proof exists to catch.
+    writeFileSync(
+      configFile,
+      [
+        '[profile FootbagDevTester]',
+        `role_arn = ${ROLE_ARN}`,
+        'source_profile = laptop_key',
+        `role_session_name = ${OPERATOR}`,
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    writeFileSync(
+      credFile,
+      ['[laptop_key]', `aws_access_key_id = ${FAKE_KEY_ID}`, `aws_secret_access_key = ${FAKE_SECRET}`, ''].join(
+        '\n',
+      ),
+      'utf-8',
+    );
+    const r = run(['--offboard', OPERATOR, '--yes'], RETIRING, {
+      env: { ...withChain().env, MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/still reached FootbagDevTester/);
+    expect(readFileSync(join(stateDir, 'calls.log'), 'utf-8')).toMatch(/sts assume-role --profile laptop_key/);
+  });
+
+  it('says why it could not attempt it on a workstation without the chain', () => {
+    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/no \[profile FootbagDevTester\] chaining from anything/);
+  });
+
+  it('shows both key ids on a re-onboard and asserts they differ', () => {
+    seedWorkstation(OPERATOR, OLD_KEY_ID);
+    const r = run(['--onboard', OPERATOR, '--yes'], INERT_MANAGED, withChain());
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`minted a different key: ${OLD_KEY_ID} then ${FAKE_KEY_ID}`);
+  });
+
+  it('refuses a re-onboard that hands back the key the workstation already held', () => {
+    // A deleted access key id is never reissued, so the two matching means a
+    // retired credential was revived rather than replaced, and the departure it
+    // was retired for ended nothing.
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    const r = run(['--onboard', OPERATOR, '--yes'], INERT_MANAGED, withChain());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is the one this workstation/);
+    // It stops before the credentials file is rewritten, so the machine is left
+    // holding what it held.
+    expect(credentials()).toContain(FAKE_KEY_ID);
+  });
+
+  it('withdraws the key it minted when that comparison fails', () => {
+    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    run(['--onboard', OPERATOR, '--yes'], INERT_MANAGED, withChain());
+    expect(calls().some((c) => /delete-access-key/.test(c))).toBe(true);
   });
 });

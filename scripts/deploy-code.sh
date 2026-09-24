@@ -155,6 +155,12 @@ source "${REPO_ROOT}/scripts/lib/initial-admins.sh"
 # shellcheck source=lib/terraform-output.sh
 source "${REPO_ROOT}/scripts/lib/terraform-output.sh"
 
+# Which account the alias connects as. Read here rather than inherited, because
+# the wrapper that resolved it is a different process: this half ships the
+# release, so it is this half that has to know whose name is on it.
+# shellcheck source=lib/operator-credential.sh
+source "${REPO_ROOT}/scripts/lib/operator-credential.sh"
+
 # SSH connection options. The host is verified against the operator's pinned
 # host-key file and an unrecognized key fails the deploy, which matters here
 # because the sudo password goes out as line one of the SSH stream. See
@@ -184,6 +190,21 @@ case "$REMOTE" in
     exit 1
     ;;
 esac
+
+# One deploy, one person. This run ships to the host as whoever the alias
+# connects as, and makes its AWS calls as whoever the profile resolves to, and
+# nothing else compares the two. Both are settled here, before anything is
+# built or shipped, so a run that would record one act under two names stops at
+# the door rather than part way through. A run acting as footbag-operator is not
+# a person on the AWS side and is not held to any host account.
+# The lookup's failure is not tolerated, and tolerating it was a defect: it is
+# the call that establishes the host half of the comparison, so a swallowed
+# failure leaves that half empty and the check below passes on nothing at all,
+# having printed an error the run then ignored. A deploy needs ssh and a
+# resolvable alias regardless, so there is no case where carrying on is right.
+operator_credential_select "$REMOTE" "$FOOTBAG_ENV" || exit 1
+aws_profile_ensure || exit 1
+operator_identity_agreement_require || exit 1
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }

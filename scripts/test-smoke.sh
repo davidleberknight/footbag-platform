@@ -58,8 +58,8 @@ TF_DIR="terraform/${SMOKE_TARGET_ENV}"
 #
 # The refusal says what is missing and what writes it, rather than calling the
 # suite operator-only. That wording was a diagnosis and it was the wrong one for
-# a dev-and-tester, who holds a permission set granting exactly this staging
-# access and was being told they were the wrong kind of person.
+# a named operator, who assumes a role granting exactly this staging access and
+# was being told they were the wrong kind of person.
 if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.aws/credentials"; then
   echo "ERROR: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine," >&2
   echo "       and this suite reaches AWS through it rather than through your own identity." >&2
@@ -87,11 +87,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 aws_profile_ensure || exit 1
 
 JWT_KMS_KEY_ID="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn)"
-SES_FROM_IDENTITY="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity)"
 MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name)"
-# The bulk stream's configuration set, so the raw-MIME probe names a set that
-# exists in whichever environment is under test rather than assuming staging.
-SES_CONFIGURATION_SET_BULK="$(terraform -chdir="$TF_DIR" output -raw ses_configuration_set_bulk)"
+# No suite here sends email. On staging, email is the adapter stub and the
+# runtime role holds no send permission; real sending is checked on production
+# by scripts/verify-prod-email.sh.
 
 # Tolerate a null/absent value (CloudFront disabled or not yet applied): the
 # static-asset smoke's first test fails with a clear "operator: terraform apply"
@@ -104,9 +103,7 @@ export SMOKE_TARGET_ENV
 export AWS_PROFILE="footbag-${SMOKE_TARGET_ENV}-runtime"
 export AWS_REGION=us-east-1
 export JWT_KMS_KEY_ID
-export SES_FROM_IDENTITY
 export MEDIA_STORAGE_S3_BUCKET
-export SES_CONFIGURATION_SET_BULK
 export STAGING_CLOUDFRONT_DOMAIN
 export RUN_STAGING_SMOKE=1
 

@@ -169,9 +169,10 @@ export function getSesAdapter(): SesAdapter {
   if (config.sesAdapter === 'live') {
     // The Vitest runner must never resolve the live sender through the
     // application path: a test that reached this branch could deliver real
-    // mail to a real mailbox. The operator-run staging smoke tier exercises
-    // real SES deliberately and constructs createLiveSesAdapter directly,
-    // so it never passes through this accessor.
+    // mail to a real mailbox. Staging's email is the stub adapter; the live
+    // sender is reached only in production, through this accessor, and by the
+    // operator's production verification script, which sends to the mailbox
+    // simulator.
     if (config.isTestRunner) {
       throw new Error(
         'getSesAdapter() refuses SES_ADAPTER=live under the Vitest runner; a test must use the stub adapter or inject a double',

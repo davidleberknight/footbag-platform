@@ -118,6 +118,14 @@ locals {
       "arn:aws:iam::${var.aws_account_id}:instance-profile/footbag-staging-*",
     ]
     runtime_roles = ["arn:aws:iam::${var.aws_account_id}:role/footbag-staging-app-runtime"]
+
+    # Both trees name their configuration sets `${local.prefix}-<kind>` and
+    # local.prefix carries the environment, so unlike the rest of SES these ARNs
+    # scope exactly. The statement below therefore did not have to be a wildcard
+    # and no longer is: ses:DeleteConfigurationSet on "*" reached production's
+    # transactional and bulk sets, which carry the reputation tracking for every
+    # message the membership receives.
+    ses_configuration_sets = "arn:aws:ses:*:${var.aws_account_id}:configuration-set/footbag-staging-*"
   }
 
   # ── The statements ──────────────────────────────────────────────────────────
@@ -128,8 +136,13 @@ locals {
   # role has been used. The long-run rule is that it is derived from the observed
   # usage of EVERY operator who assumes it, never from one person's history: a
   # policy derived from one operator under-grants the others and surfaces as a
-  # permission error mid-task, usually during something time-critical. Reconcile
-  # it against an Access Analyzer generation once it has a month of real use.
+  # permission error mid-task, usually during something time-critical.
+  #
+  # Current: derived from the trees, the scripts, and four weeks of trail of the
+  # work operators did as footbag-operator; this role itself has never been used,
+  # so there is no trail of its own.
+  # Target: reconciled against an Access Analyzer generation from a month of
+  # this role's own use by every operator who assumes it.
   statements = {
 
     project_buckets = {
@@ -193,12 +206,24 @@ locals {
     # certificate serving it -- while its own description said it reaches no
     # production resource. The statements below enumerate what the staging tree
     # declares and what the scripts call, derived from both plus four weeks of
-    # trail, and the ACM and budgets wildcards are gone outright because the
-    # staging tree declares neither.
+    # trail of the work operators did as footbag-operator, and the ACM and
+    # budgets wildcards are gone outright.
+    #
+    # Budgets the staging tree genuinely does not declare. ACM it does, at
+    # terraform/staging/archive.tf. What makes the removal right anyway is the
+    # gate that resource
+    # sits behind: enable_archive_custom_domain, whose own description says it
+    # "stays off in staging, which has neither a domain nor a zone". The
+    # certificate is therefore declared and will never be created here, so an
+    # ACM grant could only ever reach the production certificate, which is the
+    # one the paragraph above names as something the old wildcard could delete.
+    # The same reasoning keeps route53:ChangeResourceRecordSets out while the
+    # zone's reads are granted below: one zone serves the estate, and a write
+    # over it is a write over production's DNS.
     #
     # The Access Analyzer reconciliation this policy plans for still stands; it
-    # needs a month of real use and there has been none. This is the floor it
-    # will be reconciled against, not a substitute for it.
+    # needs a month of this role's own use, and the role has not been used yet.
+    # This is the floor it will be reconciled against, not a substitute for it.
     #
     # The KMS entries here are also what covers the gap between creating a key
     # and naming it. The alias condition above matches on the aliases a key
@@ -247,9 +272,18 @@ locals {
     # the instance name, so a footbag-staging-* pattern cannot exist and the
     # scoping here is by action. Every entry traces to a declared resource in
     # terraform/staging/lightsail.tf or to a call a script makes: the instance,
-    # its static IP and attachment, its key pair, its public ports, and the
-    # auto-snapshot add-on, plus the operation poll every mutating call returns
-    # and the bundle and blueprint reads a create validates against.
+    # its static IP, its key pair, its public ports, and the auto-snapshot
+    # add-on, plus the operation poll every mutating call returns and the bundle
+    # and blueprint reads a create validates against.
+    #
+    # Attaching, detaching and releasing a static IP are withheld. Detach and
+    # release authorise against the static IP alone, which Lightsail cannot tag
+    # and whose ARN carries a generated id, so nothing can tell staging's address
+    # from production's, and releasing production's loses it for good. Attach
+    # names an instance as well, but AWS's documentation does not say whether it
+    # can move an address already attached to another instance, so it is
+    # withheld rather than trusted not to. An apply that would attach, detach or
+    # release staging's is run as the directly authenticated identity instead.
     #
     # What is gone is the rest of the service: containers, managed databases,
     # its own CDN and buckets, load balancers, domains, and the instance
@@ -265,15 +299,14 @@ locals {
         "lightsail:DeleteInstance", "lightsail:EnableAddOn",
         "lightsail:DisableAddOn", "lightsail:GetAutoSnapshots",
         "lightsail:AllocateStaticIp", "lightsail:GetStaticIp",
-        "lightsail:ReleaseStaticIp", "lightsail:AttachStaticIp",
-        "lightsail:DetachStaticIp", "lightsail:CreateKeyPair",
+        "lightsail:CreateKeyPair",
         "lightsail:GetKeyPair", "lightsail:DeleteKeyPair",
         "lightsail:ImportKeyPair", "lightsail:GetInstancePortStates",
         "lightsail:PutInstancePublicPorts", "lightsail:OpenInstancePublicPorts",
         "lightsail:CloseInstancePublicPorts", "lightsail:GetOperation",
         "lightsail:GetOperations", "lightsail:GetBundles",
         "lightsail:GetBlueprints", "lightsail:TagResource",
-      "lightsail:UntagResource", "lightsail:GetInstanceAccessDetails"]
+      "lightsail:UntagResource"]
       Resource = "*"
     }
 
@@ -338,12 +371,20 @@ locals {
     # send as the domain and survive an offboard, the DKIM signing attributes,
     # and the account-level send switch. A staging send test, if one is ever
     # wanted, is a from-address condition rather than a wildcard.
+    # The three that name a configuration set are scoped to the staging ones by
+    # ARN. Listing and the account read carry no resource and stay on "*".
     ses_staging_configuration = {
-      Sid    = "SesConfigurationSetsAndAccountRead"
+      Sid    = "SesConfigurationSetsByName"
       Effect = "Allow"
       Action = ["ses:CreateConfigurationSet", "ses:DescribeConfigurationSet",
-        "ses:DeleteConfigurationSet", "ses:ListConfigurationSets",
-      "ses:GetAccount"]
+      "ses:DeleteConfigurationSet"]
+      Resource = local.scope.ses_configuration_sets
+    }
+
+    ses_account_read = {
+      Sid      = "SesListAndAccountRead"
+      Effect   = "Allow"
+      Action   = ["ses:ListConfigurationSets", "ses:GetAccount"]
       Resource = "*"
     }
 
@@ -382,6 +423,33 @@ locals {
       Sid      = "ResolveWhoActed"
       Effect   = "Allow"
       Action   = ["cloudtrail:LookupEvents"]
+      Resource = "*"
+    }
+
+    # The reads three operator scripts make that nothing above covers, and every
+    # one of them is a read. verify-account-baseline.sh asks the account for its
+    # public-access block, its analyzers, its alternate contacts and the dormant
+    # Identity Center instance; dns-ttl-preflight.sh and verify-zone-mirror.sh
+    # list the zone's records before a cutover. Without these the scripts fail
+    # part way through, and a refused read reads as a broken credential rather
+    # than as a missing grant, which is the failure this policy's own header
+    # warns about at length.
+    #
+    # Resource is "*" because none of these calls carries one. The three account
+    # controls have no ARN at all, being properties of the account rather than
+    # resources in it, and a hosted zone id is generated, so naming it would be
+    # a value somebody has to re-copy after every rebuild. The write halves are
+    # deliberately absent: the account controls are declared in the shared tree,
+    # which this role cannot reach, and route53:ChangeResourceRecordSets would
+    # be a write over the zone that serves production.
+    reads_the_operator_scripts_make = {
+      Sid    = "ReadsTheOperatorScriptsMake"
+      Effect = "Allow"
+      Action = ["s3:GetAccountPublicAccessBlock",
+        "access-analyzer:ListAnalyzers", "access-analyzer:GetAnalyzer",
+        "account:GetAlternateContact", "sso:ListInstances",
+        "sso:ListPermissionSets", "identitystore:ListUsers",
+      "route53:ListResourceRecordSets", "route53:GetHostedZone"]
       Resource = "*"
     }
 
@@ -440,6 +508,15 @@ locals {
     never_administer_a_human_operator = {
       Sid    = "NeverAdministerAHumanOperator"
       Effect = "Deny"
+      # The second group is every other way a credential or an identifying
+      # attribute reaches one of these users. They were missing, and because no
+      # Allow reaches this path today the omission cost nothing yet: each one
+      # came back implicitDeny rather than explicitDeny. That is the whole
+      # difference this denial exists to make, since an enumerated list that
+      # trails the API is exactly how least privilege quietly stops holding.
+      # The ownership tags are in here because the lifecycle script proves a
+      # pre-existing user is one of ours by reading them before it modifies
+      # anything, so rewriting a tag is how that check is defeated.
       Action = ["iam:CreateUser", "iam:DeleteUser", "iam:UpdateUser",
         "iam:CreateAccessKey", "iam:UpdateAccessKey", "iam:DeleteAccessKey",
         "iam:PutUserPolicy", "iam:DeleteUserPolicy", "iam:AttachUserPolicy",
@@ -447,7 +524,14 @@ locals {
         "iam:CreateLoginProfile", "iam:UpdateLoginProfile",
         "iam:DeleteLoginProfile", "iam:PutUserPermissionsBoundary",
         "iam:DeleteUserPermissionsBoundary", "iam:EnableMFADevice",
-      "iam:DeactivateMFADevice", "iam:ResyncMFADevice"]
+        "iam:DeactivateMFADevice", "iam:ResyncMFADevice",
+        "iam:TagUser", "iam:UntagUser", "iam:CreateVirtualMFADevice",
+        "iam:DeleteVirtualMFADevice", "iam:UploadSSHPublicKey",
+        "iam:UpdateSSHPublicKey", "iam:DeleteSSHPublicKey",
+        "iam:UploadSigningCertificate", "iam:UpdateSigningCertificate",
+        "iam:DeleteSigningCertificate", "iam:CreateServiceSpecificCredential",
+        "iam:UpdateServiceSpecificCredential",
+      "iam:DeleteServiceSpecificCredential", "iam:ResetServiceSpecificCredential"]
       Resource = [
         local.human_operator_arn_pattern,
         "arn:aws:iam::${var.aws_account_id}:mfa/*",
@@ -540,6 +624,63 @@ locals {
       Resource = "arn:aws:cloudfront::${var.aws_account_id}:function/footbag-production-*"
     }
 
+    # The function denial above covers the function vector and nothing else. The
+    # CloudFront grant is Resource "*" and cannot be anything else, because a
+    # distribution ARN carries a generated id rather than a name and the pattern
+    # that scopes every other service here has nothing to match on. So the grant
+    # reached the production distribution serving the public site, with
+    # UpdateDistribution and DeleteDistribution among its actions, while this
+    # role's own description said it reaches no production resource.
+    #
+    # Tags are what CloudFront does carry, and both environment providers set
+    # Environment through default_tags, so this matches on the tag exactly as the
+    # KMS and Lightsail denials either side of it do. The ARN-scoped function
+    # denial stays beside this one deliberately: it catches a production function
+    # that has lost its tag, which the guard below would let through.
+    #
+    # The Null guard is load-bearing rather than defensive clutter. A negated
+    # match against a condition key ABSENT from the request evaluates true, so
+    # without it this statement denies every CreateDistribution, which has no
+    # resource to carry a tag, and every call against a resource whose tag could
+    # not be read, staging included. Verified against this account with
+    # iam simulate-custom-policy: unguarded, CreateDistribution came back
+    # explicitDeny; guarded, allowed.
+    #
+    # TagResource and UntagResource are in the list because they are how the
+    # control would switch itself off: an operator who can strip Environment
+    # from the production distribution can then do anything else to it.
+    #
+    # WHAT THIS CANNOT COVER. Key groups, public keys, origin access controls,
+    # cache policies and response headers policies are not taggable in
+    # CloudFront at all -- AWS answers InvalidArgument, "invalid resource type",
+    # to a tag read on one -- so no tag condition reaches them and the guard
+    # makes this statement a no-op for them by design. What bounds that instead
+    # is circumstance rather than policy: production's archive key group and
+    # public key are not deployed, and AWS refuses to delete a cache policy or
+    # an origin access control while a distribution still references it. Revisit
+    # if CloudFront gains tagging for those types, or if the archive custom
+    # domain is turned on in production, which is what deploys the key group.
+    #
+    # One further way this stops protecting, and it is quiet. The tag arrives
+    # from each environment provider's default_tags, so a resource declaring its
+    # own `tags` without Environment, or a provider alias that loses
+    # default_tags, carries no tag and the guard lets it through. Both trees set
+    # it on every alias today, including the us-east-1 one CloudFront uses. A
+    # distribution declared with explicit tags is the shape to look twice at.
+    never_touch_a_production_edge_surface = {
+      Sid    = "NeverTouchAProductionEdgeSurface"
+      Effect = "Deny"
+      Action = ["cloudfront:UpdateDistribution",
+        "cloudfront:DeleteDistribution", "cloudfront:UpdateFunction",
+        "cloudfront:PublishFunction", "cloudfront:DeleteFunction",
+      "cloudfront:TagResource", "cloudfront:UntagResource"]
+      Resource = "*"
+      Condition = {
+        StringNotEquals = { "aws:ResourceTag/Environment" = "staging" }
+        Null            = { "aws:ResourceTag/Environment" = "false" }
+      }
+    }
+
     # A budget action applies an IAM policy on its own schedule, under a role it
     # is passed, after the person who created it has gone. The budgets wildcard
     # that made it reachable is removed above; this denial is what stops it
@@ -555,19 +696,31 @@ locals {
       }
     }
 
-    # This call mints the short-lived certificate that opens a shell on a host,
-    # as the default login account, with passwordless sudo. Keeping this role
-    # off the PRODUCTION host is what the denial is for, and the control lives
-    # in the identity layer rather than in host configuration nobody can see.
+    # This call mints the short-lived certificate that opens a shell on a host
+    # as its default login account, which has passwordless sudo, with no key of
+    # the operator's own and no password. Whoever may make it holds root on the
+    # host, so the permission to make it is the whole control over that path,
+    # and the job role is denied it on every instance, staging included.
     #
-    # It used to deny the call outright, for every instance, on the premise that
-    # Lightsail supports no resource-level permission. It supports one for this
-    # action, and denying every instance had a cost nobody had met yet:
-    # install-known-hosts.sh accepts staging as a target and makes exactly this
-    # call, because the host-key pin is built from it and from nothing else -- a
-    # key learned from the SSH port is the assumption the pin replaces. So a
-    # dev-and-tester could not pin the host they are expected to deploy to, and
-    # would have found out as an access denial partway through setting up.
+    # Nothing an operator who can assume the job role does needs it. A dev-and-tester reaches staging
+    # through their own named account, whose sudo they unlock with their own
+    # password, which is attributable and ends when they are offboarded. A root
+    # shell reached this way is neither, and it could undo a host offboarding
+    # for as long as a role session stays live.
+    #
+    # Unconditioned, so it covers every instance there is or will be, whatever
+    # it is tagged.
+    never_mint_host_access = {
+      Sid      = "NeverMintHostAccessDetails"
+      Effect   = "Deny"
+      Action   = ["lightsail:GetInstanceAccessDetails"]
+      Resource = "*"
+    }
+
+    # The rest of what reaches a live host: reopening its firewall, or deleting
+    # the host whose database is on local disk. The narrowed Lightsail grant
+    # above names no resource, so without this it reached the production
+    # instance as readily as the staging one.
     #
     # Keyed on the tag rather than on the instance, and stated in the negative
     # so it fails closed. Lightsail supports tag conditions, both providers set
@@ -576,27 +729,21 @@ locals {
     # instance added later, and covers an instance carrying no tag at all: an
     # absent condition key makes a negated match true, so the denial fires.
     #
-    # The alternative was to name the staging instance by ARN, which would have
-    # meant a generated id copied into a values file by hand and re-copied after
-    # every rebuild. A control that depends on somebody remembering to re-read a
-    # value is not a control, and the tag is already maintained by the apply
-    # that creates the instance.
+    # The alternative was to name the staging instance by ARN, which would mean
+    # a generated id copied into a values file by hand and re-copied after every
+    # rebuild. A control that depends on somebody remembering to re-read a value
+    # is not a control, and the tag is already maintained by the apply that
+    # creates the instance.
     #
-    # The other four actions here are the rest of what reaches a live host, and
-    # they are denied the same way for the same reason: the narrowed Lightsail
-    # grant above still names no resource, so without this it reached the
-    # production instance as readily as the staging one -- reopening its
-    # firewall, or deleting the host whose database is on local disk. Only
-    # instance-scoped actions belong in this list. Creating an instance is left
-    # out because the resource does not exist when the call is authorised, and
-    # the static IP and key pair actions are left out because they authorise
+    # Only instance-scoped actions belong in this list. Creating an instance is
+    # left out because the resource does not exist when the call is authorised,
+    # and the static IP and key pair actions are left out because they authorise
     # against their own resource types rather than the instance, so naming them
     # here would deny staging's own apply.
-    never_reach_a_host_shell = {
-      Sid    = "NeverMintHostAccessDetails"
+    never_reach_a_non_staging_host = {
+      Sid    = "NeverReachANonStagingHost"
       Effect = "Deny"
-      Action = ["lightsail:GetInstanceAccessDetails",
-        "lightsail:PutInstancePublicPorts",
+      Action = ["lightsail:PutInstancePublicPorts",
         "lightsail:OpenInstancePublicPorts",
         "lightsail:CloseInstancePublicPorts",
       "lightsail:DeleteInstance"]
@@ -610,7 +757,7 @@ locals {
 
 resource "aws_iam_role" "dev_tester" {
   name        = "FootbagDevTester"
-  description = "The dev-and-tester operator job: staging, and the reads a deploy makes. Mints a host shell on the staging instance only, may not reach the production host, its keys, its edge functions or its mail identity, may not widen a role it can assume, and may not administer another operator."
+  description = "The dev-and-tester operator job: staging, and the reads a deploy makes. Mints no host shell on any instance, may not reach the production host, its keys, its edge functions or its mail identity, may not widen a role it can assume, and may not administer another operator."
 
   # Long enough that a deploy and the verification after it do not expire
   # mid-run, short enough that a session left open on a workstation is not a
@@ -661,10 +808,12 @@ resource "aws_iam_role_policy" "dev_tester" {
       local.statements.lightsail_staging_lifecycle,
       local.statements.cloudfront_project_surfaces,
       local.statements.ses_staging_configuration,
+      local.statements.ses_account_read,
       local.statements.iam_read_everywhere,
       local.statements.iam_write_project,
       local.statements.chain_into_runtime_roles,
       local.statements.resolve_who_acted,
+      local.statements.reads_the_operator_scripts_make,
       local.statements.no_self_elevation,
       local.statements.never_touch_super_admin_identity,
       local.statements.never_administer_a_human_operator,
@@ -672,8 +821,10 @@ resource "aws_iam_role_policy" "dev_tester" {
       local.statements.never_rewrite_a_role_we_can_assume,
       local.statements.never_graft_an_alias_onto_production,
       local.statements.never_rewrite_a_production_edge_function,
+      local.statements.never_touch_a_production_edge_surface,
       local.statements.never_pass_a_role_to_budgets,
-      local.statements.never_reach_a_host_shell,
+      local.statements.never_mint_host_access,
+      local.statements.never_reach_a_non_staging_host,
     ]
   })
 }

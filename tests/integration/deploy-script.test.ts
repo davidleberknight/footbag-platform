@@ -1408,11 +1408,10 @@ describe('production deploys type their host password instead of reading a file'
   });
 
   it('picks the staging credential file by rule rather than by environment variable', () => {
-    // The file follows the account the alias connects as. An operator who has
-    // moved onto their own named account changes the alias's User line and the
-    // deploy follows; before that, a deploy from a named account piped the
-    // shared account's password and failed at sudo on the host, which reads as
-    // a broken account and is not one.
+    // The file follows the account the alias connects as: the shared account by
+    // default, the named account for a run wrapped as that person. A file chosen
+    // any other way pipes the wrong password, which fails at sudo on the host and
+    // reads as a broken account when it is not one.
     const source = wrapper();
     expect(source).not.toMatch(/AWS_OPERATOR_FILE/);
     expect(source).not.toMatch(/HOME.*AWS\/AWS_OPERATOR/);

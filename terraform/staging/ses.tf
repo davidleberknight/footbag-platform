@@ -6,8 +6,9 @@
 # values for staging use a Google Workspace alias on a project-controlled
 # domain; literal value lives in terraform.tfvars (gitignored), not here.
 #
-# The runtime role's ses:SendEmail grant on this identity is declared in
-# iam.tf alongside the kms:Sign grant for JWT signing.
+# Staging's runtime role holds no send grant on this identity: on staging,
+# email is the adapter stub. The address is still declared here because the
+# host environment and its checks read it from this tree's output.
 # =============================================================================
 
 variable "ses_sender_identity" {

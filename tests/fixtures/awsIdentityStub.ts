@@ -23,12 +23,13 @@ import { join } from 'node:path';
 export const STUB_OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
 
 /**
- * The profile a super-admin workstation carries: the directly authenticated
- * IAM user's, which is the one the shared library supplies when a shell has no
- * identity of its own. A dev-and-tester's machine carries their own named
- * profile and the job-role profile instead, and a suite exercising that tier
- * names those itself rather than taking them from here, because the whole
- * point of the second tier is that the names differ per person.
+ * The profile holding the directly authenticated IAM user's key, which is the
+ * one the shared library supplies when a shell carries no identity of its own.
+ * A profile is a label naming a key to sign with or a role to assume; it is not
+ * an identity, and its presence says nothing about whose machine this is. A
+ * suite that needs a workstation carrying a named operator's own key, or the
+ * profile that assumes the role, names those itself, because one of them
+ * differs per person.
  */
 export const STUB_OPERATOR_PROFILES = ['footbag-operator'];
 

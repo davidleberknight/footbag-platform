@@ -69,10 +69,10 @@ TARGET=""
 CHECK=0
 TODO=0
 PRIVATE_REPO=""
-# The shared job role a named operator assumes. Spelled here because this check
-# reads the role out of a resolved ARN, which is a different thing from the
-# profile name the library owns.
-DEV_TESTER_ROLE_NAME="FootbagDevTester"
+# The shared job role a named operator assumes, read out of a resolved ARN
+# rather than inferred from any profile name. Taken from the shared library so
+# there is one spelling of the role in the tree.
+DEV_TESTER_ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
 # Whether this run has an AWS identity that actually authenticates. Every step
 # below that reaches AWS reads it, so that one dead credential is reported once,
 # where it can be fixed, instead of three times in three other vocabularies.
@@ -142,11 +142,11 @@ ok()   { printf '  [ok]    %s\n' "$1"; }
 todo() { printf '  [TODO]  %s\n' "$1" >&2; TODO=$(( TODO + 1 )); }
 step() { printf '\n== %s\n' "$1"; }
 # Deliberately not counted, and deliberately not [ok]. For a state that is
-# correct for one tier and a gap for another, which this script cannot tell
-# apart because nothing on the machine says which tier its owner is. Counting it
-# would fail a dev-and-tester for not holding a credential they must not hold;
-# calling it ok would tell a super admin their break-glass route is fine when it
-# is absent.
+# correct on one workstation and a gap on another, which this script cannot tell
+# apart because nothing on a machine says whose key it is meant to hold.
+# Counting it would fail an operator for not holding a credential they must not
+# hold; calling it ok would report a break-glass route as fine when it is
+# absent.
 note() { printf '  [note]  %s\n' "$1"; }
 
 # ── 1. Tools ─────────────────────────────────────────────────────────────────
@@ -278,17 +278,16 @@ else
   # same thing twice and would have to guess which of those two it was.
   ok "that identity authenticates against AWS"
 
-  # Which tier this machine belongs to, reported rather than assumed, because
-  # the two carry different profiles and half the findings below depend on
-  # which one this is. The directly authenticated profile is the super admin's
-  # and a dev-and-tester never holds it, so its absence is the correct state
-  # for them and not a finding.
-  _has_key_profile=0
+  # What this workstation's AWS config carries, reported as configuration and
+  # never turned into a verdict about the person at the keyboard. A profile
+  # names a key to sign with or a role to assume; it is not an identity, and
+  # nothing on a machine says who should be sitting at it, which this file
+  # states plainly further up. The identity is the ARN a profile resolves to,
+  # which is what the checks below read.
   if aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
-    _has_key_profile=1
-    ok "the directly authenticated profile ${FOOTBAG_OPERATOR_PROFILE} is configured"
+    ok "the ${FOOTBAG_OPERATOR_PROFILE} profile is configured on this workstation"
   else
-    note "no ${FOOTBAG_OPERATOR_PROFILE} profile here, which is correct unless you are the super admin holding that key. If you are: bash scripts/install-operator-key.sh"
+    note "no ${FOOTBAG_OPERATOR_PROFILE} profile here, which says nothing about whether you should hold that key"
   fi
 
   # The job role a named operator assumes for everyday work, and the session
@@ -301,17 +300,15 @@ else
     # carries. Either alone would pass on a chain that works and misattributes.
     if aws_identity_resolve "$FOOTBAG_DEV_TESTER_PROFILE"; then
       if [[ "$AWS_IDENTITY_ARN" == *":assumed-role/${DEV_TESTER_ROLE_NAME}/"* ]]; then
-        ok "${FOOTBAG_DEV_TESTER_PROFILE} assumes ${DEV_TESTER_ROLE_NAME} as ${AWS_IDENTITY_ARN##*/}"
+        ok "the ${FOOTBAG_DEV_TESTER_PROFILE} profile assumes the ${DEV_TESTER_ROLE_NAME} role as ${AWS_IDENTITY_ARN##*/}"
       else
-        todo "${FOOTBAG_DEV_TESTER_PROFILE} resolves to ${AWS_IDENTITY_ARN}, which is not a ${DEV_TESTER_ROLE_NAME} session, so the assume-role step did not happen"
+        todo "the ${FOOTBAG_DEV_TESTER_PROFILE} profile resolves to ${AWS_IDENTITY_ARN}, which is not a session of the ${DEV_TESTER_ROLE_NAME} role, so the assume-role step did not happen"
       fi
     else
-      todo "${FOOTBAG_DEV_TESTER_PROFILE} is configured but does not resolve; ask the super admin to re-run the onboarding for you"
+      todo "the ${FOOTBAG_DEV_TESTER_PROFILE} profile is configured but does not resolve; your key is reissued by onboarding you again, which a footbag-operator holder arranges with you"
     fi
-  elif (( _has_key_profile )); then
-    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, which is correct for a machine that works as the directly authenticated identity"
   else
-    todo "${FOOTBAG_DEV_TESTER_PROFILE} is missing — ask the super admin to run, at this keyboard: bash scripts/manage-human-operator.sh --onboard <your-name>"
+    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, so this workstation has no configured route to the ${DEV_TESTER_ROLE_NAME} role. Where that route is meant to exist, onboarding writes it: a footbag-operator holder onboarding themselves runs bash scripts/onboard-operator.sh on this machine, and a dev-and-tester's is delivered to them by a process that is designed and not yet built"
   fi
 
   # Missing and unassumable are different faults with different owners, so they
@@ -320,34 +317,42 @@ else
   # on the principal it sources from is absent, which is not the newcomer's to
   # fix.
   #
-  # The staging chain is a finding for everybody, because everybody can produce
-  # it: the onboarding writes it for a named operator, chained off the job
-  # role, and the key install writes it for the super admin. The production
-  # chain is a finding only for somebody who could have it. It is written for
-  # the directly authenticated identity alone, because production's runtime
-  # role trusts that user and not the job role, so for a dev-and-tester its
-  # absence is the boundary working rather than a gap.
-  _runtime_missing=0
+  # Which runtime chains a workstation should carry follows from whose key it
+  # holds, and this script cannot know that: a profile's presence says nothing
+  # about who owns the machine. It reports the absence and names both writers
+  # rather than ruling on whether the absence is a gap. The onboarding writes
+  # the staging chain for a named operator, chained off the profile that assumes
+  # the job role; the key install writes both for the directly authenticated
+  # identity. There is no production chain for a named operator by design,
+  # because production's runtime role trusts that user and not the
+  # ${DEV_TESTER_ROLE_NAME} role, and a profile that resolved and then could not
+  # assume would read as a fault rather than as that boundary working.
+  #
+  # Each chain that is present is proved on its own. A named operator's machine
+  # carries the staging chain and no production one, and that absence must not
+  # stop the one chain they use from being checked.
+  _runtime_present=()
   for rt in footbag-staging-runtime footbag-production-runtime; do
-    if ! aws_profile_exists "$rt"; then
-      if [[ "$rt" == *production* ]] && (( ! _has_key_profile )); then
-        note "$rt is not here. It is written only for the directly authenticated identity, because production's runtime role does not trust ${DEV_TESTER_ROLE_NAME}: a profile that resolved and then could not assume would read as a fault rather than as that boundary working"
-      elif (( _has_key_profile )); then
-        todo "$rt is missing — run: bash scripts/install-operator-key.sh (it writes both chains for the directly authenticated identity)"
-      else
-        todo "$rt is missing — ask the super admin to run, at this keyboard: bash scripts/manage-human-operator.sh --onboard <your-name>"
-      fi
-      _runtime_missing=1
+    if aws_profile_exists "$rt"; then
+      _runtime_present+=("$rt")
+    else
+      note "$rt is not configured here. The onboarding writes the staging chain for a named operator; bash scripts/install-operator-key.sh writes both for the directly authenticated identity. Which of those applies is a fact about whose key this machine holds, not one this check can read"
     fi
   done
-  if (( _runtime_missing == 0 )); then
-    if aws_identity_require_chain footbag-staging-runtime footbag-production-runtime; then
+  if (( ${#_runtime_present[@]} == 2 )); then
+    if aws_identity_require_chain "${_runtime_present[@]}"; then
       ok "both chained runtime profiles assume their roles"
     else
       todo "a chained runtime profile is configured but does not assume its role. That is the assume-role permission on whichever principal it sources from, rather than anything on this machine, so report it rather than reinstalling."
     fi
+  elif (( ${#_runtime_present[@]} == 1 )); then
+    if aws_identity_require_chain "${_runtime_present[0]}"; then
+      ok "${_runtime_present[0]} assumes its role"
+    else
+      todo "${_runtime_present[0]} is configured but does not assume its role. That is the assume-role permission on whichever principal it sources from, rather than anything on this machine, so report it rather than reinstalling."
+    fi
   fi
-  unset _runtime_missing _has_key_profile
+  unset _runtime_present
 fi
 
 # ── 5. The SSH alias ─────────────────────────────────────────────────────────
@@ -356,7 +361,7 @@ fi
 # than by reading the config file: an alias can be defined in an Include, and a
 # stanza that exists but does not match is the failure this is looking for.
 #
-# Not written by this script. The `User` line is the whole identity switch and
+# Not written by this script. The `User` line is the whole host-account switch and
 # the key path is the operator's own; guessing either is how a run silently
 # connects as the wrong account.
 step "SSH alias ${ALIAS}"
@@ -376,19 +381,20 @@ if command -v ssh >/dev/null 2>&1; then
   else
     ok "${ALIAS} resolves to ${RESOLVED_HOST}, connecting as ${RESOLVED_USER} on port ${RESOLVED_PORT}"
     [[ "$RESOLVED_PORT" == "2222" ]] || todo "${ALIAS} resolves to port ${RESOLVED_PORT}; the deploy alias uses 2222"
-    # The User line is the whole identity switch. It decides which account the
-    # host sees AND, through the shared credential rule, which of the four files
-    # every script on this path reads, so changing this one line is the entire
-    # act of switching identity. Both answers are legitimate, which is why
-    # neither is a TODO; what is worth saying out loud is which one this alias
-    # has chosen, because an alias naming an account that does not exist on the
-    # host fails the first connection as `Permission denied (publickey)`, and
-    # that reads as a broken key and is not one. The sudo proof at the end of
-    # this run is what actually settles it.
+    # The account the alias resolves as decides which account the host sees AND,
+    # through the shared credential rule, which of the four files every script
+    # on this path reads. By default that is the shared account, for every run.
+    # A named account is reached only by a command run through
+    # scripts/as-dev-tester.sh --account <name>, through the Match block
+    # onboarding writes; running this check that way proves that path, and this
+    # line then names the named account. The sudo proof at the end of this run is
+    # what actually settles either.
     if [[ "$RESOLVED_USER" == "$OPERATOR_SHARED_ACCOUNT" ]]; then
       ok "${ALIAS} connects as the shared '${RESOLVED_USER}' account"
+    elif [[ "${AWS_PROFILE:-}" == "${FOOTBAG_DEV_TESTER_PROFILE:-FootbagDevTester}" ]]; then
+      ok "${ALIAS} connects as the named account '${RESOLVED_USER}' for this wrapped run"
     else
-      ok "${ALIAS} connects as the named account '${RESOLVED_USER}', which must already exist on the host"
+      todo "${ALIAS} connects as '${RESOLVED_USER}' by default; the default is the shared '${OPERATOR_SHARED_ACCOUNT}' account. Change its User line back to ${OPERATOR_SHARED_ACCOUNT}; a named account is reached through scripts/as-dev-tester.sh --account <name>"
     fi
     # IdentitiesOnly matters: without it ssh offers every key the agent holds and
     # the server can refuse the lot before reaching hers.
@@ -412,10 +418,34 @@ fi
 # ── 6. The operator credential file ──────────────────────────────────────────
 #
 # The password is typed, never taken from a flag or a file this script names.
-# What is automated is everything around it: the directory mode, the file mode,
-# the single-line shape, and the check that it is not empty. A stray character
-# becomes part of the password and fails on the host as a permissions problem.
+# What is automated is the file mode, the single-line shape, and the check that
+# it is not empty. A stray character becomes part of the password and fails on
+# the host as a permissions problem.
+#
+# The directory holding it is checked too, and that check exists because its
+# absence was doing real harm. The 700 is applied only on the path that creates
+# the directory, which is skipped whenever the file already exists, so a
+# directory made earlier or by hand kept whatever mode it was given and nothing
+# ever looked again. It matters more than it sounds: the same directory holds
+# the credential vault, so one wide mode exposes both, and this was found at 755
+# on a machine that had been operating for months.
+#
+# Reported rather than corrected, and not counted as done. A mode that was wide
+# has already been wide: narrowing it now does not unread whatever could read
+# it, so the operator needs to decide what else that implies rather than watch a
+# script quietly tidy it.
 step "Operator credential file"
+CRED_DIR="${HOME}/AWS"
+if [[ -d "$CRED_DIR" ]]; then
+  dir_mode="$(stat -c '%a' "$CRED_DIR" 2>/dev/null || echo "")"
+  if [[ -z "$dir_mode" ]]; then
+    todo "could not read the mode of ~/AWS, so whether it is private is unknown; a credential directory that cannot be checked is not treated as safe"
+  elif [[ "$dir_mode" != "700" ]]; then
+    todo "~/AWS has mode ${dir_mode}; it must be 700. It holds every host sudo password on this machine and the credential vault beside them, so a wider mode exposes both. Narrowing it does not undo what could already read it: 'chmod 700 ~/AWS', then treat what it held as having been exposed"
+  else
+    ok "~/AWS mode 700"
+  fi
+fi
 if [[ -z "$CRED_FILE" ]]; then
   todo "cannot tell which credential file this workstation needs, because the account ${ALIAS} connects as could not be read. Fix the SSH alias first: the account picks the file, and the shared account's file is not a safe default for a named one"
 elif [[ -f "$CRED_FILE" ]]; then

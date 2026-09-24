@@ -1001,9 +1001,12 @@ describe('arming.sh — the operator-address check before the deploy', () => {
     expect(res.exitCode).toBe(1);
     expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
     expect(res.stderr).toMatch(/Aborted before the deploy/);
-    // The instruction matters as much as the refusal: replacing the list rather
-    // than adding to it is how the standing ranges get lost.
-    expect(res.stderr).toMatch(/add, never/);
+    // The instruction matters as much as the refusal. It used to warn against
+    // replacing the list by hand, which is how the standing ranges get lost; it
+    // now names the command that cannot replace it, which is a stronger form of
+    // the same protection.
+    expect(res.stderr).toMatch(/authorize-operator-address\.sh/);
+    expect(res.stderr).toMatch(/appends rather than replacing/);
   });
 
   it('asks when the firewall does not admit the address', () => {

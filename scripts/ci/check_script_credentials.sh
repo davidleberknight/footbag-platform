@@ -268,7 +268,9 @@ fi
 # "Pass secret values into a remote shell by appending them to the SSH stdin
 # stream, not via `ssh host \"cmd \$SECRET\"`." Interpolation happens locally, so
 # the value is in the remote sshd's argv and in the local process list alike.
-hits=$(scan "\\bssh\\b[^|;&]*[\"'][^\"']*\\\$\\{?${SECRET_NAME_RE}" | strip_comments)
+# As in the terminal check below, the ssh word must not run on into a hyphen:
+# ssh-keygen and ssh-add are local tools with no remote command string.
+hits=$(scan "\\bssh([^-[:alnum:]_][^|;&]*)?[\"'][^\"']*\\\$\\{?${SECRET_NAME_RE}" | strip_comments)
 if [ -n "$hits" ]; then
   report "$hits" \
     "FAIL: a secret must not be interpolated into a remote command string; it reaches" \
@@ -385,7 +387,10 @@ fi
 # The t may sit anywhere in a combined short-option cluster, not only at its end:
 # -tN requests a terminal exactly as -t does, and a guard anchored on the last
 # letter would wave it through. RequestTTY is the same request spelled long.
-hits=$(scan '\bssh\b[^|;&]* -[a-zA-Z]*t[a-zA-Z]*\b|RequestTTY[= ]*(yes|force)')
+# The ssh word must not run on into a hyphen: ssh-keygen's -t names a key type
+# and requests nothing, and a word boundary alone treats the hyphen as the end
+# of `ssh`.
+hits=$(scan '\bssh([^-[:alnum:]_][^|;&]*)? -[a-zA-Z]*t[a-zA-Z]*\b|RequestTTY[= ]*(yes|force)')
 if [ -n "$hits" ]; then
   report "$hits" \
     "FAIL: no ssh -t in scope; a privileged remote step goes through the wire pattern" \

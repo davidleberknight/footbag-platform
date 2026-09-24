@@ -82,12 +82,15 @@ resource "aws_lightsail_instance_public_ports" "web" {
   instance_name = aws_lightsail_instance.web.name
 
   # SSH — restricted to declared operator IP ranges plus the lightsail-connect
-  # alias for AWS-managed browser-SSH source IPs. The browser-SSH path is a
-  # permanent break-glass: it lets the operator regain shell access via the
-  # Lightsail Console (still requires Console auth + the host's authorized
-  # keys) when the operator workstation IP changes faster than terraform.tfvars
-  # can be updated. operator_cidrs in terraform.tfvars holds the routine SSH
-  # CIDR allow-list and may carry multiple /32s for network flexibility.
+  # alias for AWS-managed browser-SSH source IPs. The Lightsail access path is
+  # the way back in rather than a path for ordinary work: it reaches the host
+  # when no address on the list still works, when the named accounts are
+  # damaged, or when a new host has nobody on it, and it rests on the AWS
+  # permission that mints its short-lived credential rather than on any key in
+  # the host's authorized_keys. An operator whose own address has changed
+  # updates operator_cidrs and applies instead. operator_cidrs in
+  # terraform.tfvars holds the routine SSH CIDR allow-list and may carry
+  # multiple /32s for network flexibility.
   port_info {
     protocol          = "tcp"
     from_port         = 22

@@ -171,7 +171,7 @@ const PINNED_ALIAS_LINES = [
 
 /**
  * The same alias connecting as a named person instead of the shared account.
- * That one line is the whole of the identity switch, and it is also what decides
+ * That one line is the whole of the host-account switch, and it is also what decides
  * which of the four credential files this workstation needs, so it has to be an
  * input the test supplies rather than whatever the developer's own config says.
  */
@@ -302,7 +302,7 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
   });
 
   it('names the personal file when the alias connects as a named account', () => {
-    // The alias's `User` line is the whole of the identity switch, and the
+    // The alias's `User` line is the whole of the host-account switch, and the
     // credential follows it. A report that named the shared file here would send
     // an operator to write their own password into the shared account's file,
     // which is the one-file-two-meanings shape the four files exist to prevent.
@@ -312,15 +312,24 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     expect(all).not.toMatch(/AWS_OPERATOR\.txt is missing/);
   });
 
-  it('reports the named account without calling it a mistake', () => {
-    // It used to say a named account did not exist yet and that the shared one
-    // was the account to use. Both halves are now wrong, and an operator part
-    // way through moving onto their own account would read it as an instruction
-    // to undo the move.
+  it('flags an alias whose default is a named account, since the default is the shared one', () => {
+    // Every run that is not deliberately put elsewhere connects as the shared
+    // account; an alias moved to a named account has changed that default.
     const r = run(['--target', 'staging', '--check'], stubSshOnPath(NAMED_ALIAS_LINES));
     const all = output(r);
-    expect(all).toMatch(/connects as the named account 'ada_lovelace'/);
-    expect(all).not.toMatch(/does not exist yet/);
+    expect(all).toMatch(/connects as 'ada_lovelace' by default; the default is the shared 'footbag' account/);
+    expect(all).toMatch(/as-dev-tester\.sh --account <name>/);
+  });
+
+  it('reports the named account as correct for a run wrapped under the job role', () => {
+    // Run through the wrapper, the Match block resolves the alias as the named
+    // account, and that is the path this run is then proving.
+    const r = run(['--target', 'staging', '--check'], {
+      ...stubSshOnPath(NAMED_ALIAS_LINES),
+      AWS_PROFILE: 'FootbagDevTester',
+    });
+    const all = output(r);
+    expect(all).toMatch(/connects as the named account 'ada_lovelace' for this wrapped run/);
   });
 
   it('says which file it needs rather than guessing when the account cannot be read', () => {
@@ -443,12 +452,11 @@ describe('the AWS identity is proved, not listed', () => {
     expect(all).toContain(OPERATOR_ARN);
   });
 
-  it('says a runtime profile is missing rather than that it cannot be assumed', () => {
-    // Two different faults with two different owners: an install writes a
-    // missing profile, and nobody on this machine can grant an assume-role.
-    // The directly authenticated profile is present here because that is the
-    // tier the TODO is addressed to: only its holder can run the install that
-    // fixes it.
+  it('says a runtime profile is absent rather than that it cannot be assumed', () => {
+    // Two different faults with two different owners: an install writes an
+    // absent profile, and nobody on this machine can grant an assume-role. The
+    // report names both writers and rules on neither, because which one applies
+    // is a fact about whose key this machine holds.
     const env = stubAwsOnPath({
       profiles: ['footbag-operator', 'footbag-staging-runtime'],
       identities: {
@@ -458,9 +466,38 @@ describe('the AWS identity is proved, not listed', () => {
     });
     const all = output(run(['--target', 'staging', '--check'], env));
 
-    expect(all).toMatch(/footbag-production-runtime is missing/);
+    expect(all).toMatch(/footbag-production-runtime is not configured here/);
     expect(all).toMatch(/install-operator-key\.sh/);
     expect(all).not.toMatch(/does not assume its role/);
+  });
+
+  it('proves the staging chain on a machine that carries no production chain', () => {
+    // A named operator's workstation has the staging chain and, by design, no
+    // production one. That absence must not stop the staging chain from being
+    // proved, or the one chain a named operator uses is never checked at all.
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime'],
+      identities: {
+        'footbag-operator': OPERATOR_ARN,
+        'footbag-staging-runtime': STAGING_ROLE_ARN,
+      },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).toMatch(/\[ok\][^\n]*footbag-staging-runtime assumes its role/);
+  });
+
+  it('catches a staging chain that does not assume its role when production is absent', () => {
+    const env = stubAwsOnPath({
+      profiles: ['footbag-operator', 'footbag-staging-runtime'],
+      identities: {
+        'footbag-operator': OPERATOR_ARN,
+        'footbag-staging-runtime': OPERATOR_ARN,
+      },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+
+    expect(all).toMatch(/\[TODO\][^\n]*does not assume its role/);
   });
 
   it('catches a chained profile that returns its own source identity', () => {
@@ -479,45 +516,47 @@ describe('the AWS identity is proved, not listed', () => {
 
     expect(all).toMatch(/does not assume its role/);
     // The grant is on whichever principal that profile sources from, which is
-    // no longer one shared IAM user for everybody: a super admin's chain
-    // sources the break-glass key and a federated one would source the
+    // no longer one shared IAM user for everybody: footbag-operator's chain
+    // sources the footbag-operator key and a federated one would source the
     // sign-in. Naming a single principal here sent the reader to the wrong
     // trust policy.
     expect(all).toMatch(/assume-role permission on whichever principal it sources from/);
   });
 
-  it('does not fail a dev-and-tester for the production chain their role is denied', () => {
-    // Production's runtime role trusts the directly authenticated user and not
-    // the job role, so for that tier the profile's absence is the boundary
-    // working. The staging chain is a finding for everybody, because the
-    // onboarding writes it off the job role and everybody has one.
+  it('raises no verdict on a missing runtime chain, which it cannot rule on', () => {
+    // Whether an absent chain is a gap follows from whose key the machine is
+    // meant to hold, and nothing on the machine says that. There is no
+    // production chain for a named operator by design, because production's
+    // runtime role trusts the directly authenticated user and not the job role.
     const env = stubAwsOnPath({
-      profiles: ['footbag-devtester'],
-      identities: { 'footbag-devtester': DEV_TESTER_ROLE_ARN },
+      profiles: ['FootbagDevTester'],
+      identities: { 'FootbagDevTester': DEV_TESTER_ROLE_ARN },
     });
     const all = output(run(['--target', 'staging', '--check'], env));
 
-    expect(all).toMatch(/\[note\][^\n]*footbag-production-runtime is not here/);
-    expect(all).not.toMatch(/\[TODO\][^\n]*footbag-production-runtime/);
-    expect(all).toMatch(/\[TODO\][^\n]*footbag-staging-runtime is missing/);
-    expect(all).toMatch(/manage-human-operator\.sh --onboard/);
+    expect(all).toMatch(/\[note\][^\n]*footbag-production-runtime is not configured here/);
+    expect(all).toMatch(/\[note\][^\n]*footbag-staging-runtime is not configured here/);
+    expect(all).not.toMatch(/\[TODO\][^\n]*runtime/);
+    expect(all).toMatch(/not one this check can read/);
   });
 
-  it('reports an absent directly authenticated profile without failing the run over it', () => {
-    // Correct for a dev-and-tester, who must never hold that key, and a gap
-    // for the super admin. Nothing on the machine says which its owner is, so
-    // this is reported and not counted: counting it would fail somebody for
-    // not holding a credential they are not allowed to have.
+  it('reports an absent key profile without ruling on whose machine it is', () => {
+    // A profile's absence is a fact about a config file. Turning it into a
+    // statement about the person at the keyboard is the defect this file's own
+    // note helper exists to avoid, and it used to hand out the install command
+    // that the operations reference forbids offering here.
     const env = stubAwsOnPath({
-      profiles: ['footbag-devtester', 'footbag-staging-runtime'],
+      profiles: ['FootbagDevTester', 'footbag-staging-runtime'],
       identities: {
-        'footbag-devtester': DEV_TESTER_ROLE_ARN,
+        'FootbagDevTester': DEV_TESTER_ROLE_ARN,
         'footbag-staging-runtime': STAGING_ROLE_ARN,
       },
     });
     const all = output(run(['--target', 'staging', '--check'], env));
     expect(all).toMatch(/\[note\].*no footbag-operator profile here/);
-    expect(all).not.toMatch(/\[TODO\][^\n]*no footbag-operator profile/);
+    expect(all).toMatch(/says nothing about whether you should hold that key/);
+    expect(all).not.toMatch(/\[TODO\][^\n]*no footbag-operator/);
+    expect(all).not.toMatch(/no footbag-operator profile here[^\n]*install-operator-key/);
   });
 
   it('reads the session name out of the job-role chain, which is the attribution', () => {
@@ -525,24 +564,50 @@ describe('the AWS identity is proved, not listed', () => {
     // under somebody else's name works perfectly and records this person's
     // actions as theirs, so resolving is not enough to check.
     const env = stubAwsOnPath({
-      profiles: ['footbag-devtester', 'footbag-staging-runtime', 'footbag-production-runtime'],
+      profiles: ['FootbagDevTester', 'footbag-staging-runtime', 'footbag-production-runtime'],
       identities: {
-        'footbag-devtester': DEV_TESTER_ROLE_ARN,
+        'FootbagDevTester': DEV_TESTER_ROLE_ARN,
         'footbag-staging-runtime': STAGING_ROLE_ARN,
         'footbag-production-runtime': PRODUCTION_ROLE_ARN,
       },
     });
     const all = output(run(['--target', 'staging', '--check'], env));
-    expect(all).toMatch(/footbag-devtester assumes FootbagDevTester as test_operator/);
+    // The profile and the role carry the same name, so the line has to say
+    // which of the two each one is. Without that it reads as a tautology.
+    expect(all).toMatch(
+      /the FootbagDevTester profile assumes the FootbagDevTester role as test_operator/,
+    );
   });
 
-  it('catches a job-role profile that resolved to something else entirely', () => {
+  it('keeps the profile name and the role name apart when they are not the same string', () => {
+    // The two constants carry the same default, so every other case in this
+    // tree would pass just as happily if a consumer read the profile name where
+    // the role is meant. Giving them different values is the only thing that
+    // tells them apart: the profile here is named something else entirely, and
+    // the role reported must still be the role.
     const env = stubAwsOnPath({
-      profiles: ['footbag-devtester'],
-      identities: { 'footbag-devtester': OPERATOR_ARN },
+      profiles: ['a-differently-named-profile'],
+      identities: { 'a-differently-named-profile': DEV_TESTER_ROLE_ARN },
+    });
+    const all = output(
+      run(['--target', 'staging', '--check'], {
+        ...env,
+        FOOTBAG_DEV_TESTER_PROFILE: 'a-differently-named-profile',
+      }),
+    );
+
+    expect(all).toMatch(
+      /the a-differently-named-profile profile assumes the FootbagDevTester role as test_operator/,
+    );
+  });
+
+  it('catches a role-assuming profile that resolved to something else entirely', () => {
+    const env = stubAwsOnPath({
+      profiles: ['FootbagDevTester'],
+      identities: { 'FootbagDevTester': OPERATOR_ARN },
     });
     const all = output(run(['--target', 'staging', '--check'], env));
-    expect(all).toMatch(/\[TODO\][^\n]*is not a FootbagDevTester session/);
+    expect(all).toMatch(/\[TODO\][^\n]*is not a session of the FootbagDevTester role/);
   });
 });
 
@@ -551,5 +616,48 @@ describe('setup-operator-workstation.sh — the read-only report', () => {
     run(['--target', 'staging', '--check']);
     expect(existsSync(join(fakeHome, 'AWS', 'AWS_OPERATOR.txt'))).toBe(false);
     expect(existsSync(join(fakeHome, 'AWS', 'footbag_known_hosts'))).toBe(false);
+  });
+});
+
+/**
+ * The directory holding every host sudo password on the machine, and the
+ * credential vault beside them. Its mode was applied only where the directory
+ * was created, which is skipped whenever the file already exists, so a
+ * directory made earlier kept whatever it was given and nothing looked again.
+ * It was found wide on a machine that had been operating for months.
+ */
+describe('setup-operator-workstation.sh — the credential directory', () => {
+  const credDir = () => join(fakeHome, 'AWS');
+
+  it('reports a wide mode as outstanding work rather than passing over it', () => {
+    mkdirSync(credDir(), { recursive: true });
+    chmodSync(credDir(), 0o755);
+    const all = output(run(['--target', 'staging', '--check']));
+    expect(all).toMatch(/\[TODO\][^\n]*~\/AWS has mode 755/);
+  });
+
+  it('says narrowing it does not undo what could already read it', () => {
+    // The same reasoning the credential file's own mode check uses: a file that
+    // was readable must be assumed to have been read.
+    mkdirSync(credDir(), { recursive: true });
+    chmodSync(credDir(), 0o755);
+    const all = output(run(['--target', 'staging', '--check']));
+    expect(all).toMatch(/does not undo what could already read it/);
+    expect(all).toMatch(/having been exposed/);
+  });
+
+  it('accepts 700 without comment beyond saying so', () => {
+    mkdirSync(credDir(), { recursive: true });
+    chmodSync(credDir(), 0o700);
+    const all = output(run(['--target', 'staging', '--check']));
+    expect(all).toMatch(/\[ok\][^\n]*~\/AWS mode 700/);
+    expect(all).not.toMatch(/~\/AWS has mode/);
+  });
+
+  it('says nothing about a directory that does not exist yet', () => {
+    // A workstation being set up for the first time has no folder, and that is
+    // not a finding about its permissions.
+    const all = output(run(['--target', 'staging', '--check']));
+    expect(all).not.toMatch(/~\/AWS has mode/);
   });
 });

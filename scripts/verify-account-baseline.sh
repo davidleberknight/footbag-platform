@@ -6,17 +6,21 @@
 #
 # WHY THIS EXISTS.
 #
-# The account lockdown checklist is four console steps, and nothing re-asserts
-# them. A console-set control has no Terraform behind it, so nothing detects it
-# being turned off, nothing notices it was never turned on, and the checklist is
-# the only record that it was ever meant to exist. Key usage has the same
+# The account lockdown checklist began as four console steps, and nothing
+# re-asserted them. A console-set control has no Terraform behind it, so nothing
+# detects it being turned off, nothing notices it was never turned on, and the
+# checklist is the only record that it was ever meant to exist. All four are
+# declared in terraform/shared/account-baseline.tf now, so this script reads
+# what that tree asserts rather than what somebody remembered to click; the
+# alternate contacts sit behind a gate there because they are the only ones
+# carrying values. Key usage has the same
 # problem from the other direction: reading each key's last-used date meant a
 # console trip, so it happened only if somebody remembered where to look. And
 # nothing schedules that read, deliberately: rotation here is for cause and
 # never on a clock.
 #
 # The two human-identity paths fail the same silent way. Both runtime trust
-# policies name the super-admin user and the shared job role by literal ARN,
+# policies name the IAM user footbag-operator and the shared job role by literal ARN,
 # and AWS resolves each of those to an internal id at save time, so a user or a
 # role recreated under the same name leaves a trust policy that still reads
 # correctly and refuses every AssumeRole, with no terraform plan diff to show
@@ -56,10 +60,10 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 
 AWS_BIN="${ACCOUNT_BASELINE_AWS_BIN:-aws}"
-# The super-admin identity, and the two roles whose trust policies name it. Both
+# The IAM user footbag-operator, and the two roles whose trust policies name it. Both
 # are checked below because nothing else in the tree watches either, and losing
 # either one strands every operator on a path that has no replacement yet.
-SUPER_ADMIN_USER="footbag-operator"
+FOOTBAG_OPERATOR_USER="footbag-operator"
 STAGING_RUNTIME_ROLE="footbag-staging-app-runtime"
 PRODUCTION_RUNTIME_ROLE="footbag-production-app-runtime"
 RUNTIME_ROLES=("$STAGING_RUNTIME_ROLE" "$PRODUCTION_RUNTIME_ROLE")
@@ -72,7 +76,7 @@ RUNTIME_ROLES=("$STAGING_RUNTIME_ROLE" "$PRODUCTION_RUNTIME_ROLE")
 # production must not. Production naming it is a finding rather than a pass,
 # because production's tree declares no variable that could put it there, so an
 # ARN found in that trust was added by hand and nothing else would report it.
-DEV_TESTER_ROLE="FootbagDevTester"
+DEV_TESTER_ROLE="$FOOTBAG_DEV_TESTER_ROLE"
 PROFILE=""
 QUIET=0
 
@@ -110,9 +114,23 @@ if [[ "$AWS_BIN" != "aws" ]]; then
 fi
 
 FINDINGS=0
+# Controls that are deliberately off, counted apart from findings because they
+# are not faults.
+#
+# A verdict has to distinguish the outcomes it is asked about, and this one
+# could not. The three alternate contacts sit behind a flag that stays off until
+# their identities are decided, so counting them as findings made the exit
+# status non-zero before an apply and non-zero after a completely successful
+# one, leaving an operator to tell the two apart by counting failure lines. The
+# denial proof already carries a third verdict for the same reason; this is the
+# same move.
+GATED=0
 
 pass() { (( QUIET )) || printf '  PASS  %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1" >&2; FINDINGS=$(( FINDINGS + 1 )); }
+# Reported on stderr beside the findings, because an operator reading for
+# problems should see it, and counted separately, because it is not one.
+gated() { printf '  GATED %s\n' "$1" >&2; GATED=$(( GATED + 1 )); }
 note() { (( QUIET )) || printf '        %s\n' "$1"; }
 
 aws_q() { "$AWS_BIN" "$@" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>/dev/null; }
@@ -199,7 +217,7 @@ for kind in BILLING OPERATIONS SECURITY; do
   if [[ -n "$CONTACT" && "$CONTACT" != "None" ]]; then
     pass "alternate contact ${kind} is set"
   else
-    fail "alternate contact ${kind} is unset"
+    gated "alternate contact ${kind} is unset, which is the declared state"
   fi
 done
 
@@ -260,14 +278,14 @@ else
   note "idle long enough that its existence is no longer justified"
 fi
 
-# ── 7. The super-admin identity, and the two paths that depend on it ─────────
+# ── 7. The IAM user footbag-operator, and the two paths that depend on it ────
 #
 # The section above reports every key; this one asserts the three things whose
 # ABSENCE is the finding, which is the opposite direction and the reason it is
 # separate.
 #
-# The design retains this IAM user permanently as the super-admin identity: the
-# one directly authenticated way in, deliberately reached without assuming
+# The design retains this IAM user permanently as the directly authenticated
+# identity: the one directly authenticated way in, deliberately reached without assuming
 # anything, so that whatever breaks the job role cannot take the normal route
 # and the way back in down together. Every named operator's path is added
 # beside it, never in place of it. So a run that finds no active key here has
@@ -279,25 +297,40 @@ fi
 # Nothing else in this tree reads those policies, which is why they are here
 # rather than left to surface as a deploy failing weeks later.
 echo ""
-echo "Super-admin identity"
-BG_ROWS="$(aws_q iam list-access-keys --user-name "$SUPER_ADMIN_USER" \
+echo "Directly authenticated IAM user ${FOOTBAG_OPERATOR_USER}"
+BG_ROWS="$(aws_q iam list-access-keys --user-name "$FOOTBAG_OPERATOR_USER" \
   --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text || true)"
 if [[ -z "$BG_ROWS" || "$BG_ROWS" == "None" ]]; then
-  fail "${SUPER_ADMIN_USER} holds no active access key, or could not be read"
+  fail "${FOOTBAG_OPERATOR_USER} holds no active access key, or could not be read"
   note "it is the way back in when whatever else broke is the job role itself"
 else
-  pass "${SUPER_ADMIN_USER} holds an active access key"
+  # The ids are printed rather than discarded. This call already returned them
+  # and reported only that there was one, which left "this identity is unchanged
+  # across the walk" as two hand-composed calls at the start and the end and a
+  # comparison made by eye. An access key id is not a secret, so it is evidence
+  # that can simply be shown.
+  pass "${FOOTBAG_OPERATOR_USER} holds an active access key: ${BG_ROWS}"
 fi
+
+# The other half of the same evidence. Nothing here judges it: what it should be
+# is a question about this account rather than something this script can know,
+# and the value of printing it is that two runs can be compared.
+BG_ATTACHED="$(aws_q iam list-attached-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
+  --query 'AttachedPolicies[].PolicyName' --output text || true)"
+BG_INLINE="$(aws_q iam list-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
+  --query 'PolicyNames' --output text || true)"
+note "attached: ${BG_ATTACHED:-<none>}"
+note "inline:   ${BG_INLINE:-<none>}"
 
 for role in "${RUNTIME_ROLES[@]}"; do
   TRUST="$(aws_q iam get-role --role-name "$role" \
     --query 'Role.AssumeRolePolicyDocument' --output json || true)"
   if [[ -z "$TRUST" ]]; then
     fail "${role}: could not read the trust policy"
-  elif printf '%s' "$TRUST" | grep -qF ":user/${SUPER_ADMIN_USER}"; then
-    pass "${role} still trusts ${SUPER_ADMIN_USER}"
+  elif printf '%s' "$TRUST" | grep -qF ":user/${FOOTBAG_OPERATOR_USER}"; then
+    pass "${role} still trusts ${FOOTBAG_OPERATOR_USER}"
   else
-    fail "${role} no longer names ${SUPER_ADMIN_USER} in its trust policy"
+    fail "${role} no longer names ${FOOTBAG_OPERATOR_USER} in its trust policy"
     note "the chained runtime profiles resolve through this, and a recreated"
     note "user is a different principal, so this is not undone by recreating it"
   fi
@@ -435,15 +468,25 @@ else
 fi
 
 echo ""
+# The gated count is stated on both paths, because a run that said nothing about
+# it would read as though those controls had passed.
+if (( GATED )); then
+  echo "${GATED} control(s) deliberately off: the alternate contacts sit behind" >&2
+  echo "enable_account_alternate_contacts, which stays off until the three" >&2
+  echo "identities are decided and their values are in the shared tree's secrets" >&2
+  echo "file. They are not findings and do not decide this run." >&2
+  echo "" >&2
+fi
+
 if (( FINDINGS == 0 )); then
   echo "No findings."
   exit 0
 fi
 echo "${FINDINGS} finding(s)." >&2
 echo "" >&2
-echo "Three of these belong in the shared Terraform tree rather than in a console:" >&2
-echo "the public-access block, the password policy and Access Analyzer all have" >&2
-echo "provider resources. The alternate contacts are the genuine exception, since" >&2
-echo "what goes in those fields is a decision about who the association wants" >&2
-echo "notified rather than a mechanism." >&2
+echo "All four account controls are declared in terraform/shared/account-baseline.tf." >&2
+echo "The public-access block, the password policy and Access Analyzer carry no" >&2
+echo "values and apply as they stand. Apply the shared tree as the" >&2
+echo "directly authenticated identity; the job role cannot read its state," >&2
+echo "deliberately." >&2
 exit 1

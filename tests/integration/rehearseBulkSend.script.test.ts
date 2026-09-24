@@ -1,6 +1,7 @@
 /**
  * scripts/rehearse-bulk-send.sh -- rehearsing a staged bulk send against the
- * AWS mailbox simulator.
+ * AWS mailbox simulator, on production only: staging's email is the adapter
+ * stub, so a staging target is refused before anything runs.
  *
  * A real run needs AWS credentials, applied Terraform and live SES, none of
  * which CI has. What is pinned here is everything that decides whether the run
@@ -57,14 +58,28 @@ describe('argument refusals', () => {
     expect(res.stderr).toContain("--target must be 'staging' or 'production'");
   });
 
+  it('refuses staging, whose email is the adapter stub, before anything is read or sent', () => {
+    // Staging's runtime role holds no permission to send, so a staging run would
+    // prove only an access denial. The refusal lands ahead of the Terraform read
+    // and the identity check, and even a dry run is refused, because a plan for
+    // an environment that never sends is not a plan for anything.
+    for (const extra of [[], ['--dry-run']]) {
+      const res = run(['--target', 'staging', ...extra]);
+      expect(res.exitCode).toBe(2);
+      expect(res.stderr).toContain('staging sends no real mail');
+      expect(res.stderr).toContain('--target production');
+      expect(res.stdout).not.toContain('Rehearsal plan');
+    }
+  });
+
   it('refuses a scenario that names no simulator mailbox', () => {
-    const res = run(['--target', 'staging', '--scenario', 'chaos']);
+    const res = run(['--target', 'production', '--scenario', 'chaos']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('--scenario must be success, bounce, complaint or mixed');
   });
 
   it('refuses a message count of zero', () => {
-    const res = run(['--target', 'staging', '--count', '0']);
+    const res = run(['--target', 'production', '--count', '0']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('--count must be a whole number from 1 to 5000');
   });
@@ -73,7 +88,7 @@ describe('argument refusals', () => {
     // Simulator mail costs no reputation, but it is billed per message and
     // consumes the account's send rate, so a mistyped count is a real charge
     // rather than a typo that stops at a prompt.
-    const res = run(['--target', 'staging', '--count', '500000']);
+    const res = run(['--target', 'production', '--count', '500000']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('--count must be a whole number from 1 to 5000');
   });
@@ -82,26 +97,26 @@ describe('argument refusals', () => {
     // The rehearsal exists to prove the account's send rate tolerates the
     // cadence the worker releases at. Back-to-back passes measure how fast the
     // provider will refuse instead.
-    const res = run(['--target', 'staging', '--interval', '0']);
+    const res = run(['--target', 'production', '--interval', '0']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('--interval must be a whole number of seconds, at least 1');
   });
 
   it('refuses a non-numeric batch size', () => {
-    const res = run(['--target', 'staging', '--batch', 'lots']);
+    const res = run(['--target', 'production', '--batch', 'lots']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('--batch must be a positive whole number');
   });
 
   it('refuses an unknown argument rather than ignoring it', () => {
-    const res = run(['--target', 'staging', '--send-for-real']);
+    const res = run(['--target', 'production', '--send-for-real']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('unknown arg: --send-for-real');
   });
 });
 
 describe('the dry run', () => {
-  const dry = (args: string[]) => run(['--target', 'staging', '--dry-run', ...args]);
+  const dry = (args: string[]) => run(['--target', 'production', '--dry-run', ...args]);
 
   it('sends nothing and says so', () => {
     const res = dry(['--count', '3']);

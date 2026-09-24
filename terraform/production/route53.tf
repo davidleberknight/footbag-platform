@@ -359,6 +359,114 @@ resource "aws_route53_record" "legacy_mirror_txt" {
   }
 }
 
+# ── Google Workspace tenant names ────────────────────────────────────────────
+# The Workspace tenant's own domains and their site aliases are IFPA's
+# infrastructure rather than the legacy operator's, so they are not part of the
+# legacy mirror and the post-cutover cleanup that clears the mirror leaves them.
+# Clearing them with it would stop every mailbox and group still addressed at
+# them. Each retires only by removing its entry from these maps, after the
+# Workspace itself has let that domain go: console first, records after.
+
+variable "workspace_mx_records" {
+  description = "Google Workspace tenant names carrying mail routing, as name => list of MX strings. Not gated on the legacy mirror: these outlive the post-cutover cleanup and retire only by removing the entry, after the Workspace has released the domain."
+  type        = map(list(string))
+  default     = {}
+}
+
+variable "workspace_txt_records" {
+  description = "Google Workspace tenant names carrying their own TXT strings, as name => list of strings. Route 53 keeps one TXT set per name, so each list carries every string that name publishes."
+  type        = map(list(string))
+  default     = {}
+}
+
+variable "workspace_cname_records" {
+  description = "Google Workspace tenant site aliases, as name => target."
+  type        = map(string)
+  default     = {}
+}
+
+resource "aws_route53_record" "workspace_mx" {
+  for_each = var.workspace_mx_records
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "MX"
+  ttl     = 60
+  records = each.value
+
+  lifecycle {
+    precondition {
+      condition     = length(each.value) > 0
+      error_message = "A Workspace name was listed with no mail records, which would stop inbound mail for every mailbox and group at it. Remove the name from the map only after the Workspace has released the domain."
+    }
+  }
+}
+
+resource "aws_route53_record" "workspace_txt" {
+  for_each = var.workspace_txt_records
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "TXT"
+  ttl     = 60
+  records = each.value
+
+  lifecycle {
+    precondition {
+      condition     = length(each.value) > 0
+      error_message = "A Workspace name was listed with an empty TXT set, which would withdraw every string that name publishes."
+    }
+  }
+}
+
+resource "aws_route53_record" "workspace_cname" {
+  for_each = var.workspace_cname_records
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 60
+  records = [each.value]
+}
+
+# The Workspace names were first served from the legacy-mirror maps. These moves
+# carry their existing records across, so the change is a rename in state with no
+# record deleted and recreated.
+moved {
+  from = aws_route53_record.legacy_mirror_mx["my"]
+  to   = aws_route53_record.workspace_mx["my"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_mx["g"]
+  to   = aws_route53_record.workspace_mx["g"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_txt["my"]
+  to   = aws_route53_record.workspace_txt["my"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_cname["docs.my"]
+  to   = aws_route53_record.workspace_cname["docs.my"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_cname["groups.my"]
+  to   = aws_route53_record.workspace_cname["groups.my"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_cname["start.my"]
+  to   = aws_route53_record.workspace_cname["start.my"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_cname["www.my"]
+  to   = aws_route53_record.workspace_cname["www.my"]
+}
+
 # The legacy zone carries no AAAA at either name, so the v6 records exist only in
 # alias mode; there is nothing to mirror for them.
 resource "aws_route53_record" "apex_aaaa" {
@@ -545,7 +653,8 @@ resource "aws_route53_record" "origin_caa" {
 # What it does not buy across that window is the other half of the pair. The five
 # validation addresses reach the legacy host until the apex mail records move, so
 # an issuance proved through one of them is permitted by this record throughout.
-# That half closes on mail day, which the cutover sequence puts before the flip.
+# That half closes at the mail apply, which the cutover sequence runs straight
+# after the alias flip.
 #
 # Checked rather than assumed: nothing under the domain holds
 # a working certificate today, the apex and www refuse port 443 outright, and the

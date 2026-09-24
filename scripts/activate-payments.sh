@@ -120,6 +120,11 @@ TARGET="staging"
 SSH_ALIAS=""
 AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
+# The digest the host's copy carried when this run read it, which the install
+# compares against before overwriting. Empty until a read has happened, so a
+# path that reached the install without one is refused by name rather than
+# dying on an unbound variable.
+HOST_ENV_SHA_AT_READ=""
 DRY_RUN=0
 REPLACE_KEY=0
 CREATE_ENDPOINT=0
@@ -640,6 +645,10 @@ else
   echo ""
   echo "Reading $HOST_ENV_PATH from $SSH_ALIAS."
   host_env_fetch "$SSH_ALIAS" "$OLD_LOCAL" "" "$HOST_ENV_PATH" || exit 1
+  # Captured here rather than taken from the library's variable at install time,
+  # so a second read added between these two points cannot quietly become the
+  # thing the install compares against.
+  HOST_ENV_SHA_AT_READ="$HOST_ENV_FETCHED_SHA256"
 fi
 
 if ! grep -qE '^SECRETS_ADAPTER=["'"'"']?live["'"'"']?$' "$OLD_LOCAL"; then
@@ -898,7 +907,7 @@ else
   # deploy leaves the host's value alone rather than clearing it. Removal is
   # therefore this script's job alone, not something a later deploy finishes.
   echo "Installing the rewritten env file..."
-  host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" || exit 1
+  host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" "$HOST_ENV_SHA_AT_READ" || exit 1
   GATE_FILE="$NEW_LOCAL"
 fi
 

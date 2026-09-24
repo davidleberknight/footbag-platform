@@ -28,8 +28,9 @@ each is a real one.
 - **The credential file is chosen by the account, not by the operator and not by a variable.**
   `scripts/lib/operator-credential.sh` reads what account the alias connects as and picks the file
   that account keeps for that environment; no script builds the path itself and nothing selects it
-  by environment variable, so changing the alias's one `User` line is the whole act of switching
-  identity. Nothing falls back across the pairs: a file the rule selected and did not find is
+  by environment variable. The alias connects as the shared account by default and as a named
+  account only for a command run through `scripts/as-dev-tester.sh --account <name>`, and the
+  file follows whichever it is. Nothing falls back across the pairs: a file the rule selected and did not find is
   refused by name, because a silent fallback attributes a named operator's work to the shared
   account and nothing anywhere says so. A mode that is not 600 or 400 is refused with a message
   saying to rotate, since a credential other accounts could read has already been exposed and
@@ -64,7 +65,7 @@ each is a real one.
   what the INT and TERM handler is for, and a file the operator supplied themselves is never touched
   either way. Where cleanup is unconditional, which is almost everywhere, EXIT stays in the trap.
 
-## Three invariants
+## Four invariants
 
 Each of these was violated by a script in this repository, and each failure was silent.
 
@@ -79,6 +80,26 @@ Each of these was violated by a script in this repository, and each failure was 
 3. **A step whose failure is expected is not the verdict on the run.** Where a tool is known to
    exit nonzero on success, tolerate that exit explicitly, say so in the output, and judge the
    run on a condition that actually distinguishes the outcomes.
+4. **Identity is an AWS fact, never a file name.** There are two kinds of principal in this
+   estate and no others: IAM users, and the IAM roles they assume. Everything a run is allowed
+   to do follows from which of those it is acting as, and the only way to know that is to ask
+   `sts get-caller-identity` and judge the ARN it returns.
+
+   A workstation's AWS config file holds named profiles, each saying which key to sign with, or
+   which role to assume with which key. A profile is not a principal: it holds no authority, it
+   grants nothing, and AWS has never heard of it. So no script decides what a run may do,
+   reports whose machine it is on, or infers who an operator is, by testing which profile exists
+   or by matching a profile's name. A run that selects a profile still proves what it got.
+
+   The names in this tree invite the opposite, because each profile is named for the principal
+   it reaches: `footbag-operator` is both an IAM user and the profile holding that user's key,
+   and `FootbagDevTester` is both the role and the profile that assumes it. A bare name is
+   therefore ambiguous, and any text that does not say which of the two it means is a defect.
+   Two library functions and a workstation report were deciding which identity a run was acting
+   as from which profile existed, in a file whose own comment said that could not be derived.
+   No mechanical check enforces this one: the grep that would catch it cannot tell a profile
+   test used to decide from one used to report, so it is held by review and by the assertions in
+   `scripts/lib/aws-identity.sh`.
 
 ## The shape
 
@@ -115,8 +136,13 @@ Each of these was violated by a script in this repository, and each failure was 
 - A values file is written through its symlink with `cat >`, never `mv`, so the link into the
   private operations checkout survives.
 - A diff is shown before any file an operator owns is changed.
-- Idempotent: safe to re-run, and a re-run of an already-done step says so rather than repeating
-  the work.
+- Idempotent, wherever the script changes a real environment: a host, an AWS resource, a
+  database, a secret, or an operator's own files. Three things, all required. A re-run does no
+  harm. A re-run after a stop part way finishes the work rather than refusing or looping on the
+  half-done state. And "already done" is decided by proving the outcome (a login, a read-back,
+  sudo accepting the password), never by a proxy such as a file existing, and the run says so
+  rather than repeating the work. Read-only diagnostics, the CI gates and the shared libraries
+  are exempt: they hold no state to resume.
 - A header that states why the script exists and what it refuses to do, followed by usage and
   flags.
 

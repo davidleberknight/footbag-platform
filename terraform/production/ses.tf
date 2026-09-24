@@ -40,13 +40,13 @@
 #    address the design keeps unmonitored.
 #
 # 3. The mail-day records (var.ses_enable_mail_records): the apex SPF, the
-#    DMARC record, the custom MAIL FROM subdomain records, the Workspace
-#    signing key when one is supplied, and the repoint of the apex MX to
-#    Google, all in one apply. The MX repoint is what ties the group to the
-#    day inbound mail moves, because it redirects live delivery. The apex SPF
-#    is replaced rather than extended, which drops the previous mail host's
-#    explicit authorisation; the replacement ends in softfail, so that host's
-#    residual sending stays deliverable through the window. This flag
+#    DMARC record, the custom MAIL FROM subdomain records and the repoint of
+#    the apex MX to Google, all in one apply. The MX repoint is what ties the
+#    group to the day inbound mail moves, because it redirects live delivery.
+#    The apex SPF is replaced rather than extended, which drops the previous
+#    mail host's explicit authorisation, so that host stops being an
+#    authorised sender at this apply. The Workspace signing key is not in
+#    this group: it publishes ahead of it (var.google_dkim_txt). This flag
 #    requires the domain-auth flag to be on.
 #
 # Without DKIM-aligned DMARC the platform's password-reset / claim / verify
@@ -129,15 +129,13 @@ variable "ses_enable_domain_auth" {
 variable "ses_enable_mail_records" {
   description = <<-EOT
     Set to true on the day inbound mail moves: publishes the apex SPF, the
-    DMARC record, the custom MAIL FROM subdomain records and the Workspace
-    signing key when one is supplied, and repoints the apex MX to Google in
-    the same apply. Flip it only once every published address is provisioned
-    on Google, because the repoint sends live inbound delivery there
-    immediately, and only once the Workspace signing key is in hand: Google
-    will not issue it until 24 to 72 hours after Gmail is turned on, measured
-    from that console action and not from this repoint, so the domain is added
-    and Gmail enabled at least three days ahead. Requires ses_enable_domain_auth
-    to be true.
+    DMARC record and the custom MAIL FROM subdomain records, and repoints the
+    apex MX to Google in the same apply. Flip it only once every published
+    address is provisioned on Google, because the repoint sends live inbound
+    delivery there immediately, and only once the Workspace signing key
+    published through google_dkim_txt is authenticating, so mail sent from
+    Google-hosted addresses is signed before this apply replaces the apex
+    sender policy. Requires ses_enable_domain_auth to be true.
   EOT
   type        = bool
   default     = false
@@ -389,12 +387,13 @@ resource "aws_route53_record" "dmarc" {
 }
 
 # ── Inbound mail: Google Workspace ───────────────────────────────────────────
-# The apex MX and the Workspace DKIM key are not SES records, but they land on
-# the same day as the apex SPF and DMARC and share their flag: publishing them
-# earlier would divert inbound mail before every active address is provisioned
-# on Google, and inbound arriving at a mailbox that does not exist is lost
-# silently. A single MX is deliberate -- no backup pointing at the retiring host,
-# which stops accepting mail at cutover.
+# The apex MX is not an SES record, but it lands on the same day as the apex
+# SPF and DMARC and shares their flag: publishing it earlier would divert
+# inbound mail before every active address is provisioned on Google, and
+# inbound arriving at a mailbox that does not exist is lost silently. The
+# Workspace DKIM key diverts nothing, so it is not on this flag. A single MX is
+# deliberate -- no backup pointing at the retiring host, which stops accepting
+# mail when its operator powers it down.
 
 variable "legacy_mx_records" {
   description = "MX set the legacy mail host answers with, read from the fresh zone snapshot and carried through the zone-move window so inbound mail is unchanged until email day. Set in tfvars while enable_legacy_mirror_records is on."
@@ -419,23 +418,28 @@ resource "aws_route53_record" "mx" {
       condition     = var.ses_enable_mail_records || length(var.legacy_mx_records) > 0
       error_message = "legacy_mx_records must be set from the fresh zone snapshot while the legacy host still receives mail, or inbound mail stops the moment delegation moves to Route 53."
     }
+
+    # The mail apply replaces the apex sender policy, after which mail sent from
+    # Google-hosted addresses relies on Google's signature; it must already be
+    # published and signing.
+    precondition {
+      condition     = !var.ses_enable_mail_records || var.google_dkim_txt != ""
+      error_message = "ses_enable_mail_records requires google_dkim_txt: the Google signing key must be published and authenticating before the mail apply, or Workspace mail, including the legacy webmaster's brat@ mail, goes out unsigned once the apex sender policy changes."
+    }
   }
 }
 
 variable "google_dkim_txt" {
-  description = "Workspace DKIM public key for the google selector, generated in the Workspace admin console. TWO clocks run before Workspace mail is signed, and only the first is usually planned for. Google will not issue the key until Gmail has served the domain for 24 to 72 hours, and that clock starts when the domain is ADDED to the Workspace and Gmail is enabled on it -- not when the MX repoints. So adding the domain three days before mail day lets the MX and this record publish together, which is what the go-live plan sequences. The second clock starts only once this record is published and runs up to 48 hours before Google begins signing with it, so Workspace outbound is unsigned for up to two days AFTER mail day whatever the first clock did. Aligned SPF carries DMARC through that gap, because the apex policy this file publishes includes Google and the record sets relaxed alignment, so the exposure is reputation rather than failure. Leaving the key empty until after the repoint adds the first clock on top of the second. A 2048-bit key exceeds the 255-character limit on one TXT string, so supply it pre-split in quoted segments (\"v=DKIM1; k=rsa; p=first\" \"rest\")."
+  description = "Workspace DKIM public key for the google selector on footbag.org, generated in the Workspace admin console, never for the tenant's prefix domain, because the reporting policy uses strict signature alignment. Publishes as soon as it is set, independent of the mail-day flag, because the record diverts no mail and the legacy host publishes no selector. Two clocks run before Workspace mail is signed: Google issues the key 24 to 72 hours after Gmail is turned on, and begins signing up to 48 hours after the record is published and authentication is started. Publishing it at least four days before the mail-day apply means Workspace outbound, including the legacy webmaster's brat@ mail, already carries an aligned signature when the apex sender policy changes. A 2048-bit key exceeds the 255-character limit on one TXT string, so write it as one value with an escaped empty-quote pair after the first 255 characters (v=DKIM1; k=rsa; p=first255characters\"\"rest), with no outer quotes: the provider adds those, and splits the value there."
   type        = string
   default     = ""
 }
 
-# Gated on a non-empty key as well as the flag, so the group can still apply if
-# the key is not in hand. The intended sequence publishes this record with the
-# MX repoint, which is why the domain is added to the Workspace and Gmail
-# enabled on it at least three days ahead. Falling back to a later apply is the
-# recovery for a missed window, not the plan: it leaves Workspace outbound
-# unsigned from the repoint until the follow-up lands.
+# Gated only on a non-empty key. It publishes ahead of mail day so Google is
+# signing before the apex sender policy changes, and a mail-day rollback leaves
+# it in place, since Google keeps signing whichever policy is live.
 resource "aws_route53_record" "google_dkim" {
-  count   = var.ses_enable_mail_records && var.google_dkim_txt != "" ? 1 : 0
+  count   = var.google_dkim_txt != "" ? 1 : 0
   zone_id = local.zone_id
   name    = "google._domainkey.${var.domain_name}"
   type    = "TXT"

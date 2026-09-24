@@ -130,11 +130,29 @@ function runChecklist(
   // beside the test DB satisfies it.
   const envFile = path.join(path.dirname(dbPath), 'deploy-env');
   fs.writeFileSync(envFile, 'PAYMENT_ADAPTER=live\nSTRIPE_WEBHOOK_SECRET=whsec_fixture\n');
+
+  // The certificate-transparency gate queries the public logs over the network,
+  // and without a stub this suite's verdict is whatever those logs say today:
+  // it failed here on a real name outside the served set, and minutes later
+  // failed differently because the logs could not be reached at all. Neither
+  // outcome says anything about the orchestrator, which is this suite's subject.
+  // The gate's own behaviour against real log shapes is covered by its own
+  // suite; here the answer only has to be deterministic and in the served set.
+  const curlStub = path.join(path.dirname(dbPath), 'curl-stub.sh');
+  fs.writeFileSync(
+    curlStub,
+    '#!/usr/bin/env bash\n' +
+      // The contracted shape the gate consumes, which is `jq -r '.[] | .name_value'`.
+      `printf '%s' '[{"name_value":"footbag.org"},{"name_value":"www.footbag.org"}]'\n`,
+  );
+  fs.chmodSync(curlStub, 0o755);
+
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     FOOTBAG_DB_PATH:                  dbPath,
     FOOTBAG_SNAPSHOT_DIR:             snapshotDir,
     FOOTBAG_ENV_FILE:                 envFile,
+    FOOTBAG_CURL_BIN:                 curlStub,
     // Local rehearsal: the snapshot step's cross-region DR upload is
     // explicitly skipped (a real cutover run sets FOOTBAG_DR_BUCKET).
     FOOTBAG_SNAPSHOT_LOCAL_ONLY:      '1',
@@ -249,7 +267,10 @@ describe('pre-cutover checklist orchestrator', () => {
   it('names the workstation as the subject when no target is given', () => {
     buildFixtureDb(dbPath);
     const r = runChecklist(dbPath, snapshotDir);
-    expect(r.status).toBe(0);
+    // The output goes in the message for the same reason it does on the green
+    // path above: a bare exit code here names no gate, and the orchestrator's
+    // whole job is to say which one refused.
+    expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/subject: this workstation's own build/);
     expect(r.stdout).toMatch(/NOT a deployed environment/);
     expect(r.stdout).toContain(dbPath);

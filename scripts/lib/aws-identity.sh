@@ -30,6 +30,12 @@ AWS_IDENTITY_REGION="${AWS_IDENTITY_REGION:-us-east-1}"
 # The ARN from the last successful call.
 AWS_IDENTITY_ARN=""
 
+# The session name from the last successful assumed-role assertion, which on a
+# shared role IS the person: the role's trust policy requires it to equal the
+# assuming user's own user name, so it is the one place a run can learn who it
+# is acting as without being told.
+AWS_IDENTITY_SESSION_NAME=""
+
 # aws_identity_require_user <profile> <expected-iam-user>
 #
 # The profile must resolve, and must resolve to that user.
@@ -44,8 +50,13 @@ aws_identity_require_user() {
     return 1
   fi
 
+  # A user created under an IAM path carries that path in its ARN, as every
+  # named operator does under /footbag-operators/, so the name is matched as
+  # the last segment after `user/` whatever path sits between. The slash in
+  # front of it is what stops a name that merely ends with the expected one
+  # from matching.
   case "$arn" in
-    *":user/${expected}")
+    *":user/${expected}"|*":user/"*"/${expected}")
       AWS_IDENTITY_ARN="$arn"
       echo "    ${profile}: ${arn}"
       return 0
@@ -137,6 +148,75 @@ aws_identity_require_chain() {
   return 0
 }
 
+# aws_identity_require_assumed_role <role-name>
+#
+# The run must be acting as a session of that role. The session name is left in
+# AWS_IDENTITY_SESSION_NAME, because on a shared role that name is the person.
+#
+# This is the assertion a deliberate switch to the job role rests on, and the
+# failure it exists to catch is the one that looks like success. A workstation
+# can carry the footbag-operator profile and the role-assuming profile at once,
+# by design, and either resolves without complaint. So a run that was meant to
+# act as the role and did not acts as the IAM user footbag-operator instead: it
+# succeeds, it
+# changes exactly what it was asked to change, and it demonstrates nothing
+# whatever about what the role is permitted. Nothing downstream can tell the
+# difference afterwards, because the work landed either way. A reminder in a
+# runbook does not catch that; only refusing to proceed does.
+#
+# It asks what STS returned rather than which profile was named, for the reason
+# every identity check here does: a profile holds no authority and grants
+# nothing, and each one in this tree is named for the principal it reaches, so
+# the name is the least reliable thing about it.
+aws_identity_require_assumed_role() {
+  local role="$1" session=""
+
+  if [[ -z "$AWS_IDENTITY_ARN" ]]; then
+    aws_identity_resolve "${AWS_PROFILE:-}" || return 1
+  fi
+
+  AWS_IDENTITY_SESSION_NAME=""
+
+  case "$AWS_IDENTITY_ARN" in
+    *":assumed-role/${role}/"*)
+      # Everything after the final slash. A session name cannot contain one, so
+      # this is exact rather than a best effort. The trailing slash in the match
+      # above is load-bearing too: without it a role whose name merely starts
+      # with the wanted one would satisfy the check.
+      session="${AWS_IDENTITY_ARN##*/}"
+      ;;
+    *":assumed-role/"*)
+      echo "ERROR: this run is acting as ${AWS_IDENTITY_ARN}," >&2
+      echo "       which is an assumed role, but not ${role}. A session of some" >&2
+      echo "       other role carries some other policy, so nothing this run" >&2
+      echo "       went on to do would say anything about ${role}." >&2
+      echo "       Nothing done." >&2
+      return 1
+      ;;
+    *)
+      echo "ERROR: this run is acting as ${AWS_IDENTITY_ARN}," >&2
+      echo "       which is not a session of ${role} at all." >&2
+      echo "" >&2
+      echo "       This is the failure that would otherwise look like success." >&2
+      echo "       The work would have run under that identity's permissions rather" >&2
+      echo "       than ${role}'s, and proved nothing about what ${role} is" >&2
+      echo "       permitted to do." >&2
+      echo "       Nothing done." >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z "$session" ]]; then
+    echo "ERROR: ${AWS_IDENTITY_ARN} names ${role} but carries no session name," >&2
+    echo "       so there is nothing in it identifying who is acting. On a" >&2
+    echo "       shared role the session name is the whole of the attribution." >&2
+    return 1
+  fi
+
+  AWS_IDENTITY_SESSION_NAME="$session"
+  return 0
+}
+
 # aws_identity_resolve [<profile>]
 #
 # The identity must resolve to something. WHICH principal it resolves to is
@@ -145,7 +225,8 @@ aws_identity_require_chain() {
 # so they name the principal they demand. This one runs at the start of an
 # ordinary run, where the question is only whether the credential still
 # authenticates, and where naming a principal would have to be revised the day
-# the same profile stops being a shared IAM user and becomes a federated role.
+# the principal behind the same profile stops being an IAM user and becomes a
+# federated role.
 #
 # With no argument, or an empty one, it asks about whatever the ambient chain
 # resolves, which is the case where the operator's shell supplies keys rather

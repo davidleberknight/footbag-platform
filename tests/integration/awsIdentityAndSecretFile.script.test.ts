@@ -118,6 +118,25 @@ describe('aws_identity_require_user', () => {
     });
     expect(r.stdout).toContain('rc=1');
   });
+
+  it('accepts a named operator, whose ARN carries the IAM path it was created under', () => {
+    // Named operators are created under /footbag-operators/, and AWS puts the
+    // path in the user's ARN. A check that expected the name straight after
+    // `user/` refused every one of them, so every real onboarding failed its
+    // own proof and rolled itself back.
+    const r = runIdentity('aws_identity_require_user p jane_doe; echo "rc=$?"', {
+      p: 'arn:aws:iam::111122223333:user/footbag-operators/jane_doe',
+    });
+    expect(r.stdout).toContain('rc=0');
+    expect(r.stdout).toContain('user/footbag-operators/jane_doe');
+  });
+
+  it('does not match a path-qualified user whose name merely ends with the expected one', () => {
+    const r = runIdentity('aws_identity_require_user p jane_doe; echo "rc=$?"', {
+      p: 'arn:aws:iam::111122223333:user/footbag-operators/not_jane_doe',
+    });
+    expect(r.stdout).toContain('rc=1');
+  });
 });
 
 /**
@@ -244,6 +263,84 @@ describe('aws_identity_require_chain', () => {
       a: STAGING_ROLE,
     });
     expect(r.stdout).toContain('rc=1');
+  });
+});
+
+describe('aws_identity_require_assumed_role', () => {
+  // A shared job role only attributes anything because its trust policy binds
+  // the session name to the assuming user's own name, so what this extracts is
+  // the person. The refusals matter more than the acceptance: the identity that
+  // would otherwise be acting is commonly the IAM user footbag-operator, whose
+  // permissions are not the role's, so a run that skipped past here would
+  // succeed and demonstrate nothing about the role's policy.
+  const JOB_ROLE = 'FootbagDevTester';
+  const SESSION = `arn:aws:sts::111122223333:assumed-role/${JOB_ROLE}/david_leberknight`;
+
+  const probe = (arn: string, extra = '') =>
+    runIdentity(
+      `AWS_IDENTITY_ARN=${JSON.stringify(arn)}; ${extra}` +
+        `aws_identity_require_assumed_role ${JOB_ROLE}; echo "rc=$?";` +
+        ' echo "session=${AWS_IDENTITY_SESSION_NAME:-none}"',
+      { p: OPERATOR },
+    );
+
+  it('accepts a session of the role and leaves the person name behind it', () => {
+    const r = probe(SESSION);
+    expect(r.stdout).toContain('rc=0');
+    expect(r.stdout).toContain('session=david_leberknight');
+  });
+
+  it('refuses a directly authenticated user, naming what it found', () => {
+    const r = probe(OPERATOR);
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toContain(OPERATOR);
+    expect(r.stderr).toMatch(/not a session of FootbagDevTester at all/);
+    expect(r.stderr).toMatch(/under that identity's permissions rather\s+than FootbagDevTester's/);
+  });
+
+  it('refuses a named IAM user without claiming it can do more than the role', () => {
+    // A named user can only assume the role, so a refusal that credited it with
+    // the role's permissions and more would be false about the one principal
+    // this branch is most likely to meet when a chain returns its source.
+    const r = probe('arn:aws:iam::111122223333:user/footbag-operators/david_leberknight');
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/not a session of FootbagDevTester at all/);
+    expect(r.stderr).not.toMatch(/can do everything|a great\s+deal more/);
+  });
+
+  it('refuses a session of a different role', () => {
+    const r = probe(STAGING_ROLE);
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/is an assumed role, but not FootbagDevTester/);
+  });
+
+  it('refuses a role whose name merely begins with the one asked for', () => {
+    const r = probe(`arn:aws:sts::111122223333:assumed-role/${JOB_ROLE}Extra/somebody`);
+    expect(r.stdout).toContain('rc=1');
+  });
+
+  it('refuses the right role carrying no session name, which is the attribution', () => {
+    const r = probe(`arn:aws:sts::111122223333:assumed-role/${JOB_ROLE}/`);
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toMatch(/carries no session name/);
+  });
+
+  it('clears a session name from an earlier call when it refuses', () => {
+    // A caller reading the variable after a refusal would otherwise attribute
+    // this run to whoever the previous one named.
+    const r = probe(OPERATOR, 'AWS_IDENTITY_SESSION_NAME=somebody_else; ');
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stdout).toContain('session=none');
+  });
+
+  it('resolves the identity itself when nothing has resolved one yet', () => {
+    const r = runIdentity(
+      'AWS_PROFILE=p; aws_identity_require_assumed_role FootbagDevTester; echo "rc=$?";' +
+        ' echo "session=${AWS_IDENTITY_SESSION_NAME:-none}"',
+      { p: SESSION },
+    );
+    expect(r.stdout).toContain('rc=0');
+    expect(r.stdout).toContain('session=david_leberknight');
   });
 });
 

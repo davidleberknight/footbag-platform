@@ -9,10 +9,12 @@
 # applied rarely — about once a year — and it stops for a typed APPLY before it
 # does, because it holds every environment's state.
 #
-# It declares nothing sensitive, so unlike staging and production it has no
-# companion secrets file.
+# It now has a companion secrets file, like staging and production: the account's
+# three alternate contacts carry a recovery address and a named person's phone
+# number, so those values go in secrets.auto.tfvars and never here. The gate
+# below is the only part of them that is not sensitive.
 #
-# Both values below are small, and the second is the one that matters: the state
+# The values below are small, and the second is the one that matters: the state
 # bucket's name is built from it, every tree's backend block names that bucket,
 # and a bucket name is globally unique across all of AWS. Changing it after the
 # bucket exists does not rename anything — it points every tree at a bucket that
@@ -23,3 +25,10 @@ aws_region = "us-east-1"
 # A short random string making the bucket name unique. Set once, at bootstrap,
 # and never afterwards.
 state_bucket_suffix = "TODO-set-unique-suffix"
+
+# Turn the account's three alternate contacts on. Flip this only once all three
+# identities have been decided and their values are in secrets.auto.tfvars; an
+# apply with this on and a value missing is refused by a precondition naming the
+# one that is absent. The three account controls beside them carry no values and
+# do not wait on this.
+enable_account_alternate_contacts = false

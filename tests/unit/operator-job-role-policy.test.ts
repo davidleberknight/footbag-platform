@@ -105,10 +105,12 @@ describe('the job role carries exactly the statements it is meant to', () => {
       'lightsail_staging_lifecycle',
       'cloudfront_project_surfaces',
       'ses_staging_configuration',
+      'ses_account_read',
       'iam_read_everywhere',
       'iam_write_project',
       'chain_into_runtime_roles',
       'resolve_who_acted',
+      'reads_the_operator_scripts_make',
       'no_self_elevation',
       'never_touch_super_admin_identity',
       'never_administer_a_human_operator',
@@ -116,8 +118,10 @@ describe('the job role carries exactly the statements it is meant to', () => {
       'never_rewrite_a_role_we_can_assume',
       'never_graft_an_alias_onto_production',
       'never_rewrite_a_production_edge_function',
+      'never_touch_a_production_edge_surface',
       'never_pass_a_role_to_budgets',
-      'never_reach_a_host_shell',
+      'never_mint_host_access',
+      'never_reach_a_non_staging_host',
     ]);
   });
 
@@ -128,8 +132,22 @@ describe('the job role carries exactly the statements it is meant to', () => {
     expect(source).not.toMatch(/aws_ssoadmin_/);
     expect(source).not.toMatch(/aws_identitystore_/);
     expect(source).not.toMatch(/AWSReservedSSO/);
-    expect(source).not.toMatch(/"sso:/);
-    expect(source).not.toMatch(/"identitystore:/);
+
+    // The action ban here used to be absolute. It is now an exact allow-list of
+    // three reads, because verify-account-baseline.sh asks Identity Center
+    // whether the dormant instance is still dormant -- whether it carries any
+    // permission set, and whether its directory holds any user -- and a role
+    // that cannot ask cannot report. Reading that the surface is empty is the
+    // opposite of granting through it. An exact set rather than a ban, so a
+    // fourth action cannot arrive under cover of the three.
+    const ssoActions = [...source.matchAll(/"((?:sso|identitystore):[A-Za-z*]+)"/g)].map(
+      (m) => m[1],
+    );
+    expect(ssoActions).toEqual([
+      'sso:ListInstances',
+      'sso:ListPermissionSets',
+      'identitystore:ListUsers',
+    ]);
   });
 
   it('declares one ordinary role, not a permission set', () => {
@@ -229,6 +247,60 @@ describe('the job role grants what a terraform plan actually calls', () => {
     expect(actions('IamWriteOnlyWhatThisProjectDeclares')).toEqual(['iam:*']);
   });
 
+  it('names the staging configuration sets rather than wildcarding SES', () => {
+    // Both trees name their sets `${local.prefix}-<kind>` and local.prefix
+    // carries the environment, so unlike the rest of SES these ARNs scope
+    // exactly. On a wildcard, ses:DeleteConfigurationSet reached production's
+    // transactional and bulk sets, which carry the reputation tracking for
+    // every message the membership receives.
+    expect(actions('SesConfigurationSetsByName')).toEqual([
+      'ses:CreateConfigurationSet',
+      'ses:DescribeConfigurationSet',
+      'ses:DeleteConfigurationSet',
+    ]);
+    expect(statement('SesConfigurationSetsByName')).toContain(
+      'local.scope.ses_configuration_sets',
+    );
+
+    // Only the two that genuinely carry no resource stay unscoped, and neither
+    // of them can change anything.
+    expect(actions('SesListAndAccountRead')).toEqual([
+      'ses:ListConfigurationSets',
+      'ses:GetAccount',
+    ]);
+  });
+
+  it('grants the reads the operator scripts make, and only the reads', () => {
+    // Three scripts an operator runs through this role failed on these:
+    // verify-account-baseline.sh on the account controls and the dormant
+    // Identity Center instance, dns-ttl-preflight.sh and verify-zone-mirror.sh
+    // on the zone's records. A refused read reads as a broken credential rather
+    // than as a missing grant, which is the failure mode this policy's header
+    // warns about at length.
+    expect(actions('ReadsTheOperatorScriptsMake')).toEqual([
+      's3:GetAccountPublicAccessBlock',
+      'access-analyzer:ListAnalyzers',
+      'access-analyzer:GetAnalyzer',
+      'account:GetAlternateContact',
+      'sso:ListInstances',
+      'sso:ListPermissionSets',
+      'identitystore:ListUsers',
+      'route53:ListResourceRecordSets',
+      'route53:GetHostedZone',
+    ]);
+
+    // The write halves are the point of the list being exact. The account
+    // controls are declared in the shared tree, which this role cannot reach,
+    // and one zone serves the estate, so a record write is a write over
+    // production's DNS.
+    const s = statement('ReadsTheOperatorScriptsMake');
+    expect(s).not.toContain('route53:ChangeResourceRecordSets');
+    expect(s).not.toContain('s3:PutAccountPublicAccessBlock');
+    expect(s).not.toContain('iam:UpdateAccountPasswordPolicy');
+    expect(s).not.toContain('access-analyzer:CreateAnalyzer');
+    expect(s).not.toContain('access-analyzer:DeleteAnalyzer');
+  });
+
   it('resolves who acted from the trail alone', () => {
     // It used to read the directory too, which no longer exists. The trail
     // records the role session name, and the trust policy forces that name to
@@ -317,6 +389,27 @@ describe('the job role cannot become an administrator', () => {
       'iam:EnableMFADevice',
       'iam:DeactivateMFADevice',
       'iam:ResyncMFADevice',
+      // Every other way a credential or an identifying attribute reaches one of
+      // these users. Each of these came back implicitDeny before it was named
+      // here, which is the difference this statement exists to make: an
+      // enumerated list that trails the API is how least privilege stops
+      // holding. The tags are here because the lifecycle script proves a
+      // pre-existing user is one of ours by reading them before it modifies
+      // anything, so rewriting a tag is how that check is defeated.
+      'iam:TagUser',
+      'iam:UntagUser',
+      'iam:CreateVirtualMFADevice',
+      'iam:DeleteVirtualMFADevice',
+      'iam:UploadSSHPublicKey',
+      'iam:UpdateSSHPublicKey',
+      'iam:DeleteSSHPublicKey',
+      'iam:UploadSigningCertificate',
+      'iam:UpdateSigningCertificate',
+      'iam:DeleteSigningCertificate',
+      'iam:CreateServiceSpecificCredential',
+      'iam:UpdateServiceSpecificCredential',
+      'iam:DeleteServiceSpecificCredential',
+      'iam:ResetServiceSpecificCredential',
     ]);
     const s = statement('NeverAdministerAHumanOperator');
     expect(s).toContain('local.human_operator_arn_pattern');
@@ -390,26 +483,80 @@ describe('the job role cannot become an administrator', () => {
     );
   });
 
-  it('is denied the calls that reach a live host, on every instance but staging', () => {
-    // This set mints the shell, reopens the firewall, and deletes the host
-    // whose database is on local disk. It used to deny the first of them on
-    // every instance, on the premise that Lightsail supports no resource-level
-    // permission. It supports one here, and the blanket form had a cost:
-    // install-known-hosts.sh accepts staging and makes exactly that call,
-    // because the host-key pin is built from it and from nothing else, so a
-    // dev-and-tester could not pin the host they deploy to.
-    //
-    // Keyed on the Environment tag and stated in the negative, so it fails
-    // closed: production, any instance added later, and an instance carrying no
-    // tag at all are all denied, because an absent condition key makes a
-    // negated match true. Naming the staging instance by ARN would have worked
-    // too and would have meant a generated id copied into a values file by hand
-    // and re-copied after every rebuild, which is a control that depends on
-    // somebody remembering.
+  it('may not touch a production distribution, and keeps the guard that lets staging work', () => {
+    // A distribution ARN carries a generated id, not a name, so the grant above
+    // is Resource "*" and cannot be otherwise. It reached the production
+    // distribution serving the public site, with UpdateDistribution and
+    // DeleteDistribution among its actions. Tags are what CloudFront does
+    // carry, so this matches on the tag the way the KMS and Lightsail denials
+    // do. The tagging actions are in the list because they are how the control
+    // would switch itself off.
+    expect(actions('NeverTouchAProductionEdgeSurface')).toEqual([
+      'cloudfront:UpdateDistribution',
+      'cloudfront:DeleteDistribution',
+      'cloudfront:UpdateFunction',
+      'cloudfront:PublishFunction',
+      'cloudfront:DeleteFunction',
+      'cloudfront:TagResource',
+      'cloudfront:UntagResource',
+    ]);
+
+    const s = statement('NeverTouchAProductionEdgeSurface');
+    expect(s).toMatch(/StringNotEquals\s*=\s*\{\s*"aws:ResourceTag\/Environment"\s*=\s*"staging"/);
+
+    // The load-bearing half, and the one whose loss is silent. A negated match
+    // against a condition key ABSENT from the request evaluates true, so
+    // without the Null guard this statement denies every CreateDistribution --
+    // which has no resource to carry a tag -- and every call against a resource
+    // whose tag could not be read, staging included. Confirmed with
+    // iam simulate-custom-policy: unguarded, CreateDistribution came back
+    // explicitDeny; guarded, allowed. Deleting this line does not fail any
+    // other assertion in this file, which is exactly why it has its own.
+    expect(s).toMatch(/Null\s*=\s*\{\s*"aws:ResourceTag\/Environment"\s*=\s*"false"/);
+  });
+
+  it('is denied the host-access certificate on every instance, staging included', () => {
+    // The certificate opens a root shell as the default login account with no
+    // key or password of the operator's own. The permission to mint it is the
+    // whole control over that path, and nothing a job-role holder does needs
+    // it: a dev-and-tester's sudo comes through their own named account.
     const s = statement('NeverMintHostAccessDetails');
     expect(s).toContain('"Deny"');
-    expect(actions('NeverMintHostAccessDetails')).toEqual([
+    expect(actions('NeverMintHostAccessDetails')).toEqual(['lightsail:GetInstanceAccessDetails']);
+    expect(s).toContain('Resource = "*"');
+    expect(s).not.toContain('Condition');
+    // Nor may any allow grant it: a denial is what makes this a guarantee, and
+    // an allow sitting beside it is a grant waiting for the denial to be edited.
+    expect(actions('LightsailWhatTheStagingTreeDeclares')).not.toContain(
       'lightsail:GetInstanceAccessDetails',
+    );
+  });
+
+  it('is never granted attaching, detaching or releasing a static IP', () => {
+    // Lightsail cannot tag a static IP and its ARN carries a generated id, so
+    // no condition could keep these calls off production's address: detaching
+    // or releasing it loses the address, and whether attaching can move an
+    // address already attached elsewhere is not documented. Withholding them is
+    // the only control that exists. Allocating a new address touches nothing
+    // that exists, so it stays.
+    const granted = actions('LightsailWhatTheStagingTreeDeclares');
+    expect(granted).toContain('lightsail:AllocateStaticIp');
+    expect(granted).not.toContain('lightsail:AttachStaticIp');
+    expect(granted).not.toContain('lightsail:DetachStaticIp');
+    expect(granted).not.toContain('lightsail:ReleaseStaticIp');
+  });
+
+  it('is denied the other calls that reach a live host, on every instance but staging', () => {
+    // This set reopens the firewall and deletes the host whose database is on
+    // local disk. Keyed on the Environment tag and stated in the negative, so
+    // it fails closed: production, any instance added later, and an instance
+    // carrying no tag at all are all denied, because an absent condition key
+    // makes a negated match true. Naming the staging instance by ARN would mean
+    // a generated id copied into a values file by hand and re-copied after
+    // every rebuild, which is a control that depends on somebody remembering.
+    const s = statement('NeverReachANonStagingHost');
+    expect(s).toContain('"Deny"');
+    expect(actions('NeverReachANonStagingHost')).toEqual([
       'lightsail:PutInstancePublicPorts',
       'lightsail:OpenInstancePublicPorts',
       'lightsail:CloseInstancePublicPorts',
@@ -440,6 +587,7 @@ describe('the job role reaches staging and nothing else', () => {
     // every SecureString keyed on that alias unreadable under this policy.
     expect(scope).toMatch(/kms_alias\s*=\s*"alias\/footbag-staging\*"/);
     expect(scope).toContain('role/footbag-staging-*');
+    expect(scope).toContain('configuration-set/footbag-staging-*');
     expect(scope).toContain('footbag-staging-app-runtime');
     expect(scope).not.toContain('footbag-production-app-runtime');
     // The estate-wide globs belong to nobody now. A bare `footbag-*` here would

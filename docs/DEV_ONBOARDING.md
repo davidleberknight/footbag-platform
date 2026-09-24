@@ -1095,7 +1095,7 @@ This guide preserves these project constraints:
 
 - [AWS CLI install](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [AWS CLI quickstart](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
-- [Using an IAM role in the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-role.html) — the hand-typed flow, for background; here the operator's own profile and the job-role profile that chains from it are written by `scripts/manage-human-operator.sh`
+- [Using an IAM role in the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-role.html) — the hand-typed flow, for background; here the operator's own profile and the job-role profile that chains from it are written by `scripts/onboard-operator.sh`
 - [Root user best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
 - [IAM best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
 - [Lightsail SSH keys and connection overview](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html)

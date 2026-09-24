@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Staged bulk send rehearsal, against the AWS mailbox simulator.
 #
+# PRODUCTION ONLY. Staging's email is the adapter stub, and staging's runtime
+# role holds no permission to send, so a staging rehearsal would prove nothing
+# but an access denial. `--target staging` is refused before anything is read,
+# resolved or sent. Production keeps every gate below.
+#
 # WHAT THIS PROVES, AND WHAT IT DOES NOT.
 #
 # It proves the provider half of a staged bulk send at full volume: that the
@@ -67,9 +72,10 @@ REGION="us-east-1"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: rehearse-bulk-send.sh --target <staging|production> [options]
+Usage: rehearse-bulk-send.sh --target production [options]
 
-  --target <env>       Which environment's sender identity and configuration set to use.
+  --target production  The environment whose sender identity and configuration set
+                       to use. Staging is refused: its email is the adapter stub.
   --profile <name>     AWS profile; defaults to footbag-<target>-runtime.
   --count <n>          Messages to send (default 50).
   --scenario <s>       success | bounce | complaint | mixed (default success).
@@ -104,6 +110,13 @@ done
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 require_target "$TARGET" staging production || exit 2
+# Staging is named rather than rejected as unknown, so the refusal says why.
+if [[ "$TARGET" == "staging" ]]; then
+  echo "ERROR: staging sends no real mail. Its email is the adapter stub, and its" >&2
+  echo "       runtime role holds no permission to send, so this rehearsal runs" >&2
+  echo "       against production only: --target production. Nothing was sent." >&2
+  exit 2
+fi
 case "$SCENARIO" in
   success|bounce|complaint|mixed) : ;;
   *) echo "ERROR: --scenario must be success, bounce, complaint or mixed" >&2; exit 2 ;;

@@ -15,7 +15,7 @@
 # assignments, and runs this body as root. Nothing secret reaches argv.)
 #
 # Required shell variables (provided by the caller's prepended assignments):
-#   OPACC_MODE          create | rotate | remove | offboard
+#   OPACC_MODE          create | rotate | remove | offboard | inspect
 #   OPACC_ACCOUNT       the Linux account name
 #   OPACC_OPERATOR      who it belongs to, for the comment field
 #   OPACC_KEY_LINE      their SSH public key line (create and rotate)
@@ -26,6 +26,15 @@
 #                       sends the decision rather than this half inferring it
 #                       from an empty password, which would make an accidental
 #                       empty value look like a deliberate choice.
+#   OPACC_SHARED_ACCOUNT  the shared break-glass account's name (create, rotate
+#                       and offboard). Sent rather than assumed, and a run that
+#                       needs it and did not receive it refuses: the checks that
+#                       read it are what keep a named account's key off that
+#                       account, and a missing name would pass them silently.
+#   OPACC_REOPEN        yes | no (rotate only). Yes reopens an account an
+#                       offboard retired, for the same person under the same
+#                       name: login shell and expiry restored, and a key it was
+#                       retired with refused.
 
 set -euo pipefail
 
@@ -34,6 +43,7 @@ set -euo pipefail
 OPACC_OPERATOR="${OPACC_OPERATOR:-}"
 OPACC_KEY_LINE="${OPACC_KEY_LINE:-}"
 OPACC_PASSWORD="${OPACC_PASSWORD:-}"
+OPACC_SHARED_ACCOUNT="${OPACC_SHARED_ACCOUNT:-}"
 
 if [[ $EUID -ne 0 ]]; then
   echo "ERROR: this body must run as root; it is reached through sudo -S." >&2
@@ -65,6 +75,27 @@ install_via_tmp() {
   shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
 }
 
+# The fingerprints the shared account authorizes, one per line, or nothing when
+# it has no key file. Read from the host rather than from any list, because the
+# host is where a key either admits somebody or does not.
+opacc_shared_fingerprints() {
+  local home
+  home="$(getent passwd "$OPACC_SHARED_ACCOUNT" 2>/dev/null | cut -d: -f6 || true)"
+  [[ -n "$home" && -f "${home}/.ssh/authorized_keys" ]] || return 0
+  ssh-keygen -l -f "${home}/.ssh/authorized_keys" 2>/dev/null | awk '{print $2}' || true
+}
+
+# The shared account's name is what both key checks below read. Without it they
+# would compare against nothing and pass, so a run that needs them refuses.
+opacc_require_shared_account() {
+  if [[ -z "$OPACC_SHARED_ACCOUNT" ]]; then
+    echo "REFUSING: the shared account's name did not arrive with this run, so" >&2
+    echo "       whether ${OPACC_ACCOUNT}'s key is also on it cannot be checked." >&2
+    echo "       Nothing done." >&2
+    exit 1
+  fi
+}
+
 # ── remove ───────────────────────────────────────────────────────────────────
 #
 # Reached only from the caller's rollback path, which runs it exclusively for an
@@ -77,6 +108,44 @@ if [[ "$OPACC_MODE" == "remove" ]]; then
   pkill -KILL -u "$OPACC_ACCOUNT" 2>/dev/null || true
   userdel -r -- "$OPACC_ACCOUNT"
   echo "  Removed ${OPACC_ACCOUNT} and its home directory."
+  exit 0
+fi
+
+# ── inspect ──────────────────────────────────────────────────────────────────
+#
+# Read-only. What an existing account accepts and whether it was retired, so the
+# operator can see an account no key on their machine reaches before confirming
+# it is their own. One line per fact, for the caller to read:
+#   SHELL <login shell>
+#   PASSWORD <field two of passwd -S>
+#   OFFBOARDED yes|no     keys moved aside by an offboard
+#   KEY <ssh-keygen -l line>, one per authorized key
+if [[ "$OPACC_MODE" == "inspect" ]]; then
+  if ! id -u -- "$OPACC_ACCOUNT" >/dev/null 2>&1; then
+    echo "ERROR: ${OPACC_ACCOUNT} does not exist." >&2
+    exit 1
+  fi
+  inspect_home="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f6)"
+  echo "SHELL $(getent passwd "$OPACC_ACCOUNT" | cut -d: -f7)"
+  echo "PASSWORD $(passwd -S -- "$OPACC_ACCOUNT" 2>/dev/null | cut -d' ' -f2 || echo '?')"
+  if compgen -G "${inspect_home}/.ssh/authorized_keys.offboarded-*" >/dev/null; then
+    echo "OFFBOARDED yes"
+  else
+    echo "OFFBOARDED no"
+  fi
+  if [[ -f "${inspect_home}/.ssh/authorized_keys" ]]; then
+    while IFS= read -r inspect_line; do
+      [[ -n "$inspect_line" ]] && echo "KEY ${inspect_line}"
+    done < <(ssh-keygen -l -f "${inspect_home}/.ssh/authorized_keys" 2>/dev/null || true)
+  fi
+  # The keys an offboard moved aside, so the operator reopening a retired account
+  # can see what it was retired with.
+  for inspect_retired in "${inspect_home}"/.ssh/authorized_keys.offboarded-*; do
+    [[ -f "$inspect_retired" ]] || continue
+    while IFS= read -r inspect_line; do
+      [[ -n "$inspect_line" ]] && echo "RETIRED ${inspect_line}"
+    done < <(ssh-keygen -l -f "$inspect_retired" 2>/dev/null || true)
+  done
   exit 0
 fi
 
@@ -131,24 +200,97 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
     exit 1
   fi
 
+  home_dir="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f6)"
+  ak="${home_dir}/.ssh/authorized_keys"
+
+  # Their fingerprints, gathered first, because both the count below and the
+  # sweep further down depend on knowing which keys are theirs, and the
+  # account's own key files are the only place on this host that records it.
+  # The live file is read, and so is any copy an earlier run moved aside: a run
+  # that stopped after moving the file and is now being resumed would otherwise
+  # find nothing, sweep nothing, and report that the person holds no key
+  # anywhere while their key still sits on the shared account.
+  OPACC_THEIR_FPS=""
+  for key_source in "$ak" "${ak}".offboarded-*; do
+    [[ -f "$key_source" ]] || continue
+    OPACC_THEIR_FPS+="$(ssh-keygen -l -f "$key_source" 2>/dev/null | awk '{print $2}' || true)"$'\n'
+  done
+  OPACC_THEIR_FPS="$(printf '%s' "$OPACC_THEIR_FPS" | sed '/^$/d' | sort -u)"
+
+  # Every named account is created with a key, so an account with no key file
+  # at all, live or moved aside, has had it removed by some other route. Which
+  # keys were theirs is then unknown, the sweep cannot run, and a copy loaned
+  # to another account would survive a run that reported success.
+  if [[ -z "$OPACC_THEIR_FPS" ]]; then
+    echo "REFUSING: no key of ${OPACC_ACCOUNT}'s can be found on this host, in" >&2
+    echo "       ${ak} or in a copy of it moved aside, so which" >&2
+    echo "       keys were theirs is unknown and no account can be swept of them." >&2
+    echo "       List every authorized key with the host-access diagnostic and" >&2
+    echo "       remove theirs by hand before recording this departure. Nothing done." >&2
+    exit 1
+  fi
+
+  # The sweep below removes these fingerprints from every account, the shared
+  # one included. Where one of them is also the key a footbag-operator holder
+  # reaches the shared account with, the sweep would end that holder's own way
+  # in, and the count further down would not notice while anybody else's key is
+  # still there. So a retiring key found on the shared account stops the run
+  # before anything changes, and the operator decides which case it is.
+  if [[ "$OPACC_ACCOUNT" != "$OPACC_SHARED_ACCOUNT" ]]; then
+    opacc_require_shared_account
+    opacc_shared_fps="$(opacc_shared_fingerprints)"
+    opacc_overlap=""
+    while IFS= read -r their_fp; do
+      [[ -z "$their_fp" ]] && continue
+      if printf '%s\n' "$opacc_shared_fps" | grep -qxF -- "$their_fp"; then
+        opacc_overlap+="${their_fp}"$'\n'
+      fi
+    done <<< "$OPACC_THEIR_FPS"
+    if [[ -n "$opacc_overlap" ]]; then
+      echo "REFUSING: a key on ${OPACC_ACCOUNT} is also authorized on the shared" >&2
+      echo "       account ${OPACC_SHARED_ACCOUNT}:" >&2
+      printf '         %s\n' $opacc_overlap >&2
+      echo "       Offboarding sweeps it off every account, ${OPACC_SHARED_ACCOUNT}" >&2
+      echo "       included, so whoever reaches ${OPACC_SHARED_ACCOUNT} with it would" >&2
+      echo "       lose that way in too. Resolve it first, then re-run:" >&2
+      echo "         - a footbag-operator holder's own key: give ${OPACC_ACCOUNT} a key" >&2
+      echo "           pair of its own with provision-operator-account.sh --rotate --key-only," >&2
+      echo "           run from a workstation whose alias connects as ${OPACC_SHARED_ACCOUNT}" >&2
+      echo "         - a key that never belonged on ${OPACC_SHARED_ACCOUNT}: remove it from" >&2
+      echo "           there deliberately with authorize-operator-key.sh --remove" >&2
+      echo "       Nothing done." >&2
+      exit 1
+    fi
+  fi
+
   # Somebody has to be left who can still reach this host with sudo. Counted
   # from the group's real membership, primary group included, because a member
   # whose primary group is the sudo group does not appear in the group line.
   # A shell and a sudo grant are not access, and counting them as access is how
   # this refusal passes while the danger it names is real. sshd here accepts
-  # public keys only, so an account with no authorized_keys is reachable by
-  # nobody however its shell and groups read; and reaching it is no use without
-  # a password sudo will take. The shared service account in its intended end
-  # state -- every bootstrap key withdrawn, the account not yet deleted --
-  # satisfies the shell-and-group test exactly while admitting no one, so the
-  # weaker count would offboard the last real operator into a host nobody can
-  # log in to: the precise outcome this refusal exists to prevent.
+  # public keys only, so an account is reachable only through a key it
+  # authorizes; and reaching it is no use without a password sudo will take.
+  #
+  # The keys are counted, not the file: an account whose only authorized key is
+  # the departing person's own is about to lose it to the sweep below, so it
+  # admits nobody once this run finishes. The shared account holding nothing but
+  # a key loaned to the person leaving is exactly that account, and counting it
+  # would sweep the last working login off the host while reporting success.
   remaining=0
   while IFS=: read -r name _ _ gid _ home shell; do
     [[ "$name" == "$OPACC_ACCOUNT" ]] && continue
     case "$shell" in */nologin|*/false|"") continue ;; esac
     id -nG "$name" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$SUDO_GROUP" || continue
     [[ -n "$home" && -s "${home}/.ssh/authorized_keys" ]] || continue
+    kept_key=0
+    while IFS= read -r candidate_fp; do
+      [[ -z "$candidate_fp" ]] && continue
+      if ! printf '%s\n' "$OPACC_THEIR_FPS" | grep -qx -- "$candidate_fp"; then
+        kept_key=1
+        break
+      fi
+    done < <(ssh-keygen -l -f "${home}/.ssh/authorized_keys" 2>/dev/null | awk '{print $2}' || true)
+    (( kept_key )) || continue
     # Field two of passwd -S is the status: P or PS a usable password, L or LK
     # locked, NP none at all. The two spellings are Debian's and the Red Hat
     # family's for the same three states.
@@ -163,9 +305,9 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
   if (( remaining < 1 )); then
     echo "REFUSING: ${OPACC_ACCOUNT} is the last account on this host that can" >&2
     echo "       log in and use sudo. Disabling it leaves nobody able to" >&2
-    echo "       administer the host, and the way back in is a console session" >&2
-    echo "       that this estate cannot currently rely on. Provision the" >&2
-    echo "       replacement operator first. Nothing done." >&2
+    echo "       administer the host over SSH, leaving only the Lightsail access" >&2
+    echo "       path, which is the way back in and not a way to work. Provision" >&2
+    echo "       the replacement operator first. Nothing done." >&2
     exit 1
   fi
 
@@ -181,17 +323,19 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
     || usermod -s /usr/sbin/nologin -- "$OPACC_ACCOUNT" 2>/dev/null \
     || true
   chage -E 0 -- "$OPACC_ACCOUNT" || true
-
-  home_dir="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f6)"
-  ak="${home_dir}/.ssh/authorized_keys"
-
-  # Their fingerprints, read BEFORE the file is moved aside, because the sweep
-  # below needs them and this is the only place on the host that knows which
-  # keys are theirs.
-  OPACC_THEIR_FPS=""
-  if [[ -f "$ak" ]]; then
-    OPACC_THEIR_FPS="$(ssh-keygen -l -f "$ak" 2>/dev/null | awk '{print $2}' || true)"
-  fi
+  # The sudo grant is ended as well as the login. A locked, expired account
+  # cannot use it today, but a grant left in place is one that comes back the
+  # moment anybody unlocks the account, and ending every access the person held
+  # is what an offboarding is.
+  # The docker group is the same kind of grant by another door: creation adds
+  # the account to it, and membership reaches root through the daemon.
+  OPACC_PRIVILEGED_GROUPS=("$SUDO_GROUP")
+  getent group docker >/dev/null 2>&1 && OPACC_PRIVILEGED_GROUPS+=(docker)
+  for priv_group in "${OPACC_PRIVILEGED_GROUPS[@]}"; do
+    if id -nG "$OPACC_ACCOUNT" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$priv_group"; then
+      gpasswd -d "$OPACC_ACCOUNT" "$priv_group" >/dev/null || true
+    fi
+  done
 
   if [[ -f "$ak" ]]; then
     # Moved aside rather than deleted: which key had access is part of the
@@ -205,17 +349,18 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
 
   # ── Their keys on OTHER accounts ──────────────────────────────────────────
   #
-  # Disabling the named account is not the whole of a person's access. Onboarding
-  # puts their key on the SHARED account so they can get a shell at all, and
-  # nothing takes it off: that is a different file on a different account, which
-  # everything above leaves untouched. A person offboarded with that key still
+  # Disabling the named account is not the whole of a person's access. An
+  # operator who provisions their own account first borrows a shell on the
+  # SHARED account, with their key loaned onto it, and a loan nobody withdrew is
+  # a different file on a different account, which everything above leaves
+  # untouched. A person offboarded with that key still
   # in place keeps a root-capable shell as an account whose sudo password is in
   # the shared vault.
   #
   # The identification problem that made this look hard is not one. A key on the
   # shared account carries no name, but it does not have to: the same key is in
   # the account being offboarded right now, so the host already knows which
-  # fingerprints are theirs. They are collected above, before the file moves.
+  # fingerprints are theirs. They are collected above.
   #
   # Every account is swept rather than just the shared one. A key put somewhere
   # else, for any reason anybody had at the time, is the same standing access and
@@ -281,6 +426,15 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
     *) echo "  FAIL login shell is '${shell_now}', expected a nologin shell" >&2; offboard_failed=1 ;;
   esac
 
+  for priv_group in "${OPACC_PRIVILEGED_GROUPS[@]}"; do
+    if id -nG "$OPACC_ACCOUNT" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$priv_group"; then
+      echo "  FAIL still a member of ${priv_group}, so that grant stands" >&2
+      offboard_failed=1
+    else
+      echo "  OK   not a member of ${priv_group}"
+    fi
+  done
+
   if [[ -e "$ak" ]]; then
     echo "  FAIL ${ak} still exists" >&2
     offboard_failed=1
@@ -343,9 +497,73 @@ if [[ "$OPACC_MODE" != "create" && "$OPACC_MODE" != "rotate" ]]; then
   echo "ERROR: OPACC_MODE must be create, rotate, remove or offboard; got '${OPACC_MODE}'." >&2
   exit 2
 fi
-if [[ -z "$OPACC_KEY_LINE" || -z "$OPACC_PASSWORD" ]]; then
-  echo "ERROR: ${OPACC_MODE} needs both a key line and a password in the pipe." >&2
+if [[ -z "$OPACC_KEY_LINE" ]]; then
+  echo "ERROR: ${OPACC_MODE} needs a key line in the pipe." >&2
   exit 2
+fi
+# A password is required whenever one is to be set, which is every create and
+# every rotation except the key-only one. The key-only rotation sends an empty
+# password on purpose, with OPACC_SET_PASSWORD=no, and must not be refused for
+# lacking the value it deliberately does not carry.
+if [[ "${OPACC_SET_PASSWORD:-yes}" == "yes" || "$OPACC_MODE" == "create" ]] \
+   && [[ -z "$OPACC_PASSWORD" ]]; then
+  echo "ERROR: ${OPACC_MODE} needs a password in the pipe." >&2
+  exit 2
+fi
+# The shared account's keys are never replaced here. Several holders' keys sit
+# on it, and the install below writes authorized_keys whole with the one key it
+# was given, so every other holder's way in would go with it. The caller refuses
+# this first; this is the fail-closed copy for a pipe that arrives without it.
+if [[ -n "${OPACC_SHARED_ACCOUNT:-}" && "$OPACC_ACCOUNT" == "$OPACC_SHARED_ACCOUNT" ]]; then
+  echo "REFUSING: ${OPACC_ACCOUNT} is the shared account; its keys are added and" >&2
+  echo "       removed one at a time with authorize-operator-key.sh, never replaced" >&2
+  echo "       whole. Nothing done." >&2
+  exit 1
+fi
+
+# A named account never takes a key the shared account already authorizes.
+# Offboarding a named account sweeps its keys off every account on the host, so
+# a key shared between the two would take the shared account's way in with it
+# the day the named account is retired. Checked before anything is created or
+# installed, so a refusal leaves the host exactly as it was.
+if [[ "$OPACC_ACCOUNT" != "$OPACC_SHARED_ACCOUNT" ]]; then
+  opacc_require_shared_account
+  opacc_key_tmp=$(umask 077 && mktemp)
+  OPACC_TMPS+=("$opacc_key_tmp")
+  printf '%s\n' "$OPACC_KEY_LINE" > "$opacc_key_tmp"
+  opacc_new_fp="$(ssh-keygen -l -f "$opacc_key_tmp" 2>/dev/null | awk '{print $2}' || true)"
+  if [[ -n "$opacc_new_fp" ]] \
+      && opacc_shared_fingerprints | grep -qxF -- "$opacc_new_fp"; then
+    echo "REFUSING: the key offered for ${OPACC_ACCOUNT} (${opacc_new_fp}) is already" >&2
+    echo "       authorized on the shared account ${OPACC_SHARED_ACCOUNT}. A named account" >&2
+    echo "       needs a key pair of its own: retiring ${OPACC_ACCOUNT} later sweeps its" >&2
+    echo "       keys off every account, so a shared key would end the way into" >&2
+    echo "       ${OPACC_SHARED_ACCOUNT} too. Make a new key pair for this account and" >&2
+    echo "       re-run with it. Nothing done." >&2
+    exit 1
+  fi
+fi
+
+# Reopening a retired account is a rehire of the same person, and it takes a
+# key pair made fresh for it. A key the account was retired with is refused: the
+# retirement ended that key's access, and reinstating it would undo the firing
+# for whoever still holds the private half. Read from the keys the offboard
+# moved aside, which is the one record of them no script-unreadable vault holds.
+if [[ "${OPACC_REOPEN:-no}" == "yes" ]]; then
+  if [[ "$OPACC_MODE" != "rotate" ]]; then
+    echo "ERROR: reopening applies to an existing account, so it needs rotate mode." >&2
+    exit 2
+  fi
+  reopen_home="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f6 || true)"
+  for reopen_retired in "${reopen_home}"/.ssh/authorized_keys.offboarded-*; do
+    [[ -f "$reopen_retired" ]] || continue
+    if ssh-keygen -l -f "$reopen_retired" 2>/dev/null | awk '{print $2}' \
+        | grep -qxF -- "${opacc_new_fp:-}"; then
+      echo "REFUSING: ${opacc_new_fp} is a key ${OPACC_ACCOUNT} was retired with." >&2
+      echo "       A rehire takes a key pair made fresh for it. Nothing done." >&2
+      exit 1
+    fi
+  done
 fi
 
 
@@ -432,6 +650,14 @@ else
   fi
   usermod -aG "$SUDO_GROUP" -- "$OPACC_ACCOUNT"
   echo "  ${OPACC_ACCOUNT} exists; reinstalling key and replacing password."
+  if [[ "${OPACC_REOPEN:-no}" == "yes" ]]; then
+    # What the offboard changed besides the keys and the password: the login
+    # shell and the expiry. The shell is the one useradd gives a new account.
+    reopen_shell="$(useradd -D 2>/dev/null | sed -n 's/^SHELL=//p')"
+    usermod -s "${reopen_shell:-/bin/bash}" -- "$OPACC_ACCOUNT"
+    chage -E -1 -- "$OPACC_ACCOUNT"
+    echo "  Reopened the retired account: login shell ${reopen_shell:-/bin/bash}, expiry cleared."
+  fi
 fi
 
 # The deploy reads the running schema by exec-ing into the web container, and
@@ -587,6 +813,17 @@ case "$LOGIN_SHELL" in
     echo "  OK   login shell ${LOGIN_SHELL}"
     ;;
 esac
+
+# An expired account refuses every login whatever its key and password, which
+# is how an offboard leaves one. LC_ALL=C as for the password read above.
+ACCOUNT_EXPIRES="$(LC_ALL=C chage -l -- "$OPACC_ACCOUNT" 2>/dev/null \
+  | sed -n 's/^Account expires[^:]*: *//p')"
+if [[ "$ACCOUNT_EXPIRES" == "never" ]]; then
+  echo "  OK   account does not expire"
+else
+  echo "  FAIL account expires '${ACCOUNT_EXPIRES:-unreadable}', so it cannot log in" >&2
+  FAILED=1
+fi
 
 AK="${HOME_DIR}/.ssh/authorized_keys"
 AK_MODE="$(stat -c '%a' "$AK" 2>/dev/null || echo '')"

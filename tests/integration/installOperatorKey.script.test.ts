@@ -480,7 +480,7 @@ describe('the chained runtime profiles are written, not left to be hand-edited',
     // session name to equal the assuming user: every call is refused, and the
     // refusal names the role rather than the missing line.
     const r = inLib(
-      `aws_config_add_role_profile "${configPath()}" footbag-devtester `
+      `aws_config_add_role_profile "${configPath()}" FootbagDevTester `
       + `arn:aws:iam::1:role/FootbagDevTester someone us-east-1 someone; echo "rc=$?"`,
     );
     expect(r.stdout).toContain('rc=0');

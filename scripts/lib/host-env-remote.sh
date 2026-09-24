@@ -161,6 +161,14 @@ host_env_fetch() {
   fi
 
   host_env_decode_section "$stream" ENV "$env_dest" || return 1
+
+  # What the host held at the moment it was read, which host_env_install
+  # requires back so it can refuse to overwrite a file that has changed since.
+  # Taken from the decoded copy rather than asked of the host separately: this
+  # IS the content that arrived, so a digest of it cannot disagree with what the
+  # caller is about to edit.
+  HOST_ENV_FETCHED_SHA256="$(sha256sum < "$env_dest" | cut -d' ' -f1)"
+
   if [[ -n "$report_dest" ]]; then
     host_env_decode_section "$stream" REPORT "$report_dest" || return 1
   fi
@@ -189,16 +197,45 @@ host_env_decode_section() {
   return 0
 }
 
-# host_env_install <alias> <local-file> [env-path]
+# host_env_install <alias> <local-file> <env-path> <expected-sha256>
 # Installs <local-file> as the host env file, root:root mode 0600. The content
 # rides the same pipe as an assignment, so there is no scp, no host-side temp
 # path for the caller to name, and no backup copy: a backup is a second, staler
 # copy of the whole secret set sitting at rest for as long as nobody deletes it,
 # and the file is re-derivable from the parameter store by a deploy.
+#
+# <env-path> may be empty for the default. <expected-sha256> is required and is
+# what host_env_fetch left in HOST_ENV_FETCHED_SHA256.
+#
+# WHY THE DIGEST IS REQUIRED RATHER THAN OPTIONAL.
+#
+# Every write here is the back half of a read-modify-write, and it used to be an
+# unconditional whole-file replacement: no re-read, no comparison, nothing that
+# could notice the host's copy had moved on. The second writer that makes this
+# reachable is not another person, it is the deploy: its root half rewrites
+# /srv/footbag/env around thirty times, seeding values and syncing about twenty
+# of them from the parameter store. So one operator alone can do it. Fetch the
+# file, let a deploy run, install the edited copy, and everything the deploy
+# wrote is gone with nothing errored and nothing said.
+#
+# A backup copy would be the other way to make that recoverable, and it is
+# deliberately not the answer: it would leave a second, staler copy of the whole
+# secret set at rest. Refusing the write costs nothing and loses nothing.
+#
+# Optional would not have closed it. A caller that forgets the digest is exactly
+# a caller in the state this exists to catch, so a missing digest is a refusal.
 host_env_install() {
-  local alias="$1" src="$2" env_path="${3:-$HOST_ENV_PATH_DEFAULT}" encoded
+  local alias="$1" src="$2" env_path="${3:-$HOST_ENV_PATH_DEFAULT}" expect_sha="${4:-}" encoded
 
   [[ -r "$src" ]] || { echo "ERROR: cannot read $src" >&2; return 1; }
+  if [[ -z "$expect_sha" ]]; then
+    echo "ERROR: host_env_install needs the digest the file carried when it was read." >&2
+    echo "       Pass \$HOST_ENV_FETCHED_SHA256 from the host_env_fetch that" >&2
+    echo "       produced ${src}. Without it this write cannot tell whether the" >&2
+    echo "       host's copy has changed since, and a deploy in between would be" >&2
+    echo "       silently overwritten." >&2
+    return 1
+  fi
   [[ -r "$HOST_ENV_WRITE_HALF" ]] || {
     echo "ERROR: missing remote half: $HOST_ENV_WRITE_HALF" >&2
     return 1
@@ -211,6 +248,7 @@ host_env_install() {
   if ! {
         printf '%s\n' "$SUDO_PASS"
         printf 'HOST_ENV_PATH=%q\n' "$env_path"
+        printf 'EXPECT_SHA256=%q\n' "$expect_sha"
         printf 'NEW_ENV_B64=%q\n'   "$encoded"
         cat "$HOST_ENV_WRITE_HALF"
       } | ssh "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash'; then

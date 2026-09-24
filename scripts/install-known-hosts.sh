@@ -6,12 +6,10 @@
 #
 # WHY THIS EXISTS.
 #
-# This was the last step on the operator path with no script behind it. The
-# library that REQUIRES the file only printed the AWS command in an error
-# message and left the rest to the operator: read two keys out of one API call,
-# fetch the address from a Terraform output, then hand-write four lines covering
-# two algorithms across two ports, with the bracketed form on the non-default
-# one. Then check it parsed, by eye.
+# Building the file by hand means reading two keys out of one API call, fetching
+# the address from a Terraform output, then hand-writing four lines covering two
+# algorithms across two ports, with the bracketed form on the non-default one,
+# and checking it parsed by eye.
 #
 # Every one of those goes wrong quietly. A wrapped paste yields a line
 # `ssh-keygen` simply does not find, a missing bracketed form covers port 22 and
@@ -23,6 +21,15 @@
 # the address from their authoritative sources, writes all four lines, and then
 # proves the result with `ssh-keygen -F` under both spellings of the address
 # rather than trusting that it wrote what it meant to.
+#
+# WHO RUNS IT.
+#
+# The `footbag-operator` IAM user. The keys come from the Lightsail call that
+# also mints a host-access certificate, and the FootbagDevTester role is denied
+# that call on every instance, because the certificate opens a root shell. A
+# dev-and-tester therefore receives the pin lines with their onboarding rather
+# than building them here; that delivery is designed and not yet built, and
+# nothing here should be improvised around it.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -116,7 +123,7 @@ require_target "$TARGET" staging production || exit 2
 INSTANCE="footbag-${TARGET}-web"
 PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
 
-# The operator profile, supplied rather than exported. Both reads below reach
+# The AWS profile, supplied rather than exported. Both reads below reach
 # AWS, so a run with no identity should say so here rather than failing twice
 # with two different messages.
 aws_profile_ensure || exit 1
@@ -129,9 +136,9 @@ echo "==> Pinning ${INSTANCE} into ${PIN}"
 # nothing announces it: the pin still parses, the connection is simply refused.
 # Called directly, never through a command substitution. That would run it in a
 # subshell and TF_OUTPUT_ERROR would die with it, leaving the refusal below with
-# nothing to say — which is the loss the library exists to prevent, and which
-# this script reintroduced on its first draft. The value arrives in
-# TF_OUTPUT_VALUE, and the directory is a path rather than an environment name.
+# nothing to say — which is the loss the library exists to prevent. The value
+# arrives in TF_OUTPUT_VALUE, and the directory is a path rather than an
+# environment name.
 if ! tf_output_read "terraform/${TARGET}" lightsail_static_ip; then
   echo "ERROR: could not read the ${TARGET} host address from Terraform." >&2
   echo "       ${TF_OUTPUT_ERROR}" >&2

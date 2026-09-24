@@ -315,7 +315,10 @@ fi
 # link fails on the unreadable path and an absent one falls through to a complaint
 # about a variable with no value. Neither failure names the file as something the
 # operator was supposed to author, which is why it is stated here. The shared tree
-# declares nothing sensitive and needs no secrets file at all.
+# has a secrets file of its own, reached the same way: it carries the account's
+# billing, operations and security alternate contacts, which that tree declares
+# sensitive. Each defaults to null, so the shared tree still plans without the file
+# while the contacts stay unset behind enable_account_alternate_contacts.
 
 if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
   echo "SYNTHETIC: terraform='$TF_BIN' -- this run proves nothing about the estate." >&2

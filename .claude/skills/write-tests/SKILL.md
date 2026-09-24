@@ -239,9 +239,9 @@ Run via `npm run test:smoke` against real staging AWS. Gated behind `RUN_STAGING
 In scope for smoke:
 - Identity resolution (assumed-role ARN matches the expected role)
 - AWS resource metadata (key spec, key usage, signing algorithms)
-- Adapter round-trip via real AWS (KMS sign+verify, SES send to mailbox simulator)
+- Adapter round-trip via real AWS (KMS sign+verify)
 - Alias and ARN addressing variants the production code uses
-- Adapter codepaths whose AWS-side behavior differs (e.g., `msg.from` override changes the SES `Source` field)
+- Adapter codepaths whose AWS-side behavior differs
 
 Out of scope for smoke (use unit tests against the adapter):
 - Token tampering, expired-token, `alg=none` rejection

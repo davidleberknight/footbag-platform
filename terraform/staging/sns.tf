@@ -89,6 +89,30 @@ resource "aws_sns_topic_subscription" "alarm_email" {
   topic_arn = aws_sns_topic.alarms.arn
   protocol  = "email"
   endpoint  = var.alarm_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
+}
+
+# Holds alarm_email_subscription_generation, so raising it recreates every alarm
+# email subscription and a fresh confirmation can be made through the API.
+resource "terraform_data" "alarm_email_generation" {
+  input = var.alarm_email_subscription_generation
+}
+
+# A second destination, beside the account's own mailbox rather than instead of
+# it: a group whose members are everyone on the watch. The account mailbox stays
+# the one destination that does not depend on this domain's own mail.
+resource "aws_sns_topic_subscription" "alarm_ops_alert" {
+  count     = var.ops_alert_email != "" ? 1 : 0
+  topic_arn = aws_sns_topic.alarms.arn
+  protocol  = "email"
+  endpoint  = var.ops_alert_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
 }
 
 # Alarm delivery into the application over a queue the worker polls. The email

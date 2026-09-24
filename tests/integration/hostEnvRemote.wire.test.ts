@@ -254,6 +254,18 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
   });
 });
 
+/**
+ * What the destination holds right now, which is what the install compares
+ * against before it overwrites. On a real run this is what host_env_fetch left
+ * in HOST_ENV_FETCHED_SHA256; here the suite wrote the file itself, so it can
+ * take the digest directly and the two are the same fact.
+ */
+function digestOf(path: string): string {
+  const r = spawnSync('sha256sum', [path], { encoding: 'utf-8', ...SPAWN_GUARD });
+  if (r.status !== 0) throw new Error(`sha256sum failed: ${r.stderr}`);
+  return (r.stdout ?? '').trim().split(/\s+/)[0];
+}
+
 describe('the wire installs a rewritten file without staging it on the host', () => {
   it('installs the new content at mode 0600', () => {
     const dest = join(workDir, 'install-a');
@@ -262,7 +274,7 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(staged, 'NEW=2\nSECRET=shhh\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}" "${digestOf(dest)}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -278,7 +290,7 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(staged, 'NEW=2\n', 'utf-8');
 
     const r = runWithLib(
-      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}" "${digestOf(dest)}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).toBe(0);
@@ -293,8 +305,11 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     writeFileSync(dest, 'KEEP=1\n', 'utf-8');
     writeFileSync(staged, '', 'utf-8');
 
+    // The digest is correct here on purpose. Without it this case would refuse
+    // for want of a digest and pass while proving nothing about empty content,
+    // which is the shape of a test that survives a change to something else.
     const r = runWithLib(
-      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}" "${digestOf(dest)}"`,
       `${PASSWORD}\n`,
     );
     expect(r.exitCode).not.toBe(0);
@@ -317,8 +332,11 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     expect(fetch.exitCode).toBe(0);
     writeFileSync(rewritten, `${readFileSync(fetched, 'utf-8')}D=added\n`, 'utf-8');
 
+    // Taken after the fetch and before the edit, which is where a caller takes
+    // it: the two runs are separate shells, so the library's own variable does
+    // not survive between them and the digest has to be carried across.
     const install = runWithLib(
-      `require_operator_stdin "x" host staging && host_env_install host "${rewritten}" "${host}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${rewritten}" "${host}" "${digestOf(host)}"`,
       `${PASSWORD}\n`,
     );
     expect(install.exitCode).toBe(0);
@@ -353,13 +371,17 @@ describe('the host-key pin gates the connection', () => {
     writeFileSync(dest, 'KEEP=1\n', 'utf-8');
     writeFileSync(staged, 'NEW=2\n', 'utf-8');
 
+    // A correct digest, so the refusal under test is the missing pin and not an
+    // argument this case is not about. Without one it would still exit non-zero
+    // and still look green while proving nothing about the pin.
     const r = runWithLib(
-      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}"`,
+      `require_operator_stdin "x" host staging && host_env_install host "${staged}" "${dest}" "${digestOf(dest)}"`,
       `${PASSWORD}\n`,
       { FOOTBAG_KNOWN_HOSTS: join(workDir, 'no-such-pin') },
     );
 
     expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toContain(join(workDir, 'no-such-pin'));
     expect(capturedFirstLine).toBe('');
     expect(readFileSync(dest, 'utf-8')).toBe('KEEP=1\n');
   });
@@ -450,12 +472,80 @@ describe('the credential file follows the account the alias connects as', () => 
   });
 });
 
+/**
+ * The same rule asked from the other direction. Most runs ask which file holds
+ * the password for whoever the alias connects as. The provisioner asks which
+ * file should hold the password an account has just been given, and at that
+ * moment the alias still connects as somebody else, because the account being
+ * created is the one that does not exist yet. Two doors, one rule, and the last
+ * case here is the one that holds them together.
+ */
+describe('the naming rule also answers about an account the caller already knows', () => {
+  function fileFor(account: string, target: string) {
+    return runWithLib(
+      `operator_credential_file_for "${account}" ${target} && printf '%s|%s\\n' ` +
+        `"$OPERATOR_CREDENTIAL_NAME" "$OPERATOR_CREDENTIAL_ACCOUNT"`,
+      '',
+      { HOME: workDir },
+    );
+  }
+
+  it('names the shared pair for the shared account', () => {
+    expect(fileFor('footbag', 'staging').stdout.trim()).toBe('AWS_OPERATOR.txt|footbag');
+    expect(fileFor('footbag', 'production').stdout.trim()).toBe(
+      'AWS_OPERATOR_PRODUCTION.txt|footbag',
+    );
+  });
+
+  it('names the personal pair for anybody else', () => {
+    expect(fileFor('ada_lovelace', 'staging').stdout.trim()).toBe(
+      'HOST_OPERATOR.txt|ada_lovelace',
+    );
+    expect(fileFor('ada_lovelace', 'production').stdout.trim()).toBe(
+      'HOST_OPERATOR_PRODUCTION.txt|ada_lovelace',
+    );
+  });
+
+  it('refuses a target that is neither environment', () => {
+    const r = fileFor('ada_lovelace', 'prod');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/needs 'staging' or 'production'/);
+  });
+
+  it('refuses an empty account rather than choosing a pair for nobody', () => {
+    const r = fileFor('', 'staging');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/needs an account name/);
+  });
+
+  it('agrees with the alias-driven selection for the same account', () => {
+    // If these two ever disagree, a password is filed under one name and looked
+    // for under another, and the failure arrives as a sudo error on the host.
+    const viaAlias = runWithLib(
+      `operator_credential_select host staging && printf '%s\\n' "$OPERATOR_CREDENTIAL_FILE"`,
+      '',
+      { FAKE_SSH_USER: 'ada_lovelace', HOME: workDir },
+    );
+    const viaAccount = runWithLib(
+      `operator_credential_file_for ada_lovelace staging && printf '%s\\n' "$OPERATOR_CREDENTIAL_FILE"`,
+      '',
+      { HOME: workDir },
+    );
+    expect(viaAccount.stdout.trim()).toBe(viaAlias.stdout.trim());
+    expect(viaAlias.stdout.trim()).not.toBe('');
+  });
+});
+
 describe('the credential file is refused by name, never swapped for the other pair', () => {
   let home: string;
 
   function writeCredential(name: string, mode: number): string {
     const dir = join(home, 'AWS');
     mkdirSync(dir, { recursive: true });
+    // The directory's own mode is a precondition of reading anything inside it,
+    // so a fixture left at whatever the umask gives is refused before the file
+    // rule under test is reached. A real workstation's is 700.
+    chmodSync(dir, 0o700);
     const path = join(dir, name);
     writeFileSync(path, `${PASSWORD}\n`, 'utf-8');
     chmodSync(path, mode);

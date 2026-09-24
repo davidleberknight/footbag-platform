@@ -186,7 +186,7 @@
 
 **Service Layer**: Business logic layer implementing domain rules and coordinating data operations. Footbag.org services contain all business logic (membership tier validation, event state transitions, payment processing workflows) isolated from controllers (HTTP concerns) and adapters (storage concerns). Services are pure TypeScript functions for easy testing.
 
-**SES (Simple Email Service)**: AWS managed email service handling sending, receiving, and reputation management. Footbag.org uses SES for transactional emails (password reset, event notifications, payment receipts) with DKIM/SPF/DMARC authentication. Development and staging use the stub SES adapter (no AWS calls); production uses live SES.
+**SES (Simple Email Service)**: AWS managed email service handling sending and reputation management. Footbag.org uses SES for transactional emails (password reset, event notifications, payment receipts) with DKIM/SPF/DMARC authentication. Development and staging use the stub SES adapter (no AWS calls); production uses live SES.
 
 **Session Manager**: AWS service providing IAM-authenticated shell access to managed instances. The project does not use it. Adopting it for Lightsail would require Systems Manager Hybrid Activations, installing the SSM Agent on each instance, and turning on the advanced-instances tier (approximately $5/month per Lightsail instance for non-EC2 Session Manager access). The added cost and operational surface conflict with the volunteer-maintainability and cost-ceiling principles in DD §1.6 and §9.2. Operator shell access uses hardened per-operator SSH instead; see DEVOPS_GUIDE.md (private GitHub repo), "Operator shell access".
 
@@ -200,7 +200,7 @@
 
 **Soft Delete**: Deletion pattern marking records as deleted without immediate physical removal. Footbag.org sets a deleted_at timestamp on deleted records; database views automatically filter WHERE deleted_at IS NULL so queries never accidentally expose deleted data. Member personal data is purged after the configurable grace period (default 90 days, `member_cleanup_grace_days`) while an anonymized stub row is retained for referential integrity. Foreign keys use ON DELETE NO ACTION to prevent accidental hard deletes while relationships exist.
 
-**SPF (Sender Policy Framework)**: Email authentication method listing IP addresses authorized to send mail for a domain. Footbag.org publishes SPF record authorizing AWS SES, preventing spammers from forging footbag.org sender addresses.
+**SPF (Sender Policy Framework)**: Email authentication method listing IP addresses authorized to send mail for a domain. Footbag.org publishes SPF record authorizing AWS SES and Google Workspace, preventing spammers from forging footbag.org sender addresses.
 
 **SQLite**: Lightweight, file-based relational database engine embedded directly in the application process, requiring no separate database server. Footbag.org stores all application state (except photos) in a single SQLite file (footbag.db) accessed through the better-sqlite3 library; it supports full SQL, ACID transactions, and foreign key constraints while eliminating connection management, replication lag, and database server costs.
 

@@ -124,6 +124,18 @@ variable "alarm_email" {
   sensitive   = true
 }
 
+variable "alarm_email_subscription_generation" {
+  description = "Raise this number and apply to recreate every alarm email subscription (the alarm_email mailbox's, and the ops_alert_email group's when it is set), which sends each a fresh confirmation email. That is also the resend path when a confirmation email was lost or its link expired. Each fresh link is then confirmed through scripts/confirm-alarm-subscription.sh, so a subscription can only be removed by a caller with AWS credentials rather than by the unsubscribe link in any alarm email. Alarm mail to those addresses pauses from the apply until the confirmation."
+  type        = number
+  default     = 0
+}
+
+variable "ops_alert_email" {
+  description = "The operational alarm group, ops-alert@footbag.org, subscribed to the alarm topic beside alarm_email so every alarm reaches everyone on the watch. Empty until the group exists and receives mail, which is after mail day: a subscription to an address that cannot receive is never confirmed. Its confirmation is authenticated by scripts/confirm-alarm-subscription.sh, so the unsubscribe link in an alarm cannot remove it."
+  type        = string
+  default     = ""
+}
+
 # ── Operator access ───────────────────────────────────────────────────────────
 
 variable "operator_cidrs" {

@@ -105,6 +105,17 @@ describe('the credential gate: what it must refuse', () => {
     expect(res.stderr).toMatch(/interpolated into a remote command string/);
   });
 
+  it('still sees the secret when ssh is reached by absolute path with options first', () => {
+    const res = inFixtureRepo(script('/usr/bin/ssh -o BatchMode=yes host "use $SESSION_SECRET"'));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/interpolated into a remote command string/);
+  });
+
+  it('accepts a key-file path handed to ssh-keygen, which has no remote command string', () => {
+    const res = inFixtureRepo(script('ssh-keygen -l -f "$NEW_KEY.pub"'));
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
   it('sees the host sudo password, whose name the pattern used to miss', () => {
     // SUDO_PASS is the variable the required wire pattern uses, so it is the one
     // name every privileged remote step in this tree carries — and the secret-name
@@ -197,10 +208,17 @@ describe('the credential gate: what it must refuse', () => {
     ['-tt', "ssh -tt host 'sudo bash'"],
     ['a t inside a cluster', "ssh -tv host 'sudo bash'"],
     ['the long spelling', "ssh -o RequestTTY=yes host 'sudo bash'"],
+    ['after another option', "ssh -o BatchMode=yes -t host 'sudo bash'"],
+    ['by absolute path', "/usr/bin/ssh -t host 'sudo bash'"],
   ])('refuses a remote PTY: %s', (_label, line) => {
     const res = inFixtureRepo(script(line));
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/no ssh -t in scope/);
+  });
+
+  it("accepts ssh-keygen's -t, which names a key type rather than requesting a terminal", () => {
+    const res = inFixtureRepo(script('ssh-keygen -t ed25519 -C someone -f "$HOME/.ssh/id" </dev/tty'));
+    expect(res.exitCode, res.stderr).toBe(0);
   });
 
   it('refuses the silent password read in a script with no terminal guard', () => {

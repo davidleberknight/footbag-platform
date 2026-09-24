@@ -114,25 +114,37 @@ legacy_mirror_cname_records = {
 }
 
 legacy_mirror_mx_records = {
+  # ifpa = ["10 mail.example."]
+}
+
+legacy_mirror_txt_records = {
+  # ifpa = ["v=spf1 ... ~all"]
+}
+
+# The Workspace tenant's own names, kept apart from the legacy mirror so the
+# post-cutover cleanup leaves them.
+workspace_mx_records = {
   # my = ["10 ASPMX.L.GOOGLE.COM."]   # the Workspace's own domain, served from
   #                                   # this zone rather than delegated; omitting
   #                                   # it stops every mailbox and group on it
 }
 
-legacy_mirror_txt_records = {
+workspace_txt_records = {
   # my = ["v=spf1 ... ~all"]
 }
 
-# Workspace DKIM public key for the google selector, generated in the Workspace
-# admin console. Google will not issue the key until 24 to 72 hours after Gmail
-# is turned on, and that clock starts at the console action, NOT at the MX
-# repoint, so the domain is added and Gmail enabled at least three days ahead and
-# this value is in hand when the mail records publish. Leaving it empty until
-# after the repoint is the recovery for a missed window rather than the plan: it
-# leaves Workspace outbound unsigned from the repoint until a follow-up apply
-# lands, on top of the further 48 hours Google takes to begin signing at all. See
-# the full description on the variable in ses.tf. A 2048-bit key exceeds the
-# single-string TXT limit, so supply it pre-split in quoted segments.
+workspace_cname_records = {
+  # "www.my" = "ghs.google.com."
+}
+
+# Workspace DKIM public key for the google selector on footbag.org, generated in
+# the Workspace admin console. Google issues it 24 to 72 hours after Gmail is
+# turned on for the domain, and begins signing up to 48 hours after the record
+# is published and authentication started. It publishes as soon as it is set,
+# independent of the mail-day flag, and must be authenticating before that flag
+# flips. See the full description on the variable in ses.tf. A 2048-bit key
+# exceeds the single-string TXT limit, so write it as one value with \"\" after the
+# first 255 characters and no outer quotes; the provider adds those and splits there.
 google_dkim_txt = ""
 
 # CIDR ranges permitted to SSH into the production Lightsail instance.

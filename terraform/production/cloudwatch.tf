@@ -903,6 +903,22 @@ resource "aws_sns_topic_subscription" "alarm_email_us_east_1" {
   topic_arn = aws_sns_topic.alarms_us_east_1[0].arn
   protocol  = "email"
   endpoint  = var.alarm_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
+}
+
+resource "aws_sns_topic_subscription" "alarm_ops_alert_us_east_1" {
+  count     = var.enable_platform_custom_domain && var.ops_alert_email != "" ? 1 : 0
+  provider  = aws.us_east_1
+  topic_arn = aws_sns_topic.alarms_us_east_1[0].arn
+  protocol  = "email"
+  endpoint  = var.ops_alert_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
 }
 
 # A notification that reached its dead-letter queue is one the platform never

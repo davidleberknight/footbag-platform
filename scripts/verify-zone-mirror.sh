@@ -576,6 +576,24 @@ else
   add_line "CHECKED   www.${APEX} answers an address, which is the shape the mirror is meant to carry"
 fi
 
+# The apex certificate-authorisation record is the other record the capture
+# cannot vouch for: the legacy zone has none, so the loops above only ever see it
+# if the listing happens to hold it, and its absence passed silently. The design
+# requires it served from the zone move onward, before the registrar is touched,
+# because from delegation it is the only bound on which authority may issue for
+# a footbag.org name. So it gets an explicit check of the values it must carry.
+apex_caa="$("$DIG_BIN" +noall +answer +tries=3 +time=3 "@${NAMESERVER}" "${APEX}" CAA 2>&1 | grep -vE '^[[:space:]]*;' || true)"
+if printf '%s\n' "$apex_caa" | grep -qF '0 issue "amazon.com"' \
+   && printf '%s\n' "$apex_caa" | grep -qF '0 issuewild ";"'; then
+  add_line "CHECKED   ${APEX} CAA permits only Amazon's authority and refuses wildcards"
+else
+  differing=$((differing + 1))
+  add_line "DIFFERS   ${APEX} CAA"
+  add_line "            the apex certificate-authorisation record is not served as"
+  add_line "            declared; apply the zone through scripts/terraform-apply.sh"
+  add_line "            before the registrar is touched"
+fi
+
 dropped_soa="$(grep -cE '[[:space:]]SOA[[:space:]]' "$CAPTURE" || true)"
 dropped_spf="$(grep -cE '[[:space:]]SPF[[:space:]]' "$CAPTURE" || true)"
 

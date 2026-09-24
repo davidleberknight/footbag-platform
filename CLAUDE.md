@@ -51,7 +51,7 @@ Consider reading the following if required for task:
 - Give the human commands that survive a paste. Break long lines yourself with a trailing `\`, nothing after it, each line under 80 characters; a long argument goes in a variable first. A terminal-chosen break lands after a pipe or inside a quoted string, and the second half then runs as its own command. Flag a command that cannot go through the `!` prefix, which pipes, so anything minting or prompting for a credential refuses for want of a terminal.
 - Make surgical changes scoped to the current slice: no speculative abstraction, flexibility, or scope creep; no refactoring unrelated code, unnecessary formatting or comment changes.
 - Lightweight Playwright browser-driving (navigate, snapshot, click, type, fill, read console/network) is routine. Screenshot capture is the heavy mode and runs only when the human asks for a specific page or check.
-- You may research github but never add, commit, nor push.
+- You may research github but never add, commit, nor push. Committing is the human's, on their own schedule: never remind them to commit, and never make any step wait on a commit.
 - Prefer Grep/Glob/Read for exploration; they never require permission. Read-only Bash pipelines are fine; a leading `cd` and shell loops are hard-blocked, so write simple statically-analysable commands. Prefer the tool that runs without a prompt: WebFetch over `curl`, and `cut` / `grep -oE` / `jq` / `sed` over `awk`.
 - Edit files only through the Edit/Write tools; never `sed -i`, `perl -i`, in-place `awk`, `tee`, or shell redirection to write a file. Those bypass the diff preview and are permission-gated. When a guard hook denies a command, rewrite it in the analysable form the hook names.
 

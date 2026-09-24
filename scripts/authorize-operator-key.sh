@@ -10,9 +10,9 @@
 # travel before they can do the rest themselves.
 #
 # These hosts accept public-key authentication only. So the shared account's
-# password, which is legitimately in the vault and which every operator holds,
-# does NOT get anybody a shell: it authorizes sudo AFTER a login rather than
-# granting one. Somebody whose key is not already in an authorized_keys file
+# password, which is legitimately in the vault and held by everyone who holds
+# the vault, does NOT get anybody a shell: it authorizes sudo AFTER a login
+# rather than granting one. Somebody whose key is not already in an authorized_keys file
 # cannot reach anything, which means a newcomer has no way in at all until an
 # operator who does have access puts their key somewhere.
 #
@@ -22,17 +22,19 @@
 #
 # WHAT IT UNLOCKS, AND WHY THAT IS THE WHOLE POINT.
 #
-# With her key on the shared account, a newcomer has a shell and already holds
-# that account's sudo password from the vault. She can then run
-# provision-operator-account.sh --own-password against her OWN named account,
-# from her own machine: she types her own password, it is never generated,
-# never displayed, and never known to anybody else, and the run proves the
-# account end to end because both her private key and her password are there.
+# This is for a newcomer who holds the vault, and with it the shared account's
+# sudo password. With their key on the shared account they have a shell, and
+# they can then run provision-operator-account.sh --own-password against their
+# OWN named account, from their own machine: they type their own password, it
+# is never generated, never displayed, and never known to anybody else, and the
+# run proves the account end to end because both their private key and their
+# password are there. Nothing passes between two people except a public key,
+# which is not a secret.
 #
-# Nothing passes between two people except a public key, which is not a secret.
-# The alternative -- an existing operator provisioning her -- works, but it mints
-# a one-time password that has to be read aloud, and it puts a second person in
-# the path of her credential for no gain.
+# A dev-and-tester holds neither the vault nor the shared password, so this is
+# not their route and their key is never loaned onto the shared account. Their
+# host account is created for them, and how its one-time value reaches them is
+# designed and not yet built.
 #
 # THE KEY ON THE SHARED ACCOUNT IS A LOAN, NOT A GRANT.
 #
@@ -43,10 +45,11 @@
 # bootstrap nobody unwinds is just a shared credential with extra steps.
 #
 # What that withdrawal is NOT is the revocation path, and it must not be relied
-# on as one. provision-operator-account.sh --offboard sweeps a departing
+# on as one. The offboarding (offboard-operator.sh) sweeps a departing
 # operator's keys off every account on the host and proves none survives, so a
 # forgotten withdrawal costs attribution while they are here rather than access
-# after they leave.
+# after they leave. The sweep knows their keys from their own named account, so
+# a key loaned to somebody who never got one is withdrawn here, by hand.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -84,7 +87,7 @@
 #                                  inherited from ambient state
 #   --account <name>               the EXISTING account whose authorized_keys is
 #                                  edited. For a bootstrap this is the shared
-#                                  service account. No default: which account
+#                                  `footbag` account. No default: which account
 #                                  gains a way in is never guessed.
 #   --operator "<Full Name>"       whose key this is. Printed, and named in the
 #                                  reminder to withdraw it later.
@@ -117,12 +120,20 @@ REMOVE=0
 usage() {
   cat <<'EOF'
 Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/authorize-operator-key.sh \
-         --target <staging|production> --account <name> \
+         --target staging --account <name> \
+         --operator "<Full Name>" --key-line "<ssh public key>" [--remove]
+   or: < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/authorize-operator-key.sh \
+         --target production --account <name> \
          --operator "<Full Name>" --key-line "<ssh public key>" [--remove]
 
+The redirected file is the HOST sudo password for the account your SSH alias
+connects as, not an AWS credential. It differs per environment and per account:
+the AWS_OPERATOR pair belongs to the shared account, the HOST_OPERATOR pair to
+your own. Redirecting the wrong one sends the wrong password to the right host.
+
 Adds one person's public key to an EXISTING account's authorized_keys, so a new
-operator has a shell and can then provision their own named account themselves.
-Creates no account and sets no password.
+operator who holds the vault has a shell and can then provision their own named
+account themselves. Creates no account and sets no password.
 
   --target <staging|production>  deployed environment; no default
   --account <name>               the existing account to authorize the key on
@@ -157,7 +168,7 @@ if [[ -z "$ACCOUNT" ]]; then
   echo "ERROR: --account is required and has no default." >&2
   echo "       Which account gains a way in is the whole decision here, so it" >&2
   echo "       is never inferred. For a newcomer's bootstrap this is the" >&2
-  echo "       shared service account." >&2
+  echo "       shared 'footbag' account." >&2
   exit 2
 fi
 if [[ ! "$ACCOUNT" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
@@ -311,10 +322,11 @@ is the attribution the named accounts exist to create. That is the cost while
 they are still here, and it is the reason to withdraw it promptly rather than
 eventually.
 
-If it is forgotten it does not become permanent: provision-operator-account.sh
---offboard sweeps a departing operator's keys off every account on the host,
-not only their named one, and proves afterwards that none survives. So this is
-about attribution, not about revocation.
+If it is forgotten it does not become permanent once they hold a named account:
+offboard-operator.sh sweeps a departing operator's keys off every account on
+the host, not only their named one, and proves afterwards that none survives.
+It learns their keys from that named account, so a loan to somebody who never
+got one is withdrawn with --remove, by hand.
 EOF
 else
   echo "Done. ${OPERATOR}'s key is no longer authorized on ${ACCOUNT}."

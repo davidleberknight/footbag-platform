@@ -34,7 +34,7 @@ interface Estate {
   rootMfa?: string;
   rootKeys?: string;
   users?: string | null;
-  /** Whether the super-admin user still holds an active key. */
+  /** Whether the IAM user footbag-operator still holds an active key. */
   superAdminKeyActive?: boolean;
   /** Whether each runtime role's trust policy still names it; null is unreadable. */
   trustsStaging?: boolean | null;
@@ -172,7 +172,7 @@ function awsStub(estate: Estate): string {
       '    fi',
       '    ;;',
       // Two different calls land on this arm. The per-user inventory asks for
-      // every key with its dates; the super-admin check asks only for the Active
+      // every key with its dates; the footbag-operator check asks only for the Active
       // ones, and is told apart by `Active` appearing in its query.
       '  list-access-keys)',
       '    if [[ "$*" == *Active* ]]; then',
@@ -319,14 +319,41 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
     expect(script).not.toMatch(/analyzers\[\?status==`ACTIVE`\]\.name/);
   });
 
-  it('fails each unset alternate contact separately', () => {
+  it('reports each unset alternate contact separately, and as gated', () => {
     // Unset means a notice of that kind reaches only the root mailbox, and
-    // nobody is told if it goes unread.
+    // nobody is told if it goes unread. It is still not a fault: the three sit
+    // behind a flag that stays off until their identities are decided, so the
+    // declared state and the actual state agree.
     const r = run({ alternateContact: 'None' });
+    expect(r.stderr).toMatch(/GATED.*alternate contact BILLING is unset/);
+    expect(r.stderr).toMatch(/GATED.*alternate contact OPERATIONS is unset/);
+    expect(r.stderr).toMatch(/GATED.*alternate contact SECURITY is unset/);
+  });
+
+  it('does not let a gated control decide the run', () => {
+    // The defect this replaces: counting them made the exit status non-zero
+    // before an apply and non-zero after a completely successful one, so it
+    // could not tell an operator which had happened and the walk asked them to
+    // count failure lines by eye instead.
+    const r = run({ alternateContact: 'None' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('No findings.');
+  });
+
+  it('says how many are deliberately off, so silence does not read as passing', () => {
+    const r = run({ alternateContact: 'None' });
+    expect(r.stderr).toMatch(/3 control\(s\) deliberately off/);
+    expect(r.stderr).toMatch(/enable_account_alternate_contacts/);
+    expect(r.stderr).toMatch(/do not decide this run/);
+  });
+
+  it('still fails a real control while a gated one is outstanding', () => {
+    // The two counts are independent. A genuine fault must not be masked by
+    // the gate, which is the mirror of the defect above.
+    const r = run({ alternateContact: 'None', rootMfa: '0' });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/alternate contact BILLING is unset/);
-    expect(r.stderr).toMatch(/alternate contact OPERATIONS is unset/);
-    expect(r.stderr).toMatch(/alternate contact SECURITY is unset/);
+    expect(r.stderr).toMatch(/GATED.*alternate contact BILLING/);
+    expect(r.stderr).toMatch(/1 finding\(s\)/);
   });
 
   it('fails when root has no MFA', () => {
@@ -365,10 +392,16 @@ describe('verify-account-baseline.sh — how it behaves', () => {
     expect(res.stderr).toMatch(/could not resolve an identity/);
   });
 
-  it('names where three of the four controls actually belong', () => {
+  it('names the file the four controls are declared in, and who may apply it', () => {
+    // A findings report that says a control is missing without saying where it
+    // is declared sends the reader to the console, which is the second writer
+    // this file exists to keep out. All four are Terraform now; what separates
+    // them is that the contacts carry values and so sit behind a gate.
     const r = run({ rootMfa: '0' });
-    expect(r.stderr).toMatch(/shared Terraform tree/);
-    expect(r.stderr).toMatch(/alternate contacts are the genuine exception/);
+    expect(r.stderr).toMatch(/terraform\/shared\/account-baseline\.tf/);
+    // And the part an operator gets wrong at the keyboard: the job role cannot
+    // read the shared tree's state, so this apply is footbag-operator's.
+    expect(r.stderr).toMatch(/directly authenticated identity/);
   });
 
   it('prints only failures under --quiet', () => {
@@ -389,12 +422,12 @@ describe('verify-account-baseline.sh — how it behaves', () => {
 });
 
 /**
- * The super-admin identity, and the two trust policies the current operator path
- * runs through.
+ * The IAM user footbag-operator, and the two trust policies the current operator
+ * path runs through.
  *
  * These read the opposite way round from every check above: what is asserted is
  * that something is still THERE. The IAM user is retained permanently as the
- * super-admin identity, reached without assuming anything so that whatever
+ * directly authenticated identity, reached without assuming anything so that whatever
  * breaks the shared job role cannot take the normal route and the way back in
  * down with it, and every named operator's path is added beside it rather than
  * in place of it. So its absence is the finding.
@@ -405,7 +438,7 @@ describe('verify-account-baseline.sh — how it behaves', () => {
  * putting the user back. Nothing else in this tree reads them, which is why they
  * are checked here rather than left to surface as a deploy failing weeks later.
  */
-describe('verify-account-baseline.sh — the super-admin identity', () => {
+describe('verify-account-baseline.sh — the directly authenticated IAM user footbag-operator', () => {
   it('passes when the key is active and both policies still name it', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -414,7 +447,7 @@ describe('verify-account-baseline.sh — the super-admin identity', () => {
     expect(r.stdout).toMatch(/footbag-production-app-runtime still trusts/);
   });
 
-  it('fails when the super-admin user holds no active key', () => {
+  it('fails when the IAM user footbag-operator holds no active key', () => {
     // A deactivated key is not a way back in, and it reads as present to
     // anything that only counts rows.
     const r = run({ superAdminKeyActive: false });

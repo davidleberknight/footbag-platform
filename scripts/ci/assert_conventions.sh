@@ -1551,16 +1551,31 @@ check "no superseded operator-identity model in tracked files"
 # them would force that passage to be written in euphemism.
 #
 # `footbag-operator-key` excludes `aws-footbag-operator-keys`, which is the
-# vault entry holding the super admin's key and is still correct.
+# vault entry holding the footbag-operator key and is still correct.
 # Two suites are exempt by path, and only two: the ones whose entire subject is
 # that these strings are absent from the Terraform. They have to name what they
 # forbid. Exempting by path rather than by line is deliberate — a line that can
 # excuse itself is not a check — and the cost is bounded, because both files are
 # short and neither instructs an operator to do anything.
-old_model_hits=$(git grep -nE 'standup-identity-center\.sh|install-operator-sso-profile\.sh|footbag-operator-key([^s]|$)|super_admin_sso_role_arn|dev_tester_sso_role_arn|AWSReservedSSO|also_assume|aws sso login|aws_ssoadmin_|aws_identitystore_|"sso:|"identitystore:' -- . \
+# Three read actions are admitted by name, and only these three. They are how
+# scripts/verify-account-baseline.sh asks whether the dormant Identity Center
+# instance is STILL dormant: whether it carries any permission set, and whether
+# its directory holds any user. Banning the calls that prove the superseded
+# model is dead would leave this rule as the only thing watching it, and this
+# rule reads the repository rather than the account.
+#
+# Admitted by stripping the exact tokens and re-testing what is left, rather than
+# by excusing any line that mentions one. A line carrying both an admitted read
+# and a forbidden identifier still fails, which a `grep -v` on the line would
+# not have caught.
+OLD_MODEL_RE='standup-identity-center\.sh|install-operator-sso-profile\.sh|footbag-operator-key([^s]|$)|footbag-devtester|super_admin_sso_role_arn|dev_tester_sso_role_arn|AWSReservedSSO|also_assume|aws sso login|aws_ssoadmin_|aws_identitystore_|"sso:|"identitystore:'
+OLD_MODEL_ADMITTED_RE='"(sso:ListInstances|sso:ListPermissionSets|identitystore:ListUsers)"'
+old_model_hits=$(git grep -nE "$OLD_MODEL_RE" -- . \
   | grep -v 'scripts/ci/assert_conventions\.sh' \
-  | grep -v '^tests/unit/operator-permission-set-policy\.test\.ts:' \
+  | grep -v '^tests/unit/operator-job-role-policy\.test\.ts:' \
   | grep -v '^tests/unit/operator-runtime-trust\.test\.ts:' \
+  | sed -E "s/${OLD_MODEL_ADMITTED_RE}//g" \
+  | grep -E "$OLD_MODEL_RE" \
   || true)
 if [ -n "$old_model_hits" ]; then
   echo "$old_model_hits" >&2

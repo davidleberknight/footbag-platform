@@ -8,11 +8,11 @@
 # WHO RUNS IT.
 #
 # Either an operator who already has host access, provisioning somebody else, or
-# a new operator provisioning themselves from whatever shared credential got
-# them this far. Both are real, and which one applies is decided by tier: a
-# joining super admin holds the shared account's sudo password and provisions
-# themselves, while anyone else is provisioned for. The flags read the same
-# either way, and --operator names
+# an operator provisioning their own named account over the shared account. Both
+# are real, and which one applies is decided by the kind of operator: a
+# `footbag-operator` holder holds the shared account's sudo password and
+# provisions their own named account themselves, while a dev-and-tester is
+# provisioned for. The flags read the same either way, and --operator names
 # whoever the account is for rather than whoever is typing. Nothing here checks
 # which case it is, because nothing here can: the difference is a matter of who
 # holds the terminal, and it is the vault entry at the end that records the
@@ -26,7 +26,7 @@
 # and the bootstrap onto a host with nobody on it. The procedure for standing up
 # a named account once lived in a runbook as hand-typed root commands, and the
 # steps that get skipped under pressure are exactly the ones with no immediate
-# feedback: recording the password in the vault, adding the host-access
+# feedback: recording the access in the vault, adding the host-access
 # inventory line, and checking that sshd will actually admit the new name. A
 # host whose sshd carries an AllowUsers list accepts the account creation
 # silently and then refuses the login, which reads as a key problem and is not.
@@ -38,8 +38,8 @@
 # WHAT IT REFUSES TO DO.
 #
 #   - Create an account that already exists. A re-run says so and stops, because
-#     silently resetting the password would invalidate a vault entry somebody is
-#     already working from. Replacing the credential is a rotation, and that
+#     silently resetting the password would lock its owner out of the password
+#     they are using. Replacing the credential is a rotation, and that
 #     takes --rotate.
 #   - Accept a key file holding more than one key, or one ssh-keygen cannot
 #     parse. Both fail silently later as "Permission denied (publickey)".
@@ -49,8 +49,8 @@
 #   - Mint a password with no terminal to show it on. A credential nobody can
 #     read is not a failed run, it is a live credential needing cleanup, so the
 #     terminal is checked before anything is created.
-#   - Delete an account it did not create, or one whose password the operator has
-#     already recorded in the vault. Withdrawing a vaulted credential makes the
+#   - Delete an account it did not create, or one whose access the operator has
+#     already recorded in the vault. Withdrawing a recorded account makes the
 #     record a lie about the host, which is worse than the half-finished state.
 #   - Put the new password, or the sudo password, into any process's argv.
 #
@@ -84,8 +84,8 @@
 #
 # A run started without the redirect names the one it needs. The line above is
 # the ordinary case, an operator who already has an account of their own
-# provisioning the next person; a joining super admin bootstrapping themselves
-# is connecting as the shared account and reads its file instead.
+# provisioning the next person; a footbag-operator holder bootstrapping their own
+# account is connecting as the shared account and reads its file instead.
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default, never
@@ -119,7 +119,16 @@
 #                                  yourself.
 #   --rotate                       the account exists; replace its password and
 #                                  reinstall the key
-#   --key-only                     with --rotate: reinstall the key and leave
+#   --attest-own                   with --own-password: if the account already
+#                                  exists, show the keys it accepts and, on a
+#                                  typed APPLY confirming they are your own lost
+#                                  keys, rotate it. No script can tell a key you
+#                                  lost from somebody else's, so the operator
+#                                  attests to it. An account an offboard
+#                                  retired is reopened the same way, for the
+#                                  same person, with a fresh key: a key it was
+#                                  retired with is refused.
+#   --key-only                    with --rotate: reinstall the key and leave
 #                                  the password alone. The two credentials fail
 #                                  independently, and a lost private key says
 #                                  nothing about the password, so making its
@@ -165,13 +174,14 @@ ROTATE=0
 OFFBOARD=0
 OWN_PASSWORD=0
 KEY_ONLY=0
+ATTEST_OWN=0
 
 usage() {
   cat <<'EOF'
 Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/provision-operator-account.sh \
          --target <staging|production> --account <name> --operator "<Full Name>" \
          --key-line "<ssh public key>" \
-         [--own-password] [--rotate [--key-only]] [--offboard]
+         [--own-password [--attest-own]] [--rotate [--key-only]] [--offboard]
 
 Reads the sudo password from stdin (line 1), so the redirect is not optional, and
 refuses an empty first line rather than sending an empty password to the host. It
@@ -191,7 +201,10 @@ nothing has been handed to anybody yet.
                                  twice, hidden. Never generated, never shown,
                                  never vaulted, and not flagged must-change.
   --rotate                       account exists; replace its password, reinstall the key
-  --key-only                     with --rotate: reinstall the key, leave the password alone
+  --attest-own                   with --own-password: an existing account is shown,
+                                 and rotated (or, if retired, reopened) on a typed
+                                 APPLY that it is yours
+  --key-only                    with --rotate: reinstall the key, leave the password alone
   --offboard                     disable the account and sweep the person's keys
                                  off every account on the host. Destructive.
 
@@ -226,6 +239,7 @@ while [[ $# -gt 0 ]]; do
     --offboard) OFFBOARD=1; shift ;;
     --own-password) OWN_PASSWORD=1; shift ;;
     --key-only) KEY_ONLY=1; shift ;;
+    --attest-own) ATTEST_OWN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
@@ -241,7 +255,17 @@ if [[ -z "$ACCOUNT" ]]; then
   echo "       a naming convention, and taking it from a key comment is worse." >&2
   exit 2
 fi
-if [[ -z "$OPERATOR" ]]; then
+# Required when an account is being created or rotated, and deliberately not
+# when one is being retired. The reason the guard gives is the vault entry: an
+# account nobody can attribute cannot be recorded, and an unattributable login
+# is what the named-account rule exists to prevent. A retirement records
+# nothing. It deletes the entry, and the only thing this name ever reaches is
+# the comment field of `useradd`, which a retirement does not call. So demanding
+# it there is demanding a value nothing reads, on the one operation that must
+# have the fewest ways to fail on the day it is run. It refused every firing:
+# the one-command offboard passes the account and the mode and has no name to
+# give, so step 1 exited 2 before touching anything.
+if [[ -z "$OPERATOR" && "$OFFBOARD" -ne 1 ]]; then
   echo "ERROR: --operator is required. An account nobody can attribute cannot be" >&2
   echo "       recorded in the vault, which is the only record that anyone holds" >&2
   echo "       this access, and an unattributable login is the thing the" >&2
@@ -303,6 +327,13 @@ if [[ "$KEY_ONLY" -eq 1 && "$ROTATE" -eq 0 ]]; then
   echo "ERROR: --key-only narrows --rotate and needs it." >&2
   echo "       On a new account there is no password to leave alone: one must be" >&2
   echo "       set or the account cannot sudo. Add --rotate, or drop --key-only." >&2
+  exit 2
+fi
+# Only a person can say a key is theirs, and only about their own account, so
+# the attestation is tied to the flag that says the account is yours.
+if [[ "$ATTEST_OWN" -eq 1 && ( "$OWN_PASSWORD" -eq 0 || "$ROTATE" -eq 1 || "$OFFBOARD" -eq 1 ) ]]; then
+  echo "ERROR: --attest-own needs --own-password and takes neither --rotate nor" >&2
+  echo "       --offboard: it decides the rotation itself, for your own account." >&2
   exit 2
 fi
 
@@ -384,6 +415,52 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/provision-operator-account-remote.sh"
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+
+# The shared account's password is not this script's to set. Refused here, as
+# early as the name of that account is known, and long before anything on the
+# host is touched.
+#
+# Everything below about a vault entry is written for a named operator: it
+# prints a redacted password and says the account belongs to one person and is
+# not shared. Every word of that is wrong for the shared account, whose entry
+# has to carry the real value, because a credential every footbag-operator
+# holder is meant to hold is exactly what a shared store is for. A run that set the password here would
+# hand the custodian instructions to redact a value that must be kept, and the
+# vault would then describe a credential nobody can retrieve.
+#
+# Changing it is a custody operation under the vault's own rules, and there is
+# deliberately no script for it. Its keys are not this script's either: several
+# holders' keys sit on that one account, and a rotation here writes the account's
+# authorized_keys whole, with the one key it was given, so every other holder's
+# way in would go with it. They are added and removed one at a time by
+# scripts/authorize-operator-key.sh, which edits the file line by line.
+if [[ "$ACCOUNT" == "$OPERATOR_SHARED_ACCOUNT" && "$OFFBOARD" -eq 0 && "$KEY_ONLY" -eq 1 ]]; then
+  echo "ERROR: ${OPERATOR_SHARED_ACCOUNT} is the shared account, and its keys are not" >&2
+  echo "       replaced from here." >&2
+  echo "" >&2
+  echo "       A key-only rotation writes the account's authorized_keys whole, with" >&2
+  echo "       the one key given, and would remove every other holder's key from" >&2
+  echo "       it. The shared account's keys are added and removed one at a time" >&2
+  echo "       with scripts/authorize-operator-key.sh." >&2
+  echo "       Nothing done." >&2
+  exit 2
+fi
+if [[ "$ACCOUNT" == "$OPERATOR_SHARED_ACCOUNT" && "$OFFBOARD" -eq 0 && "$KEY_ONLY" -eq 0 ]]; then
+  echo "ERROR: ${OPERATOR_SHARED_ACCOUNT} is the shared account, and its password" >&2
+  echo "       is not set from here." >&2
+  echo "" >&2
+  echo "       Every footbag-operator holder holds it, the vault carries the real value rather" >&2
+  echo "       than a redaction, and changing it is a custody operation under" >&2
+  echo "       the vault's own rules rather than a side effect of provisioning." >&2
+  echo "       This run would have told you to record an entry saying the" >&2
+  echo "       password is deliberately absent, which for this one account is" >&2
+  echo "       the opposite of true." >&2
+  echo "" >&2
+  echo "       Its keys are added and removed one at a time with" >&2
+  echo "       scripts/authorize-operator-key.sh." >&2
+  echo "       Nothing done." >&2
+  exit 2
+fi
 
 # The shared gate, as every sibling script uses, rather than the hand-rolled
 # check this used to carry. The difference is not cosmetic. The old one refused
@@ -499,18 +576,80 @@ if [[ "$OFFBOARD" -eq 1 ]]; then
     printf '%s\n' "$SUDO_PASS"
     printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
     printf 'OPACC_MODE=%q\n' "offboard"
+    printf 'OPACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
     cat "$REMOTE_HALF"
   } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
   echo ""
-  echo "Remove the vault entry host-${TARGET}-${ACCOUNT}, which is the record of"
-  echo "this access and is the only one: there is no separate register to update."
-  echo "Note the removal date in the vault's change note when you publish."
-  echo ""
-  echo "Then the rest of the offboarding, which is not this host's business and"
-  echo "is not done by this script: their AWS identity, the vault, repository and"
-  echo "CI access, and any alerting subscription in their name."
+  echo "The host account is retired. This is the first step of a departure, not"
+  echo "the whole of one: bash scripts/offboard-operator.sh runs this step and then"
+  echo "retires their AWS identity, and names what is left after that, ending with"
+  echo "their vault entries, which a footbag-operator holder or a board member"
+  echo "removes by hand once every access has been proved ended."
   exit 0
+fi
+
+# Your own account, existing, and reached by no key the caller holds: a key you
+# lost, an account an offboard retired, or somebody else's account under your
+# name. Nothing here can tell those apart, so the host is read, what it holds is
+# shown, and the operator attests to it. Read-only until the typed APPLY. A
+# retired account is reopened for the same person, which the host half does
+# with a fresh key only: a key it was retired with is refused there.
+REOPEN=0
+if [[ "$ACCOUNT_EXISTS" == "yes" && "$ROTATE" -eq 0 && "$ATTEST_OWN" -eq 1 ]]; then
+  if ! INSPECT="$({
+      printf '%s\n' "$SUDO_PASS"
+      printf 'OPACC_MODE=%q\n' "inspect"
+      printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
+      cat "$REMOTE_HALF"
+    } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash')"; then
+    echo "ERROR: could not read ${ACCOUNT} on ${REMOTE}. Nothing changed." >&2
+    exit 1
+  fi
+  INSPECT_SHELL="$(sed -n 's/^SHELL //p' <<<"$INSPECT")"
+  INSPECT_PASSWORD="$(sed -n 's/^PASSWORD //p' <<<"$INSPECT")"
+  INSPECT_KEYS="$(sed -n 's/^KEY //p' <<<"$INSPECT")"
+  INSPECT_RETIRED="$(sed -n 's/^RETIRED //p' <<<"$INSPECT")"
+  if grep -qx 'OFFBOARDED yes' <<<"$INSPECT" \
+     || [[ "$INSPECT_SHELL" == */nologin || "$INSPECT_SHELL" == */false \
+           || "$INSPECT_PASSWORD" == L || "$INSPECT_PASSWORD" == LK ]]; then
+    REOPEN=1
+    echo ""
+    echo "${ACCOUNT} on ${REMOTE} was retired by an offboard (shell '${INSPECT_SHELL}',"
+    echo "password '${INSPECT_PASSWORD}'). The keys it was retired with:"
+    if [[ -n "$INSPECT_RETIRED" ]]; then
+      sed 's/^/  /' <<<"$INSPECT_RETIRED"
+    else
+      echo "  none recorded"
+    fi
+    echo ""
+    echo "If this was your account, it is reopened for you under the same name: the"
+    echo "login shell and the expiry are restored, it gets the new key alone and a"
+    echo "password you type, and a key it was retired with is refused. If it was"
+    echo "not yours, stop: a name is reused only by the person who held it."
+    if ! confirm_from_tty "Type 'APPLY' to reopen ${ACCOUNT} as your own: " "APPLY"; then
+      echo "Not confirmed; ${ACCOUNT} is untouched." >&2
+      exit 1
+    fi
+  else
+    echo ""
+    echo "${ACCOUNT} exists on ${REMOTE}, and no key on this machine logs in to it."
+    echo "The keys it accepts:"
+    if [[ -n "$INSPECT_KEYS" ]]; then
+      sed 's/^/  /' <<<"$INSPECT_KEYS"
+    else
+      echo "  none"
+    fi
+    echo ""
+    echo "If these are your own keys, lost from this machine, the account is rotated:"
+    echo "it gets the new key alone and a password you type. If any is not yours,"
+    echo "stop: the account may be somebody else's."
+    if ! confirm_from_tty "Type 'APPLY' if the account and every key above are yours: " "APPLY"; then
+      echo "Not confirmed; ${ACCOUNT} is untouched." >&2
+      exit 1
+    fi
+  fi
+  ROTATE=1
 fi
 
 if [[ "$ACCOUNT_EXISTS" == "yes" && "$ROTATE" -eq 0 ]]; then
@@ -518,13 +657,13 @@ if [[ "$ACCOUNT_EXISTS" == "yes" && "$ROTATE" -eq 0 ]]; then
   echo "Nothing to do: ${ACCOUNT} already exists on ${REMOTE}." >&2
   echo "" >&2
   echo "This run is stopping rather than resetting the password, because somebody" >&2
-  echo "may already be working from the vault entry that records it, and a silent" >&2
+  echo "may already be using the password it holds, and a silent" >&2
   echo "reset would lock them out with no sign of why." >&2
   echo "" >&2
   echo "Replacing the credential is a rotation: re-run with --rotate, which mints" >&2
-  echo "a fresh password, reinstalls the key, and shows you the vault entry to" >&2
-  echo "update. To remove the account instead, see the offboarding steps in the" >&2
-  echo "operations guide." >&2
+  echo "a fresh password, reinstalls the key, and shows you the vault entry (fingerprint) to" >&2
+  echo "update. To end the account's access instead:" >&2
+  echo "  bash scripts/offboard-operator.sh --target ${TARGET} --account ${ACCOUNT}" >&2
   exit 1
 fi
 if [[ "$ACCOUNT_EXISTS" == "no" && "$ROTATE" -eq 1 ]]; then
@@ -555,10 +694,9 @@ fi
 #            nowhere. The only state in which removal is correct.
 #   rotating the account predates this run. Never removed, whatever happens;
 #            what is uncertain is only which password it now holds.
-#   vaulted  the operator has written it down, so it is no longer ours to remove
+#   vaulted  the operator has recorded the entry, so it is no longer ours to remove
 PROVISION_STATE="none"
 NEW_PASS=""
-SUDO_PASS=""
 
 # Idempotent, and it has to be: the trap covers EXIT, INT and TERM, and a trapped
 # INT does not terminate bash, so the handler can run twice. The state reset at
@@ -605,8 +743,10 @@ provision_cleanup() {
       } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' >&2; then
         echo "Removed. Nothing was left behind." >&2
       else
-        echo "COULD NOT REMOVE IT. Do it by hand before doing anything else:" >&2
-        echo "  ssh ${REMOTE} 'sudo userdel -r ${ACCOUNT}'" >&2
+        echo "COULD NOT REMOVE IT. End its access before doing anything else; the" >&2
+        echo "host offboard disables it through the same pinned connection:" >&2
+        echo "  < <the credential file your alias selects> \\" >&2
+        echo "    bash scripts/provision-operator-account.sh --target ${TARGET} --account ${ACCOUNT} --offboard" >&2
       fi
       ;;
     rotating)
@@ -619,17 +759,25 @@ provision_cleanup() {
       echo "removed. It existed before this run, so removing it is not this" >&2
       echo "script's to do at any point." >&2
       echo "" >&2
-      echo "Its password is now uncertain: the host may have accepted the new one" >&2
-      echo "before the run stopped, and the old one may no longer work. Re-run" >&2
-      echo "with --rotate to set a fresh password and record it; that is safe and" >&2
-      echo "is the intended way out of this. The account's owner should not try" >&2
-      echo "to sudo until it has been re-run." >&2
+      if (( KEY_ONLY )); then
+        # A key-only run never sends a password, so nothing about the
+        # password can have changed, whatever else stopped the run.
+        echo "Its password was not touched: a key-only rotation sends none. Which" >&2
+        echo "key the account now holds is what is uncertain; re-run the same" >&2
+        echo "command, which is safe, and record the fingerprint it prints." >&2
+      else
+        echo "Its password is now uncertain: the host may have accepted the new one" >&2
+        echo "before the run stopped, and the old one may no longer work. Re-run" >&2
+        echo "with --rotate to set a fresh password and record it; that is safe and" >&2
+        echo "is the intended way out of this. The account's owner should not try" >&2
+        echo "to sudo until it has been re-run." >&2
+      fi
       ;;
     vaulted)
       echo "" >&2
       echo "The run did not finish, and the account is NOT being removed:" >&2
       echo "  ${ACCOUNT} on ${REMOTE}" >&2
-      echo "You have already recorded its password in the vault, so removing it" >&2
+      echo "You have already recorded this account in the vault, so removing it" >&2
       echo "here would leave the vault describing a login that does not exist." >&2
       echo "" >&2
       echo "Re-running is safe: it will refuse to touch an account that exists," >&2
@@ -772,6 +920,7 @@ fi
   printf 'OPACC_OPERATOR=%q\n' "$OPERATOR"
   printf 'OPACC_KEY_LINE=%q\n' "$KEY_LINE"
   printf 'OPACC_PASSWORD=%q\n' "$NEW_PASS"
+  printf 'OPACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
   # Expire it only when the operator did not choose it. A password the account's
   # own owner just typed is already theirs; forcing a change would make them
   # invent a second one minutes later for no gain, and would make the account
@@ -782,6 +931,7 @@ fi
   # expiry assertion with them: whether this account's existing password is
   # expired was decided before this run and is not this run's business.
   printf 'OPACC_SET_PASSWORD=%q\n' "$( (( KEY_ONLY )) && echo no || echo yes )"
+  printf 'OPACC_REOPEN=%q\n' "$( (( REOPEN )) && echo yes || echo no )"
   cat "$REMOTE_HALF"
 } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
@@ -800,8 +950,8 @@ fi
 # So there is nothing here worth vaulting and nothing lost by not.
 #
 # The shared account is the opposite case and stays in the vault, because a
-# credential everybody is meant to hold is one the shared store is exactly right
-# for.
+# credential every footbag-operator holder is meant to hold is one the shared
+# store is exactly right for.
 VAULT_ENTRY="host-${TARGET}-${ACCOUNT}"
 
 {
@@ -822,7 +972,8 @@ VAULT_ENTRY="host-${TARGET}-${ACCOUNT}"
     echo "It is yours: it was never generated, never displayed, and is not in"
     echo "the vault. Nobody else can read it, including whoever runs this next."
     if [[ "$MODE" == "rotate" ]]; then
-      echo "This replaces the previous one; the account and its key are unchanged."
+      echo "This replaces the previous one. The account is unchanged, and its key is"
+      echo "now the one given to this run."
     fi
     echo ""
   else
@@ -833,14 +984,22 @@ VAULT_ENTRY="host-${TARGET}-${ACCOUNT}"
     echo "It is already expired on the host, so the first login must replace it."
     echo "After that the standing password is ${OPERATOR}'s alone."
     if [[ "$MODE" == "rotate" ]]; then
-      echo "This replaces the previous one; the account and its key are unchanged."
+      echo "This replaces the previous one. The account is unchanged, and its key is"
+      echo "now the one given to this run."
     fi
     echo ""
-    echo "If ${OPERATOR} is not reading this, hand it over directly, by voice. It"
-    echo "is single-use and expires on use, so it wants no durable home at all."
+    echo "It is never handed over by voice or in any readable form. How it reaches"
+    echo "${OPERATOR} when they are not at this keyboard is designed and not yet"
+    echo "built: it is sealed to their own public key for them to open. Until that"
+    echo "exists, do not improvise a hand-over."
     echo ""
     echo "If this account is your own, --own-password skips all of the above:"
     echo "you type the password here, it is never shown, and it does not expire."
+    echo ""
+  fi
+  if [[ "$MODE" == "rotate" ]]; then
+    echo "The entry already exists. Update it: replace its fingerprint with the one"
+    echo "below and add the key-replaced date; keep its approval date."
     echo ""
   fi
   echo "Now record the ENTRY, which carries everything except the password:"
@@ -869,11 +1028,19 @@ VAULT_ENTRY="host-${TARGET}-${ACCOUNT}"
     echo "             standing credential exists to record."
   fi
   echo "             Public key fingerprint: ${KEY_FINGERPRINT}"
-  echo "             Access approved: ${TODAY}."
+  if [[ "$MODE" == "rotate" ]]; then
+    # A rotation reinstalls the key; it does not approve the access again, so
+    # the approval date already in the entry stays as it is.
+    echo "             Access approved: keep the date already recorded in the entry."
+    echo "             Key replaced: ${TODAY}."
+  else
+    echo "             Access approved: ${TODAY}."
+  fi
   echo "             Sensitivity: environment-wide, root-capable via sudo"
-  echo "             Forgotten password: another operator re-runs the"
-  echo "             provisioning script with --rotate, which issues a fresh"
-  echo "             one-time password. There is nothing here to look up."
+  echo "             Forgotten password: a footbag-operator holder replaces"
+  echo "             their own with --rotate --own-password; for a"
+  echo "             dev-and-tester it is not built. There is nothing here"
+  echo "             to look up."
   echo "             Lost or replaced private key: --rotate --key-only installs"
   echo "             the new key and leaves the password alone. Record the new"
   echo "             fingerprint here; the two credentials fail independently."
@@ -912,7 +1079,10 @@ if (( OWN_PASSWORD )); then
   # step to hand over. "What it cannot prove is that the key's owner can
   # connect" is true when provisioning somebody else, and an excuse here.
   echo "==> Proving the account end to end, as ${ACCOUNT}"
-  PROOF_OPTS=("${SSH_OPTS[@]}" -o "User=${ACCOUNT}" -o "BatchMode=yes")
+  # The key is named here because the alias's own stanza lists only the main
+  # key, which the account refuses. A public key file selects its private half
+  # from the agent.
+  PROOF_OPTS=("${SSH_OPTS[@]}" -o "User=${ACCOUNT}" -o "IdentityFile=${KEY_FILE}" -o "BatchMode=yes")
   PROOF_FAILED=0
 
   if "$SSH_BIN" "${PROOF_OPTS[@]}" "$REMOTE" "uptime" </dev/null >/dev/null 2>&1; then
@@ -937,6 +1107,53 @@ if (( OWN_PASSWORD )); then
     fi
   fi
 
+  # Filed by the run that holds the value, because nothing else ever sees it.
+  # This password is typed straight into this script and is never displayed,
+  # never returned and never vaulted, so an operator asked to create the
+  # credential file afterwards is being asked to retype a secret from memory
+  # into a path they also have to get right. One character wrong in either lands
+  # as a sudo failure on the host days later, which reads as a broken account
+  # and is neither.
+  #
+  # After the proofs rather than before, because a password that has just been
+  # shown to work is the only one worth filing, and a file written ahead of a
+  # failed proof would describe a credential that does not work.
+  #
+  # Only on this path. Provisioning somebody else mints a one-time password for
+  # a machine that is not this one, and filing that here would leave their
+  # bootstrap credential on the provisioner's disk.
+  if (( ! PROOF_FAILED )) && [[ "$ACCOUNT" == "$OPERATOR_SHARED_ACCOUNT" ]]; then
+    # The shared account's password is not one person's to file. It is the
+    # host's way back in, every footbag-operator holder holds it, and the vault is its
+    # canonical copy under custody rules of its own. Writing it here from one
+    # operator's run would put a shared credential on one machine silently and
+    # leave the vault describing a password that is no longer the one in use.
+    echo "    ${OPERATOR_SHARED_ACCOUNT} is the shared account, so its password is not filed here."
+    echo "      It is vaulted, and changing it is a custody operation rather than"
+    echo "      a side effect of this run."
+  elif (( ! PROOF_FAILED )); then
+    if ! operator_credential_file_for "$ACCOUNT" "$TARGET"; then
+      echo "  FAIL could not work out which file this password belongs in." >&2
+      PROOF_FAILED=1
+    else
+      CRED_EXISTED="no"
+      [[ -e "$OPERATOR_CREDENTIAL_FILE" ]] && CRED_EXISTED="yes"
+      mkdir -p -m 700 -- "$(dirname -- "$OPERATOR_CREDENTIAL_FILE")"
+      # The subshell's umask is what makes the file restricted from its first
+      # byte; the chmod covers the case where it already existed, since a
+      # truncating write keeps whatever mode was there.
+      ( umask 077 && printf '%s\n' "$NEW_PASS" > "$OPERATOR_CREDENTIAL_FILE" )
+      chmod 600 -- "$OPERATOR_CREDENTIAL_FILE"
+      if [[ "$CRED_EXISTED" == "yes" ]]; then
+        echo "    ${OPERATOR_CREDENTIAL_DISPLAY}: replaced, mode 600"
+      else
+        echo "    ${OPERATOR_CREDENTIAL_DISPLAY}: written, mode 600"
+      fi
+      echo "      that is the one file this account's sudo password lives in, and"
+      echo "      every script that needs it finds it from the alias by itself"
+    fi
+  fi
+
   NEW_PASS=""
   if (( PROOF_FAILED )); then
     echo "" >&2
@@ -951,19 +1168,17 @@ if (( OWN_PASSWORD )); then
   echo "credential to replace."
 else
   NEW_PASS=""
-  echo "The next two checks run from ${OPERATOR}'s own workstation, signed in as"
-  echo "${ACCOUNT}, and prove the layers separately. Run separately they name the"
-  echo "failure; run together inside a deploy they do not:"
+  echo "The proof that the account works runs from ${OPERATOR}'s own workstation,"
+  echo "with their alias pointed at ${ACCOUNT}: it reaches the host through the"
+  echo "pinned connection, then uses sudo with their own password, and names"
+  echo "which layer failed if one does:"
   echo ""
-  echo "  ssh footbag-${TARGET} \"uptime\"      # firewall, key, and the host-key pin"
-  echo "  ssh footbag-${TARGET} \"sudo -v\"     # the password, from their own file"
+  echo "  bash scripts/setup-operator-workstation.sh --target ${TARGET} --check"
   echo ""
-  echo "If the first times out, their address is not in operator_cidrs, or their"
-  echo "ISP is dropping the port. If it says 'Permission denied (publickey)', the"
-  echo "key in this run is not the key on their machine."
-  echo ""
-  echo "This script cannot run those two itself, because the private half of the"
-  echo "key is on their machine and the password will be theirs after first"
-  echo "login. Provisioning your OWN account with --own-password is different:"
-  echo "there it runs them and this hand-off does not exist."
+  echo "This script cannot run it itself, because the private half of the key is"
+  echo "on their machine and the password will be theirs. Provisioning your OWN"
+  echo "account with --own-password is different: there it runs the proof itself."
 fi
+
+# Finished, so the cleanup has nothing to report on the way out.
+PROVISION_STATE="none"
