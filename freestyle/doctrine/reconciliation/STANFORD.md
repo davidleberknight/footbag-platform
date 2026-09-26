@@ -59,7 +59,7 @@ one of:
 |---|---|---|
 | **Equivalent notation** | Same trick, same structure, same ADD; only the symbol system differs | The bulk — 489 matched rows |
 | **Historical naming** | Stanford's name is a folk/descriptive/superseded name for a canonical the platform carries under a different name | 98 gloss-matched + 41 alias-only |
-| **Parser difference** | Divergence caused by Stanford's grammar being under-specified — one formula that cannot distinguish two tricks, or a mandatory-filler token | 32 collision pairs + the clipper quirk |
+| **Parser difference** | Divergence caused by Stanford's grammar being under-specified — one formula that cannot distinguish two tricks, or a mandatory-filler token | 26 collision pairs + the clipper quirk |
 | **Doctrine difference** | ADD differs because Stanford's literal token tally meets the platform's curated structural-ADD model | 118 of the 119 ADD divergences |
 | **Genuine contradiction** | Stanford asserts something structurally incompatible, unexplained by the above | **None found** |
 
@@ -189,7 +189,7 @@ structural aliases for canonicals the platform names by folk convention.
 
 ## D. Parser-difference cohort
 
-Beyond the single clipper quirk, 32 distinct Stanford formulas are each written down
+Beyond the single clipper quirk, 26 distinct Stanford formulas are each written down
 under **two or more different display names** in the raw corpus — Stanford's grammar
 cannot tell these tricks apart. This is Ben Lynn's own flagged limitation made
 concrete: he proposed disambiguating tokens (`k` for kick-versus-delay, `w1`/`w0`
@@ -212,11 +212,7 @@ ambiguity stands in the data.
 - **Blazing ≡ Blurry (6 pairs)** — `X-1.-1-Z` names both Blazing Mirage and Blurry
   Mirage, and five more like it. This is the whirling-versus-stepping ambiguity Ben
   Lynn flagged, surfacing through the blazing/blurry folk split.
-- **Spinning ≡ Sonic (5 pairs)** — `X.\...` names both. The spec distinguishes them
-  by single versus double backslash (`X\.` gyro/spinning versus `X\\.` sonic), but
-  the move list never writes the doubled backslash, so the distinction is lost in the
-  corpus itself — a Stanford-internal inconsistency, not a platform disagreement.
-- **13 further single-instance collisions**, three of which are between two
+- **12 further single-instance collisions**, three of which are between two
   Stanford-only names.
 
 **Adopted for the whole cohort:** wherever a side is represented, the platform's
@@ -225,6 +221,13 @@ notation, not evidence the platform's distinctions are wrong. Where exactly one 
 of a collision is already canonical and the other is a Stanford-only name for the
 identical formula, that is an alias *candidate*, recorded in Section F.5 — a curator
 decision, not a contradiction.
+
+Spinning and Sonic are not in this cohort. The move list applies the spec's single
+versus double backslash (`X\.` spinning, `X\\.` sonic, `*\\.` peeking), so Sonic
+Illusion, Sonic Legover, Sonic Mirage, Sonic Pickup, Sonic Torque and Peeking Osis
+are formulas distinct from their Spinning counterparts. A plain-text copy that
+reduces `\\` to `\` manufactures six false collisions; read the formulas from a
+capture that preserves it.
 
 ---
 
@@ -274,10 +277,10 @@ not a change made by this document.
    ADD (4-ADD: 125, 5-ADD: 90, 6-ADD: 63, then thinning to a single 9), are a
    second-attestation pool for future curator triage — weighted, per Section G, as
    shared-FM lineage rather than independent evidence.
-5. **Eighteen clean alias candidates.** Eighteen Stanford formulas are identical
+5. **Twelve clean alias candidates.** Twelve Stanford formulas are identical
    between a name already canonical and a Stanford-only name with no alias link — for
    example `X-1.-0+Z` shared between Blazing Legover (canonical) and "Blurry Legover"
-   (Stanford-only), and `X.\-1-Z` shared between Spinning Mirage and "Sonic Mirage".
+   (Stanford-only).
    These are low-risk, structurally-verified alias candidates. Recorded for curator
    review; wiring them is a data change that needs approval, exactly as the 43
    FootbagMoves alias candidates are held.
@@ -320,7 +323,7 @@ Nothing in the Stanford overlap is a genuine source-of-truth contradiction — S
 E found zero. Two items are curator opportunities, not disagreements, recorded so the
 backlog is visible rather than lost:
 
-1. **The 18 alias candidates** (F.5) — structurally verified, low-risk, awaiting the
+1. **The 12 alias candidates** (F.5) — structurally verified, low-risk, awaiting the
    approval any data change requires.
 2. **The multi-name folk clusters** (F.2) and the **unnamed combinatorial gaps**
    (F.3) — structural evidence to carry into the Identity paper's merger discussion
@@ -336,7 +339,7 @@ it is recorded as a parser difference, not an open question.
 |---|---:|---|
 | Equivalent notation | 489 matched | Same trick, different alphabet |
 | Historical naming | 41 alias + 98 gloss | Stanford's name is a known alias or structural sub-name |
-| Parser difference | 32 collisions + clipper | Stanford's grammar under-distinguishes |
+| Parser difference | 26 collisions + clipper | Stanford's grammar under-distinguishes |
 | Doctrine difference | 118 | Stanford's token tally vs the platform's structural-ADD model |
 | Genuine contradiction | 0 | — |
 

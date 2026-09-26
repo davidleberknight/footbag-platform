@@ -56,7 +56,7 @@ effectively zero.
 
 | Kind | FootbagMoves | PassBack | Stanford | Character |
 |---|---:|---:|---:|---|
-| **Notation** | positional-layer (systemic) | 65 | 522 (489 equivalent + 32 collisions + 1 filler) | Not a competing claim |
+| **Notation** | positional-layer (systemic) | 65 | 516 (489 equivalent + 26 collisions + 1 filler) | Not a competing claim |
 | **Naming** | ~221 name-review rows | few | 139 (41 alias + 98 gloss) | Same trick, different name |
 | **Scoring** | ~31 (six operator cohorts) | 3 (Q7-gated) | 118 (largely re-encoding FootbagMoves' cohorts) | Real ADD adjudications |
 | **Genuine contradiction** | 1 (Bladerunner, resolved) | 0 | 0 | — |
@@ -87,7 +87,7 @@ force.
   Stanford's ADD offsets mirror FootbagMoves' proved this rather than merely asserting
   it.
 - **Separate the instrument from the claim.** PassBack's 65 frame-difference rows and
-  Stanford's 522 notation rows dissolved once it was clear they answer a different
+  Stanford's 516 notation rows dissolved once it was clear they answer a different
   question (how many dexes? which symbols?) than the platform's ADD (how much
   compositional difficulty?).
 - **The settled structural doctrines**, each of which resolved a whole cohort at once:
