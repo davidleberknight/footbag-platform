@@ -160,13 +160,15 @@ Options:
                 probes plus the Docker-gated OWASP ZAP baseline. Opt-in because
                 it is slow and the ZAP leg needs Docker; CI does not run it.
   --full        Everything a non-operator can run: the full suite plus the
-                coverage thresholds, the blocking security probes, --pentest
-                and the persona crawl, and the clean-room gate that rebuilds the
+                coverage thresholds, the blocking security probes, --pentest,
+                --a11y and the persona crawl, and the clean-room gate that rebuilds the
                 tree in a throwaway worktree and runs the suite as the push gate
                 sees it, including the loader smoke and the database-integrity
                 guards. With it, the gate set matches CI apart from CodeQL and
                 dependency-review, both GitHub-hosted (see the
-                header). The staging-AWS adapter smoke is
+                header). Mutation testing is never part of --full; the
+                summary warns of it and of any other opt-in gate the run
+                left out. The staging-AWS adapter smoke is
                 operator-only and never part of --full; it shows as a SKIP row.
                 Run it deliberately with --with-smoke (operator workstation). The persona crawl
                 likewise SKIPs (with a warning) when the dev DB lacks the operator
@@ -175,7 +177,7 @@ Options:
   --a11y        Additionally run the axe WCAG 2.1 AA accessibility scan of the
                 high-traffic public pages (npm run test:e2e:a11y) against a
                 throwaway browser stack. Opt-in because it boots the full e2e
-                stack; the scan writes only to os.tmpdir().
+                stack; implied by --full. The scan writes only to os.tmpdir().
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
@@ -209,6 +211,7 @@ done
 if (( FULL == 1 )); then
   QUICK=0
   PENTEST=1
+  A11Y=1
   # The staging-AWS adapter smoke is operator-only and never part of --full;
   # the implied gate below only renders a SKIP row for visibility. An explicit
   # --with-smoke alongside --full runs it for real, fail-hard.
@@ -993,6 +996,23 @@ for _equivalent in $PUSH_GATE_EQUIVALENTS; do
 done
 unset _equivalent
 
+# The opt-in gates this mode never scheduled, each with the switch that runs it.
+# None stands for a push-gate job, but a run that says nothing about them lets
+# the reader believe --full ran everything, and the mutation gate never runs
+# unless asked for by name.
+NOT_SCHEDULED_OPT_IN=()
+for _opt_in in \
+  "staging-aws-smoke:--with-smoke" \
+  "persona-crawl:--with-persona-crawl" \
+  "realdata-invariants:--with-realdata-invariants" \
+  "a11y:--a11y" \
+  "pentest:--pentest" \
+  "mutation:--with-mutation"; do
+  printf '%s\n' "${GATE_NAMES[@]}" | grep -qx "${_opt_in%%:*}" && continue
+  NOT_SCHEDULED_OPT_IN+=("${_opt_in%%:*} (not run; ${_opt_in#*:} runs it)")
+done
+unset _opt_in
+
 # Printed on every run, including a clean one. The question this runner exists to
 # answer is "will my push pass", and the honest answer always carries a footnote:
 # a short list of things GitHub will do that no workstation can. Printing it only
@@ -1013,6 +1033,12 @@ if (( ${#SKIPPED_LOCAL_ONLY[@]} > 0 )); then
   echo "  Not run here, and not run by the push gate either, so they change nothing"
   echo "  about whether your push passes:"
   printf '    %s\n' "${SKIPPED_LOCAL_ONLY[@]}"
+fi
+if (( ${#NOT_SCHEDULED_OPT_IN[@]} > 0 )); then
+  echo ""
+  echo "  WARNING: opt-in gates this mode did not run. The push gate does not run"
+  echo "  them either, so they change nothing about whether your push passes:"
+  printf '    %s\n' "${NOT_SCHEDULED_OPT_IN[@]}"
 fi
 if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
   echo ""
