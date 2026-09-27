@@ -10,6 +10,8 @@
 
 **AES-256-GCM**: Authenticated encryption algorithm providing both confidentiality and integrity through authentication tags. Used for voting ballot encryption with server-side envelope encryption: member submits vote over HTTPS, server requests a fresh data key from AWS KMS (GenerateDataKey), encrypts the ballot payload using AES-256-GCM, and stores only the ciphertext alongside the encrypted data key. The plaintext data key is never persisted. Admin tallying decrypts ballots using a separate privileged role after polls close.
 
+**age**: A small open-source file-encryption tool that encrypts a file to an SSH public key, so only the holder of the matching private key can open it. Footbag.org uses it for one job, sealing a dev-and-tester's delivery to the public key they sent. The holder who hires them, the dev-and-tester, and the CI runner need it (`sudo apt install age` on Ubuntu).
+
 **API (Application Programming Interface)**: A standardized way for different software systems to communicate with each other. Footbag.org uses APIs for internal module boundaries and selected integrations; the project does not have a public REST API.
 
 **Argon2id**: Password hashing algorithm (preferred over bcrypt) that is memory-hard, requiring 64 MB memory with 3 iterations and parallelism factor of 4. Makes brute-force attacks computationally expensive while maintaining acceptable login performance (100-250ms).
@@ -56,6 +58,8 @@
 
 **Dead Letter**: Final status for an outbox email entry that has exhausted all retry attempts without successful delivery. Footbag.org moves failed outbox entries to dead-letter status after maximum retries, triggering an alert for admin review so no email is silently lost.
 
+**Dev-and-tester**: A kind of named operator, not a level of seniority: a contributor who develops locally and, when their work needs the deployed staging environment, reaches it through a staging host account and an AWS identity of their own. They hold no `footbag-operator` key, no shared `footbag` host password, no credential vault access and no production access, and they act on staging only through the switch `scripts/as-dev-tester.sh --account <name>`; a command run without it has no identity and is refused.
+
 **DKIM (DomainKeys Identified Mail)**: Email authentication method verifying sender identity using cryptographic signatures. Footbag.org has two signers and configures a key for each: AWS SES for the platform's own outbound, and Google Workspace for mail sent from a hosted role mailbox. Both improve deliverability and prevent spoofing, and a message signed by neither rests on the sender policy alone.
 
 **DMARC (Domain-based Message Authentication, Reporting and Conformance)**: Email authentication policy framework building on SPF and DKIM. Footbag.org publishes a DMARC policy for the domain and an aggregate-report mailbox to receive what receiving servers report about mail claiming to be from it. The policy is published monitor-only and tightens to quarantine and then rejection once the aggregate reports confirm the full sender list, because tightening ahead of that evidence rejects legitimate senders not yet covered by the SPF record.
@@ -79,6 +83,10 @@
 **EXIF (Exchangeable Image File Format)**: Metadata embedded in photos including camera settings, GPS coordinates, timestamps, and camera model. Footbag.org strips all EXIF data during image processing to protect member privacy and reduce file sizes.
 
 **Express**: Minimal Node.js web framework providing straightforward HTTP routing, middleware support, and request/response handling. Footbag.org uses Express for thin controllers and server-rendered page routes, along with selected machine-readable operational endpoints where explicitly documented.
+
+**footbag-operator**: The directly authenticated AWS IAM user, held only by the project's AWS administrators, and the default identity for every operator run. It is also the name of the workstation profile that holds its key: a profile is a local configuration entry naming which key to sign with, not an identity. A *`footbag-operator` holder* can switch any one command to their own named identity with `scripts/as-dev-tester.sh --account <name>`. Distinct from `footbag`, the shared Linux account on each host.
+
+**FootbagDevTester**: The one staging-only AWS IAM role every named operator assumes, whether a `footbag-operator` holder or a dev-and-tester, and also the name of the workstation profile that assumes it. The role's trust policy makes each session carry the assuming person's own name, so the AWS trail records who acted. It is reached only through `scripts/as-dev-tester.sh --account <name>`, never automatically, and cannot touch production.
 
 **Freeform Hashtag**: User-chosen hashtag without enforced format or validation beyond security checks. Members create organic vocabulary for content discovery, complementing standardized event/club hashtags. Clicking any hashtag shows all content with that tag.
 
@@ -184,6 +192,8 @@
 
 **SameSite=Lax**: Cookie attribute instructing browsers to send the cookie on same-site requests and top-level navigations, but not on cross-site subrequests (e.g., image or form loads from other domains). Footbag.org pairs SameSite=Lax with strict HTTP verb discipline and Origin-header pinning on state-changing requests (see the CSRF entry) instead of synchronizer tokens; all session cookies are set with this attribute.
 
+**Sealed delivery**: The file a dev-and-tester receives when hired: their host account's one-time password, their IAM access key, the account's role ARNs and the staging host's pinned keys, sealed with `age` to their own SSH public key. `scripts/hire-dev-tester.sh` makes it on a `footbag-operator` holder's machine, and `scripts/accept-dev-tester-delivery.sh` opens it on the newcomer's.
+
 **Service Layer**: Business logic layer implementing domain rules and coordinating data operations. Footbag.org services contain all business logic (membership tier validation, event state transitions, payment processing workflows) isolated from controllers (HTTP concerns) and adapters (storage concerns). Services are pure TypeScript functions for easy testing.
 
 **SES (Simple Email Service)**: AWS managed email service handling sending and reputation management. Footbag.org uses SES for transactional emails (password reset, event notifications, payment receipts) with DKIM/SPF/DMARC authentication. Development and staging use the stub SES adapter (no AWS calls); production uses live SES.
@@ -205,6 +215,8 @@
 **SQLite**: Lightweight, file-based relational database engine embedded directly in the application process, requiring no separate database server. Footbag.org stores all application state (except photos) in a single SQLite file (footbag.db) accessed through the better-sqlite3 library; it supports full SQL, ACID transactions, and foreign key constraints while eliminating connection management, replication lag, and database server costs.
 
 **SSE-S3 (Server-Side Encryption with S3-Managed Keys)**: S3's default encryption mode that transparently encrypts all stored objects using AES-256 with keys managed entirely by Amazon. Footbag.org enables SSE-S3 on all S3 buckets; encryption and decryption are automatic and transparent to the application, meeting security requirements for non-regulated data at zero additional cost or configuration.
+
+**Staging**: Three different things share this word. The *environment*, `FOOTBAG_ENV=staging`, is a configuration of the application. The *staging host* is the AWS Lightsail instance `footbag-staging-web` that runs it. `footbag-staging` is also an *SSH alias*: an entry in each operator's own `~/.ssh/config` naming that host's address and port, written by script, which operator scripts connect through. None of these is local development, which is `FOOTBAG_ENV=development` on a contributor's own machine.
 
 **Standardized Hashtag**: Enforced-format hashtag with uniqueness validation for events (for example `#event_2025_beaver_open`) and clubs (for example `#club_wellington_hack_crew`). Members uploading media can tag with these hashtags for automatic gallery linking; the system validates uniqueness at event or club creation.
 

@@ -22,34 +22,32 @@
 #
 # WHAT IT UNLOCKS, AND WHY THAT IS THE WHOLE POINT.
 #
-# This is for a newcomer who holds the vault, and with it the shared account's
-# sudo password. With their key on the shared account they have a shell, and
-# they can then run provision-operator-account.sh --own-password against their
-# OWN named account, from their own machine: they type their own password, it
-# is never generated, never displayed, and never known to anybody else, and the
-# run proves the account end to end because both their private key and their
-# password are there. Nothing passes between two people except a public key,
-# which is not a secret.
+# This is for a new `footbag-operator` holder, who holds the vault and with it
+# the shared account's sudo password. The shared `footbag` account is the
+# permanent default host route for every holder, so their key on it is standing
+# access, not a step on the way to something else. With it they have a shell,
+# and from their own machine they then run onboard-operator.sh, which makes
+# their named account a key pair of its own and has them type their own
+# password: never generated, never displayed, never known to anybody else.
+# Nothing passes between two people except a public key, which is not a secret.
 #
 # A dev-and-tester holds neither the vault nor the shared password, so this is
-# not their route and their key is never loaned onto the shared account. Their
-# host account is created for them, and how its one-time value reaches them is
-# designed and not yet built.
+# not their route and their key never goes on the shared account. Their named
+# account and its one-time password reach them sealed to their own public key,
+# from scripts/hire-dev-tester.sh.
 #
-# THE KEY ON THE SHARED ACCOUNT IS A LOAN, NOT A GRANT.
+# ONLY A HOLDER'S KEY BELONGS ON THE SHARED ACCOUNT, AND ONLY WHILE THEY HOLD.
 #
-# A person's key sitting in the shared account's authorized_keys means an action
-# taken as that account could have been any of them, which is exactly the
-# attribution the named accounts exist to create. So once the named account
-# works, run --remove. The script says so at the end of every add, because a
-# bootstrap nobody unwinds is just a shared credential with extra steps.
+# An action taken as the shared account could have been any holder; that is the
+# accepted cost of it being the default route, and why a named identity exists
+# for work that should carry a person's name. The key stays for as long as the
+# person holds `footbag-operator` and is withdrawn with --remove when they stop.
 #
-# What that withdrawal is NOT is the revocation path, and it must not be relied
-# on as one. The offboarding (offboard-operator.sh) sweeps a departing
-# operator's keys off every account on the host and proves none survives, so a
-# forgotten withdrawal costs attribution while they are here rather than access
-# after they leave. The sweep knows their keys from their own named account, so
-# a key loaned to somebody who never got one is withdrawn here, by hand.
+# That withdrawal is the only way it comes off. The offboarding
+# (offboard-operator.sh) refuses to retire a named account whose key is also on
+# the shared account, precisely so that firing a named identity never takes a
+# holder's standing route with it; so a departing holder's key on the shared
+# account is removed here, deliberately.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -86,11 +84,11 @@
 #   --target <staging|production>  deployed environment; no default, never
 #                                  inherited from ambient state
 #   --account <name>               the EXISTING account whose authorized_keys is
-#                                  edited. For a bootstrap this is the shared
+#                                  edited. For a new holder this is the shared
 #                                  `footbag` account. No default: which account
 #                                  gains a way in is never guessed.
 #   --operator "<Full Name>"       whose key this is. Printed, and named in the
-#                                  reminder to withdraw it later.
+#                                  command that withdraws it.
 #   --key-line "<key>"             the key, pasted whole. Preferred: a key
 #                                  arrives as a line of text in a mail.
 #   --key-file <path>              the same key as a .pub file.
@@ -143,8 +141,8 @@ account themselves. Creates no account and sets no password.
   --remove                       withdraw the key rather than add it
   --yes                          accept the typed confirmation in advance
 
-A key added to a SHARED account is a bootstrap. Withdraw it with --remove once
-the person's own named account works.
+Only a footbag-operator holder's key belongs on the SHARED account. Withdraw it
+with --remove when they stop holding footbag-operator.
 EOF
 }
 
@@ -167,8 +165,8 @@ require_target "$TARGET" staging production || exit 2
 if [[ -z "$ACCOUNT" ]]; then
   echo "ERROR: --account is required and has no default." >&2
   echo "       Which account gains a way in is the whole decision here, so it" >&2
-  echo "       is never inferred. For a newcomer's bootstrap this is the" >&2
-  echo "       shared 'footbag' account." >&2
+  echo "       is never inferred. For a new footbag-operator holder this is" >&2
+  echo "       the shared 'footbag' account." >&2
   exit 2
 fi
 if [[ ! "$ACCOUNT" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
@@ -177,8 +175,8 @@ if [[ ! "$ACCOUNT" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
 fi
 if [[ -z "$OPERATOR" ]]; then
   echo "ERROR: --operator is required: whose key this is." >&2
-  echo "       It is printed with the change and named in the reminder to" >&2
-  echo "       withdraw a bootstrap key later. A key nobody is named against" >&2
+  echo "       It is printed with the change and named in the command that" >&2
+  echo "       withdraws it. A key nobody is named against" >&2
   echo "       is an access nobody will think to remove." >&2
   exit 2
 fi
@@ -265,9 +263,9 @@ About to authorize ${OPERATOR}'s key on the ${ACCOUNT} account of ${REMOTE}.
 
 They will be able to log in as ${ACCOUNT} and, with that account's sudo
 password, to use sudo as it. Anything they do will be recorded against
-${ACCOUNT} rather than against them, so if ${ACCOUNT} is shared this is a
-bootstrap and not a destination: it exists so they can create their own named
-account, and it is withdrawn with --remove once that account works.
+${ACCOUNT} rather than against them. If ${ACCOUNT} is the shared account, only
+a footbag-operator holder's key belongs here: it is their standing default
+route, withdrawn with --remove when they stop holding footbag-operator.
 EOF
 else
   cat <<EOF
@@ -300,33 +298,29 @@ if [[ "$MODE" == "add" ]]; then
   cat <<EOF
 Done. ${OPERATOR} can now reach ${REMOTE} as ${ACCOUNT}.
 
-What they do next, from their own machine, with nothing further from you:
+What a new footbag-operator holder does next, from their own machine, with
+nothing further from you:
 
-  < <their credential file> bash scripts/provision-operator-account.sh \\
-    --target ${TARGET} --account <first_last> --operator "${OPERATOR}" \\
-    --key-file <their public key> --own-password
+  < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-operator.sh \\
+    --target ${TARGET} --account <first_last> --operator "${OPERATOR}"
 
-They type their own password. It is never generated, never displayed, and is
-not vaulted, so nobody else can read it -- including you, and including whoever
-holds this vault next. Their vault entry host-${TARGET}-<first_last> records
-the access and carries no password.
+It gives their named account a key pair of its own, distinct from this one,
+and runs provision-operator-account.sh with --own-password: they type their own
+password. It is never generated, never displayed, and is not vaulted, so nobody
+else can read it -- including you, and including whoever holds this vault
+next. Their vault entry host-${TARGET}-<first_last> records the access and
+carries no password.
 
-THEN COME BACK AND WITHDRAW THIS KEY:
+This key stays on ${ACCOUNT} for as long as they hold footbag-operator. When
+they stop, withdraw it:
 
   < <your credential file> bash scripts/authorize-operator-key.sh \\
     --target ${TARGET} --account ${ACCOUNT} --operator "${OPERATOR}" \\
     --key-line "<the same key>" --remove
 
-Until you do, an action taken as ${ACCOUNT} could have been any of you, which
-is the attribution the named accounts exist to create. That is the cost while
-they are still here, and it is the reason to withdraw it promptly rather than
-eventually.
-
-If it is forgotten it does not become permanent once they hold a named account:
-offboard-operator.sh sweeps a departing operator's keys off every account on
-the host, not only their named one, and proves afterwards that none survives.
-It learns their keys from that named account, so a loan to somebody who never
-got one is withdrawn with --remove, by hand.
+Firing their named identity does not remove it: offboard-operator.sh refuses to
+retire a named account whose key is also on ${ACCOUNT}, so a holder's standing
+route is never swept away by accident.
 EOF
 else
   echo "Done. ${OPERATOR}'s key is no longer authorized on ${ACCOUNT}."

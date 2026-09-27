@@ -237,7 +237,7 @@ archive/legacy-retention requirements.
 
 Find bugs in: source-of-truth selection; whether an input that changes the loaded result
 is visible when it is missing; repeated-import idempotency; validation gate coverage; rollback plan; question ownership
-(legacy-site webmaster vs IFPA board vs maintainer); legacy account claim safety; legacy
+(legacy-site webmaster vs IFPA secretary vs IFPA Board vs CTO); legacy account claim safety; legacy
 credential exclusion; legacy admin role migration; member tier derivation; board/committee
 derivation; old email handling; club affiliation derivation; dormant/junk club cleanup;
 historical result source authority; media/gallery archive scope; retained subdomains;
@@ -358,16 +358,19 @@ conflict is the finding; never silently choose one.
 ## Missing-decision owner classification
 
 Classify every unresolved design issue into exactly one primary owner before asking:
-legacy-site webmaster factual question; IFPA board / governance decision;
-project-maintainer decision; technical design decision; test/verification backlog;
+legacy-site webmaster factual question; IFPA secretary decision (IFPA policy, rules, records,
+membership, communications); IFPA Board vote (bylaw votes only: funds account, dues and
+membership levels, election timing); CTO (project maintainer) decision; technical design
+decision; test/verification backlog;
 DevOps/parity backlog; migration validation backlog; implementation-layer follow-up.
 
 Do not ask the legacy-site webmaster to decide new-platform policy unless the issue is a
-legacy fact. Do not ask the IFPA board technical implementation questions. Do not ask the
-maintainer anything deterministic repo analysis can answer. The IFPA governing documents
-are the authority of record for membership and voting policy: a design doc that
-contradicts them is a design bug classifiable now, not a board question; reserve the board
-bucket for questions the governing documents genuinely leave open.
+legacy fact. Do not ask the IFPA secretary or the IFPA Board technical implementation
+questions. Do not ask the maintainer anything deterministic repo analysis can answer. The
+IFPA governing documents are the authority of record for membership and voting policy: a
+design doc that contradicts them is a design bug classifiable now, not a question for the
+IFPA secretary or the IFPA Board; reserve those buckets for questions the governing
+documents genuinely leave open.
 
 ## Design-finding refutation checklist
 

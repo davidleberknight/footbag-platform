@@ -222,20 +222,6 @@ describe('provision-operator-account.sh — the shared account', () => {
     expect(r.stderr).not.toMatch(/--rotate --key-only/);
   });
 
-  it('refuses replacing its keys, which would remove every other holder key', () => {
-    // Several holders' keys sit on the shared account, and a rotation writes
-    // authorized_keys whole with the one key it was given. Refused before any
-    // connection, so nothing on the host is reached.
-    const r = runScript([...args({ '--account': 'footbag' }), '--rotate', '--key-only'], {
-      existingAccount: true,
-    });
-    expect(r.exitCode).toBe(2);
-    expect(r.stderr).toMatch(/its keys are not\s+replaced from here/);
-    expect(r.stderr).toMatch(/would remove every other holder's key/);
-    expect(r.stderr).toMatch(/authorize-operator-key\.sh/);
-    expect(r.stderr).toMatch(/Nothing done\./);
-  });
-
   it('does not refuse retiring somebody else, which sets no password either', () => {
     const r = runScript([...args({ '--account': 'robin_fielder', '--key-file': '' }), '--offboard']);
     expect(r.stderr).not.toMatch(/is the shared account/);
@@ -302,7 +288,7 @@ describe('provision-operator-account.sh — invocation guards', () => {
     // An empty first line is not a password. Accepting one sends an empty
     // string to every sudo on the host, which refuses it, and the run then
     // reports what reads as a host fault rather than as a missing credential.
-    const result = runScript(args(), { input: '' });
+    const result = runScript([...args(), '--own-password'], { input: '' });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/first line of stdin was empty/);
     expect(result.stderr).toMatch(/expected the host sudo password/);
@@ -315,7 +301,7 @@ describe('provision-operator-account.sh — invocation guards', () => {
     // a bare "Permission denied (publickey)", which reads as a rejected key
     // rather than as a name ssh could not resolve, and sends the operator to
     // look at their key instead of their SSH configuration.
-    const result = runScript(args(), { resolvableAlias: false });
+    const result = runScript([...args(), '--own-password'], { resolvableAlias: false });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/SSH alias 'footbag-staging' is not configured/);
     expect(result.stderr).toMatch(/deploy alias stanza/);
@@ -326,7 +312,7 @@ describe('provision-operator-account.sh — invocation guards', () => {
     // The alias is not always derived from --target, so a refusal that named
     // the derived one would send the operator to fix a stanza they were not
     // using.
-    const result = spawnSync('bash', [SCRIPT, ...args()], {
+    const result = spawnSync('bash', [SCRIPT, ...args(), '--own-password'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
       input: 'fixture-sudo-password\n',
@@ -347,11 +333,11 @@ describe('provision-operator-account.sh — invocation guards', () => {
     // A production run refused with the staging file named is a refusal the
     // operator cannot act on: they re-run with the file the message gave, and
     // it fails the same way.
-    const result = runScript(args({ '--target': 'production' }), { input: '' });
+    const result = runScript([...args({ '--target': 'production' }), '--own-password'], { input: '' });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
 
-    const staging = runScript(args({ '--target': 'staging' }), { input: '' });
+    const staging = runScript([...args({ '--target': 'staging' }), '--own-password'], { input: '' });
     expect(staging.stderr).toMatch(/AWS_OPERATOR\.txt/);
     expect(staging.stderr).not.toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
   });
@@ -361,7 +347,7 @@ describe('provision-operator-account.sh — invocation guards', () => {
     // from it, so the credential this run needs is their own. Naming the shared
     // file would have them pipe a password the host will refuse for this login,
     // and the refusal lands on the host as a sudo failure.
-    const result = runScript(args({ '--target': 'staging' }), {
+    const result = runScript([...args({ '--target': 'staging' }), '--own-password'], {
       input: '',
       connectsAs: 'ada_lovelace',
     });
@@ -395,15 +381,16 @@ describe('provision-operator-account.sh — what it accepts as a public key', ()
     // The whole point of --key-line: a key arrives as text, and asking an
     // operator to place a file first leaves them a file to remember to remove.
     // It reaches exactly the same validation as a file would, so this run gets
-    // as far as the display guard rather than failing on the key.
+    // as far as the terminal guard rather than failing on the key.
     const pasted = spawnSync('cat', [VALID_KEY], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '';
     const result = runScript([
       ...args({ '--key-file': '' }),
       '--key-line',
       pasted.trim(),
+      '--own-password',
     ]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/no terminal to show the new account password on/);
+    expect(result.stderr).toMatch(/no terminal to type your password and confirm on/);
     expect(result.stderr).not.toMatch(/public key/);
   });
 
@@ -441,7 +428,7 @@ describe('provision-operator-account.sh — what it accepts as a public key', ()
 
 describe('provision-operator-account.sh — the pinned host key', () => {
   it('refuses to connect without the pin, rather than accepting a key on trust', () => {
-    const result = spawnSync('bash', [SCRIPT, ...args()], {
+    const result = spawnSync('bash', [SCRIPT, ...args(), '--own-password'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
       input: 'fixture-sudo-password\n',
@@ -464,7 +451,7 @@ describe('provision-operator-account.sh — the pinned host key', () => {
     const loose = join(WORK_DIR, 'loose_known_hosts');
     writeFileSync(loose, '# pinned host keys fixture\n');
     chmodSync(loose, 0o666);
-    const result = spawnSync('bash', [SCRIPT, ...args()], {
+    const result = spawnSync('bash', [SCRIPT, ...args(), '--own-password'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
       input: 'fixture-sudo-password\n',
@@ -486,34 +473,35 @@ describe('provision-operator-account.sh — the pinned host key', () => {
 
 describe('provision-operator-account.sh — preconditions on the host', () => {
   it('announces the test seam, so a stubbed run is never mistaken for a real one', () => {
-    const result = runScript(args());
+    const result = runScript([...args(), '--own-password']);
     expect(result.stderr).toMatch(/SYNTHETIC: ssh=/);
     expect(result.stderr).toMatch(/no host is being changed/);
   });
 
   it('stops rather than resetting the password of an account that already exists', () => {
-    const result = runScript(args(), { existingAccount: true });
+    const result = runScript([...args(), '--own-password'], { existingAccount: true });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/already exists on/);
     // The reason matters more than the refusal: the risk is to the password
     // its owner is already using, not to the host.
     expect(result.stderr).toMatch(/may already be using the password it holds/);
-    expect(result.stderr).toMatch(/re-run with --rotate/);
+    expect(result.stderr).toMatch(/re-run with\s+--rotate --own-password/);
+    expect(result.stderr).toMatch(/hire-dev-tester\.sh/);
   });
 
   it('refuses --rotate against an account that is not there', () => {
-    const result = runScript([...args(), '--rotate'], { existingAccount: false });
+    const result = runScript([...args(), '--rotate', '--own-password'], { existingAccount: false });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/--rotate was given but .* does not exist/);
   });
 
-  it('refuses to mint a password it has nowhere to display, before creating anything', () => {
+  it('refuses with no terminal to type the password and confirm on, before creating anything', () => {
     // The create path is otherwise clear here: valid args, a good key, a good
-    // pin, and a host reporting the account absent. What stops it is that a
-    // captured stream is not somewhere a once-shown credential may land.
-    const result = runScript(args());
+    // pin, and a host reporting the account absent. What stops it is that the
+    // password and the vault confirmation are read only from a terminal.
+    const result = runScript([...args(), '--own-password']);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/no terminal to show the new account password on/);
+    expect(result.stderr).toMatch(/no terminal to type your password and confirm on/);
     expect(result.stderr).toMatch(/Nothing has been created/);
   });
 });
@@ -609,15 +597,16 @@ describe('provision-operator-account.sh — the sudo password reaches the host',
     const inner = [
       'bash',
       JSON.stringify(SCRIPT),
-      ...args().map((a) => JSON.stringify(a)),
+      ...[...args(), '--own-password'].map((a) => JSON.stringify(a)),
       '<',
       JSON.stringify(cred),
     ].join(' ');
     spawnSync('script', ['-qec', inner, '/dev/null'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
-      // Declines the vault prompt, so the run ends without a proof login.
-      input: 'no\n',
+      // The password twice, then a declined vault prompt, so the run ends
+      // without a proof login.
+      input: 'fixture-own-password-1\nfixture-own-password-1\nno\n',
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -641,10 +630,10 @@ describe('provision-operator-account.sh — the sudo password reaches the host',
     const cred = join(WORK_DIR, 'cred-finished');
     writeFileSync(cred, 'fixture-sudo-password\n');
     chmodSync(cred, 0o600);
-    const inner = ['bash', JSON.stringify(SCRIPT), ...args().map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
+    const inner = ['bash', JSON.stringify(SCRIPT), ...[...args(), '--own-password'].map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
     const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
       encoding: 'utf-8',
-      input: 'VAULTED\n',
+      input: 'fixture-own-password-1\nfixture-own-password-1\nVAULTED\n',
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -841,8 +830,7 @@ describe('provision-operator-account.sh — a per-person password is not vaulted
     expect(source).toMatch(/Public key fingerprint/);
   });
 
-  it('shows the one-time password separately and marks it as not for the vault', () => {
-    expect(source).toMatch(/NOT for the vault/);
+  it('never puts the password into the vault entry it prints', () => {
     expect(source).not.toMatch(/echo "  Password:  \$\{NEW_PASS\}"/);
   });
 
@@ -851,8 +839,7 @@ describe('provision-operator-account.sh — a per-person password is not vaulted
     // answer. The owner typing a new one is that answer, and saying so is what
     // stops someone adding the password back for convenience. A bare --rotate
     // would mint an expired one-time password, which is not a sanctioned path.
-    expect(source).toMatch(/Forgotten password/);
-    expect(source).toMatch(/their own with --rotate --own-password/);
+    expect(source).toMatch(/Forgotten password: the owner replaces it with --rotate"\n\s*echo "\s+--own-password\./);
     expect(source).not.toMatch(/--rotate, which issues a fresh/);
   });
 
@@ -1042,9 +1029,10 @@ describe('provision-operator-account.sh — offboarding', () => {
     );
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/does not exist/);
-    // It still points at the record, which outlives the account: the vault
-    // entry is the only trace that the access was ever held.
-    expect(r.stdout).toMatch(/vault entry host-/);
+    // It still points at the record, which outlives the account, for the one
+    // kind of operator who has one: a holder's own named account.
+    expect(r.stdout).toMatch(/entry host-staging-gone_already still exists/);
+    expect(r.stdout).toMatch(/A dev-and-tester has no vault entry/);
   });
 
   it('takes a typed confirmation, and touches nothing without one', () => {
@@ -1098,10 +1086,8 @@ describe('provision-operator-account.sh — what it tells an operator to do', ()
     .join('\n');
 
   it('never tells anybody to hand a password over by voice', () => {
-    // The instruction form, which is what an operator would follow. The script
-    // does name voice, in order to rule it out.
+    // The instruction form, which is what an operator would follow.
     expect(echoed).not.toMatch(/hand it over[^\n]*by voice/i);
-    expect(echoed).toMatch(/never handed over by voice or in any readable form/);
   });
 
   it('never hands the operator a raw ssh command against a host', () => {
@@ -1224,8 +1210,11 @@ describe('provision-operator-account.sh — --own-password', () => {
   });
 
   it('wipes the password from memory on both paths once it is done with it', () => {
+    // The sealed path, the moment it has handed the value back; the owner's
+    // path, once the proofs that need it are done.
+    expect(source).toMatch(/printf '%s\\n' "\$NEW_PASS" > "\$SEALED_OUT"\n\s*NEW_PASS=""\n/);
     const after = source.slice(source.indexOf('Proving the account end to end'));
-    expect(after.match(/^\s*NEW_PASS=""$/gm)?.length).toBeGreaterThanOrEqual(2);
+    expect(after).toMatch(/^\s*NEW_PASS=""$/m);
   });
 
   it('refuses --offboard alongside it, which sets no password at all', () => {
@@ -1361,67 +1350,319 @@ describe('the offboarding half that runs on the host', () => {
   });
 });
 
-describe('provision-operator-account.sh — replacing only the key', () => {
-  // The two credentials fail independently. A lost or compromised private key
-  // says nothing about the password, so forcing a new password to replace a key
-  // costs a one-time value travelling between two people and a first-login
-  // ceremony, to fix something that was not broken.
-
-  it('refuses --key-only without --rotate, because a new account needs a password', () => {
-    const r = runScript([...args(), '--key-only'], { existingAccount: false });
+describe('provision-operator-account.sh — whose password it is, named every time', () => {
+  // A password is either typed by the account's own owner at this keyboard, or
+  // generated for somebody who is not here and sealed to their own public key.
+  // Showing one on this screen for somebody else to be told is neither, so a
+  // create or rotation that names neither is refused before anything is read.
+  it('refuses a create that names neither --own-password nor --sealed', () => {
+    const r = runScript(args());
     expect(r.exitCode).toBe(2);
-    expect(r.stderr).toMatch(/--key-only narrows --rotate/);
+    expect(r.stderr).toMatch(/--own-password.*--sealed|--sealed.*--own-password/s);
   });
 
-  it('refuses --key-only with --own-password, which sets the password it leaves alone', () => {
-    const r = runScript([...args(), '--rotate', '--key-only', '--own-password'], {
-      existingAccount: true,
-    });
+  it('refuses a rotation that names neither', () => {
+    const r = runScript([...args(), '--rotate'], { existingAccount: true });
     expect(r.exitCode).toBe(2);
-    expect(r.stderr).toMatch(/opposite intentions/);
+    expect(r.stderr).toMatch(/--own-password/);
   });
 
-  it('refuses --key-only with --offboard, which ends the access it renews', () => {
-    const r = runScript(
+  it('never shows a generated password on the terminal', () => {
+    const source = readFileSync(SCRIPT, 'utf-8');
+    expect(source).not.toMatch(/echo "\s*\$\{NEW_PASS\}"/);
+    expect(source).not.toMatch(/shown once/);
+  });
+});
+
+describe('provision-operator-account.sh — a lost key is never patched in place', () => {
+  // A lost private key is a possible exposure, so the account is fired and
+  // rehired under the same name with a fresh pair, which refuses any key it was
+  // retired with. There is no mode that swaps the key and keeps the rest.
+
+  it('does not accept --key-only as an option', () => {
+    const r = runScript([...args(), '--rotate', '--key-only'], { existingAccount: true });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/unknown argument '--key-only'/);
+  });
+
+  it('never tells the host to leave the password alone', () => {
+    // Every create and every rotation sets a password. A caller able to say
+    // otherwise is a key swap by another name.
+    const source = readFileSync(SCRIPT, 'utf-8');
+    expect(source).not.toMatch(/OPACC_SET_PASSWORD/);
+  });
+});
+
+/**
+ * The sealed hand-over, for a person who is not at this keyboard.
+ *
+ * The hire script runs this for somebody else and seals the one-time password,
+ * with the rest of their delivery, to the SSH public key they sent. So the
+ * password is generated, never shown, not expired on the host (they replace it
+ * themselves when they open the delivery), and handed back to the calling
+ * script through a file that script created, once the account is proven. A
+ * dev-and-tester has no vault entry, so nothing waits on a typed VAULTED. An
+ * existing account is decided here rather than by a flag: a
+ * retired one is reopened, a live one holding exactly the key given is issued a
+ * fresh password, and a live one holding any other key is refused, because a
+ * lost key is fired and rehired rather than patched.
+ */
+describe('provision-operator-account.sh — --sealed', () => {
+  let FINGERPRINT = '';
+
+  beforeAll(() => {
+    const r = spawnSync('ssh-keygen', ['-l', '-f', VALID_KEY], { encoding: 'utf-8', ...SPAWN_GUARD });
+    FINGERPRINT = (r.stdout ?? '').trim();
+    expect(FINGERPRINT).toMatch(/SHA256:/);
+  });
+
+  /** A fresh, empty, mode-600 file of this process's own, as the hire script makes. */
+  function outFile(mode = 0o600): string {
+    const dir = mkdtempSync(join(WORK_DIR, 'sealed-out-'));
+    const path = join(dir, 'password');
+    writeFileSync(path, '');
+    chmodSync(path, mode);
+    return path;
+  }
+
+  /** A host that records every privileged session and answers the inspection. */
+  function sessionStub(probe: 'EXISTS' | 'ABSENT', inspect = ''): { stub: string; sessions: string } {
+    const sessions = mkdtempSync(join(WORK_DIR, 'sealed-sessions-'));
+    const answer = join(sessions, 'inspect-answer');
+    writeFileSync(answer, inspect);
+    const stub = join(sessions, 'ssh');
+    writeFileSync(
+      stub,
       [
-        '--target', 'staging',
-        '--account', 'robin_fielder',
-        '--operator', 'Robin Fielder',
-        '--offboard',
-        '--key-only',
-      ],
-      { existingAccount: true },
+        '#!/usr/bin/env bash',
+        'for a in "$@"; do',
+        '  case "$a" in',
+        "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",
+        `    *"id -u"*) echo ${probe}; exit 0 ;;`,
+        '    *"sudo -k -S"*)',
+        `      f=${JSON.stringify(sessions)}/session-$(date +%s%N)`,
+        '      cat > "$f"',
+        `      grep -qx 'OPACC_MODE=inspect' "$f" && cat ${JSON.stringify(answer)}`,
+        '      exit 0 ;;',
+        '  esac',
+        'done',
+        'cat > /dev/null',
+        'exit 0',
+      ].join('\n'),
     );
-    expect(r.exitCode).toBe(2);
-    expect(r.stderr).toMatch(/opposite intentions/);
+    chmodSync(stub, 0o755);
+    return { stub, sessions };
+  }
+
+  function sessionLines(sessions: string): string[] {
+    const r = spawnSync('bash', ['-c', `cat ${JSON.stringify(sessions)}/session-* 2>/dev/null`], {
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    return (r.stdout ?? '').split('\n');
+  }
+
+  const sealedArgs = (): string[] => [
+    ...args({ '--account': 'james_leberknight', '--operator': 'James Leberknight' }),
+    '--sealed',
+  ];
+
+  /** Driven through `script`, which is the terminal the typed confirmations need. */
+  function runSealed(stub: string, out: string, terminal: string) {
+    const cred = join(WORK_DIR, 'sealed-cred');
+    writeFileSync(cred, 'fixture-sudo-password\n');
+    chmodSync(cred, 0o600);
+    const inner = [
+      'bash',
+      JSON.stringify(SCRIPT),
+      ...sealedArgs().map((a) => JSON.stringify(a)),
+      '<',
+      JSON.stringify(cred),
+    ].join(' ');
+    return spawnSync('script', ['-qec', inner, '/dev/null'], {
+      encoding: 'utf-8',
+      input: terminal,
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        FAKE_SSH_USER: 'footbag',
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
+        FOOTBAG_PROVISION_SSH: stub,
+        FOOTBAG_KNOWN_HOSTS: PIN,
+        OPACC_SEALED_OUT: out,
+      },
+      ...SPAWN_GUARD,
+    });
+  }
+
+  function runSealedPiped(extraArgs: string[], out: string | undefined) {
+    return spawnSync('bash', [SCRIPT, ...sealedArgs(), ...extraArgs], {
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        FAKE_SSH_USER: 'footbag',
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
+        FOOTBAG_PROVISION_SSH: sshStub(false),
+        FOOTBAG_KNOWN_HOSTS: PIN,
+        ...(out === undefined ? {} : { OPACC_SEALED_OUT: out }),
+      },
+      ...SPAWN_GUARD,
+    });
+  }
+
+  it('is refused with --own-password, which is for a person at this keyboard', () => {
+    const r = runSealedPiped(['--own-password'], outFile());
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/ERROR: --sealed /);
   });
 
-  it('tells the remote half not to set a password, and the remote half obeys', () => {
-    const source = readFileSync(SCRIPT, 'utf-8');
-    const remote = readFileSync(REMOTE_HALF, 'utf-8');
-    // The caller sends the decision rather than the remote half inferring it
-    // from an empty password, which would make an accidental empty value look
-    // like a deliberate key-only run.
-    expect(source).toMatch(/OPACC_SET_PASSWORD=%q/);
-    expect(remote).toMatch(/OPACC_SET_PASSWORD:-yes/);
-    expect(remote).toMatch(/password was not touched/);
+  it('is refused with --offboard, which sets no password to seal', () => {
+    const r = spawnSync(
+      'bash',
+      [SCRIPT, '--target', 'staging', '--account', 'james_leberknight', '--offboard', '--sealed'],
+      {
+        encoding: 'utf-8',
+        input: 'fixture-sudo-password\n',
+        env: { ...process.env, ...NO_AWS_CREDENTIALS, OPACC_SEALED_OUT: outFile() },
+        ...SPAWN_GUARD,
+      },
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/ERROR: --sealed /);
   });
 
-  it('drops the expiry assertion with the password, rather than asserting either way', () => {
-    // Whether this account's existing password is expired was decided before
-    // this run. Asserting "not expired" would fail a correct key-only rotation
-    // against an owner who has never logged in; asserting "expired" would fail
-    // every other one.
-    const remote = readFileSync(REMOTE_HALF, 'utf-8');
-    expect(remote).toMatch(/password untouched by this run/);
+  it('is refused with --rotate, because it decides an existing account itself', () => {
+    const r = runSealedPiped(['--rotate'], outFile());
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/ERROR: --sealed /);
   });
 
-  it('still demands the vault entry, because the recorded fingerprint is now wrong', () => {
-    // A fingerprint that no longer matches the host is worse than none: it
-    // reads as evidence and is not.
-    const source = readFileSync(SCRIPT, 'utf-8');
-    expect(source).toMatch(/fingerprint recorded in it is now/);
-    expect(source).toMatch(/Type VAULTED/);
+  it('is refused when no file was named to hand the password back through', () => {
+    const r = runSealedPiped([], undefined);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/OPACC_SEALED_OUT/);
+  });
+
+  it('is refused when that file is readable by anybody else', () => {
+    const r = runSealedPiped([], outFile(0o644));
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/mode 600/);
+  });
+
+  it('is refused when that file already holds something', () => {
+    const out = outFile();
+    writeFileSync(out, 'left over\n');
+    const r = runSealedPiped([], out);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/not empty/);
+    expect(readFileSync(out, 'utf-8')).toBe('left over\n');
+  });
+
+  it('is refused when that file is a symbolic link', () => {
+    const target = outFile();
+    const link = join(WORK_DIR, `sealed-link-${Math.random().toString(36).slice(2)}`);
+    spawnSync('ln', ['-s', target, link], { ...SPAWN_GUARD });
+    const r = runSealedPiped([], link);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/regular file/);
+  });
+
+  it('creates the account with a password that is not expired, never shown, and handed back', () => {
+    const { stub, sessions } = sessionStub('ABSENT');
+    const out = outFile();
+    const r = runSealed(stub, out, '');
+    expect(r.status, r.stdout).toBe(0);
+
+    const lines = sessionLines(sessions);
+    expect(lines).toContain('OPACC_MODE=create');
+    expect(lines).toContain('OPACC_EXPIRE_PASSWORD=no');
+
+    const handed = readFileSync(out, 'utf-8');
+    expect(handed).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
+    const password = handed.trim();
+    expect(lines).toContain(`OPACC_PASSWORD=${password}`);
+    expect(r.stdout, 'the password reached the terminal').not.toContain(password);
+    expect(r.stdout).toMatch(/Account james_leberknight is ready/);
+  });
+
+  it('asks for no VAULTED and prints no vault entry, because a dev-and-tester has none', () => {
+    // Who holds a dev-and-tester's access is read live from the host and IAM,
+    // and their hire's card records who approved it. An entry here would be a
+    // hand-kept copy of live state, which is the register that drifted once.
+    const { stub } = sessionStub('ABSENT');
+    const out = outFile();
+    const r = runSealed(stub, out, '');
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).not.toMatch(/Type VAULTED/);
+    expect(r.stdout).not.toMatch(/Title:/);
+    expect(r.stdout).toMatch(/There is no vault entry to record: a dev-and-tester has none/);
+    expect(readFileSync(out, 'utf-8')).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
+  });
+
+  it('is refused with no terminal, before anything is created', () => {
+    const r = runSealedPiped([], outFile());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/A sealed run shows no password/);
+  });
+
+  it('issues a fresh password to a live account holding exactly the key given, on APPLY', () => {
+    const { stub, sessions } = sessionStub(
+      'EXISTS',
+      `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${FINGERPRINT}\n`,
+    );
+    const out = outFile();
+    const r = runSealed(stub, out, 'APPLY\n');
+    const lines = sessionLines(sessions);
+    expect(lines).toContain('OPACC_MODE=rotate');
+    expect(lines).toContain('OPACC_REOPEN=no');
+    expect(lines).toContain('OPACC_EXPIRE_PASSWORD=no');
+    expect(readFileSync(out, 'utf-8')).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
+    expect(r.stdout).toMatch(/holds exactly the key given/);
+  });
+
+  it('changes nothing on a live account holding that key without APPLY', () => {
+    const { stub, sessions } = sessionStub(
+      'EXISTS',
+      `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${FINGERPRINT}\n`,
+    );
+    const out = outFile();
+    const r = runSealed(stub, out, 'no\n');
+    expect(sessionLines(sessions).filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect']);
+    expect(readFileSync(out, 'utf-8')).toBe('');
+    expect(r.stdout).toMatch(/is untouched/);
+  });
+
+  it('refuses a live account holding any other key, and sends the operator to fire then rehire', () => {
+    const other = '256 SHA256:someoneElsesKeyFingerprintForThisSuite00000 other (ED25519)';
+    const { stub, sessions } = sessionStub(
+      'EXISTS',
+      `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${other}\n`,
+    );
+    const out = outFile();
+    const r = runSealed(stub, out, 'APPLY\n');
+    expect(r.status).toBe(1);
+    expect(sessionLines(sessions).filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect']);
+    expect(r.stdout).toContain(other);
+    expect(r.stdout).toMatch(/offboard-operator\.sh/);
+    expect(readFileSync(out, 'utf-8')).toBe('');
+  });
+
+  it('reopens a retired account for the same person, on APPLY', () => {
+    const retired = '256 SHA256:retiredKeyFingerprintForThisSuite00000000000 james (ED25519)';
+    const { stub, sessions } = sessionStub(
+      'EXISTS',
+      `SHELL /sbin/nologin\nPASSWORD LK\nOFFBOARDED yes\nRETIRED ${retired}\n`,
+    );
+    const out = outFile();
+    const r = runSealed(stub, out, 'APPLY\n');
+    const lines = sessionLines(sessions);
+    expect(r.stdout).toContain(retired);
+    expect(lines).toContain('OPACC_MODE=rotate');
+    expect(lines).toContain('OPACC_REOPEN=yes');
+    expect(lines).toContain('OPACC_EXPIRE_PASSWORD=no');
+    expect(readFileSync(out, 'utf-8')).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
   });
 });
 

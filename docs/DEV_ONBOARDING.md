@@ -50,6 +50,7 @@ This guide helps contributors understand how the platform is structured and how 
   - [2.5 Architecture mental model](#25-architecture-mental-model)
   - [2.6 Repo map](#26-repo-map)
 - [3. AWS deployment and operations](#3-aws-deployment-and-operations)
+  - [3.1 Requesting staging access as a dev-and-tester](#31-requesting-staging-access-as-a-dev-and-tester)
 - [4. Appendices](#4-appendices)
   - [4.1 Troubleshooting reference](#41-troubleshooting-reference)
   - [4.2 Deterministic seed-data reference](#42-deterministic-seed-data-reference)
@@ -177,7 +178,8 @@ sudo apt install -y \
   curl \
   openssh-client \
   rsync \
-  gpg
+  gpg \
+  age
 ```
 
 Verify the basics:
@@ -189,6 +191,7 @@ python3 --version
 git --version
 ssh -V
 rsync --version
+age --version
 ```
 
 #### 3. Install `nvm` and Node 22
@@ -987,6 +990,36 @@ Important file-level responsibilities:
 ## 3. AWS deployment and operations
 
 AWS staging and production deployment for this project, the Terraform apply, host bring-up, production-readiness hardening, runtime AWS identity and transactional email activation, and production activation, is documented in AWS_OPERATIONS.md (private GitHub repo), the canonical AWS reference. Running any AWS command requires access to the private operations repository, and a contributor is invited to it before doing AWS work. Local development and the architecture orientation above need no AWS access.
+
+### 3.1 Requesting staging access as a dev-and-tester
+
+Local development needs no AWS access. Ask for staging access only when your work needs the deployed staging environment: deploying a branch to staging, running the staging smoke tests, or reading staging logs. Access is staging only, never production, and gives you no access to the project's credential vault.
+
+You become a *dev-and-tester*: a Linux account of your own on the staging host and an AWS identity of your own, which reaches staging through the shared staging-only role `FootbagDevTester`. Both carry your name, `<first>_<last>` in lower case (Jane Doe is `jane_doe`).
+
+**What you send the project maintainer.** Neither is a secret.
+
+1. A new SSH public key made for this access alone, at the path the scripts expect:
+
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<first>_<last> \
+     -C "<first>_<last> footbag operator"
+   ssh-keygen -lf ~/.ssh/id_ed25519_<first>_<last>.pub
+   ```
+
+   Send the one line in the `.pub` file and the fingerprint the second command prints. The private half never leaves your machine.
+2. Your home public IPv4 address, from `curl -s https://checkip.amazonaws.com`, which goes on the staging SSH allow-list.
+
+**What happens next.** Everything is scripted; nothing is typed by hand on either side. The maintainer adds your address to the allow-list, then runs one command that creates your staging account and AWS identity and seals your one-time password and AWS key to the public key you sent. You receive the sealed file by any channel, because only your private key opens it. You install `age` (`sudo apt install age`) and the AWS CLI v2 ([AWS CLI install](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)) if you do not have them, and run, on your own machine, `bash scripts/accept-dev-tester-delivery.sh --target staging --account <first>_<last> <the file>`. It unseals the file, writes your AWS profiles, pins the staging host's keys and writes your SSH configuration, has you choose your own sudo password in place of the one-time one, and proves each step.
+
+**Working on staging afterwards.** Every staging command goes through the switch that names you:
+
+```bash
+bash scripts/as-dev-tester.sh --account <first>_<last> ./deploy_to_aws.sh
+bash scripts/as-dev-tester.sh --account <first>_<last> npm run test:smoke
+```
+
+Without it a command has no identity and refuses. When you stop needing access, tell the maintainer; your access is retired by script.
 
 ## 4. Appendices
 

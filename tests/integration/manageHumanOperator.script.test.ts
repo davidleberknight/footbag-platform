@@ -161,12 +161,14 @@ function awsStub(): string {
       '#!/usr/bin/env bash',
       `S=${JSON.stringify(S)}`,
       `echo "$*" >> "$S/calls.log"`,
-      'profile=""; prev=""; qkey=""; akid=""; status=""',
+      'profile=""; prev=""; qkey=""; akid=""; status=""; pname=""; doc=""',
       'for a in "$@"; do',
       '  case "$prev" in',
       '    --profile) profile="$a" ;;',
       '    --access-key-id) akid="$a" ;;',
       '    --status) status="$a" ;;',
+      '    --policy-name) pname="$a" ;;',
+      '    --policy-document) doc="$a" ;;',
       '  esac',
       `  case "$a" in *"Key=='"*) qkey="\${a#*Key==\\'}"; qkey="\${qkey%%\\'*}" ;; esac`,
       '  prev="$a"',
@@ -210,6 +212,21 @@ function awsStub(): string {
       `  list-user-tags) grep "^\${qkey}=" "$S/tags" | cut -d= -f2- ;;`,
       `  get-login-profile) [ -f "$S/login" ] || { echo NoSuchEntity >&2; exit 254; } ;;`,
       `  put-user-policy) : > "$S/policy" ;;`,
+      // The role's inline policies, kept by name. The read-back is answered
+      // from the document the run actually wrote, so a script that wrote the
+      // wrong cutoff or the wrong person is caught by its own proof; "readback"
+      // replaces the answer to prove the proof itself refuses.
+      '  put-role-policy)',
+      `    [ -f "$S/put-role-fails" ] && { echo "An error occurred (AccessDenied) when calling the PutRolePolicy operation" >&2; exit 254; }`,
+      `    printf '%s' "$doc" > "$S/role-policy-$pname" ;;`,
+      '  get-role-policy)',
+      `    [ -f "$S/role-policy-$pname" ] || { echo NoSuchEntity >&2; exit 254; }`,
+      `    [ -f "$S/readback" ] && { cat "$S/readback"; exit 0; }`,
+      `    d="$(cat "$S/role-policy-$pname")"`,
+      `    e="$(printf '%s' "$d" | sed -E 's/.*"Effect":"([^"]*)".*/\\1/')"`,
+      `    t="$(printf '%s' "$d" | sed -E 's/.*"aws:TokenIssueTime":"([^"]*)".*/\\1/')"`,
+      `    u="$(printf '%s' "$d" | sed -E 's/.*"aws:userid":"([^"]*)".*/\\1/')"`,
+      `    printf '%s\\t%s\\t%s\\n' "$e" "$t" "$u" ;;`,
       `  get-user-policy) [ -f "$S/policy" ] || { echo NoSuchEntity >&2; exit 254; } ;;`,
       `  delete-user-policy) rm -f "$S/policy" ;;`,
       '  list-access-keys)',
@@ -251,7 +268,7 @@ function awsStub(): string {
 function run(
   args: string[],
   account: Account = {},
-  opts: { valuesDir?: string; env?: NodeJS.ProcessEnv } = {},
+  opts: { env?: NodeJS.ProcessEnv } = {},
 ) {
   seed(account);
   const res = spawnSync('bash', [SCRIPT, ...args], {
@@ -268,11 +285,6 @@ function run(
       AWS_CONFIG_FILE: configFile,
       AWS_SHARED_CREDENTIALS_FILE: credFile,
       MANAGE_OPERATOR_AWS_BIN: awsStub(),
-      // The allow-list report reads the values tree. Pointed at one the test
-      // owns, so the assertion does not depend on whether this machine has a
-      // private checkout wired: without the override the default resolves to
-      // whatever the developer happens to have.
-      ...(opts.valuesDir ? { MANAGE_OPERATOR_VALUES_DIR: opts.valuesDir } : {}),
       ...(opts.env ?? {}),
     },
     ...SPAWN_GUARD,
@@ -300,7 +312,7 @@ function calls(): string[] {
 /** Every call that changes something, which is what a refusal must not reach. */
 function mutatingCalls(): string[] {
   return calls().filter((c) =>
-    /\b(create-user|delete-user|put-user-policy|delete-user-policy|create-access-key|update-access-key|delete-access-key|create-login-profile)\b/.test(
+    /\b(create-user|delete-user|put-user-policy|delete-user-policy|put-role-policy|create-access-key|update-access-key|delete-access-key|create-login-profile)\b/.test(
       c,
     ),
   );
@@ -460,6 +472,22 @@ describe('manage-human-operator.sh — onboarding a new operator', () => {
     const r = run(['--onboard', OPERATOR, '--yes'], { ...READY, login: true });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/has a console login profile/);
+  });
+
+  it('leaves the directly authenticated identity untouched, in AWS and on this machine', () => {
+    // A holder onboarding their own named identity runs this on the machine that
+    // holds the footbag-operator key. Their key and profile are byte-identical
+    // afterwards, and no IAM change names that user.
+    const operatorCred = '[footbag-operator]\naws_access_key_id = AKIAOPERATORFIXTURE0\naws_secret_access_key = operator-fixture-secret\n';
+    const operatorConfig = '[profile footbag-operator]\nregion = us-east-1\n';
+    writeFileSync(credFile, operatorCred, { mode: 0o600 });
+    writeFileSync(configFile, operatorConfig);
+    const r = run(['--onboard', OPERATOR, '--yes'], READY);
+    expect(r.status, r.stderr).toBe(0);
+    expect(credentials().startsWith(operatorCred)).toBe(true);
+    expect(config().startsWith(operatorConfig)).toBe(true);
+    expect(mutatingCalls().filter((c) => /--user-name footbag-operator\b/.test(c))).toEqual([]);
+    expect(mutatingCalls().filter((c) => !/--user-name /.test(c))).toEqual([]);
   });
 
   it('installs a fresh key into a credentials section named for the operator', () => {
@@ -779,77 +807,87 @@ describe('manage-human-operator.sh — offboarding', () => {
     expect(r.stderr).toMatch(/would still be allowed to assume/);
   });
 
-  it('states that a session already in flight is not revoked', () => {
+  function revokeDoc(): string {
+    const p = join(stateDir, `role-policy-revoke-sessions-${OPERATOR}`);
+    return existsSync(p) ? readFileSync(p, 'utf-8') : '';
+  }
+
+  it('ends the sessions the person already holds, and only theirs', () => {
+    // Removing the grant stops new sessions being minted, and a session issued
+    // before it stays valid until it expires, up to four hours. The role is
+    // told to refuse this person's sessions issued before now: a time
+    // comparison rather than a fixed date, scoped by the session name the trust
+    // policy forces to be the person's, so no other operator's session is cut.
     const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/stays valid until/);
+    expect(calls().some((c) => /put-role-policy --role-name FootbagDevTester --policy-name revoke-sessions-test_operator /.test(c))).toBe(true);
+    const doc = JSON.parse(revokeDoc());
+    expect(doc.Statement).toHaveLength(1);
+    const st = doc.Statement[0];
+    expect(st.Effect).toBe('Deny');
+    expect(st.Action).toBe('*');
+    expect(Object.keys(st.Condition).sort()).toEqual(['DateLessThan', 'StringLike']);
+    expect(st.Condition.DateLessThan['aws:TokenIssueTime']).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(st.Condition.StringLike['aws:userid']).toBe(`*:${OPERATOR}`);
+    expect(r.stdout).toMatch(/no\s+job-role session still working/);
   });
 
-  it('names the host-side step it cannot take, and prints the addresses on the list', () => {
-    // Retiring the identity does nothing about the departed operator's address
-    // on the SSH allow-list. Terraform owns that firewall and its values live
-    // in the private operations checkout, so the script cannot prune it — but
-    // an offboarding that never mentions it leaves a standing hole for an
-    // address nobody uses, and because nothing breaks, nobody notices.
-    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      mkdirSync(join(values, 'staging'), { recursive: true });
-      mkdirSync(join(values, 'production'), { recursive: true });
-      writeFileSync(
-        join(values, 'staging', 'terraform.tfvars'),
-        'operator_cidrs = [\n  "203.0.113.4/32", # departing operator\n  "198.51.100.9/32",\n]\n',
-        'utf-8',
-      );
-      writeFileSync(
-        join(values, 'production', 'terraform.tfvars'),
-        'operator_cidrs = [\n  "203.0.113.4/32",\n]\n',
-        'utf-8',
-      );
-      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/Still owed/);
-      // The access path this script does NOT end is the one that reaches a
-      // shell. An operator who ran only this and saw it succeed would have a
-      // departed colleague still holding a host account, their key on it, and
-      // their address through the firewall. Naming the one command that ends
-      // all of it, at the moment the gap opens, is the whole point of this
-      // block, so the command is asserted rather than the heading.
-      expect(r.stdout).toMatch(/bash scripts\/offboard-operator\.sh --target <env> --account test_operator/);
-      expect(r.stdout).toMatch(/for each environment/);
-      // The owed firewall act names the command that performs it rather than a
-      // values file to edit by hand, and it says that the list printed below it
-      // comes from that file rather than from the firewall, because those two
-      // disagree for exactly as long as an apply is pending.
-      expect(r.stdout).toMatch(/authorize-operator-address\.sh/);
-      expect(r.stdout).toMatch(/--remove/);
-      expect(r.stdout).toMatch(/read from the values file/);
-      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32 198\.51\.100\.9\/32/);
-      expect(r.stdout).toMatch(/production: 203\.0\.113\.4\/32/);
-    } finally {
-      rmSync(values, { recursive: true, force: true });
-    }
+  it('writes the revocation only after every proof has passed', () => {
+    // A run that failed a proof has not retired anybody, and denying the
+    // person's sessions at that point would be a half-finished state reported
+    // as nothing.
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    const order = calls();
+    const putAt = order.findIndex((c) => c.includes('put-role-policy'));
+    const simAt = order.findIndex((c) => c.includes('simulate-principal-policy'));
+    const loginAt = order.findIndex((c) => c.includes('get-login-profile'));
+    expect(simAt).toBeGreaterThanOrEqual(0);
+    expect(loginAt).toBeGreaterThanOrEqual(0);
+    expect(putAt).toBeGreaterThan(simAt);
+    expect(putAt).toBeGreaterThan(loginAt);
+
+    // A second run in the same account that fails a proof writes nothing more.
+    const r2 = run(['--offboard', OPERATOR, '--yes'], { ...ACTIVE, login: true });
+    expect(calls().filter((c) => c.includes('put-role-policy'))).toHaveLength(1);
+    expect(r2.status).toBe(1);
   });
 
-  it('does not repeat the host step when the one-command offboard is driving it', () => {
-    // The parent has just retired the host account and prints what a
-    // departure still owes, so a host step printed here would tell the
-    // operator to do again what has just been done.
-    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      mkdirSync(join(values, 'staging'), { recursive: true });
-      mkdirSync(join(values, 'production'), { recursive: true });
-      writeFileSync(join(values, 'staging', 'terraform.tfvars'), 'operator_cidrs = [\n  "203.0.113.4/32",\n]\n', 'utf-8');
-      writeFileSync(join(values, 'production', 'terraform.tfvars'), 'operator_cidrs = ["203.0.113.4/32"]\n', 'utf-8');
-      const r = run(['--offboard', OPERATOR, '--yes', '--driven-by-offboard'], ACTIVE, {
-        valuesDir: values,
-      });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).not.toMatch(/Still owed/);
-      expect(r.stdout).not.toMatch(/offboard-operator\.sh/);
-      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32/);
-    } finally {
-      rmSync(values, { recursive: true, force: true });
-    }
+  it('fails the run when the revocation cannot be written', () => {
+    writeFileSync(join(stateDir, 'put-role-fails'), '', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not write revoke-sessions-test_operator onto FootbagDevTester/);
+    expect(r.stdout).not.toMatch(/Done\./);
+  });
+
+  it('fails the run when the revocation does not read back as written', () => {
+    // The read-back is the proof. A cutoff or a person other than the one
+    // written would leave the sessions it was meant to end still working.
+    writeFileSync(join(stateDir, 'readback'), 'Deny\t2000-01-01T00:00:00Z\t*:somebody_else\n', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/does not read back as/);
+    expect(r.stdout).not.toMatch(/Done\./);
+  });
+
+  it('names the one command that ends the rest, when run on its own', () => {
+    // Retiring the AWS identity leaves the host account, the allow-list entry
+    // and the repository access. An operator who ran only this and saw it
+    // succeed would have a departed colleague still holding all three.
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Still owed/);
+    expect(r.stdout).toMatch(/bash scripts\/offboard-operator\.sh --target <env> --account test_operator/);
+    expect(r.stdout).toMatch(/--github-login/);
+    expect(r.stdout).not.toMatch(/terraform\.tfvars|values file/);
+  });
+
+  it('does not name that command when it is the one driving this run', () => {
+    const r = run(['--offboard', OPERATOR, '--yes', '--driven-by-offboard'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/Still owed/);
+    expect(r.stdout).not.toMatch(/offboard-operator\.sh/);
   });
 
   it('refuses to call the identity retired while a console sign-in survives', () => {
@@ -862,125 +900,6 @@ describe('manage-human-operator.sh — offboarding', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/still has a console login profile/);
     expect(r.stderr).toMatch(/survives both/);
-  });
-
-  it('reads the single-line form, which is the shape production actually uses', () => {
-    // The two values files are written differently, and only one of them was
-    // ever fixtured here. Production declares the list on one line, so its
-    // closing bracket is mid-line; the range this used to use ended on a line
-    // that was nothing but a bracket, never matched, and printed to the end of
-    // the file. On the real file that still yielded the right answer, because
-    // nothing else quoted in it happens to look like an address -- so the bug
-    // was invisible and one unrelated quoted literal away from reporting a
-    // stranger's address as an operator's.
-    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      mkdirSync(join(values, 'staging'), { recursive: true });
-      mkdirSync(join(values, 'production'), { recursive: true });
-      writeFileSync(
-        join(values, 'staging', 'terraform.tfvars'),
-        'operator_cidrs = ["203.0.113.4/32"]\n',
-        'utf-8',
-      );
-      // Everything after the list is what the old range swallowed. None of it
-      // is an allow-list entry and all of it is quoted.
-      writeFileSync(
-        join(values, 'production', 'terraform.tfvars'),
-        'operator_cidrs = ["203.0.113.4/32"]\n' +
-          'lightsail_origin_dns = "198.51.100.77.nip.io"\n' +
-          'alarm_topic_name     = "192.0.2.1"\n',
-        'utf-8',
-      );
-      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32\s*$/m);
-      expect(r.stdout).toMatch(/production: 203\.0\.113\.4\/32\s*$/m);
-      expect(r.stdout).not.toMatch(/198\.51\.100\.77/);
-      expect(r.stdout).not.toMatch(/192\.0\.2\.1/);
-    } finally {
-      rmSync(values, { recursive: true, force: true });
-    }
-  });
-
-  it('does not report a commented-out entry as a live one', () => {
-    // A retired address is often left in place as a comment rather than
-    // deleted, which is how the reason it was removed survives. Reporting it as
-    // live sends an operator to prune something that is already gone, and the
-    // next person to read the list trusts it less.
-    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      mkdirSync(join(values, 'staging'), { recursive: true });
-      mkdirSync(join(values, 'production'), { recursive: true });
-      const body =
-        'operator_cidrs = [\n' +
-        '  "203.0.113.4/32", # current\n' +
-        '  # "198.51.100.9/32", withdrawn 2026-08-01, kept for the reason\n' +
-        ']\n';
-      writeFileSync(join(values, 'staging', 'terraform.tfvars'), body, 'utf-8');
-      writeFileSync(join(values, 'production', 'terraform.tfvars'), body, 'utf-8');
-      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/staging: 203\.0\.113\.4\/32\s*$/m);
-      expect(r.stdout).not.toMatch(/198\.51\.100\.9/);
-    } finally {
-      rmSync(values, { recursive: true, force: true });
-    }
-  });
-
-  it('reports an IPv6 range rather than dropping it', () => {
-    // The old extraction matched a quoted run of digits, dots and slashes, so no
-    // IPv6 literal could match it at all. An operator on a v6 address was
-    // reported as absent from a list that carried them, which reads as "nothing
-    // to prune" on exactly the day that matters.
-    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      mkdirSync(join(values, 'staging'), { recursive: true });
-      mkdirSync(join(values, 'production'), { recursive: true });
-      const body = 'operator_cidrs = [\n  "2001:db8:abcd::/48",\n  "203.0.113.4/32",\n]\n';
-      writeFileSync(join(values, 'staging', 'terraform.tfvars'), body, 'utf-8');
-      writeFileSync(join(values, 'production', 'terraform.tfvars'), body, 'utf-8');
-      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/2001:db8:abcd::\/48/);
-      expect(r.stdout).toMatch(/203\.0\.113\.4\/32/);
-    } finally {
-      rmSync(values, { recursive: true, force: true });
-    }
-  });
-
-  it('completes rather than aborting when the allow-list is empty', () => {
-    // An empty list is a real answer and must not end the run. This sits after
-    // the grant and every key have already gone, so a non-zero exit here reports
-    // a completed revocation as a failure, and the turnover runbook then tells
-    // the operator not to record it as done.
-    const values = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      mkdirSync(join(values, 'staging'), { recursive: true });
-      mkdirSync(join(values, 'production'), { recursive: true });
-      writeFileSync(join(values, 'staging', 'terraform.tfvars'), 'operator_cidrs = [\n]\n', 'utf-8');
-      writeFileSync(join(values, 'production', 'terraform.tfvars'), 'operator_cidrs = [\n]\n', 'utf-8');
-      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: values });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/staging: no operator_cidrs found in the values file/);
-    } finally {
-      rmSync(values, { recursive: true, force: true });
-    }
-  });
-
-  it('says the current allow-list is unknown when it cannot read the values', () => {
-    // A values file that cannot be read must say so. Printing nothing would
-    // read as an empty allow-list, which is the opposite of the truth. This is
-    // the ordinary case on a workstation with no private checkout wired, where
-    // the values symlink dangles.
-    const empty = mkdtempSync(join(tmpdir(), 'footbag-test-operatorvalues-'));
-    try {
-      const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE, { valuesDir: empty });
-      expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toMatch(/staging: values file unreadable from here/);
-      expect(r.stdout).toMatch(/the current list is unknown/);
-    } finally {
-      rmSync(empty, { recursive: true, force: true });
-    }
   });
 
   it('refuses a user this script does not manage', () => {

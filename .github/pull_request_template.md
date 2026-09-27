@@ -11,11 +11,9 @@
 - [ ] Docs / schema
 - [ ] Refactor / chore
 
-## Governance category
+## IFPA matters
 
-- [ ] **Category A** — maintainer authority, no IFPA approval needed
-- [ ] **Category B** — touches IFPA rules, policy, or official data definitions;
-  requires IFPA Board approval before merge to `main`
+- [ ] Touches IFPA policy, rules, records, membership terms, or branding; approval noted below per GOVERNANCE.md
 
 ## Checklist
 
@@ -23,7 +21,6 @@
 - [ ] No new TypeScript type errors
 - [ ] Relevant docs updated if behaviour changed
 - [ ] No secrets, real member data, or generated artifacts committed
-- [ ] Category B changes target a `drafts/` branch, not `main`
 
 ## Notes
 

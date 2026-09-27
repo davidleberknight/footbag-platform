@@ -252,7 +252,8 @@ No finding is finalized while it rests on a guess. Work every drift through the 
 first; where they clearly determine the answer, act without asking. Where they do not, the
 question goes to the human BEFORE the report is finalized, one at a time, each self-contained
 with a recommendation derived from design intent (`.claude/rules/asking.md`). Classify each
-design-layer open decision by owner (project maintainer, IFPA board, legacy-site webmaster,
+design-layer open decision by owner (CTO (project maintainer), IFPA secretary, IFPA Board (bylaw
+votes only: funds account, dues and membership levels, election timing), legacy-site webmaster,
 technical design) so the right person is asked. Only when every question is answered, and the
 §2 success criteria have been walked as a literal checklist, does the plan get finalized: it
 presents the complete proposed `BUGS.md` content — new findings, corrected entries, removals
@@ -331,8 +332,8 @@ Per-finding structure:
 - **Location:** `src/<path>:<line>`, or the doc/rule/config section for design, doc, and
   harness findings; cite both the governing text and the code that exposes it when both exist
 - **Class:** <a REFERENCE.md §4.4.x / §4.4B.x, DESIGN.md, DOCSYNC.md, or HARNESS.md category>
-- **Owner:** <design/harness findings only: project maintainer | IFPA board | legacy-site
-  webmaster | technical design>
+- **Owner:** <design/harness findings only: CTO (project maintainer) | IFPA secretary |
+  IFPA Board (bylaw votes only) | legacy-site webmaster | technical design>
 - **Verification:** <how it was confirmed: path traced and refutation attempted;
   fresh-context adversarial second pass (required for security/correctness); mechanical
   re-check of quoted evidence (hygiene); rendered against the running app (visitor-facing)>

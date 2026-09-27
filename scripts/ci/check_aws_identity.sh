@@ -61,6 +61,10 @@ is_exempt() {
     # AWS_PROFILE to prove the pasted credential on its own. Supplying an
     # identity underneath it would be circular.
     scripts/install-operator-key.sh) return 0 ;;
+    # It creates a dev-and-tester's own profiles and proves each by naming it on
+    # the call, on a machine that holds no footbag-operator key to fall back to.
+    # Supplying an identity underneath it would be circular.
+    scripts/accept-dev-tester-delivery.sh) return 0 ;;
     # It requires an explicit profile and proves the chained runtime profiles
     # before cutting a key. A defaulted identity would let a rotation act on the
     # strength of the wrong credential.
@@ -74,6 +78,7 @@ is_exempt() {
     # Libraries invoked with the caller's own arguments. The caller is the run,
     # and the caller is what this gate holds to account.
     scripts/lib/iam-access-key.sh|scripts/lib/vendor-secret.sh) return 0 ;;
+    scripts/lib/iam-operator-user.sh) return 0 ;;
     scripts/lib/aws-identity.sh) return 0 ;;
     # It is the library this gate asks every other script to use.
     scripts/lib/aws-profile.sh) return 0 ;;

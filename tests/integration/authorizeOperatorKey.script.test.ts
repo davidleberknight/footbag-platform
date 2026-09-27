@@ -159,8 +159,8 @@ describe('authorize-operator-key.sh — invocation guards', () => {
   });
 
   it('refuses a key with nobody named against it', () => {
-    // A bootstrap key nobody is named against is an access nobody will think
-    // to withdraw.
+    // A key nobody is named against is an access nobody will think to
+    // withdraw.
     const r = runScript(args({ '--operator': '' }));
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/--operator is required/);
@@ -253,18 +253,19 @@ describe('authorize-operator-key.sh — what it says it is doing', () => {
     expect(source).not.toMatch(/openssl rand/);
   });
 
-  it('names the bootstrap as a loan and tells the operator to withdraw it', () => {
-    // A key left in a shared account means an action taken as that account
-    // could have been any of them, which is the attribution named accounts
-    // exist to create.
+  it('says only a holder key belongs on the shared account, and how it comes off', () => {
+    // The shared account is every holder's standing default route, so a key
+    // there stays while they hold footbag-operator and is withdrawn by name
+    // when they stop; firing a named identity deliberately never removes it.
     expect(source).toMatch(/--remove/);
-    expect(source).toMatch(/THEN COME BACK AND WITHDRAW THIS KEY/);
+    expect(source).toMatch(/for as long as they hold footbag-operator/);
+    expect(source).not.toMatch(/bootstrap/);
   });
 
-  it('hands the newcomer the self-service command, with --own-password', () => {
+  it('hands the new holder the self-service onboarding, with their own password', () => {
     // The point of the whole script: the only thing that travelled was a
     // public key, and they choose their own password.
-    expect(source).toMatch(/provision-operator-account\.sh/);
+    expect(source).toMatch(/onboard-operator\.sh/);
     expect(source).toMatch(/--own-password/);
   });
 

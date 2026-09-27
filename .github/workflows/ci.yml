@@ -202,11 +202,13 @@ jobs:
         # BeautifulSoup.
         run: python3 -m pip install -r legacy_data/requirements.txt
 
-      - name: Install ffmpeg + sqlite3
+      - name: Install ffmpeg + sqlite3 + age
         # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip. Without these the
-        # suites skip those cases and report green having executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3
+        # and the transcode parity cases encode a real clip. The sealed-delivery
+        # case seals a file with age and opens it with the key it was sealed to.
+        # Without these the suites skip those cases and report green having
+        # executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3 age
 
       - name: Install dependencies
         run: npm ci
@@ -239,11 +241,13 @@ jobs:
       - name: Install Python pipeline dependencies
         run: python3 -m pip install -r legacy_data/requirements.txt
 
-      - name: Install ffmpeg + sqlite3
+      - name: Install ffmpeg + sqlite3 + age
         # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip. Without these the
-        # suites skip those cases and report green having executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3
+        # and the transcode parity cases encode a real clip. The sealed-delivery
+        # case seals a file with age and opens it with the key it was sealed to.
+        # Without these the suites skip those cases and report green having
+        # executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3 age
 
       - name: Install dependencies
         run: npm ci

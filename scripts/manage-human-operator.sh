@@ -60,7 +60,8 @@
 #
 #   bash scripts/manage-human-operator.sh --offboard <operator_name>
 #     Removes the grant, then retires every key, then proves the identity can
-#     no longer reach the role. Leaves the user itself inert.
+#     no longer reach the role, then ends the job-role sessions they already
+#     hold. Leaves the user itself inert.
 #
 #   bash scripts/manage-human-operator.sh --verify <operator_name>
 #     Reads and reports. Changes nothing.
@@ -73,16 +74,12 @@
 #                      no terminal attached.
 #   --driven-by-offboard
 #                      Set by offboard-operator.sh, which has already retired the
-#                      host account and prints what a departure still owes, so
-#                      the host step is not printed again here.
+#                      host account and goes on to the rest of a departure, so
+#                      that command is not printed again here.
 #
 # Test seams (CI only; operators never set these):
 #   MANAGE_OPERATOR_AWS_BIN           replaces the aws CLI
 #   MANAGE_OPERATOR_STAGING_ROLE_ARN  the staging runtime role the chain ends at
-#   MANAGE_OPERATOR_VALUES_DIR        the values tree the offboard reads the SSH
-#                                     allow-list from, so a test owns that input
-#                                     rather than inheriting whichever private
-#                                     checkout the machine happens to have wired
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,6 +100,9 @@ source "${SCRIPT_DIR}/lib/aws-identity.sh"
 source "${SCRIPT_DIR}/lib/iam-access-key.sh"
 # shellcheck source=lib/aws-credentials-file.sh
 source "${SCRIPT_DIR}/lib/aws-credentials-file.sh"
+# The IAM user itself: ownership, the one grant, the retirement of old keys.
+# shellcheck source=lib/iam-operator-user.sh
+source "${SCRIPT_DIR}/lib/iam-operator-user.sh"
 # confirm_from_tty, and the unconditional assignment of ASSUME_YES that stops an
 # exported value in the operator's shell standing in for the typed word.
 # shellcheck source=lib/host-env-remote.sh
@@ -111,6 +111,7 @@ source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 AWS_BIN="${MANAGE_OPERATOR_AWS_BIN:-aws}"
 IAM_KEY_AWS_BIN="$AWS_BIN"
 AWS_IDENTITY_BIN="$AWS_BIN"
+IAM_OPERATOR_AWS_BIN="$AWS_BIN"
 
 # The identity that administers the others, and the one identity this script
 # will not act on.
@@ -127,27 +128,21 @@ AWS_IDENTITY_BIN="$AWS_BIN"
 # its own copy for that reason, and they are meant to stay copies.
 FOOTBAG_OPERATOR_USER="footbag-operator"
 
-# Canonical, and canonical in one place. The IAM path is what the job role's
-# trust policy matches on, so a user created outside it can hold the grant
-# below and still be refused by the role; the tags are what let a later run
-# prove a pre-existing user is one of ours before it modifies anything.
-OPERATOR_PATH="/footbag-operators/"
+# The path, the policy name and the tags are canonical in the IAM user library,
+# which the hire script shares; these are local names for them.
+OPERATOR_PATH="$IAM_OPERATOR_PATH"
 # The role, taken from the shared library so there is one spelling of it.
 DEV_TESTER_ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
-# The inline policy this script attaches to the user it creates. A policy name,
-# not the role's, though it is built from it.
-USER_POLICY_NAME="AssumeFootbagDevTester"
+USER_POLICY_NAME="$IAM_OPERATOR_POLICY_NAME"
 # Names of the profiles this script writes into the operator's AWS config.
 # Profiles, not principals: what they resolve to is proved further down, and
 # nothing here reads them to decide anything. Each is named for the principal it
 # reaches, so this one carries the role's own spelling.
 DEV_TESTER_PROFILE="$FOOTBAG_DEV_TESTER_PROFILE"
 STAGING_RUNTIME_PROFILE="footbag-staging-runtime"
-TAG_PROJECT="footbag"
-TAG_MANAGED_BY="manage-human-operator.sh"
-# A tag value recording what the user is for. Not the role's name, which is
-# DEV_TESTER_ROLE_NAME above.
-TAG_OPERATOR_ROLE="dev_tester"
+TAG_PROJECT="$IAM_OPERATOR_TAG_PROJECT"
+TAG_MANAGED_BY="$IAM_OPERATOR_TAG_MANAGED_BY"
+TAG_OPERATOR_ROLE="$IAM_OPERATOR_TAG_OPERATOR_ROLE"
 
 CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 CRED_FILE="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
@@ -155,8 +150,8 @@ CRED_FILE="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
 ACTION=""
 OPERATOR=""
 # Set only by offboard-operator.sh, which has already retired the host account
-# and prints the rest of what a departure owes. Its closing list then carries
-# everything, and this child does not print a host step that has just run.
+# and goes on to the rest of what a departure owes, so this child does not name
+# a command that is already running.
 DRIVEN_BY_OFFBOARD=0
 
 while [[ $# -gt 0 ]]; do
@@ -244,8 +239,7 @@ fi
 # available here is deleting a user that pre-dated the run. A person whose key
 # installation failed still has an identity, and the run that failed is not
 # entitled to take it away.
-CREATED_USER_THIS_RUN=0
-CREATED_POLICY_THIS_RUN=0
+# The user and its grant are tracked by the IAM user library, which undoes them.
 # none | created | replaced. Only `created` is undone: a section this run wrote
 # where none existed is ours to remove, and one it overwrote is not, because
 # what was there before is already gone and removing the rest leaves the
@@ -276,53 +270,22 @@ manage_operator_cleanup() {
     echo "install a working key; nothing else here needs undoing." >&2
   fi
 
-  if (( CREATED_POLICY_THIS_RUN )); then
-    echo "Removing the ${USER_POLICY_NAME} policy this run attached." >&2
-    "$AWS_BIN" iam delete-user-policy --user-name "$OPERATOR" \
-      --policy-name "$USER_POLICY_NAME" >/dev/null 2>&1 || true
-  fi
-
-  if (( CREATED_USER_THIS_RUN )); then
-    echo "Deleting the IAM user this run created: ${OPERATOR}." >&2
-    "$AWS_BIN" iam delete-user --user-name "$OPERATOR" >/dev/null 2>&1 || true
-  elif [[ "$ACTION" == "onboard" && -n "$OPERATOR" ]]; then
-    echo "The IAM user ${OPERATOR} pre-dated this run and is NOT being deleted." >&2
-    echo "Re-running the onboarding is safe." >&2
-  fi
+  iam_operator_undo
 
   # Idempotent, because a trapped INT does not terminate bash: the handler
   # runs, the next command fails under set -e, and EXIT runs it again. Each
   # branch has now had its say.
-  CREATED_USER_THIS_RUN=0
-  CREATED_POLICY_THIS_RUN=0
   MODIFIED_LOCAL_PROFILE_THIS_RUN="none"
   return 0
 }
 
 # ── Reads ────────────────────────────────────────────────────────────────────
 
-# Prints the user's IAM path, or nothing when the user does not exist. The exit
-# status distinguishes them: a read that could not be made and a user that is
-# absent are different answers and only one of them is the state of the account.
-user_path() {
-  "$AWS_BIN" iam get-user --user-name "$1" --query 'User.Path' --output text 2>/dev/null
-}
-
-user_tag() {
-  "$AWS_BIN" iam list-user-tags --user-name "$1" \
-    --query "Tags[?Key=='${2}'].Value" --output text 2>/dev/null || true
-}
-
-# Every access key the user holds, one `<id> <status> <created>` line each.
-user_keys() {
-  "$AWS_BIN" iam list-access-keys --user-name "$1" \
-    --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text 2>/dev/null || true
-}
-
-has_user_policy() {
-  "$AWS_BIN" iam get-user-policy --user-name "$1" \
-    --policy-name "$USER_POLICY_NAME" >/dev/null 2>&1
-}
+# The reads live in the IAM user library; these are this script's names for them.
+user_path() { iam_operator_path "$@"; }
+user_tag() { iam_operator_tag "$@"; }
+user_keys() { iam_operator_keys "$@"; }
+has_user_policy() { iam_operator_has_policy "$@"; }
 
 # Whether the user's own permissions would let it assume the role. Asked of the
 # policy simulator rather than by attempting the assume, because the caller
@@ -475,34 +438,16 @@ fi
 # ── onboard ──────────────────────────────────────────────────────────────────
 
 if [[ "$ACTION" == "onboard" ]]; then
-  FOUND_PATH="$(user_path "$OPERATOR" || true)"
-  USER_EXISTS=0
-  [[ -n "$FOUND_PATH" && "$FOUND_PATH" != "None" ]] && USER_EXISTS=1
-
   # A user of this name that this script did not create is somebody else's, and
   # the failure mode of adopting it is that a stranger's identity silently
-  # gains the ability to assume the job role. Ownership is proved from the path
-  # and all three tags together, because any one of them could be a
-  # coincidence and the set is what only this script writes.
-  if (( USER_EXISTS )); then
-    if [[ "$FOUND_PATH" != "$OPERATOR_PATH" ]] \
-       || [[ "$(user_tag "$OPERATOR" Project)" != "$TAG_PROJECT" ]] \
-       || [[ "$(user_tag "$OPERATOR" ManagedBy)" != "$TAG_MANAGED_BY" ]] \
-       || [[ "$(user_tag "$OPERATOR" OperatorRole)" != "$TAG_OPERATOR_ROLE" ]]; then
-      echo "REFUSING: an IAM user named ${OPERATOR} already exists and is not one" >&2
-      echo "          of ours: it sits at ${FOUND_PATH} and does not carry the" >&2
-      echo "          full set of ownership tags this script writes." >&2
-      echo "" >&2
-      echo "          Granting it the job role would hand somebody else's identity" >&2
-      echo "          access to this project. Pick a different operator name, or" >&2
-      echo "          establish what that user is for before going further." >&2
-      echo "          Nothing done." >&2
-      exit 1
-    fi
-    echo "    user:      exists and is managed here; restoring it"
-  else
-    echo "    user:      absent; it will be created"
-  fi
+  # gains the ability to assume the job role.
+  iam_operator_state "$OPERATOR"
+  USER_EXISTS=0
+  case "$IAM_OPERATOR_STATE" in
+    foreign) iam_operator_refuse_foreign "$OPERATOR"; exit 1 ;;
+    ours) USER_EXISTS=1; echo "    user:      exists and is managed here; restoring it" ;;
+    *) echo "    user:      absent; it will be created" ;;
+  esac
 
   # The role profile on this machine is written once, sourcing the operator it
   # was written for, and an existing one is left as it is. A workstation whose
@@ -565,63 +510,11 @@ if [[ "$ACTION" == "onboard" ]]; then
 
   trap manage_operator_cleanup EXIT INT TERM
 
-  if (( ! USER_EXISTS )); then
-    echo "==> Creating the IAM user"
-    "$AWS_BIN" iam create-user --user-name "$OPERATOR" --path "$OPERATOR_PATH" \
-      --tags "Key=Project,Value=${TAG_PROJECT}" \
-             "Key=ManagedBy,Value=${TAG_MANAGED_BY}" \
-             "Key=OperatorRole,Value=${TAG_OPERATOR_ROLE}" >/dev/null || {
-      echo "ERROR: could not create the IAM user ${OPERATOR}." >&2
-      exit 1
-    }
-    CREATED_USER_THIS_RUN=1
-    echo "    created under ${OPERATOR_PATH}"
-  fi
-
-  echo "==> Granting the one statement this identity carries"
-  POLICY_DOCUMENT="$(printf '%s' \
-    "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"${USER_POLICY_NAME}\"," \
-    "\"Effect\":\"Allow\",\"Action\":\"sts:AssumeRole\"," \
-    "\"Resource\":\"${DEV_TESTER_ROLE_ARN}\"}]}")"
-  "$AWS_BIN" iam put-user-policy --user-name "$OPERATOR" \
-    --policy-name "$USER_POLICY_NAME" \
-    --policy-document "$POLICY_DOCUMENT" >/dev/null || {
-    echo "ERROR: could not attach ${USER_POLICY_NAME} to ${OPERATOR}." >&2
-    exit 1
-  }
-  CREATED_POLICY_THIS_RUN=1
-  echo "    ${USER_POLICY_NAME}: sts:AssumeRole on ${DEV_TESTER_ROLE_ARN}"
-
-  # Asserted rather than assumed. Nothing above creates one, but a login profile
-  # arriving by any other route turns this identity into a console sign-in with
-  # no second factor, which is the shape this model exists to avoid.
-  if "$AWS_BIN" iam get-login-profile --user-name "$OPERATOR" >/dev/null 2>&1; then
-    echo "ERROR: ${OPERATOR} has a console login profile." >&2
-    echo "       These identities sign API calls and have no console sign-in by" >&2
-    echo "       design. Something else created it. Remove it and re-run." >&2
-    exit 1
-  fi
-  echo "    login profile: none, as intended"
-
   # A re-onboard mints a NEW key; it never reactivates a retired one. It is also
   # how a named operator's key is replaced: that key is never rotated, and one
-  # that is lost is reissued by onboarding them again. So every key the user
-  # already holds is retired first, an active one included, because a key that
-  # has been lost is still active until something retires it, and leaving it
-  # would leave a live credential in whoever's hands it went to.
-  while IFS=$'\t' read -r _id _status _rest; do
-    [[ -z "$_id" ]] && continue
-    if [[ "$_status" == "Active" ]]; then
-      echo "==> Retiring the key being replaced: ${_id}"
-      IAM_KEY_ALLOW_LAST=1 iam_key_retire "$OPERATOR" "$_id" deactivate || exit 1
-    else
-      echo "==> Clearing a retired key that is in the way: ${_id}"
-    fi
-    # Allowed to take the last one: a fresh key is minted immediately below, and
-    # the account's two-key limit would otherwise refuse an ordinary re-onboard.
-    IAM_KEY_ALLOW_LAST=1 iam_key_retire "$OPERATOR" "$_id" delete || exit 1
-  done <<< "$(user_keys "$OPERATOR")"
-  unset _id _status _rest
+  # that is lost is reissued by onboarding them again. So the library retires
+  # every key the user already holds first.
+  iam_operator_ensure "$OPERATOR" "$USER_EXISTS" "$DEV_TESTER_ROLE_ARN" || exit 1
 
   IAM_KEY_DELIVERY="install"
   IAM_KEY_AWS_ARGS=()
@@ -930,8 +823,6 @@ else
   done
   echo "    a real role session: refused, and this is what it said:"
   printf '%s\n' "$REAL_ASSUME" | sed 's/^/      /'
-  echo "    a session issued before now stays valid until it expires, and"
-  echo "      that is not something retiring the key can end"
 fi
 
 # Asserted here for the same reason onboarding asserts it at creation: nothing
@@ -948,94 +839,72 @@ if "$AWS_BIN" iam get-login-profile --user-name "$OPERATOR" >/dev/null 2>&1; the
 fi
 echo "    login profile: none"
 
-echo ""
-echo "Done. ${OPERATOR} is inert: no grant, no keys, no console sign-in, the user"
-echo "itself left for the trail to keep naming."
-echo ""
-echo "One thing this cannot do: a role session issued before now stays valid until"
-echo "it expires, which is up to four hours. Nothing revokes one already in flight."
-
-# What a departure still owes after this script. Driven by offboard-operator.sh,
-# the host account has just been retired and the parent prints the rest, so only
-# the allow-list listing is left to show. Run on its own, this script has ended
-# one of several access paths, and not the one that reaches a shell, so the host
-# step is named here at the moment the gap opens.
+# Sessions already issued. Removing the grant stops new sessions being minted;
+# it does not reach one somebody already holds, which stays valid until it
+# expires, up to the role's four hours. So the role itself is told to refuse
+# every session this person was issued before now: a named inline policy on the
+# role, the shape AWS's own "revoke active sessions" writes, narrowed to this
+# person's sessions by the session name the trust policy forces to be theirs.
+# Nobody else's session is touched, and a rehire's sessions are issued after the
+# cutoff and pass it; the next offboard of the same name rewrites the cutoff.
 #
-# The allow-list entries are printed rather than described, because an operator
-# who can see the list can see at a glance which line is theirs. A file that
-# cannot be read says so; it does not print nothing and let that read as an
-# empty list.
-echo ""
-if (( DRIVEN_BY_OFFBOARD )); then
-  echo "The SSH allow-list as last declared, to find ${OPERATOR}'s line in:"
-else
-  echo "Still owed, and none of it is something this script can do."
-  echo ""
-  echo "  1. The host account, on each environment they had one, and everything"
-  echo "     else a departure reaches: one command, run first, which retires the"
-  echo "     host account and then this identity, for each environment:"
-  echo "       < <the credential file your alias selects> \\"
-  echo "         bash scripts/offboard-operator.sh --target <env> --account ${OPERATOR}"
-  echo ""
-  echo "  2. ${OPERATOR}'s address is still on the SSH allow-list. One command per"
-  echo "     environment takes it off and proves it against the live firewall:"
-  echo ""
-  echo "       bash scripts/authorize-operator-address.sh --target staging \\"
-  echo "         --address <their-cidr> --remove"
-  echo "       bash scripts/authorize-operator-address.sh --target production \\"
-  echo "         --address <their-cidr> --remove"
-  echo ""
-  echo "     The list printed below is read from the values file, so it says what"
-  echo "     was last declared rather than what the firewall holds; the command"
-  echo "     above is what settles the difference."
+# Written here rather than in Terraform because it belongs to one departure and
+# revoking access must never wait on an apply. Terraform declares the role's job
+# policy by its own name and nothing that manages the whole set, so it neither
+# reports nor removes this one. The job role is denied writing to itself, so
+# only the identity running this can take it away.
+#
+# Last, after every proof, so a run that failed earlier has denied nobody.
+REVOKE_POLICY_NAME="revoke-sessions-${OPERATOR}"
+REVOKE_BEFORE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+REVOKE_USERID="*:${OPERATOR}"
+printf -v REVOKE_DOC '%s' \
+  '{"Version":"2012-10-17","Statement":[{"Sid":"RevokeSessionsIssuedBeforeOffboard",' \
+  '"Effect":"Deny","Action":"*","Resource":"*","Condition":{' \
+  '"DateLessThan":{"aws:TokenIssueTime":"'"$REVOKE_BEFORE"'"},' \
+  '"StringLike":{"aws:userid":"'"$REVOKE_USERID"'"}}}]}'
+echo "==> Ending the sessions ${OPERATOR} already holds"
+if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
+    --policy-name "$REVOKE_POLICY_NAME" --policy-document "$REVOKE_DOC" >/dev/null; then
+  echo "ERROR: could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}." >&2
+  echo "       The grant and the keys are gone, so no new session can be minted," >&2
+  echo "       but one issued before now still works until it expires. Re-run" >&2
+  echo "       this offboard: every step before this one finds its work done." >&2
+  exit 1
 fi
-# The values tree, overridable so a test can own this input rather than
-# inheriting whichever private checkout the machine happens to have wired. A
-# workstation with no private checkout gets a dangling symlink here, which is
-# the same unreadable case, and it must report "unknown" rather than print
-# nothing and let that read as an empty allow-list.
-VALUES_DIR="${MANAGE_OPERATOR_VALUES_DIR:-${SCRIPT_DIR}/../terraform}"
-for cidr_env in staging production; do
-  cidr_file="${VALUES_DIR}/${cidr_env}/terraform.tfvars"
-  if [[ -r "$cidr_file" ]]; then
-    # `|| true` on the grep alone, not on the whole pipeline. Under pipefail a
-    # grep that matches nothing exits 1 and takes the assignment, and with set -e
-    # that aborts the run -- here, after the grant and every key have already
-    # gone, so a completed revocation reports as a failure. Tolerating only the
-    # no-match exit keeps a genuinely failed read failing: an empty allow-list is
-    # a real answer, an unreadable file is not, and the branch above already
-    # separated them.
-    # Read in four steps rather than one range, because the one range was wrong
-    # in three ways and right on this machine by luck.
-    #
-    #   1. From the declaration to the end of the file. The range that used to
-    #      stand here ended on /^]$/, which the multi-line staging form happens
-    #      to have and the single-line production form -- operator_cidrs =
-    #      ["203.0.113.1/32"] -- does not, because its bracket is mid-line. The
-    #      end pattern therefore never matched and sed printed to EOF: 159 lines
-    #      of production's values file, of which the extraction below then kept
-    #      whatever looked like an address. It printed the right answer only
-    #      because nothing else quoted in that file happens to look like one.
-    #   2. Strip comments first, so a retired entry left in place as a comment
-    #      is not reported as a live one, and so a `]` inside a comment cannot
-    #      end the list early in step 3.
-    #   3. Stop at the first closing bracket, which both forms have. Doing this
-    #      after step 2 is what makes it safe.
-    #   4. Take every quoted string, not every quoted run of digits, dots and
-    #      slashes. The old character class could not match an IPv6 literal at
-    #      all, so an operator whose address was v6 was reported as absent from
-    #      a list that carried them -- the failure direction that reads as
-    #      "nothing to prune" on a departure.
-    cidr_list="$(sed -n '/^operator_cidrs[[:space:]]*=/,$p' "$cidr_file" \
-      | sed -E 's/#.*$//' \
-      | sed -e '/\]/q' \
-      | { grep -oE '"[^"]+"' || true; } | tr -d '"' | tr '\n' ' ')"
-    if [[ -n "$cidr_list" ]]; then
-      echo "    ${cidr_env}: ${cidr_list}"
-    else
-      echo "    ${cidr_env}: no operator_cidrs found in the values file"
-    fi
-  else
-    echo "    ${cidr_env}: values file unreadable from here, so the current list is unknown"
-  fi
-done
+REVOKE_READ="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
+  --policy-name "$REVOKE_POLICY_NAME" \
+  --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
+  --output text 2>/dev/null || true)"
+if [[ "$REVOKE_READ" != "Deny"$'\t'"${REVOKE_BEFORE}"$'\t'"${REVOKE_USERID}" ]]; then
+  echo "ERROR: ${REVOKE_POLICY_NAME} on ${DEV_TESTER_ROLE_NAME} does not read back as" >&2
+  echo "       written. It reads:" >&2
+  printf '%s\n' "${REVOKE_READ:-<nothing>}" | sed 's/^/         /' >&2
+  echo "       Until it does, a session issued before now still works. Re-run this" >&2
+  echo "       offboard." >&2
+  exit 1
+fi
+echo "    ${REVOKE_POLICY_NAME}: every ${DEV_TESTER_ROLE_NAME} session of ${OPERATOR}'s"
+echo "      issued before ${REVOKE_BEFORE} is refused"
+
+echo ""
+echo "Done. ${OPERATOR} is inert: no grant, no keys, no console sign-in, and no"
+echo "job-role session still working. The user itself is left for the trail to keep"
+echo "naming."
+echo ""
+echo "One thing no policy on the job role reaches: a staging runtime session they"
+echo "chained from one of their job-role sessions before now. It carries no name of"
+echo "theirs to refuse it by, and AWS ends a chained session within the hour."
+
+# Run on its own, this script has ended one of several access paths, and not the
+# one that reaches a shell, so the command that ends all of them is named here at
+# the moment the gap opens. Driven by offboard-operator.sh, that command is the
+# one running and it goes on to the rest.
+if (( ! DRIVEN_BY_OFFBOARD )); then
+  echo ""
+  echo "Still owed: the host account, the address on the SSH allow-list and the"
+  echo "repository access. One command ends all of them, for each environment:"
+  echo "  < <the credential file your alias selects> \\"
+  echo "    bash scripts/offboard-operator.sh --target <env> --account ${OPERATOR} \\"
+  echo "      --github-login <their GitHub login, or none>"
+fi

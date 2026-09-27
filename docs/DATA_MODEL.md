@@ -1648,7 +1648,7 @@ When the application explicitly deletes a media item or gallery and wants to rec
 
 Admin grant/revoke is application-only logic:
 1. **Target-member prerequisite:** only members whose effective tier is `tier2` or `tier3` may receive `is_admin = 1` (US §1.2, §6.6 A_Manage_Admin_Role).
-2. **Who may grant/revoke:** only existing admins and IFPA Board actors (`is_board = 1`, Tier 3) may manage admin roles. Bootstrap exception: the initial system administrator may appoint the first admin during first-run setup.
+2. **Who may grant/revoke:** only existing admins may manage admin roles. Bootstrap exception: the initial system administrator may appoint the first admin during first-run setup.
 3. **Anti-lockout:** the last admin may not have `is_admin` removed. Validate before the update.
 4. **Mailing list side effect:** write `mailing_list_subscriptions` changes for admin-alert lists in the same transaction as `is_admin` changes.
 5. All admin role changes must be audit-logged.

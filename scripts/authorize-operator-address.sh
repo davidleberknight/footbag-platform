@@ -61,12 +61,19 @@
 #     --address 203.0.113.7/32 --for '<account>; <where>'
 #   bash scripts/authorize-operator-address.sh --target staging \
 #     --address 203.0.113.7/32 --remove
+#   bash scripts/authorize-operator-address.sh --target staging \
+#     --list-for <account>
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default
 #   --address <cidr>               the address, with or without a /32
 #   --for <who>                    whose address it is; required to add one
 #   --remove                       take it off instead of putting it on
+#   --list-for <account>           print, one per line, each address whose
+#                                  attribution names that account first, as an
+#                                  add writes it ('<account>; <where>'). Reads
+#                                  the values file only and changes nothing; it
+#                                  is how offboarding finds what to remove
 #   --yes                          accept the typed confirmation in advance
 #                                  (staging only)
 #   -h, --help                     this text
@@ -117,6 +124,7 @@ TARGET=""
 ADDRESS_RAW=""
 ATTRIBUTION=""
 REMOVE=0
+LIST_FOR=""
 
 # A flag's value never starts with a double dash. Taking one as the value
 # swallows the next flag: `--for --yes` would attribute an address to "--yes"
@@ -134,6 +142,7 @@ while (( $# )); do
     --address) flag_value "$1" "${2:-}"; ADDRESS_RAW="$2"; shift 2 ;;
     --for) flag_value "$1" "${2:-}"; ATTRIBUTION="$2"; shift 2 ;;
     --remove) REMOVE=1; shift ;;
+    --list-for) flag_value "$1" "${2:-}"; LIST_FOR="$2"; shift 2 ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage 2 ;;
@@ -141,6 +150,17 @@ while (( $# )); do
 done
 
 require_target "$TARGET" staging production || exit 2
+
+if [[ -n "$LIST_FOR" ]]; then
+  if [[ -n "$ADDRESS_RAW" || -n "$ATTRIBUTION" ]] || (( REMOVE )); then
+    echo "ERROR: --list-for only reads, and takes no --address, --for or --remove." >&2
+    exit 2
+  fi
+  if [[ ! "$LIST_FOR" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ ]]; then
+    echo "ERROR: '${LIST_FOR}' is not an account name (firstname_lastname)." >&2
+    exit 2
+  fi
+fi
 
 if [[ "$TARGET" == "production" && "$ASSUME_YES" == "yes" ]]; then
   echo "ERROR: --yes does not carry a production change. The apply asks at the" >&2
@@ -195,19 +215,22 @@ canonical_cidr() {
   return 0
 }
 
-if [[ -z "$ADDRESS_RAW" ]]; then
-  echo "ERROR: --address names the address to authorize or remove." >&2
-  exit 2
+ADDRESS=""
+if [[ -z "$LIST_FOR" ]]; then
+  if [[ -z "$ADDRESS_RAW" ]]; then
+    echo "ERROR: --address names the address to authorize or remove." >&2
+    exit 2
+  fi
+  if ! WHY="$(canonical_cidr "$ADDRESS_RAW")"; then
+    echo "ERROR: ${WHY}" >&2
+    echo "       A range that is wider than you meant admits more than you meant." >&2
+    exit 2
+  fi
+  canonical_cidr "$ADDRESS_RAW" >/dev/null
+  ADDRESS="$CANON"
 fi
-if ! WHY="$(canonical_cidr "$ADDRESS_RAW")"; then
-  echo "ERROR: ${WHY}" >&2
-  echo "       A range that is wider than you meant admits more than you meant." >&2
-  exit 2
-fi
-canonical_cidr "$ADDRESS_RAW" >/dev/null
-ADDRESS="$CANON"
 
-if (( ! REMOVE )); then
+if [[ -z "$LIST_FOR" ]] && (( ! REMOVE )); then
   ATTRIBUTION="${ATTRIBUTION#\#}"
   ATTRIBUTION="${ATTRIBUTION#"${ATTRIBUTION%%[![:space:]]*}"}"
   if [[ -z "$ATTRIBUTION" ]]; then
@@ -241,7 +264,10 @@ fi
 
 # ── The identity ─────────────────────────────────────────────────────────────
 
-if [[ "$TARGET" == "production" ]]; then
+# A listing reads the values file and nothing else, so it asks no identity.
+if [[ -n "$LIST_FOR" ]]; then
+  :
+elif [[ "$TARGET" == "production" ]]; then
   aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
     "The job role is denied production's firewall, so only the directly authenticated identity can change it." \
     || exit 1
@@ -399,6 +425,17 @@ for i in "${!E_CANON[@]}"; do
     echo "    is that every entry says whose it is; attribute or remove it by hand." >&2
   fi
 done
+
+# The listing: every entry whose attribution names the account first, exactly
+# as an add writes it. Matched on the account name followed by the separator,
+# so jane_doe does not match jane_doe_smith, and a first name alone ("Jane;")
+# matches nobody's account.
+if [[ -n "$LIST_FOR" ]]; then
+  for i in "${!E_CANON[@]}"; do
+    [[ "${E_NOTE[$i]}" =~ ^#[[:space:]]*"${LIST_FOR}"[[:space:]]*\; ]] && printf '%s\n' "${E_CANON[$i]}"
+  done
+  exit 0
+fi
 
 FILE_MATCHES=()
 for i in "${!E_CANON[@]}"; do

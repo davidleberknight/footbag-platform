@@ -19,13 +19,9 @@
 #   OPACC_ACCOUNT       the Linux account name
 #   OPACC_OPERATOR      who it belongs to, for the comment field
 #   OPACC_KEY_LINE      their SSH public key line (create and rotate)
-#   OPACC_PASSWORD      the sudo password to set (create and rotate). Empty when
-#                       OPACC_SET_PASSWORD is no.
-#   OPACC_SET_PASSWORD  yes | no. No is the key-only rotation: reinstall the key
-#                       and leave the existing password untouched. The caller
-#                       sends the decision rather than this half inferring it
-#                       from an empty password, which would make an accidental
-#                       empty value look like a deliberate choice.
+#   OPACC_PASSWORD      the sudo password to set (create and rotate). Always
+#                       set: a lost key is fired and rehired, never swapped in
+#                       place under the password its owner already had.
 #   OPACC_SHARED_ACCOUNT  the shared break-glass account's name (create, rotate
 #                       and offboard). Sent rather than assumed, and a run that
 #                       needs it and did not receive it refuses: the checks that
@@ -253,9 +249,8 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
       echo "       Offboarding sweeps it off every account, ${OPACC_SHARED_ACCOUNT}" >&2
       echo "       included, so whoever reaches ${OPACC_SHARED_ACCOUNT} with it would" >&2
       echo "       lose that way in too. Resolve it first, then re-run:" >&2
-      echo "         - a footbag-operator holder's own key: give ${OPACC_ACCOUNT} a key" >&2
-      echo "           pair of its own with provision-operator-account.sh --rotate --key-only," >&2
-      echo "           run from a workstation whose alias connects as ${OPACC_SHARED_ACCOUNT}" >&2
+      echo "         - a footbag-operator holder's own key: run onboard-operator.sh again," >&2
+      echo "           which gives ${OPACC_ACCOUNT} a key pair of its own" >&2
       echo "         - a key that never belonged on ${OPACC_SHARED_ACCOUNT}: remove it from" >&2
       echo "           there deliberately with authorize-operator-key.sh --remove" >&2
       echo "       Nothing done." >&2
@@ -501,12 +496,9 @@ if [[ -z "$OPACC_KEY_LINE" ]]; then
   echo "ERROR: ${OPACC_MODE} needs a key line in the pipe." >&2
   exit 2
 fi
-# A password is required whenever one is to be set, which is every create and
-# every rotation except the key-only one. The key-only rotation sends an empty
-# password on purpose, with OPACC_SET_PASSWORD=no, and must not be refused for
-# lacking the value it deliberately does not carry.
-if [[ "${OPACC_SET_PASSWORD:-yes}" == "yes" || "$OPACC_MODE" == "create" ]] \
-   && [[ -z "$OPACC_PASSWORD" ]]; then
+# Every create and every rotation sets a password, so an empty one is refused
+# rather than set: an account with none accepts the key and refuses every sudo.
+if [[ -z "$OPACC_PASSWORD" ]]; then
   echo "ERROR: ${OPACC_MODE} needs a password in the pipe." >&2
   exit 2
 fi
@@ -687,18 +679,6 @@ printf '%s\n' "$OPACC_KEY_LINE" \
   | install_via_tmp "${HOME_DIR}/.ssh/authorized_keys" 600 "$OPACC_ACCOUNT" "$PRIMARY_GROUP"
 echo "  Installed authorized_keys."
 
-# A key-only rotation replaces the authorized key and touches nothing else. It
-# exists because the two credentials fail independently: a lost or compromised
-# private key says nothing about the password, and making somebody take a new
-# password to replace a key is a cost with no security content. It also has a
-# property the ordinary rotation does not -- the operator's standing password
-# survives, so there is no one-time value to hand over and no first-login
-# ceremony. Their vault entry still changes, because the fingerprint in it is
-# now wrong, which is why the caller still demands VAULTED.
-if [[ "${OPACC_SET_PASSWORD:-yes}" != "yes" ]]; then
-  echo "  Key replaced; the password was not touched."
-else
-
 # The password travels in a pipe. `chpasswd` takes it on stdin precisely so it
 # never has to appear on a command line.
 printf '%s:%s\n' "$OPACC_ACCOUNT" "$OPACC_PASSWORD" | chpasswd
@@ -725,7 +705,6 @@ else
   # depending on a change prompt appearing at the right moment -- on a host
   # where they may be the only person able to log in at all.
   echo "  Set the password the operator chose; it is theirs and does not expire."
-fi
 fi
 
 # ── Verify the outcome, not the invocation ───────────────────────────────────
@@ -767,16 +746,7 @@ case "$PW_STATUS" in
     # mode that failure used to reach a cleanup branch that deleted it.
     PW_CHANGED="$(LC_ALL=C chage -l -- "$OPACC_ACCOUNT" 2>/dev/null \
       | sed -n 's/^Last password change[^:]*: *//p')"
-    if [[ "${OPACC_SET_PASSWORD:-yes}" != "yes" ]]; then
-      # Nothing was set, so neither assertion below applies: whether this
-      # password is expired is the operator's own business and was already
-      # decided before this run. Asserting either way would fail a correct
-      # key-only rotation against an account whose owner has never logged in.
-      # The usable status above is still checked, because it proves the key
-      # swap did not leave an account that accepts the new key and then
-      # refuses every sudo.
-      echo "  OK   password untouched by this run, as --key-only requires"
-    elif [[ "${OPACC_EXPIRE_PASSWORD:-yes}" == "yes" ]]; then
+    if [[ "${OPACC_EXPIRE_PASSWORD:-yes}" == "yes" ]]; then
       if [[ "$PW_CHANGED" == "password must be changed" ]]; then
         echo "  OK   password expired on set, so first login must replace it"
       else

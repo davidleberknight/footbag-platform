@@ -34,7 +34,8 @@
  * The SSH client's configuration is the surface `HOME` does not reach, and it
  * cost three red pushes to find. Sixteen operator scripts refuse to run unless
  * the deploy alias resolves, and they ask the question by running `ssh -G`,
- * which reads the system-wide configuration as well as the one under `HOME`. On
+ * which reads the system-wide configuration as well as the user's own, found
+ * through the password database rather than through `HOME`. On
  * a maintainer's workstation the alias resolves and the script proceeds; on a
  * runner nothing defines it and the script exits at the guard, so two cases
  * asserting what the script says afterwards passed here and failed there. An

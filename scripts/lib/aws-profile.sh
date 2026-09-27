@@ -98,9 +98,9 @@ FOOTBAG_OPERATOR_PROFILE="${FOOTBAG_OPERATOR_PROFILE:-footbag-operator}"
 # here: a profile is named for the principal it reaches, so the two holding a
 # user's key are named for those users and this one is named for the role.
 #
-# Tried second by aws_profile_ensure, which fills a vacuum for ordinary work and
-# proves whatever it settles on. That order is not a statement about who owns
-# the machine: one workstation can carry every profile named in this file.
+# Never supplied by aws_profile_ensure: a run reaches it only when the wrapper
+# scripts/as-dev-tester.sh settles on it by name. One workstation can carry
+# every profile named in this file.
 FOOTBAG_DEV_TESTER_PROFILE="${FOOTBAG_DEV_TESTER_PROFILE:-FootbagDevTester}"
 
 # Both profile names above can be replaced from the environment, which is how
@@ -286,20 +286,28 @@ aws_profile_ensure() {
 
   aws_profile_note_stub
 
-  # Two profile names, tried in a fixed order, filling a vacuum for work that
-  # does not care which identity it runs as. The order is not a claim about who
-  # owns the machine and nothing downstream may read it as one: whichever
-  # profile is settled on, the ARN behind it is proved below and printed, and
-  # that proof is the only statement of identity this function makes.
+  # One profile name fills the vacuum: the directly authenticated identity,
+  # which is the default for every run. Reaching it without an exported
+  # variable is the whole point of the file: a name an operator has to remember
+  # to give in every shell is the step this exists to remove. Whichever profile
+  # is settled on, the ARN behind it is proved below and printed, and that
+  # proof is the only statement of identity this function makes.
   #
-  # Reaching a profile by this fallback rather than by an exported variable is
-  # the whole point of the file: a name an operator has to remember to give in
-  # every shell is the step this exists to remove.
+  # The role-assuming profile is never supplied here, even on a machine that
+  # carries nothing else. A named identity is chosen only by the wrapper's
+  # switch, which also puts the host half on the named account; a run reaching
+  # the role without it would act as the person on AWS and as the shared
+  # account on the host. So a dev-and-tester's machine, which holds only their
+  # own key, has no identity outside the wrapper, and the refusal names it.
   local supplied=""
   if aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
     supplied="$FOOTBAG_OPERATOR_PROFILE"
   elif aws_profile_exists "$FOOTBAG_DEV_TESTER_PROFILE"; then
-    supplied="$FOOTBAG_DEV_TESTER_PROFILE"
+    echo "ERROR: this machine has no '${FOOTBAG_OPERATOR_PROFILE}' profile, and a named" >&2
+    echo "       identity is never chosen automatically. Run the command through" >&2
+    echo "       the switch that names you:" >&2
+    echo "         bash scripts/as-dev-tester.sh --account <your_name> <command>" >&2
+    return 1
   fi
 
   if [[ -z "$supplied" ]]; then
@@ -313,8 +321,9 @@ aws_profile_ensure() {
     echo "       key there and there is no other copy of it anywhere. A" >&2
     echo "       footbag-operator holder onboarding themselves runs:" >&2
     echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
-    echo "       A dev-and-tester's are delivered by a process that is designed and" >&2
-    echo "       not yet built." >&2
+    echo "       A dev-and-tester's arrive sealed from the holder who hired them and" >&2
+    echo "       are written by:" >&2
+    echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
     echo "" >&2
     echo "       For the directly authenticated key, install it from the vault" >&2
     echo "       entry aws-footbag-operator-keys:" >&2
@@ -392,8 +401,9 @@ aws_profile_use() {
       echo "       only on the machine of the person whose key it chains from. A" >&2
       echo "       footbag-operator holder onboarding themselves runs:" >&2
       echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
-      echo "       A dev-and-tester's is delivered by a process that is designed and" >&2
-      echo "       not yet built." >&2
+      echo "       A dev-and-tester's arrives sealed from the holder who hired them and" >&2
+      echo "       is written by:" >&2
+      echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
     else
       echo "       That is a chained runtime section. The onboarding writes the" >&2
       echo "       staging one for a named operator; the key install writes both" >&2

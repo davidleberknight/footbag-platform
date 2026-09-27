@@ -20,7 +20,7 @@
  *     which erasure shape applies (full purge for soft-deleted accounts,
  *     contact scrub for deceased ones), plus anonymizing payments past the
  *     compliance-retention window (ballots are out of scope: destroying IFPA
- *     vote records is an IFPA governance decision, not an operator job), plus
+ *     vote records is the IFPA secretary's decision, not an operator job), plus
  *     deleting delivered outbox copies past the outbound-copy retention window
  *
  * Does not own:
@@ -113,7 +113,7 @@ export interface PiiPurgeScanResult {
   // Payment records past the compliance-retention window get their
   // member-linking PII anonymized (the financial record is kept). Ballots are
   // not in scope: their retention is a preserve-only window, and destruction of
-  // IFPA vote records is an IFPA governance decision, not an operator job.
+  // IFPA vote records is the IFPA secretary's decision, not an operator job.
   payments: {
     eligible: number;
     anonymized: number;
@@ -839,7 +839,7 @@ export class OperationsPlatformService {
    * the donor's note, which is the gift's own meaning rather than a link to the
    * donor), idempotent via the member_id-not-null marker. Vote ballots are deliberately not
    * touched: their retention window only permits cleanup, and destroying IFPA
-   * vote records is an IFPA governance decision rather than an operator job.
+   * vote records is the IFPA secretary's decision rather than an operator job.
    *
    * A fourth branch deletes per-recipient outbox copies past
    * `outbox_retention_days`. Each is one message to one recipient, holding that

@@ -12,11 +12,11 @@
 # the default for every run, and nothing here changes that. What has been
 # missing is any supported way to deliberately be the role for one command.
 #
-# Without it the shared library fills an empty shell by trying the
-# `footbag-operator` profile first and the role-assuming profile second, so on a
-# workstation that carries both -- which is every onboarded `footbag-operator`
-# holder's workstation -- every command authenticates as the IAM user
-# `footbag-operator`. It succeeds. It changes what
+# Without it the shared library fills an empty shell with the
+# `footbag-operator` profile and never with the role-assuming one, so on a
+# `footbag-operator` holder's workstation every command authenticates as the
+# IAM user `footbag-operator`, and on a dev-and-tester's, which carries no such
+# profile, a command has no identity at all and is refused. The first succeeds. It changes what
 # it was told to change. And it demonstrates nothing at all about what the role
 # is permitted to do, which is the entire question the role exists to answer. A
 # failure that looks like success is not something to guard with a reminder in a

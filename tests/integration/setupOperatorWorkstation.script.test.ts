@@ -355,17 +355,41 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
 // the problem: a runbook handing somebody a raw ssh is the defect, and the answer
 // is to remove the raw ssh.
 describe('the alias itself must be pinned, not only the deploy scripts', () => {
-  it('inspects no host-key setting on the alias, and touches no ssh config', () => {
+  it('inspects no host-key setting on the alias, and puts none into ssh config', () => {
     // The absence is the contract. Nothing here reads UserKnownHostsFile or
-    // StrictHostKeyChecking off the alias, and nothing writes to ~/.ssh/config,
-    // because the pin travels with the scripts rather than with the operator's
+    // StrictHostKeyChecking off the alias, and the one thing ever written to
+    // ~/.ssh/config is a missing alias stanza, which carries neither, because
+    // the pin travels with the scripts rather than with the operator's
     // configuration.
     const src = readFileSync(SCRIPT, 'utf-8');
     expect(src).not.toMatch(/userknownhostsfile/i);
     expect(src).not.toMatch(/stricthostkeychecking/i);
-    // Naming the file in a message is fine; writing to it is not. What this
-    // forbids is a redirection into it, which is how the removed code worked.
-    expect(src).not.toMatch(/>>?\s*"?\$?\{?[^"\s]*\.ssh\/config/);
+    const stanzaLib = readFileSync(join(process.cwd(), 'scripts/lib/ssh-alias.sh'), 'utf-8');
+    expect(stanzaLib).not.toMatch(/userknownhostsfile|stricthostkeychecking/i);
+  });
+
+  it('writes the ssh config only for a missing stanza, through the library, after a typed APPLY', () => {
+    const src = readFileSync(SCRIPT, 'utf-8');
+    const writes = src.split('\n').filter((l) => /cat "\$STANZA_TMP" > "\$SSH_CONFIG_FILE"/.test(l));
+    expect(writes).toHaveLength(1);
+    const block = src.slice(src.indexOf('ssh_alias_add_stanza "$SSH_CONFIG_FILE"'), src.indexOf('cat "$STANZA_TMP" > "$SSH_CONFIG_FILE"'));
+    expect(block).toMatch(/confirm_from_tty "  Type 'APPLY' to add it: " "APPLY"/);
+    expect(block).toMatch(/diff -u/);
+  });
+
+  it('writes no stanza under --check, and says what running without it does', () => {
+    const r = run(['--target', 'staging', '--check'], stubSshOnPath(['hostname footbag-staging', 'user nobody', 'port 22']));
+    expect(r.stderr).toMatch(/footbag-staging does not resolve — run this without --check and it writes the stanza/);
+    expect(existsSync(join(fakeHome, '.ssh', 'config'))).toBe(false);
+  });
+
+  it('checks for age, which seals and opens a dev-and-tester delivery', () => {
+    const binDir = join(fakeHome, 'agebin');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, 'age'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(binDir, 'age'), 0o755);
+    const r = run(['--target', 'staging', '--check'], { PATH: `${binDir}:${process.env.PATH ?? ''}` });
+    expect(r.stdout).toMatch(/\[ok\]\s+age\b/);
   });
 
   it('proves the login and the sudo password over a pinned connection instead', () => {
@@ -523,6 +547,22 @@ describe('the AWS identity is proved, not listed', () => {
     expect(all).toMatch(/assume-role permission on whichever principal it sources from/);
   });
 
+  // A machine carrying only a named operator's own key has no identity outside
+  // the wrapper, which settles the run on the role-assuming profile by setting
+  // it for the command. These cases run the check the way that machine runs
+  // it: through the wrapper.
+  const AS_WRAPPED = { AWS_PROFILE: 'FootbagDevTester' };
+
+  it('has no identity on such a machine outside the wrapper, and names the switch', () => {
+    const env = stubAwsOnPath({
+      profiles: ['FootbagDevTester'],
+      identities: { 'FootbagDevTester': DEV_TESTER_ROLE_ARN },
+    });
+    const all = output(run(['--target', 'staging', '--check'], env));
+    expect(all).toMatch(/bash scripts\/as-dev-tester\.sh --account/);
+    expect(all).toMatch(/\[TODO\][^\n]*AWS identity/);
+  });
+
   it('raises no verdict on a missing runtime chain, which it cannot rule on', () => {
     // Whether an absent chain is a gap follows from whose key the machine is
     // meant to hold, and nothing on the machine says that. There is no
@@ -532,7 +572,7 @@ describe('the AWS identity is proved, not listed', () => {
       profiles: ['FootbagDevTester'],
       identities: { 'FootbagDevTester': DEV_TESTER_ROLE_ARN },
     });
-    const all = output(run(['--target', 'staging', '--check'], env));
+    const all = output(run(['--target', 'staging', '--check'], { ...env, ...AS_WRAPPED }));
 
     expect(all).toMatch(/\[note\][^\n]*footbag-production-runtime is not configured here/);
     expect(all).toMatch(/\[note\][^\n]*footbag-staging-runtime is not configured here/);
@@ -552,7 +592,7 @@ describe('the AWS identity is proved, not listed', () => {
         'footbag-staging-runtime': STAGING_ROLE_ARN,
       },
     });
-    const all = output(run(['--target', 'staging', '--check'], env));
+    const all = output(run(['--target', 'staging', '--check'], { ...env, ...AS_WRAPPED }));
     expect(all).toMatch(/\[note\].*no footbag-operator profile here/);
     expect(all).toMatch(/says nothing about whether you should hold that key/);
     expect(all).not.toMatch(/\[TODO\][^\n]*no footbag-operator/);
@@ -571,7 +611,7 @@ describe('the AWS identity is proved, not listed', () => {
         'footbag-production-runtime': PRODUCTION_ROLE_ARN,
       },
     });
-    const all = output(run(['--target', 'staging', '--check'], env));
+    const all = output(run(['--target', 'staging', '--check'], { ...env, ...AS_WRAPPED }));
     // The profile and the role carry the same name, so the line has to say
     // which of the two each one is. Without that it reads as a tautology.
     expect(all).toMatch(
@@ -593,6 +633,7 @@ describe('the AWS identity is proved, not listed', () => {
       run(['--target', 'staging', '--check'], {
         ...env,
         FOOTBAG_DEV_TESTER_PROFILE: 'a-differently-named-profile',
+        AWS_PROFILE: 'a-differently-named-profile',
       }),
     );
 
@@ -606,7 +647,7 @@ describe('the AWS identity is proved, not listed', () => {
       profiles: ['FootbagDevTester'],
       identities: { 'FootbagDevTester': OPERATOR_ARN },
     });
-    const all = output(run(['--target', 'staging', '--check'], env));
+    const all = output(run(['--target', 'staging', '--check'], { ...env, ...AS_WRAPPED }));
     expect(all).toMatch(/\[TODO\][^\n]*is not a session of the FootbagDevTester role/);
   });
 });

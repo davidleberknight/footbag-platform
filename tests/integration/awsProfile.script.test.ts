@@ -230,15 +230,19 @@ describe('aws_profile_ensure fills a vacuum', () => {
     expect(r.stderr).toMatch(/supplied by this script/);
   });
 
-  it('falls back to the role-assuming section on a machine without the other one', () => {
-    // Filling a vacuum, not a statement about who owns the machine. Without it
-    // an operator whose workstation carries only their own key would have to
-    // name a section in every shell, which is the step this library removes.
-    const r = withLib('aws_profile_ensure; echo "profile=$AWS_PROFILE"', {
+  it('never fills the vacuum with the role-assuming section', () => {
+    // A named identity is chosen by the wrapper's switch and never
+    // automatically. The wrapper is also what makes the host half follow, so a
+    // run reaching the role without it would act as the person on AWS and as
+    // the shared account on the host. On a machine carrying only a named
+    // operator's own key the run has no identity, and the refusal names the
+    // switch rather than an installer.
+    const r = withLib('aws_profile_ensure; echo "rc=$? profile=${AWS_PROFILE:-none}"', {
       ...stubEnv(['someone', 'FootbagDevTester']),
     });
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toContain('profile=FootbagDevTester');
+    expect(r.stdout).toContain('rc=1 profile=none');
+    expect(r.stderr).toContain('bash scripts/as-dev-tester.sh --account');
+    expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
   });
 
   it('prefers the directly authenticated profile where the machine has both', () => {
@@ -335,7 +339,8 @@ describe('aws_profile_ensure refuses rather than guessing', () => {
     expect(r.stderr).toMatch(/neither 'footbag-operator' nor/);
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
     expect(r.stderr).toContain('bash scripts/onboard-operator.sh');
-    expect(r.stderr).toMatch(/designed and\s+not yet built/);
+    expect(r.stderr).toContain('bash scripts/accept-dev-tester-delivery.sh');
+    expect(r.stderr).not.toMatch(/not yet built/);
   });
 
   it('says a named operator cannot reinstall their own key, because no copy exists', () => {
@@ -474,7 +479,8 @@ describe('aws_profile_use settles the run on one named identity', () => {
     expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
     expect(r.stderr).toContain('bash scripts/onboard-operator.sh');
     expect(r.stderr).toMatch(/only on the machine of the person whose key it chains from/);
-    expect(r.stderr).toMatch(/designed and\s+not yet built/);
+    expect(r.stderr).toContain('bash scripts/accept-dev-tester-delivery.sh');
+    expect(r.stderr).not.toMatch(/not yet built/);
   });
 
   it('names both writers for a chained runtime section, which either may own', () => {

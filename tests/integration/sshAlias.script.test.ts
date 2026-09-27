@@ -186,3 +186,74 @@ describe.runIf(existsSync(REAL_SSH))('removing the Match block', () => {
     expect(remove(added.result, 'james_leberknight').rc).toBe(2);
   });
 });
+
+/**
+ * Writing the alias's stanza where a workstation carries none. The stanza is
+ * the default every run takes, so it names the shared account and the main key,
+ * and one the workstation already carries is the operator's and never touched.
+ */
+describe.runIf(existsSync(REAL_SSH))('writing a missing stanza', () => {
+  const STANZA = [
+    'Host footbag-staging',
+    '  Hostname 203.0.113.10',
+    '  Port 2222',
+    '  User footbag',
+    '  IdentityFile ~/.ssh/id_ed25519',
+    '  IdentitiesOnly yes',
+    '',
+  ].join('\n');
+
+  function stanza(body: string | null, address = '203.0.113.10', port = '2222') {
+    if (body === null) {
+      rmSync(config, { force: true });
+    } else {
+      writeFileSync(config, body, 'utf-8');
+    }
+    const res = spawnSync(
+      'bash',
+      [
+        '-c',
+        `set -uo pipefail; source ${JSON.stringify(LIB)};` +
+          ` ssh_alias_add_stanza ${JSON.stringify(config)} footbag-staging ${JSON.stringify(address)} ${JSON.stringify(port)}` +
+          ` ${JSON.stringify(out)}; echo "rc=$?"`,
+      ],
+      { encoding: 'utf-8', ...SPAWN_GUARD, env: { ...process.env, PATH: `${bin()}:${process.env.PATH ?? ''}` } },
+    );
+    const rc = Number(/rc=(\d+)/.exec(res.stdout ?? '')?.[1] ?? '-1');
+    return { rc, result: rc === 0 ? readFileSync(out, 'utf-8') : '' };
+  }
+
+  it('writes it whole into a workstation with no config file, connecting as the shared account', () => {
+    const r = stanza(null);
+    expect(r.rc).toBe(0);
+    expect(r.result).toBe(STANZA);
+    expect(userFor(out)).toBe('footbag');
+  });
+
+  it('appends it below other hosts, changing none of their lines', () => {
+    const other = 'Host elsewhere\n  User me';
+    const r = stanza(other);
+    expect(r.rc).toBe(0);
+    expect(r.result).toBe(`${other}\n\n${STANZA}`);
+  });
+
+  it('never touches a stanza the workstation already carries, whatever it says', () => {
+    const own = 'Host footbag-staging\n  Hostname 198.51.100.7\n  User footbag\n';
+    const r = stanza(own);
+    expect(r.rc).toBe(2);
+    expect(readFileSync(config, 'utf-8')).toBe(own);
+  });
+
+  it('refuses an address or port that is not one, rather than writing a stanza that connects to nothing', () => {
+    expect(stanza(null, 'footbag-staging').rc).toBe(1);
+    expect(stanza(null, '203.0.113.10', '22; rm').rc).toBe(1);
+  });
+
+  it('leaves room for the named account block above it', () => {
+    const r = stanza(null);
+    const added = add(r.result);
+    expect(added.rc).toBe(0);
+    expect(userFor(out)).toBe('footbag');
+    expect(userFor(out, PROFILE)).toBe('david_leberknight');
+  });
+});

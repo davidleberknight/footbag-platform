@@ -27,9 +27,10 @@
 # The `footbag-operator` IAM user. The keys come from the Lightsail call that
 # also mints a host-access certificate, and the FootbagDevTester role is denied
 # that call on every instance, because the certificate opens a root shell. A
-# dev-and-tester therefore receives the pin lines with their onboarding rather
-# than building them here; that delivery is designed and not yet built, and
-# nothing here should be improvised around it.
+# dev-and-tester therefore receives the pin lines sealed in their delivery from
+# scripts/hire-dev-tester.sh, which builds them with the same library function
+# this script uses, and installs them with
+# scripts/accept-dev-tester-delivery.sh.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -79,7 +80,6 @@ source "${SCRIPT_DIR}/lib/terraform-output.sh"
 source "${SCRIPT_DIR}/lib/aws-profile.sh"
 
 AWS_BIN="${INSTALL_KNOWN_HOSTS_AWS_BIN:-aws}"
-REGION="us-east-1"
 TARGET=""
 CHECK=0
 
@@ -130,68 +130,14 @@ aws_profile_ensure || exit 1
 
 echo "==> Pinning ${INSTANCE} into ${PIN}"
 
-# ── The address, from Terraform rather than from anything written down ───────
+# ── The lines, from the address in Terraform and the keys in Lightsail ───────
 #
-# An address in a document goes stale the moment an instance is replaced, and
-# nothing announces it: the pin still parses, the connection is simply refused.
-# Called directly, never through a command substitution. That would run it in a
-# subshell and TF_OUTPUT_ERROR would die with it, leaving the refusal below with
-# nothing to say — which is the loss the library exists to prevent. The value
-# arrives in TF_OUTPUT_VALUE, and the directory is a path rather than an
-# environment name.
-if ! tf_output_read "terraform/${TARGET}" lightsail_static_ip; then
-  echo "ERROR: could not read the ${TARGET} host address from Terraform." >&2
-  echo "       ${TF_OUTPUT_ERROR}" >&2
-  echo "       The address is deliberately written down nowhere else, so there is" >&2
-  echo "       nothing to fall back to. Initialise the tree and re-run:" >&2
-  echo "         terraform -chdir=terraform/${TARGET} init" >&2
-  exit 1
-fi
-IP="$TF_OUTPUT_VALUE"
-if [[ -z "$IP" || "$IP" != *.*.*.* ]]; then
-  echo "ERROR: the ${TARGET} host address read back as '${IP}', which is not an address." >&2
-  exit 1
-fi
-
-# ── The keys, from the authenticated API rather than from the SSH port ───────
-#
-# Algorithm and key together, one pair per line. Asking for the key alone loses
-# which algorithm it belongs to, and a line assembled with the wrong algorithm
-# is one ssh-keygen does not match and does not complain about.
-if ! KEY_ROWS="$("$AWS_BIN" lightsail get-instance-access-details \
-    --region "$REGION" --instance-name "$INSTANCE" \
-    --query 'accessDetails.hostKeys[].{alg:algorithm,pub:publicKey}' \
-    --output text 2>/dev/null)"; then
-  echo "ERROR: could not read host keys for ${INSTANCE} from Lightsail." >&2
-  echo "       The pin is built from that API call and from nothing else, because" >&2
-  echo "       a key learned from the SSH port is the assumption the pin replaces." >&2
-  exit 1
-fi
-
-if [[ -z "$KEY_ROWS" ]]; then
-  echo "ERROR: Lightsail returned no host keys for ${INSTANCE}." >&2
-  exit 1
-fi
-
-# ── Build the four lines ─────────────────────────────────────────────────────
-#
-# Both ports, because sshd listens on 22 and 2222 and OpenSSH matches a
-# non-default port only in the bracketed form. A pin written for one port
-# verifies nothing on the other, and the deploy alias uses the higher one.
-NEW_LINES="$(
-  printf '%s\n' "$KEY_ROWS" | while IFS=$'\t' read -r alg pub; do
-    [[ -n "$alg" && -n "$pub" ]] || continue
-    printf '%s %s %s\n' "$IP" "$alg" "$pub"
-    printf '[%s]:2222 %s %s\n' "$IP" "$alg" "$pub"
-  done
-)"
-
-EXPECTED_COUNT="$(printf '%s\n' "$NEW_LINES" | grep -c . || true)"
-if (( EXPECTED_COUNT < 2 )); then
-  echo "ERROR: built only ${EXPECTED_COUNT} pin lines, which is fewer than one" >&2
-  echo "       algorithm across two ports. Refusing to install a partial pin." >&2
-  exit 1
-fi
+# Built by the shared library, which the hire script also uses to seal the same
+# lines to a newcomer whose job role is denied the Lightsail call.
+known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
+IP="$KNOWN_HOSTS_PIN_IP"
+NEW_LINES="$KNOWN_HOSTS_PIN_LINES"
+EXPECTED_COUNT="$KNOWN_HOSTS_PIN_COUNT"
 
 # ── What is already there, for this host and for every other ────────────────
 #

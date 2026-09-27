@@ -617,6 +617,57 @@ describe('authorize-operator-address proves the outcome rather than the apply', 
   });
 });
 
+describe('authorize-operator-address lists an account\'s entries for offboarding', () => {
+  const listFor = (account: string) => ['--target', 'staging', '--list-for', account];
+
+  it('prints each address attributed to that account first, and nothing else', () => {
+    // The attribution an add writes is '<account>; <where>', and that is the
+    // form a departure finds. A first name alone, a longer account sharing the
+    // prefix, and an entry naming the account only later in its comment are
+    // somebody else's, or nobody's, and are never offered for removal.
+    const r = run({
+      args: listFor('jane_doe'),
+      fileBody: listOf([
+        `  "${EXISTING}",  # dave_doe; home`,
+        '  "203.0.113.7/32",  # jane_doe; home',
+        '  "203.0.113.8/32",  # jane_doe ; office',
+        '  "203.0.113.9/32",  # jane_doe_smith; home',
+        '  "203.0.113.10/32",  # Jane; home',
+        '  "203.0.113.11/32",  # dave_doe; shares a flat with jane_doe',
+      ]),
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout.trim().split('\n')).toEqual(['203.0.113.7/32', '203.0.113.8/32']);
+  });
+
+  it('prints nothing, and succeeds, when the account holds no entry', () => {
+    const r = run({ args: listFor('jane_doe') });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toBe('');
+  });
+
+  it('reads only: no identity asked, no apply, no change to the file', () => {
+    const r = run({ args: listFor('dave_doe'), callerArn: `arn:aws:sts::${ACCOUNT}:assumed-role/SomeOtherRole/x` });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout.trim()).toBe(EXISTING);
+    expect(applyRan()).toBe(false);
+    expect(values()).toBe(TFVARS_BEFORE);
+  });
+
+  it('refuses a list it cannot read with certainty rather than printing nothing', () => {
+    // An empty answer from an unreadable list would read as "nothing to
+    // remove" on a departure.
+    const r = run({ args: listFor('dave_doe'), fileBody: 'operator_cidrs = [\n  "198.51.100.4/32", // dave_doe\n]\n' });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe('');
+  });
+
+  it('refuses a name that is not an account, and a listing mixed with a change', () => {
+    expect(run({ args: listFor('Jane') }).status).toBe(2);
+    expect(run({ args: [...listFor('jane_doe'), '--remove'] }).status).toBe(2);
+  });
+});
+
 describe('authorize-operator-address says when a seam is in use', () => {
   it('names each replaced input on stderr, because a stubbed run proves nothing', () => {
     const r = run({ before: [EXISTING], after: [EXISTING, NEW_ADDRESS] });

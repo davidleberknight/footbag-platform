@@ -74,15 +74,16 @@ IAM_KEY_VAULT_NOTES=""
 #            every credential whose destination is somebody else's machine, a
 #            deployed host, or a service, because the vault is the only copy
 #            that survives the run.
-#   install  the caller writes the secret straight into a local AWS credentials
-#            profile in this same run and nothing else ever holds it. No human
-#            reads it, so there is nothing to show and nothing to confirm, and
-#            the terminal requirement below drops with them: that requirement
-#            exists because a secret is about to be displayed, and here none is.
-#            The human-operator lifecycle is the only caller, and it is the only
-#            caller by design — a human's own access key is deliberately never
-#            copied into the shared vault, so a vault prompt here would be
-#            asking the operator to break the custody rule.
+#   install  the caller delivers the secret in this same run, either straight
+#            into a local AWS credentials profile or sealed to its owner's own
+#            public key, and nothing else ever holds it. No human reads it, so
+#            there is nothing to show and nothing to confirm, and the terminal
+#            requirement below drops with them: that requirement exists because
+#            a secret is about to be displayed, and here none is. The
+#            human-operator lifecycle is the only caller, by design — a human's
+#            own access key is deliberately never copied into the shared vault,
+#            so a vault prompt here would be asking the operator to break the
+#            custody rule.
 #
 # The state machine below is the same either way. In install mode the credential
 # stays `minted` when this returns, so the caller's own failure still withdraws
@@ -271,8 +272,8 @@ iam_key_provision() {
   # write that follows does not land. The caller calls iam_key_commit after it
   # does.
   if [[ "$IAM_KEY_DELIVERY" == "install" ]]; then
-    echo "    minted ${IAM_KEY_AKID}; the secret goes straight into the local"
-    echo "    credentials file and is not displayed."
+    echo "    minted ${IAM_KEY_AKID}; the secret is not displayed and goes only"
+    echo "    where this run delivers it."
     return 0
   fi
 

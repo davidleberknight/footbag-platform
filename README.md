@@ -7,7 +7,7 @@
 
 This repository contains the open-source modernization project for the global footbag community.
 
-- **Maintainer:** [David Leberknight](https://github.com/davidleberknight) (initially hosted on David's personal GitHub account)
+- **Maintainer:** [David Leberknight](https://github.com/davidleberknight); see [GOVERNANCE.md](GOVERNANCE.md)
 - **Institutional context:** Developed under IFPA auspices
 - **Goal:** A simple, low-cost, volunteer-maintainable platform for long-term community use
 

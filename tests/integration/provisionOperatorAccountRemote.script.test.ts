@@ -145,7 +145,7 @@ function runProvision(
   account: string,
   keyLine: string,
   shared = 'footbag',
-  pw: { password?: string; setPassword?: 'yes' | 'no' } = {},
+  pw: { password?: string; extraEnv?: Record<string, string> } = {},
 ) {
   return spawnSync('bash', [script], {
     encoding: 'utf-8',
@@ -157,8 +157,8 @@ function runProvision(
       OPACC_ACCOUNT: account,
       OPACC_KEY_LINE: keyLine,
       OPACC_PASSWORD: pw.password ?? 'unused-by-these-tests',
-      OPACC_SET_PASSWORD: pw.setPassword ?? 'yes',
       OPACC_SHARED_ACCOUNT: shared,
+      ...pw.extraEnv,
     },
     ...SPAWN_GUARD,
   });
@@ -305,7 +305,8 @@ describe('the offboard never sweeps a key off the shared account', () => {
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`REFUSING: a key on ${LEAVER} is also authorized on the shared`);
-    expect(r.stderr).toContain('--rotate --key-only');
+    expect(r.stderr).toContain('run onboard-operator.sh again');
+    expect(r.stderr).not.toContain('--rotate --key-only');
     expect(r.stderr).toContain('authorize-operator-key.sh --remove');
     expect(r.stderr).toContain('Nothing done.');
     expect(authorizedKeys('footbag')).toContain(keys.leaver.split(' ')[1]);
@@ -356,7 +357,7 @@ describe('a named account never takes a key the shared account already holds', (
     expect(readFileSync(join(host, 'passwd'), 'utf-8')).toBe(passwdBefore);
   });
 
-  it('refuses a key-only rotation onto a key the shared account holds', () => {
+  it('refuses a rotation onto a key the shared account holds', () => {
     addAccount('footbag', ['other']);
     addAccount('named_op', ['leaver']);
 
@@ -392,10 +393,7 @@ describe('a named account never takes a key the shared account already holds', (
     // rotation of the shared account would remove every other holder's key.
     addAccount('footbag', ['other', 'leaver']);
 
-    const r = runProvision('rotate', 'footbag', keys.other, 'footbag', {
-      password: '',
-      setPassword: 'no',
-    });
+    const r = runProvision('rotate', 'footbag', keys.other, 'footbag');
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('is the shared account');
@@ -406,27 +404,17 @@ describe('a named account never takes a key the shared account already holds', (
   });
 });
 
-describe('a key-only rotation carries no password, and needs none', () => {
-  it('passes the argument check with an empty password when none is to be set', () => {
+describe('every create and rotation sets a password', () => {
+  // A lost key is fired and rehired, never swapped in place, so there is no
+  // rotation that replaces the key and leaves the password alone. A caller
+  // saying otherwise is refused rather than obeyed.
+  it('refuses a rotation that carries no password, even when told not to set one', () => {
     addAccount('footbag', ['other']);
     addAccount('named_op', ['leaver']);
 
     const r = runProvision('rotate', 'named_op', keys.leaver, 'footbag', {
       password: '',
-      setPassword: 'no',
-    });
-
-    expect(r.stderr).not.toContain('needs a password');
-    expect(r.stderr).not.toContain('needs both a key line and a password');
-    expect(reachedTheWrite(r), r.stderr).toBe(true);
-  });
-
-  it('still refuses a rotation that is to set a password but carries none', () => {
-    addAccount('named_op', ['leaver']);
-
-    const r = runProvision('rotate', 'named_op', keys.leaver, 'footbag', {
-      password: '',
-      setPassword: 'yes',
+      extraEnv: { OPACC_SET_PASSWORD: 'no' },
     });
 
     expect(r.status).toBe(2);
@@ -434,14 +422,18 @@ describe('a key-only rotation carries no password, and needs none', () => {
     expect(reachedTheWrite(r)).toBe(false);
   });
 
-  it('still refuses a create that carries no password, whatever it says about setting one', () => {
-    const r = runProvision('create', 'newcomer', keys.leaver, 'footbag', {
-      password: '',
-      setPassword: 'no',
-    });
+  it('refuses a create that carries no password', () => {
+    const r = runProvision('create', 'newcomer', keys.leaver, 'footbag', { password: '' });
 
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('needs a password');
+  });
+
+  it('never skips setting the password it was given', () => {
+    // The skip is the key swap by another name. Read from the body, because
+    // the setting commands are real host writes this suite does not reach.
+    const source = readFileSync(REMOTE_HALF, 'utf-8');
+    expect(source).not.toMatch(/OPACC_SET_PASSWORD/);
   });
 });
 
@@ -524,7 +516,6 @@ describe('reopening a retired account', () => {
         OPACC_ACCOUNT: LEAVER,
         OPACC_KEY_LINE: keyLine,
         OPACC_PASSWORD: 'unused-by-these-tests',
-        OPACC_SET_PASSWORD: 'yes',
         OPACC_SHARED_ACCOUNT: 'footbag',
         OPACC_REOPEN: 'yes',
       },

@@ -26,13 +26,18 @@
 # which would take the default route down with it. Every edit is therefore
 # checked with `ssh -G` against the result before it is handed back.
 #
+# A MISSING STANZA IS WRITTEN, AN EXISTING ONE NEVER EDITED.
+#
+# A workstation that does not carry the alias gets it written, from values the
+# caller read from their authoritative source (the host address from Terraform,
+# or from the sealed delivery a dev-and-tester receives), never guessed. It
+# names the shared account and the main key, because the stanza is the default
+# every run takes. A stanza the workstation already carries is the operator's,
+# and nothing here changes it.
+#
 # WHAT IT WILL NOT DO.
 #
-# Invent a stanza. An alias this workstation does not carry is reported to the
-# caller, never created: a Host block with a guessed host name and port resolves
-# and then connects to nothing, which is worse than the absence it replaced.
-#
-# Nor does it resolve the way ssh does. It finds the alias as a literal token on
+# Resolve the way ssh does. It finds the alias as a literal token on
 # a Host line in this one file, while `ssh -G` honours wildcard patterns and
 # follows Include. So an alias reached through `Host footbag-*`, or through an
 # included file, is reported as absent rather than edited. That fails safe: the
@@ -63,6 +68,59 @@ ssh_alias_match_line() {
 # ssh_alias_parses <config-file> <alias>: whether ssh reads the file cleanly.
 ssh_alias_parses() {
   ssh -G -F "$1" "$2" </dev/null >/dev/null 2>&1
+}
+
+# ssh_alias_stanza <alias> <address> <port>
+# The stanza, exactly: the shared account and the main key, which is the
+# default every run connects with.
+ssh_alias_stanza() {
+  printf 'Host %s\n' "$1"
+  printf '  Hostname %s\n' "$2"
+  printf '  Port %s\n' "$3"
+  printf '  User footbag\n'
+  printf '  IdentityFile ~/.ssh/id_ed25519\n'
+  printf '  IdentitiesOnly yes\n'
+}
+
+# ssh_alias_add_stanza <config-file> <alias> <address> <port> <output-file>
+#
+# Writes the configuration with the stanza appended, and nothing else changed.
+# A config file that does not exist yet is treated as empty. Returns:
+#   0  the file would change
+#   2  a Host line already names the alias, so it is never touched
+#   1  the address or port is not usable, the file cannot be read, or the
+#      result would not parse
+ssh_alias_add_stanza() {
+  local config="$1" alias_name="$2" address="$3" port="$4" out="$5"
+  [[ "$address" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ && "$port" =~ ^[0-9]{1,5}$ ]] || return 1
+  if [[ -f "$config" ]]; then
+    if ALIAS_NAME="$alias_name" awk '
+      {
+        s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s)
+        if (s ~ /^[Hh][Oo][Ss][Tt][ \t]/) {
+          sub(/^[^ \t]+[ \t]+/, "", s)
+          n = split(s, names, /[ \t]+/)
+          for (i = 1; i <= n; i++) if (names[i] == ENVIRON["ALIAS_NAME"]) found = 1
+        }
+      }
+      END { exit found ? 0 : 1 }
+    ' "$config"; then
+      return 2
+    fi
+    cat -- "$config" > "$out" || return 1
+    # A last line with no newline would otherwise have the stanza glued to it.
+    if [[ -s "$out" && -n "$(tail -c1 -- "$out")" ]]; then
+      printf '\n' >> "$out"
+    fi
+    [[ -s "$out" ]] && printf '\n' >> "$out"
+  elif [[ -e "$config" ]]; then
+    return 1
+  else
+    : > "$out"
+  fi
+  ssh_alias_stanza "$alias_name" "$address" "$port" >> "$out"
+  ssh_alias_parses "$out" "$alias_name" || return 1
+  return 0
 }
 
 # ssh_alias_match_account <config-file> <alias> <profile>

@@ -28,7 +28,8 @@
 #   - Clone anything, or choose where a checkout lives.
 #   - Overwrite an SSH stanza or a credential file that already exists. Both may
 #     hold something deliberate, and replacing either silently is how an
-#     operator loses a working configuration.
+#     operator loses a working configuration. A missing stanza is written, after
+#     the change is shown and confirmed.
 #   - Report success on a step it only attempted.
 #
 # Usage:
@@ -64,8 +65,14 @@ source "${SCRIPT_DIR}/lib/terraform-output.sh"
 # here as everywhere else.
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+# The stanza a workstation without the alias gets written.
+# shellcheck source=lib/ssh-alias.sh
+source "${SCRIPT_DIR}/lib/ssh-alias.sh"
 
 TARGET=""
+# Set when the alias does not resolve, so the step that reads the host address
+# can write the stanza that needs it.
+STANZA_MISSING=0
 CHECK=0
 TODO=0
 PRIVATE_REPO=""
@@ -164,8 +171,9 @@ declare -A TOOL_HINT=(
   [aws]="the AWS CLI v2"
   [terraform]="terraform"
   [sqlite3]="sqlite3"
+  [age]="age, which seals and opens a dev-and-tester's delivery (sudo apt install age)"
 )
-for tool in ssh rsync jq docker aws terraform sqlite3; do
+for tool in ssh rsync jq docker aws terraform sqlite3 age; do
   if command -v "$tool" >/dev/null 2>&1; then
     ok "$tool"
   else
@@ -269,7 +277,7 @@ if ! command -v aws >/dev/null 2>&1; then
 elif ! aws_profile_ensure; then
   # The library has already named the credential and printed the command that
   # installs the current one, so this adds the verdict and repeats none of it.
-  todo "the AWS identity this run would use does not authenticate; the message just above names the fix"
+  todo "this run has no AWS identity that authenticates; the message just above names the fix"
 else
   IDENTITY_OK=1
   # The ARN is on the library's own line immediately above, in the wording every
@@ -308,7 +316,7 @@ else
       todo "the ${FOOTBAG_DEV_TESTER_PROFILE} profile is configured but does not resolve; your key is reissued by onboarding you again, which a footbag-operator holder arranges with you"
     fi
   else
-    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, so this workstation has no configured route to the ${DEV_TESTER_ROLE_NAME} role. Where that route is meant to exist, onboarding writes it: a footbag-operator holder onboarding themselves runs bash scripts/onboard-operator.sh on this machine, and a dev-and-tester's is delivered to them by a process that is designed and not yet built"
+    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, so this workstation has no configured route to the ${DEV_TESTER_ROLE_NAME} role. Where that route is meant to exist, onboarding writes it: a footbag-operator holder onboarding themselves runs bash scripts/onboard-operator.sh on this machine, and a dev-and-tester's arrives sealed from a holder's bash scripts/hire-dev-tester.sh and is written here by bash scripts/accept-dev-tester-delivery.sh"
   fi
 
   # Missing and unassumable are different faults with different owners, so they
@@ -361,9 +369,10 @@ fi
 # than by reading the config file: an alias can be defined in an Include, and a
 # stanza that exists but does not match is the failure this is looking for.
 #
-# Not written by this script. The `User` line is the whole host-account switch and
-# the key path is the operator's own; guessing either is how a run silently
-# connects as the wrong account.
+# A missing stanza is written further down, at the step that reads the host
+# address it needs, with the change shown first; one this machine already
+# carries is the operator's and is never edited. What it writes is the default
+# every run takes: the shared account and the main key.
 step "SSH alias ${ALIAS}"
 if command -v ssh >/dev/null 2>&1; then
   # Read once, and tolerate a failure rather than aborting on it. `ssh -G` exits
@@ -377,7 +386,12 @@ if command -v ssh >/dev/null 2>&1; then
   if [[ -z "$SSH_G" ]]; then
     todo "ssh could not read your SSH configuration at all; check ~/.ssh/config parses"
   elif [[ -z "$RESOLVED_HOST" || "$RESOLVED_HOST" == "$ALIAS" ]]; then
-    todo "${ALIAS} does not resolve — add a Host stanza naming Hostname, Port 2222, User, IdentityFile and IdentitiesOnly yes"
+    STANZA_MISSING=1
+    if (( CHECK )); then
+      todo "${ALIAS} does not resolve — run this without --check and it writes the stanza, once it can read the host address"
+    else
+      echo "  ${ALIAS} does not resolve; its stanza is written at the host-address step below"
+    fi
   else
     ok "${ALIAS} resolves to ${RESOLVED_HOST}, connecting as ${RESOLVED_USER} on port ${RESOLVED_PORT}"
     [[ "$RESOLVED_PORT" == "2222" ]] || todo "${ALIAS} resolves to port ${RESOLVED_PORT}; the deploy alias uses 2222"
@@ -537,7 +551,33 @@ if (( IDENTITY_OK == 0 )); then
   todo "cannot read the ${TARGET} host address without a working AWS identity; fix the AWS profiles step above"
 elif tf_output_read "terraform/${TARGET}" lightsail_static_ip 2>/dev/null; then
   ok "${TARGET} host address: ${TF_OUTPUT_VALUE}"
-  echo "         (this is the Hostname line your ~/.ssh/config stanza needs)"
+  if (( STANZA_MISSING && ! CHECK )); then
+    # The operator's own file: the change is shown, confirmed and only then
+    # written, and a result ssh would not parse is never handed back.
+    SSH_CONFIG_FILE="${HOME}/.ssh/config"
+    STANZA_TMP="$(umask 077 && mktemp)"
+    _rc=0
+    ssh_alias_add_stanza "$SSH_CONFIG_FILE" "$ALIAS" "$TF_OUTPUT_VALUE" 2222 "$STANZA_TMP" || _rc=$?
+    if (( _rc == 0 )) && terminal_present; then
+      echo "  The ${ALIAS} stanza this adds to ${SSH_CONFIG_FILE}:"
+      if [[ -f "$SSH_CONFIG_FILE" ]]; then diff -u "$SSH_CONFIG_FILE" "$STANZA_TMP" || true
+      else diff -u /dev/null "$STANZA_TMP" || true; fi
+      if confirm_from_tty "  Type 'APPLY' to add it: " "APPLY"; then
+        mkdir -p -m 700 -- "$(dirname -- "$SSH_CONFIG_FILE")"
+        [[ -e "$SSH_CONFIG_FILE" ]] || ( umask 077 && : > "$SSH_CONFIG_FILE" )
+        cat "$STANZA_TMP" > "$SSH_CONFIG_FILE"
+        ok "${ALIAS} stanza written; it connects as the shared account with ~/.ssh/id_ed25519"
+      else
+        todo "${ALIAS} stanza not written; re-run and type APPLY to add it"
+      fi
+    elif (( _rc == 0 )); then
+      todo "${ALIAS} does not resolve, and there is no terminal to confirm writing its stanza on"
+    else
+      todo "could not write a ${ALIAS} stanza into ${SSH_CONFIG_FILE}; check the file parses"
+    fi
+    rm -f -- "$STANZA_TMP"
+    unset _rc
+  fi
 else
   todo "could not read the ${TARGET} host address; it comes from Terraform and is written down nowhere else, so initialise the tree first"
 fi

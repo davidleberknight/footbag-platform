@@ -67,10 +67,10 @@
 # nothing and leaves their credentials here.
 #
 # A dev-and-tester, who holds neither `footbag-operator` nor the shared
-# account's password, is not onboarded by this command. Their onboarding seals
-# what it mints to their own public key for them to unseal on their own
-# machine; that is designed and not built, and must not be improvised with
-# this command.
+# account's password, is not onboarded by this command. A holder hires them with
+# scripts/hire-dev-tester.sh, which seals what it mints to their own public key,
+# and they open it on their own machine with
+# scripts/accept-dev-tester-delivery.sh.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -244,8 +244,8 @@ echo "changed: footbag-operator on AWS and ${OSK_SHARED_ACCOUNT} on the host, fo
 echo ""
 echo "Every credential lands on this machine, so ${OPERATOR_NAME} has to be the"
 echo "person at this keyboard, onboarding their own workstation. There is no"
-echo "remote hand-off and no second copy, and a dev-and-tester is not onboarded"
-echo "this way."
+echo "remote hand-off and no second copy. A dev-and-tester is not onboarded this"
+echo "way: a holder hires them with scripts/hire-dev-tester.sh."
 echo ""
 if ! confirm_from_tty "Type 'APPLY' to onboard ${ACCOUNT}: " "APPLY"; then
   echo "Not confirmed; nothing was changed." >&2
