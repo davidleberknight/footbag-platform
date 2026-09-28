@@ -28,13 +28,13 @@ unset _GUARD_DB_PATH
 
 if ! command -v sqlite3 &>/dev/null; then
   echo "Error: sqlite3 CLI not found. Install it first:"
-  echo "  Ubuntu/Debian: sudo apt-get install sqlite3"
+  echo "  Ubuntu/Debian: bash scripts/setup-dev-workstation.sh"
   echo "  macOS:         brew install sqlite3"
   exit 1
 fi
 
 if ! command -v python3 &>/dev/null; then
-  echo "Error: python3 not found. Install it first."
+  echo "Error: python3 not found. Install it first: bash scripts/setup-dev-workstation.sh"
   exit 1
 fi
 
@@ -46,7 +46,7 @@ fi
 
 if [[ "${CURATOR_SEED:-yes}" != "no" ]] && ! command -v ffmpeg &>/dev/null; then
   echo "Error: ffmpeg not found, but the curator seed needs it to transcode the demo videos."
-  echo "  Ubuntu/Debian: sudo apt-get install ffmpeg"
+  echo "  Ubuntu/Debian: bash scripts/setup-dev-workstation.sh"
   echo "  macOS:         brew install ffmpeg"
   echo "  Or skip the curator seed: CURATOR_SEED=no bash scripts/reset-local-db.sh"
   exit 1
@@ -59,7 +59,6 @@ SEED_DIR="legacy_data/event_results/seed/mvfp_full"
 CLUBS_SEED_CSV="legacy_data/seed/clubs.csv"
 CLUB_MEMBERS_SEED_CSV="legacy_data/seed/club_members.csv"
 VENV="scripts/.venv"
-REQUIREMENTS="scripts/requirements.txt"
 
 # Preflight: required local files. This script does NOT regenerate canonical
 # inputs or extract from the mirror; it loads existing committed artifacts. The
@@ -88,11 +87,10 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   exit 1
 fi
 
-if [ ! -f "${VENV}/bin/python3" ]; then
-  echo "  → Creating Python venv..."
-  python3 -m venv "${VENV}"
-fi
-"${VENV}/bin/pip" install --quiet -r "${REQUIREMENTS}"
+# Built or repaired, installed and proved by the shared seeder-environment step.
+# shellcheck source=lib/seeder-env.sh
+source scripts/lib/seeder-env.sh
+seeder_env_ensure "$PWD" || exit 1
 
 PYTHON="${VENV}/bin/python3"
 

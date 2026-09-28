@@ -60,4 +60,6 @@ today cannot cause an irreversible change. No ingestion has been run.
 ## Dependencies
 
 - Python 3
-- PyYAML (config parsing) — the only external dependency.
+- PyYAML (config parsing) — the only external dependency, declared in `legacy_data`'s
+  pinned requirements; `bash legacy_data/run_pipeline.sh venv` builds the environment
+  that carries it.

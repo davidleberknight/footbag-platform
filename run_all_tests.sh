@@ -60,7 +60,7 @@
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS adapter smoke suite
 #   ./run_all_tests.sh --with-realdata-invariants # read-only whole-population invariants over a loaded real dataset (dev load or staging)
 #   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
-#   ./run_all_tests.sh --full       # everything a non-operator can run: full suite + coverage + security probes + pentest (the operator-only staging-AWS smoke shows as SKIP)
+#   ./run_all_tests.sh --full       # everything a non-operator can run: full suite + coverage + security probes + pentest + a11y + persona crawl + real-data invariants + clean room (the staging-AWS smoke shows as SKIP; mutation runs only by name)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
 #   ./run_all_tests.sh --help
 
@@ -193,6 +193,7 @@ Not run here:
     workstation.
   - test:pentest:heavy (heavyweight pentest): opt in with --pentest; boots a
     throwaway stack and the ZAP leg needs Docker.
+  - mutation testing: opt in with --with-mutation; never implied by --full.
 USAGE
       exit 0
       ;;
@@ -234,12 +235,49 @@ need_cmd() {
     exit 1
   fi
 }
-need_cmd node "Install Node.js 22.x (see docs/DEV_ONBOARDING.md)."
-need_cmd npm  "Install Node.js 22.x (npm ships with it)."
-if [[ ! -d node_modules ]]; then
-  echo "ERROR: node_modules/ is missing." >&2
+need_cmd node "Run bash scripts/setup-dev-workstation.sh (installs Node at the .nvmrc version)."
+need_cmd npm  "Run bash scripts/setup-dev-workstation.sh (npm ships with Node)."
+# Judged against the lockfile, not by node_modules existing: a tree installed
+# before a dependency was added or moved exists and is still wrong.
+source scripts/lib/npm-deps.sh
+if ! npm_deps_current "$PWD"; then
+  echo "ERROR: node_modules/ does not hold the versions package-lock.json pins." >&2
   echo "Recommendation: run 'npm ci' first." >&2
   exit 1
+fi
+
+# Activate the repository's git hooks. npm does this on install, but a checkout
+# whose dependencies were installed before that existed never re-runs it, and an
+# inactive commit hook is silent: commits simply go unscanned. Idempotent.
+bash scripts/install-git-hooks.sh
+
+# Every gate's full output, and the preflight's, kept after the run. Outside the
+# temporary directory the exit trap removes, because the report at the end is a
+# selection and the full log is the only thing that can answer why a gate failed;
+# a path to a deleted file answers nothing. One run's worth: emptied at the start
+# of each run, so it never grows. The clean room keeps its own logs the same way.
+GATE_LOG_DIR="${TMPDIR:-/tmp}/footbag-run-all-last"
+rm -rf "$GATE_LOG_DIR"
+mkdir -p "$GATE_LOG_DIR"
+PREFLIGHT_LOG="${GATE_LOG_DIR}/preflight.log"
+
+# Every tool the gates below reach for, reported before any of them runs, so a
+# missing one is named here rather than discovered as a skip an hour in. Also
+# kept, so the problems it names reappear in the notices at the end.
+# shellcheck source=scripts/lib/tool-report.sh
+source scripts/lib/tool-report.sh
+tool_report node python python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform 2>&1 | tee "$PREFLIGHT_LOG"
+
+# The legacy pipeline's Python environment, which the integration suite and the
+# pytest gate run under. Reported, never built: it lives inside legacy_data/, and
+# this runner writes nothing there. The dev launcher and the workstation setup
+# script build it, through the pipeline, which is its only builder.
+if ! (source scripts/lib/python-env.sh && footbag_python pipeline fail) >/dev/null 2>&1; then
+  {
+    echo "WARNING: the legacy pipeline's Python environment is missing, so the legacy-extractor"
+    echo "         integration suite fails and the pytest gate skips. Build it with:"
+    echo "           bash legacy_data/run_pipeline.sh venv"
+  } | tee -a "$PREFLIGHT_LOG" >&2
 fi
 
 # Start from a clean slate: sweep the previous run's transient test/build
@@ -362,11 +400,15 @@ GATE_RESULTS=()
 FAIL_LOGS=()
 ANY_FAIL=0
 
-# Per-gate output is tee'd here so failed gates can be re-shown at the end of a
-# long run instead of forcing a scroll-back through thousands of lines. Lives in
-# the OS tmpdir (never a real-data tree) and is removed on exit.
+# Scratch space a gate needs only while it runs (Terraform data directories, the
+# persona stack's log, pytest's bytecode). In the OS tmpdir, never a real-data
+# tree, and removed on exit. Gate output is not kept here: it goes to
+# GATE_LOG_DIR, which outlives the run.
 LOG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/footbag-run-all.XXXXXX")
 trap 'rm -rf "$LOG_DIR"' EXIT
+
+# The gate a Ctrl-C or a kill lands in, named in the report the interrupt prints.
+CURRENT_GATE=""
 
 summarize() {
   echo ""
@@ -382,24 +424,50 @@ summarize() {
     echo " FAILED gates (${#FAIL_LOGS[@]}): ${FAIL_LOGS[*]}"
     echo "=============================================="
   fi
+  echo " Every gate's full output: ${GATE_LOG_DIR}/"
+  echo "=============================================="
 }
 
-# Re-show the tail of every failed gate's captured output so the actual error
-# is at the end of the run, not buried thousands of lines up. The full output
-# already streamed live above; this is the recap.
+# What a failed gate's log is reduced to at the end of the run: the lines that
+# say something failed, wherever in the log they appeared, then the tail for
+# context. A blind tail was the wrong selection. A coverage run prints its table
+# after the failing assertions and pytest prints long tracebacks before its
+# summary, so the last sixty lines were the table or the middle of a traceback and
+# the error itself was above them. The same grammar the clean room uses, so the
+# two reports select alike.
+FAILURE_GRAMMAR='FAIL|FAILED|ERROR|Error:|error TS[0-9]|AssertionError|Traceback|✕|✗|×|violat|REFUSED|not ok'
+
+recap_gate_log() {
+  local log="$1" hits total
+  # `|| true` because grep finds nothing in a clean log, and under pipefail head
+  # closing the pipe early can end grep on SIGPIPE; either would stop the run here.
+  hits="$(grep -nE "$FAILURE_GRAMMAR" "$log" | head -n 40 || true)"
+  if [[ -n "$hits" ]]; then
+    total="$(grep -cE "$FAILURE_GRAMMAR" "$log" || true)"
+    echo "  lines naming a failure (${total:-0} in the log, first 40, numbered into it):"
+    printf '%s\n' "$hits" | sed 's/^/    /'
+    echo ""
+  fi
+  echo "  last 20 lines:"
+  tail -n 20 "$log" | sed 's/^/    /'
+}
+
+# Re-show every failed gate at the end of the run, where the reader is, rather
+# than thousands of lines up where it streamed past.
 dump_failures() {
   (( ${#FAIL_LOGS[@]} == 0 )) && return 0
   echo ""
   echo "=============================================="
-  echo " failure details (${#FAIL_LOGS[@]} gate(s); last 60 lines each)"
+  echo " failure details (${#FAIL_LOGS[@]} gate(s))"
   echo "=============================================="
   local name log
   for name in "${FAIL_LOGS[@]}"; do
-    log="${LOG_DIR}/${name}.log"
+    log="${GATE_LOG_DIR}/${name}.log"
     echo ""
     echo "──── ${name} ────"
     if [[ -s "$log" ]]; then
-      tail -n 60 "$log"
+      recap_gate_log "$log"
+      echo "  full output: ${log}"
     else
       echo "  (no captured output)"
     fi
@@ -407,12 +475,79 @@ dump_failures() {
   echo "=============================================="
 }
 
+# Lines worth reading that a passing or skipped gate printed and nobody saw: a
+# warning, a check that did not run, a stubbed seam, a deprecation. They streamed
+# past an hour before the end, so they are collected here, from the preflight and
+# from every gate, whatever its result.
+NOTICE_GRAMMAR='WARNING|WARN[: ]|\[missing\]|NOT RUN|INCOMPLETE|[Nn]ote:|SYNTHETIC|deprecated|skipping|still missing|not installed|absent'
+
+notices_from() {
+  local label="$1" log="$2" hits total
+  [[ -s "$log" ]] || return 0
+  hits="$(grep -E "$NOTICE_GRAMMAR" "$log" | awk '!seen[$0]++' | head -n 15 || true)"
+  [[ -n "$hits" ]] || return 0
+  total="$(grep -E "$NOTICE_GRAMMAR" "$log" | awk '!seen[$0]++' | wc -l || true)"
+  echo ""
+  echo "──── ${label} ────"
+  printf '%s\n' "$hits" | sed 's/^/    /'
+  (( total > 15 )) && echo "    (${total} in all; the rest are in ${log})"
+  return 0
+}
+
+print_notices() {
+  echo ""
+  echo "=============================================="
+  echo " notices (warnings and checks not run, from every gate)"
+  echo "=============================================="
+  notices_from preflight "$PREFLIGHT_LOG"
+  local name
+  for name in "${GATE_NAMES[@]}"; do
+    notices_from "$name" "${GATE_LOG_DIR}/${name}.log"
+  done
+  # The clean room ends by naming what it could not prove and which tools answer
+  # there with this machine's version rather than the runner's.
+  if [[ -s "${GATE_LOG_DIR}/clean-room.log" ]]; then
+    local block
+    block="$(sed -n '/NOT PROVEN BY THIS RUN/,/^=\{10,\}/p' "${GATE_LOG_DIR}/clean-room.log" || true)"
+    if [[ -n "$block" ]]; then
+      echo ""
+      echo "──── clean-room: not proven by that run ────"
+      printf '%s\n' "$block" | sed 's/^/  /'
+    fi
+  fi
+  echo "=============================================="
+}
+
+# Why a gate skipped, for its summary row. The clean room names each check it
+# could not run; any other gate says why on its last line.
+skip_reason() {
+  local log="$1" reason
+  reason="$(grep -E 'NOT RUN' "$log" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+/ /g' | paste -sd ';' - || true)"
+  [[ -n "$reason" ]] || reason="$(grep -v '^[[:space:]]*$' "$log" | tail -n 1 | sed -E 's/^[[:space:]]+//' || true)"
+  printf '%s' "${reason:-no reason printed}" | cut -c1-200
+}
+
+# A Ctrl-C or a kill used to end the run with no report at all, and the exit trap
+# then deleted every log. The logs now outlive the run, and the report for the
+# gates that finished is printed on the way out, naming the one interrupted.
+on_interrupt() {
+  trap - INT TERM
+  echo "" >&2
+  echo "→ run_all_tests.sh: INTERRUPTED${CURRENT_GATE:+ during the ${CURRENT_GATE} gate}. The report below covers the gates that finished." >&2
+  summarize
+  dump_failures
+  print_notices
+  exit 130
+}
+trap on_interrupt INT TERM
+
 # run_gate NAME CMD...   — a gate may return 77 to signal SKIP.
 run_gate() {
   local name="$1"; shift
   echo ""
   echo "→ [${name}] running: $*"
-  local rc=0 log="${LOG_DIR}/${name}.log"
+  local rc=0 log="${GATE_LOG_DIR}/${name}.log"
+  CURRENT_GATE="$name"
   # tee keeps the live output while capturing it; PIPESTATUS[0] is the gate's
   # own exit code (not tee's). Toggle set -e so a failing gate does not abort
   # the whole pipeline before we record its result.
@@ -420,12 +555,13 @@ run_gate() {
   "$@" 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
+  CURRENT_GATE=""
   GATE_NAMES+=("$name")
   if (( rc == 0 )); then
     GATE_RESULTS+=("PASS")
     echo "→ [${name}] PASS"
   elif (( rc == 77 )); then
-    GATE_RESULTS+=("SKIP")
+    GATE_RESULTS+=("SKIP ($(skip_reason "$log"))")
     echo "→ [${name}] SKIP"
   else
     GATE_RESULTS+=("FAIL (exit ${rc})")
@@ -440,6 +576,7 @@ run_gate() {
       # end of the script.
       summarize
       dump_failures
+      print_notices
       assert_real_data_untouched
       exit 1
     fi
@@ -469,7 +606,12 @@ gate_terraform() {
     echo "  terraform CLI absent — skipping (CI's terraform job covers it)."
     return 77
   fi
-  ( cd terraform && aws_isolated_run terraform fmt -check -recursive )
+  # Every check runs and every failure is named. run_gate calls this with errexit
+  # off, so a step's status is either collected here or lost: left alone, the
+  # function's status was the last tree's, and a broken format check or a broken
+  # earlier tree reported PASS while the push gate's terraform job went red.
+  local failed=()
+  ( cd terraform && aws_isolated_run terraform fmt -check -recursive ) || failed+=("fmt -check")
   local d data_dir
   local plugin_arg=()
   for d in staging production shared identity; do
@@ -498,10 +640,14 @@ gate_terraform() {
       cd "terraform/$d"
       export TF_DATA_DIR="$data_dir"
       aws_isolated_run terraform init -backend=false \
-        ${plugin_arg[@]+"${plugin_arg[@]}"} >/dev/null
-      aws_isolated_run terraform validate >/dev/null
-    )
+        ${plugin_arg[@]+"${plugin_arg[@]}"} >/dev/null \
+        && aws_isolated_run terraform validate >/dev/null
+    ) || failed+=("$d")
   done
+  if (( ${#failed[@]} )); then
+    echo "ERROR: terraform failed: ${failed[*]}" >&2
+    return 1
+  fi
 }
 
 # Reclaim a TCP port from any leaked holder before the e2e gate. Playwright's
@@ -835,29 +981,16 @@ gate_audit() {
 # byte-for-byte untouched. Any change to this invocation must preserve that
 # (verify with the fingerprint guard).
 gate_python_pipeline() {
-  # This gate provisions what it needs rather than skipping. A fresh clone used to
-  # skip it on one quiet line, so several hundred pipeline tests silently did not
-  # run and the operator had no signal that local coverage was smaller than CI's.
-  # The dependency set is the same file CI's pytest job installs, so local and CI
-  # agree; a venv that already imports pytest is left exactly as it is, because
-  # reinstalling into a working environment could downgrade a maintainer's tools.
-  local py=python3
-  if [ -x scripts/.venv/bin/python ] && scripts/.venv/bin/python -c "import pytest" >/dev/null 2>&1; then
-    py=scripts/.venv/bin/python
-  elif ! command -v python3 >/dev/null 2>&1; then
-    echo "  python3 absent — skipping."
+  # Runs under the legacy pipeline's own environment, which carries the same
+  # requirements file CI's pytest job installs. This runner never builds it: the
+  # environment lives inside legacy_data/, which no test-runner entry point
+  # writes. The seeder's environment is never borrowed either: the two are kept
+  # apart by the interpreter contract in scripts/lib/python-env.sh.
+  local py
+  # shellcheck source=scripts/lib/python-env.sh
+  if ! py="$(source scripts/lib/python-env.sh && footbag_python pipeline fail 2>/dev/null)"; then
+    echo "  the legacy pipeline environment is missing — skipping. Build it with: bash legacy_data/run_pipeline.sh venv"
     return 77
-  else
-    echo "  provisioning scripts/.venv (pytest absent)..."
-    if [ ! -x scripts/.venv/bin/python ] && ! python3 -m venv scripts/.venv; then
-      echo "  could not create scripts/.venv — skipping (install the python3 venv module to enable)."
-      return 77
-    fi
-    if ! scripts/.venv/bin/pip install --quiet -r legacy_data/requirements.txt; then
-      echo "  could not install legacy_data/requirements.txt — skipping."
-      return 77
-    fi
-    py=scripts/.venv/bin/python
   fi
   PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest legacy_data/tests/ legacy_data/legacy_mirror/tests/ -q -p no:cacheprovider
 }
@@ -942,28 +1075,15 @@ if (( FULL == 1 )); then
   run_gate clean-room bash scripts/ci/run_clean_room.sh
 fi
 
-# The gate table and the failure tails first, the real-data fingerprint after.
-# The guard exits 2 the moment it trips, and what trips it is usually a legacy
-# mirror crawl writing alongside the run rather than a gate misbehaving — so
-# running it first discarded a full hour of results, including the tail of every
-# failed gate, over a condition that says nothing about them.
+# The whole report first: the gate table, the failure details, the notices, and
+# what this run did not check. Every exit below ends the run, and each used to
+# come before part of the report: the real-data guard discarded an hour of
+# results over a condition that says nothing about them, and a failed run never
+# reached the list of what it had skipped. Nothing after this point prints
+# anything a reader needs except the verdict.
 summarize
 dump_failures
-assert_real_data_untouched
-
-# After the table and the failure output, for the same reason the real-data
-# guard runs there: this ends the run, and ending it before the reader has the
-# per-gate results would throw away an hour of work over a condition that says
-# nothing about any individual gate. Before the verdict, though, because that is
-# exactly what it invalidates.
-if ! assert_source_tree_unchanged; then
-  exit 4
-fi
-
-if (( ANY_FAIL == 1 )); then
-  echo "→ run_all_tests.sh: one or more gates FAILED." >&2
-  exit 1
-fi
+print_notices
 
 # A gate that could not run has not passed, and a run carrying one cannot promise
 # what a reader takes "all gates passed" to mean. Saying so is the difference
@@ -978,11 +1098,11 @@ PUSH_GATE_EQUIVALENTS="build lint audit conventions harness generated-content se
 SKIPPED_PREDICTIVE=()
 SKIPPED_LOCAL_ONLY=()
 for i in "${!GATE_NAMES[@]}"; do
-  [[ "${GATE_RESULTS[$i]}" == "SKIP" ]] || continue
+  [[ "${GATE_RESULTS[$i]}" == SKIP* ]] || continue
   if grep -qw "${GATE_NAMES[$i]}" <<< "$PUSH_GATE_EQUIVALENTS"; then
-    SKIPPED_PREDICTIVE+=("${GATE_NAMES[$i]} (skipped; reason above)")
+    SKIPPED_PREDICTIVE+=("${GATE_NAMES[$i]}: ${GATE_RESULTS[$i]}")
   else
-    SKIPPED_LOCAL_ONLY+=("${GATE_NAMES[$i]}")
+    SKIPPED_LOCAL_ONLY+=("${GATE_NAMES[$i]}: ${GATE_RESULTS[$i]}")
   fi
 done
 
@@ -1042,10 +1162,25 @@ if (( ${#NOT_SCHEDULED_OPT_IN[@]} > 0 )); then
 fi
 if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
   echo ""
-  echo "  THE PUSH GATE RUNS THESE AND THIS RUN COULD NOT. Their reasons are above:"
+  echo "  THE PUSH GATE RUNS THESE AND THIS RUN COULD NOT:"
   printf '    %s\n' "${SKIPPED_PREDICTIVE[@]}"
 fi
 echo "=============================================="
+
+# The verdicts, after the whole report. The real-data guard exits 2 the moment it
+# trips, and what trips it is usually a legacy mirror crawl writing alongside the
+# run rather than a gate misbehaving, so it must not run before the reader has
+# the results. The one-tree guard invalidates the verdict, so it comes before it.
+assert_real_data_untouched
+
+if ! assert_source_tree_unchanged; then
+  exit 4
+fi
+
+if (( ANY_FAIL == 1 )); then
+  echo "→ run_all_tests.sh: one or more gates FAILED." >&2
+  exit 1
+fi
 
 if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
   echo "→ run_all_tests.sh: INCOMPLETE. Everything that ran passed, but the gates named" >&2

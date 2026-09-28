@@ -15,6 +15,7 @@ cd ~/projects/footbag-platform/legacy_data
 ./run_pipeline.sh enrichment_only# enrichment phases only (canonical outputs must exist)
 ./run_pipeline.sh csv_only       # DB load from existing CSVs + enrichment (no mirror needed)
 ./run_pipeline.sh net_enrichment # net enrichment layer only (canonical DB must be loaded)
+./run_pipeline.sh venv           # build or refresh the Python environment, then stop
 ```
 
 `full` is the current gold-standard rebuild command. It runs the canonical
@@ -37,10 +38,16 @@ production build, the recorded-human-decision CSVs from the maintainers' private
 checkout — see the private-inputs rows in the register below and the member-data
 scripts' own README.
 
-Run from `legacy_data/`. You need only `python3`: the pipeline creates the venv and
-installs requirements automatically on every run (every stage runs inside the venv),
-so no manual activation or `pip install` is needed. Set `VENV_DIR` to reuse an
-existing venv.
+Run from `legacy_data/`. You need only Python at the version in the repository's
+`.python-version`: on every run the pipeline reuses a venv only if it works
+(exactly the pinned Python, with pip). Otherwise it builds `.venv` with the pinned
+interpreter, and only after proving that interpreter is present. It never deletes
+a venv it did not build, and names any that does not work. It then installs the
+hash-pinned `requirements.txt` with `--require-hashes` and proves the venv then
+satisfies it (every stage runs inside the venv), so no manual activation or
+`pip install` is needed. `./run_pipeline.sh venv` builds, repairs or refreshes that
+environment and stops; it is the only builder of it, and `run_dev.sh` calls it. Set
+`VENV_DIR` to reuse an existing working venv elsewhere.
 
 For exact stage order, script paths, and arguments, read `run_pipeline.sh` — it
 is the source of truth.
@@ -158,6 +165,7 @@ a CSV no roster ever touched while the rulings are present. The runner's own
 | `enrichment_only` | Membership, clubs, persons enrichment phases only | Not required | Iterating on enrichment logic (requires canonical outputs already present) |
 | `csv_only` | DB load from existing seed CSVs, then enrichment phases | Not required | No mirror access; canonical CSVs and seed must already exist on disk |
 | `net_enrichment` | Net enrichment layer only | Not required | Rebuilding net tables against an already-loaded canonical DB |
+| `venv` | Builds or refreshes the Python environment, then stops; does not touch the DB | Not required | Preparing the environment the legacy-extractor tests and scripts run under |
 
 ### Canonical backbone (`canonical_only` / included in `full`)
 
@@ -209,9 +217,9 @@ debugging.
 
 #### `legacy_data/run_pipeline.sh`
 Main pipeline driver. Every routine pipeline operation goes through this
-in one of the 5 modes listed above.
+in one of the 6 modes listed above.
 - Mirror required: yes for `full` and `canonical_only`; no for the rest
-- Mutates DB: yes (`database/footbag.db`)
+- Mutates DB: yes (`database/footbag.db`), except `venv`, which builds or refreshes the Python environment and stops
 - Curated inputs: `overrides/`, `inputs/curated/`, `inputs/identity_lock/`, `seed/`, `inputs/name_variants.csv`
 - Safe to rerun: yes; idempotent; fails fast on QC hard failure
 

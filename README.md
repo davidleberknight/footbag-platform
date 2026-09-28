@@ -28,12 +28,12 @@ Sneak Preview (AWS Staging): [https://doye1nvv64qep.cloudfront.net/](https://doy
 
 ## Quickstart
 
-Requires Node 22; `sqlite3` and `python3` are needed for the seeded local database (full setup in [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md)).
+On Ubuntu (or WSL Ubuntu), `scripts/setup-dev-workstation.sh` installs every required tool at its pinned version, including Node and Python, and the npm dependencies. The full procedure is in [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md).
 
 ```bash
 git clone https://github.com/davidleberknight/footbag-platform.git
 cd footbag-platform
-npm install
+bash scripts/setup-dev-workstation.sh   # pinned tools; runs npm ci too
 ./run_dev.sh   # first run seeds the database, then serves the site locally
 npm test       # unit and integration tiers
 ```
@@ -70,7 +70,7 @@ This repository doubles as a worked example of a production Claude Code harness:
 
 - [CLAUDE.md](CLAUDE.md): the always-loaded operating rules (authority order, non-negotiable rules, workflow). The AI loads this file first, every session.
 - [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): how and why the harness is built this way, section by section, mapped to Anthropic's published best practices.
-- 17 skills (repeatable procedures), 16 path-scoped rules (per-layer coding conventions), and 14 fixture-tested hooks, including an obfuscation-resistant read-only Bash auto-approver and a Stop hook that blocks low-quality questions to the human.
+- 17 skills (repeatable procedures), 15 path-scoped rules (per-layer coding conventions), and 17 fixture-tested hooks, including an obfuscation-resistant read-only Bash auto-approver and a Stop hook that blocks low-quality questions to the human.
 - Defense in depth: a version-proof permission floor in `.claude/settings.json` with guard hooks layered on top, and a CI self-check (`scripts/ci/assert_claude_harness.sh`) that fails the build when the harness drifts.
 
 

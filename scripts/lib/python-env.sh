@@ -37,9 +37,9 @@
 #
 # Environments:
 #   pipeline  the legacy-data environment, under legacy_data/, built from
-#             legacy_data/requirements.txt
+#             the hash-pinned legacy_data/requirements.txt
 #   seeder    the database seeder's environment, under scripts/, which
-#             scripts/reset-local-db.sh builds
+#             scripts/reset-local-db.sh and run_dev.sh build
 #
 # Policies:
 #   fail      print a diagnostic naming every path tried, and return non-zero
@@ -125,8 +125,8 @@ _footbag_create_env() {
     return 2
   fi
   echo "python-env: no virtualenv found under ${env_root}; building ${target}" >&2
-  python3 -m venv "$target" >&2 || return 1
-  "${target}/bin/pip" install --quiet -r "${env_root}/requirements.txt" >&2 || return 1
+  "python$(cut -d. -f1,2 "$(_footbag_repo_root)/.python-version")" -m venv "$target" >&2 || return 1
+  "${target}/bin/pip" install --quiet --require-hashes -r "${env_root}/requirements.txt" >&2 || return 1
   printf '%s\n' "$target"
 }
 
@@ -142,14 +142,32 @@ _footbag_refuse() {
       echo "              ${dir}/bin/python"
     done
     if [ "$environment" = "pipeline" ]; then
-      echo "            Create one with: cd legacy_data && python3 -m venv .venv \\"
-      echo "                             && .venv/bin/pip install -r requirements.txt"
+      echo "            Create one with: bash legacy_data/run_pipeline.sh venv"
     else
       echo "            Create one by running: bash scripts/reset-local-db.sh"
     fi
     echo "            There is deliberately no fallback to a system interpreter:"
     echo "            it would not carry the pinned dependencies."
   } >&2
+}
+
+# footbag_venv_healthy <venv-dir> [<hash-pinned requirements file>]
+# True only when the environment works, judged by its outcome rather than by a
+# file existing: its interpreter is exactly the version .python-version pins, pip
+# runs inside it, and, when a requirements file is named, it already satisfies
+# that file with nothing to install. A venv built from a bare python3 follows
+# that link, so repointing the system python3 turns it into a different
+# interpreter over the old one's packages; an existence check calls that healthy.
+footbag_venv_healthy() {
+  local dir="$1" reqs="${2:-}" want have out
+  want="$(tr -d '[:space:]' 2>/dev/null < "$(_footbag_repo_root 2>/dev/null)/.python-version" || true)"
+  [[ -n "$want" && -x "${dir}/bin/python3" ]] || return 1
+  have="$("${dir}/bin/python3" -c 'import platform; print(platform.python_version())' 2>/dev/null)" || return 1
+  [[ "$have" == "$want" ]] || return 1
+  "${dir}/bin/python3" -m pip --version >/dev/null 2>&1 || return 1
+  [[ -z "$reqs" ]] && return 0
+  out="$("${dir}/bin/python3" -m pip install --disable-pip-version-check --dry-run --require-hashes -r "$reqs" 2>&1)" || return 1
+  ! grep -q 'Would install' <<< "$out"
 }
 
 # The virtualenv directory for an environment. Prints an absolute path.

@@ -11,6 +11,7 @@ Run from repo root:
     python -m pytest legacy_data/legacy_mirror/tests/test_verify_archive_tree.py -v
 """
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -215,6 +216,50 @@ def test_a_video_awaiting_the_backfill_is_exempt(tmp_path):
     finally:
         verify_tree.crawler.MIRROR_DIR = old_dir
     assert _row(report, 'no reference still addresses the live hosts')[1] == []
+
+
+# ---- a held video the page still calls unavailable ----
+
+HELD_URL = 'http://www.footbag.org/media/431/My Great Movie.mp4'
+HELD_PAGE_URL = 'http://www.footbag.org/gallery/show/16527'
+
+
+def _video_check(tmp_path, body, disposition='backfilled'):
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'gallery/show/16527/index.html', f'<meta charset="utf-8"/>{body}')
+    manifest = tmp_path / verify_tree.crawler.SKIPPED_VIDEO_MANIFEST
+    manifest.write_text(json.dumps([{
+        'url': HELD_URL,
+        'normalized_url': verify_tree.crawler.normalize_url(HELD_URL),
+        'referrers': [HELD_PAGE_URL],
+        'disposition': disposition,
+    }]), encoding='utf-8')
+    old_dir = verify_tree.crawler.MIRROR_DIR
+    verify_tree.crawler.MIRROR_DIR = str(tmp_path)
+    try:
+        report = verify_tree.Report(examples=5)
+        verify_tree.check_videos(report, tmp_path, verify_tree.pages(www), www)
+    finally:
+        verify_tree.crawler.MIRROR_DIR = old_dir
+    return _row(report, 'no page calls a held video unavailable')[1]
+
+
+_FALLBACK = ('<!--Mirror: video conversion failed-->'
+             'Video My Great Movie.mp4 not available.')
+
+
+def test_a_page_calling_a_held_video_unavailable_fails(tmp_path):
+    assert _video_check(tmp_path, _FALLBACK) == [
+        'gallery/show/16527/index.html -> My Great Movie.mp4']
+
+
+def test_a_page_linking_the_held_video_passes(tmp_path):
+    body = '<a href="../../../media/431/My Great Movie.mp4">Direct Link To Movie</a>'
+    assert _video_check(tmp_path, body) == []
+
+
+def test_the_wording_is_true_for_a_video_that_could_not_be_obtained(tmp_path):
+    assert _video_check(tmp_path, _FALLBACK, disposition='backfill_failed') == []
 
 
 # ---- empty husks ----

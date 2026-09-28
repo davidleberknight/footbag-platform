@@ -128,7 +128,8 @@ function stubAwsOnPath(spec: AwsStubSpec): NodeJS.ProcessEnv {
       '  exit 0',
       'fi',
       'if [[ "$1" == "sts" && "$2" == "get-caller-identity" ]]; then',
-      '  want=""; prev=""',
+      // No --profile means the CLI reads AWS_PROFILE, as the real one does.
+      '  want="${AWS_PROFILE:-}"; prev=""',
       '  for a in "$@"; do [[ "$prev" == "--profile" ]] && want="$a"; prev="$a"; done',
       '  case "$want" in',
       ...arms,
@@ -240,6 +241,24 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     expect(all).toMatch(/Operator credential file/);
     expect(all).toMatch(/Pinned host-key file/);
     expect(all).toMatch(/thing\(s\) still to do/);
+  });
+
+  it('checks the shared tree’s secrets file beside the two environments, and says it may stay empty', () => {
+    // No clone carries these files. The shared tree's one is complete when empty
+    // until the account alternate contacts are enabled, so its advice differs.
+    const companion = join(fakeHome, 'ops');
+    mkdirSync(join(companion, 'terraform'), { recursive: true });
+    const r = run(
+      ['--target', 'staging', '--check', '--private-repo', companion],
+      stubSshOnPath(PINNED_ALIAS_LINES),
+    );
+    const all = output(r);
+    expect(all).toContain(`${companion}/terraform/staging.secrets.auto.tfvars is missing`);
+    expect(all).toContain(`${companion}/terraform/production.secrets.auto.tfvars is missing`);
+    expect(all).toContain(
+      `${companion}/terraform/shared.secrets.auto.tfvars is missing; create it empty, mode 600`,
+    );
+    expect(existsSync(join(companion, 'terraform', 'shared.secrets.auto.tfvars'))).toBe(false);
   });
 
   it('reports an empty credential file instead of dying on it', () => {
@@ -383,6 +402,16 @@ describe('the alias itself must be pinned, not only the deploy scripts', () => {
     expect(existsSync(join(fakeHome, '.ssh', 'config'))).toBe(false);
   });
 
+  it('reports a Terraform that is present but not the pinned version', () => {
+    const binDir = join(fakeHome, 'bin');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, 'terraform'), '#!/usr/bin/env bash\necho "Terraform v1.16.2"\n');
+    chmodSync(join(binDir, 'terraform'), 0o755);
+    const r = run(['--target', 'staging', '--check'], { PATH: `${binDir}:${process.env.PATH ?? ''}` });
+    expect(output(r)).toContain('terraform 1.16.2 is installed; the push gate runs 1.14.7');
+    expect(output(r)).toContain('Run: bash scripts/setup-dev-workstation.sh');
+  });
+
   it('checks for age, which seals and opens a dev-and-tester delivery', () => {
     const binDir = join(fakeHome, 'agebin');
     mkdirSync(binDir, { recursive: true });
@@ -436,6 +465,61 @@ describe('the alias itself must be pinned, not only the deploy scripts', () => {
 // changes, so this step used to report three `[ok]` lines for a credential that
 // could not reach AWS at all, and the failure then surfaced further down in
 // another step's vocabulary.
+describe('a run acting as the shared job role', () => {
+  // The job role is denied the Lightsail call that yields host keys, because the
+  // same call mints a root-shell certificate, so its pin arrives sealed in a
+  // delivery. A run as that role must neither ask for what it cannot have nor
+  // report as missing the operator-only files it never needs.
+  function asJobRole(): NodeJS.ProcessEnv {
+    return {
+      ...stubAwsOnPath({
+        profiles: ['FootbagDevTester'],
+        identities: { FootbagDevTester: DEV_TESTER_ROLE_ARN },
+      }),
+      AWS_PROFILE: 'FootbagDevTester',
+    };
+  }
+
+  it('notes the operator-only secrets files instead of listing them as work to do', () => {
+    const companion = join(fakeHome, 'ops');
+    mkdirSync(join(companion, 'terraform'), { recursive: true });
+    const r = run(['--target', 'staging', '--check', '--private-repo', companion], asJobRole());
+    const all = output(r);
+    expect(all).toContain('staging.secrets.auto.tfvars is not here, and a run as the FootbagDevTester role does not need it');
+    expect(all).not.toContain('staging.secrets.auto.tfvars is missing');
+  });
+
+  it('checks the delivered pin rather than rebuilding it from the API it is denied', () => {
+    const r = run(['--target', 'staging', '--check'], asJobRole());
+    const all = output(r);
+    expect(all).not.toContain('the pin for staging is missing, stale, or could not be built');
+  });
+
+  it('keeps the operator path for a run that is not the job role', () => {
+    const companion = join(fakeHome, 'ops');
+    mkdirSync(join(companion, 'terraform'), { recursive: true });
+    const r = run(['--target', 'staging', '--check', '--private-repo', companion], stubAwsOnPath(HEALTHY_AWS));
+    expect(output(r)).toContain('staging.secrets.auto.tfvars is missing');
+  });
+
+  it('classifies by the identity the run settles on, not the CLI default', () => {
+    // The shell names no profile. The CLI's bare default reaches the job role,
+    // but the run itself settles on the footbag-operator profile, so it is an
+    // operator run and the operator's files are work to do.
+    const companion = join(fakeHome, 'ops');
+    mkdirSync(join(companion, 'terraform'), { recursive: true });
+    const env = stubAwsOnPath({
+      ...HEALTHY_AWS,
+      // The quoted empty pattern is the stub's answer when no profile is named.
+      identities: { ...HEALTHY_AWS.identities, '""': DEV_TESTER_ROLE_ARN },
+    });
+    const r = run(['--target', 'staging', '--check', '--private-repo', companion], env);
+    const all = output(r);
+    expect(all).toContain('staging.secrets.auto.tfvars is missing');
+    expect(all).not.toContain('a run as the FootbagDevTester role does not need it');
+  });
+});
+
 describe('the AWS identity is proved, not listed', () => {
   it('names the credential when the profile is configured but its key is dead', () => {
     // The whole regression, in the state it actually arrives in: straight after

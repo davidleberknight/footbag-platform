@@ -9,7 +9,8 @@ operational conventions layer: tooling, factories, layout.
 - **Unit** (`tests/unit/`): exported pure functions. No DB, no HTTP.
 - **Integration** (`tests/integration/`): real HTTP routes through Supertest against a real SQLite
   file. No mocks and no mocked DB; tests run against real code paths.
-- **Smoke** (`tests/smoke/`): live-AWS adapter probes, operator-run against staging.
+- **Smoke** (`tests/smoke/`): live-AWS adapter probes against staging, run by an operator or
+  dev-tester (`npm run test:smoke`, or `./run_all_tests.sh --with-smoke`).
 - **Browser** (`tests/e2e/`): Playwright against a local throwaway stack.
 - **Dev** (`tests/dev/`): the development-only persona crawl.
 

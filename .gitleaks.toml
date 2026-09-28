@@ -50,4 +50,9 @@ regexes = [
   # AKIA is a long-lived access key id, ASIA a temporary session one. Both
   # prefixes appear in these tests and both are matched by the same rule.
   '''(AKIA|ASIA)(IOSFODNN7EXAMPLE|I44QH8DHBEXAMPLE|EXAMPLEEXAMPLE[0-9]{2}|EXISTINGKEY0+|OPERATORFIXTURE0|FIXTUREMINTED001|FIXTUREJAMES0001)''',
+  # The fingerprint of AWS's published PGP key for signing the AWS CLI installer,
+  # pinned in the workstation setup script so an edited key file is refused. A
+  # public key's fingerprint, not a secret; forty hex characters trip the
+  # generic-api-key rule. The exact body, for the same reason as the keys above.
+  '''FB5DB77FD5C118B80511ADA8A6310ACC4672475C''',
 ]

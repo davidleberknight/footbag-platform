@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # setup_private_repo.sh
 #
-# Wires this checkout to the companion operations checkout: the two repo-root
-# symlinks and the six Terraform values-file symlinks.
+# Wires this checkout to the companion operations checkout: the repo-root
+# symlink (and the legacy-clone one when asked), the four Terraform values-file
+# symlinks, and the three secrets-file symlinks where this checkout carries them.
 #
 # WHY THIS EXISTS.
 #
-# These links were hand-typed `ln -s` commands in an onboarding
-# document, and onboarding wired two of them. The other six are the ones that
-# matter for AWS work, and every failure mode they have is silent:
+# These links were hand-typed `ln -s` commands in an onboarding document. The
+# values and secrets links are the ones that matter for AWS work, and every
+# failure mode they have is silent:
 #
 #   - a missing values link means terraform reads no variables for that
 #     environment and fails with a message about undeclared variables, naming
@@ -21,8 +22,8 @@
 #     edit that a careless `ln -sf` would destroy without asking.
 #
 # The targets are deliberately relative and go through the `footbag_private_repo`
-# link rather than to wherever the private checkout actually sits, so the six
-# values links are identical on every machine and only one link is
+# link rather than to wherever the private checkout actually sits, so the values
+# and secrets links are identical on every machine and only one link is
 # machine-specific. That is worth preserving, and it is the part most easily got
 # wrong by hand.
 #
@@ -32,7 +33,9 @@
 #     somebody's values file, and it is not this script's to destroy. It is
 #     reported and the run stops.
 #   - Create a link whose target does not exist. A broken link is worse than an
-#     absent one: it passes every casual check and fails at terraform.
+#     absent one: it passes every casual check and fails at terraform. A missing
+#     committed values file stops the run; a missing operator-only secrets file
+#     is skipped and named, since no clone carries one.
 #   - Edit `.claude/settings.local.json`. That is the harness's own file, the
 #     human applies harness changes, and the exact command is printed instead.
 #   - Touch anything without showing you the plan first and taking a typed
@@ -57,11 +60,11 @@
 #                          needed only for historical-pipeline work, and a
 #                          developer without it is a supported configuration.
 #   --check                Report the state of every link this run considers and
-#                          exit: the eight an ordinary operator wires, plus the
-#                          legacy-clone link only when --legacy-repo is given, so
-#                          a bare --check reports eight. Changes
-#                          nothing, takes no confirmation, and exits non-zero if
-#                          any link is missing, broken or blocked.
+#                          exit: the root link, the four values links, and each
+#                          secrets link this checkout carries, plus the
+#                          legacy-clone link only when --legacy-repo is given.
+#                          Changes nothing, takes no confirmation, and exits
+#                          non-zero if any link is missing, broken or blocked.
 #   --yes                  Accept the typed confirmation in advance.
 set -euo pipefail
 
@@ -102,11 +105,11 @@ cd "$REPO_ROOT"
 
 # ── The link set ─────────────────────────────────────────────────────────────
 #
-# One entry per line, "<path-relative-to-repo-root>|<target>". The six values
-# links have fixed targets because they resolve through the root link; only the
-# two root links vary by machine.
+# One entry per line, "<path-relative-to-repo-root>|<target>". The values and
+# secrets links have fixed targets because they resolve through the root link;
+# only the two root links vary by machine.
 #
-# One of the six is not an environment: identity declares what a human operator
+# One of the four values links is not an environment: identity declares what a human operator
 # may do. It is here for the same reason the environment files are — a tree
 # whose values file is not wired cannot be planned, and nothing else would say
 # so. Who the operators ARE is deliberately not a values file, because hiring
@@ -114,12 +117,27 @@ cd "$REPO_ROOT"
 # state; the lifecycle script owns that instead.
 VALUES_LINKS=(
   "terraform/staging/terraform.tfvars|../../footbag_private_repo/terraform/staging.tfvars"
-  "terraform/staging/secrets.auto.tfvars|../../footbag_private_repo/terraform/staging.secrets.auto.tfvars"
   "terraform/production/terraform.tfvars|../../footbag_private_repo/terraform/production.tfvars"
-  "terraform/production/secrets.auto.tfvars|../../footbag_private_repo/terraform/production.secrets.auto.tfvars"
   "terraform/shared/terraform.tfvars|../../footbag_private_repo/terraform/shared.tfvars"
   "terraform/identity/terraform.tfvars|../../footbag_private_repo/terraform/identity.tfvars"
 )
+
+# The secrets files hold the values a tree marks sensitive. They are gitignored
+# in the private checkout too, so no clone carries them: an operator creates them
+# from the vault (setup-operator-workstation.sh makes them empty and says what
+# goes in each). A developer's checkout lacks them by design, so a missing one is
+# reported and skipped rather than refused; refusing made the root link, which
+# every developer with access needs, hostage to files only an operator has.
+SECRETS_LINKS=(
+  "terraform/staging/secrets.auto.tfvars|../../footbag_private_repo/terraform/staging.secrets.auto.tfvars"
+  "terraform/production/secrets.auto.tfvars|../../footbag_private_repo/terraform/production.secrets.auto.tfvars"
+  "terraform/shared/secrets.auto.tfvars|../../footbag_private_repo/terraform/shared.secrets.auto.tfvars"
+)
+
+# The path inside the private checkout that a link's target names.
+inner_of() {
+  printf '%s\n' "${1#../../footbag_private_repo/}"
+}
 
 # If no private repo was named and the root link already points somewhere real,
 # reuse it. Re-running after the first setup should not require re-typing a path
@@ -210,6 +228,22 @@ for entry in "${VALUES_LINKS[@]}"; do
   consider "${entry%%|*}" "${entry##*|}"
 done
 
+# A secrets file this checkout does not carry, with nothing yet at the link's
+# path, is an operator's file this machine has no use for. A link already there
+# is judged like any other, so a dangling one is still reported.
+SKIPPED_SECRETS=()
+for entry in "${SECRETS_LINKS[@]}"; do
+  path="${entry%%|*}"
+  want="${entry##*|}"
+  if [[ -n "$PRIVATE_REPO" && ! -L "$path" && ! -e "$path" \
+        && ! -e "${PRIVATE_REPO}/$(inner_of "$want")" ]]; then
+    SKIPPED_SECRETS+=("$path")
+    printf '  skip     %s (operator-only; %s is not in this checkout)\n' "$path" "$(inner_of "$want")"
+  else
+    consider "$path" "$want"
+  fi
+done
+
 echo ""
 
 # ── Refusals ─────────────────────────────────────────────────────────────────
@@ -227,6 +261,8 @@ fi
 if [[ "$CHECK_ONLY" -eq 1 ]]; then
   if [[ "$PROBLEMS" -eq 0 ]]; then
     echo "All ${OK_COUNT} links are wired and resolve."
+    [[ "${#SKIPPED_SECRETS[@]}" -gt 0 ]] \
+      && echo "${#SKIPPED_SECRETS[@]} operator-only secrets link(s) skipped: this checkout does not carry them."
     exit 0
   fi
   echo "${PROBLEMS} link(s) need attention; re-run without --check to fix them." >&2
@@ -256,12 +292,13 @@ if [[ -n "$LEGACY_REPO" && ! -d "$LEGACY_REPO" ]]; then
   exit 1
 fi
 
+# Every committed values file must be there, and so must every secrets file
+# this run did not skip: one it kept is either carried by the checkout or
+# already linked, and a link to one that has gone is a dangling link.
 MISSING_TARGETS=()
-for entry in "${VALUES_LINKS[@]}"; do
-  target="${entry##*|}"
-  # Strip the leading ../../ and the root-link name to get the path inside the
-  # private checkout, which is what has to exist.
-  inner="${target#../../footbag_private_repo/}"
+for entry in "${VALUES_LINKS[@]}" "${SECRETS_LINKS[@]}"; do
+  [[ " ${SKIPPED_SECRETS[*]} " == *" ${entry%%|*} "* ]] && continue
+  inner="$(inner_of "${entry##*|}")"
   [[ -e "${PRIVATE_REPO}/${inner}" ]] || MISSING_TARGETS+=("$inner")
 done
 
@@ -312,7 +349,8 @@ verify_one() {
 
 [[ -n "$PRIVATE_REPO" ]] && verify_one "footbag_private_repo"
 [[ -n "$LEGACY_REPO" ]] && verify_one "footbag_legacy_repo"
-for entry in "${VALUES_LINKS[@]}"; do
+for entry in "${VALUES_LINKS[@]}" "${SECRETS_LINKS[@]}"; do
+  [[ " ${SKIPPED_SECRETS[*]} " == *" ${entry%%|*} "* ]] && continue
   verify_one "${entry%%|*}"
 done
 
@@ -338,6 +376,13 @@ else
   echo ""
   echo "Without it, tracker reads are skipped with a one-line notice and"
   echo "everything else continues; it is not a prerequisite for the links above."
+fi
+
+if [[ "${#SKIPPED_SECRETS[@]}" -gt 0 ]]; then
+  echo ""
+  echo "Skipped, because this checkout does not carry them: the operator-only"
+  echo "secrets files. They matter only for Terraform work; an operator creates"
+  echo "them with setup-operator-workstation.sh and re-runs this."
 fi
 
 echo ""

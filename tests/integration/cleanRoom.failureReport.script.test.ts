@@ -25,7 +25,7 @@
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -86,10 +86,16 @@ exit 0
 function runCleanRoom(binDir: string): { status: number | null; out: string } {
   const home = path.join(scratch, path.basename(path.dirname(binDir)), 'home');
   mkdirSync(home, { recursive: true });
+  // The script keeps the last run's gate logs under TMPDIR, at a path a real
+  // clean-room run uses too. This suite runs inside that real run's integration
+  // tier, so without its own TMPDIR it would empty the real run's logs and put
+  // stub output where the reason for a real failure belongs.
+  const logRoot = path.join(scratch, path.basename(path.dirname(binDir)), 'tmp');
+  mkdirSync(logRoot, { recursive: true });
   const r = spawnSync('bash', [SCRIPT, '--quick'], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
-    env: { PATH: `${binDir}:${process.env.PATH ?? ''}`, HOME: home, TERM: 'dumb' },
+    env: { PATH: `${binDir}:${process.env.PATH ?? ''}`, HOME: home, TERM: 'dumb', TMPDIR: logRoot },
     ...SPAWN_GUARD,
   });
   return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
@@ -191,5 +197,30 @@ describe('run_clean_room.sh: a failed gate says why, at the end of the run', () 
     // the worktree the trap removes, or a miss costs the reader another run.
     expect(recap).toContain('full output: ');
     expect(recap).toContain('integration.log');
+  });
+
+  it('keeps its logs under its own temp root, never the path a real run reports', () => {
+    const { out } = runCleanRoom(stubBin('own-logs', NPM_INTEGRATION_FAILS));
+    const logRoot = path.join(scratch, 'own-logs', 'tmp');
+    expect(out).toContain(`full output: ${logRoot}/footbag-clean-room-last/integration.log`);
+    expect(readFileSync(path.join(logRoot, 'footbag-clean-room-last', 'integration.log'), 'utf8')).toContain(
+      GATE_SAID,
+    );
+  });
+});
+
+describe('run_clean_room.sh: a failed install says why', () => {
+  it('shows what npm ci printed, including an install script writing to stdout, and stops', () => {
+    // An install script's own output goes to stdout; discarding stdout left a
+    // failed install with nothing but an exit status.
+    const said = 'STUB-INSTALL-SCRIPT-SAID-WHY';
+    const { status, out } = runCleanRoom(
+      stubBin('npm-ci-fails', `if [ "$1" = ci ]; then echo "${said}"; exit 1; fi\nexit 0`),
+    );
+    expect(status, out).toBe(1);
+    expect(out).toContain('npm ci failed in the clean room');
+    expect(out).toContain(said);
+    expect(out).toContain('npm-ci.log');
+    expect(out).not.toContain('CLEAN ROOM SUMMARY');
   });
 });

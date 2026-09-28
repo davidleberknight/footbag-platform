@@ -352,7 +352,7 @@ Requirements:
 - Runtime container images declare a non-root `USER` and the entrypoint runs as that user. Root inside the container is reserved for build-time package installation only. The reverse proxy is the one container this cannot apply to: it runs the upstream nginx image unmodified, whose supervising process starts as root and drops its request-handling workers to an unprivileged account. That container is confined by capability set instead, retaining only the capabilities the supervisor-and-workers model needs: changing file ownership, setting the worker user and group, binding the privileged HTTP port, and signalling its own workers on reload and shutdown.
 - Each image build uses a `.dockerignore` that excludes `.git/`, secret files, local env files, and dev-only tooling so build context cannot leak credentials or repo metadata into image layers.
 - Compose runs containers with `cap_drop: [ALL]` and `security_opt: [no-new-privileges:true]`. Capabilities are re-added explicitly only where a runtime requirement justifies them, and the justification is captured next to the compose entry.
-- Base images are pinned by SHA256 digest, not by floating tag, so a hijacked upstream tag cannot replace the base layer between rebuilds.
+- Base images, and every remote image a script runs, are pinned by SHA256 digest, not by floating tag, so a hijacked upstream tag cannot replace the base layer between rebuilds or the scanner between runs.
 - Native dependencies (e.g. `better-sqlite3`) are prebuilt during the build stage; runtime images do not include `python3`, `make`, or `g++`. The runtime image carries only what the running process needs.
 - Every long-running container image declares a `HEALTHCHECK` so orchestration can detect a hung process without relying on TCP-level signals alone.
 
@@ -824,11 +824,12 @@ Requirements:
 - The symlinks are gitignored; committed files never reference a machine path or the private repository's identity.
 - The legacy clone is read-only (the harness deny-lists Edit and Write under its symlink); the credential vault is never committed to any repo (it lives in access-controlled external storage), consistent with the existing secrets-custody rule.
 - The public repository builds and tests with no companion checkout and no `FOOTBAG_PRIVATE_REPO` value present; a tool that reaches for an absent companion reports one actionable line, then skips. **Operating is the deliberate exception:** every environment's Terraform values file lives in the private checkout and is reached through a symlink, so the deploy entry point refuses every mode without it rather than degrading. That refusal is the intent, not a gap — a deploy that proceeded without the environment's own values would apply defaults to real infrastructure.
+- The links are made by one script, `scripts/setup_private_repo.sh`, never by hand-typed commands. It wires the root link and each environment's values-file link, and links each operator-only secrets file when the private checkout carries it, skipping and naming it when absent. It never replaces a real file with a link and never creates a link whose target does not exist.
 
 Trade-offs:
 
 - Private planning is deliberately undiscoverable from the public repository; contributors are routed to the maintainer contact.
-- Each maintainer machine wires two local items (the symlink and the environment variable) once, at onboarding.
+- Each maintainer machine wires its local items (the links, by the linking script, and the environment variable) once, at onboarding.
 
 ## 1.17 Deploy-time Host Value Ownership
 
@@ -4365,7 +4366,7 @@ Alternatives Considered:
 
 Decision:
 
-Local development uses Docker and docker compose to start the stack (web app, worker, test stubs) with a single command.
+Docker and docker compose run the stack (web app, worker, test stubs) in the production container shapes with a single command, as the local container parity mode; the default local loop runs the application directly, as the Local Development decision sets out.
 
 The minimum required Docker artifact set is:
 - `docker/web/Dockerfile`
@@ -4411,7 +4412,7 @@ Trade-offs:
 
 Impact:
 
-- Repository includes docker-compose configs for dev. docker compose --profile dev up launches a working system on http://localhost.
+- Repository includes docker-compose configs for dev. `npm run compose:dev` launches a working system on http://localhost.
 
 - Dev images use local file-system and stub services in place of AWS, but interfaces remain the same.
 
@@ -4436,14 +4437,20 @@ Rationale:
 Requirements:
 
 - Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `security-events: write` for the CodeQL job). Default-write tokens are not used.
-- GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference.
+- GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference. CI runners are named by release (`ubuntu-24.04`), never `*-latest`, which moves to a new operating system on the provider's schedule.
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
-- Project MCP server entries (`.mcp.json`) pin server packages to a specific version, not `@latest`. A version bump is a reviewed PR, not a transparent upstream change.
-- Security-critical npm dependencies (`argon2`, `helmet`, `marked`, `better-sqlite3`, `express`) are pinned exactly in `package.json` (no `^` or `~`). The lockfile is the canonical source for transitive versions.
+- Each project MCP server package is an exactly pinned devDependency governed by the lockfile, and `.mcp.json` runs it from `node_modules/.bin`, never through `@latest` or an `npx` fetch. A version bump is a reviewed PR, not a transparent upstream change.
+- Every dependency, devDependency and override in `package.json` is pinned to an exact version (no `^` or `~`), enforced by the version-pin convention gate (`scripts/ci/check_version_pins.sh`). The lockfile is the canonical source for transitive versions, and installs read it with `npm ci`.
+- The Node and Python runtimes are pinned exactly in `.nvmrc` and `.python-version`. CI, the local runners and the workstation setup script all read those two files, so no second copy of either version exists to drift.
+- Python packages are hash-pinned: each `requirements.in` names the direct dependencies and compiles to a `requirements.txt` pinning every package in the closure with its file hashes, installed with `--require-hashes`. The compiled files are regenerated only by `scripts/lock-python-deps.sh`.
+- Every Terraform tree declares an exact `required_version`, equal to the version CI runs.
+- A remote image a script runs (the secret-scan container, the ZAP scanner) is pinned by digest, and a CLI a script fetches is pinned by version.
+- Operating-system packages are pinned through the image that carries them (the named CI runner release, the base image digest) rather than by per-package `package=version` pins. Packages on a deployed host follow the security-patching cadence.
+- Developer workstation tools are installed by `scripts/setup-dev-workstation.sh`: idempotent, installing each tool at its pinned version only when absent, verifying every download against a pinned checksum, and changing nothing without a typed confirmation. No install step is left as hand-typed commands in a document.
 - A transitive dependency carrying an advisory is patched through an `overrides` entry rather than by upgrading the package that pulls it in. The alternative that tooling proposes is usually a major upgrade of the direct dependency, which is a body of work with its own risk, offered as if it were a version bump. An override states the intent exactly: this one transitive package, at this one version, for a stated reason.
 - The application does not use `qs`, and its query parser is set to `simple` so that Express does not either. Express defaults `query parser` to `extended`, which routes every request through `qs` with `allowPrototypes: true` — the option that lets an attacker-supplied key name reach `constructor` and prototype names, and the stated precondition of more than one advisory against that library. Nothing here needs what it provides: every query parameter the application reads is a flat scalar, and no route, view or link uses bracket notation. Request bodies already made the same choice with `express.urlencoded({ extended: false })`. Repeated keys still arrive as an array, which is the only multi-value shape in use.
 - Test-only packages (e.g. `@playwright/test`) live under `devDependencies`, never `dependencies`. Production images do not install dev dependencies.
-- Repo git hooks live under `.githooks/` and are activated by `scripts/install-git-hooks.sh`, which points git at that directory, makes each hook executable, and verifies the result; git otherwise looks inside its own directory, finds only sample templates, and silently runs none of them. The pre-commit hook runs the staged-scope secret scan so a secret cannot be committed without the operator explicitly overriding the hook.
+- Repo git hooks live under `.githooks/` and are activated by `scripts/install-git-hooks.sh`, which points git at that directory, makes each hook executable, and verifies the result; git otherwise looks inside its own directory, finds only sample templates, and silently runs none of them. Activation is automatic: npm's install-time `prepare` step, `run_dev.sh`, `run_all_tests.sh` and the workstation setup script each run it. It does nothing outside a git checkout, and nothing inside a linked worktree, whose main checkout activates its own hooks. The pre-commit hook runs the staged-scope secret scan so a secret cannot be committed without the operator explicitly overriding the hook; where no scanner is available on the machine, the hook warns and allows the commit.
 
 Trade-offs:
 
@@ -4461,7 +4468,7 @@ Impact:
 
 Decision:
 
-Local development supports two modes: (1) default fast-iteration mode with Docker Compose using filesystem storage and local service stubs, (2) optional high-fidelity mode with real AWS services for integration testing. Environment variables control which backend implementation is used. All environmental differences hidden behind abstraction layer.
+Local development supports three modes: (1) default fast-iteration mode, `./run_dev.sh`, which runs the application under `tsx` with filesystem storage and local service stubs; (2) container parity mode with Docker Compose, the same stubs inside the production container shapes; (3) optional high-fidelity mode with real AWS services for integration testing. The first two need no AWS account or credentials. Environment variables control which backend implementation is used. All environmental differences hidden behind abstraction layer.
 
 Rationale:
 
@@ -4473,7 +4480,7 @@ Rationale:
 
 AWS Credentials:
 
-- Developers use AWS profiles configured via aws configure or ~/.aws/credentials.
+- AWS profiles are written by the repository's scripts, never configured by hand; only operators and dev-testers hold them, and only the high-fidelity mode uses them.
 
 - Credentials passed to containers via environment variables (AWS_PROFILE, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY), never committed to code or baked into images.
 
@@ -4502,7 +4509,7 @@ Requirements:
 
 Trade-offs:
 
-- Developers need AWS credentials (dev/staging account access) for hybrid mode; onboarding includes AWS account setup.
+- The high-fidelity mode needs AWS credentials (staging account access); developer onboarding for the other two modes needs no AWS account.
 
 - Must maintain both local stub implementations and real adapter implementations (doubles adapter test surface).
 
@@ -4590,7 +4597,7 @@ Impact:
 
 Decision:
 
-Patching is a reviewed human action on every surface: dependencies, pinned GitHub Actions, host operating-system packages, and container base images. Automated detection covers dependency advisories; pinned actions, host packages, and base images are reviewed by hand on the operational cadence. No bot opens a version bump on any surface. The cadence and the per-surface procedure live in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
+Patching is a reviewed human action on every surface: dependencies, the hash-pinned Python requirement files, the pinned runtimes (`.nvmrc`, `.python-version`), Terraform, pinned GitHub Actions, the CI runner image, host operating-system packages, container base images, and the scan images scripts run. Automated detection covers dependency advisories; every other surface is reviewed by hand on the operational cadence. No bot opens a version bump on any surface. The cadence and the per-surface procedure live in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
 
 Rationale:
 
@@ -5048,7 +5055,7 @@ Requirements:
 - Every production deploy stops for a typed confirmation, read from the terminal device rather than from the credential stream the wrapper pipes onward, and refuses outright when no terminal is attached. This holds for every mode, including a code-only deploy that leaves the database alone, because the release it replaces is what the public is served. No flag and no environment variable supplies the confirmation in advance, so a scheduled job, a continuous-integration runner or an agent session cannot deploy to production unattended. Staging is deliberately not gated this way: its data is disposable and its host serves nobody.
 - Every typed confirmation in every operator script asks for the same word, `APPLY`. What is being confirmed is stated in full immediately before the prompt, never encoded in the word itself. A different phrase per script gives the operator something to look up, and looking it up is what teaches them to reach for whatever flag skips the prompt; it also made the phrase a second statement of something the command line had already said.
 - Terraform shared/global state (the `terraform/shared/` workspace) lives outside the repo working tree (separate clone, separate workspace, or external mount). The state files cannot be accidentally committed to the application repo by a `git add -A`.
-- `terraform/staging/providers.tf` and `terraform/production/providers.tf` declare the same `required_version` and the same provider version constraints. A required-version bump is a coordinated PR that touches both files in the same commit.
+- All four Terraform trees (`identity`, `shared`, `staging`, `production`) declare the same exact `required_version`, equal to the version CI runs, and `staging` and `production` declare the same provider version constraints. A required-version bump is a coordinated PR that touches every tree and CI in the same commit.
 
 Trade-offs:
 

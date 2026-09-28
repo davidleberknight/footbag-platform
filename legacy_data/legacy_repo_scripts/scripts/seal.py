@@ -31,7 +31,8 @@ import sys
 try:
     import yaml
 except ImportError:
-    sys.exit("FATAL: PyYAML is required. Install with: pip install pyyaml")
+    sys.exit("FATAL: PyYAML is required. Run under legacy_data's environment; "
+             "build it with: bash legacy_data/run_pipeline.sh venv")
 
 # Resolve paths relative to the archive root (the parent of scripts/), so the
 # script behaves the same regardless of the caller's working directory.

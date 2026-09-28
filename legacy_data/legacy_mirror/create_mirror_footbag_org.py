@@ -2282,6 +2282,14 @@ def media_fail_key(url: str) -> str:
 def is_failed_conversion_video(url: str) -> bool:
     return media_fail_key(url) in mirror_state.failed_conversion_videos
 
+def _held_video(url: str) -> bool:
+    # The re-encoded copy of this video is on disk with its sanitization sidecar.
+    try:
+        target = url_to_filepath(strip_query(url))
+    except ValueError:
+        return False
+    return bool(target) and _is_already_sanitized(str(Path(target).with_suffix('.mp4')))
+
 def _slugify(s: str) -> str:
     s = unquote_plus(str(s)).strip().lower()
     s = re.sub(r'[^a-z0-9._-]+', '-', s)
@@ -2795,7 +2803,12 @@ def convert_and_cleanup(filepath, ext):
     # --- Videos: must convert to MP4 or we consider it unusable ---
     if ext in VIDEO_EXTENSIONS:
         final = convert_to_mp4(filepath)
-        if final and final != filepath and os.path.exists(final):
+        # An .mp4 source is re-encoded to .mp4 on purpose: the full re-encode is
+        # what strips malware, so the output legitimately takes the source's own
+        # path. A same-path result is success only when its sidecar proves the
+        # bytes there are the re-encode rather than the untouched download.
+        if final and os.path.exists(final) and (
+                final != filepath or _is_already_sanitized(final)):
             try:
                 out_size = os.path.getsize(final)
             except OSError:
@@ -2877,8 +2890,11 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
             logging.debug(f"Skipping JS-based media placeholder: {url}")
             return None  # will be handled later.
 
-        # Early skip for conversion-failed videos
-        if is_failed_conversion_video(url):
+        # Early skip for conversion-failed videos, unless the archive has since
+        # obtained the video: the remembered failure is older than the file,
+        # and answering from it would have the page step replace a working
+        # link with "not available".
+        if is_failed_conversion_video(url) and not _held_video(url):
             key = media_fail_key(url)
             logging.info(f"Skipping failed-conversion media URL: {key}")
             return None
@@ -2990,6 +3006,13 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
                 logging.info(f"Recorded failed-conversion video URL: {key}")
             return result
 
+        # A partial download an earlier run abandoned mid-body. Nothing else
+        # owns the name, and the publish refuses the type, so it goes now,
+        # whether or not this attempt gets far enough to replace it.
+        temp_filepath = filepath + '.tmp'
+        if os.path.exists(temp_filepath):
+            os.remove(temp_filepath)
+
         try:
             polite_wait(url)
             # Session by TARGET host: the caller's (member) session only when the
@@ -3033,12 +3056,27 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
             logging.warning(f"Media file too large, skipping: {url} ({content_length} bytes)")
             return None
 
-        temp_filepath = filepath + '.tmp'
-        with open(temp_filepath, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        try:
+            with open(temp_filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        except BaseException:
+            # A stream cut off mid-body (a read timeout, a reset) must not leave
+            # its partial bytes behind under a name no later step owns.
+            try:
+                os.remove(temp_filepath)
+            except OSError:
+                pass
+            raise
 
+        # Fresh bytes at this path are unscanned. A sidecar already sitting here
+        # vouches for an earlier file (one a failed run deleted), and left in
+        # place it would let the re-encode be skipped as already done. Removed
+        # before the rename, so no moment exists where raw bytes sit beside it.
+        stale_marker = _sanitized_marker_path(filepath)
+        if os.path.exists(stale_marker):
+            os.remove(stale_marker)
         os.rename(temp_filepath, filepath)
         logging.info(f"Downloaded: {filepath}")
 
@@ -3524,11 +3562,23 @@ def remove_fallback_viewer_row(element, resolve_base, soup):
                 logging.info(f"Removed redundant video viewer: {a_tag['href']}")
                 break
 
-def drop_broken_video_element(elem, fallback_text):
+_VIDEO_FALLBACK_MARKER = "Mirror: video conversion failed"
+
+
+def drop_broken_video_element(elem, fallback_text, video_url=None):
     # Replace an <a>/<video>/<source> that points to a failed video with a tiny inline fallback.
     # Does not climb beyond the nearest <video>; no table-row surgery. Silent no-op on edge cases.
+    #
+    # The marker names the video it stands for. The element it replaces is the
+    # only thing on the page that carried the address, and a later pass that
+    # does obtain the video finds its way back to this spot through the marker;
+    # without it the page would go on calling a held video unavailable.
     try:
-        note = Comment("Mirror: video conversion failed")
+        marker = _VIDEO_FALLBACK_MARKER
+        if video_url:
+            # '>' is the one character that could close the comment early.
+            marker = f"{marker}: {video_url.replace('>', '%3E')}"
+        note = Comment(marker)
         msg  = NavigableString(f"Video {fallback_text} not available.")
 
         # If we’re in a <source>, remove its owning <video>.
@@ -4333,7 +4383,8 @@ def rewrite_links(html, page_url, link_base=None):
                         if is_video_file(abs_url):
                             fallback_text = os.path.basename(urlparse(abs_url).path)
                             remove_fallback_viewer_row(tag, resolve_base, soup)
-                            drop_broken_video_element(tag, fallback_text)
+                            drop_broken_video_element(tag, fallback_text,
+                                                      video_url=strip_query(abs_url))
                             logging.info(f"Replaced broken embedded video with fallback on: {page_url}")
 
         # Embedded direct links like <a href="video.mov">
@@ -4370,7 +4421,8 @@ def rewrite_links(html, page_url, link_base=None):
                         # Strict fallback for failed VIDEO conversions in direct links
                         fallback_text = os.path.basename(urlparse(abs_url).path)
                         remove_fallback_viewer_row(a, resolve_base, soup)
-                        drop_broken_video_element(a, fallback_text)
+                        drop_broken_video_element(a, fallback_text,
+                                                  video_url=strip_query(abs_url))
                         logging.info(f"Replaced broken video link with fallback on: {page_url}")
 
         # Handle javascript:popupprofile('NNNNN') links
@@ -4744,7 +4796,8 @@ def rewrite_links(html, page_url, link_base=None):
                                 if is_video_file(full_url):
                                     fallback_text = os.path.basename(urlparse(full_url).path)
                                     remove_fallback_viewer_row(element, resolve_base, soup)
-                                    drop_broken_video_element(element, fallback_text)
+                                    drop_broken_video_element(element, fallback_text,
+                                                              video_url=strip_query(full_url))
                                     logging.info(f"Replaced broken video with fallback on: {page_url}")
                                     continue
 
@@ -6445,7 +6498,11 @@ _MARKUP_COMMENT_RE = re.compile(rb'<!--.*?-->', re.DOTALL)
 # attribute inside still sits in plain quotes and matches the reference pattern.
 # A gallery page showing its own template source this way is what reports a
 # button image as a dangling reference on a page that never asks for one.
-_ESCAPED_MARKUP_RE = re.compile(rb'&lt;[^&]{0,400}?&gt;', re.IGNORECASE)
+# Escaped markup starts the way a tag does, a name or '/' or '!' right after the
+# entity. Authors also wrapped a real link in literal angle brackets
+# ('&lt;<a href="...">...</a>&gt;'), and matching that as escaped text hid a
+# link every browser requests from both the dead-link pass and the verifier.
+_ESCAPED_MARKUP_RE = re.compile(rb'&lt;[A-Za-z/!][^&]{0,400}?&gt;', re.IGNORECASE)
 _OFFSITE_REF_PREFIXES = ('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')
 
 
@@ -6474,7 +6531,9 @@ def _resolve_local_ref(ref, page_dir, www_root):
     tree root rather than the page's own directory. Treating it as unresolvable
     is what left every such reference neither repaired nor neutralized.
     """
-    target = unquote(urlparse(ref).path)
+    # urlsplit, not urlparse: a ';' is a legal filename character, and urlparse
+    # would cut the last segment at it, so a file that is on disk reads as absent.
+    target = unquote(urlsplit(ref).path)
     if not target:
         return None
     base = str(www_root) if target.startswith('/') else str(page_dir)
@@ -6484,6 +6543,24 @@ def _resolve_local_ref(ref, page_dir, www_root):
     if resolved != root and not resolved.startswith(root + os.sep):
         return None
     return resolved
+
+
+def _dangling_ref(ref, page_dir, www_root):
+    # (ref, repaired form or None) when the reference's target is not on disk,
+    # None when it is there or the reference leaves the capture.
+    resolved = _resolve_local_ref(ref, page_dir, www_root)
+    if resolved is None or os.path.exists(resolved):
+        return None
+    repaired = None
+    # A rewriting bug that put one '../' too many in front of an otherwise
+    # correct path: the rulebook index reaches its chapters this way. These
+    # are repaired rather than neutralized, or the fix would delete working
+    # navigation to remove a link that is only mis-spelled.
+    if ref.startswith('../'):
+        candidate = os.path.normpath(os.path.join(str(page_dir), ref[3:]))
+        if candidate.startswith(str(www_root)) and os.path.exists(candidate):
+            repaired = ref[3:]
+    return (ref, repaired)
 
 
 def _dangling_refs(page, www_root):
@@ -6496,19 +6573,9 @@ def _dangling_refs(page, www_root):
     except OSError:
         return out
     for ref in _page_local_refs(blob):
-        resolved = _resolve_local_ref(ref, page.parent, www_root)
-        if resolved is None or os.path.exists(resolved):
-            continue
-        repaired = None
-        # A rewriting bug that put one '../' too many in front of an otherwise
-        # correct path: the rulebook index reaches its chapters this way. These
-        # are repaired rather than neutralized, or the fix would delete working
-        # navigation to remove a link that is only mis-spelled.
-        if ref.startswith('../'):
-            candidate = os.path.normpath(os.path.join(str(page.parent), ref[3:]))
-            if candidate.startswith(str(www_root)) and os.path.exists(candidate):
-                repaired = ref[3:]
-        out.append((ref, repaired))
+        dangling = _dangling_ref(ref, page.parent, www_root)
+        if dangling:
+            out.append(dangling)
     return out
 
 
@@ -6796,11 +6863,8 @@ def neutralize_dead_internal_links():
     repaired = neutralized = images = touched = 0
 
     for page in pages:
-        refs = _dangling_refs(page, www_root)
-        if not refs:
+        if not _dangling_refs(page, www_root):
             continue
-        dead = {ref for ref, fix in refs if not fix}
-        fixes = {ref: fix for ref, fix in refs if fix}
         try:
             soup = BeautifulSoup(page.read_text(encoding='utf-8', errors='replace'),
                                  'html.parser')
@@ -6822,14 +6886,20 @@ def neutralize_dead_internal_links():
             if not ref and element.name == 'use':
                 attr = 'xlink:href' if element.get('xlink:href') else 'href'
                 ref = element.get(attr)
-            if not ref:
+            if not ref or ref.startswith(_OFFSITE_REF_PREFIXES):
                 continue
-            if ref in fixes:
-                element[attr] = fixes[ref]
+            # Judged on the element's own attribute rather than by matching the
+            # byte scan's text: legacy markup garbled enough to nest one tag's
+            # source inside another's attribute reads differently to the two, and
+            # a string match then leaves the page's dead link in place forever.
+            dangling = _dangling_ref(ref, page.parent, www_root)
+            if not dangling:
+                continue
+            fix = dangling[1]
+            if fix:
+                element[attr] = fix
                 repaired += 1
                 changed = True
-                continue
-            if ref not in dead:
                 continue
             if element.name == 'img':
                 element.insert_before(Comment("Mirror: image not captured, reference removed"))
@@ -6854,6 +6924,72 @@ def neutralize_dead_internal_links():
         f"{images} uncaptured image reference(s) removed "
         f"({len(pages)} pages scanned)")
     return touched
+
+
+def _withheld_page_paths():
+    # The on-disk file of every withheld page, and its directory, because a
+    # listing may link either spelling. Resolved without checking existence:
+    # the sweep has usually deleted the file already, and the listings that
+    # quote it are exactly what is left to settle.
+    paths = set()
+    for entry in WITHHELD_EXACT_URLS:
+        try:
+            target = os.path.realpath(url_to_filepath(f'{BASE_URL}/{entry}/'))
+        except ValueError:
+            continue
+        paths.add(target)
+        if os.path.basename(target) in ('index.html', 'index.htm'):
+            paths.add(os.path.dirname(target))
+    return paths
+
+
+def drop_withheld_post_entries():
+    """Remove a withheld post's entry from the blog listings that quote it.
+
+    Withholding a post's page does not withhold the post: a microsite's home
+    page and author archive carry its title and body inline as one entry of
+    their post list, so the text a ruling kept out of the archive would still
+    be read on the front page of that site. The entry goes whole, with a marker,
+    and every other entry on the listing stays.
+
+    Keyed on the withheld list only, never on a permalink that merely leads
+    nowhere: a real post the crawl did not reach still has a real excerpt, and
+    the dead-link pass, not this one, settles its link.
+    """
+    www_root = Path(_www_root()).resolve()
+    withheld = _withheld_page_paths()
+    if not withheld:
+        return 0
+    dropped = touched = 0
+    for page in www_root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if b'hentry' not in blob:
+            continue
+        soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        changed = False
+        for entry in soup.select('.hentry'):
+            if entry.decomposed:
+                continue
+            for link in entry.find_all('a', rel='bookmark', href=True):
+                target = _resolve_local_ref(link['href'], page.parent, www_root)
+                if target and os.path.realpath(target) in withheld:
+                    entry.insert_before(Comment("Mirror: withheld post removed"))
+                    entry.decompose()
+                    dropped += 1
+                    changed = True
+                    break
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+    logging.info(
+        f"Withheld-post pass: {dropped} listing entr(ies) removed from "
+        f"{touched} page(s)")
+    return dropped
 
 
 _DEAD_STUB_PAGE = """<!DOCTYPE html>
@@ -7346,6 +7482,9 @@ def generate_reachability_pages(seeds_dir=None):
     # rewritten once rather than twice, and so the generated pages below never
     # see a control the archive cannot honour.
     neutralize_dead_script_controls()
+    # A withheld post's listing entries go before the dead-link pass, which then
+    # settles the links that remain to it, such as a neighbour's "newer post".
+    drop_withheld_post_entries()
     # Dead links next: the generated pages below are written from what is on disk
     # and must not themselves be rewritten afterwards, and the pass has to see
     # the tree as everything above it left it.
@@ -7414,6 +7553,44 @@ def _strip_adjacent_skip_marker(tag):
         prev.extract()
 
 
+def _relink_video_fallbacks(soup, page_path, rec_norm, processed_path):
+    # A failed attempt replaced the page's player or link with a marker naming
+    # the video and the words "Video X not available." Once the archive holds
+    # the video those words are untrue, and the element that carried its
+    # address is gone, so the ordinary repair above has nothing to match. The
+    # marker is found instead and the words become a plain link to the local
+    # file: the original player cannot be rebuilt from what the page kept.
+    prefix = _VIDEO_FALLBACK_MARKER + ': '
+    lead_in, tail = 'Video ', ' not available.'
+    relinked = 0
+    notes = soup.find_all(
+        string=lambda s: isinstance(s, Comment) and s.startswith(prefix))
+    for note in notes:
+        try:
+            if normalize_url(note[len(prefix):].strip()) != rec_norm:
+                continue
+        except Exception:
+            continue
+        wording = note.next_sibling
+        if not isinstance(wording, NavigableString) or isinstance(wording, Comment):
+            continue
+        text = str(wording)
+        body = text.lstrip()
+        end = body.find(tail)
+        if not body.startswith(lead_in) or end == -1:
+            continue
+        link = soup.new_tag('a', href=calculate_relative_path(page_path, processed_path))
+        link.string = body[len(lead_in):end]
+        note.replace_with(Comment("Mirror: video backfilled to local file"))
+        wording.replace_with(link)
+        if len(text) > len(body):
+            link.insert_before(NavigableString(text[:len(text) - len(body)]))
+        if body[end + len(tail):]:
+            link.insert_after(NavigableString(body[end + len(tail):]))
+        relinked += 1
+    return relinked
+
+
 def _rewrite_referrer_page(referrer_url, page_records):
     # Repair one referring page in place: every element whose target normalizes
     # to a backfilled video gets the relative local path; elements whose video
@@ -7438,6 +7615,13 @@ def _rewrite_referrer_page(referrer_url, page_records):
             for attr in ('href', 'src'):
                 if not _element_matches_video(tag, attr, referrer_url, rec_norm):
                     continue
+                # An .mp4 re-encodes to its own name, so a link already
+                # pointing at the local file resolves to the same address as
+                # the remote one. It is done; repairing it again would stack a
+                # marker beside it and rewrite the page on every run.
+                if processed_path and tag.get(attr) == calculate_relative_path(
+                        page_path, processed_path):
+                    continue
                 _strip_adjacent_skip_marker(tag)
                 if processed_path:
                     tag[attr] = calculate_relative_path(page_path, processed_path)
@@ -7446,9 +7630,11 @@ def _rewrite_referrer_page(referrer_url, page_records):
                     tag.insert_before(Comment("Mirror: video backfilled to local file"))
                 else:
                     fallback = os.path.basename(urlparse(rec['url']).path)
-                    drop_broken_video_element(tag, fallback)
+                    drop_broken_video_element(tag, fallback, video_url=rec['url'])
                 repaired += 1
                 break
+        if processed_path:
+            repaired += _relink_video_fallbacks(soup, page_path, rec_norm, processed_path)
     if repaired:
         _atomic_write_text(page_path, str(soup))
         logging.info(f"Backfill: {repaired} element(s) repaired on {referrer_url}")
@@ -7569,6 +7755,13 @@ def run_video_backfill(seed_from=None, retry_failed=False):
             mirror_state.settled_this_run.add(rec_norm)
             outcomes['refused'] += 1
             continue
+        if retry_failed:
+            # An explicit retry has to reach the network and the encoder. The
+            # failure a resumed run remembers would otherwise answer for it,
+            # without a byte being fetched, and the retry would prove nothing.
+            key = media_fail_key(_collapse_amp_entities(url))
+            mirror_state.failed_conversion_videos.discard(key)
+            mirror_state.failed_urls.discard(key)
         processed = download_and_process_media(url, session, referrer=None)
         rec['attempts'] = attempts + 1
         mirror_state.settled_this_run.add(rec_norm)
@@ -8734,6 +8927,7 @@ def _run_crawler():
         settle_vhost_placeholder_pages()
         relink_restored_nav_items()
         neutralize_dead_script_controls()
+        drop_withheld_post_entries()
         neutralize_dead_internal_links()
         neutralize_retired_host_links()
         return

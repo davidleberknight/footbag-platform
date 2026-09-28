@@ -117,14 +117,23 @@ def test_the_guard_survives_a_checkout_with_none_of_the_trees(tmp_path):
     substitution — exit 1, no output, no explanation.
 
     Runs the real orchestrator in a temp directory, so no real data is touched.
-    The stubs mirror the ones the deploy-script suite uses for the same script.
+    The stubs mirror the ones the deploy-script suite uses for the same script:
+    a repository layout, because the script reads the pinned Python version and
+    its venv health check from the repository root, and a venv whose interpreter
+    reports that version, answers pip, and finds nothing to install.
     """
-    shutil.copy(ORCHESTRATOR, tmp_path / "run_pipeline.sh")
-    venv_bin = tmp_path / ".venv" / "bin"
+    legacy = tmp_path / "legacy_data"
+    legacy.mkdir()
+    shutil.copy(ORCHESTRATOR, legacy / "run_pipeline.sh")
+    (tmp_path / "scripts" / "lib").mkdir(parents=True)
+    shutil.copy(REPO_ROOT / "scripts" / "lib" / "python-env.sh", tmp_path / "scripts" / "lib")
+    (tmp_path / ".python-version").write_text("3.12.12\n")
+    (legacy / "requirements.txt").write_text("")
+    venv_bin = legacy / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
     (venv_bin / "activate").write_text("")
-    (venv_bin / "pip").write_text("#!/bin/sh\nexit 0\n")
-    (venv_bin / "pip").chmod(0o755)
+    (venv_bin / "python3").write_text('#!/bin/sh\nif [ "$1" = "-c" ]; then echo 3.12.12; fi\nexit 0\n')
+    (venv_bin / "python3").chmod(0o755)
     stub_bin = tmp_path / "stub-bin"
     stub_bin.mkdir()
     (stub_bin / "python").write_text("#!/bin/sh\nexit 0\n")
@@ -132,7 +141,7 @@ def test_the_guard_survives_a_checkout_with_none_of_the_trees(tmp_path):
 
     result = subprocess.run(
         ["bash", "run_pipeline.sh", "canonical_only"],
-        cwd=tmp_path,
+        cwd=legacy,
         env={"PATH": f"{stub_bin}:/usr/bin:/bin", "HOME": str(tmp_path)},
         capture_output=True,
         text=True,

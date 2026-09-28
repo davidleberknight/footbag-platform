@@ -28,6 +28,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -540,6 +541,31 @@ def check_videos(report, mirror_root, html_pages, www_root):
             outstanding.append(f'{disposition}: {key}')
     report.add('every recorded video is held or recorded as unrecoverable', outstanding,
                f'{len(manifest)} recorded, {held} held, {unrecoverable} tried and unrecoverable')
+
+    # A video can be held while a page still tells the reader it is not
+    # available: a failed conversion replaced the page's player and link with
+    # that wording, and a later pass that did obtain the video had no original
+    # address left on the page to relink. The file is published with nothing
+    # pointing at it, and the page says something untrue.
+    crawler_www = crawler._www_root()
+    denied = []
+    for key, record in manifest.items():
+        if record.get('disposition') != 'backfilled':
+            continue
+        raw = os.path.basename(urlparse(record.get('url') or key).path)
+        names = {raw, unquote(raw)}
+        for referrer in record.get('referrers') or []:
+            try:
+                target = crawler.url_to_filepath(referrer)
+            except ValueError:
+                continue
+            if not target:
+                continue
+            page = www_root / os.path.relpath(target, crawler_www)
+            text = read(page) if page.is_file() else ''
+            if any(f'Video {name} not available' in text for name in names):
+                denied.append(f'{rel(page, www_root)} -> {unquote(raw)}')
+    report.add('no page calls a held video unavailable', denied)
 
     # A page still pointing at the live site for its video means the referrer
     # rewrite did not reach it, and the archive links a host that is going away.

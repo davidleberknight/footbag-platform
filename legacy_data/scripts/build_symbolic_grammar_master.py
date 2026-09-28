@@ -38,7 +38,8 @@ try:
     import openpyxl
     from openpyxl.styles import Font, PatternFill
 except ImportError:
-    print("openpyxl required: pip install openpyxl", file=sys.stderr)
+    print("openpyxl required: run under legacy_data's environment; "
+          "build it with: bash legacy_data/run_pipeline.sh venv", file=sys.stderr)
     sys.exit(2)
 
 ROOT = Path(__file__).resolve().parent.parent.parent

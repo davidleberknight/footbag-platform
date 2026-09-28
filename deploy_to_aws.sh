@@ -126,8 +126,9 @@ esac
 PRIVATE_CHECKOUT="${SCRIPT_DIR}/footbag_private_repo"
 if [[ ! -d "$PRIVATE_CHECKOUT" ]]; then
   echo "ERROR: the maintainers' private checkout is not reachable: ${PRIVATE_CHECKOUT}" >&2
-  echo "Recommendation: create the git-ignored repo-root footbag_private_repo symlink pointing at" >&2
-  echo "  your private operations checkout, then re-run. A deploy requires it: the member intake" >&2
+  echo "Recommendation: clone the private operations repo beside this one and wire it with" >&2
+  echo "  bash scripts/setup_private_repo.sh --private-repo <path to that clone>" >&2
+  echo "  then re-run. A deploy requires it: the member intake" >&2
   echo "  reads the recorded account rulings and the board roster from it, and a database built" >&2
   echo "  without them is wrong in ways nothing afterwards reports." >&2
   exit 1
@@ -357,7 +358,7 @@ need_cmd jq     "apt-get install -y jq"
 # DB-touching modes need sqlite3 + (eventually, when prod activates) aws CLI.
 if (( MODE_CODE_ONLY != 1 )); then
   need_cmd sqlite3 "apt-get install -y sqlite3"
-  need_cmd aws     "Install AWS CLI v2 (see aws/install in this repo)."
+  need_cmd aws     "Install AWS CLI v2 (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)."
 fi
 
 # Resolve the deploy target's SSH alias. The leaves derive FOOTBAG_ENV from

@@ -309,7 +309,8 @@ human's instruction as given; a legacy-pipeline step with no legacy clone is sim
 is "solve, don't defer" — the absence is handled explicitly, never left to improvisation.
 
 **Where to get wired.** A maintainer sets up both companion repos following the private repo's
-`ONBOARDING.md` (private GitHub repo), which covers the developer path (writing code) and the
-browser path (governance work, no code). This public guide does not restate those steps; it
+`ONBOARDING.md` (private GitHub repo), the entry point for every private-access role: developers,
+governance browser users, dev-testers and operators, the last two continuing into the joining
+chapter of `DEVOPS_GUIDE.md` (private GitHub repo). This public guide does not restate those steps; it
 records only which companion repos a given kind of work requires and how the harness behaves
 without them: optional for a developer or tester, hard-required for an operator.

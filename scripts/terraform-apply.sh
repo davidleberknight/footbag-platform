@@ -310,8 +310,9 @@ fi
 # address from the credential vault's operations-mailbox entry; the vault holds no
 # entry for the file itself, by an explicit ruling, so there is nothing to restore.
 #
-# Create it before wiring the link, because a link wired first points at nothing.
-# Terraform loads any *.auto.tfvars in the working directory on its own, so a dangling
+# Create it before wiring the link: the wiring script skips a secrets link whose
+# file is absent, so a file created afterwards is linked only by running the
+# wiring again (setup-operator-workstation.sh creates it first). Terraform loads any *.auto.tfvars in the working directory on its own, so a dangling
 # link fails on the unreadable path and an absent one falls through to a complaint
 # about a variable with no value. Neither failure names the file as something the
 # operator was supposed to author, which is why it is stated here. The shared tree

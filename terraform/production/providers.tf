@@ -5,9 +5,11 @@
 # =============================================================================
 
 terraform {
-  # Minimum 1.11: native S3 backend locking (use_lockfile in backend.tf)
-  # was introduced in Terraform 1.10. The staging module pins the same floor.
-  required_version = ">= 1.11"
+  # Exact, as every version in this repository is: the same Terraform the push
+  # gate runs (terraform_version in the CI workflow). It is at least 1.11, which
+  # native S3 backend locking (use_lockfile in backend.tf) needs. Every tree pins
+  # the same version.
+  required_version = "1.14.7"
 
   required_providers {
     aws = {

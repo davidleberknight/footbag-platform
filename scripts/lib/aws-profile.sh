@@ -406,10 +406,12 @@ aws_profile_use() {
       echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
     else
       echo "       That is a chained runtime section. The onboarding writes the" >&2
-      echo "       staging one for a named operator; the key install writes both" >&2
-      echo "       for the directly authenticated identity. Which applies here is" >&2
-      echo "       a fact about whose key this machine holds:" >&2
-      echo "         bash scripts/manage-human-operator.sh --onboard <name>" >&2
+      echo "       staging one for a named operator, the delivery acceptance writes" >&2
+      echo "       it for a dev-and-tester, and the key install writes both for the" >&2
+      echo "       directly authenticated identity. Which applies here is a fact" >&2
+      echo "       about whose key this machine holds:" >&2
+      echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
+      echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
       echo "         bash scripts/install-operator-key.sh" >&2
     fi
     return 1

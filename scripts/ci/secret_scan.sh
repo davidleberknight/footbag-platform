@@ -66,6 +66,12 @@ if [ -z "$PINNED_VERSION" ]; then
   exit 1
 fi
 
+# The container is pinned by digest as well as tag, because a tag can be moved.
+# The digest belongs to one version, so a workflow pin bumped without it is
+# refused rather than silently scanned with the old image.
+IMAGE_VERSION="8.24.3"
+IMAGE_DIGEST="sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055"
+
 rc=0
 native_version=""
 if command -v gitleaks >/dev/null 2>&1; then
@@ -85,9 +91,14 @@ elif command -v docker >/dev/null 2>&1; then
     echo "  gitleaks ${native_version} is installed; the runner uses ${PINNED_VERSION}." >&2
     echo "  Using the pinned container instead, so this scan means something." >&2
   fi
+  if [ "$PINNED_VERSION" != "$IMAGE_VERSION" ]; then
+    echo "ERROR: the workflow pins gitleaks ${PINNED_VERSION}, but this script's image digest is for ${IMAGE_VERSION}." >&2
+    echo "       Update IMAGE_VERSION and IMAGE_DIGEST here to the new version's digest." >&2
+    exit 1
+  fi
   echo "  gitleaks ${PINNED_VERSION} (container), matching the runner" >&2
   # shellcheck disable=SC2086
-  docker run --rm -v "$PWD:/repo" -w /repo "zricethezav/gitleaks:v${PINNED_VERSION}" $docker_args
+  docker run --rm -v "$PWD:/repo" -w /repo "zricethezav/gitleaks:v${PINNED_VERSION}@${IMAGE_DIGEST}" $docker_args
   rc=$?
 elif [ -n "$native_version" ]; then
   echo "ERROR: gitleaks ${native_version} is installed but the runner uses ${PINNED_VERSION}," >&2

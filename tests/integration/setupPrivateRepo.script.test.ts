@@ -1,11 +1,12 @@
 /**
  * scripts/setup_private_repo.sh — wiring a checkout to its companion.
  *
- * Eight symlinks for an ordinary operator: the companion-checkout root and the
- * seven values files. A ninth, the read-only legacy clone, is considered only
- * when `--legacy-repo` is passed, so a bare run and a bare `--check` report
- * eight. Two of the seven values files are not environments: one declares what
- * an operator may do, the other is the roster of who they are.
+ * The companion-checkout root link, four values-file links, and three
+ * secrets-file links. The read-only legacy clone is considered only when
+ * `--legacy-repo` is passed. The secrets files are gitignored in the companion
+ * checkout as well, so no clone carries them: an operator creates them, and a
+ * developer's checkout lacks them by design, which must not stop the root link
+ * every developer with access needs.
  * They were hand-typed `ln -s` commands in an onboarding document that wired
  * two of them and never mentioned the rest. Every way they go wrong is
  * silent: a missing values link fails at terraform with a message about
@@ -21,6 +22,8 @@
  *   - a regular file where a link belongs stops the run rather than being
  *     replaced;
  *   - a link is never created to a target the companion checkout lacks;
+ *   - a missing committed values file stops the run, while a missing
+ *     operator-only secrets file is skipped and named;
  *   - an existing link pointing elsewhere is replaced rather than followed,
  *     which would otherwise bury the new link inside the old target;
  *   - the values links keep their relative form, so they are identical on every
@@ -47,14 +50,27 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 const SCRIPT = join(process.cwd(), 'scripts/setup_private_repo.sh');
 const LIB = join(process.cwd(), 'scripts/lib');
 
-const VALUES_LINKS = [
+const COMMITTED_LINKS = [
   ['terraform/staging/terraform.tfvars', 'staging.tfvars'],
-  ['terraform/staging/secrets.auto.tfvars', 'staging.secrets.auto.tfvars'],
   ['terraform/production/terraform.tfvars', 'production.tfvars'],
-  ['terraform/production/secrets.auto.tfvars', 'production.secrets.auto.tfvars'],
   ['terraform/shared/terraform.tfvars', 'shared.tfvars'],
   ['terraform/identity/terraform.tfvars', 'identity.tfvars'],
 ] as const;
+
+const SECRETS_LINKS = [
+  ['terraform/staging/secrets.auto.tfvars', 'staging.secrets.auto.tfvars'],
+  ['terraform/production/secrets.auto.tfvars', 'production.secrets.auto.tfvars'],
+  ['terraform/shared/secrets.auto.tfvars', 'shared.secrets.auto.tfvars'],
+] as const;
+
+const VALUES_LINKS = [...COMMITTED_LINKS, ...SECRETS_LINKS];
+
+/** A companion checkout as a developer's clone has it: no secrets files. */
+function removeSecretsFromCompanion() {
+  for (const [, name] of SECRETS_LINKS) {
+    rmSync(join(privateRepo, 'terraform', name));
+  }
+}
 
 let root: string;
 let fakeRepo: string;
@@ -190,6 +206,62 @@ describe('setup_private_repo.sh — what it refuses', () => {
     const r = run(['--nope']);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain("unknown argument '--nope'");
+  });
+});
+
+describe('setup_private_repo.sh — a checkout without the operator-only secrets files', () => {
+  it('wires the root link and every values link, and skips each secrets link by name', () => {
+    removeSecretsFromCompanion();
+    const r = wire();
+    expect(r.status, r.stderr).toBe(0);
+    expect(readlinkSync(join(fakeRepo, 'footbag_private_repo'))).toBe('../ops');
+    for (const [path] of COMMITTED_LINKS) {
+      expect(existsSync(join(fakeRepo, path)), `${path} should resolve`).toBe(true);
+    }
+    for (const [path, name] of SECRETS_LINKS) {
+      expect(existsSync(join(fakeRepo, path)), `${path} must not be created`).toBe(false);
+      expect(r.stdout).toContain(`skip     ${path} (operator-only; terraform/${name} is not in this checkout)`);
+    }
+  });
+
+  it('reports the skipped secrets links as clean under --check, and says it skipped them', () => {
+    removeSecretsFromCompanion();
+    wire();
+    const r = run(['--check']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/3 operator-only secrets link\(s\) skipped/);
+  });
+
+  it('still refuses a missing committed values file when the secrets are also absent', () => {
+    removeSecretsFromCompanion();
+    rmSync(join(privateRepo, 'terraform', 'identity.tfvars'));
+    const r = wire();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/does not carry these files/);
+    expect(r.stderr).toMatch(/identity\.tfvars/);
+    expect(r.stderr).not.toMatch(/secrets\.auto\.tfvars/);
+    expect(existsSync(join(fakeRepo, 'footbag_private_repo'))).toBe(false);
+  });
+
+  it('does not skip a secrets link that already exists, so a dangling one is still refused', () => {
+    // Skipping is for a file this machine never had; a link already pointing at
+    // a file that has gone is a broken link, and passing over it would leave it.
+    rmSync(join(privateRepo, 'terraform', 'staging.secrets.auto.tfvars'));
+    symlinkSync(
+      '../../footbag_private_repo/terraform/staging.secrets.auto.tfvars',
+      join(fakeRepo, 'terraform/staging/secrets.auto.tfvars'),
+    );
+    const r = wire();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/staging\.secrets\.auto\.tfvars/);
+  });
+
+  it('links the shared tree’s secrets file when the checkout carries it', () => {
+    const r = wire();
+    expect(r.status, r.stderr).toBe(0);
+    expect(readlinkSync(join(fakeRepo, 'terraform/shared/secrets.auto.tfvars'))).toBe(
+      '../../footbag_private_repo/terraform/shared.secrets.auto.tfvars',
+    );
   });
 });
 

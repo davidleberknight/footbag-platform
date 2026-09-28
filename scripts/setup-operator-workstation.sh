@@ -7,7 +7,7 @@
 # WHY THIS EXISTS.
 #
 # Everything below used to be hand-typed out of an onboarding card: seven tools
-# checked one at a time, two gitignored files created with the right umask, an
+# checked one at a time, gitignored secrets files created with the right umask, an
 # SSH stanza with five fields, a credential file whose mode matters, and a
 # verification block of three commands whose output the operator interpreted.
 # None of it is hard and all of it is the kind of step that is skipped under
@@ -84,6 +84,14 @@ DEV_TESTER_ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
 # below that reaches AWS reads it, so that one dead credential is reported once,
 # where it can be fixed, instead of three times in three other vocabularies.
 IDENTITY_OK=0
+# Whether this run acts as the shared job role, decided by the ARN AWS reports
+# for the caller, never by a profile name. The job role is denied the Lightsail
+# call that yields host keys (it also mints a root-shell certificate), so a run
+# as that role verifies the pin its sealed delivery installed rather than
+# rebuilding it, and needs none of the operator-only secrets files.
+RUN_AS_JOB_ROLE=0
+# The host address, once the step that reads it has succeeded.
+HOST_ADDRESS=""
 
 usage() {
   cat <<'EOF'
@@ -168,8 +176,8 @@ declare -A TOOL_HINT=(
   [rsync]="rsync"
   [jq]="jq"
   [docker]="the container runtime install in the developer onboarding guide"
-  [aws]="the AWS CLI v2"
-  [terraform]="terraform"
+  [aws]="bash scripts/setup-dev-workstation.sh --operator installs the pinned AWS CLI v2"
+  [terraform]="bash scripts/setup-dev-workstation.sh installs the pinned version"
   [sqlite3]="sqlite3"
   [age]="age, which seals and opens a dev-and-tester's delivery (sudo apt install age)"
 )
@@ -180,6 +188,18 @@ for tool in ssh rsync jq docker aws terraform sqlite3 age; do
     todo "$tool is not installed — ${TOOL_HINT[$tool]}"
   fi
 done
+
+# Present is not enough for Terraform: every tree declares exactly the version
+# the push gate runs, so any other release is refused at init. The check is the
+# shared one, reading the pin from the workflow rather than restating it.
+# shellcheck source=lib/tool-report.sh
+source "${SCRIPT_DIR}/lib/tool-report.sh"
+if command -v terraform >/dev/null 2>&1; then
+  tf_problem="$(_tool_report_check terraform "$REPO_ROOT")"
+  if [[ -n "$tf_problem" ]]; then
+    todo "${tf_problem%% Install*} Run: bash scripts/setup-dev-workstation.sh"
+  fi
+fi
 
 # Installed is not running, and the rule these scripts follow is that a check
 # asserts the outcome rather than the invocation. On Windows with Docker Desktop
@@ -194,15 +214,29 @@ if command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-# ── 2. The two gitignored Terraform variable files ───────────────────────────
+# Settled before the steps that depend on it. A run with no working identity
+# stays classified as not the job role; the AWS profiles step reports that.
+# It asks as the identity the AWS profiles step will settle on: the shell's own
+# where it carries one, otherwise the profile the library supplies. The CLI's
+# bare default would be a third identity that nothing else here uses.
+if command -v aws >/dev/null 2>&1; then
+  _probe=()
+  if [[ -z "${AWS_PROFILE:-}${AWS_ACCESS_KEY_ID:-}${AWS_DEFAULT_PROFILE:-}" ]] \
+     && aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
+    _probe=(--profile "$FOOTBAG_OPERATOR_PROFILE")
+  fi
+  _caller_arn="$(aws "${_probe[@]}" sts get-caller-identity --query Arn --output text 2>/dev/null || true)"
+  [[ "$_caller_arn" == *":assumed-role/${DEV_TESTER_ROLE_NAME}/"* ]] && RUN_AS_JOB_ROLE=1
+  unset _caller_arn _probe
+fi
+
+# ── 2. The gitignored Terraform secrets files ────────────────────────────────
 #
-# BEFORE the wiring, and that order is the whole point. The wiring script links
-# all seven values files and refuses, all or nothing, when the checkout lacks one
-# — and its refusal blames a stale clone and suggests a `git pull`, which is the
-# wrong diagnosis: these two are gitignored and are the operator's to create, so
-# a correct clone always lands there. Checked after the wiring, this step could
-# not even run, because it looked for the files THROUGH the link the wiring had
-# just refused to create. That is a loop with no way out of it in the output.
+# BEFORE the wiring, and that order is the whole point. These files are
+# gitignored and are the operator's to create, so no clone carries them; the
+# wiring script skips a secrets link whose file is absent, so creating them
+# first is what lets one wiring run link all three. Checked after the wiring,
+# this step would look for the files THROUGH links the wiring had skipped.
 #
 # Resolved from the checkout path rather than through the link, for the same
 # reason.
@@ -217,14 +251,29 @@ fi
 
 if [[ -z "$PRIVATE_DIR" ]]; then
   todo "cannot find the companion checkout: re-run with --private-repo <path to your footbag-ops clone>"
-  todo "and inside it create both gitignored files, each one line reading alarm_email = \"<the operations mailbox on the mail-ifpa-aws vault entry>\": terraform/staging.secrets.auto.tfvars and terraform/production.secrets.auto.tfvars, mode 600"
+  todo "and inside it create the gitignored secrets files, mode 600: terraform/staging.secrets.auto.tfvars and terraform/production.secrets.auto.tfvars, each one line reading alarm_email = \"<the operations mailbox on the mail-ifpa-aws vault entry>\", and terraform/shared.secrets.auto.tfvars, empty"
 elif [[ ! -d "${PRIVATE_DIR}/terraform" ]]; then
   todo "${PRIVATE_DIR}/terraform does not exist; is that really the footbag-ops checkout?"
 else
-  for env_name in staging production; do
+  for env_name in staging production shared; do
     secrets="${PRIVATE_DIR}/terraform/${env_name}.secrets.auto.tfvars"
     if [[ -f "$secrets" ]]; then
       ok "${env_name}.secrets.auto.tfvars exists"
+    elif (( RUN_AS_JOB_ROLE )); then
+      # Its values are vault-governed and only an apply reads them; a run as the
+      # job role initializes and reads outputs, which needs none of them.
+      note "${env_name}.secrets.auto.tfvars is not here, and a run as the ${DEV_TESTER_ROLE_NAME} role does not need it: only a footbag-operator apply reads it"
+    elif [[ "$env_name" == "shared" ]]; then
+      # The shared tree's sensitive values are the account's alternate contacts,
+      # each defaulted to null and read only once that tree's gate for them is
+      # flipped, so an empty file is complete until then.
+      if (( CHECK )); then
+        todo "${secrets} is missing; create it empty, mode 600 (it takes the account alternate contacts only once they are enabled)"
+      else
+        ( umask 077 && : >> "$secrets" ) || { todo "could not create ${secrets}"; continue; }
+        chmod 600 "$secrets" 2>/dev/null || true
+        ok "shared.secrets.auto.tfvars created, empty (complete until the account alternate contacts are enabled)"
+      fi
     elif (( CHECK )); then
       # The path and the contents, in the message the operator actually sees.
       # `--check` is what the card tells her to run first, so a TODO that only
@@ -249,7 +298,7 @@ if bash "${SCRIPT_DIR}/setup_private_repo.sh" --check >/dev/null 2>&1; then
   ok "all links wired and resolving"
 elif [[ -n "$PRIVATE_REPO" ]]; then
   todo "links are not wired — run: bash scripts/setup_private_repo.sh --private-repo ${PRIVATE_REPO}"
-  todo "if that run refuses saying the checkout does not carry some files, it means the two gitignored ones above are still missing, not that your clone is stale"
+  todo "it skips any secrets file above that does not exist yet; create those first, or run it again once you have"
 else
   todo "links are not wired — run: bash scripts/setup_private_repo.sh --private-repo <path to your footbag-ops clone>"
 fi
@@ -280,6 +329,10 @@ elif ! aws_profile_ensure; then
   todo "this run has no AWS identity that authenticates; the message just above names the fix"
 else
   IDENTITY_OK=1
+  # The proved identity is the authority for the steps after this one; the
+  # early probe only stood in for it until now.
+  RUN_AS_JOB_ROLE=0
+  [[ "$AWS_IDENTITY_ARN" == *":assumed-role/${DEV_TESTER_ROLE_NAME}/"* ]] && RUN_AS_JOB_ROLE=1
   # The ARN is on the library's own line immediately above, in the wording every
   # script in this tree uses, and it may name a profile this script supplied or
   # one the operator's shell already carried. Repeating it here would say the
@@ -551,6 +604,7 @@ if (( IDENTITY_OK == 0 )); then
   todo "cannot read the ${TARGET} host address without a working AWS identity; fix the AWS profiles step above"
 elif tf_output_read "terraform/${TARGET}" lightsail_static_ip 2>/dev/null; then
   ok "${TARGET} host address: ${TF_OUTPUT_VALUE}"
+  HOST_ADDRESS="$TF_OUTPUT_VALUE"
   if (( STANZA_MISSING && ! CHECK )); then
     # The operator's own file: the change is shown, confirmed and only then
     # written, and a result ssh would not parse is never handed back.
@@ -591,6 +645,20 @@ if (( IDENTITY_OK == 0 )); then
   # The pin is built from the Lightsail API and the Terraform output, so it
   # needs the same identity. Named here rather than left to read as a stale pin.
   todo "cannot build or check the pin for ${TARGET} without a working AWS identity: it is read from the Lightsail API and the Terraform output. Fix the AWS profiles step above."
+elif (( RUN_AS_JOB_ROLE )); then
+  # The role cannot read the host keys, so the pin it relies on arrived sealed in
+  # its delivery. Verified where it is: present, not writable by others, and
+  # holding this host on the SSH port the alias uses.
+  _pin="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
+  if [[ -z "$HOST_ADDRESS" ]]; then
+    todo "cannot check the pin for ${TARGET} without the host address; fix the host address step above"
+  elif require_pinned_known_hosts >/dev/null 2>&1 \
+       && ssh-keygen -F "[${HOST_ADDRESS}]:2222" -f "$_pin" >/dev/null 2>&1; then
+    ok "pinned for ${TARGET} (${HOST_ADDRESS}), as installed by your delivery"
+  else
+    todo "no usable pin for ${TARGET} (${HOST_ADDRESS}) in ${_pin}; it arrives sealed in your delivery: bash scripts/accept-dev-tester-delivery.sh --target ${TARGET} --account <your_name> <file>"
+  fi
+  unset _pin
 elif (( CHECK )); then
   if bash "${SCRIPT_DIR}/install-known-hosts.sh" --target "$TARGET" --check >/dev/null 2>&1; then
     ok "pinned and current for ${TARGET}"

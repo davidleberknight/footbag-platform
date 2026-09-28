@@ -64,16 +64,21 @@ if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.
   echo "ERROR: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine," >&2
   echo "       and this suite reaches AWS through it rather than through your own identity." >&2
   echo "" >&2
-  echo "         bash scripts/manage-human-operator.sh --onboard <your-name>" >&2
+  echo "       Which script writes it depends on who you are:" >&2
+  echo "         a footbag-operator key holder:  bash scripts/install-operator-key.sh" >&2
+  echo "         a named operator:               bash scripts/onboard-operator.sh (it chains" >&2
+  echo "                                         off the job role your own IAM user assumes)" >&2
+  echo "         a dev-and-tester:               bash scripts/accept-dev-tester-delivery.sh" >&2
   echo "" >&2
-  echo "       writes it, chained off the job role your own IAM user assumes. A" >&2
-  echo "       production target additionally needs the directly authenticated" >&2
+  echo "       A production target additionally needs the directly authenticated" >&2
   echo "       identity: production's runtime role does not trust the job role," >&2
   echo "       and that boundary is deliberate." >&2
   exit 1
 fi
 if [[ ! -d "$TF_DIR/.terraform" ]]; then
-  echo "ERROR: the staging-AWS adapter smoke is operator-only: $TF_DIR is not initialized (run terraform init there); the runner reads terraform outputs." >&2
+  echo "ERROR: $TF_DIR is not initialized, and this runner reads terraform outputs from it." >&2
+  echo "       Initialize it with: bash scripts/setup-operator-workstation.sh --target ${SMOKE_TARGET_ENV}" >&2
+  echo "       (run through scripts/as-dev-tester.sh --account <name> if you are a dev-and-tester)." >&2
   exit 1
 fi
 

@@ -36,9 +36,10 @@ Safety contract:
   - A repeated run is a no-op: once a thumbnail exists it is classified existing.
   - Emits a machine-readable JSON report of every disposition.
 
-Pillow is required and is checked explicitly (it is an approved project
-dependency, listed in scripts/requirements.txt, but is not installed in every
-virtualenv). This script imports nothing from the pipeline.
+Pillow is required and is checked explicitly (it is a pinned dependency in both
+legacy_data's and scripts/ requirement files, so either environment carries it,
+but an arbitrary interpreter may not). This script imports nothing from the
+pipeline.
 
 Usage:
     python legacy_data/legacy_mirror/scripts/regenerate_gallery_thumbnails.py \
@@ -67,10 +68,9 @@ def require_pillow():
     except ImportError:
         sys.stderr.write(
             "ERROR: Pillow is required and is not importable in this interpreter.\n"
-            "Pillow is an approved project dependency (scripts/requirements.txt) but\n"
-            "is not present in every virtualenv. Run this tool with an interpreter\n"
-            "that has Pillow, or\n"
-            "  python -m pip install Pillow\n")
+            "Pillow is a pinned dependency of legacy_data's environment. Run this\n"
+            "tool under that environment; build it with\n"
+            "  bash legacy_data/run_pipeline.sh venv\n")
         raise SystemExit(2)
 
 

@@ -619,19 +619,27 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
   it('canonical_only mode exits 1 with identity-lock guidance when v53 CSV missing', () => {
     // Run from a tmpdir with a minimal venv stub so the pipeline aborts at the
     // identity-lock guard rather than at venv setup.
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-run-pipeline-'));
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-run-pipeline-'));
+    const tmpRoot = path.join(repoRoot, 'legacy_data');
     try {
       fs.mkdirSync(path.join(tmpRoot, '.venv', 'bin'), { recursive: true });
-      // The pipeline installs requirements via `.venv/bin/pip` and then sources
-      // `.venv/bin/activate` before any Python step, because every stage runs
-      // inside the venv. A real venv always ships both; the stub mirrors that.
-      // 'activate' is sourced, so an empty file suffices; 'pip' is executed, so
-      // it needs a no-op executable — without it the script aborts (command not
-      // found) before reaching the identity-lock guard this test exercises.
+      // The pipeline reuses a venv only when it works: its interpreter reports the
+      // version .python-version pins, pip runs, and a dry-run install of the
+      // hash-pinned requirements finds nothing to do. The stub answers all three,
+      // and 'activate' is sourced, so an empty file suffices.
       fs.writeFileSync(path.join(tmpRoot, '.venv', 'bin', 'activate'), '');
-      fs.writeFileSync(path.join(tmpRoot, '.venv', 'bin', 'pip'), '#!/bin/sh\nexit 0\n', {
-        mode: 0o755,
-      });
+      fs.writeFileSync(
+        path.join(tmpRoot, '.venv', 'bin', 'python3'),
+        '#!/bin/sh\nif [ "$1" = "-c" ]; then echo 3.12.12; fi\nexit 0\n',
+        { mode: 0o755 },
+      );
+      fs.writeFileSync(path.join(repoRoot, '.python-version'), '3.12.12\n');
+      fs.writeFileSync(path.join(tmpRoot, 'requirements.txt'), '');
+      fs.mkdirSync(path.join(repoRoot, 'scripts', 'lib'), { recursive: true });
+      fs.copyFileSync(
+        path.join(REPO_ROOT, 'scripts/lib/python-env.sh'),
+        path.join(repoRoot, 'scripts', 'lib', 'python-env.sh'),
+      );
       fs.copyFileSync(
         path.join(REPO_ROOT, 'legacy_data/run_pipeline.sh'),
         path.join(tmpRoot, 'run_pipeline.sh'),
@@ -654,7 +662,7 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
       expect(combined).toMatch(/identity-lock|Persons_Truth_Final/i);
       expect(combined).toMatch(/Recommendation:/);
     } finally {
-      fs.rmSync(tmpRoot, { recursive: true, force: true });
+      fs.rmSync(repoRoot, { recursive: true, force: true });
     }
   });
 });

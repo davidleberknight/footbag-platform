@@ -343,3 +343,103 @@ def test_a_page_full_of_empty_hrefs_reports_no_phantom_dangling_reference(www):
     (www / 'index.html').write_bytes(_EMPTY_HREF_BLOB)
     dangling = list(mirror_script._dangling_refs(www / 'index.html', www))
     assert dangling == []
+
+
+# A semicolon is a legal filename character. Read as a URL parameter separator
+# it cuts the name short, so a video that is on disk reads as missing and the
+# dead-link pass turns its working link into plain text.
+
+MUNSTERMANN = 'Christmas Calender; A Munstermann Special.mp4'
+
+
+def test_a_semicolon_in_a_filename_is_part_of_the_path(www):
+    (www / 'media' / '1093').mkdir(parents=True)
+    (www / 'media' / '1093' / MUNSTERMANN).write_bytes(b'mp4')
+    page = _page(www, 'gallery/show/13462/index.html',
+                 f'<a href="../../../media/1093/{MUNSTERMANN}">watch</a>')
+    assert mirror_script._dangling_refs(page, www) == []
+
+
+def test_the_dead_link_pass_keeps_a_link_to_a_file_with_a_semicolon(monkeypatch, www):
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+    (www / 'media' / '1093').mkdir(parents=True)
+    (www / 'media' / '1093' / MUNSTERMANN).write_bytes(b'mp4')
+    page = _page(www, 'gallery/show/13462/index.html',
+                 f'<a href="../../../media/1093/{MUNSTERMANN}">watch</a>'
+                 '<a href="../../../gone.html">gone</a>')
+    mirror_script.neutralize_dead_internal_links()
+    out = page.read_text(encoding='utf-8')
+    assert f'href="../../../media/1093/{MUNSTERMANN}"' in out
+    assert 'gone.html' not in out
+
+
+# Authors wrapped a real link in literal angle brackets, the plain-text way of
+# writing an address: '&lt;<a href="...">...</a>&gt;'. The brackets are
+# entities but the link between them is markup every browser requests, so it
+# counts as a reference, dead or alive, exactly like an unwrapped one.
+
+_BRACKETED = ('see &lt;<b><a href="../../../hof/index.html">'
+              'www.footbag.org/hof</a></b>&gt;.')
+
+
+def test_a_real_link_wrapped_in_literal_brackets_is_a_reference(www):
+    page = _page(www, 'groups/list/85/index.html', _BRACKETED)
+    refs = [ref for ref, _fix in mirror_script._dangling_refs(page, www)]
+    assert refs == ['../../../hof/index.html']
+
+
+def test_a_bracketed_link_to_a_page_that_is_there_is_not_dangling(www):
+    (www / 'hof').mkdir()
+    (www / 'hof' / 'index.html').write_text('x', encoding='utf-8')
+    page = _page(www, 'groups/list/85/index.html', _BRACKETED)
+    assert mirror_script._dangling_refs(page, www) == []
+
+
+def test_the_dead_link_pass_settles_a_dead_bracketed_link(monkeypatch, www):
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+    page = _page(www, 'groups/list/85/index.html', _BRACKETED)
+    mirror_script.neutralize_dead_internal_links()
+    out = page.read_text(encoding='utf-8')
+    assert 'hof/index.html' not in out
+    assert 'www.footbag.org/hof' in out
+    assert mirror_script._dangling_refs(page, www) == []
+
+
+# Legacy markup garbled enough to carry one tag's source inside another's
+# attribute. The byte scan and the parser read such an anchor differently, so a
+# dead-link pass that matched the two by string never found the anchor it had
+# reported, and the page kept a link to nothing through every settle. This is
+# the captured shape of one such event page.
+
+_GARBLED = (
+    '<a event.php?eid=\'122418417770827&amp;ref=ts"\' home.php?#!="" '
+    'href="../&lt;a href=/index.html" http:="" www.facebook.com="">'
+    'RNH Contest 2010 Facebook page</a>" target="_blank"&gt;'
+    '<!--Mirror: outbound link rendered as text-->RNH Contest 2010 Facebook '
+    'page (http://www.facebook.com/home.php#!/event.php?eid=122418417770827)'
+    '</div></div>\n<div class="next">')
+
+
+def test_the_dead_link_pass_settles_a_garbled_anchor(monkeypatch, www):
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+    page = _page(www, 'events/show/1270631935/index.html', _GARBLED)
+    assert mirror_script._dangling_refs(page, www)
+    mirror_script.neutralize_dead_internal_links()
+    out = page.read_text(encoding='utf-8')
+    assert 'href="../' not in out
+    assert 'RNH Contest 2010 Facebook page' in out
+    assert mirror_script._dangling_refs(page, www) == []
+
+
+def test_the_dead_link_pass_leaves_off_site_and_live_links_alone(monkeypatch, www):
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+    (www / 'here.html').write_text('x', encoding='utf-8')
+    page = _page(www, 'index.html',
+                 '<a href="http://example.org/away">away</a>'
+                 '<a href="here.html">here</a>'
+                 '<a href="gone.html">gone</a>')
+    mirror_script.neutralize_dead_internal_links()
+    out = page.read_text(encoding='utf-8')
+    assert 'href="http://example.org/away"' in out
+    assert 'href="here.html"' in out
+    assert 'href="gone.html"' not in out

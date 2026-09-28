@@ -26,7 +26,7 @@ Do NOT use this runbook for:
 ---
 
 ## Inputs Expected
-- A working pipeline checkout with `.venv/` available
+- A working pipeline checkout with its Python environment built by `./run_pipeline.sh venv`
 - At minimum one of: modified parser (`pipeline/02_canonicalize_results.py`), modified
   override file, or new curated CSV in `inputs/curated/events/structured/`
 - No uncommitted changes to `out/canonical/` (pipeline outputs should be clean before rebuild)

@@ -29,7 +29,7 @@
 # condition the runner enjoys and the reason that gate has been runner-only.
 #
 # It refuses rather than adapting when the local toolchain cannot reproduce the
-# runner, because a prediction made under a different Node major is not a
+# runner, because a prediction made under a different Node is not a
 # prediction.
 #
 # WHAT IT CANNOT COVER.
@@ -92,24 +92,20 @@ git rev-parse --git-dir >/dev/null 2>&1 || {
   exit 1
 }
 
-# The runner's Node major is the one the lockfile and the prebuilt native addons
-# were resolved against. A different one here makes the answer this gate gives
-# about the runner worthless, so it refuses instead of reporting a result it
-# cannot stand behind.
-# Majors, because a major is all the workflow declares. Comparing exactly would
-# mean pinning an exact version there and bumping it on every Node release, for
-# a divergence that has never produced a failure here; and comparing exactly
-# against a declaration that is only a major would be comparing against a number
-# nobody wrote down. This is the ceiling the workflow permits, not an oversight.
-CI_NODE_MAJOR="$(grep -m1 "node-version:" .github/workflows/ci.yml | tr -dc '0-9')"
-LOCAL_NODE_MAJOR="$(node -v | tr -dc '0-9.' | cut -d. -f1)"
-if [[ -z "$CI_NODE_MAJOR" ]]; then
-  echo "ERROR: could not read node-version from .github/workflows/ci.yml." >&2
+# The runner's Node is the one the lockfile and the prebuilt native addons were
+# resolved against. A different one here makes the answer this gate gives about
+# the runner worthless, so it refuses instead of reporting a result it cannot
+# stand behind. Exact, because every version in this repository is pinned: the
+# workflow reads the same .nvmrc this compares against.
+CI_NODE="$(tr -d '[:space:]v' 2>/dev/null < .nvmrc || true)"
+LOCAL_NODE="$(node -v | tr -d '[:space:]v')"
+if [[ -z "$CI_NODE" ]]; then
+  echo "ERROR: could not read the pinned Node version from .nvmrc." >&2
   exit 1
 fi
-if [[ "$LOCAL_NODE_MAJOR" != "$CI_NODE_MAJOR" ]]; then
-  echo "ERROR: this machine runs Node ${LOCAL_NODE_MAJOR}; the runner pins Node ${CI_NODE_MAJOR}." >&2
-  echo "       A run under a different major does not predict the runner. Switch Node and re-run." >&2
+if [[ "$LOCAL_NODE" != "$CI_NODE" ]]; then
+  echo "ERROR: this machine runs Node ${LOCAL_NODE}; the runner pins Node ${CI_NODE} (.nvmrc)." >&2
+  echo "       A run under a different Node does not predict the runner. Install it (nvm install) and re-run." >&2
   exit 1
 fi
 
@@ -264,8 +260,15 @@ gate() {
 # a gate meant to be reached for before every push.
 NPM_CACHE="${HOME}/.npm"
 
+# Kept, not discarded: an install script's own output goes to stdout, and it is
+# the only account of why one failed.
 echo "→ installing from the lockfile (npm ci)"
-( cd "$TREE" && clean_env npm_config_cache="$NPM_CACHE" npm ci --no-audit --no-fund ) >/dev/null
+NPM_CI_LOG="${GATE_LOG_DIR}/npm-ci.log"
+if ! ( cd "$TREE" && clean_env npm_config_cache="$NPM_CACHE" npm ci --no-audit --no-fund ) >"$NPM_CI_LOG" 2>&1; then
+  echo "ERROR: npm ci failed in the clean room; the last of its output (all of it in ${NPM_CI_LOG}):" >&2
+  tail -n 40 "$NPM_CI_LOG" >&2
+  exit 1
+fi
 
 # The integration suite drives the legacy extractors as real subprocesses and
 # they parse mirror HTML with a third-party library, so the runner installs the
@@ -286,36 +289,40 @@ PY_SETUP_LOG="${WORK_DIR}/python-setup.log"
 # The interpreter the runner pins, not whichever python3 this machine has.
 #
 # Every Python job in the workflow sets a version; this read is the same shape
-# as the Node one above, from the same file, so the two cannot drift. The
-# difference is what happens on a mismatch: Node is refused outright, because a
-# suite built against another major is not a prediction at all, while an absent
+# as the Node one above, so the two cannot drift. The difference is what
+# happens on a mismatch: Node is refused outright, because a suite built
+# against another Node is not a prediction at all, while an absent
 # pinned Python leaves the Python gates recorded as NOT RUN and the run ending
 # INCOMPLETE. That is the honest answer and not a hard stop, because a
 # workstation carrying only a newer interpreter can still get a true verdict on
 # everything else, and blocking the whole room over it would teach people to
 # reach for a flag that skips this.
 #
-# Concretely, and this is not hypothetical: the workflow pins 3.11, this
-# machine runs 3.12, and until now the room quietly built its virtual
-# environment from whichever it found. Anything valid in 3.12 and not in 3.11
-# passed here and failed there.
-CI_PYTHON="$(grep -m1 'python-version:' .github/workflows/ci.yml | tr -d " '\"" | cut -d: -f2)"
+# The version is exact, read from .python-version, the file the workflow's
+# setup step reads too. An interpreter of the right minor but another patch is
+# a different interpreter, and it gets the same NOT RUN answer as a missing one.
+CI_PYTHON="$(tr -d '[:space:]' 2>/dev/null < .python-version || true)"
 if [[ -z "$CI_PYTHON" ]]; then
-  echo "ERROR: could not read python-version from .github/workflows/ci.yml." >&2
+  echo "ERROR: could not read the pinned Python version from .python-version." >&2
   exit 1
 fi
-PY_BIN="python${CI_PYTHON}"
+PY_BIN="python${CI_PYTHON%.*}"
 if ! command -v "$PY_BIN" >/dev/null 2>&1; then
   echo "→ the runner pins Python ${CI_PYTHON} and this machine has no ${PY_BIN} on PATH."
   echo "  The Python gates will report NOT RUN rather than answer with a different"
-  echo "  interpreter. Install ${PY_BIN} to close them."
+  echo "  interpreter. Install it (bash scripts/setup-dev-workstation.sh) to close them."
+  PY_BIN=""
+elif [[ "$("$PY_BIN" -c 'import platform; print(platform.python_version())')" != "$CI_PYTHON" ]]; then
+  echo "→ the runner pins Python ${CI_PYTHON}; this machine's ${PY_BIN} is $("$PY_BIN" -c 'import platform; print(platform.python_version())')."
+  echo "  The Python gates will report NOT RUN rather than answer with a different"
+  echo "  interpreter. Install it (bash scripts/setup-dev-workstation.sh) to close them."
   PY_BIN=""
 fi
 
 if [[ -n "$PY_BIN" ]] && "$PY_BIN" -m venv "${WORK_DIR}/venv" >"$PY_SETUP_LOG" 2>&1; then
   echo "→ installing the pinned Python requirements"
   if ( cd "$TREE" && clean_env PIP_CACHE_DIR="${HOME}/.cache/pip" \
-         "${WORK_DIR}/venv/bin/pip" install -q -r legacy_data/requirements.txt ) >>"$PY_SETUP_LOG" 2>&1; then
+         "${WORK_DIR}/venv/bin/pip" install -q --require-hashes -r legacy_data/requirements.txt ) >>"$PY_SETUP_LOG" 2>&1; then
     CLEAN_PATH="${WORK_DIR}/venv/bin:${PATH}"
     PY_READY=1
   fi

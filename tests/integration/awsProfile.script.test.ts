@@ -492,7 +492,9 @@ describe('aws_profile_use settles the run on one named identity', () => {
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
-    expect(r.stderr).toContain('bash scripts/manage-human-operator.sh --onboard');
+    expect(r.stderr).toContain('bash scripts/onboard-operator.sh --target <env>');
+    expect(r.stderr).toContain('bash scripts/accept-dev-tester-delivery.sh --target staging');
+    expect(r.stderr).not.toContain('manage-human-operator.sh --onboard');
     expect(r.stderr).toMatch(/chained runtime section/);
   });
 

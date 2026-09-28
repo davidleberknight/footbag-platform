@@ -87,9 +87,9 @@ beforeAll(() => {
     throw new Error(
       'This suite runs the legacy club extractors as real subprocesses, and they ' +
       'need BeautifulSoup importable by the interpreter that runs them, which ' +
-      `resolved here to ${PYTHON}. Install the pipeline dependencies ` +
-      '(legacy_data/requirements.txt) into it, or create the pipeline virtual ' +
-      'environment beside the legacy data. The probe reported: ' +
+      `resolved here to ${PYTHON}. Build the pipeline's virtual environment ` +
+      'with: bash legacy_data/run_pipeline.sh venv (run_dev.sh does this too). ' +
+      'The probe reported: ' +
       `${(probe.stderr ?? '').trim() || probe.error?.message || 'interpreter not runnable'}`,
     );
   }

@@ -392,11 +392,9 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   # behind when the Python seed below was interrupted.
   trap 'rm -rf "${CURATED_BUILD_DIR}"' EXIT INT TERM
   _venv="${REPO_ROOT}/scripts/.venv"
-  if [[ ! -f "${_venv}/bin/python3" ]]; then
-    echo "    → Creating Python venv at ${_venv}"
-    python3 -m venv "${_venv}"
-  fi
-  "${_venv}/bin/pip" install --quiet -r "${REPO_ROOT}/scripts/requirements.txt"
+  # shellcheck source=lib/seeder-env.sh
+  source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
+  seeder_env_ensure "$REPO_ROOT" || exit 1
   "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" --db "${LOCAL_DB}" --media-dir "${CURATED_BUILD_DIR}"
 else
   echo "==> Skipping curator seed (CURATOR_SEED=no)"
@@ -408,11 +406,9 @@ fi
 # wording. Idempotent (key-stable INSERT OR REPLACE + orphan cleanup).
 echo "==> Seeding email templates from /curated/email_templates..."
 _venv="${REPO_ROOT}/scripts/.venv"
-if [[ ! -f "${_venv}/bin/python3" ]]; then
-  echo "    → Creating Python venv at ${_venv}"
-  python3 -m venv "${_venv}"
-  "${_venv}/bin/pip" install --quiet -r "${REPO_ROOT}/scripts/requirements.txt"
-fi
+# shellcheck source=lib/seeder-env.sh
+source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
+seeder_env_ensure "$REPO_ROOT" || exit 1
 "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_email_templates.py" --db "${LOCAL_DB}"
 
 echo "==> Preparing remote upload directory..."

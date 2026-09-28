@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # run_dev.sh — local dev launcher.
-# Installs deps if missing, reseeds DB if stale, launches web + image worker
-# together, kills both cleanly on Ctrl+C.
+# Installs npm deps if missing, activates the repository's git hooks, reports
+# missing tools, builds the seeder and legacy pipeline Python environments,
+# reseeds the DB if stale, launches the web app, image worker and outbox worker
+# together, and stops them cleanly on Ctrl+C.
 #
 # Usage:
 #   ./run_dev.sh                  # code only — just run dev (no DB work; bootstraps if DB missing)
@@ -255,18 +257,39 @@ if (( SOUP_TO_NUTS == 1 )); then
   fi
 fi
 
-# 1. npm deps
-if [[ ! -d node_modules ]]; then
-  echo "→ Installing npm deps..."
-  npm install
+# 1. npm deps, installed whenever node_modules does not hold exactly what the
+# lockfile pins: a tree from before a dependency was added still exists.
+source scripts/lib/npm-deps.sh
+if ! npm_deps_current "$PWD"; then
+  echo "→ Installing npm deps from the lockfile..."
+  npm ci
 fi
 
+# Activate the repository's git hooks. npm does this on install, but a checkout
+# whose dependencies were installed before that existed never re-runs it, and an
+# inactive commit hook is silent: commits simply go unscanned. Idempotent.
+bash scripts/install-git-hooks.sh
+
+# The tools the dev loop itself needs, reported together before anything uses
+# one. The full set is the test runner's to report.
+# shellcheck source=scripts/lib/tool-report.sh
+source scripts/lib/tool-report.sh
+tool_report node python3 sqlite3 ffmpeg
+
 # 2. Python venv + requirements
-if [[ ! -d scripts/.venv ]]; then
-  echo "→ Creating Python venv..."
-  python3 -m venv scripts/.venv
+# Built or repaired, installed and proved by the shared seeder-environment step.
+# shellcheck source=scripts/lib/seeder-env.sh
+source scripts/lib/seeder-env.sh
+seeder_env_ensure "$PWD" || exit 1
+
+# The legacy pipeline's own environment, which the test suite runs the legacy
+# extractors under. Only the pipeline builds it, so it is reached through there.
+# A failure warns rather than stopping the dev server, which does not need it.
+if ! bash legacy_data/run_pipeline.sh venv >/dev/null; then
+  echo "WARNING: the legacy pipeline's Python environment could not be built, so npm test" >&2
+  echo "         will fail on the suites that run the legacy extractors." >&2
+  echo "         It needs the Python in .python-version; bash scripts/setup-dev-workstation.sh installs it." >&2
 fi
-scripts/.venv/bin/pip install -q -r scripts/requirements.txt
 
 # 3. DB seed.
 # Default (no flag): no DB work. Bootstrap with --reset only if the DB file

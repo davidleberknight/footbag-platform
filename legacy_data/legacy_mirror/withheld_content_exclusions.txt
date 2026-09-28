@@ -31,3 +31,17 @@
 #
 reference2/ifpa/media-kit
 reference/ifpa/media-kit
+#
+# worlds2012/2026/06/16/<Russian-language slug>   Advertising injected into
+#     the 2012 World Championships WordPress microsite years after the event:
+#     a Russian-language review of a solar inverter, filed under the
+#     organizer's author name, dated long after the championships closed. It
+#     is not championship content and nobody can remove it from the live site,
+#     so the archive withholds it. The microsite was captured at both its www
+#     path and under the sites.footbag.org vhost tree, hence the two entries.
+#     The crawler also drops this post's entry from the blog listings that
+#     quote it inline (the microsite home page and the author archive), since
+#     withholding the page alone would leave its text on the front page.
+#
+worlds2012/2026/06/16/обзор-инвертора-deye-sun-6kw-особенности-и-преи
+sites/worlds2012/2026/06/16/обзор-инвертора-deye-sun-6kw-особенности-и-преи

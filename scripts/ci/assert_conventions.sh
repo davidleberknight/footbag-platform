@@ -1940,6 +1940,12 @@ if [ -n "$pin_hits" ]; then
 fi
 fi
 
+# Rule: every version of every package, library, runtime and image is pinned:
+# exact npm versions, hash-locked pip installs, named CI runner releases,
+# digest-pinned images in scripts, and versioned npx fetches. Delegated so its
+# own suite can run it against fixture repositories.
+delegate "every package, library, runtime and image pinned exactly" check_version_pins.sh
+
 # Rule: every static import of a production-stripped subtree has a no-op stub in
 # the web image.
 # Reason: the production web image deletes dist/testkit and dist/dev-bootstrap,

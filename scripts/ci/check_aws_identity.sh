@@ -87,6 +87,12 @@ is_exempt() {
     scripts/production-live-marker.sh) return 0 ;;
     # Its entire purpose is that no credential resolves.
     scripts/lib/aws-isolation.sh) return 0 ;;
+    # It asks the terraform binary for its own version to compare against the
+    # push gate's pin, which reads no state and reaches no AWS endpoint.
+    scripts/lib/tool-report.sh) return 0 ;;
+    # It installs the AWS CLI and asks the installed one for its version; it
+    # makes no AWS call and holds no credential.
+    scripts/setup-dev-workstation.sh) return 0 ;;
     *) return 1 ;;
   esac
 }

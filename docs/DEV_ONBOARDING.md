@@ -2,22 +2,20 @@
 
 ## Local Quickstart and Architecture Orientation
 
-This guide helps contributors understand how the platform is structured and how it was originally assembled, and get it running locally (view working pages in your browser). AWS staging and production deployment, including the bring-up and hardening runbooks, lives in AWS_OPERATIONS.md (private GitHub repo); running AWS commands requires access to the private operations repository.
+This guide helps contributors understand how the platform is structured and get it running locally (view working pages in your browser). It is the single ordered developer procedure: clone the repository, run `bash scripts/setup-dev-workstation.sh`, start the site with `./run_dev.sh`, and run the complete test suite with `./run_all_tests.sh --full`.
 
 > **Who you are (pick your lane).** This guide serves four kinds of contributor:
 >
 > - **New developer** — run it locally and learn the architecture. Lanes: Path A, then B.
 > - **New tester** — run it locally; browse and switch between seeded personas at `/dev/personas` and read captured dev mail without a real inbox. Lanes: Path A, then the persona/tester harness (see `docs/TESTING.md` §16).
-> - **Initial operator / AWS maintainer** — owns AWS, applies Terraform, performs production activation, and claims the first admin. Starts here at Path B for orientation; all AWS staging and production setup is in AWS_OPERATIONS.md (private GitHub repo).
+> - **Initial operator / AWS maintainer** — owns AWS, applies Terraform, performs production activation, and claims the first admin. Starts here at Path A and Path B; AWS work is outside this guide (see §3).
 > - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain: the pipeline maintainer runs `legacy_data/run_pipeline.sh` and `freestyle/run_freestyle.sh` (and loads the gitignored operator dataset per §1.10A), while design and content contributors work in `docs/` and `src/views/`.
->
-> AWS staging and production setup lives in the private operations repository (AWS_OPERATIONS.md); running AWS commands requires access to it.
 
 > **Choose your path**
 >
-> - **Path A**; I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public pages locally.
+> - **Path A**; I am a brand-new contributor on Windows + WSL. I need to clone the repo with HTTPS, install the tools, start the dev server, load the public pages locally, and run the tests.
 > - **Path B**; I need the architecture mental model, scope boundaries, and workflow rules.
-> - **AWS staging and production deployment**; I am the operator bringing up, hardening, or activating AWS. This lives in AWS_OPERATIONS.md (private GitHub repo) and requires access to the private operations repository.
+> - **AWS deployment and operations**; §3 says how staging access is granted.
 
 ---
 
@@ -50,7 +48,6 @@ This guide helps contributors understand how the platform is structured and how 
   - [2.5 Architecture mental model](#25-architecture-mental-model)
   - [2.6 Repo map](#26-repo-map)
 - [3. AWS deployment and operations](#3-aws-deployment-and-operations)
-  - [3.1 Requesting staging access as a dev-and-tester](#31-requesting-staging-access-as-a-dev-and-tester)
 - [4. Appendices](#4-appendices)
   - [4.1 Troubleshooting reference](#41-troubleshooting-reference)
   - [4.2 Deterministic seed-data reference](#42-deterministic-seed-data-reference)
@@ -66,14 +63,11 @@ This guide helps contributors understand how the platform is structured and how 
 
 Success for this path means you can:
 
-- install the prerequisites
 - clone the GitHub repo
-- install dependencies
-- create `.env` - local environment variables file
-- reset the local DB
-- launch the dev server
+- install every tool and dependency with `bash scripts/setup-dev-workstation.sh`
+- launch the dev server with `./run_dev.sh`, which builds the local DB on first run
 - verify `/events`, `/events/year/2020`, an event detail page, `/health/live`, and `/health/ready` in a browser (hello world)
-- run the test suite
+- run the test suite, then the complete local gate with `./run_all_tests.sh --full`
 - set up your developer tooling (Git, Claude Code)
 - optionally run the Docker parity stack and local smoke script
 
@@ -93,28 +87,30 @@ Recommended Windows + WSL working model:
 - enable the WSL 2 backend and WSL integration for your Ubuntu distro (essential).
 - run Node, npm, sqlite3, Git, SSH, and Claude Code from the WSL Ubuntu shell.
 
-macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see §1.8). Alternatively, adapt the §1.4 install commands to your native terminal (Homebrew for the tools, `nvm` for Node 22) and continue from §1.5. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
+macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see §1.8). The setup script (§1.5) supports x86_64 Ubuntu, native or under WSL. On an ARM machine, such as an Apple Silicon Mac or an ARM Ubuntu VM, adapt its steps by hand to the same pinned versions; there the Python loaders use Python's built-in SQLite module, because the pinned SQLite wheel is published for x86_64 only. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
 
 ### 1.3 Required tools
 
-For the **minimum newcomer local path**, install these first:
+One canonical, idempotent script installs every tool the repository needs, at the version the push gate pins, and nothing you already have: `bash scripts/setup-dev-workstation.sh`, run from inside the clone (§1.5). It covers:
 
-- `git`
-- Node.js via `nvm`
-- `npm`
-- `build-essential`
-- `python3` (with `python3-venv` and `python3-pip`)
-- `sqlite3`
-- `ffmpeg`
-- `curl`
-- `unzip`
-- `ca-certificates`
-- `openssh-client`
-- `rsync`
+- the system `python3` pointed back at Ubuntu's own interpreter if it was changed, because apt's own tools only load under that one (the project always names its pinned interpreter instead)
+- the apt baseline: `build-essential`, `python3`, `python3-venv`, `python3-pip`, `sqlite3`, `ffmpeg`, `git`, `unzip`, `zip`, `jq`, `ca-certificates`, `curl`, `openssh-client`, `rsync`, `gpg`, `age`, and `lsof`
+- Python at exactly the version in `.python-version`, as a checksum-verified standalone build under `~/.local`
+- Node at exactly the version in `.nvmrc`, through a pinned, checksum-verified `nvm`
+- the `gitleaks` secret scanner at the push gate's version, unless a running Docker can supply it
+- Terraform at the push gate's version
+- the npm dependencies, with `npm ci` unless `node_modules` already holds every package at the version `package-lock.json` pins
+- Playwright's Chromium browser with its system libraries
+- the two Python environments: the seeder environment under `scripts/.venv`, and the legacy pipeline environment built by `bash legacy_data/run_pipeline.sh venv`
+- the repository's git hooks
+
+Every download is compared with a pinned checksum before anything from it is unpacked. The script shows its plan and changes nothing until you type `APPLY`; `--check` reports what it would install and changes nothing, and `--yes` accepts the confirmation in advance. Re-run it any time: on a machine that already has everything, it reports that there is nothing to do.
+
+Docker is the one prerequisite the script does not install; it reports Docker's state and §1.13 covers the install. The AWS CLI is for operators and dev-testers only: `bash scripts/setup-dev-workstation.sh --operator` adds the pinned AWS CLI v2.
 
 Claude Code (`@anthropic-ai/claude-code`) is required for all contributors, but it is not needed to run the site or the tests; set it up after your first hello-world success (§1.10B).
 
-For the local Docker parity check (§1.13), also install or verify these:
+For the local Docker parity check (§1.13), also have:
 
 - Docker: Docker Desktop with WSL integration on Windows, or Docker Engine (`docker-ce`) from
   Docker's apt repository on native Linux or inside the Mac VM. Install and verify steps are in
@@ -127,15 +123,12 @@ For the local Docker parity check (§1.13), also install or verify these:
   out-of-memory message. Free memory is what counts, not installed memory, so close the browser
   before a deploy on a smaller machine.
 
-The AWS CLI and Terraform install as part of the AWS deployment steps in AWS_OPERATIONS.md (private GitHub repo), not here.
-
-**Use Node 22 as the project baseline.**
+**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`. Node comes from `.nvmrc` (22.22.1), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version.
 
 Notes:
 
-- the repo's Dockerfiles use `node:22-alpine` and `package.json` requires `"engines": {"node": ">=22.21.1"}`, so Node 22 keeps local and container behavior aligned
 - `better-sqlite3` compiles a native addon during install, which is why `build-essential` is required; if you switch Node versions afterward, run `npm rebuild`
-- `ffmpeg` is required by the local database reset: the curator seed re-encodes the committed demo videos through it, so a machine without `ffmpeg` stops at `scripts/reset-local-db.sh` with `FileNotFoundError: ... 'ffmpeg'`
+- `ffmpeg` is required by the local database reset: the curator seed re-encodes the committed demo videos through it
 
 ### 1.4 First-time machine install steps
 
@@ -157,68 +150,25 @@ To confirm your distro is running WSL 2, from PowerShell run:
 wsl.exe -l -v
 ```
 
-#### 2. Update Ubuntu and install baseline packages
+#### 2. Make sure `git` is available
 
-In the Ubuntu Linux terminal shell (Run all the following commands one at a time):
-
-```bash
-sudo apt update
-sudo apt install -y \
-  build-essential \
-  python3 \
-  python3-venv \
-  python3-pip \
-  sqlite3 \
-  ffmpeg \
-  git \
-  unzip \
-  zip \
-  jq \
-  ca-certificates \
-  curl \
-  openssh-client \
-  rsync \
-  gpg \
-  age
-```
-
-Verify the basics:
+Everything else installs from inside the clone, so `git` is the one tool you need first. Ubuntu and WSL Ubuntu usually ship it. In the Ubuntu Linux terminal shell, check:
 
 ```bash
-sqlite3 --version
-ffmpeg -version
-python3 --version
 git --version
-ssh -V
-rsync --version
-age --version
 ```
 
-#### 3. Install `nvm` and Node 22
+Only if that command is not found, install it:
 
 ```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+sudo apt update && sudo apt install -y git
 ```
 
-**Close and reopen your terminal** (or run `source ~/.bashrc`) so that `nvm` is available. Then:
-
-```bash
-nvm install 22
-nvm use 22
-nvm alias default 22
-
-node -v
-npm -v
-which node
-```
-
-`which node` should resolve to a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
-
-These three steps are everything required to reach hello world. Git configuration and Claude Code are set up after your first green run (§1.10B); Docker is only for the parity check (§1.13) and AWS deployment work (AWS_OPERATIONS.md, private GitHub repo).
+These two steps, the clone, and the setup script in §1.5 are everything required to reach hello world. Git configuration and Claude Code are set up after your first green run (§1.10B); Docker is only for the parity check (§1.13).
 
 ### 1.5 Clone and Install the Project GitHub Repository
 
-Clone via HTTPS; no SSH key required (again, run commands one at a time):
+Clone via HTTPS; no SSH key required (run commands one at a time):
 
 ```bash
 mkdir -p ~/GIT
@@ -229,16 +179,31 @@ cd footbag-platform
 
 > **Clone from inside WSL (Windows).** Keep the repo in the Linux filesystem (for example `~/GIT/footbag-platform`), not under `/mnt/c/...`. The repo's `.gitattributes` keeps shell scripts LF-terminated, but if you ever see `bash: ...^M` errors the checkout picked up Windows CRLF line endings; re-clone from inside WSL rather than repairing it by hand.
 
+Then install every tool and dependency (§1.3 lists what it covers):
+
 ```bash
-npm install
+bash scripts/setup-dev-workstation.sh
 ```
 
-If `npm install` fails while compiling `better-sqlite3`:
+It prints its plan and asks you to type `APPLY`; parts of it use `sudo`. When it finishes, **open a new terminal** so the freshly installed Node (through `nvm`) and the tools under `~/.local/bin` are on your `PATH`, and confirm from the repository root:
 
-- confirm you are on Node 22
+```bash
+cd ~/GIT/footbag-platform
+bash scripts/setup-dev-workstation.sh --check
+node -v
+which node
+```
+
+`--check` exits 0 and reports nothing to do; `node -v` prints the version in `.nvmrc`; `which node` resolves to a path under `/home/...`, not `/mnt/c/...`. If the script reports something still missing, open a new terminal and run it again.
+
+The git hooks activate on their own: npm's prepare step runs `scripts/install-git-hooks.sh` on every install, and so does every run of `./run_dev.sh` and `./run_all_tests.sh`. Confirm with `git rev-parse --git-path hooks`, which ends in `.githooks`. The pre-commit hook scans your staged changes for secrets with `gitleaks`, natively at the pinned version or through Docker; on a machine with neither it warns and allows the commit.
+
+If installing the npm dependencies fails while compiling `better-sqlite3`:
+
+- confirm `node -v` matches `.nvmrc`
 - confirm `build-essential` is installed
 - confirm `which node` points to the WSL/Linux binary
-- then rerun `npm install`
+- then delete `node_modules` and rerun `npm ci`
 
 ### 1.6 Local env file
 
@@ -287,7 +252,7 @@ A fresh clone has no database yet. The event inputs the loader reads (`legacy_da
 bash scripts/reset-local-db.sh
 ```
 
-It needs the `sqlite3` CLI and `python3` (installed in §1.4) and creates a Python virtualenv under `scripts/.venv` on first run. It applies the schema, loads the committed seed CSVs, and builds the freestyle tables via `freestyle/run_freestyle.sh`, so no separate freestyle build is needed. `./run_dev.sh` (§1.8) runs this automatically when `database/footbag.db` is missing, so on a fresh clone `./run_dev.sh` alone reaches a seeded, browsable site.
+It needs the `sqlite3` CLI and the pinned Python (installed by the setup script in §1.5) and uses the seeder Python environment under `scripts/.venv`, building or repairing it when it does not work at the pinned version and proving it satisfies the hash-pinned `scripts/requirements.txt`. It applies the schema, loads the committed seed CSVs, and builds the freestyle tables via `freestyle/run_freestyle.sh`, so no separate freestyle build is needed. `./run_dev.sh` (§1.8) runs this automatically when `database/footbag.db` is missing, so on a fresh clone `./run_dev.sh` alone reaches a seeded, browsable site.
 
 Two real-data inputs power the full dataset, and a hello-world clone needs neither:
 
@@ -312,7 +277,7 @@ To pull committed freestyle input changes into the database you already have, ru
 ./run_dev.sh
 ```
 
-This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP in the four-container topology (nginx + web + worker + image; see DEVOPS_GUIDE.md (private GitHub repo)); `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
+Before launching, it installs the npm dependencies with `npm ci` unless `node_modules` already holds every package at the version `package-lock.json` pins, activates the git hooks, reports any missing tool, builds the seeder and legacy pipeline Python environments, and builds the local database if `database/footbag.db` is missing. It then launches three processes: the web app (port 3000), the image worker (port 4001), and the outbox worker. Avatar, photo, and curator video uploads route through the image worker over HTTP, mirroring the deployed four-container topology (nginx, web, worker, image); `npm run dev` alone fails uploads because no image worker is listening. `./run_dev.sh` keeps all three alive and tears them down on Ctrl+C; `npm run dev`, `npm run dev:image`, and `npm run dev:worker` run them individually for debugging.
 
 Open the running site in your browser. Pick the block for your machine; all paths reach the same `http://localhost:3000`.
 
@@ -368,7 +333,7 @@ How the tunnel works: the app listens on `127.0.0.1:3000` *inside the guest*, wh
 
    Open `http://localhost:3000` in your Mac browser. The browser hits its own forwarded port and SSH carries the traffic to `127.0.0.1:3000` inside the VM. Only port 3000 needs forwarding; the image worker on 4001 is called server-to-server inside the VM, so the browser never contacts it. Decoupling the server window from the tunnel means restarting one never drops the other.
 
-If direct SSH to the VM IP is not reachable (depending on the UTM network mode), add a VM port forward for SSH (Mac `localhost:2222` to guest port 22) and connect through it, keeping the same app-port tunnel. This `2222` is local to UTM and unrelated to the `2222` used for SSH to the AWS Lightsail host (AWS_OPERATIONS.md, private GitHub repo):
+If direct SSH to the VM IP is not reachable (depending on the UTM network mode), add a VM port forward for SSH (Mac `localhost:2222` to guest port 22) and connect through it, keeping the same app-port tunnel. This `2222` is local to UTM and unrelated to the `2222` used for SSH to the AWS Lightsail host:
 
 ```bash
 ssh -p 2222 -o ExitOnForwardFailure=yes \
@@ -407,16 +372,16 @@ These event pages render the committed real competitor archive (event results an
 npm test
 ```
 
-Run the suite to confirm your environment is healthy end to end; it is self-contained (integration tests use their own ephemeral SQLite databases) and does not need the dev server running.
+Run the suite to confirm your environment is healthy end to end; it is self-contained (integration tests use their own ephemeral SQLite databases) and does not need the dev server running. It does need the legacy pipeline Python environment, which the setup script and `./run_dev.sh` build (or build it alone with `bash legacy_data/run_pipeline.sh venv`); packages installed into the system `python3` are not used.
 
 The suite is split:
 
 - `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke, e2e, and dev-only crawls via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'`.
 - `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
-- `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`. A few files drive committed command-line scripts as subprocesses, so the legacy-data Python dependencies must be importable by the `python3` on your path (`legacy_data/requirements.txt`).
-- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires the `footbag-staging-runtime` AWS profile and accessible Terraform staging state; a developer granted AWS access configures that workstation profile per DEVOPS_GUIDE.md (private GitHub repo), "Operator-workstation staging readiness smoke test".
+- `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`. A few files drive committed command-line scripts as subprocesses under the legacy pipeline Python environment.
+- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when verifying staging AWS wiring, and only with staging access (§3).
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
-- `npm run test:pre-pr`; the fast pre-commit loop; build + lint + conventions check + secret scan + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. `./run_all_tests.sh --full` is the gate that matches the push; run this one before a commit.
+- `npm run test:pre-pr`; the fast pre-commit loop; build + lint + conventions check + secret scan + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. `./run_all_tests.sh --full` is the commit and PR gate that matches the push.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
@@ -425,16 +390,17 @@ The suite includes a migration-testing cluster under `tests/integration/` that e
 
 #### The full local suite (`run_all_tests.sh`)
 
-`npm test` is the inner loop. Before a PR, run the comprehensive local gate. The e2e gate drives Playwright, whose browsers are a one-time install:
+`npm test` is the inner loop. `./run_all_tests.sh` is the commit and PR gate; run the complete suite before a commit or PR:
 
 ```bash
-npx playwright install        # one-time: Playwright e2e browsers
 ./run_all_tests.sh --full     # the complete suite
 ```
 
-Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs the gates that are safe on a workstation and quick enough for a routine pass: build, lint, dependency audit, conventions, harness self-check, generated-content, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` is the run that matches the push gate: it adds the coverage thresholds, the blocking security probes, the heavyweight pentest, the staging-AWS smoke, the persona-crawl, the read-only real-data invariant gate, and the legacy-data pipeline suite. `--full` also runs the clean-room gate, which rebuilds the tree in a throwaway worktree with an empty home directory and runs the suite as the push gate sees it, including the loader smoke and the database-integrity guards that were previously CI-only. The only push-gate jobs it cannot carry are the two GitHub-hosted ones, CodeQL static analysis and the pull-request dependency review. A run that had to skip a gate now ends as INCOMPLETE rather than green, naming what did not run. A run whose tree changed while it was in flight ends VOID for the same reason: the gates did not all read the same source, so their verdict is about no single commit, and editing during a run is easy to do by accident when the run takes the better part of an hour. The individual gate results still stand; only the verdict over them is withdrawn. Hold the tree still, or re-run. Mutation testing is the one gate no other flag implies, and runs only when asked for by name; on a fixture-seeded clone (no operator data handoff, no AWS profile) the staging-smoke and persona-crawl SKIP with a warning while every other gate still runs, so the run completes green instead of failing on data or credentials you are not expected to have.
+The setup script (§1.5) already installed the Playwright browser the e2e gates drive. The runner reports every missing or wrong-version tool up front, each with its fix, before any gate starts.
 
-> **Real-data testing, for developers and testers.** With the operator dataset loaded, two opt-in gates exercise the real migrated data, and both SKIP cleanly on a fixture-only clone. The **real-claim crawl** (`--with-persona-crawl`) builds a claimed account for a real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` and walks its surfaces (profile, honors, results, media, any co-led club), proving migrated data renders and behaves once claimed; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. The **read-only invariant gate** (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. To run either: do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl` and/or `./run_all_tests.sh --with-realdata-invariants`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`. Both gates re-point at staging with an env var — `PERSONA_CRAWL_BASE_URL` aims the crawl at a running staging stack, `FOOTBAG_DB_PATH` aims the invariant gate at the staging database. The full flag set with defaults lives in `./run_all_tests.sh -h`. The human stratified-sampling walk that complements these gates is an operator procedure in DEVOPS_GUIDE.md (private GitHub repo).
+Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs the gates that are safe on a workstation and quick enough for a routine pass: build, lint, dependency audit, conventions, harness self-check, generated-content, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` is the run that matches the push gate: it adds the coverage thresholds, the blocking security probes, the heavyweight pentest, the accessibility scan, the persona crawl, the read-only real-data invariant gate, the legacy-data pipeline suite, and the clean-room gate, which rebuilds the tree in a throwaway worktree with an empty home directory and runs the suite as the push gate sees it, including the loader smoke and the database-integrity guards. The only push-gate jobs it cannot carry are the two GitHub-hosted ones, CodeQL static analysis and the pull-request dependency review. The summary warns about each opt-in gate the run did not include: mutation testing runs only with `--with-mutation`, and the staging smoke only with `--with-smoke`. A run that skipped a gate standing for a push-gate job ends as INCOMPLETE rather than green, naming what did not run. A run whose tree changed while it was in flight ends VOID: the gates did not all read the same source, so their verdict is about no single commit, and editing during a run is easy to do by accident when the run takes the better part of an hour. The individual gate results still stand; only the verdict over them is withdrawn. Hold the tree still, or re-run. On a fixture-seeded clone (no operator data handoff) the persona crawl and the real-data invariant gate SKIP with a warning while every other gate still runs, so the run completes instead of failing on data you are not expected to have.
+
+> **Real-data testing, for developers and testers.** With the operator dataset loaded, two opt-in gates exercise the real migrated data, and both SKIP cleanly on a fixture-only clone. The **real-claim crawl** (`--with-persona-crawl`) builds a claimed account for a real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` and walks its surfaces (profile, honors, results, media, any co-led club), proving migrated data renders and behaves once claimed; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. The **read-only invariant gate** (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. To run either: do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl` and/or `./run_all_tests.sh --with-realdata-invariants`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`. `PERSONA_CRAWL_BASE_URL` aims the crawl at another running stack and `FOOTBAG_DB_PATH` aims the invariant gate at another database. The full flag set with defaults lives in `./run_all_tests.sh -h`.
 >
 > **Final note — the full data load needs operator data kept out of GitHub.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is kept out of GitHub as a maintainer handoff no committed source can regenerate; it holds member names, membership status, expiration and tier, and no contact data. Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the committed canonical event data plus the committed seed CSVs).
 
@@ -464,7 +430,7 @@ New adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, future) 
 
 #### Dev test libraries
 
-`npm install` brings in the dev-only libraries below. No further setup is required for the contributor unless noted.
+`npm ci` brings in the dev-only libraries below. No further setup is required for the contributor unless noted.
 
 **fast-check.** Property-based testing. Import in any unit or integration test:
 
@@ -503,13 +469,9 @@ npx audit-ci --moderate
 
 Exits non-zero on moderate-or-higher advisories. Per `docs/TESTING.md` §9.
 
-#### Pentest tooling (not auto-installed)
+#### Pentest tooling
 
-**OWASP ZAP.** Heavyweight pentest scanner. Distributed as a Java tool / Docker image, not an npm package. One-time install when first wiring `test:pentest:heavy`:
-
-```bash
-docker pull owasp/zap2docker-stable
-```
+**OWASP ZAP.** Heavyweight pentest scanner, run as a Docker image rather than an npm package. The pentest scripts under `scripts/pentest/` pin the image by digest (`ghcr.io/zaproxy/zaproxy@sha256:...`) and Docker pulls it automatically on first use, so there is nothing to install; the ZAP leg of `test:pentest:heavy` needs a running Docker and skips without one.
 
 Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against production.
 
@@ -555,6 +517,8 @@ npm install -g @anthropic-ai/claude-code
 claude --version
 claude        # then run /login and complete the browser OAuth sign-in
 ```
+
+Claude Code is the one tool installed outside `scripts/setup-dev-workstation.sh` and its pinned versions: nothing in the repository runs it, and it updates itself in place, so a pin would not hold.
 
 Always start `claude` from the repository root (`~/GIT/footbag-platform`), not a subdirectory or your home directory, so it loads the project's `CLAUDE.md` and the path-scoped rules under `.claude/`. On Windows, Claude Code runs inside WSL Linux; the Cursor IDE runs on Windows and connects to it.
 
@@ -625,7 +589,7 @@ Docker is part of the required workflow because the deployed origin is container
 
 Do this before anyone touches AWS.
 
-**Install Docker first (if you have not already).**
+**Install Docker, the container runtime, first (if you have not already).** The setup script reports Docker's state but does not install it.
 
 On **native Linux**, install Docker Engine from Docker's own apt repository rather than the distribution's `docker.io` package, which lags and ships an older Compose. Follow Docker's "Install Docker Engine on Ubuntu" instructions for the repository setup, then `sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`. Add yourself to the `docker` group (`sudo usermod -aG docker "$USER"`) and open a new shell so the membership applies; without it every command below needs `sudo`. There is no Docker Desktop in this path and none is needed.
 
@@ -640,30 +604,19 @@ docker --version
 docker compose version
 ```
 
-> **Note on `COMPOSE_FILE`:** The `.env` file sets `COMPOSE_FILE=docker/docker-compose.yml`. This only applies when running bare `docker compose` without `-f` flags. The parity commands below use explicit `-f` flags that override `COMPOSE_FILE`. Always use the explicit `-f` form shown here.
+> **Note on secrets and `.env`:** The stack runs `NODE_ENV=production` for parity with the deployed system, so it needs both shared secrets. `npm run compose:dev` generates a pair per run when nothing supplies them, and passes your `.env` to Compose only when one exists, so a `.env` is optional here too. Precedence: an exported shell value wins, then a `.env` entry, then the generated value.
 
-> **Note on `--env-file`:** The parity commands require `--env-file .env` so that Docker Compose can substitute `SESSION_SECRET` (and any future secrets) from your local `.env` into the container. Without it, Compose resolves variable substitution from `docker/` (the compose file's directory), finds no `.env` there, and the app crashes at startup. This mirrors how the production deploy passes `--env-file /srv/footbag/env`.
+> **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before building the images; the Dockerfile handles compilation internally.
 
-> **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before `docker compose build`; the Dockerfile handles compilation internally.
-
-Bring the full four-container stack (nginx, web, worker, image) up with the one-command wrapper. It runs in the foreground and tears the stack down automatically on Ctrl+C, exit, or crash, so use a second terminal for the smoke checks below:
+Bring the full four-container stack (nginx, web, worker, image) up with the one-command wrapper. It builds the images, runs in the foreground, and tears the stack down automatically on Ctrl+C, exit, or crash:
 
 ```bash
 npm run compose:dev
 ```
 
-Run the base parity stack locally in a separate terminal (or detached):
-```bash
-docker compose \
-  --env-file .env \
-  -f docker/docker-compose.yml \
-  up --build --detach
-```
-
-Then run the smoke checks against the containerized local app:
+In a second terminal, run the smoke checks against the containerized local app:
 
 ```bash
-chmod +x scripts/smoke-local.sh
 BASE_URL=http://localhost ./scripts/smoke-local.sh
 ```
 
@@ -674,14 +627,7 @@ What you are proving here:
 - the DB mount path is correct
 - web and nginx stay healthy under Compose
 
-Bring the stack down when done:
-
-```bash
-docker compose \
-  --env-file .env \
-  -f docker/docker-compose.yml \
-  down
-```
+Bring the stack down when done by pressing Ctrl+C in the terminal running `npm run compose:dev`; the wrapper removes the containers itself.
 
 ### 1.14 Dev and tester tooling (advanced)
 
@@ -693,7 +639,7 @@ Admin in dev confers the curator role, which authors real `/curated/` content (t
 
 For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in an operator-local allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The allowlist carries maintainer email addresses, so it lives in the maintainers' private operations checkout rather than this one, reached through the canonical repo-root symlink; a developer without that checkout gets an empty allowlist, which is a supported configuration.
 
-Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's copy into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE.md (private GitHub repo), "Production first-admin bootstrap".
+Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's copy into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9.
 
 #### 1.14.2 Dev and staging test infrastructure
 
@@ -712,8 +658,9 @@ Production carries none of these tools. Production admins requiring legacy-claim
 
 Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then open `/dev/personas` to browse every loadable persona and click its Switch link to act as that persona without a login chain (or, if you already know the slug, hit `/dev/switch?as=<slug>` directly):
 
+`./run_dev.sh` sets `FOOTBAG_ENV=development` itself, so nothing needs exporting first:
+
 ```bash
-export FOOTBAG_ENV=development
 ./run_dev.sh --seed-test-personas
 # then in a browser:
 #   http://localhost:3000/dev/personas             (the persona catalog: browse and click Switch)
@@ -739,10 +686,10 @@ Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at th
 With hello world running and the tests green, here is where to go next:
 
 - **Architecture orientation:** Path B (§2) for the mental model, scope boundaries, and repo map. Read it before doing code work.
-- **More tests:** `./run_all_tests.sh` runs the fuller suite; `--full` adds the pentest, the staging-AWS smoke, and the persona-crawl. On a fixture-only clone (no operator data, no AWS profile) the staging-smoke and persona-crawl skip with a warning, so the run still completes green.
+- **More tests:** `./run_all_tests.sh --full` is the complete local gate: the full suite plus coverage, the security probes, the pentest, the accessibility scan, the persona crawl, the real-data invariants, and the clean room. On a fixture-only clone (no operator data) the persona crawl and the real-data invariants skip with a warning, so the run still completes.
 - **The full dataset:** load the optional operator dataset and footbag.org mirror (§1.10A) when you need the real event archive and member roster; both are gitignored maintainer handoffs.
 - **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
-- **AWS deployment and operations:** staging and production bring-up, hardening, and activation live in AWS_OPERATIONS.md (private GitHub repo); running AWS commands requires access to the private operations repository. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.
+- **AWS deployment and operations:** see §3. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.
 
 ## 2. Path B — Orientation: what this project is and how to think about it
 
@@ -954,8 +901,7 @@ The layered shape is the right mental map. The tree below shows the original eve
 │  ├─ shared/
 │  ├─ staging/
 │  ├─ production/
-│  ├─ identity/
-│  └─ operators/
+│  └─ identity/
 ├─ docs/
 │  └─ DEV_ONBOARDING.md
 ├─ .env.example
@@ -989,37 +935,7 @@ Important file-level responsibilities:
 
 ## 3. AWS deployment and operations
 
-AWS staging and production deployment for this project, the Terraform apply, host bring-up, production-readiness hardening, runtime AWS identity and transactional email activation, and production activation, is documented in AWS_OPERATIONS.md (private GitHub repo), the canonical AWS reference. Running any AWS command requires access to the private operations repository, and a contributor is invited to it before doing AWS work. Local development and the architecture orientation above need no AWS access.
-
-### 3.1 Requesting staging access as a dev-and-tester
-
-Local development needs no AWS access. Ask for staging access only when your work needs the deployed staging environment: deploying a branch to staging, running the staging smoke tests, or reading staging logs. Access is staging only, never production, and gives you no access to the project's credential vault.
-
-You become a *dev-and-tester*: a Linux account of your own on the staging host and an AWS identity of your own, which reaches staging through the shared staging-only role `FootbagDevTester`. Both carry your name, `<first>_<last>` in lower case (Jane Doe is `jane_doe`).
-
-**What you send the project maintainer.** Neither is a secret.
-
-1. A new SSH public key made for this access alone, at the path the scripts expect:
-
-   ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<first>_<last> \
-     -C "<first>_<last> footbag operator"
-   ssh-keygen -lf ~/.ssh/id_ed25519_<first>_<last>.pub
-   ```
-
-   Send the one line in the `.pub` file and the fingerprint the second command prints. The private half never leaves your machine.
-2. Your home public IPv4 address, from `curl -s https://checkip.amazonaws.com`, which goes on the staging SSH allow-list.
-
-**What happens next.** Everything is scripted; nothing is typed by hand on either side. The maintainer adds your address to the allow-list, then runs one command that creates your staging account and AWS identity and seals your one-time password and AWS key to the public key you sent. You receive the sealed file by any channel, because only your private key opens it. You install `age` (`sudo apt install age`) and the AWS CLI v2 ([AWS CLI install](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)) if you do not have them, and run, on your own machine, `bash scripts/accept-dev-tester-delivery.sh --target staging --account <first>_<last> <the file>`. It unseals the file, writes your AWS profiles, pins the staging host's keys and writes your SSH configuration, has you choose your own sudo password in place of the one-time one, and proves each step.
-
-**Working on staging afterwards.** Every staging command goes through the switch that names you:
-
-```bash
-bash scripts/as-dev-tester.sh --account <first>_<last> ./deploy_to_aws.sh
-bash scripts/as-dev-tester.sh --account <first>_<last> npm run test:smoke
-```
-
-Without it a command has no identity and refuses. When you stop needing access, tell the maintainer; your access is retired by script.
+Local development, the test suite, and the architecture orientation above need no AWS access. Staging access is granted by an operator to fully vetted volunteers only, following ONBOARDING.md in the private operations repository.
 
 ## 4. Appendices
 
@@ -1030,15 +946,15 @@ Without it a command has no identity and refuses. When you stop needing access, 
 - WSL not installed, or the distro is not actually running in WSL 2 mode (`wsl.exe -l -v` to check)
 - repo cloned under `/mnt/c/...` instead of the Linux filesystem
 - `which node` resolves to the Windows binary under `/mnt/c/...`
-- running `source ~/.nvm/nvm.sh` before restarting the terminal after nvm install; `nvm` will not be found; close and reopen the terminal first
-- Node version drift breaks native addon builds (`better-sqlite3` requires Node 22 for the documented baseline)
-- `sqlite3` CLI missing; `sudo apt install -y sqlite3`
-- `.env` missing or `FOOTBAG_DB_PATH` wrong
+- `node` or `nvm` not found right after the setup script ran; open a new terminal so `nvm` and `~/.local/bin` are on your `PATH`, then re-run `bash scripts/setup-dev-workstation.sh --check`
+- Node version drift breaks native addon builds (`better-sqlite3` is built for the Node in `.nvmrc`); re-run the setup script, then `npm rebuild`
+- a tool missing or at the wrong version; `bash scripts/setup-dev-workstation.sh --check` names it, and re-running the script without `--check` installs it
+- `FOOTBAG_DB_PATH` set in a local `.env` to a path that does not hold the database; remove the line to fall back to the default
 - Docker Desktop installed on Windows but WSL integration not enabled for the Ubuntu distro
 - `docker` command works in Windows but not in the Ubuntu shell
 - the old standalone `docker-compose` v1 tool confused with the `docker compose` v2 plugin
 - shell scripts fail with `^M` because repo was cloned or edited outside WSL (CRLF issue)
-- `ModuleNotFoundError: No module named 'apt_pkg'` on any command or after `apt-get update`; broken `command-not-found` handler; fix with `sudo apt-get install --reinstall python3-apt`; the `apt-get update` error is a harmless post-hook and can be ignored
+- `ModuleNotFoundError: No module named 'apt_pkg'` on any command or after `apt-get update`: the system `python3` has been pointed at a Python other than Ubuntu's own, which apt's tools cannot load; `bash scripts/setup-dev-workstation.sh` points it back and repairs any Python environment that change broke
 
 #### Route and runtime mistakes
 
@@ -1064,9 +980,7 @@ These seeded routes are useful for local browser verification and integration te
 | Route                             | What it proves                               |
 | --------------------------------- | -------------------------------------------- |
 | /events/event_2025_beaver_open    | completed public event with results          |
-| /events/event_2025_quiet_open     | completed public event with no results yet   |
-| /events/event_2026_spring_classic | upcoming public event                        |
-| /events/event_2026_draft_event    | draft event remains non-public; expected 404 |
+| /events/event_2026_draft_event    | key with no public event; expected 404       |
 | /events/event_9999_does_not_exist | unknown key returns 404                      |
 | /events/year/1899                 | empty year still renders cleanly             |
 

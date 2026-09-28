@@ -713,9 +713,29 @@ def test_withheld_content_list_loads_and_is_not_empty():
     assert entries
 
 
-def test_withheld_content_list_names_the_media_kit_draft_on_both_hosts():
+SPAM_POST = 'worlds2012/2026/06/16/обзор-инвертора-deye-sun-6kw-особенности-и-преи'
+
+
+def test_withheld_content_list_names_each_ruling_on_both_captured_copies():
     entries = mirror_script.load_content_exclusions(str(WITHHELD_CONTENT_LIST))
-    assert entries == {'reference2/ifpa/media-kit', 'reference/ifpa/media-kit'}
+    assert entries == {
+        'reference2/ifpa/media-kit', 'reference/ifpa/media-kit',
+        SPAM_POST, f'sites/{SPAM_POST}',
+    }
+
+
+def test_the_injected_advert_is_withheld_on_both_hosts_and_nothing_else_is(monkeypatch):
+    entries = mirror_script.load_content_exclusions(str(WITHHELD_CONTENT_LIST))
+    monkeypatch.setattr(mirror_script, 'WITHHELD_EXACT_URLS', entries)
+    assert mirror_script.is_excluded_url(f'http://www.footbag.org/{SPAM_POST}/')
+    assert mirror_script.is_excluded_url(f'http://sites.footbag.org/{SPAM_POST}/')
+    # The championship's own posts, and the listings that quoted the advert,
+    # stay in the archive.
+    assert not mirror_script.is_excluded_url(
+        'http://www.footbag.org/worlds2012/2012/08/09/net-results/')
+    assert not mirror_script.is_excluded_url('http://www.footbag.org/worlds2012/')
+    assert not mirror_script.is_excluded_url(
+        'http://sites.footbag.org/worlds2012/2012/08/09/net-results/')
 
 
 def test_withheld_content_list_excludes_both_captured_copies_exactly(monkeypatch):

@@ -40,6 +40,8 @@ Rules:
 ## MCP tooling
 
 Browser automation uses the **Playwright MCP server** via the `mcp__playwright__*` tools.
+The server is a pinned devDependency that `.mcp.json` runs from
+`node_modules/.bin/playwright-mcp`, so it starts only after `npm ci` has run.
 The configured browser is **Chromium** (isolated mode: `.claude/playwright/config.json`).
 
 Minimal call sequence for layout review:

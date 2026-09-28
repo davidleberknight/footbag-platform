@@ -6,14 +6,32 @@
 # the sample templates git writes at init time. So a freshly cloned checkout
 # ships the hooks and runs none of them, and nothing about that is visible —
 # committing and pushing simply work, quietly unguarded. This script is how the
-# switch gets thrown, so it is a step someone runs rather than a command someone
-# has to remember.
+# switch gets thrown. npm runs it as the prepare script on every install, so no
+# one has to remember it: a checkout that has its dependencies has its hooks.
 #
 # Idempotent: running it twice is the same as running it once. It verifies the
 # result rather than assuming it, and reports what each hook will and will not be
 # able to do on this machine.
+#
+# Outside a git checkout it does nothing and succeeds, because the same install
+# runs where there is no repository to guard: a container image build, or a tree
+# unpacked from an archive.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "→ Not a git checkout; no hooks to activate."
+  exit 0
+fi
+
+# A linked worktree shares its main checkout's configuration, so activating here
+# would write into the main checkout's settings. The clean room installs inside
+# a throwaway worktree and must leave the checkout it was started from as it
+# found it; the main checkout activates its own hooks.
+if [[ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]]; then
+  echo "→ Linked worktree; hooks are activated by the main checkout."
+  exit 0
+fi
 
 HOOKS_DIR=".githooks"
 

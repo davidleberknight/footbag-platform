@@ -4,9 +4,10 @@
 # This tree creates the very bucket named below, which reads circular and is
 # not. The bucket was created in March under local state; this backend moves
 # that state into it afterwards, which is the ordinary bootstrap two-step. A
-# fresh account still starts with this file absent, applies once on local state
-# to create the bucket, then adds it back and runs `terraform init
-# -migrate-state`.
+# fresh account is bootstrapped by scripts/bootstrap-shared-state.sh, which
+# applies this tree without this file on local state to create the bucket, then
+# restores it and migrates the state in, proving the object is there before it
+# removes the local copy.
 #
 # Why the state moved here at all, 2026-09-05:
 #

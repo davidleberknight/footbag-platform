@@ -204,7 +204,7 @@ describe.skipIf(!AGE)('the recipient tag is the one age writes', () => {
     expect(seal.status, seal.stderr).toBe(0);
 
     const r = withLib(
-      `delivery_age_recipient_tag ${JSON.stringify(pub)}; echo; delivery_age_header_tags ${JSON.stringify(sealed)}`,
+      `delivery_age_recipient_tag ${JSON.stringify(pub)}; delivery_age_header_tags ${JSON.stringify(sealed)}`,
     );
     const [computed, fromHeader] = r.stdout.split('\n');
     expect(computed).toMatch(/^[A-Za-z0-9+/]{6}$/);

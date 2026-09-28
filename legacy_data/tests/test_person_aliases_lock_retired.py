@@ -22,6 +22,7 @@ regression these tests are here to surface.
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -47,14 +48,32 @@ CODE_TREES = [
 _SUFFIXES = ["--include=*.py", "--include=*.sh", "--include=*.ts"]
 
 
+# Terraform's provider lock file, which Terraform itself writes and reads and the
+# repository commits beside every Terraform tree. It is Terraform's convention,
+# not one of this repository's making, and a script that copies it is keeping
+# the providers hash-pinned, so a mention of it is not a lock file of our own.
+_TERRAFORM_PROVIDER_LOCK = ".terraform.lock.hcl"
+
+
 def _grep(pattern: str) -> list[str]:
-    """Files under the code trees carrying `pattern`, minus this test itself."""
+    """Files under the code trees carrying `pattern`, minus this test itself.
+
+    A file counts only when a line matches with Terraform's provider lock name
+    taken out, so that name alone never hides another lock file on the same line.
+    """
     trees = [str(_ROOT / t) for t in CODE_TREES if (_ROOT / t).is_dir()]
     hit = subprocess.run(
         ["grep", "-rl", pattern, *trees, *_SUFFIXES, "--exclude-dir=.venv"],
         capture_output=True, text=True,
     ).stdout.split()
-    return [h for h in hit if Path(h).name != Path(__file__).name]
+    found = []
+    for h in hit:
+        if Path(h).name == Path(__file__).name:
+            continue
+        lines = Path(h).read_text(encoding="utf-8", errors="replace").splitlines()
+        if any(re.search(pattern, line.replace(_TERRAFORM_PROVIDER_LOCK, "")) for line in lines):
+            found.append(h)
+    return found
 
 
 def test_the_removed_file_is_absent():
@@ -76,7 +95,8 @@ def test_no_producer_can_recreate_it():
 
     Broader than the name on purpose. A stage that started maintaining a lock
     file under some other name would be a new mechanism worth noticing, and the
-    claim being preserved is that this repository has no such mechanism at all.
+    claim being preserved is that this repository has no such mechanism of its
+    own. Terraform's provider lock is Terraform's, and is left out of the search.
     """
     writers = _grep(r"\.lock")
     assert not writers, (

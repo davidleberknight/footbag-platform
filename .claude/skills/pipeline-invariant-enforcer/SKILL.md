@@ -42,7 +42,7 @@ The pipeline must run end-to-end on a fresh clone with no pre-existing artifacts
 
 - Reading `seed/*.csv`, `out/*.csv`, or `legacy_data/out/*` without an explicit producer step in the same orchestrator
 - Assuming `database/footbag.db` already exists
-- Assuming `.venv/` was hand-bootstrapped outside the documented procedure
+- Assuming a Python environment that `./run_pipeline.sh venv`, its only builder, did not create
 - Hand-edited files in `inputs/curated/` without either a generator or a clear "manual source" classification
 
 Verify by mentally walking the orchestrator from a clean checkout. Flag any step that would fail.

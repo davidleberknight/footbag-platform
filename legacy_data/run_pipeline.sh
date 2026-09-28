@@ -14,6 +14,7 @@
 #   csv_only        : canonical bootstrap + QC gate, DB load from existing
 #                     CSVs, phases C-F, G
 #                     (no mirror access required; seed and canonical_input must exist)
+#   venv            : build or refresh the Python venv below, then stop
 #
 # Run from: legacy_data/
 # Bootstraps and activates a Python venv (.venv) on first run.
@@ -24,27 +25,58 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$SCRIPT_DIR"
 
-# Reuse an existing venv when present (VENV_DIR override, or a committed
-# footbag_venv / hand-made .venv / venv); otherwise create .venv and install
-# requirements, so a fresh checkout on a python3-only host needs no manual venv
-# setup. The bare `python` calls below run inside this venv, which provides a
-# `python` even where the host ships only `python3`.
+# Reuse an existing venv only when it works (VENV_DIR override, or footbag_venv
+# / .venv / venv): its interpreter is exactly the pinned version and pip runs in
+# it. A venv that exists but does not work, such as one whose interpreter link
+# now resolves to a different Python, is rebuilt as .venv rather than trusted.
+# Then the hash-pinned requirements are installed and the result is proved.
+# The bare `python` calls below run inside this venv, which provides a `python`
+# even where the host ships only `python3`.
+# shellcheck source=../scripts/lib/python-env.sh
+source "${REPO_ROOT}/scripts/lib/python-env.sh"
 _venv=""
 for candidate in "${VENV_DIR:-}" .venv footbag_venv venv; do
-  if [ -n "$candidate" ] && [ -f "$candidate/bin/activate" ]; then
+  [ -n "$candidate" ] || continue
+  if footbag_venv_healthy "$candidate"; then
     _venv="$candidate"
     break
   fi
+  # A venv this script did not build is never removed; .venv, which it does
+  # build, comes first in every interpreter lookup, so building it is enough.
+  [ -d "$candidate" ] && echo "── Python venv ${candidate} does not work (wrong interpreter or no pip); not using it ──" >&2
 done
 if [ -z "$_venv" ]; then
+  _pin="$(tr -d '[:space:]' < "${REPO_ROOT}/.python-version")"
+  _py="python${_pin%.*}"
+  # The interpreter is proved before anything is removed, so a machine without
+  # the pinned Python keeps whatever .venv it had rather than losing it each run.
+  if ! command -v "$_py" >/dev/null 2>&1 \
+     || [ "$("$_py" -c 'import platform; print(platform.python_version())')" != "$_pin" ]; then
+    echo "ERROR: Python ${_pin} (.python-version) is not available as ${_py}; bash scripts/setup-dev-workstation.sh installs it." >&2
+    exit 1
+  fi
   echo "── Bootstrapping Python venv (.venv) ──────────────────────────────────"
-  python3 -m venv .venv
+  rm -rf .venv
+  "$_py" -m venv .venv
   _venv=".venv"
 fi
-"${_venv}/bin/pip" install --quiet -r requirements.txt
+"${_venv}/bin/python3" -m pip install --quiet --disable-pip-version-check --require-hashes -r requirements.txt
+if ! footbag_venv_healthy "$_venv" requirements.txt; then
+  echo "ERROR: ${SCRIPT_DIR}/${_venv} does not satisfy requirements.txt at Python $(cat "${REPO_ROOT}/.python-version") after installing." >&2
+  exit 1
+fi
 . "${_venv}/bin/activate"
 
 MODE="${1:-full}"
+
+# `venv` builds or refreshes the environment above and stops, before any guard
+# or stage. This script is the only builder of that environment, so the dev
+# launcher and the test runner reach it through here rather than creating it
+# themselves, and a fresh clone has it without a hand-typed step.
+if [ "$MODE" = "venv" ]; then
+  echo "Python venv ready: ${SCRIPT_DIR}/${_venv}"
+  exit 0
+fi
 
 # The platform DB the load phases mutate can be a restored copy of the live
 # database; the in-database post-cutover marker travels with every such copy,
@@ -930,7 +962,7 @@ case "$MODE" in
         ;;
 
     *)
-        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only|net_enrichment}" >&2
+        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only|net_enrichment|venv}" >&2
         exit 1
         ;;
 esac

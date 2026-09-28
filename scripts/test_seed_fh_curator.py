@@ -50,8 +50,7 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
     if not PYTHON.exists():
         raise RuntimeError(
             f"venv python missing at {PYTHON}; run `bash scripts/reset-local-db.sh` "
-            f"once or `python3 -m venv scripts/.venv && scripts/.venv/bin/pip install "
-            f"-r scripts/requirements.txt` to bootstrap."
+            f"once (or ./run_dev.sh) to bootstrap."
         )
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -1068,8 +1067,7 @@ def test_fh_historical_person_link_converges_across_hp_reloads() -> None:
     if not PYTHON.exists():
         raise RuntimeError(
             f"venv python missing at {PYTHON}; run `bash scripts/reset-local-db.sh` "
-            f"once or `python3 -m venv scripts/.venv && scripts/.venv/bin/pip install "
-            f"-r scripts/requirements.txt` to bootstrap."
+            f"once (or ./run_dev.sh) to bootstrap."
         )
 
     def insert_hacky_hp(db_path: Path, person_id: str) -> None:

@@ -192,6 +192,25 @@ def test_mp4_reencode_strips_metadata(tmp_path):
     assert 'should-be-stripped' not in out_tags
 
 
+def test_a_lower_case_mp4_keeps_its_re_encode_through_the_whole_media_step(
+        tmp_path, monkeypatch):
+    # An .mp4 is re-encoded to .mp4 on purpose, because the full re-encode is
+    # the malware strip, so the clean output takes the source's own path. The
+    # media step must keep that file rather than read the shared path as a
+    # conversion that produced nothing, and the kept bytes must be the
+    # re-encode, not the download.
+    monkeypatch.setattr(mirror_script, 'mirror_state', mirror_script.MirrorState())
+    src = tmp_path / 'My Great Movie.mp4'
+    _make_mp4(src)
+
+    final = mirror_script.convert_and_cleanup(str(src), '.mp4')
+
+    assert final == str(src)
+    assert src.exists()
+    assert Path(str(src) + '.sanitized').exists()
+    assert 'should-be-stripped' not in _ffprobe_format_tags(src)
+
+
 def test_stream_stripping_drops_subtitles(tmp_path):
     src = tmp_path / 'with_sub.mp4'
     _make_mp4_with_subtitle(src)

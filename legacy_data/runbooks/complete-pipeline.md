@@ -34,6 +34,7 @@ This runs all stages in order and **fails fast on QC hard failures** — stages 
 | `enrichment_only` | Enrichment phases C–H plus V only (requires canonical outputs to exist) |
 | `csv_only` | DB load from existing CSVs → enrichment C–H plus V (no mirror access required) |
 | `net_enrichment` | Net enrichment layer only — scripts 12→13→14 (requires canonical DB loaded) |
+| `venv` | Builds or refreshes the Python environment, then stops (does not touch the DB) |
 
 ---
 

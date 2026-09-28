@@ -375,3 +375,156 @@ class TestRedundantViewerRowRemoval:
         mirror_script.remove_fallback_viewer_row(element, PAGE_URL, soup)
         assert soup.find('a', href='/events/show/77') is not None
         assert 'removed JavaScript popup window' not in str(soup)
+
+
+class TestAnExplicitRetryReachesTheNetwork:
+    """A resumed run restores the set of URLs whose conversion failed, and the
+    media step answers any of them as failed before fetching a byte. The retry
+    flag exists for the case where a conversion bug wrongly rejected real video,
+    so under it the remembered failure must not answer for the attempt: the
+    video is fetched and converted again. Without the flag the remembered
+    failure still stands, which is what keeps an ordinary pass cheap."""
+
+    LOWER_MP4 = BASE + '/media/1183/TheDarkSideOfTheLight.mp4'
+
+    def _wire_real_download(self, monkeypatch):
+        fetched = []
+
+        class _Response:
+            status_code = 200
+            headers = {'Content-Type': 'video/mp4'}
+
+            def raise_for_status(self):
+                return None
+
+            def iter_content(self, chunk_size=8192):
+                yield b'\x00\x00\x00\x18ftypmp42' + b'\x00' * 64
+
+            def close(self):
+                return None
+
+        class _Session:
+            def get(self, url, **kwargs):
+                fetched.append(url)
+                return _Response()
+
+        def fake_convert(path, ext):
+            Path(path + '.sanitized').touch()
+            return path
+
+        monkeypatch.setattr(mirror_script, 'session_for',
+                            lambda url, www_session=None: _Session())
+        monkeypatch.setattr(mirror_script, 'polite_wait', lambda url: None)
+        monkeypatch.setattr(mirror_script, 'convert_and_cleanup', fake_convert)
+        return fetched
+
+    def _remember_failure(self):
+        key = mirror_script.media_fail_key(self.LOWER_MP4)
+        mirror_script.mirror_state.failed_conversion_videos.add(key)
+        mirror_script.mirror_state.failed_urls.add(key)
+        return key
+
+    def test_the_retry_flag_fetches_a_remembered_failure_again(self, env, monkeypatch):
+        _write_manifest(env, [_record(url=self.LOWER_MP4, extension='.mp4',
+                                      disposition='backfill_failed', attempts=2)])
+        fetched = self._wire_real_download(monkeypatch)
+        key = self._remember_failure()
+        outcomes = mirror_script.run_video_backfill(retry_failed=True)
+        assert fetched == [self.LOWER_MP4]
+        assert outcomes['backfilled'] == 1
+        assert key not in mirror_script.mirror_state.failed_conversion_videos
+
+    def test_without_the_flag_a_remembered_failure_still_stands(self, env, monkeypatch):
+        _write_manifest(env, [_record(url=self.LOWER_MP4, extension='.mp4',
+                                      disposition='backfill_failed', attempts=1)])
+        fetched = self._wire_real_download(monkeypatch)
+        self._remember_failure()
+        outcomes = mirror_script.run_video_backfill()
+        assert fetched == []
+        assert outcomes['failed'] == 1
+
+
+class TestAVideoObtainedAfterAFailureIsLinkedAgain:
+    """A failed attempt replaces the page's player or link with the words
+    "Video X not available." and a marker naming the video, because the element
+    that carried the address is gone. When a later pass obtains the video, the
+    marker is how the page finds its way back to it: the words become a link to
+    the local file, and a page is never left calling a held video unavailable.
+    """
+
+    MP4 = BASE + '/media/431/My Great Movie.mp4'
+
+    @staticmethod
+    def _refuse(*_a, **_k):
+        raise AssertionError('a held video must not be refetched')
+
+    def _held(self, env):
+        local = Path(mirror_script.url_to_filepath(self.MP4))
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_bytes(b'mp4')
+        _write_manifest(env, [_record(url=self.MP4, extension='.mp4',
+                                      disposition='backfilled',
+                                      local_file=str(local))])
+        return self._refuse
+
+    def _failed_page(self, url):
+        # The shape the fallback leaves: a table cell whose player became words.
+        soup = mirror_script.BeautifulSoup(
+            f'<td><video><source src="{url}"/></video><br/><font size="-1">'
+            f'<a href="{url}">Direct Link To Movie</a> '
+            '(click right mouse button to download)</font></td>', 'html.parser')
+        for element in (soup.find('video'), soup.find('a')):
+            mirror_script.drop_broken_video_element(
+                element, 'My Great Movie.mp4', video_url=url)
+        return _write_referrer_page(f'<html><body>{soup}</body></html>')
+
+    def test_the_fallback_marker_names_the_video(self):
+        soup = mirror_script.BeautifulSoup(
+            f'<p><a href="{self.MP4}">watch</a></p>', 'html.parser')
+        mirror_script.drop_broken_video_element(
+            soup.a, 'My Great Movie.mp4', video_url=self.MP4)
+        assert f'<!--Mirror: video conversion failed: {self.MP4}-->' in str(soup)
+        assert 'Video My Great Movie.mp4 not available.' in str(soup)
+
+    def test_the_words_become_links_to_the_local_file(self, env, monkeypatch):
+        refuse = self._held(env)
+        page = self._failed_page(self.MP4)
+        monkeypatch.setattr(mirror_script, 'download_and_process_media', refuse)
+
+        mirror_script.run_video_backfill()
+        out = page.read_text()
+        assert 'not available' not in out
+        assert out.count('href="../../../media/431/My Great Movie.mp4"') == 2
+        assert '(click right mouse button to download)' in out
+
+    def test_a_second_run_leaves_the_relinked_page_alone(self, env, monkeypatch):
+        refuse = self._held(env)
+        page = self._failed_page(self.MP4)
+        monkeypatch.setattr(mirror_script, 'download_and_process_media', refuse)
+        mirror_script.run_video_backfill()
+        once = page.read_text()
+
+        mirror_script.run_video_backfill()
+        assert page.read_text() == once
+
+    def test_a_fallback_for_another_video_is_left_alone(self, env, monkeypatch):
+        refuse = self._held(env)
+        page = self._failed_page(BASE + '/media/431/Other Movie.mp4')
+        before = page.read_text()
+        monkeypatch.setattr(mirror_script, 'download_and_process_media', refuse)
+
+        mirror_script.run_video_backfill()
+        assert page.read_text() == before
+
+    def test_a_fallback_that_names_no_video_is_left_alone(self, env, monkeypatch):
+        # Pages written before the marker named its video cannot be matched to
+        # one; a re-read of the page from the live site is what restores those.
+        refuse = self._held(env)
+        page = _write_referrer_page(
+            '<html><body><!--Mirror: video conversion failed-->'
+            'Video My Great Movie.mp4 not available.</body></html>')
+        before = page.read_text()
+        monkeypatch.setattr(mirror_script, 'download_and_process_media', refuse)
+
+        mirror_script.run_video_backfill()
+        assert page.read_text() == before

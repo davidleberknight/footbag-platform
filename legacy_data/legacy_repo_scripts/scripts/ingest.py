@@ -44,7 +44,8 @@ from datetime import datetime, timezone
 try:
     import yaml
 except ImportError:
-    sys.exit("FATAL: PyYAML is required. Install with: pip install pyyaml")
+    sys.exit("FATAL: PyYAML is required. Run under legacy_data's environment; "
+             "build it with: bash legacy_data/run_pipeline.sh venv")
 
 ARCHIVE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(ARCHIVE_ROOT, "config")

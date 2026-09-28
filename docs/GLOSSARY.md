@@ -152,7 +152,7 @@
 
 **Nginx**: High-performance web server and reverse proxy. Footbag.org uses nginx container for TLS termination, static asset serving, and routing requests to Express application containers.
 
-**Node.js:** JavaScript runtime built on Chrome's V8 engine enabling server-side JavaScript execution. Footbag.org uses Node.js LTS (Long Term Support) version as the application runtime for both web server and background workers. Single language (TypeScript/JavaScript) across frontend and backend.
+**Node.js:** JavaScript runtime built on Chrome's V8 engine enabling server-side JavaScript execution. Footbag.org uses the exact Node.js LTS (Long Term Support) version pinned in `.nvmrc` as the application runtime for both web server and background workers. Single language (TypeScript/JavaScript) across frontend and backend.
 
 **OOM (Out of Memory)**: Condition where a process attempts to allocate more memory than its limit allows. Docker kills a container that exceeds its mem_limit with an OOM error; Footbag.org configures restart policies so killed containers restart automatically and CloudWatch alerts fire when container memory usage approaches 80-90% to provide advance warning.
 

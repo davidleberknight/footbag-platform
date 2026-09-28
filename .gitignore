@@ -49,7 +49,6 @@ pnpm-debug.log*
 __pycache__/
 *.py[cod]
 *.pyo
-.python-version
 footbag_venv/
 .venv/
 venv/
