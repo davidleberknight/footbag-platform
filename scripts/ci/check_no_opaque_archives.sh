@@ -94,8 +94,13 @@ def container_kind(head):
     return None
 
 archives, states = [], []
+# What a commit would carry: tracked files, plus new files git does not ignore.
+# Tracked files alone let a new archive through every local run, including the
+# clean room, which copies new files in without tracking them, so the first run
+# to see it was the push gate's, after the commit.
 files = [f for f in subprocess.run(
-    ['git', 'ls-files', '-z'], capture_output=True).stdout.split(b'\0') if f]
+    ['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    capture_output=True).stdout.split(b'\0') if f]
 
 for raw in files:
     path = raw.decode('utf-8', 'replace')
@@ -128,5 +133,5 @@ if archives or states:
     print('        weeks with CI green.', file=sys.stderr)
     sys.exit(1)
 
-print(f'[opaque-archives] pass ({len(files)} tracked files scanned)')
+print(f'[opaque-archives] pass ({len(files)} tracked and new files scanned)')
 PY

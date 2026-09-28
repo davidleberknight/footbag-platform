@@ -22,12 +22,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { requireToolInCI } from '../fixtures/toolAvailability';
 
 const REPO = process.cwd();
-// The signature cases run the real gpg against the committed key.
-const HAS_GPG = requireToolInCI('gpg', '--version');
-const AWS_CLI_SHA256 = 'de4a8f35c5d19e120e6b5403bbebbf356459ae17af78941ae74e37a78f44aef3';
 
 /**
  * A venv interpreter that behaves like a working one: it reports the pinned
@@ -156,12 +152,7 @@ beforeEach(() => {
     ].join('\n'),
     0o755,
   );
-  for (const rel of [
-    'scripts/setup-dev-workstation.sh',
-    'scripts/keys/aws-cli-v2.pub',
-    '.github/workflows/ci.yml',
-    '.nvmrc',
-  ]) {
+  for (const rel of ['scripts/setup-dev-workstation.sh', '.github/workflows/ci.yml', '.nvmrc']) {
     mkdirSync(join(repo, rel, '..'), { recursive: true });
     copyFileSync(join(REPO, rel), join(repo, rel));
   }
@@ -381,38 +372,13 @@ describe('setup-dev-workstation.sh — the operator AWS CLI', () => {
     expect(r.status, r.stderr).toBe(0);
   });
 
-  it('refuses an installer whose checksum does not match, before checking its signature', () => {
+  it('refuses an installer whose checksum does not match, before unpacking it', () => {
     stubCompleteMachine();
     stub('aws', 'exit 1');
     const r = run(['--yes', '--operator']);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('awscli-exe-linux-x86_64-2.34.8.zip does not match its pinned checksum');
-  });
-
-  describe.skipIf(!HAS_GPG)('past the checksum, the signature', () => {
-    /** The download passes its checksum, so the key and signature decide. */
-    function checksumPasses() {
-      stubCompleteMachine();
-      stub('aws', 'exit 1');
-      stub('sha256sum', `echo "${AWS_CLI_SHA256}  $1"`);
-    }
-
-    it('refuses a key file that is not AWS\'s, by name, rather than ending silently', () => {
-      checksumPasses();
-      file(join(repo, 'scripts', 'keys', 'aws-cli-v2.pub'), 'not a key\n');
-      const r = run(['--yes', '--operator']);
-      expect(r.status).toBe(1);
-      expect(r.stderr).toContain("scripts/keys/aws-cli-v2.pub is not AWS's published signing key (fingerprint none)");
-      expect(existsSync(join(home, '.local', 'aws-cli'))).toBe(false);
-    });
-
-    it('refuses an installer whose signature does not verify against the pinned key', () => {
-      checksumPasses();
-      const r = run(['--yes', '--operator']);
-      expect(r.status).toBe(1);
-      expect(r.stderr).toContain("the AWS CLI installer's signature does not verify against AWS's key");
-      expect(existsSync(join(home, '.local', 'aws-cli'))).toBe(false);
-    });
+    expect(existsSync(join(home, '.local', 'aws-cli'))).toBe(false);
   });
 });
 

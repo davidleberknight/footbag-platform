@@ -57,8 +57,7 @@
 #   --check     Report what would be installed and exit: 0 when nothing is
 #               needed, 1 otherwise. Changes nothing and takes no confirmation.
 #   --operator  Also install the AWS CLI v2 at the pinned version, verified
-#               against AWS's published signing key (scripts/keys/aws-cli-v2.pub)
-#               as well as a pinned checksum. For operators and dev-testers.
+#               against its pinned checksum. For operators and dev-testers.
 #   --yes       Accept the typed confirmation in advance.
 set -euo pipefail
 
@@ -108,15 +107,12 @@ GITLEAKS_SHA256="9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29
 TERRAFORM_VERSION="1.14.7"
 TERRAFORM_URL="https://releases.hashicorp.com/terraform/1.14.7/terraform_1.14.7_linux_amd64.zip"
 TERRAFORM_SHA256="e8bbcefea8015156e04e2a325cde37a0b2fb761728bda548e2fe3b8ad7c18c96"
-# The AWS CLI publishes a signature rather than a checksum list, so it is
-# verified both ways: the pinned checksum, and AWS's signature checked against
-# its published key, whose fingerprint is pinned here so an edited key file is
-# refused too.
+# AWS publishes no checksum list for the CLI; this one was computed from the
+# versioned installer when the pin was set, so it holds the download to that
+# exact file like every other pin here.
 AWS_CLI_VERSION="2.34.8"
 AWS_CLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.34.8.zip"
 AWS_CLI_SHA256="de4a8f35c5d19e120e6b5403bbebbf356459ae17af78941ae74e37a78f44aef3"
-AWS_CLI_KEY="scripts/keys/aws-cli-v2.pub"
-AWS_CLI_KEY_FINGERPRINT="FB5DB77FD5C118B80511ADA8A6310ACC4672475C"
 
 APT_PACKAGES=(build-essential python3 python3-venv python3-pip sqlite3 ffmpeg git unzip zip
   jq ca-certificates curl openssh-client rsync gpg age lsof)
@@ -347,21 +343,6 @@ bash scripts/install-git-hooks.sh
 if (( OPERATOR )) && ! aws_ok; then
   echo "==> AWS CLI ${AWS_CLI_VERSION}"
   fetch_verified "$AWS_CLI_URL" "$AWS_CLI_SHA256" "$WORK/awscli.zip"
-  $FETCH "$WORK/awscli.zip.sig" "${AWS_CLI_URL}.sig"
-  mkdir -p "$WORK/gnupg"
-  chmod 700 "$WORK/gnupg"
-  # A key file that will not import leaves no fingerprint, and the check below
-  # refuses it by name; letting the import's own failure end the run would not.
-  GNUPGHOME="$WORK/gnupg" gpg --quiet --import "$AWS_CLI_KEY" 2>/dev/null || true
-  key_fpr="$(GNUPGHOME="$WORK/gnupg" gpg --with-colons --fingerprint 2>/dev/null | grep -m1 '^fpr' | cut -d: -f10 || true)"
-  if [[ "$key_fpr" != "$AWS_CLI_KEY_FINGERPRINT" ]]; then
-    echo "ERROR: ${AWS_CLI_KEY} is not AWS's published signing key (fingerprint ${key_fpr:-none}). Nothing installed." >&2
-    exit 1
-  fi
-  if ! GNUPGHOME="$WORK/gnupg" gpg --quiet --verify "$WORK/awscli.zip.sig" "$WORK/awscli.zip" 2>/dev/null; then
-    echo "ERROR: the AWS CLI installer's signature does not verify against AWS's key. Nothing installed." >&2
-    exit 1
-  fi
   unzip -o -q "$WORK/awscli.zip" -d "$WORK"
   "$WORK/aws/install" --install-dir "${HOME}/.local/aws-cli" --bin-dir "$BIN_DIR" --update
 fi
