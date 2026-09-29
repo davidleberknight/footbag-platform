@@ -28,9 +28,9 @@
 # also mints a host-access certificate, and the FootbagDevTester role is denied
 # that call on every instance, because the certificate opens a root shell. A
 # dev-and-tester therefore receives the pin lines sealed in their delivery from
-# scripts/hire-dev-tester.sh, which builds them with the same library function
+# scripts/onboard-dev-tester.sh, which builds them with the same library function
 # this script uses, and installs them with
-# scripts/accept-dev-tester-delivery.sh.
+# scripts/accept-dev-tester-onboarding.sh.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -132,7 +132,7 @@ echo "==> Pinning ${INSTANCE} into ${PIN}"
 
 # ── The lines, from the address in Terraform and the keys in Lightsail ───────
 #
-# Built by the shared library, which the hire script also uses to seal the same
+# Built by the shared library, which the onboarding script also uses to seal the same
 # lines to a newcomer whose job role is denied the Lightsail call.
 known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
 IP="$KNOWN_HOSTS_PIN_IP"

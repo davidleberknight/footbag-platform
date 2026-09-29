@@ -6,11 +6,13 @@
 #
 # WHY THIS EXISTS.
 #
-# A `footbag-operator` holder can act as the directly authenticated IAM user
-# `footbag-operator` in one run and as their own named IAM user's session of the
-# job role in another; any one run is exactly one of them. `footbag-operator` is
-# the default for every run, and nothing here changes that. What has been
-# missing is any supported way to deliberately be the role for one command.
+# Administrative work runs as the directly authenticated IAM user
+# `footbag-operator`, and that is the default for every run; nothing here changes
+# it. A dev-and-tester's work runs as their named IAM user's session of the job
+# role. A person who holds `footbag-operator` and has also been onboarded as a
+# dev-and-tester can be either, and any one run is exactly one of them. What
+# this adds is the one supported way to deliberately be the role for one
+# command.
 #
 # Without it the shared library fills an empty shell with the
 # `footbag-operator` profile and never with the role-assuming one, so on a
@@ -69,15 +71,15 @@
 #   bash scripts/as-dev-tester.sh --account <name> <command> [args...]
 #
 # Examples:
-#   bash scripts/as-dev-tester.sh --account david_leberknight \
+#   bash scripts/as-dev-tester.sh --account jane_doe \
 #     bash scripts/terraform-apply.sh --target staging
-#   bash scripts/as-dev-tester.sh --account david_leberknight ./deploy_to_aws.sh
-#   bash scripts/as-dev-tester.sh --account david_leberknight npm run test:smoke
+#   bash scripts/as-dev-tester.sh --account jane_doe ./deploy_to_aws.sh
+#   bash scripts/as-dev-tester.sh --account jane_doe npm run test:smoke
 #
 # Flags:
-#   --account <name>  Required. Your named account, for example
-#                     david_leberknight. The run is refused unless the job-role
-#                     session carries exactly that name.
+#   --account <name>  Required. Your named account, for example jane_doe. The
+#                     run is refused unless the job-role session carries
+#                     exactly that name.
 #   -h, --help        This text.
 #   --                Ends the flags, for a command whose own first argument
 #                     starts with a hyphen.

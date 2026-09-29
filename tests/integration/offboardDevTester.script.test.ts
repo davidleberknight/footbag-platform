@@ -1,9 +1,10 @@
 /**
- * scripts/offboard-operator.sh — firing as one command.
+ * scripts/offboard-dev-tester.sh — offboarding as one command.
  *
- * Hiring half-finished is obvious within a day. Firing half-finished is not: an
- * operator whose AWS identity is retired and whose shell account is not still
- * holds a login and a sudo password, and nothing anywhere says so.
+ * An onboarding left half-finished is obvious within a day. An offboarding left
+ * half-finished is not: a person whose AWS identity is retired and whose shell
+ * account is not still holds a login and a sudo password, and nothing anywhere
+ * says so.
  *
  * What is pinned here is the sequencing, the refusals, and what the command
  * adds over running the halves separately: the host account always ends before
@@ -20,7 +21,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { createScratchDir } from '../fixtures/scratchDir';
 
-const SCRIPT = join(process.cwd(), 'scripts/offboard-operator.sh');
+const SCRIPT = join(process.cwd(), 'scripts/offboard-dev-tester.sh');
 
 const ACCOUNT = 'jane_doe';
 const SUPER_ADMIN_ARN = 'arn:aws:iam::111122223333:user/footbag-operator';
@@ -33,7 +34,7 @@ let ghLog: string;
 let hostStdin: string;
 
 beforeEach(() => {
-  workDir = createScratchDir('offboard-operator');
+  workDir = createScratchDir('offboard-dev-tester');
   hostLog = join(workDir, 'host-child.log');
   awsLog = join(workDir, 'aws-child.log');
   addressLog = join(workDir, 'address-child.log');
@@ -108,10 +109,10 @@ const stanza = (user: string, extra = '') =>
     '',
   ].join('\n');
 
-/** What footbag-operator holds on a holder's workstation; firing anyone must leave it byte for byte. */
+/** What footbag-operator holds on a holder's workstation; offboarding anyone must leave it byte for byte. */
 const OPERATOR_CRED = '[footbag-operator]\naws_access_key_id = AKIAOPERATOR\naws_secret_access_key = operator-secret\n';
 const OPERATOR_CONFIG = '[profile footbag-operator]\nregion = us-east-1\n';
-/** What an onboarding of the account being fired leaves on this machine. */
+/** What accepting an onboarding of the account being offboarded leaves on this machine. */
 const NAMED_CRED = `[${ACCOUNT}]\naws_access_key_id = AKIANAMED\naws_secret_access_key = named-secret\n`;
 const NAMED_CONFIG = [
   '[profile FootbagDevTester]',
@@ -139,7 +140,7 @@ const blockFor = (account: string) =>
     '',
   ].join('\n');
 
-/** A workstation that onboarded the account being fired: its key, Match block, password file and profiles. */
+/** A workstation that accepted the onboarding of the account being offboarded: its key, Match block, password file and profiles. */
 function workstationHeldIt(): void {
   writeFileSync(sshConfig, blockFor(ACCOUNT) + stanza('footbag'), 'utf-8');
   mkdirSync(join(workDir, '.ssh'), { recursive: true });
@@ -364,7 +365,7 @@ const outwardChanges = () =>
   [hostCalls(), awsCalls(), addressCalls().split('\n').filter((l) => l.includes('--remove')).join('\n'),
     ghCalls().split('\n').filter((l) => l.includes('DELETE')).join('\n')].join('');
 
-describe('offboard-operator refuses the wrong caller and the wrong subject', () => {
+describe('offboard-dev-tester refuses the wrong caller and the wrong subject', () => {
   it('refuses anything but the directly authenticated footbag-operator', () => {
     const r = run({ arn: 'arn:aws:sts::111122223333:assumed-role/FootbagDevTester/dave' });
     expect(r.status).toBe(1);
@@ -379,6 +380,29 @@ describe('offboard-operator refuses the wrong caller and the wrong subject', () 
     expect(hostCalls()).toBe('');
   });
 
+  it('refuses the administrative identity by name, even on a resumed run that skips the children', () => {
+    // A resumed run from the last step reaches the workstation cleanup directly,
+    // and footbag-operator is a credentials section this machine holds.
+    workstationHeldIt();
+    writeFileSync(awsCred, '[footbag-operator]\naws_access_key_id = placeholder\n', 'utf-8');
+    const r = run({
+      keepConfig: true,
+      args: ['--target', 'staging', '--account', 'footbag-operator', '--github-login', 'none',
+        '--from-step', '4', '--yes'],
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/not the shape a named account takes/);
+    expect(outwardChanges()).toBe('');
+    expect(readFileSync(awsCred, 'utf-8')).toContain('[footbag-operator]');
+  });
+
+  it('refuses a name that is not a person\'s account shape', () => {
+    const r = run({ args: ['--target', 'staging', '--account', 'jane', '--github-login', 'none', '--yes'] });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/not the shape a named account takes/);
+    expect(outwardChanges()).toBe('');
+  });
+
   it('exits 2 on an unknown flag', () => {
     const r = run({ args: [...BASE, '--purge'] });
     expect(r.status).toBe(2);
@@ -391,7 +415,7 @@ describe('offboard-operator refuses the wrong caller and the wrong subject', () 
   });
 
   it('requires the GitHub login, or an explicit none, before anything changes', () => {
-    // A forgotten flag would leave a fired person able to push, so an omission
+    // A forgotten flag would leave an offboarded person able to push, so an omission
     // is refused rather than read as "they hold no access".
     const r = run({ args: ['--target', 'staging', '--account', ACCOUNT, '--yes'] });
     expect(r.status).toBe(2);
@@ -406,8 +430,8 @@ describe('offboard-operator refuses the wrong caller and the wrong subject', () 
   });
 });
 
-describe('offboard-operator fires your own named identity and cleans this workstation', () => {
-  it('fires through the shared account, which the alias always connects as', () => {
+describe('offboard-dev-tester offboards the named identity this machine accepted, and cleans it', () => {
+  it('offboards through the shared account, which the alias always connects as', () => {
     workstationHeldIt();
     const r = run({ keepConfig: true });
     expect(r.status, r.stderr).toBe(0);
@@ -415,7 +439,7 @@ describe('offboard-operator fires your own named identity and cleans this workst
     expect(awsCalls()).toContain(`--offboard ${ACCOUNT}`);
   });
 
-  it('leaves this machine carrying nothing of the fired identity', () => {
+  it('leaves this machine carrying nothing of the offboarded identity', () => {
     workstationHeldIt();
     const r = run({ keepConfig: true });
     expect(r.status, r.stderr).toBe(0);
@@ -456,7 +480,7 @@ describe('offboard-operator fires your own named identity and cleans this workst
   });
 });
 
-describe('offboard-operator never moves the default', () => {
+describe('offboard-dev-tester never moves the default', () => {
   it('refuses, changing nothing, when the alias connects as anything but the shared account', () => {
     workstationHeldIt();
     writeFileSync(sshConfig, stanza(ACCOUNT, NAMED_LINE), 'utf-8');
@@ -471,7 +495,7 @@ describe('offboard-operator never moves the default', () => {
   });
 });
 
-describe('offboard-operator firing somebody else from your workstation', () => {
+describe('offboard-dev-tester offboarding somebody else from your workstation', () => {
   it('retires them while the alias names the shared account', () => {
     const r = run({ aliasUser: 'footbag' });
     expect(r.status, r.stderr).toBe(0);
@@ -479,8 +503,8 @@ describe('offboard-operator firing somebody else from your workstation', () => {
   });
 
   it('leaves your own Match block and your own filed password alone', () => {
-    // The holder's own named account has its block and password file here, and
-    // neither is the departing operator's.
+    // This machine's own named account has its block and password file here,
+    // and neither is the departing person's.
     mkdirSync(join(workDir, 'AWS'), { recursive: true });
     writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'the-holders-password\n', 'utf-8');
     writeFileSync(sshConfig, blockFor('david_leberknight') + stanza('footbag'), 'utf-8');
@@ -491,9 +515,26 @@ describe('offboard-operator firing somebody else from your workstation', () => {
     expect(readFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'utf-8')).toBe('the-holders-password\n');
     expect(r.stdout).toMatch(/nothing of jane_doe's is on this machine/);
   });
+
+  it('keeps your own filed password even when something of theirs is on this machine', () => {
+    // A stray copy of their key pair makes this machine one that held them, but
+    // the one password file here belongs to the named account the Match block
+    // connects as, which is yours.
+    mkdirSync(join(workDir, 'AWS'), { recursive: true });
+    writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'the-holders-password\n', 'utf-8');
+    writeFileSync(sshConfig, blockFor('david_leberknight') + stanza('footbag'), 'utf-8');
+    mkdirSync(join(workDir, '.ssh'), { recursive: true });
+    writeFileSync(namedKey, 'private', 'utf-8');
+    writeFileSync(`${namedKey}.pub`, 'ssh-ed25519 AAAA jane_doe\n', 'utf-8');
+    const r = run({ keepConfig: true });
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'utf-8')).toBe('the-holders-password\n');
+    expect(r.stdout).toMatch(/left alone, because this machine's named account\s+is david_leberknight/);
+    expect(existsSync(namedKey)).toBe(false);
+  });
 });
 
-describe('offboard-operator ends the shell before the AWS identity', () => {
+describe('offboard-dev-tester ends the shell before the AWS identity', () => {
   it('runs the host child first and the AWS child after it', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -541,7 +582,7 @@ describe('offboard-operator ends the shell before the AWS identity', () => {
   });
 });
 
-describe('offboard-operator takes their address off the allow-list', () => {
+describe('offboard-dev-tester takes their address off the allow-list', () => {
   it('removes every address attributed to them, through the script that owns the list', () => {
     const r = run({ listed: ['203.0.113.7/32', '203.0.113.8/32'] });
     expect(r.status, r.stderr).toBe(0);
@@ -598,7 +639,7 @@ describe('offboard-operator takes their address off the allow-list', () => {
   });
 });
 
-describe('offboard-operator ends their access to the repositories', () => {
+describe('offboard-dev-tester ends their access to the repositories', () => {
   it('removes them from both repositories and reads each back as gone', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -661,7 +702,7 @@ describe('offboard-operator ends their access to the repositories', () => {
   });
 });
 
-describe('offboard-operator retires a person who holds no AWS identity', () => {
+describe('offboard-dev-tester retires a person who holds no AWS identity', () => {
   it('passes the AWS step when IAM says by name that no such user exists', () => {
     // A dev-and-tester's AWS half is delivered after their host account, so
     // somebody leaving in between has a shell and no IAM user. Stopping there
@@ -681,21 +722,14 @@ describe('offboard-operator retires a person who holds no AWS identity', () => {
   });
 });
 
-describe('offboard-operator says what a departure still owes', () => {
-  it('names the other environment, and a vault step only for a holder\'s own named identity', () => {
+describe('offboard-dev-tester says what a departure still owes', () => {
+  it('owes nothing further, and names no vault step, since nobody named has a vault entry', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/other environment/);
-    expect(r.stdout).toMatch(/Only where this was a footbag-operator holder's own named identity/);
-    expect(r.stdout).toMatch(/A\s+dev-and-tester has no vault entry/);
-  });
-
-  it('owes nothing it has just done: no allow-list command and no repository step', () => {
-    const r = run();
-    expect(r.status, r.stderr).toBe(0);
-    const owed = r.stdout.slice(r.stdout.indexOf('Still owed'));
-    expect(owed).not.toMatch(/authorize-operator-address/);
-    expect(owed).not.toMatch(/repository/);
+    expect(r.stdout).toMatch(/Nothing else is owed/);
+    expect(r.stdout).toMatch(/nobody named has a vault entry/);
+    expect(r.stdout).not.toMatch(/Still owed/);
+    expect(r.stdout).not.toMatch(/vault entries/);
   });
 
   it('discloses the chained runtime session no step reaches', () => {
@@ -704,7 +738,7 @@ describe('offboard-operator says what a departure still owes', () => {
   });
 });
 
-describe('offboard-operator resumes a run that stopped after the host step', () => {
+describe('offboard-dev-tester resumes a run that stopped after the host step', () => {
   it('runs only the AWS step when told the host step is done', () => {
     const r = run({ args: [...BASE, '--from-step', '2'] });
     expect(r.status, r.stderr).toBe(0);
@@ -715,13 +749,13 @@ describe('offboard-operator resumes a run that stopped after the host step', () 
 
 /**
  * Every case above replaces both children with stubs, which is right for
- * testing the parent's sequencing and is exactly how firing was once broken
+ * testing the parent's sequencing and is exactly how offboarding was once broken
  * with nothing noticing: a stub accepted an argument vector the real child
  * refused. So these spawn the REAL children with the vectors the parent sends,
  * and assert only that the arguments are accepted, because everything after
  * that needs a host or an account.
  */
-describe('offboard-operator.sh — the real children accept what the parent sends them', () => {
+describe('offboard-dev-tester.sh — the real children accept what the parent sends them', () => {
   const HOST_CHILD = join(process.cwd(), 'scripts/provision-operator-account.sh');
   const AWS_CHILD = join(process.cwd(), 'scripts/manage-human-operator.sh');
 
@@ -742,10 +776,10 @@ describe('offboard-operator.sh — the real children accept what the parent send
 
   it('the host child still demands the operator name when it is creating an account', () => {
     // The guard is scoped, not removed. A creation writes the name into the
-    // account's comment field and into the vault entry, so an account nobody
-    // can attribute is still refused.
+    // account's comment field, so an account nobody can attribute is still
+    // refused.
     const r = spawnChild(HOST_CHILD, [
-      '--target', 'staging', '--account', ACCOUNT, '--key-line', 'ssh-ed25519 AAAA test',
+      '--target', 'staging', '--account', ACCOUNT, '--key-line', 'ssh-ed25519 AAAA test', '--sealed',
     ]);
     expect(r.status).toBe(2);
     expect(r.stderr ?? '').toMatch(/--operator is required/);

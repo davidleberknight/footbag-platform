@@ -14,15 +14,13 @@
 # prove. Needs the credential file on stdin, host sudo-password first line, per
 # the wire pattern in scripts/lib/host-env-remote.sh.
 #
-# Which file that is follows the account the alias connects as, and production
-# has its own file either way:
+# Production is reached only as the shared footbag account, so that file is:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
 #
 # A run started without the redirect names the one it needs.
 #
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
 #       --profile <p> --confirm-production --host-alias <alias> --inbox <addr>
 #
 # This sends REAL email via the production SES identity. It refuses to run

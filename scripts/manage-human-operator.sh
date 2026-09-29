@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 # manage-human-operator.sh
 #
-# The whole life of a named human operator's AWS identity: an IAM user of their
-# own whose single grant is permission to assume one shared job role, the key
-# that user signs with, the two workstation profiles that turn the two into a
-# working chain, and the retirement of all of it.
+# The AWS half of a dev-and-tester's retirement, and the read-back of their
+# identity: an IAM user of their own whose single grant is permission to assume
+# one shared job role, and the key that user signs with. The identity is
+# created by scripts/onboard-dev-tester.sh, which seals the key to its owner;
+# this script retires it and reads it back.
 #
 # WHY THIS EXISTS.
 #
-# A shared identity cannot say who did something. Every operator action used to
-# arrive in the trail as the one directly authenticated user, so an audit
-# question had no answer and a mistake had no author. The model this script
-# implements gives each person their own IAM user, grants that user nothing at
-# all except the right to assume one job role, and binds the role session name
-# to the user's own name in the role's trust policy — so the name in the trail
-# is the person's, and it is not something a workstation config can lie about.
+# A shared identity cannot say who did something. The model gives each
+# dev-and-tester their own IAM user, grants that user nothing at all except the
+# right to assume one job role, and binds the role session name to the user's
+# own name in the role's trust policy, so the name in the trail is the person's
+# and it is not something a workstation config can lie about.
 #
 # The lifecycle is here rather than in Terraform for one reason: onboarding
 # mints an access-key secret, and a secret must never enter Terraform state.
@@ -30,33 +29,15 @@
 #   - Touch the directly authenticated user itself, under any flag. That
 #     identity is the break-glass path and the principal both runtime trust
 #     policies name; it is out of scope here in every respect.
-#   - Adopt an IAM user of the same name that this script did not create. A
-#     name collision with somebody else's user is a refusal, not a merge.
-#   - Create a console password. These identities sign API calls; there is no
-#     console sign-in to protect and therefore none to leak.
-#   - Attach the job role's own policy to the user, or any managed policy. The
-#     user's whole grant is one allow statement naming one role.
-#   - Print the access-key secret. It goes from the IAM response into the local
-#     credentials file without passing through a log, a terminal or an argv.
-#   - Rewrite a chained profile that already exists in the operator's own AWS
-#     config. Those sections are theirs; an existing one is reported, never
-#     silently repointed.
+#   - Retire an IAM user of the same name that this script's family did not
+#     create. A name collision with somebody else's user is a refusal.
 #   - Delete the IAM user on offboarding. It is left inert — no policy, no
 #     active keys — because the trail keeps naming it long after the person has
 #     gone, and a deleted user makes those entries unreadable.
-#   - Deliver a key to somebody who is not here. There is no remote hand-off:
-#     onboarding writes the credential into THIS workstation's AWS files, so
-#     the person being onboarded has to be the person at this keyboard. That is
-#     the one precondition this script cannot check for itself, so the
-#     confirmation states it and the operator attests to it.
+#   - Call an unreadable answer from IAM an absent one. A read that fails for
+#     any reason but IAM saying the thing does not exist stops the run.
 #
 # Usage:
-#
-#   bash scripts/manage-human-operator.sh --onboard <operator_name>
-#     Creates the IAM user, grants it the one assume-role statement, mints a
-#     key, installs the section holding it and the section that assumes the
-#     role, and proves the whole chain resolves and carries the operator's own
-#     session name.
 #
 #   bash scripts/manage-human-operator.sh --offboard <operator_name>
 #     Removes the grant, then retires every key, then proves the identity can
@@ -67,19 +48,19 @@
 #     Reads and reports. Changes nothing.
 #
 # Flags:
-#   --onboard <name>   Create or restore the named operator's identity.
-#   --offboard <name>  Retire it.
+#   --offboard <name>  Retire the named identity.
 #   --verify <name>    Report on it, read-only.
 #   --yes              Accept the typed confirmation in advance, for a run with
 #                      no terminal attached.
 #   --driven-by-offboard
-#                      Set by offboard-operator.sh, which has already retired the
-#                      host account and goes on to the rest of a departure, so
-#                      that command is not printed again here.
+#                      Set by offboard-dev-tester.sh, which has already retired
+#                      the host account and goes on to the rest of a departure,
+#                      so that command is not printed again here.
 #
 # Test seams (CI only; operators never set these):
 #   MANAGE_OPERATOR_AWS_BIN           replaces the aws CLI
-#   MANAGE_OPERATOR_STAGING_ROLE_ARN  the staging runtime role the chain ends at
+#   MANAGE_OPERATOR_PROPAGATION_POLL  seconds between retries while a deleted
+#                                     key is still honoured
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -116,11 +97,8 @@ IAM_OPERATOR_AWS_BIN="$AWS_BIN"
 # The identity that administers the others, and the one identity this script
 # will not act on.
 #
-# Named for the principal rather than for what it is for. A FootbagSuperAdmin
-# role is planned as a separate principal, which this user will never be.
-# A constant asserting the two are the same would become false the day it
-# exists, and every identity constant in this tree is already named for the
-# principal it reaches.
+# Named for the principal rather than for what it is for, as every identity
+# constant in this tree is.
 #
 # Spelled here as a literal rather than taken from the profile the shared
 # library owns, deliberately: a check that reads the name from the same place
@@ -129,17 +107,15 @@ IAM_OPERATOR_AWS_BIN="$AWS_BIN"
 FOOTBAG_OPERATOR_USER="footbag-operator"
 
 # The path, the policy name and the tags are canonical in the IAM user library,
-# which the hire script shares; these are local names for them.
+# which the onboarding script shares; these are local names for them.
 OPERATOR_PATH="$IAM_OPERATOR_PATH"
 # The role, taken from the shared library so there is one spelling of it.
 DEV_TESTER_ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
 USER_POLICY_NAME="$IAM_OPERATOR_POLICY_NAME"
-# Names of the profiles this script writes into the operator's AWS config.
-# Profiles, not principals: what they resolve to is proved further down, and
-# nothing here reads them to decide anything. Each is named for the principal it
-# reaches, so this one carries the role's own spelling.
+# The job-role profile the offboarding proof looks for on this machine. A
+# profile, not a principal: nothing here reads it to decide who anybody is. It
+# is named for the principal it reaches, so it carries the role's own spelling.
 DEV_TESTER_PROFILE="$FOOTBAG_DEV_TESTER_PROFILE"
-STAGING_RUNTIME_PROFILE="footbag-staging-runtime"
 TAG_PROJECT="$IAM_OPERATOR_TAG_PROJECT"
 TAG_MANAGED_BY="$IAM_OPERATOR_TAG_MANAGED_BY"
 TAG_OPERATOR_ROLE="$IAM_OPERATOR_TAG_OPERATOR_ROLE"
@@ -149,18 +125,13 @@ CRED_FILE="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
 
 ACTION=""
 OPERATOR=""
-# Set only by offboard-operator.sh, which has already retired the host account
+# Set only by offboard-dev-tester.sh, which has already retired the host account
 # and goes on to the rest of what a departure owes, so this child does not name
 # a command that is already running.
 DRIVEN_BY_OFFBOARD=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --onboard)
-      ACTION="onboard"
-      OPERATOR="${2:-}"
-      shift 2 || { echo "ERROR: --onboard requires the operator name" >&2; exit 2; }
-      ;;
     --offboard)
       ACTION="offboard"
       OPERATOR="${2:-}"
@@ -179,9 +150,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$ACTION" ]]; then
-  echo "ERROR: one of --onboard, --offboard or --verify is required." >&2
-  echo "       There is no default: creating an identity and retiring one are" >&2
-  echo "       opposite acts and neither is the safer guess." >&2
+  echo "ERROR: one of --offboard or --verify is required." >&2
+  echo "       There is no default: retiring an identity and reading one back are" >&2
+  echo "       different acts, and neither is the safer guess. An identity is" >&2
+  echo "       created by scripts/onboard-dev-tester.sh." >&2
   exit 2
 fi
 
@@ -232,83 +204,44 @@ if [[ "$AWS_BIN" != "aws" ]]; then
   echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
 fi
 
-# ── What this run created, so a failure can undo that and nothing else ───────
-#
-# Tracked separately rather than as one "we got partway" flag, because the
-# correct unwind differs per resource and because the most damaging mistake
-# available here is deleting a user that pre-dated the run. A person whose key
-# installation failed still has an identity, and the run that failed is not
-# entitled to take it away.
-# The user and its grant are tracked by the IAM user library, which undoes them.
-# none | created | replaced. Only `created` is undone: a section this run wrote
-# where none existed is ours to remove, and one it overwrote is not, because
-# what was there before is already gone and removing the rest leaves the
-# operator with less than they started with.
-MODIFIED_LOCAL_PROFILE_THIS_RUN="none"
-# Set once the run has done everything it set out to do. The trap stays armed
-# past that point rather than being disarmed, so an interrupt during the closing
-# report still lands on a handler — one that correctly does nothing.
-RUN_SUCCEEDED=0
-
-manage_operator_cleanup() {
-  (( RUN_SUCCEEDED )) && return 0
-
-  # The minted key goes first. A user cannot be deleted while it still holds a
-  # key or an inline policy, so the unwind runs in the reverse of the order
-  # that built it.
-  iam_key_cleanup
-
-  if [[ "$MODIFIED_LOCAL_PROFILE_THIS_RUN" == "created" ]]; then
-    echo "" >&2
-    echo "Removing the [${OPERATOR}] credentials section this run wrote." >&2
-    aws_cred_remove_section "$CRED_FILE" "$OPERATOR" >/dev/null 2>&1 || true
-  elif [[ "$MODIFIED_LOCAL_PROFILE_THIS_RUN" == "replaced" ]]; then
-    echo "" >&2
-    echo "The [${OPERATOR}] credentials section is being LEFT ALONE. It existed" >&2
-    echo "before this run and now holds the key this run minted, which has just" >&2
-    echo "been withdrawn, so it will not authenticate. Re-run the onboarding to" >&2
-    echo "install a working key; nothing else here needs undoing." >&2
-  fi
-
-  iam_operator_undo
-
-  # Idempotent, because a trapped INT does not terminate bash: the handler
-  # runs, the next command fails under set -e, and EXIT runs it again. Each
-  # branch has now had its say.
-  MODIFIED_LOCAL_PROFILE_THIS_RUN="none"
-  return 0
-}
-
 # ── Reads ────────────────────────────────────────────────────────────────────
 
 # The reads live in the IAM user library; these are this script's names for them.
 user_path() { iam_operator_path "$@"; }
 user_tag() { iam_operator_tag "$@"; }
 user_keys() { iam_operator_keys "$@"; }
-has_user_policy() { iam_operator_has_policy "$@"; }
+user_policy_state() { iam_operator_policy_state "$@"; }
 
-# Whether the user's own permissions would let it assume the role. Asked of the
-# policy simulator rather than by attempting the assume, because the caller
-# here is footbag-operator and its own success or failure says nothing about the
-# operator's.
-can_assume_role() {
+# The simulator's decision on whether the user's own permissions would let it
+# assume the role: allowed, implicitDeny or explicitDeny. Asked of the policy
+# simulator rather than by attempting the assume, because the caller here is
+# footbag-operator and its own success or failure says nothing about the
+# operator's. Returns 1, having said why, when the simulator could not answer,
+# which is never read as a refusal.
+role_assume_decision() {
   local decision
-  decision="$("$AWS_BIN" iam simulate-principal-policy \
-    --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user${OPERATOR_PATH}${1}" \
-    --action-names sts:AssumeRole \
-    --resource-arns "$DEV_TESTER_ROLE_ARN" \
-    --query 'EvaluationResults[0].EvalDecision' --output text 2>/dev/null || true)"
-  [[ "$decision" == "allowed" ]]
+  if ! decision="$("$AWS_BIN" iam simulate-principal-policy \
+      --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user${OPERATOR_PATH}${1}" \
+      --action-names sts:AssumeRole \
+      --resource-arns "$DEV_TESTER_ROLE_ARN" \
+      --query 'EvaluationResults[0].EvalDecision' --output text 2>&1)" \
+     || [[ ! "$decision" =~ ^(allowed|implicitDeny|explicitDeny)$ ]]; then
+    echo "ERROR: the policy simulator could not say whether ${1} may assume" >&2
+    echo "       ${DEV_TESTER_ROLE_NAME}:" >&2
+    printf '%s\n' "$decision" | sed 's/^/         /' >&2
+    return 1
+  fi
+  echo "$decision"
 }
 
 # ── The identity this run acts on the strength of ────────────────────────────
 
 # Settled onto the profile holding the footbag-operator key rather than filled
-# from whatever the shell carries. Hiring and firing are refused to every role,
-# so a run that inherited a role-assuming section from the work before it used
-# to stop at the door and cost a re-run in a different shell — a refusal that
-# was correct and that nobody should have had to meet, since there is exactly
-# one identity this can ever act as.
+# from whatever the shell carries. Onboarding and offboarding are refused to
+# every role, so a run that inherited a role-assuming section from the work
+# before it would stop at the door and cost a re-run in a different shell, a
+# refusal nobody should have to meet, since there is exactly one identity this
+# can ever act as.
 #
 # The assertion behind it stays, and it is not redundant. The section names a
 # credential; only the resolved ARN says whose it is, and the IAM user is named
@@ -316,7 +249,7 @@ can_assume_role() {
 # check that reads the name from the same place the credential came from is not
 # a check.
 aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
-  "Creating and retiring a human operator is refused to every role, including the job role, by the role's own policy." \
+  "Retiring or reading back a dev-and-tester is refused to every role, including the job role, by the role's own policy." \
   || exit 1
 aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
 
@@ -329,15 +262,11 @@ if [[ ! "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
 fi
 
 DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${DEV_TESTER_ROLE_NAME}"
-STAGING_ROLE_ARN="${MANAGE_OPERATOR_STAGING_ROLE_ARN:-arn:aws:iam::${ACCOUNT_ID}:role/footbag-staging-app-runtime}"
-if [[ -n "${MANAGE_OPERATOR_STAGING_ROLE_ARN:-}" ]]; then
-  echo "==> NOTE: the staging runtime role ${STAGING_ROLE_ARN} comes from the environment." >&2
-fi
 
 if ! "$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" >/dev/null 2>&1; then
   echo "ERROR: there is no ${DEV_TESTER_ROLE_NAME} role in account ${ACCOUNT_ID}." >&2
   echo "       It is the whole of what a named operator is granted, so there is" >&2
-  echo "       nothing to onboard anybody into. Apply the account-level identity" >&2
+  echo "       no named identity to act on. Apply the account-level identity" >&2
   echo "       tree first:" >&2
   echo "         bash scripts/terraform-apply.sh --target identity" >&2
   echo "       Nothing done." >&2
@@ -390,6 +319,7 @@ if [[ "$ACTION" == "verify" ]]; then
   # so an age threshold would fail a run over a credential nothing is wrong
   # with and teach the operator to ignore the output.
   _active=0
+  _keys="$(user_keys "$OPERATOR")" || exit 1
   while IFS=$'\t' read -r _id _status _created; do
     [[ -z "$_id" ]] && continue
     [[ "$_status" == "Active" ]] && _active=$(( _active + 1 ))
@@ -398,15 +328,17 @@ if [[ "$ACTION" == "verify" ]]; then
       _age="$(( ( $(date -u +%s) - _epoch ) / 86400 )) days old"
     fi
     echo "    key:       ${_id} ${_status}, ${_age}"
-  done <<< "$(user_keys "$OPERATOR")"
+  done <<< "$_keys"
   echo "    active:    ${_active} key(s)"
-  unset _id _status _created _age _epoch
+  unset _id _status _created _age _epoch _keys
 
-  if has_user_policy "$OPERATOR"; then
+  _policy="$(user_policy_state "$OPERATOR")" || exit 1
+  if [[ "$_policy" == "present" ]]; then
     echo "    policy:    ${USER_POLICY_NAME} present"
   else
     echo "    policy:    ${USER_POLICY_NAME} absent, so this identity reaches nothing"
   fi
+  unset _policy
 
   # The local half. A section's presence is a fact about this workstation's
   # config file and says nothing about whose machine this is, so it is reported
@@ -432,230 +364,6 @@ if [[ "$ACTION" == "verify" ]]; then
     echo "a report nobody acts on." >&2
     exit 1
   fi
-  exit 0
-fi
-
-# ── onboard ──────────────────────────────────────────────────────────────────
-
-if [[ "$ACTION" == "onboard" ]]; then
-  # A user of this name that this script did not create is somebody else's, and
-  # the failure mode of adopting it is that a stranger's identity silently
-  # gains the ability to assume the job role.
-  iam_operator_state "$OPERATOR"
-  USER_EXISTS=0
-  case "$IAM_OPERATOR_STATE" in
-    foreign) iam_operator_refuse_foreign "$OPERATOR"; exit 1 ;;
-    ours) USER_EXISTS=1; echo "    user:      exists and is managed here; restoring it" ;;
-    *) echo "    user:      absent; it will be created" ;;
-  esac
-
-  # The role profile on this machine is written once, sourcing the operator it
-  # was written for, and an existing one is left as it is. A workstation whose
-  # role profile already sources somebody else therefore cannot carry this
-  # operator's chain: the session-name proof below would name the other person,
-  # and the run would create the user, grant it, mint a key and unwind every one
-  # of those. Refused here, before any of it, with the reason.
-  #
-  # This reads the config file to learn what this run is able to WRITE, not who
-  # anybody is: the section will not be rewritten, so the run cannot finish.
-  # Which identity a chain reaches is still decided only by what STS returns,
-  # in the proof further down.
-  EXISTING_SOURCE="$(aws_config_profile_source "$CONFIG_FILE" "$DEV_TESTER_PROFILE" || true)"
-  if [[ -n "$EXISTING_SOURCE" && "$EXISTING_SOURCE" != "$OPERATOR" ]]; then
-    echo "REFUSING: [profile ${DEV_TESTER_PROFILE}] on this machine already sources" >&2
-    echo "          [${EXISTING_SOURCE}], so this workstation's ${DEV_TESTER_PROFILE} profile already" >&2
-    echo "          chains from that operator's key and cannot carry ${OPERATOR}'s. Onboarding writes the key onto" >&2
-    echo "          the machine it runs on, so it runs on the machine of the person it" >&2
-    echo "          is for. Nothing done." >&2
-    exit 1
-  fi
-
-  # The key id this workstation holds for them now, read before anything
-  # replaces it. On a re-onboard after a retirement it is the id of the key that
-  # was deleted, and comparing the two afterwards is what shows a re-onboard
-  # mints a fresh credential rather than reviving a retired one.
-  #
-  # Read rather than inspected by eye afterwards. Comparing two ids by looking
-  # at them is a step an operator performs at the end of a long run, and the
-  # answer it produces is "they look different", which is not an assertion. An
-  # access key id is not a secret, so both go in the output as evidence.
-  PREVIOUS_AKID="$(aws_cred_current_key_id "$CRED_FILE" "$OPERATOR" || true)"
-  if [[ -n "$PREVIOUS_AKID" ]]; then
-    echo "    key here:  ${PREVIOUS_AKID}, which this run must not hand back"
-  fi
-
-  echo ""
-  echo "This will create or restore the IAM user ${OPERATOR} under ${OPERATOR_PATH},"
-  echo "grant it permission to assume ${DEV_TESTER_ROLE_NAME} and nothing else, mint"
-  echo "an access key for it, and write that key plus two chained profiles into the"
-  echo "AWS files on THIS workstation."
-  echo ""
-  echo "That last part is the one thing this script cannot check for itself: the"
-  echo "credential lands here, so ${OPERATOR} has to be the person at this keyboard."
-  echo "There is no remote hand-off, and the key is deliberately never copied into"
-  echo "the shared vault. Onboarding somebody in their absence would leave their"
-  echo "credential on your machine."
-  echo ""
-  ACTIVE_KEYS="$(user_keys "$OPERATOR" | awk -F'\t' '$2=="Active"{print $1}' | tr '\n' ' ')"
-  if [[ -n "${ACTIVE_KEYS// /}" ]]; then
-    echo "${OPERATOR} already holds an active key (${ACTIVE_KEYS% }). This run retires it"
-    echo "before minting the new one: a key is reissued this way, never rotated, and"
-    echo "the old one stops working the moment the run passes this point."
-    echo ""
-  fi
-  if ! confirm_from_tty "Type 'APPLY' to confirm ${OPERATOR} is here and proceed: " "APPLY"; then
-    echo "Not confirmed; nothing was created." >&2
-    exit 1
-  fi
-
-  trap manage_operator_cleanup EXIT INT TERM
-
-  # A re-onboard mints a NEW key; it never reactivates a retired one. It is also
-  # how a named operator's key is replaced: that key is never rotated, and one
-  # that is lost is reissued by onboarding them again. So the library retires
-  # every key the user already holds first.
-  iam_operator_ensure "$OPERATOR" "$USER_EXISTS" "$DEV_TESTER_ROLE_ARN" || exit 1
-
-  IAM_KEY_DELIVERY="install"
-  IAM_KEY_AWS_ARGS=()
-  iam_key_provision "$OPERATOR" "" 1 || exit 1
-
-  # A retired key is deleted rather than deactivated, and AWS never reissues a
-  # deleted access key id, so these two can only match if something reactivated
-  # the old credential instead of minting a new one. That would be a
-  # re-onboarding that handed back exactly the credential a departure was
-  # supposed to end, which is the failure this whole lifecycle exists to make
-  # impossible, and it would look like a perfectly successful run.
-  if [[ -n "$PREVIOUS_AKID" ]]; then
-    if [[ "$PREVIOUS_AKID" == "$IAM_KEY_AKID" ]]; then
-      echo "ERROR: the key minted for ${OPERATOR} is the one this workstation" >&2
-      echo "       already held: ${IAM_KEY_AKID}." >&2
-      echo "" >&2
-      echo "       A re-onboard mints a new credential. Handing back the same" >&2
-      echo "       one means a retired key was revived rather than replaced, so" >&2
-      echo "       the departure it was retired for did not end anything." >&2
-      exit 1
-    fi
-    echo "    minted a different key: ${PREVIOUS_AKID} then ${IAM_KEY_AKID}"
-  fi
-
-  echo "==> Installing the key into ${CRED_FILE}"
-  if aws_cred_has_section "$CRED_FILE" "$OPERATOR"; then
-    MODIFIED_LOCAL_PROFILE_THIS_RUN="replaced"
-  else
-    MODIFIED_LOCAL_PROFILE_THIS_RUN="created"
-  fi
-  aws_cred_put "$CRED_FILE" "$OPERATOR" "$IAM_KEY_AKID" "$IAM_KEY_SAK" || {
-    echo "ERROR: could not write the credential: ${AWS_CRED_ERROR}" >&2
-    exit 1
-  }
-  echo "    [${OPERATOR}] now holds ${IAM_KEY_AKID}"
-  # Deliberately NOT committed yet. The key is on disk but nothing has shown it
-  # can reach anything, and a credential that cannot assume the role is not a
-  # half-finished install, it is a live key nobody is watching. It stays
-  # withdrawable until the proofs below pass.
-
-  # The two chained profiles. An existing one is reported and left exactly as it
-  # is: a profile is the operator's own and may carry a duration or a region
-  # they set deliberately, and rewriting one silently is how tooling breaks a
-  # working workstation.
-  echo "==> The chained profiles in ${CONFIG_FILE}"
-  _rc=0
-  # The session name is written explicitly and is not optional here. The role's
-  # trust policy requires it to equal the assuming user's name, so a profile
-  # without this line gets the SDK's generated name, fails the condition, and
-  # is refused on every call. That refusal names the role rather than the
-  # missing line, which is why it is worth stating.
-  aws_config_add_role_profile "$CONFIG_FILE" "$DEV_TESTER_PROFILE" \
-    "$DEV_TESTER_ROLE_ARN" "$OPERATOR" "$AWS_IDENTITY_REGION" "$OPERATOR" || _rc=$?
-  case $_rc in
-    0) echo "    [profile ${DEV_TESTER_PROFILE}]: written, chaining from [profile ${OPERATOR}]" ;;
-    2) echo "    [profile ${DEV_TESTER_PROFILE}]: already present, left untouched (it sources"
-       echo "      [profile $(aws_config_profile_source "$CONFIG_FILE" "$DEV_TESTER_PROFILE")])" ;;
-    *) echo "ERROR: could not write [profile ${DEV_TESTER_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1 ;;
-  esac
-
-  _rc=0
-  aws_config_add_role_profile "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" \
-    "$STAGING_ROLE_ARN" "$DEV_TESTER_PROFILE" "$AWS_IDENTITY_REGION" || _rc=$?
-  case $_rc in
-    0) echo "    [profile ${STAGING_RUNTIME_PROFILE}]: written, chaining from [profile ${DEV_TESTER_PROFILE}]" ;;
-    2)
-      _src="$(aws_config_profile_source "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE")"
-      echo "    [profile ${STAGING_RUNTIME_PROFILE}]: already present, left untouched"
-      if [[ "$_src" != "$DEV_TESTER_PROFILE" ]]; then
-        echo "      note: it chains from [profile ${_src:-<none recorded>}], not from"
-        echo "      [profile ${DEV_TESTER_PROFILE}], so its calls are attributed to"
-        echo "      whatever that profile resolves to rather than to ${OPERATOR}."
-        echo "      It is left alone on purpose. This chain carries the staging"
-        echo "      smoke suite's read-only checks, staging's runtime role trusts"
-        echo "      more than one principal, and rewriting a profile the machine"
-        echo "      already depends on is not this script's to do. What it"
-        echo "      resolves to is not a thing a profile name can answer:"
-        echo "        aws sts get-caller-identity --profile ${STAGING_RUNTIME_PROFILE}"
-      fi
-      ;;
-    *) echo "ERROR: could not write [profile ${STAGING_RUNTIME_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1 ;;
-  esac
-  unset _rc _src
-
-  echo "    no production runtime profile was written, deliberately: production's"
-  echo "    runtime role does not trust ${DEV_TESTER_ROLE_NAME}, so the profile would"
-  echo "    resolve and then fail to assume. That boundary is the design working."
-
-  # Proving the outcome rather than the invocation. Three separate facts, and
-  # the third is the one the whole model rests on: a shared role only attributes
-  # anything if the session carries the person's own name, and the role's trust
-  # policy is what forces that.
-  # IAM is eventually consistent: a key minted seconds ago is refused as an
-  # invalid token for a while, and the grant attached just before it may not be
-  # in force yet either. Proving at once read that as a broken identity and
-  # rolled the whole thing back. So the chain is polled until it resolves or the
-  # wait runs out; the proofs below then judge the outcome either way.
-  PROPAGATION_POLL="${MANAGE_OPERATOR_PROPAGATION_POLL:-5}"
-  PROPAGATION_TRIES=24
-  if ! "$AWS_BIN" sts get-caller-identity --profile "$DEV_TESTER_PROFILE" \
-      --query Arn --output text --region us-east-1 >/dev/null 2>&1; then
-    echo "==> waiting for the new key to take effect (up to $(( PROPAGATION_POLL * PROPAGATION_TRIES ))s)"
-    for (( try = 1; try <= PROPAGATION_TRIES; try++ )); do
-      sleep "$PROPAGATION_POLL"
-      if "$AWS_BIN" sts get-caller-identity --profile "$DEV_TESTER_PROFILE" \
-          --query Arn --output text --region us-east-1 >/dev/null 2>&1; then
-        echo "    in effect"
-        break
-      fi
-    done
-  fi
-
-  echo "==> Proving the chain"
-  aws_identity_require_user "$OPERATOR" "$OPERATOR" || exit 1
-  aws_identity_require_chain "$DEV_TESTER_PROFILE" || exit 1
-
-  ASSUMED_ARN="$("$AWS_BIN" sts get-caller-identity --profile "$DEV_TESTER_PROFILE" \
-    --query Arn --output text 2>/dev/null || true)"
-  if [[ "$ASSUMED_ARN" != *"/${DEV_TESTER_ROLE_NAME}/${OPERATOR}" ]]; then
-    echo "ERROR: the role session is ${ASSUMED_ARN}," >&2
-    echo "       which does not end in ${DEV_TESTER_ROLE_NAME}/${OPERATOR}. On a" >&2
-    echo "       shared role the session name IS the attribution, so a session" >&2
-    echo "       carrying somebody else's name records this person's work as" >&2
-    echo "       theirs." >&2
-    exit 1
-  fi
-  echo "    session name: ${OPERATOR}, so the trail names the person"
-
-  iam_key_commit
-  RUN_SUCCEEDED=1
-
-  echo ""
-  echo "Done. ${OPERATOR} can work as themselves from this workstation:"
-  echo ""
-  echo "  bash scripts/setup-operator-workstation.sh --target staging --check"
-  echo ""
-  echo "Nothing asks anybody to export anything, in this shell or any other."
-  # --verify is run as footbag-operator, from any workstation holding that key.
-  echo ""
-  echo "From a workstation holding the footbag-operator key, the read-back is:"
-  echo "  bash scripts/manage-human-operator.sh --verify ${OPERATOR}"
   exit 0
 fi
 
@@ -691,7 +399,8 @@ fi
 # the policy by a few seconds can reach nothing; a policy that outlives the keys
 # is a live grant waiting for a key that was never actually destroyed.
 echo "==> Removing the grant"
-if has_user_policy "$OPERATOR"; then
+_policy="$(user_policy_state "$OPERATOR")" || exit 1
+if [[ "$_policy" == "present" ]]; then
   "$AWS_BIN" iam delete-user-policy --user-name "$OPERATOR" \
     --policy-name "$USER_POLICY_NAME" || {
     echo "ERROR: could not remove ${USER_POLICY_NAME} from ${OPERATOR}." >&2
@@ -709,7 +418,8 @@ echo "==> Retiring the keys"
 # The ids IAM holds for them, read before any is deleted. The real-session proof
 # below needs to know whether this workstation's chain signs with one of them,
 # and after deletion IAM no longer says.
-RETIRED_KEY_IDS="$(user_keys "$OPERATOR" | cut -f1)"
+_keys="$(user_keys "$OPERATOR")" || exit 1
+RETIRED_KEY_IDS="$(printf '%s\n' "$_keys" | cut -f1)"
 RETIRED_ANY=0
 while IFS=$'\t' read -r _id _status _rest; do
   [[ -z "$_id" ]] && continue
@@ -721,12 +431,12 @@ while IFS=$'\t' read -r _id _status _rest; do
     IAM_KEY_ALLOW_LAST=1 iam_key_retire "$OPERATOR" "$_id" deactivate || exit 1
   fi
   IAM_KEY_ALLOW_LAST=1 iam_key_retire "$OPERATOR" "$_id" delete || exit 1
-done <<< "$(user_keys "$OPERATOR")"
-unset _id _status _rest
+done <<< "$_keys"
+unset _id _status _rest _keys _policy
 (( RETIRED_ANY )) || echo "    no keys to retire"
 
 echo "==> Proving it"
-REMAINING="$(user_keys "$OPERATOR")"
+REMAINING="$(user_keys "$OPERATOR")" || exit 1
 # The status field on its own, matched whole: "Inactive" contains "Active", so
 # a substring count would report a retired key as a live one.
 ACTIVE_LEFT="$(printf '%s\n' "$REMAINING" | cut -f2 | grep -cx 'Active' || true)"
@@ -736,13 +446,16 @@ if [[ "$ACTIVE_LEFT" != "0" ]]; then
 fi
 echo "    active keys: none"
 
-if has_user_policy "$OPERATOR"; then
+_policy="$(user_policy_state "$OPERATOR")" || exit 1
+if [[ "$_policy" != "absent" ]]; then
   echo "ERROR: ${USER_POLICY_NAME} is still attached to ${OPERATOR}." >&2
   exit 1
 fi
+unset _policy
 echo "    ${USER_POLICY_NAME}: gone"
 
-if can_assume_role "$OPERATOR"; then
+_decision="$(role_assume_decision "$OPERATOR")" || exit 1
+if [[ "$_decision" == "allowed" ]]; then
   echo "ERROR: ${OPERATOR} would still be allowed to assume ${DEV_TESTER_ROLE_NAME}." >&2
   echo "       Something else grants it — a group, a managed policy, a boundary —" >&2
   echo "       and this script did not put it there. Find it before calling this" >&2
@@ -830,7 +543,8 @@ fi
 # other route, and it is a console sign-in with no second factor that neither
 # the grant removal nor the key retirement above touches. An offboard that left
 # one behind would report a retired identity that can still sign in.
-if "$AWS_BIN" iam get-login-profile --user-name "$OPERATOR" >/dev/null 2>&1; then
+_login="$(iam_operator_login_profile_state "$OPERATOR")" || exit 1
+if [[ "$_login" != "absent" ]]; then
   echo "ERROR: ${OPERATOR} still has a console login profile." >&2
   echo "       The grant and the keys are gone, but this is a console sign-in" >&2
   echo "       that survives both, and nothing here created it. Remove it" >&2
@@ -845,7 +559,7 @@ echo "    login profile: none"
 # every session this person was issued before now: a named inline policy on the
 # role, the shape AWS's own "revoke active sessions" writes, narrowed to this
 # person's sessions by the session name the trust policy forces to be theirs.
-# Nobody else's session is touched, and a rehire's sessions are issued after the
+# Nobody else's session is touched, and a re-onboarding's sessions are issued after the
 # cutoff and pass it; the next offboard of the same name rewrites the cutoff.
 #
 # Written here rather than in Terraform because it belongs to one departure and
@@ -887,6 +601,52 @@ fi
 echo "    ${REVOKE_POLICY_NAME}: every ${DEV_TESTER_ROLE_NAME} session of ${OPERATOR}'s"
 echo "      issued before ${REVOKE_BEFORE} is refused"
 
+# Earlier departures' revocations, once they can refuse nothing. A session lives
+# at most the role's maximum duration, so a cutoff older than that plus an hour
+# of margin denies no session that still exists. Each departure leaves one such
+# policy on the role, and the role's inline policies share one size limit that
+# the job policy needs too, so they are cleared here rather than left to grow
+# until an offboard or an identity apply is refused. The person being retired
+# now is already retired above, so a failure here is reported and ends nothing.
+echo "==> Clearing earlier revocations that can no longer refuse any session"
+PRUNE_MAX="$("$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" \
+  --query 'Role.MaxSessionDuration' --output text 2>&1 || true)"
+PRUNE_LIST="$("$AWS_BIN" iam list-role-policies --role-name "$DEV_TESTER_ROLE_NAME" \
+  --query 'PolicyNames' --output text 2>&1)" || PRUNE_LIST="unreadable"
+if [[ ! "$PRUNE_MAX" =~ ^[0-9]+$ || "$PRUNE_LIST" == "unreadable" ]]; then
+  echo "    WARNING: could not read ${DEV_TESTER_ROLE_NAME}'s session length or its"
+  echo "      policies, so no earlier revocation was cleared. Nothing is exposed by"
+  echo "      that; the next offboard tries again."
+else
+  PRUNE_NOW="$(date -u +%s)"
+  PRUNED=0
+  for _pname in $PRUNE_LIST; do
+    [[ "$_pname" == revoke-sessions-* && "$_pname" != "$REVOKE_POLICY_NAME" ]] || continue
+    _cutoff="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
+      --policy-name "$_pname" \
+      --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
+      --output text 2>/dev/null | cut -f2 || true)"
+    # Parsed only in the exact shape this script writes: date(1) turns an empty
+    # or odd string into a plausible time, which would clear a live revocation.
+    if [[ ! "$_cutoff" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+       || ! _cutoff_epoch="$(date -u -d "$_cutoff" +%s 2>/dev/null)"; then
+      echo "    ${_pname}: cutoff unreadable, left in place"
+      continue
+    fi
+    if (( _cutoff_epoch + PRUNE_MAX + 3600 < PRUNE_NOW )); then
+      if "$AWS_BIN" iam delete-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
+          --policy-name "$_pname" >/dev/null 2>&1; then
+        echo "    ${_pname}: cut off at ${_cutoff}, refuses nothing now, removed"
+        PRUNED=$(( PRUNED + 1 ))
+      else
+        echo "    WARNING: ${_pname} could not be removed; the next offboard tries again."
+      fi
+    fi
+  done
+  unset _pname _cutoff _cutoff_epoch
+  (( PRUNED )) || echo "    none to clear"
+fi
+
 echo ""
 echo "Done. ${OPERATOR} is inert: no grant, no keys, no console sign-in, and no"
 echo "job-role session still working. The user itself is left for the trail to keep"
@@ -898,13 +658,13 @@ echo "theirs to refuse it by, and AWS ends a chained session within the hour."
 
 # Run on its own, this script has ended one of several access paths, and not the
 # one that reaches a shell, so the command that ends all of them is named here at
-# the moment the gap opens. Driven by offboard-operator.sh, that command is the
+# the moment the gap opens. Driven by offboard-dev-tester.sh, that command is the
 # one running and it goes on to the rest.
 if (( ! DRIVEN_BY_OFFBOARD )); then
   echo ""
   echo "Still owed: the host account, the address on the SSH allow-list and the"
   echo "repository access. One command ends all of them, for each environment:"
   echo "  < <the credential file your alias selects> \\"
-  echo "    bash scripts/offboard-operator.sh --target <env> --account ${OPERATOR} \\"
+  echo "    bash scripts/offboard-dev-tester.sh --target <env> --account ${OPERATOR} \\"
   echo "      --github-login <their GitHub login, or none>"
 fi

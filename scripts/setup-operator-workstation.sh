@@ -369,7 +369,7 @@ else
       todo "the ${FOOTBAG_DEV_TESTER_PROFILE} profile is configured but does not resolve; your key is reissued by onboarding you again, which a footbag-operator holder arranges with you"
     fi
   else
-    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, so this workstation has no configured route to the ${DEV_TESTER_ROLE_NAME} role. Where that route is meant to exist, onboarding writes it: a footbag-operator holder onboarding themselves runs bash scripts/onboard-operator.sh on this machine, and a dev-and-tester's arrives sealed from a holder's bash scripts/hire-dev-tester.sh and is written here by bash scripts/accept-dev-tester-delivery.sh"
+    note "no ${FOOTBAG_DEV_TESTER_PROFILE} profile here, so this workstation has no configured route to the ${DEV_TESTER_ROLE_NAME} role. Where that route is meant to exist, it arrives sealed from a holder's bash scripts/onboard-dev-tester.sh and is written here by bash scripts/accept-dev-tester-onboarding.sh"
   fi
 
   # Missing and unassumable are different faults with different owners, so they
@@ -656,7 +656,7 @@ elif (( RUN_AS_JOB_ROLE )); then
        && ssh-keygen -F "[${HOST_ADDRESS}]:2222" -f "$_pin" >/dev/null 2>&1; then
     ok "pinned for ${TARGET} (${HOST_ADDRESS}), as installed by your delivery"
   else
-    todo "no usable pin for ${TARGET} (${HOST_ADDRESS}) in ${_pin}; it arrives sealed in your delivery: bash scripts/accept-dev-tester-delivery.sh --target ${TARGET} --account <your_name> <file>"
+    todo "no usable pin for ${TARGET} (${HOST_ADDRESS}) in ${_pin}; it arrives sealed in your onboarding: bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account <your_name> <file>"
   fi
   unset _pin
 elif (( CHECK )); then

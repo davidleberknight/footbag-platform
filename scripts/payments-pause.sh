@@ -44,18 +44,16 @@
 # from the same view the application reads, so what this prints is what is
 # actually in force.
 #
-# Usage. Which credential file holds the sudo password follows the account the
-# alias connects as, and production has its own file either way, because staging
-# and production are separate hosts with separate passwords:
+# Usage. Production is reached only as the shared footbag account, so the sudo
+# password is that account's production file:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
 #
 # A run started without the redirect names the one it needs.
 #
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --status
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --pause  --reason "duplicate charges reported"
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --resume --reason "fixed in 1a2b3c4"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --status
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --pause  --reason "duplicate charges reported"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --resume --reason "fixed in 1a2b3c4"
 #   ... --pause --yes        skip the confirmation prompt (for a scripted incident response)
 #   ... --actor <member-id>  record who flipped it, so the platform's own
 #                            configuration history answers that question rather

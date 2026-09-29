@@ -54,11 +54,11 @@
 #
 #                  Needs the credential file on stdin, the same way every other
 #                  script that opens a privileged session does. Which file that
-#                  is follows the account the alias connects as: the shared
-#                  footbag account reads ~/AWS/AWS_OPERATOR_PRODUCTION.txt and
-#                  your own named account reads the file below. A run started
-#                  without the redirect names the one it needs.
-#                    < ~/AWS/HOST_OPERATOR_PRODUCTION.txt \
+#                  is follows the account the alias connects as, and production
+#                  is reached only as the shared footbag account, which reads
+#                  the file below. A run started without the redirect names
+#                  the one it needs.
+#                    < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
 #                        bash scripts/pre-cutover-checklist.sh --target production
 #
 # Exit codes:

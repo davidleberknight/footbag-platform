@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# ssh-alias.sh — the one edit hiring and firing make to an operator's
+# ssh-alias.sh — the one edit onboarding and offboarding make to an operator's
 # ~/.ssh/config: a named account's Match block beside the deploy alias.
 #
 # WHY THIS IS A LIBRARY.
 #
-# Hiring adds the block and firing removes it; the edit is kept apart from those
+# Accepting an onboarding adds the block and offboarding removes it; the edit is
+# kept apart from those
 # commands so its rules about what the block is, and where it goes, live in one
 # place.
 #

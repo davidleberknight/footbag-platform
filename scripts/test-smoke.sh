@@ -66,9 +66,9 @@ if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.
   echo "" >&2
   echo "       Which script writes it depends on who you are:" >&2
   echo "         a footbag-operator key holder:  bash scripts/install-operator-key.sh" >&2
-  echo "         a named operator:               bash scripts/onboard-operator.sh (it chains" >&2
-  echo "                                         off the job role your own IAM user assumes)" >&2
-  echo "         a dev-and-tester:               bash scripts/accept-dev-tester-delivery.sh" >&2
+  echo "         a dev-and-tester:               bash scripts/accept-dev-tester-onboarding.sh" >&2
+  echo "                                         (it chains off the job role your own" >&2
+  echo "                                         IAM user assumes)" >&2
   echo "" >&2
   echo "       A production target additionally needs the directly authenticated" >&2
   echo "       identity: production's runtime role does not trust the job role," >&2

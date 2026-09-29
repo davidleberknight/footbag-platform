@@ -1,5 +1,5 @@
 /**
- * scripts/accept-dev-tester-delivery.sh — a dev-and-tester opening the sealed
+ * scripts/accept-dev-tester-onboarding.sh — a dev-and-tester opening the sealed
  * delivery on their own computer and putting each thing in it where the tooling
  * expects it.
  *
@@ -19,7 +19,7 @@
  * home, because which account the alias resolves as is the thing under test.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   writeFileSync,
   readFileSync,
@@ -36,7 +36,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
-const SCRIPT = join(process.cwd(), 'scripts/accept-dev-tester-delivery.sh');
+const SCRIPT = join(process.cwd(), 'scripts/accept-dev-tester-onboarding.sh');
 const LIB = join(process.cwd(), 'scripts/lib/dev-tester-delivery.sh');
 const REAL_SSH = '/usr/bin/ssh';
 if (!existsSync(REAL_SSH) && process.env.CI) {
@@ -66,15 +66,16 @@ function stub(name: string, body: string): string {
   return path;
 }
 
-function awsStub(opts: { session?: string } = {}): string {
+function awsStub(opts: { session?: string; runtimeRole?: string } = {}): string {
   return stub(
-    `aws-${opts.session ?? 'own'}`,
+    `aws-${opts.session ?? 'own'}-${opts.runtimeRole ?? 'runtime'}`,
     `
 profile=""
 while [[ $# -gt 0 ]]; do [[ "$1" == "--profile" ]] && profile="$2"; shift; done
 case "$profile" in
   ${ACCOUNT}) echo "arn:aws:iam::000000000000:user/footbag-operators/${ACCOUNT}" ;;
   FootbagDevTester) echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${opts.session ?? ACCOUNT}" ;;
+  footbag-staging-runtime) echo "arn:aws:sts::000000000000:assumed-role/${opts.runtimeRole ?? 'footbag-staging-app-runtime'}/botocore-session-1" ;;
   *) exit 255 ;;
 esac`,
   );
@@ -102,6 +103,8 @@ function hostSshStub(): string {
     'host-ssh',
     `
 cmd="\${!#}"
+# ssh's own exit when it never reached the host.
+[[ -e ${JSON.stringify(join(dir, 'unreachable'))} ]] && exit 255
 IFS= read -r given || true
 current="$(cat ${JSON.stringify(hostPassword)})"
 case "$cmd" in
@@ -189,7 +192,7 @@ beforeEach(() => {
   writeFileSync(join(home, '.aws', 'config'), OPERATOR_CONFIG);
   hostPassword = join(dir, 'host-password');
   writeFileSync(hostPassword, `${ONE_TIME}\n`);
-  sealed = join(dir, `${ACCOUNT}-staging.delivery.age`);
+  sealed = join(dir, `${ACCOUNT}-staging.onboarding.age`);
   seal();
 });
 
@@ -245,7 +248,7 @@ const FIRST_RUN = ['APPLY', 'APPLY', 'APPLY', 'APPLY', 'APPLY', 'APPLY', NEW_PAS
 
 const read = (...p: string[]): string => readFileSync(join(home, ...p), 'utf-8');
 
-describe('accept-dev-tester-delivery.sh — refused before anything changes', () => {
+describe('accept-dev-tester-onboarding.sh — refused before anything changes', () => {
   it('refuses any environment but staging', () => {
     const r = runPiped(args({ '--target': 'production' }));
     expect(r.status).toBe(2);
@@ -366,13 +369,100 @@ describe('accept-dev-tester-delivery.sh — refused before anything changes', ()
   });
 });
 
-describe('accept-dev-tester-delivery.sh — a whole acceptance', () => {
+describe('accept-dev-tester-onboarding.sh — failures it must not misreport', () => {
+  it('says the host could not be reached, rather than that the password was refused', () => {
+    writeFileSync(join(dir, 'unreachable'), '');
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/could not reach 203\.0\.113\.10/);
+    expect(r.out).not.toMatch(/refuses the one-time password/);
+    expect(readFileSync(hostPassword, 'utf-8')).toBe(`${ONE_TIME}\n`);
+  });
+
+  it('ends the run on an interrupt, rather than carrying on with its secrets blanked', async () => {
+    // Ctrl-C typed at the first confirmation. It is sent only once the prompt
+    // is on the terminal, so it reaches the script's own handler rather than a
+    // shell that has not installed one yet.
+    const inner = ['bash', JSON.stringify(SCRIPT), ...args().map((a) => JSON.stringify(a))].join(' ');
+    const child = spawn('script', ['-qec', inner, '/dev/null'], {
+      env: { ...process.env, ...env() },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let out = '';
+    let sent = false;
+    child.stdout.on('data', (chunk: Buffer) => {
+      out += chunk.toString('utf-8');
+      if (!sent && /Type 'APPLY'/.test(out)) {
+        sent = true;
+        child.stdin.write('\x03');
+      }
+    });
+    const status = await new Promise<number | null>((resolve) => {
+      const guard = setTimeout(() => child.kill('SIGKILL'), SPAWN_GUARD.timeout);
+      child.on('close', (code) => {
+        clearTimeout(guard);
+        resolve(code);
+      });
+    });
+    expect(sent, out).toBe(true);
+    expect(status, out).toBe(130);
+    expect(out).not.toMatch(/Not confirmed/);
+  });
+});
+
+describe('accept-dev-tester-onboarding.sh — the pin file', () => {
+  it('replaces only this host\'s lines, never a host whose name merely contains it', () => {
+    mkdirSync(join(home, 'AWS'), { recursive: true });
+    const lookalike = `1${ADDRESS} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOtherHost`;
+    const stale = `${ADDRESS} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIStaleKey`;
+    writeFileSync(join(home, 'AWS', 'footbag_known_hosts'), `${lookalike}\n${stale}\n`, { mode: 0o600 });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status, r.out).toBe(0);
+    const pins = read('AWS', 'footbag_known_hosts');
+    expect(pins).toContain(lookalike);
+    expect(pins).not.toContain(stale);
+  });
+});
+
+describe('accept-dev-tester-onboarding.sh — the staging runtime chain', () => {
+  it('proves the chain it wrote reaches the staging runtime role', () => {
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/\[profile footbag-staging-runtime\] chains through FootbagDevTester to footbag-staging-app-runtime/);
+  });
+
+  it('refuses when that chain lands on some other role', () => {
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_AWS_BIN: awsStub({ runtimeRole: 'some-other-role' }) });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/not footbag-staging-app-runtime/);
+  });
+
+  it('leaves an administrative runtime chain on the same machine exactly as it is', () => {
+    // A holder onboarding themselves accepts on the machine that already runs
+    // staging work as footbag-operator; that chain is theirs as an administrator.
+    const adminChain =
+      '[profile footbag-staging-runtime]\nrole_arn = arn:aws:iam::000000000000:role/footbag-staging-app-runtime\nsource_profile = footbag-operator\n';
+    writeFileSync(join(home, '.aws', 'config'), OPERATOR_CONFIG + adminChain);
+    const r = runInTerminal(FIRST_RUN.slice(0, -1).concat(['APPLY']));
+    expect(r.status, r.out).toBe(0);
+    const config = read('.aws', 'config');
+    expect(config).toContain(adminChain);
+    expect(config.match(/\[profile footbag-staging-runtime\]/g)).toHaveLength(1);
+    expect(r.out).toMatch(/chains from \[footbag-operator\] on this machine/);
+  });
+});
+
+describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
   it('puts everything where the tooling expects it, and replaces the one-time password', () => {
     const r = runInTerminal(FIRST_RUN);
     expect(r.status, r.out).toBe(0);
 
     expect(existsSync(join(home, '.ssh', `id_ed25519_${ACCOUNT}`))).toBe(true);
-    expect(existsSync(join(home, '.ssh', 'id_ed25519_footbag_operator'))).toBe(false);
+    // Copied, not moved: whatever else signs with the pair it was sealed to
+    // still finds it where it was.
+    expect(existsSync(join(home, '.ssh', 'id_ed25519_footbag_operator'))).toBe(true);
+    expect(read('.ssh', `id_ed25519_${ACCOUNT}`)).toBe(read('.ssh', 'id_ed25519_footbag_operator'));
+    expect(statSync(join(home, '.ssh', `id_ed25519_${ACCOUNT}`)).mode & 0o777).toBe(0o600);
 
     const creds = read('.aws', 'credentials');
     expect(creds.startsWith(OPERATOR_CRED)).toBe(true);

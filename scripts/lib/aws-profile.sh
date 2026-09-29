@@ -315,15 +315,12 @@ aws_profile_ensure() {
     echo "       '${FOOTBAG_DEV_TESTER_PROFILE}' configured, and your shell carries" >&2
     echo "       no AWS credentials of its own, so nothing here can authenticate." >&2
     echo "" >&2
-    echo "       If your key is minted by the onboarding, the profile holding your" >&2
-    echo "       own key and the '${FOOTBAG_DEV_TESTER_PROFILE}' profile that chains" >&2
-    echo "       from it are written for you by it, on your own machine, because it mints your" >&2
-    echo "       key there and there is no other copy of it anywhere. A" >&2
-    echo "       footbag-operator holder onboarding themselves runs:" >&2
-    echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
-    echo "       A dev-and-tester's arrive sealed from the holder who hired them and" >&2
-    echo "       are written by:" >&2
-    echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
+    echo "       A named identity's profile holding your own key, and the" >&2
+    echo "       '${FOOTBAG_DEV_TESTER_PROFILE}' profile that chains from it, arrive" >&2
+    echo "       sealed from the holder who onboarded you and are written by:" >&2
+    echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name> <file>" >&2
+    echo "       Your key was sealed to you alone and there is no other copy of it" >&2
+    echo "       anywhere, so a lost one is re-issued by the holder, never fetched." >&2
     echo "" >&2
     echo "       For the directly authenticated key, install it from the vault" >&2
     echo "       entry aws-footbag-operator-keys:" >&2
@@ -397,21 +394,16 @@ aws_profile_use() {
       echo "       Install it from the vault entry aws-footbag-operator-keys:" >&2
       echo "         bash scripts/install-operator-key.sh" >&2
     elif [[ "$want" == "$FOOTBAG_DEV_TESTER_PROFILE" ]]; then
-      echo "       That profile is written by the human-operator onboarding, and" >&2
-      echo "       only on the machine of the person whose key it chains from. A" >&2
-      echo "       footbag-operator holder onboarding themselves runs:" >&2
-      echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
-      echo "       A dev-and-tester's arrives sealed from the holder who hired them and" >&2
-      echo "       is written by:" >&2
-      echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
+      echo "       That profile arrives sealed from the holder who onboarded you, and" >&2
+      echo "       only on the machine of the person whose key it chains from. It is" >&2
+      echo "       written by:" >&2
+      echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name> <file>" >&2
     else
-      echo "       That is a chained runtime section. The onboarding writes the" >&2
-      echo "       staging one for a named operator, the delivery acceptance writes" >&2
-      echo "       it for a dev-and-tester, and the key install writes both for the" >&2
-      echo "       directly authenticated identity. Which applies here is a fact" >&2
-      echo "       about whose key this machine holds:" >&2
-      echo "         bash scripts/onboard-operator.sh --target <env> --account <your_name> ..." >&2
-      echo "         bash scripts/accept-dev-tester-delivery.sh --target staging --account <your_name> <file>" >&2
+      echo "       That is a chained runtime section. Accepting an onboarding writes" >&2
+      echo "       the staging one for a dev-and-tester where none exists, and the key" >&2
+      echo "       install writes both for the directly authenticated identity. Which" >&2
+      echo "       applies here is a fact about whose key this machine holds:" >&2
+      echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name> <file>" >&2
       echo "         bash scripts/install-operator-key.sh" >&2
     fi
     return 1

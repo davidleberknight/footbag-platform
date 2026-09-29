@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Root-side body of the password step in scripts/accept-dev-tester-delivery.sh:
+# Root-side body of the password step in scripts/accept-dev-tester-onboarding.sh:
 # a named operator replacing the one-time password of their own host account
 # with one they chose.
 #

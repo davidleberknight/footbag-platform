@@ -3,12 +3,10 @@
 # iam-operator-user.sh — a named human operator's IAM user on the AWS side: the
 # user, its ownership tags, its one grant, and the keys it held before this run.
 #
-# Two scripts create these users. manage-human-operator.sh onboards the person at
-# the keyboard and writes their key into this workstation's AWS files;
-# hire-dev-tester.sh hires somebody who is not here and seals their key to them.
-# What differs between the two is only where the key goes, so what they share
-# lives here and neither carries its own copy of the ownership rules, which are
-# what the offboarding later checks before it will retire a user.
+# onboard-dev-tester.sh creates these users and seals each key to its owner, and
+# manage-human-operator.sh retires them and reads them back. The ownership rules
+# live here, in one place, because the offboarding checks them before it will
+# retire a user.
 #
 # WHAT IT WILL NOT DO.
 #
@@ -18,7 +16,7 @@
 #     identity that administers the others is out of scope here in every
 #     respect.
 #   - Touch any local file. The AWS config and credentials files belong to the
-#     caller, and one of the two callers must never write them.
+#     caller, and the onboarding must never write them.
 #   - Adopt a user it did not create. A user of the name without the path and
 #     all three tags is somebody else's, and granting it the job role would hand
 #     a stranger's identity access to this project.
@@ -41,7 +39,7 @@ IAM_OPERATOR_PATH="/footbag-operators/"
 IAM_OPERATOR_POLICY_NAME="AssumeFootbagDevTester"
 IAM_OPERATOR_TAG_PROJECT="footbag"
 # Names the tool that owns the lifecycle, and the offboarding refuses a user
-# without it, so both callers write this same value.
+# without it. Kept as it is so users created before now still read as ours.
 IAM_OPERATOR_TAG_MANAGED_BY="manage-human-operator.sh"
 # What the user is for. Not the role's name.
 IAM_OPERATOR_TAG_OPERATOR_ROLE="dev_tester"
@@ -79,15 +77,65 @@ iam_operator_tag() {
     --query "Tags[?Key=='${2}'].Value" --output text 2>/dev/null || true
 }
 
-# Every access key the user holds, one `<id> <status> <created>` line each.
+# Both reads below fail closed. IAM answering by name that the entity does not
+# exist is an answer; any other failure (a denied call, a network error, an
+# expired session) is not one, and reading it as "none" is how a retirement
+# reported keys and a grant as gone while both were still live. The not-found
+# answer is recognised by its error code, NoSuchEntity, which the CLI prints
+# inside a longer message whose wording is not a contract.
+
+# Every access key the user holds, one `<id> <status> <created>` line each, and
+# nothing for a user IAM says does not exist. Returns 1, having said why on
+# stderr, when IAM could not be read.
 iam_operator_keys() {
-  "$IAM_OPERATOR_AWS_BIN" iam list-access-keys --user-name "$1" \
-    --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text 2>/dev/null || true
+  local out
+  if out="$("$IAM_OPERATOR_AWS_BIN" iam list-access-keys --user-name "$1" \
+      --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text 2>&1)"; then
+    [[ -n "$out" && "$out" != "None" ]] && printf '%s\n' "$out"
+    return 0
+  fi
+  [[ "$out" == *NoSuchEntity* ]] && return 0
+  echo "ERROR: could not read ${1}'s access keys from IAM:" >&2
+  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  return 1
 }
 
-iam_operator_has_policy() {
-  "$IAM_OPERATOR_AWS_BIN" iam get-user-policy --user-name "$1" \
-    --policy-name "$IAM_OPERATOR_POLICY_NAME" >/dev/null 2>&1
+# iam_operator_policy_state <name>
+# Prints `present` or `absent` for the one grant this library attaches. Returns
+# 1, having said why on stderr, when IAM could not be read, so no caller can
+# mistake an unreadable grant for a missing one.
+iam_operator_policy_state() {
+  local out
+  if out="$("$IAM_OPERATOR_AWS_BIN" iam get-user-policy --user-name "$1" \
+      --policy-name "$IAM_OPERATOR_POLICY_NAME" --query PolicyName --output text 2>&1)"; then
+    echo "present"
+    return 0
+  fi
+  if [[ "$out" == *NoSuchEntity* ]]; then
+    echo "absent"
+    return 0
+  fi
+  echo "ERROR: could not read whether ${1} holds ${IAM_OPERATOR_POLICY_NAME}:" >&2
+  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  return 1
+}
+
+# iam_operator_login_profile_state <name>
+# Prints `present` or `absent` for a console login profile, failing closed the
+# same way: a login profile nobody could read is not one proved absent.
+iam_operator_login_profile_state() {
+  local out
+  if out="$("$IAM_OPERATOR_AWS_BIN" iam get-login-profile --user-name "$1" 2>&1)"; then
+    echo "present"
+    return 0
+  fi
+  if [[ "$out" == *NoSuchEntity* ]]; then
+    echo "absent"
+    return 0
+  fi
+  echo "ERROR: could not read whether ${1} has a console login profile:" >&2
+  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  return 1
 }
 
 # iam_operator_state <name>
@@ -150,6 +198,11 @@ iam_operator_ensure() {
   fi
 
   echo "==> Granting the one statement this identity carries"
+  # Read first, so the undo removes the grant only when this run added it. A
+  # re-run over a live identity rewrites a grant that already existed, and a
+  # failure after that must leave the person holding what they held before.
+  local policy_before
+  policy_before="$(iam_operator_policy_state "$name")" || return 1
   local policy_document
   policy_document="$(printf '%s' \
     "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"${IAM_OPERATOR_POLICY_NAME}\"," \
@@ -161,13 +214,15 @@ iam_operator_ensure() {
     echo "ERROR: could not attach ${IAM_OPERATOR_POLICY_NAME} to ${name}." >&2
     return 1
   }
-  IAM_OPERATOR_CREATED_POLICY=1
+  [[ "$policy_before" == "absent" ]] && IAM_OPERATOR_CREATED_POLICY=1
   echo "    ${IAM_OPERATOR_POLICY_NAME}: sts:AssumeRole on ${role_arn}"
 
   # Asserted rather than assumed. Nothing above creates one, but a login profile
   # arriving by any other route turns this identity into a console sign-in with
   # no second factor, which is the shape this model exists to avoid.
-  if "$IAM_OPERATOR_AWS_BIN" iam get-login-profile --user-name "$name" >/dev/null 2>&1; then
+  local login_profile
+  login_profile="$(iam_operator_login_profile_state "$name")" || return 1
+  if [[ "$login_profile" == "present" ]]; then
     echo "ERROR: ${name} has a console login profile." >&2
     echo "       These identities sign API calls and have no console sign-in by" >&2
     echo "       design. Something else created it. Remove it and re-run." >&2
@@ -178,7 +233,8 @@ iam_operator_ensure() {
   # A re-issue mints a NEW key; it never reactivates a retired one. Allowed to
   # take the last one: a fresh key is minted immediately after, and the
   # account's two-key limit would otherwise refuse an ordinary re-issue.
-  local _id _status _rest
+  local _id _status _rest _keys
+  _keys="$(iam_operator_keys "$name")" || return 1
   while IFS=$'\t' read -r _id _status _rest; do
     [[ -z "$_id" ]] && continue
     if [[ "$_status" == "Active" ]]; then
@@ -188,7 +244,7 @@ iam_operator_ensure() {
       echo "==> Clearing a retired key that is in the way: ${_id}"
     fi
     IAM_KEY_ALLOW_LAST=1 iam_key_retire "$name" "$_id" delete || return 1
-  done <<< "$(iam_operator_keys "$name")"
+  done <<< "$_keys"
   return 0
 }
 

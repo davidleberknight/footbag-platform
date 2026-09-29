@@ -347,11 +347,9 @@ cmd_systemd() { banner "systemctl status footbag.service"; sudo systemctl status
 # host rather than about the operator's network, and these two sections are the
 # answer.
 #
-# The last section is the only enumeration of host logins that exists, and it is
-# the only way to check the vault's host- entries against the host itself. Those
-# entries are written by hand at provisioning time and nothing else reconciles
-# them, so an account that outlives its entry, or an entry that outlives its
-# account, is invisible without this. Fingerprints only: a fingerprint
+# The last section is the only enumeration of host logins that exists: who holds
+# host access is read here, live, and no stored record duplicates it.
+# Fingerprints only: a fingerprint
 # identifies a key without carrying it, which is what a record needs and all it
 # may hold.
 cmd_host_access() {

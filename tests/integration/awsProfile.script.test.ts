@@ -338,18 +338,17 @@ describe('aws_profile_ensure refuses rather than guessing', () => {
     expect(r.stdout).toContain('rc=1');
     expect(r.stderr).toMatch(/neither 'footbag-operator' nor/);
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
-    expect(r.stderr).toContain('bash scripts/onboard-operator.sh');
-    expect(r.stderr).toContain('bash scripts/accept-dev-tester-delivery.sh');
+    expect(r.stderr).toContain('bash scripts/accept-dev-tester-onboarding.sh');
+    expect(r.stderr).not.toMatch(/onboard-operator\.sh/);
     expect(r.stderr).not.toMatch(/not yet built/);
   });
 
   it('says a named operator cannot reinstall their own key, because no copy exists', () => {
-    // The whole reason onboarding happens at the person's own keyboard: their
-    // key is deliberately never copied into the shared vault, so there is
-    // nowhere for them to fetch it from and telling them to look is worse than
-    // saying nothing.
+    // Their key is sealed to them alone and deliberately never copied into the
+    // shared vault, so there is nowhere for them to fetch it from and telling
+    // them to look is worse than saying nothing.
     const r = withLib('aws_profile_ensure', { ...stubEnv(['some-unrelated-profile']) });
-    expect(r.stderr).toMatch(/is no other copy of it anywhere/);
+    expect(r.stderr).toMatch(/is no other copy of it\s+anywhere/);
   });
 
   it('names the key install as the cause when the credential no longer authenticates', () => {
@@ -477,23 +476,20 @@ describe('aws_profile_use settles the run on one named identity', () => {
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stderr).not.toContain('bash scripts/install-operator-key.sh');
-    expect(r.stderr).toContain('bash scripts/onboard-operator.sh');
     expect(r.stderr).toMatch(/only on the machine of the person whose key it chains from/);
-    expect(r.stderr).toContain('bash scripts/accept-dev-tester-delivery.sh');
+    expect(r.stderr).toContain('bash scripts/accept-dev-tester-onboarding.sh');
     expect(r.stderr).not.toMatch(/not yet built/);
   });
 
   it('names both writers for a chained runtime section, which either may own', () => {
-    // The branch used to send everything that was not the first name at the
-    // onboarding. The key install writes both runtime chains for the directly
-    // authenticated identity, so telling its holder to be onboarded as a named
-    // operator is the mirror of the harm the case above pins.
+    // The key install writes both runtime chains for the directly
+    // authenticated identity, so telling its holder only to accept an
+    // onboarding is the mirror of the harm the case above pins.
     const r = withLib('aws_profile_use footbag-staging-runtime "why."', {
       ...stubEnv(['some-unrelated-profile']),
     });
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
-    expect(r.stderr).toContain('bash scripts/onboard-operator.sh --target <env>');
-    expect(r.stderr).toContain('bash scripts/accept-dev-tester-delivery.sh --target staging');
+    expect(r.stderr).toContain('bash scripts/accept-dev-tester-onboarding.sh --target staging');
     expect(r.stderr).not.toContain('manage-human-operator.sh --onboard');
     expect(r.stderr).toMatch(/chained runtime section/);
   });
@@ -534,6 +530,6 @@ describe('the terraform reader settles the identity before reading', () => {
     });
     expect(res.stdout).toContain('rc=1');
     expect(res.stdout).toContain('err=no AWS identity is available for this read');
-    expect(res.stderr).toContain('bash scripts/onboard-operator.sh');
+    expect(res.stderr).toContain('bash scripts/accept-dev-tester-onboarding.sh');
   });
 });

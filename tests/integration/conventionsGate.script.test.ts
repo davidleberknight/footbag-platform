@@ -568,6 +568,31 @@ describe('the convention gate: rules about tests/', () => {
   });
 });
 
+describe('the convention gate: retired onboarding scripts and flags', () => {
+  // Spelled in pieces: written whole, these would be the violations themselves,
+  // and the gate scans this directory.
+  const RETIRED_SCRIPT = ['onboard', 'operator.sh'].join('-');
+  const RETIRED_FLAG = `--${'own-password'}`;
+
+  it('refuses a script naming the retired onboarding script', () => {
+    const res = inFixtureRepo({ 'scripts/thing.sh': `# run ${RETIRED_SCRIPT} first\n` });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('a retired onboarding script or flag is named');
+  });
+
+  it('refuses a document naming a retired flag', () => {
+    const res = inFixtureRepo({ 'docs/THING.md': `Pass ${RETIRED_FLAG} to it.\n` });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('a retired onboarding script or flag is named');
+  });
+
+  it('accepts the one onboarding path', () => {
+    const res = inFixtureRepo({ 'scripts/thing.sh': '# run onboard-dev-tester.sh first\n' });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'no retired onboarding script or flag in tracked files');
+  });
+});
+
 describe('the convention gate: the AWS-identity delegation', () => {
   it('runs the identity gate, and fails the run when that gate refuses', () => {
     // The sub-gate has its own suite; what is pinned here is that the

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # rotate-operator-key.sh
 #
-# Rotates the human operator's AWS access key: the credential of the directly
-# authenticated super-admin identity, and the one every chained runtime profile
+# Rotates the footbag-operator AWS access key: the credential of the directly
+# authenticated administrative identity, and the one every chained runtime profile
 # resolves from. It goes out under the profile name every operator script
 # already reaches for, and this script still makes you name that profile rather
 # than defaulting to it, because which credential a rotation is about to
@@ -61,10 +61,10 @@
 #   whole command can be pasted. It is still required rather than defaulted,
 #   for the reason under the flag below.
 #
-#   This script is for the directly authenticated identity's key alone. A named
-#   operator's key is not rotated: it is reissued by onboarding them again,
-#   which mints a fresh one at their keyboard, because no shared copy of it
-#   exists for anything here to replace.
+#   This script is for the directly authenticated identity's key alone. A
+#   dev-and-tester's key is not rotated: it is reissued by re-running their
+#   onboarding with --reissue, which seals a fresh one to them, because no
+#   shared copy of it exists for anything here to replace.
 #
 # Flags:
 #   --profile <name>   AWS CLI profile to act through. Required, no default:
@@ -233,8 +233,6 @@ times."
     fi
     iam_key_retire "$USER_NAME" "$OLD_KEY" delete || exit 1
     echo ""
-    echo "Record the rotation date and reviewer on the vault entry, and update"
-    echo "the line recording when the current key was issued: the evidence-driven"
-    echo "rotation rule reads that date."
+    echo "Record the rotation date and the reason on the vault entry."
     ;;
 esac

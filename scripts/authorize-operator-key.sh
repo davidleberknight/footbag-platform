@@ -26,28 +26,27 @@
 # the shared account's sudo password. The shared `footbag` account is the
 # permanent default host route for every holder, so their key on it is standing
 # access, not a step on the way to something else. With it they have a shell,
-# and from their own machine they then run onboard-operator.sh, which makes
-# their named account a key pair of its own and has them type their own
-# password: never generated, never displayed, never known to anybody else.
-# Nothing passes between two people except a public key, which is not a secret.
+# and their administrative host access is complete: it runs as the shared
+# account, with the sudo password the vault holds. Nothing passes between two
+# people except a public key, which is not a secret.
 #
 # A dev-and-tester holds neither the vault nor the shared password, so this is
 # not their route and their key never goes on the shared account. Their named
 # account and its one-time password reach them sealed to their own public key,
-# from scripts/hire-dev-tester.sh.
+# from scripts/onboard-dev-tester.sh.
 #
 # ONLY A HOLDER'S KEY BELONGS ON THE SHARED ACCOUNT, AND ONLY WHILE THEY HOLD.
 #
 # An action taken as the shared account could have been any holder; that is the
-# accepted cost of it being the default route, and why a named identity exists
-# for work that should carry a person's name. The key stays for as long as the
-# person holds `footbag-operator` and is withdrawn with --remove when they stop.
+# accepted cost of it being the administrative route. The key stays for as long
+# as the person holds `footbag-operator` and is withdrawn with --remove when
+# they stop.
 #
 # That withdrawal is the only way it comes off. The offboarding
-# (offboard-operator.sh) refuses to retire a named account whose key is also on
-# the shared account, precisely so that firing a named identity never takes a
-# holder's standing route with it; so a departing holder's key on the shared
-# account is removed here, deliberately.
+# (offboard-dev-tester.sh) refuses to retire a named account whose key is also
+# on the shared account, precisely so that offboarding a named identity never
+# takes a holder's standing route with it; so a departing holder's key on the
+# shared account is removed here, deliberately.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -72,11 +71,11 @@
 # are separate hosts with separate passwords:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR.txt  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt  (staging only; none on production)
 #
 # A run started without the redirect names the one it needs.
 #
-#   < ~/AWS/HOST_OPERATOR.txt bash scripts/authorize-operator-key.sh \
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/authorize-operator-key.sh \
 #       --target staging --account footbag --operator "Robin Fielder" \
 #       --key-line "ssh-ed25519 AAAAC3Nza... robin footbag"
 #
@@ -117,21 +116,21 @@ REMOVE=0
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/authorize-operator-key.sh \
+Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/authorize-operator-key.sh \
          --target staging --account <name> \
          --operator "<Full Name>" --key-line "<ssh public key>" [--remove]
-   or: < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/authorize-operator-key.sh \
+   or: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/authorize-operator-key.sh \
          --target production --account <name> \
          --operator "<Full Name>" --key-line "<ssh public key>" [--remove]
 
 The redirected file is the HOST sudo password for the account your SSH alias
 connects as, not an AWS credential. It differs per environment and per account:
-the AWS_OPERATOR pair belongs to the shared account, the HOST_OPERATOR pair to
-your own. Redirecting the wrong one sends the wrong password to the right host.
+the AWS_OPERATOR pair belongs to the shared account, HOST_OPERATOR.txt to your
+own named account, which exists on staging only. Redirecting the wrong one sends the wrong password to the right host.
 
 Adds one person's public key to an EXISTING account's authorized_keys, so a new
-operator who holds the vault has a shell and can then provision their own named
-account themselves. Creates no account and sets no password.
+footbag-operator holder has a shell on the shared account, which is their
+administrative host access. Creates no account and sets no password.
 
   --target <staging|production>  deployed environment; no default
   --account <name>               the existing account to authorize the key on
@@ -296,20 +295,8 @@ echo "==> Applying via cat-pipe (mode: ${MODE})..."
 echo
 if [[ "$MODE" == "add" ]]; then
   cat <<EOF
-Done. ${OPERATOR} can now reach ${REMOTE} as ${ACCOUNT}.
-
-What a new footbag-operator holder does next, from their own machine, with
-nothing further from you:
-
-  < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-operator.sh \\
-    --target ${TARGET} --account <first_last> --operator "${OPERATOR}"
-
-It gives their named account a key pair of its own, distinct from this one,
-and runs provision-operator-account.sh with --own-password: they type their own
-password. It is never generated, never displayed, and is not vaulted, so nobody
-else can read it -- including you, and including whoever holds this vault
-next. Their vault entry host-${TARGET}-<first_last> records the access and
-carries no password.
+Done. ${OPERATOR} can now reach ${REMOTE} as ${ACCOUNT}, which is their
+administrative host access: nothing further is needed for it.
 
 This key stays on ${ACCOUNT} for as long as they hold footbag-operator. When
 they stop, withdraw it:
@@ -318,11 +305,11 @@ they stop, withdraw it:
     --target ${TARGET} --account ${ACCOUNT} --operator "${OPERATOR}" \\
     --key-line "<the same key>" --remove
 
-Firing their named identity does not remove it: offboard-operator.sh refuses to
-retire a named account whose key is also on ${ACCOUNT}, so a holder's standing
-route is never swept away by accident.
+Offboarding a named identity does not remove it: offboard-dev-tester.sh refuses
+to retire a named account whose key is also on ${ACCOUNT}, so a holder's
+standing route is never swept away by accident.
 EOF
 else
   echo "Done. ${OPERATOR}'s key is no longer authorized on ${ACCOUNT}."
-  echo "Their own named account, if they have one, is untouched."
+  echo "A named account of theirs, if they were onboarded as a dev-and-tester, is untouched."
 fi

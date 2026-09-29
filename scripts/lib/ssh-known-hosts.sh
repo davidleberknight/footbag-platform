@@ -99,7 +99,7 @@ require_pinned_known_hosts() {
 # call. Sets KNOWN_HOSTS_PIN_IP, KNOWN_HOSTS_PIN_LINES and
 # KNOWN_HOSTS_PIN_COUNT, and returns 1 having said why on stderr. Two readers:
 # install-known-hosts.sh writes them into the operator's own pin, and
-# hire-dev-tester.sh seals them to a newcomer, whose job role is denied the
+# onboard-dev-tester.sh seals them to a newcomer, whose job role is denied the
 # Lightsail call. The caller has sourced terraform-output.sh and runs from the
 # repository root, which is where the Terraform directory is resolved from.
 known_hosts_pin_lines() {

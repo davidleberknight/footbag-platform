@@ -281,9 +281,10 @@ done
 # stop on an access denial partway through an apply rather than at the door,
 # having already made some of the changes.
 #
-# Who the operators ARE is not a tree at all. Hiring and firing mint and revoke
-# key material that must never enter Terraform state, so
-# scripts/manage-human-operator.sh owns that instead.
+# Who the operators ARE is not a tree at all. Onboarding and offboarding mint and
+# revoke key material that must never enter Terraform state, so
+# scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh own that
+# instead.
 require_target "$TARGET" staging production shared identity || exit 2
 
 if [[ ! "$FROM_STEP" =~ ^[1-2]$ ]]; then

@@ -1583,6 +1583,26 @@ if [ -n "$old_model_hits" ]; then
   violations=$((violations + 1))
 fi
 
+check "no retired onboarding script or flag in tracked files"
+# There is one onboarding path and one offboarding path for a named identity:
+# scripts/onboard-dev-tester.sh, accepted with
+# scripts/accept-dev-tester-onboarding.sh, and scripts/offboard-dev-tester.sh.
+# Administrators have no named identity as administrators, so the self-only
+# onboarding script, its typed-password and attest flags, and the separate
+# dev-and-tester script it sat beside are gone. A straggler naming one is a
+# command that no longer exists, handed to the person least placed to know it
+# was retired. No file but this one is exempt: a test asserting one of these is
+# absent spells it in pieces.
+RETIRED_ONBOARDING_RE='hire-dev-tester|onboard-operator\.sh|offboard-operator\.sh|accept-dev-tester-delivery|\.delivery\.age|--own-password|--attest-own'
+retired_onboarding_hits=$(git grep -nE "$RETIRED_ONBOARDING_RE" -- . \
+  | grep -v '^scripts/ci/assert_conventions\.sh:' \
+  || true)
+if [ -n "$retired_onboarding_hits" ]; then
+  echo "$retired_onboarding_hits" >&2
+  echo "  FAIL: a retired onboarding script or flag is named; the one path is onboard-dev-tester.sh, accept-dev-tester-onboarding.sh and offboard-dev-tester.sh" >&2
+  violations=$((violations + 1))
+fi
+
 check "no concrete CloudFront hostnames tracked"
 # Exempt the two documented fake hosts (the onboarding guide's "something
 # like" example domain and the Terraform bootstrap placeholder value), plus the

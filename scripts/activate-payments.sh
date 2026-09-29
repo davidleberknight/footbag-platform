@@ -78,20 +78,18 @@
 # Usage (every mode that touches the host reads the sudo password from stdin,
 # line 1; --dry-run opens no connection and needs no credential file).
 #
-# Which file holds that password follows the account the alias connects as, and
-# production has its own file either way, because staging and production are
-# separate hosts with separate passwords:
+# Production is reached only as the shared footbag account, so that password is
+# the shared account's production file:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR_PRODUCTION.txt
 #
 # A run started without the redirect names the one it needs.
 #
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <prod-profile>
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <prod-profile>
 #   scripts/activate-payments.sh --target production --dry-run
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --deactivate
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --deactivate
 #
 #   --create-endpoint creates the webhook endpoint through the Stripe API rather
 #   than pausing for the Dashboard, deriving the URL from the environment's

@@ -224,9 +224,7 @@ aws_identity_require_assumed_role() {
 # above. They run at the moments where the wrong credential would be acted on,
 # so they name the principal they demand. This one runs at the start of an
 # ordinary run, where the question is only whether the credential still
-# authenticates, and where naming a principal would have to be revised the day
-# the principal behind the same profile stops being an IAM user and becomes a
-# federated role.
+# authenticates, and where naming a principal would add nothing.
 #
 # With no argument, or an empty one, it asks about whatever the ambient chain
 # resolves, which is the case where the operator's shell supplies keys rather

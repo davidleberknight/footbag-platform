@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
-# offboard-operator.sh
+# offboard-dev-tester.sh
 #
-# Ends a named operator's access in one command: their Linux account on the
+# Offboards one dev-and-tester in one command: their Linux account on the
 # deployed host, their AWS identity and the job-role sessions they already hold,
 # their address on that environment's SSH allow-list, and their collaborator
 # access to both repositories, each proved ended by the step that ends it.
 #
 # WHAT IT LEAVES THEM, DELIBERATELY.
 #
-# Firing ends the ability to do harm and nothing more. The public repository
-# needs no access to clone, run or fork, and a pull request from a fork needs
-# none either, so a fired person keeps exactly what anybody has. Their own
-# machine is not cleaned: every credential on it is dead once this finishes.
+# Offboarding ends the ability to do harm and nothing more. The public
+# repository needs no access to clone, run or fork, and a pull request from a
+# fork needs none either, so an offboarded person keeps exactly what anybody
+# has. Their own machine is not cleaned: every credential on it is dead once
+# this finishes.
 #
 # WHY THIS EXISTS.
 #
-# Hiring became one command because a person half-hired is obvious within a day.
-# Firing is the direction where a half-finished job is invisible: an operator
-# whose AWS identity is retired and whose shell account is not still has a login
-# and a sudo password, and nothing anywhere says so. A step printed for somebody
-# to run later, on the day somebody leaves, is the step that gets skipped.
+# Onboarding is one command because a person half-onboarded is obvious within a
+# day. Offboarding is the direction where a half-finished job is invisible: a
+# person whose AWS identity is retired and whose shell account is not still has
+# a login and a sudo password, and nothing anywhere says so. A step printed for
+# somebody to run later, on the day somebody leaves, is the step that gets
+# skipped.
 #
 # NOTHING HERE NEEDS THE DEPARTING PERSON.
 #
@@ -50,34 +52,34 @@
 # grant before the keys, because a key outliving the policy reaches nothing
 # while a policy outliving the keys is a live grant waiting for a credential.
 #
-# FIRING YOUR OWN NAMED IDENTITY, AND THIS WORKSTATION.
+# THIS WORKSTATION.
 #
-# A footbag-operator holder may fire their own named identity. A departure is not
-# finished while the departing identity's traces are still on a machine, so the
-# run ends by removing them from this one: the named account's key pair and its
-# Match block, its filed sudo password, its AWS credentials section, and the
-# job-role profiles that chain from that key. It removes only what belongs to
-# the account being fired, decided by what this machine holds for it, so firing
+# A holder who onboarded themselves accepted the onboarding on this machine, so
+# offboarding them is not finished while that identity's traces are still here.
+# The run ends by removing them: the named account's key pair and its Match
+# block, its filed sudo password, its AWS credentials section, and the job-role
+# profiles that chain from that key. It removes only what belongs to the account
+# being offboarded, decided by what this machine holds for it, so offboarding
 # somebody else from here finds nothing of theirs and says so.
 #
-# The default is untouched, as it is by hiring: footbag-operator on AWS and the
-# shared `footbag` account on the host. The alias's own stanza is never edited,
-# and a run that finds it connecting as anything but `footbag` refuses before
-# it starts. The host half refuses to retire a named account whose key
+# The default is untouched, as it is by onboarding: footbag-operator on AWS and
+# the shared `footbag` account on the host. The alias's own stanza is never
+# edited, and a run that finds it connecting as anything but `footbag` refuses
+# before it starts. The host half refuses to retire a named account whose key
 # `footbag` also holds, so the shared account keeps its key.
 #
 # WHAT IT REFUSES TO DO.
 #
 #   - Run as anything but the directly authenticated `footbag-operator`.
-#   - Retire `footbag-operator` or the shared `footbag` account. Retiring a
-#     holder's footbag-operator access belongs with the future FootbagSuperAdmin
-#     role.
+#   - Retire `footbag-operator`, the shared `footbag` account, or any name that
+#     is not a named account's shape. Administrative access is not a named
+#     identity and is never retired by this command.
 #   - Delete the IAM user, or the host account. Both are left inert, because the
 #     trail goes on naming them and a deleted identity makes those entries
 #     unreadable. That is the children's behaviour and is not overridden here.
-#   - Remove from this workstation anything that is not the fired account's: a
-#     profile is removed only when it chains from that account, and the filed
-#     sudo password only when this machine held that account's key.
+#   - Remove from this workstation anything that is not the offboarded
+#     account's: a profile is removed only when it chains from that account, and
+#     the filed sudo password only when this machine's named account is theirs.
 #
 # Steps, referenced by --from-step so a run that stopped part way is resumable:
 #   1  the Linux account on the host
@@ -90,7 +92,7 @@
 # already done.
 #
 # Usage:
-#   < ~/AWS/AWS_OPERATOR.txt bash scripts/offboard-operator.sh \
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/offboard-dev-tester.sh \
 #       --target staging --account <their_account> \
 #       --github-login <their GitHub login, or none>
 #
@@ -105,7 +107,7 @@
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default
-#   --account <name>               the operator being retired
+#   --account <name>               the dev-and-tester being offboarded
 #   --github-login <login|none>    their GitHub login, required; `none` says in
 #                                  so many words that they hold no repository
 #                                  access, rather than letting an omission say it
@@ -194,6 +196,20 @@ if [[ "$ACCOUNT" == "$OPERATOR_SHARED_ACCOUNT" ]]; then
   echo "       with nobody on it yet, and retiring it would remove both." >&2
   exit 2
 fi
+# The same shape onboarding holds a name to, checked before anything is read
+# or changed. Every later step trusts it: the workstation cleanup removes the
+# credentials section and the password file belonging to whatever name it is
+# given, and a resumed run skips the children that would otherwise refuse, so
+# a name such as footbag-operator reaching it would strip the administrative
+# identity off the machine running this.
+if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
+  echo "ERROR: '${ACCOUNT}' is not the shape a named account takes here." >&2
+  echo "       Lower case letters and digits in two or more parts joined by" >&2
+  echo "       underscores, starting with a letter, at most 32 characters." >&2
+  echo "       Nothing that is not a person's named account can be retired" >&2
+  echo "       by this command." >&2
+  exit 2
+fi
 if [[ ! "$FROM_STEP" =~ ^[1-4]$ ]]; then
   echo "ERROR: --from-step takes 1 to 4." >&2
   exit 2
@@ -202,7 +218,7 @@ if [[ -z "$GITHUB_LOGIN" ]]; then
   echo "ERROR: --github-login names their GitHub login, so their access to both" >&2
   echo "       repositories ends with the rest. Give 'none' if they hold none." >&2
   echo "       An omission is not the same answer: a forgotten flag would leave" >&2
-  echo "       a fired person able to push." >&2
+  echo "       an offboarded person able to push." >&2
   exit 2
 fi
 # GitHub's own rule for a login: letters, digits and single hyphens, not at
@@ -236,14 +252,18 @@ if [[ "$ALIAS_USER" != "$OPERATOR_SHARED_ACCOUNT" ]]; then
   exit 1
 fi
 
-# What this machine holds for the account being fired: its key pair, its AWS
+# What this machine holds for the account being offboarded: its key pair, its AWS
 # credentials, or its Match block. Any one is enough to clean up after.
 NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
 NAMED_KEY_TILDE="~/.ssh/id_ed25519_${ACCOUNT}"
 HELD_HERE=0
+# The named account this machine's Match block connects as, if any. The filed
+# named-account password is one file per machine, not per account, so it is
+# this account's only when the Match block says this machine is theirs.
+MATCH_ACCOUNT_HERE="$(ssh_alias_match_account "$SSH_CONFIG" "$ALIAS" "$FOOTBAG_DEV_TESTER_PROFILE" 2>/dev/null || true)"
 if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]] \
    || aws_cred_has_section "$AWS_CRED_PATH" "$ACCOUNT" \
-   || [[ "$(ssh_alias_match_account "$SSH_CONFIG" "$ALIAS" "$FOOTBAG_DEV_TESTER_PROFILE")" == "$ACCOUNT" ]]; then
+   || [[ "$MATCH_ACCOUNT_HERE" == "$ACCOUNT" ]]; then
   HELD_HERE=1
 fi
 
@@ -295,9 +315,9 @@ if [[ "$GITHUB_LOGIN" != "none" ]]; then
     echo "       Nothing was changed." >&2
     exit 1
   fi
-  # Readable by whoever the CLI is signed in as, and the person being fired is
-  # not an administrator of either: an owner or admin is not removed by a
-  # collaborator call, and firing one is not this command's to do.
+  # Readable by whoever the CLI is signed in as, and the person being offboarded
+  # is not an administrator of either: an owner or admin is not removed by a
+  # collaborator call, and offboarding one is not this command's to do.
   for slug in "$PUBLIC_REPO" "$PRIVATE_REPO"; do
     if ! PERMISSION="$("$GH_BIN" api "repos/${slug}/collaborators/${GITHUB_LOGIN}/permission" \
         --jq .permission 2>&1)"; then
@@ -309,7 +329,7 @@ if [[ "$GITHUB_LOGIN" != "none" ]]; then
     fi
     if [[ "$PERMISSION" == "admin" ]]; then
       echo "REFUSING: ${GITHUB_LOGIN} administers ${slug}. An owner or admin is not" >&2
-      echo "          ended by removing a collaborator, and is not fired from here." >&2
+      echo "          ended by removing a collaborator, and is not offboarded from here." >&2
       echo "          Nothing was changed." >&2
       exit 1
     fi
@@ -360,7 +380,7 @@ if (( FROM_STEP <= 1 )); then
     echo "ERROR: the host account was not retired, so the AWS identity has not" >&2
     echo "       been touched either. Ending one half and reporting the other" >&2
     echo "       as done is the failure this command exists to prevent." >&2
-    echo "         bash scripts/offboard-operator.sh ... --from-step 1" >&2
+    echo "         bash scripts/offboard-dev-tester.sh ... --from-step 1" >&2
     exit 1
   fi
 fi
@@ -385,7 +405,7 @@ if (( FROM_STEP <= 2 )); then
       echo "ERROR: the AWS identity was not retired. The host account from step 1" >&2
       echo "       IS retired, so this person currently holds an AWS identity and" >&2
       echo "       no shell. Finish it:" >&2
-      echo "         bash scripts/offboard-operator.sh ... --from-step 2" >&2
+      echo "         bash scripts/offboard-dev-tester.sh ... --from-step 2" >&2
       exit 1
     fi
   elif [[ "$USER_READ" == *NoSuchEntity* ]]; then
@@ -394,7 +414,7 @@ if (( FROM_STEP <= 2 )); then
     echo "ERROR: could not read whether ${ACCOUNT} has an IAM user:" >&2
     printf '%s\n' "$USER_READ" | sed 's/^/         /' >&2
     echo "       The host account from step 1 IS retired. Resume once IAM can be read:" >&2
-    echo "         bash scripts/offboard-operator.sh ... --from-step 2" >&2
+    echo "         bash scripts/offboard-dev-tester.sh ... --from-step 2" >&2
     exit 1
   fi
 fi
@@ -415,7 +435,7 @@ if (( FROM_STEP <= 3 )); then
     echo "" >&2
     echo "ERROR: could not read the ${TARGET} allow-list for ${ACCOUNT}'s entries. The host" >&2
     echo "       account and the AWS identity ARE retired. Once the list reads:" >&2
-    echo "         bash scripts/offboard-operator.sh ... --from-step 3" >&2
+    echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
     exit 1
   fi
   if [[ -z "$LISTED" ]]; then
@@ -430,7 +450,7 @@ if (( FROM_STEP <= 3 )); then
         echo "" >&2
         echo "ERROR: ${cidr} was not proved off the ${TARGET} allow-list. The host account" >&2
         echo "       and the AWS identity ARE retired. Resume:" >&2
-        echo "         bash scripts/offboard-operator.sh ... --from-step 3" >&2
+        echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
         exit 1
       fi
       echo "    ${cidr}: off the list, and the live firewall agrees"
@@ -469,14 +489,14 @@ if (( FROM_STEP <= 4 )); then
           --jq ".[] | select((.invitee.login | ascii_downcase) == \"${login_lower}\") | .id" 2>&1)"; then
         echo "ERROR: could not read ${slug}'s pending invitations:" >&2
         printf '%s\n' "$INVITES" | sed 's/^/         /' >&2
-        echo "       Resume: bash scripts/offboard-operator.sh ... --from-step 4" >&2
+        echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
         exit 1
       fi
       while IFS= read -r invite; do
         [[ -z "$invite" ]] && continue
         if ! "$GH_BIN" api -X DELETE "repos/${slug}/invitations/${invite}" >/dev/null; then
           echo "ERROR: could not withdraw ${GITHUB_LOGIN}'s invitation to ${slug}." >&2
-          echo "       Resume: bash scripts/offboard-operator.sh ... --from-step 4" >&2
+          echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
           exit 1
         fi
         echo "    ${slug}: pending invitation withdrawn"
@@ -491,7 +511,7 @@ if (( FROM_STEP <= 4 )); then
       if (( GH_RC == 0 )); then
         if ! "$GH_BIN" api -X DELETE "repos/${slug}/collaborators/${GITHUB_LOGIN}" >/dev/null; then
           echo "ERROR: could not remove ${GITHUB_LOGIN} from ${slug}." >&2
-          echo "       Resume: bash scripts/offboard-operator.sh ... --from-step 4" >&2
+          echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
           exit 1
         fi
         GH_RC=0
@@ -503,7 +523,7 @@ if (( FROM_STEP <= 4 )); then
         (( GH_RC == 0 )) && GH_WHY="still listed as a collaborator after the removal"
       fi
       echo "ERROR: ${GITHUB_LOGIN}'s access to ${slug} is not proved ended: ${GH_WHY}" >&2
-      echo "       Resume: bash scripts/offboard-operator.sh ... --from-step 4" >&2
+      echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
       exit 1
     done
   fi
@@ -513,7 +533,7 @@ fi
 
 # Last, because the AWS half proves its refusal through the job-role profile
 # that chains from the retired key, so that profile has to outlive it. Each
-# removal is of something that belongs to the account being fired and nothing
+# removal is of something that belongs to the account being offboarded and nothing
 # else, and each says "none here" when it finds nothing, which is also what a
 # re-run says.
 echo ""
@@ -524,8 +544,14 @@ if (( ! HELD_HERE )); then
 else
   # The filed sudo password first, while the key that shows this machine held
   # the account is still here to say so.
+  # That file holds the password of whichever named account this machine's
+  # Match block connects as, so it is shredded only when that is this account.
+  # Otherwise it is somebody else's, most often the person running this.
   operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
-  if [[ -e "$OPERATOR_CREDENTIAL_FILE" ]]; then
+  if [[ "$MATCH_ACCOUNT_HERE" != "$ACCOUNT" ]]; then
+    echo "  ${OPERATOR_CREDENTIAL_DISPLAY}: left alone, because this machine's named account"
+    echo "    is ${MATCH_ACCOUNT_HERE:-none}, not ${ACCOUNT}"
+  elif [[ -e "$OPERATOR_CREDENTIAL_FILE" ]]; then
     secret_file_destroy "$OPERATOR_CREDENTIAL_FILE"
     echo "  ${OPERATOR_CREDENTIAL_DISPLAY}: shredded"
   else
@@ -534,8 +560,8 @@ else
 
   # The profiles that chain from the retired key: the job-role profile only
   # where it sources from this account, and the staging runtime profile only
-  # where it sources from that job-role profile. A holder's own chains source
-  # from footbag-operator and are left exactly as they are.
+  # where it sources from that job-role profile. An administrator's chains
+  # source from footbag-operator and are left exactly as they are.
   DEV_TESTER_SOURCE="$(aws_config_profile_source "$AWS_CONFIG_PATH" "$FOOTBAG_DEV_TESTER_PROFILE")"
   if [[ "$DEV_TESTER_SOURCE" == "$ACCOUNT" ]]; then
     RUNTIME_SOURCE="$(aws_config_profile_source "$AWS_CONFIG_PATH" "$STAGING_RUNTIME_PROFILE")"
@@ -567,8 +593,15 @@ else
   CONFIG_TMP="$(mktemp "${TMPDIR:-/tmp}/footbag-ssh-config.XXXXXX")"
   chmod 600 "$CONFIG_TMP"
   BLOCK_RC=0
-  ssh_alias_remove_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$FOOTBAG_DEV_TESTER_PROFILE" "$CONFIG_TMP" || BLOCK_RC=$?
+  if [[ -e "$SSH_CONFIG" ]]; then
+    ssh_alias_remove_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$FOOTBAG_DEV_TESTER_PROFILE" "$CONFIG_TMP" || BLOCK_RC=$?
+  else
+    BLOCK_RC=2
+  fi
   if (( BLOCK_RC == 0 )); then
+    # The file is the operator's own, so the change is shown as it is made.
+    diff -u --label "${SSH_CONFIG} (before)" --label "${SSH_CONFIG} (after)" \
+      "$SSH_CONFIG" "$CONFIG_TMP" | sed 's/^/    /' || true
     cat "$CONFIG_TMP" > "$SSH_CONFIG"
     echo "  ${ACCOUNT}'s Match block for ${ALIAS}: removed"
   elif (( BLOCK_RC == 2 )); then
@@ -604,14 +637,6 @@ echo "One thing no step here reaches: a staging runtime session they chained fro
 echo "one of their job-role sessions before now carries no name of theirs to refuse"
 echo "it by, and AWS ends a chained session within the hour."
 echo ""
-echo "Still owed:"
-echo ""
-echo "  1. Their host account on the other environment, if they held one there:"
-echo "     this command again with the other --target, redirecting the credential"
-echo "     file your alias selects for that environment."
-echo ""
-echo "  2. Only where this was a footbag-operator holder's own named identity: its"
-echo "     vault entries, last, removed by hand by an operator with vault access,"
-echo "     with the vault published per its own procedure. A"
-echo "     dev-and-tester has no vault entry."
+echo "Nothing else is owed. A dev-and-tester is onboarded onto staging only, and"
+echo "nobody named has a vault entry, so there is nothing to remove there."
 exit 0

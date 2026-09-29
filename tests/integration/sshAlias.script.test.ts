@@ -1,6 +1,6 @@
 /**
  * scripts/lib/ssh-alias.sh — the named account's Match block, the one edit
- * hiring and firing make to an operator's SSH configuration.
+ * onboarding and offboarding make to an operator's SSH configuration.
  *
  * The alias's stanza is the default and is never edited for a named account.
  * The block above it applies only while AWS_PROFILE names the job role's

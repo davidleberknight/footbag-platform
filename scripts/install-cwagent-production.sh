@@ -37,12 +37,11 @@
 # Usage. The install reads the sudo password from stdin, line 1, and shows the
 # new key on the terminal, so it needs a real terminal as well as the redirect.
 #
-# Which file holds that password follows the account the alias connects as: the
-# shared footbag account reads ~/AWS/AWS_OPERATOR_PRODUCTION.txt and your own
-# named account reads the file below. A run started without the redirect names
-# the one it needs.
+# Production is reached only as the shared footbag account, so that password is
+# the shared account's production file, below. A run started without the
+# redirect names the one it needs.
 #
-#   < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh
 #
 # The retire and delete runs touch no host and take no password, so they are run
 # plainly:
@@ -84,7 +83,7 @@ OLD_KEY=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/HOST_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh [--rotate] [--profile <p>]
+Usage: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh [--rotate] [--profile <p>]
    or: bash scripts/install-cwagent-production.sh --retire <old-key-id> [--profile <p>]
    or: bash scripts/install-cwagent-production.sh --delete <old-key-id> [--profile <p>]
 
@@ -251,8 +250,7 @@ if [[ "$ACTION" != "install" ]]; then
       fi
       iam_key_retire "$PUBLISHER_USER" "$OLD_KEY" delete || exit 1
       echo ""
-      echo "Record the rotation date on the vault entry: the evidence-driven"
-      echo "rotation rule reads that date rather than a calendar."
+      echo "Record the rotation date and the reason on the vault entry."
       exit 0
       ;;
   esac

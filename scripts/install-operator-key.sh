@@ -51,7 +51,7 @@
 #                      name belong together: there is no second credential
 #                      under it and nothing else resolves through it.
 #   --user <name>      IAM user the pasted key must resolve to. Defaults to the
-#                      single super-admin identity, named here rather than
+#                      single administrative identity, named here rather than
 #                      derived from the profile, because a key that
 #                      authenticates as somebody else is a refusal rather than
 #                      a warning and deriving one from the other would make

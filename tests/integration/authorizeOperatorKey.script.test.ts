@@ -256,17 +256,19 @@ describe('authorize-operator-key.sh — what it says it is doing', () => {
   it('says only a holder key belongs on the shared account, and how it comes off', () => {
     // The shared account is every holder's standing default route, so a key
     // there stays while they hold footbag-operator and is withdrawn by name
-    // when they stop; firing a named identity deliberately never removes it.
+    // when they stop; offboarding a named identity deliberately never removes it.
     expect(source).toMatch(/--remove/);
     expect(source).toMatch(/for as long as they hold footbag-operator/);
     expect(source).not.toMatch(/bootstrap/);
   });
 
-  it('hands the new holder the self-service onboarding, with their own password', () => {
-    // The point of the whole script: the only thing that travelled was a
-    // public key, and they choose their own password.
-    expect(source).toMatch(/onboard-operator\.sh/);
-    expect(source).toMatch(/--own-password/);
+  it('tells the new holder their administrative host access is complete, with no named account', () => {
+    // Administrative work runs on the shared account, so the key is the whole
+    // of it: no named account is made for a holder as a holder.
+    expect(source).toMatch(/which is their\s+administrative host access: nothing further is needed/);
+    expect(source).not.toMatch(/onboard-operator\.sh/);
+    // Spelled in pieces: written whole, the retired flag is what the convention gate refuses.
+    expect(source).not.toContain(`--${'own-password'}`);
   });
 
   it('carries the sudo password over the wire pattern rather than argv', () => {

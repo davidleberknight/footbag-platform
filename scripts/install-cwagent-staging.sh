@@ -252,8 +252,7 @@ if [[ "$ACTION" != "install" ]]; then
       fi
       iam_key_retire "$PUBLISHER_USER" "$OLD_KEY" delete || exit 1
       echo ""
-      echo "Record the rotation date on the vault entry: the evidence-driven"
-      echo "rotation rule reads that date rather than a calendar."
+      echo "Record the rotation date and the reason on the vault entry."
       exit 0
       ;;
   esac

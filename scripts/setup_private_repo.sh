@@ -112,8 +112,8 @@ cd "$REPO_ROOT"
 # One of the four values links is not an environment: identity declares what a human operator
 # may do. It is here for the same reason the environment files are — a tree
 # whose values file is not wired cannot be planned, and nothing else would say
-# so. Who the operators ARE is deliberately not a values file, because hiring
-# and firing mint and revoke key material that must never enter Terraform
+# so. Who the operators ARE is deliberately not a values file, because onboarding
+# and offboarding mint and revoke key material that must never enter Terraform
 # state; the lifecycle script owns that instead.
 VALUES_LINKS=(
   "terraform/staging/terraform.tfvars|../../footbag_private_repo/terraform/staging.tfvars"

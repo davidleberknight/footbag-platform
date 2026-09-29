@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # dev-tester-delivery.sh — the sealed delivery a dev-and-tester receives, written
-# by scripts/hire-dev-tester.sh on a holder's machine and read by
-# scripts/accept-dev-tester-delivery.sh on the newcomer's own.
+# by scripts/onboard-dev-tester.sh on a holder's machine and read by
+# scripts/accept-dev-tester-onboarding.sh on the newcomer's own, which is the
+# same machine when a holder onboards themselves.
 #
 # The delivery is everything the newcomer cannot fetch for themselves: the
 # one-time password of their host account, their IAM access key, the account's
@@ -68,7 +69,7 @@ delivery_require_tools() {
 # Prints the tag age writes into a sealed file's header for an SSH recipient:
 # the first four bytes of the SHA-256 of the key's wire encoding, in unpadded
 # base64. It names which key a file was sealed to without naming the key, so
-# the hire can prove the file it wrote is for the key it was given, and the
+# the onboarding can prove the file it wrote is for the key it was given, and the
 # newcomer can find the pair that opens it without trying each one.
 delivery_age_recipient_tag() {
   local blob

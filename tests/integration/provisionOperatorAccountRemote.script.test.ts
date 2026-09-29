@@ -23,6 +23,7 @@ import {
   mkdirSync,
   chmodSync,
   existsSync,
+  readdirSync,
   renameSync,
   rmSync,
 } from 'node:fs';
@@ -193,7 +194,7 @@ afterEach(() => {
   rmSync(host, { recursive: true, force: true });
 });
 
-describe('the offboard sweeps a loaned key even when resumed', () => {
+describe('the offboard sweeps a stray copy of the key even when resumed', () => {
   it('reads the fingerprints from a key file an earlier run already moved aside', () => {
     // The stray copy sits on another named account: the shared account is
     // guarded separately, and a copy there refuses the run instead.
@@ -225,6 +226,23 @@ describe('the offboard sweeps a loaned key even when resumed', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`no key of ${LEAVER}'s can be found`);
     expect(authorizedKeys('footbag')).toContain(keys.leaver.split(' ')[1]);
+  });
+});
+
+describe('the offboard keeps every record of the keys it retired', () => {
+  it('never overwrites an earlier moved-aside key file', () => {
+    addAccount('footbag', ['other']);
+    const home = addAccount(LEAVER, ['leaver']);
+    // Named as a same-day record would have been named before, so a run that
+    // chose its name from the date alone would land on it.
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const earlier = join(home, '.ssh', `authorized_keys.offboarded-${today}`);
+    writeFileSync(earlier, 'earlier record\n');
+    const r = runOffboard();
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(earlier, 'utf-8')).toBe('earlier record\n');
+    const records = readdirSync(join(home, '.ssh')).filter((f) => f.startsWith('authorized_keys.offboarded-'));
+    expect(records).toHaveLength(2);
   });
 });
 
@@ -305,7 +323,8 @@ describe('the offboard never sweeps a key off the shared account', () => {
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`REFUSING: a key on ${LEAVER} is also authorized on the shared`);
-    expect(r.stderr).toContain('run onboard-operator.sh again');
+    expect(r.stderr).toContain(`re-onboard ${LEAVER} with`);
+    expect(r.stderr).toContain('onboard-dev-tester.sh');
     expect(r.stderr).not.toContain('--rotate --key-only');
     expect(r.stderr).toContain('authorize-operator-key.sh --remove');
     expect(r.stderr).toContain('Nothing done.');
@@ -405,7 +424,7 @@ describe('a named account never takes a key the shared account already holds', (
 });
 
 describe('every create and rotation sets a password', () => {
-  // A lost key is fired and rehired, never swapped in place, so there is no
+  // A lost key is offboarded and re-onboarded, never swapped in place, so there is no
   // rotation that replaces the key and leaves the password alone. A caller
   // saying otherwise is refused rather than obeyed.
   it('refuses a rotation that carries no password, even when told not to set one', () => {
@@ -475,12 +494,25 @@ describe('the inspection of an existing account', () => {
       join(home, '.ssh', 'authorized_keys'),
       join(home, '.ssh', 'authorized_keys.offboarded-20260101'),
     );
+    writeFileSync(join(host, 'pw', LEAVER), 'LK');
     const r = runInspect(LEAVER);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/^OFFBOARDED yes$/m);
     expect(r.stdout).not.toMatch(/^KEY /m);
     // The keys it was retired with, so the operator reopening it sees them.
     expect(r.stdout).toMatch(/^RETIRED 256 SHA256:\S+ leaver \(ED25519\)$/m);
+  });
+
+  it('reports an account reopened after an offboard as live, not retired', () => {
+    // The moved-aside file stays as the record after a reopen. Read as retirement,
+    // it would send every later run down the reopen path, which replaces a
+    // working key and password on one confirmation.
+    const home = addAccount(LEAVER, ['other']);
+    writeFileSync(join(home, '.ssh', 'authorized_keys.offboarded-20260101'), `${keys.leaver}\n`);
+    const r = runInspect(LEAVER);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^OFFBOARDED no$/m);
+    expect(r.stdout).toMatch(/^KEY 256 SHA256:\S+ other \(ED25519\)$/m);
   });
 
   it('refuses an account that does not exist', () => {
@@ -493,8 +525,8 @@ describe('the inspection of an existing account', () => {
 /**
  * Reopening a retired account for the same person under the same name. The
  * retirement ended the keys it moved aside, so reinstating one would undo the
- * firing for whoever still holds the private half; a rehire takes a key made
- * fresh for it. Refused before anything on the host changes.
+ * offboarding for whoever still holds the private half; a re-onboarding takes a
+ * key made fresh for it. Refused before anything on the host changes.
  */
 describe('reopening a retired account', () => {
   function retire(): void {
@@ -535,7 +567,7 @@ describe('reopening a retired account', () => {
     expect(reachedTheWrite(r)).toBe(false);
   });
 
-  it('takes a key made fresh for the rehire', () => {
+  it('takes a key made fresh for the re-onboarding', () => {
     retire();
     keys.fresh = makeKey('fresh');
     const r = runReopen('rotate', keys.fresh);

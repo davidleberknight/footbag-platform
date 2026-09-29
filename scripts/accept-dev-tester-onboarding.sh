@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# accept-dev-tester-delivery.sh
+# accept-dev-tester-onboarding.sh
 #
 # Run by a dev-and-tester on their own computer, from their clone of the public
-# repository, to open the sealed delivery a footbag-operator holder made for
-# them with scripts/hire-dev-tester.sh and put everything in it where the
+# repository, to open the sealed onboarding a footbag-operator holder made for
+# them with scripts/onboard-dev-tester.sh and put everything in it where the
 # tooling expects it. At the end they reach staging only as themselves, through
 # scripts/as-dev-tester.sh --account <their name>, with a sudo password nobody
 # else has ever known.
@@ -39,13 +39,20 @@
 # finished by running the same command again.
 #
 # Usage:
-#   bash scripts/accept-dev-tester-delivery.sh --target staging \
-#     --account james_leberknight ~/Downloads/james_leberknight-staging.delivery.age
+#   bash scripts/accept-dev-tester-onboarding.sh --target staging \
+#     --account james_leberknight ~/Downloads/james_leberknight-staging.onboarding.age
+#
+# A holder who onboarded themselves runs this on the same machine, exactly as
+# anybody else runs it on theirs. It writes no footbag-operator section, edits
+# no stanza this machine already carries, and adds the staging runtime profile
+# only where none exists, so a machine that already works as footbag-operator
+# keeps working that way, and the named identity is reached only through
+# scripts/as-dev-tester.sh.
 #
 # Flags:
-#   --target staging          the environment the delivery is for; required
-#   --account <first_last>    your account name, as the holder hired you
-#   <sealed file>             the .delivery.age file the holder sent you
+#   --target staging          the environment the onboarding is for; required
+#   --account <first_last>    your account name, as the holder onboarded you
+#   <sealed file>             the .onboarding.age file the holder sent you
 #
 # Test seams (CI only; nobody else sets these):
 #   ACCEPT_AWS_BIN            replaces the aws CLI
@@ -121,7 +128,7 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   exit 2
 fi
 if [[ -z "$SEALED" || ! -f "$SEALED" ]]; then
-  echo "ERROR: name the sealed .delivery.age file the holder sent you." >&2
+  echo "ERROR: name the sealed .onboarding.age file the holder sent you." >&2
   exit 2
 fi
 
@@ -146,7 +153,10 @@ accept_cleanup() {
   secret_file_sweep
   return 0
 }
-trap accept_cleanup EXIT INT TERM
+trap accept_cleanup EXIT
+# An interrupt ends the run. Cleaning up and carrying on would reach the next
+# step with the secrets blanked, and report the delivery as used when it is not.
+trap 'accept_cleanup; exit 130' INT TERM
 
 step() { printf '\n==> %s\n' "$1"; }
 
@@ -156,7 +166,7 @@ step "Your key pair"
 SEALED_TAGS="$(delivery_age_header_tags "$SEALED")"
 if [[ -z "$SEALED_TAGS" || "$(grep -c . <<<"$SEALED_TAGS")" != "1" ]]; then
   echo "ERROR: ${SEALED} is not sealed to exactly one SSH key. Ask the holder who" >&2
-  echo "       sent it to run the hire again." >&2
+  echo "       sent it to run the onboarding again." >&2
   exit 1
 fi
 NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
@@ -181,18 +191,23 @@ else
     echo "       to; exactly one must. Nothing was moved or opened." >&2
     exit 1
   fi
+  # Copied, never moved. The pair may be the one this machine signs everything
+  # else with, and moving it would break each of those without a word; a copy
+  # leaves every other use of it as it was.
   echo "  The delivery was sealed to ${FOUND[0]}. The tooling expects that pair at"
-  echo "  ${NAMED_KEY}, so it moves there, both halves, unchanged:"
+  echo "  ${NAMED_KEY}, so both halves are copied there, unchanged. The original"
+  echo "  stays where it is, and nothing else that uses it changes:"
   echo "    ${FOUND[0]}      -> ${NAMED_KEY}"
   echo "    ${FOUND[0]}.pub  -> ${NAMED_KEY}.pub"
-  if ! confirm_from_tty "Type 'APPLY' to move the pair: " "APPLY"; then
-    echo "Not confirmed; nothing moved." >&2
+  if ! confirm_from_tty "Type 'APPLY' to copy the pair: " "APPLY"; then
+    echo "Not confirmed; nothing copied." >&2
     exit 1
   fi
-  mv -n -- "${FOUND[0]}" "$NAMED_KEY"
-  mv -n -- "${FOUND[0]}.pub" "${NAMED_KEY}.pub"
-  [[ -f "$NAMED_KEY" && -f "${NAMED_KEY}.pub" ]] || { echo "ERROR: the move did not land." >&2; exit 1; }
-  echo "  moved"
+  cp -n -p -- "${FOUND[0]}" "$NAMED_KEY"
+  cp -n -p -- "${FOUND[0]}.pub" "${NAMED_KEY}.pub"
+  chmod 600 -- "$NAMED_KEY"
+  [[ -f "$NAMED_KEY" && -f "${NAMED_KEY}.pub" ]] || { echo "ERROR: the copy did not land." >&2; exit 1; }
+  echo "  copied"
 fi
 
 # ── 2. Open the delivery ─────────────────────────────────────────────────────
@@ -223,7 +238,7 @@ if ! aws_cred_key_id_looks_valid "$DELIVERY_AWS_ACCESS_KEY_ID" \
    || [[ ! "$DELIVERY_HOST_ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] \
    || [[ ! "$DELIVERY_HOST_PORT" =~ ^[0-9]{1,5}$ ]]; then
   echo "ERROR: a value in the delivery is not the shape it must be. Nothing was" >&2
-  echo "       changed; ask the holder to run the hire again." >&2
+  echo "       changed; ask the holder to run the onboarding again." >&2
   exit 1
 fi
 for _pin in "${DELIVERY_PINS[@]}"; do
@@ -257,7 +272,7 @@ else
   if [[ -z "$CURRENT_KEY" ]]; then
     echo "    add [${ACCOUNT}] holding ${DELIVERY_AWS_ACCESS_KEY_ID} (the secret is not shown)"
   elif [[ "$CURRENT_KEY" != "$DELIVERY_AWS_ACCESS_KEY_ID" ]]; then
-    echo "    [${ACCOUNT}] now holds ${CURRENT_KEY}, which the hire retired; it will"
+    echo "    [${ACCOUNT}] now holds ${CURRENT_KEY}, which the onboarding retired; it will"
     echo "    hold ${DELIVERY_AWS_ACCESS_KEY_ID} instead (the secret is not shown)"
   else
     echo "    [${ACCOUNT}] already holds ${CURRENT_KEY}"
@@ -324,6 +339,21 @@ if [[ "$AWS_IDENTITY_SESSION_NAME" != "$ACCOUNT" ]]; then
 fi
 echo "  [profile ${DEV_TESTER_PROFILE}] assumes ${DEV_TESTER_PROFILE} as ${ACCOUNT}"
 
+# The chain the staging work runs on, proved where this run wrote it or where it
+# already runs through the job role. On a machine whose runtime profile chains
+# from footbag-operator, it is that machine's administrative chain: it is left
+# as it is, and proving it here would be a fact about somebody else's identity.
+RT_ROLE="${DELIVERY_STAGING_RUNTIME_ROLE_ARN##*/}"
+RT_SOURCE="$(aws_config_profile_source "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" || true)"
+if [[ "$RT_SOURCE" == "$DEV_TESTER_PROFILE" ]]; then
+  aws_identity_resolve "$STAGING_RUNTIME_PROFILE" || exit 1
+  aws_identity_require_assumed_role "$RT_ROLE" || exit 1
+  echo "  [profile ${STAGING_RUNTIME_PROFILE}] chains through ${DEV_TESTER_PROFILE} to ${RT_ROLE}"
+else
+  echo "  [profile ${STAGING_RUNTIME_PROFILE}] chains from [${RT_SOURCE:-nothing}] on this machine,"
+  echo "    not through ${DEV_TESTER_PROFILE}, so it is left as it is and not proved here"
+fi
+
 # ── 5. The pinned host keys ──────────────────────────────────────────────────
 
 step "The staging host's pinned keys"
@@ -346,8 +376,22 @@ else
   mkdir -p -m 700 -- "$PIN_DIR"
   PIN_TMP="$(umask 077 && mktemp "${PIN_DIR}/.footbag_known_hosts.XXXXXX")"
   secret_file_register "$PIN_TMP"
+  # A line is dropped only when one of its host names IS this address, bare or
+  # with a port. A substring test would also drop 11.2.3.4 while replacing
+  # 1.2.3.4, silently unpinning another host.
   if [[ -f "$PIN" ]]; then
-    grep -v -F -e "${DELIVERY_HOST_ADDRESS} " -e "[${DELIVERY_HOST_ADDRESS}]:" -- "$PIN" >> "$PIN_TMP" || true
+    while IFS= read -r _pin_line; do
+      _pin_keep=1
+      IFS=',' read -r -a _pin_hosts <<<"${_pin_line%% *}"
+      for _pin_host in "${_pin_hosts[@]}"; do
+        if [[ "$_pin_host" == "$DELIVERY_HOST_ADDRESS" \
+              || "$_pin_host" == "[${DELIVERY_HOST_ADDRESS}]:"* ]]; then
+          _pin_keep=0
+        fi
+      done
+      (( _pin_keep )) && printf '%s\n' "$_pin_line" >> "$PIN_TMP"
+    done < "$PIN"
+    unset _pin_line _pin_keep _pin_hosts _pin_host
   fi
   printf '%s\n' "${DELIVERY_PINS[@]}" >> "$PIN_TMP"
   chmod 600 "$PIN_TMP"
@@ -422,8 +466,20 @@ SSH_TO_HOST=("$SSH_BIN" -F /dev/null "${FOOTBAG_SSH_PIN_OPTS[@]}"
   "$DELIVERY_HOST_ADDRESS")
 
 sudo_accepts() {
-  # The password is line one of the stream and sudo reads it from there.
-  printf '%s\n' "$1" | "${SSH_TO_HOST[@]}" 'sudo -k -S -p "" -v' >/dev/null 2>&1
+  # The password is line one of the stream and sudo reads it from there. ssh
+  # exits 255 when it never reached the host, which says nothing about the
+  # password, so that ends the run here rather than reading as a refusal: a
+  # refusal sends the person to ask for a new delivery they do not need.
+  local rc=0
+  printf '%s\n' "$1" | "${SSH_TO_HOST[@]}" 'sudo -k -S -p "" -v' >/dev/null 2>&1 || rc=$?
+  if (( rc == 255 )); then
+    echo "ERROR: could not reach ${DELIVERY_HOST_ADDRESS} on port ${DELIVERY_HOST_PORT} as" >&2
+    echo "       ${ACCOUNT}. Nothing about your password was decided. Check your" >&2
+    echo "       connection, and that your address is on the host's allow-list," >&2
+    echo "       then run this again with the same file." >&2
+    exit 1
+  fi
+  return "$rc"
 }
 
 operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
@@ -437,9 +493,10 @@ if [[ -n "$FILED" ]] && sudo_accepts "$FILED"; then
 else
   FILED=""
   if ! sudo_accepts "$DELIVERY_HOST_PASSWORD"; then
-    echo "ERROR: the host refuses the one-time password in this delivery, and there" >&2
-    echo "       is no working password filed here. The delivery has been used or" >&2
-    echo "       replaced. Ask the holder to run the hire again, then use the new file." >&2
+    echo "ERROR: the host refuses the one-time password in this file, and there is" >&2
+    echo "       no working password filed here. The file has been used or replaced." >&2
+    echo "       Ask the holder to re-run the onboarding with --reissue, then use the" >&2
+    echo "       new file." >&2
     exit 1
   fi
   echo "  The one-time password works. It is replaced now by one you choose, which"
@@ -498,4 +555,4 @@ echo ""
 echo "  bash scripts/as-dev-tester.sh --account ${ACCOUNT} \\"
 echo "    bash scripts/setup-operator-workstation.sh --target ${TARGET} --check"
 echo ""
-echo "Tell the holder who hired you that this finished."
+echo "Tell the holder who onboarded you that this finished."

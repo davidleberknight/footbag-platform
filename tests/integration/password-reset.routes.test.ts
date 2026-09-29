@@ -46,6 +46,9 @@ beforeEach(async () => {
   db.prepare('DELETE FROM outbox_emails').run();
   db.prepare('DELETE FROM account_tokens').run();
   db.close();
+  // The stub adapter's captured mail outlives each test, and the dev card sorts it by wall-clock
+  // time; clearing it leaves only this test's reset link on the page, whatever the clock does.
+  (await import('../../src/adapters/sesAdapter')).getStubSesAdapterForTests()?.clear();
 });
 
 /**

@@ -20,8 +20,9 @@
 #   OPACC_OPERATOR      who it belongs to, for the comment field
 #   OPACC_KEY_LINE      their SSH public key line (create and rotate)
 #   OPACC_PASSWORD      the sudo password to set (create and rotate). Always
-#                       set: a lost key is fired and rehired, never swapped in
-#                       place under the password its owner already had.
+#                       set: a lost key is offboarded and re-onboarded, never
+#                       swapped in place under the password its owner already
+#                       had.
 #   OPACC_SHARED_ACCOUNT  the shared break-glass account's name (create, rotate
 #                       and offboard). Sent rather than assumed, and a run that
 #                       needs it and did not receive it refuses: the checks that
@@ -122,9 +123,19 @@ if [[ "$OPACC_MODE" == "inspect" ]]; then
     exit 1
   fi
   inspect_home="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f6)"
-  echo "SHELL $(getent passwd "$OPACC_ACCOUNT" | cut -d: -f7)"
-  echo "PASSWORD $(passwd -S -- "$OPACC_ACCOUNT" 2>/dev/null | cut -d' ' -f2 || echo '?')"
-  if compgen -G "${inspect_home}/.ssh/authorized_keys.offboarded-*" >/dev/null; then
+  inspect_shell="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f7)"
+  inspect_password="$(passwd -S -- "$OPACC_ACCOUNT" 2>/dev/null | cut -d' ' -f2 || echo '?')"
+  echo "SHELL ${inspect_shell}"
+  echo "PASSWORD ${inspect_password}"
+  # Retired means locked now, not offboarded once. An account that was offboarded
+  # and later reopened keeps the moved-aside key files as its record, and a
+  # marker alone would call a live account retired, so every later run would
+  # treat it as a reopen and replace a working key and password on one APPLY.
+  inspect_locked=0
+  case "$inspect_shell" in */nologin|*/false) inspect_locked=1 ;; esac
+  case "$inspect_password" in L|LK) inspect_locked=1 ;; esac
+  if (( inspect_locked )) \
+     && compgen -G "${inspect_home}/.ssh/authorized_keys.offboarded-*" >/dev/null; then
     echo "OFFBOARDED yes"
   else
     echo "OFFBOARDED no"
@@ -249,8 +260,8 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
       echo "       Offboarding sweeps it off every account, ${OPACC_SHARED_ACCOUNT}" >&2
       echo "       included, so whoever reaches ${OPACC_SHARED_ACCOUNT} with it would" >&2
       echo "       lose that way in too. Resolve it first, then re-run:" >&2
-      echo "         - a footbag-operator holder's own key: run onboard-operator.sh again," >&2
-      echo "           which gives ${OPACC_ACCOUNT} a key pair of its own" >&2
+      echo "         - the same person's key on both: re-onboard ${OPACC_ACCOUNT} with" >&2
+      echo "           onboard-dev-tester.sh, which gives it a key pair of its own" >&2
       echo "         - a key that never belonged on ${OPACC_SHARED_ACCOUNT}: remove it from" >&2
       echo "           there deliberately with authorize-operator-key.sh --remove" >&2
       echo "       Nothing done." >&2
@@ -268,9 +279,10 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
   #
   # The keys are counted, not the file: an account whose only authorized key is
   # the departing person's own is about to lose it to the sweep below, so it
-  # admits nobody once this run finishes. The shared account holding nothing but
-  # a key loaned to the person leaving is exactly that account, and counting it
-  # would sweep the last working login off the host while reporting success.
+  # admits nobody once this run finishes. Any account holding nothing but the
+  # departing person's key, the shared one included, is exactly that account,
+  # and counting it would sweep the last working login off the host while
+  # reporting success.
   remaining=0
   while IFS=: read -r name _ _ gid _ home shell; do
     [[ "$name" == "$OPACC_ACCOUNT" ]] && continue
@@ -335,8 +347,17 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
   if [[ -f "$ak" ]]; then
     # Moved aside rather than deleted: which key had access is part of the
     # record, and it is the only copy on this host.
-    mv -- "$ak" "${ak}.offboarded-$(date -u +%Y%m%d)"
-    chmod 600 -- "${ak}.offboarded-$(date -u +%Y%m%d)" 2>/dev/null || true
+    # Named to the second, and never onto an existing file: a second offboard
+    # of the same account on the same day would otherwise overwrite the first
+    # record, and the reopen refuses a key by reading these files.
+    ak_retired="${ak}.offboarded-$(date -u +%Y%m%dT%H%M%SZ)"
+    [[ -e "$ak_retired" ]] && ak_retired="${ak_retired}-$$"
+    mv -n -- "$ak" "$ak_retired"
+    if [[ -e "$ak" ]]; then
+      echo "ERROR: could not move ${ak} aside without overwriting a record." >&2
+      exit 1
+    fi
+    chmod 600 -- "$ak_retired" 2>/dev/null || true
     echo "  authorized_keys moved aside, not deleted."
   else
     echo "  no authorized_keys to move."
@@ -344,13 +365,12 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
 
   # ── Their keys on OTHER accounts ──────────────────────────────────────────
   #
-  # Disabling the named account is not the whole of a person's access. An
-  # operator who provisions their own account first borrows a shell on the
-  # SHARED account, with their key loaned onto it, and a loan nobody withdrew is
-  # a different file on a different account, which everything above leaves
-  # untouched. A person offboarded with that key still
-  # in place keeps a root-capable shell as an account whose sudo password is in
-  # the shared vault.
+  # Disabling the named account is not the whole of a person's access: a key of
+  # theirs left on any OTHER account, the shared one included, is a different
+  # file on a different account, which everything above leaves untouched. A
+  # person offboarded with such a key still in place on the shared account keeps
+  # a root-capable shell as an account whose sudo password is in the shared
+  # vault.
   #
   # The identification problem that made this look hard is not one. A key on the
   # shared account carries no name, but it does not have to: the same key is in
@@ -536,11 +556,11 @@ if [[ "$OPACC_ACCOUNT" != "$OPACC_SHARED_ACCOUNT" ]]; then
   fi
 fi
 
-# Reopening a retired account is a rehire of the same person, and it takes a
-# key pair made fresh for it. A key the account was retired with is refused: the
-# retirement ended that key's access, and reinstating it would undo the firing
-# for whoever still holds the private half. Read from the keys the offboard
-# moved aside, which is the one record of them no script-unreadable vault holds.
+# Reopening a retired account is a re-onboarding of the same person, and it
+# takes a key pair made fresh for it. A key the account was retired with is
+# refused: the retirement ended that key's access, and reinstating it would undo
+# the offboarding for whoever still holds the private half. Read from the keys
+# the offboard moved aside, which are the only record of them.
 if [[ "${OPACC_REOPEN:-no}" == "yes" ]]; then
   if [[ "$OPACC_MODE" != "rotate" ]]; then
     echo "ERROR: reopening applies to an existing account, so it needs rotate mode." >&2
@@ -552,7 +572,7 @@ if [[ "${OPACC_REOPEN:-no}" == "yes" ]]; then
     if ssh-keygen -l -f "$reopen_retired" 2>/dev/null | awk '{print $2}' \
         | grep -qxF -- "${opacc_new_fp:-}"; then
       echo "REFUSING: ${opacc_new_fp} is a key ${OPACC_ACCOUNT} was retired with." >&2
-      echo "       A rehire takes a key pair made fresh for it. Nothing done." >&2
+      echo "       A re-onboarding takes a key pair made fresh for it. Nothing done." >&2
       exit 1
     fi
   done
@@ -683,29 +703,11 @@ echo "  Installed authorized_keys."
 # never has to appear on a command line.
 printf '%s:%s\n' "$OPACC_ACCOUNT" "$OPACC_PASSWORD" | chpasswd
 
-# Expired the moment it is set, so it is a one-time value rather than the
-# account's standing password. The operator changes it at first login and from
-# then on is the only person who knows it, including whoever provisioned the
-# account for them.
-#
-# This is what keeps a per-person account attributable. The governance rule is
-# that the vault records who holds access and never their personal credential,
-# because a personal credential in a shared vault lets any custodian act as any
-# operator, and an access record that can be true of more than one person
-# records nothing. A minted password that stays valid is exactly that credential
-# whatever is done with the copy afterwards; expiring it is what makes the
-# standing secret the operator's alone.
-if [[ "${OPACC_EXPIRE_PASSWORD:-yes}" == "yes" ]]; then
-  chage -d 0 -- "$OPACC_ACCOUNT"
-  echo "  Set a one-time password; it must be changed at first login."
-else
-  # The account's own owner typed this one, so it is already the personal
-  # credential the rule above is protecting. Expiring it would force them to
-  # invent a second password minutes later, and would leave the account
-  # depending on a change prompt appearing at the right moment -- on a host
-  # where they may be the only person able to log in at all.
-  echo "  Set the password the operator chose; it is theirs and does not expire."
-fi
+# Not expired. It is a one-time value its owner replaces by script, through sudo,
+# when they accept the onboarding, and an expired password would stop the very
+# sudo that replacement runs through. From then on they are the only person who
+# knows it.
+echo "  Set a one-time password; its owner replaces it when they accept."
 
 # ── Verify the outcome, not the invocation ───────────────────────────────────
 #
@@ -737,33 +739,17 @@ PW_STATUS="$(passwd -S -- "$OPACC_ACCOUNT" 2>/dev/null | cut -d' ' -f2 || echo '
 case "$PW_STATUS" in
   P|PS)
     echo "  OK   password set and usable (${PW_STATUS})"
-    # Expiry is checked separately because a set password and a password the
-    # operator has been forced to replace are different claims, and only the
-    # second one makes the standing secret theirs alone.
-    # LC_ALL=C for the same reason as the expiry read above: this compares
-    # against chage's English wording, and the operator's locale travels here
-    # over ssh. Without it a correct account fails verification, and in rotate
-    # mode that failure used to reach a cleanup branch that deleted it.
+    # Asserted rather than skipped: an expired password would refuse the sudo
+    # the owner replaces it through when they accept. LC_ALL=C because this
+    # compares against chage's English wording, and the operator's locale
+    # travels here over ssh; without it a correct account fails verification.
     PW_CHANGED="$(LC_ALL=C chage -l -- "$OPACC_ACCOUNT" 2>/dev/null \
       | sed -n 's/^Last password change[^:]*: *//p')"
-    if [[ "${OPACC_EXPIRE_PASSWORD:-yes}" == "yes" ]]; then
-      if [[ "$PW_CHANGED" == "password must be changed" ]]; then
-        echo "  OK   password expired on set, so first login must replace it"
-      else
-        echo "  FAIL password is not expired, so the minted value would stand" >&2
-        FAILED=1
-      fi
+    if [[ "$PW_CHANGED" == "password must be changed" ]]; then
+      echo "  FAIL password is expired, so the owner could not replace it through sudo" >&2
+      FAILED=1
     else
-      # The opposite assertion, and it is worth making rather than skipping: an
-      # expired password here would send the operator to a change prompt for a
-      # password they had just chosen, and if that prompt did not appear they
-      # would be unable to sudo on a host where they may be the only account.
-      if [[ "$PW_CHANGED" == "password must be changed" ]]; then
-        echo "  FAIL password is expired, but the operator chose it themselves" >&2
-        FAILED=1
-      else
-        echo "  OK   password set and not expired; it is the operator's own"
-      fi
+      echo "  OK   password set and not expired"
     fi
     ;;
   *)
