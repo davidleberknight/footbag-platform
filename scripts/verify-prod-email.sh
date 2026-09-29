@@ -110,13 +110,18 @@ send_one() {
 # into "not verified" reintroduces the exact ambiguity this check exists to
 # remove — pointing the operator at a verification problem that does not exist
 # while the real one is a permission the role is not supposed to have.
-if SENDER_STATUS=$(
-  aws sesv2 get-email-identity \
-    --email-identity "$SENDER" \
-    --region "$REGION" \
-    --profile "$PROFILE" \
-    --query VerifiedForSendingStatus --output text 2>&1
-); then
+#
+# Both reads below take the answer from stdout alone: a warning the CLI prints on
+# stderr beside a successful answer would otherwise be compared as the status.
+# The error text a failure is judged on comes from reading again, answer
+# discarded.
+SENDER_CALL=(aws sesv2 get-email-identity
+  --email-identity "$SENDER"
+  --region "$REGION"
+  --profile "$PROFILE"
+  --query VerifiedForSendingStatus --output text)
+if SENDER_STATUS="$("${SENDER_CALL[@]}" 2>/dev/null)" \
+   || { SENDER_STATUS="$("${SENDER_CALL[@]}" 2>&1 >/dev/null)" || true; false; }; then
   if [[ "$SENDER_STATUS" != "True" && "$SENDER_STATUS" != "true" ]]; then
     echo "ERROR: sender '$SENDER' is not a verified SES identity in $REGION (status: $SENDER_STATUS)." >&2
     echo "       Verify it, or pass --sender with the identity production is configured to send from." >&2
@@ -149,13 +154,13 @@ fi
 # Not fatal: the send legs below still prove sending works, and an operator
 # running this before mail day has no bounce domain configured at all. This
 # reports, and says plainly what an unhealthy state costs.
-if MAIL_FROM_STATUS=$(
-  aws sesv2 get-email-identity \
-    --email-identity "$SENDER" \
-    --region "$REGION" \
-    --profile "$PROFILE" \
-    --query 'MailFromAttributes.MailFromDomainStatus' --output text 2>&1
-); then
+MAIL_FROM_CALL=(aws sesv2 get-email-identity
+  --email-identity "$SENDER"
+  --region "$REGION"
+  --profile "$PROFILE"
+  --query 'MailFromAttributes.MailFromDomainStatus' --output text)
+if MAIL_FROM_STATUS="$("${MAIL_FROM_CALL[@]}" 2>/dev/null)" \
+   || { MAIL_FROM_STATUS="$("${MAIL_FROM_CALL[@]}" 2>&1 >/dev/null)" || true; false; }; then
   case "$MAIL_FROM_STATUS" in
     SUCCESS)
       echo "Custom bounce domain: healthy (aligned return path in use)"

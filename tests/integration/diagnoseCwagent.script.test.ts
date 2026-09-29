@@ -89,10 +89,11 @@ describe('diagnose-cwagent.sh — the credential it names', () => {
     expect(result.stderr).not.toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
   });
 
-  it('names the production file for a production run, since the hosts differ', () => {
+  it('refuses a production run connecting as a named account, since none exists there', () => {
     const result = runScript(['--target', 'production'], connectingAs(NAMED_ACCOUNT));
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/~\/AWS\/HOST_OPERATOR_PRODUCTION\.txt/);
+    expect(result.stderr).toMatch(/is a named account, and there is none on production/);
+    expect(result.stderr).not.toMatch(/HOST_OPERATOR_PRODUCTION/);
   });
 
   it('names the command to re-run, not only the file', () => {

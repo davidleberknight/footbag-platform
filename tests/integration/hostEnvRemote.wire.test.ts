@@ -444,13 +444,19 @@ describe('the credential file follows the account the alias connects as', () => 
     );
   });
 
-  it('reads the personal pair when the alias connects as a named account', () => {
+  it('reads the personal file when the alias connects as a named account', () => {
     expect(select('ada_lovelace', 'staging').stdout.trim()).toBe(
       'HOST_OPERATOR.txt|ada_lovelace',
     );
-    expect(select('ada_lovelace', 'production').stdout.trim()).toBe(
-      'HOST_OPERATOR_PRODUCTION.txt|ada_lovelace',
-    );
+  });
+
+  it('refuses a named account on production, where none exists, rather than naming a file', () => {
+    // A named account is a dev-and-tester's, on staging only. Any file named
+    // here would be one nothing ever fills.
+    const r = select('ada_lovelace', 'production');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(r.stderr).toMatch(/'ada_lovelace' is a named account, and there is none on production/);
   });
 
   it('refuses a target that is neither environment rather than picking one', () => {
@@ -497,13 +503,17 @@ describe('the naming rule also answers about an account the caller already knows
     );
   });
 
-  it('names the personal pair for anybody else', () => {
+  it('names the personal file for anybody else, on staging', () => {
     expect(fileFor('ada_lovelace', 'staging').stdout.trim()).toBe(
       'HOST_OPERATOR.txt|ada_lovelace',
     );
-    expect(fileFor('ada_lovelace', 'production').stdout.trim()).toBe(
-      'HOST_OPERATOR_PRODUCTION.txt|ada_lovelace',
-    );
+  });
+
+  it('refuses anybody else on production, where no named account exists', () => {
+    const r = fileFor('ada_lovelace', 'production');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(r.stderr).toMatch(/there is none on production/);
   });
 
   it('refuses a target that is neither environment', () => {

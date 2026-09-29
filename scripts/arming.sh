@@ -454,7 +454,7 @@ arming_select_credential() {
   ARMING_CRED_FILE=""
   ARMING_CRED_WHY=""
   if ! operator_credential_select "footbag-${TARGET}" "$TARGET" 2>/dev/null; then
-    ARMING_CRED_WHY="the account footbag-${TARGET} connects as could not be read, so no credential file could be chosen"
+    ARMING_CRED_WHY="no credential file could be chosen for the account footbag-${TARGET} connects as: it could not be read, or it is a named account on production, where none exists"
     return 1
   fi
   if [[ ! -r "$OPERATOR_CREDENTIAL_FILE" ]]; then

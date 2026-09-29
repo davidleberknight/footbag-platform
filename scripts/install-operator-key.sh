@@ -260,18 +260,24 @@ PROBE_ARN=""
 # paste good. The write then lands, and the post-write check catches it only
 # after the working key has already been replaced, which is exactly the
 # situation this probe exists to avoid.
-if ! PROBE_ARN="$(env \
-  -u AWS_PROFILE -u AWS_DEFAULT_PROFILE \
-  -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
-  -u AWS_SECURITY_TOKEN -u AWS_CREDENTIAL_EXPIRATION \
-  -u AWS_ROLE_ARN -u AWS_WEB_IDENTITY_TOKEN_FILE \
-  -u AWS_CONTAINER_CREDENTIALS_FULL_URI \
-  -u AWS_CONTAINER_CREDENTIALS_RELATIVE_URI \
-  AWS_SHARED_CREDENTIALS_FILE="$PROBE" \
-  AWS_CONFIG_FILE=/dev/null \
-  AWS_EC2_METADATA_DISABLED=true \
-  "$AWS_BIN" sts get-caller-identity --query Arn --output text \
-  --region "$REGION" 2>&1)"; then
+#
+# The ARN is read from stdout alone: the CLI can print a warning on stderr for a
+# call that succeeded, and taken with the answer it would fail the match below
+# for a good key. On failure the probe is made again for its error text only.
+PROBE_CALL=(env
+  -u AWS_PROFILE -u AWS_DEFAULT_PROFILE
+  -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN
+  -u AWS_SECURITY_TOKEN -u AWS_CREDENTIAL_EXPIRATION
+  -u AWS_ROLE_ARN -u AWS_WEB_IDENTITY_TOKEN_FILE
+  -u AWS_CONTAINER_CREDENTIALS_FULL_URI
+  -u AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
+  AWS_SHARED_CREDENTIALS_FILE="$PROBE"
+  AWS_CONFIG_FILE=/dev/null
+  AWS_EC2_METADATA_DISABLED=true
+  "$AWS_BIN" sts get-caller-identity --query Arn --output text
+  --region "$REGION")
+if ! PROBE_ARN="$("${PROBE_CALL[@]}" 2>/dev/null)"; then
+  PROBE_ARN="$("${PROBE_CALL[@]}" 2>&1 >/dev/null)" || true
   echo "" >&2
   echo "ERROR: AWS refused the pasted credential:" >&2
   printf '%s\n' "$PROBE_ARN" | sed 's/^/         /' >&2

@@ -2,14 +2,18 @@
 #
 # Which credential file a run reads, and nothing else.
 #
-# Four files, and each holds one credential permanently. Two for the shared
-# account's sudo password, one per environment, and two for the sudo password of
+# Three files, and each holds one credential permanently. Two for the shared
+# account's sudo password, one per environment, and one for the sudo password of
 # the named account belonging to the person at the keyboard:
 #
 #   ~/AWS/AWS_OPERATOR.txt              shared account, staging
 #   ~/AWS/AWS_OPERATOR_PRODUCTION.txt   shared account, production
 #   ~/AWS/HOST_OPERATOR.txt             your own account, staging
-#   ~/AWS/HOST_OPERATOR_PRODUCTION.txt  your own account, production
+#
+# A named account is a dev-and-tester's, and a dev-and-tester is onboarded onto
+# staging only, so there is no named account on production and no file for one.
+# An alias that connects to production as a named account is refused rather than
+# given a file name, because any name given would be a file nothing ever fills.
 #
 # No file ever holds a different password at a different time, and that is the
 # whole rule. A file whose meaning depends on when you look at it gives an
@@ -87,6 +91,13 @@ operator_credential_file_for() {
     pair="AWS_OPERATOR"
   else
     pair="HOST_OPERATOR"
+    if [[ "$target" == "production" ]]; then
+      echo "ERROR: '${account}' is a named account, and there is none on production:" >&2
+      echo "       a named account is a dev-and-tester's, onboarded onto staging only, and" >&2
+      echo "       the production alias connects as the shared account ${OPERATOR_SHARED_ACCOUNT}." >&2
+      echo "       No credential file is chosen, and nothing is read in its place." >&2
+      return 1
+    fi
   fi
   OPERATOR_CREDENTIAL_ACCOUNT="$account"
   OPERATOR_CREDENTIAL_NAME="${pair}${suffix}.txt"

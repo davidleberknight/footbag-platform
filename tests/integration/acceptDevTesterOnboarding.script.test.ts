@@ -66,12 +66,27 @@ function stub(name: string, body: string): string {
   return path;
 }
 
-function awsStub(opts: { session?: string; runtimeRole?: string } = {}): string {
+/**
+ * aws, answering by profile. A fresh assume-role, signed with the person's own
+ * key, is answered separately: issued under the session name asked for, or
+ * refused when `fresh` is 'refused', which is a key the role no longer honours
+ * while the CLI's cache still answers the role profile as though it did.
+ */
+function awsStub(opts: { session?: string; runtimeRole?: string; fresh?: 'issued' | 'refused' } = {}): string {
   return stub(
-    `aws-${opts.session ?? 'own'}-${opts.runtimeRole ?? 'runtime'}`,
+    `aws-${opts.session ?? 'own'}-${opts.runtimeRole ?? 'runtime'}-${opts.fresh ?? 'issued'}`,
     `
-profile=""
-while [[ $# -gt 0 ]]; do [[ "$1" == "--profile" ]] && profile="$2"; shift; done
+sub="$2"
+profile=""; session=""
+while [[ $# -gt 0 ]]; do
+  [[ "$1" == "--profile" ]] && profile="$2"
+  [[ "$1" == "--role-session-name" ]] && session="$2"
+  shift
+done
+if [[ "$sub" == "assume-role" ]]; then
+  [[ "$profile" == ${JSON.stringify(ACCOUNT)} ]] || exit 255
+  ${opts.fresh === 'refused' ? 'echo "An error occurred (AccessDenied) when calling the AssumeRole operation: not authorized" >&2; exit 254' : 'echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/$session"; exit 0'}
+fi
 case "$profile" in
   ${ACCOUNT}) echo "arn:aws:iam::000000000000:user/footbag-operators/${ACCOUNT}" ;;
   FootbagDevTester) echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${opts.session ?? ACCOUNT}" ;;
@@ -335,6 +350,44 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
     expect(r.out).toMatch(/0 key pairs in ~\/\.ssh match/);
   });
 
+  it('refuses a private key left alone at the named path, before copying anything over it', () => {
+    // The copy skips a file already there, so an orphan would be paired with a
+    // public half that is not its own and age would fail later without a reason.
+    const named = join(home, '.ssh', `id_ed25519_${ACCOUNT}`);
+    writeFileSync(named, 'fixture orphan private half\n', { mode: 0o600 });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/only one half of the key pair is at the path the tooling uses/);
+    expect(r.out).toMatch(/Nothing was copied or opened/);
+    expect(readFileSync(named, 'utf-8')).toBe('fixture orphan private half\n');
+    expect(existsSync(`${named}.pub`)).toBe(false);
+    expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
+  });
+
+  it('refuses a named pair whose private half does not belong to its public half', () => {
+    const named = join(home, '.ssh', `id_ed25519_${ACCOUNT}`);
+    const other = join(dir, 'other_key');
+    const kg = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', other], { ...SPAWN_GUARD });
+    expect(kg.status).toBe(0);
+    writeFileSync(`${named}.pub`, read('.ssh', 'id_ed25519_footbag_operator.pub'));
+    writeFileSync(named, readFileSync(other, 'utf-8'), { mode: 0o600 });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/is not the private half of/);
+    expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
+  });
+
+  it('refuses a private key it cannot read as unreadable, not as a mismatch', () => {
+    const named = join(home, '.ssh', `id_ed25519_${ACCOUNT}`);
+    writeFileSync(`${named}.pub`, read('.ssh', 'id_ed25519_footbag_operator.pub'));
+    writeFileSync(named, 'not a private key\n', { mode: 0o600 });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/ssh-keygen could not read the private key/);
+    expect(r.out).not.toMatch(/is not the private half of/);
+    expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
+  });
+
   it('refuses a job-role profile that already chains from somebody else, leaving it alone', () => {
     const theirs = `${OPERATOR_CONFIG}[profile FootbagDevTester]\nrole_arn = x\nsource_profile = david_leberknight\n`;
     writeFileSync(join(home, '.aws', 'config'), theirs);
@@ -343,6 +396,16 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
     expect(r.out).toMatch(/already chains from\s+\[david_leberknight\]/);
     expect(read('.aws', 'config')).toBe(theirs);
     expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
+  });
+
+  it('refuses when a fresh session is refused, however the cached role profile answers', () => {
+    // The profile answers from the CLI's cache, which can hold a session from
+    // before an offboard; only a fresh assume with the new key proves the grant.
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_AWS_BIN: awsStub({ fresh: 'refused' }) });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/a fresh session of FootbagDevTester, signed with your new key, was not/);
+    expect(r.out).toMatch(/AccessDenied/);
+    expect(existsSync(join(home, 'AWS', 'HOST_OPERATOR.txt'))).toBe(false);
   });
 
   it('refuses a session the job role names after somebody else', () => {
@@ -498,6 +561,28 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(own).not.toContain(SECRET);
     expect(own).not.toContain(NEW_PASSWORD);
     expect(readdirSync(tmp)).toEqual([]);
+  });
+
+  it('removes their cached job-role sessions when it writes a new key, and nobody else\'s', () => {
+    // A re-onboarding leaves the role profile as it was, so without this the CLI
+    // goes on answering it with a session from before the offboard, which the
+    // role refuses on real work until it expires.
+    const cache = join(home, '.aws', 'cli', 'cache');
+    mkdirSync(cache, { recursive: true });
+    const theirs = join(cache, 'theirs.json');
+    const longerName = join(cache, 'longer-name.json');
+    const other = join(cache, 'other.json');
+    const entry = (session: string) =>
+      JSON.stringify({ Credentials: { AccessKeyId: 'ASIAFIXTURE' }, AssumedRoleUser: { Arn: `arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${session}` } });
+    writeFileSync(theirs, entry(ACCOUNT), { mode: 0o600 });
+    writeFileSync(longerName, entry(`${ACCOUNT}2`), { mode: 0o600 });
+    writeFileSync(other, entry('someone_else'), { mode: 0o600 });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status, r.out).toBe(0);
+    expect(existsSync(theirs)).toBe(false);
+    expect(existsSync(longerName)).toBe(true);
+    expect(existsSync(other)).toBe(true);
+    expect(r.out).toContain(`removed a cached FootbagDevTester session of ${ACCOUNT}'s`);
   });
 
   it('finds every step already done on a second run', () => {

@@ -217,15 +217,20 @@ user_policy_state() { iam_operator_policy_state "$@"; }
 # simulator rather than by attempting the assume, because the caller here is
 # footbag-operator and its own success or failure says nothing about the
 # operator's. Returns 1, having said why, when the simulator could not answer,
-# which is never read as a refusal.
+# which is never read as a refusal. The answer is read from stdout alone, so a
+# warning the CLI prints on stderr for a successful call is not taken as part of
+# it; the error text is fetched by asking again only when the call failed.
 role_assume_decision() {
   local decision
-  if ! decision="$("$AWS_BIN" iam simulate-principal-policy \
-      --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user${OPERATOR_PATH}${1}" \
-      --action-names sts:AssumeRole \
-      --resource-arns "$DEV_TESTER_ROLE_ARN" \
-      --query 'EvaluationResults[0].EvalDecision' --output text 2>&1)" \
-     || [[ ! "$decision" =~ ^(allowed|implicitDeny|explicitDeny)$ ]]; then
+  local -a call=(iam simulate-principal-policy
+    --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user${OPERATOR_PATH}${1}"
+    --action-names sts:AssumeRole
+    --resource-arns "$DEV_TESTER_ROLE_ARN"
+    --query 'EvaluationResults[0].EvalDecision' --output text)
+  if ! decision="$("$AWS_BIN" "${call[@]}" 2>/dev/null)"; then
+    decision="$(_iam_operator_error_of "${call[@]}")"
+  fi
+  if [[ ! "$decision" =~ ^(allowed|implicitDeny|explicitDeny)$ ]]; then
     echo "ERROR: the policy simulator could not say whether ${1} may assume" >&2
     echo "       ${DEV_TESTER_ROLE_NAME}:" >&2
     printf '%s\n' "$decision" | sed 's/^/         /' >&2
@@ -284,8 +289,8 @@ if [[ "$ACTION" == "verify" ]]; then
   # a legitimate answer to "is this person onboarded".
   FINDINGS=0
 
-  FOUND_PATH="$(user_path "$OPERATOR" || true)"
-  if [[ -z "$FOUND_PATH" || "$FOUND_PATH" == "None" ]]; then
+  FOUND_PATH="$(user_path "$OPERATOR")" || exit 1
+  if [[ -z "$FOUND_PATH" ]]; then
     echo "    user:      absent"
     exit 0
   fi
@@ -304,7 +309,7 @@ if [[ "$ACTION" == "verify" ]]; then
                "OperatorRole=${TAG_OPERATOR_ROLE}"; do
     _key="${_pair%%=*}"
     _want="${_pair#*=}"
-    _got="$(user_tag "$OPERATOR" "$_key")"
+    _got="$(user_tag "$OPERATOR" "$_key")" || exit 1
     if [[ "$_got" == "$_want" ]]; then
       echo "    tag:       ${_key}=${_got}"
     else
@@ -369,15 +374,18 @@ fi
 
 # ── offboard ─────────────────────────────────────────────────────────────────
 
-FOUND_PATH="$(user_path "$OPERATOR" || true)"
-if [[ -z "$FOUND_PATH" || "$FOUND_PATH" == "None" ]]; then
+FOUND_PATH="$(user_path "$OPERATOR")" || exit 1
+if [[ -z "$FOUND_PATH" ]]; then
   echo "ERROR: there is no IAM user named ${OPERATOR}." >&2
   echo "       Nothing done." >&2
   exit 1
 fi
 
-if [[ "$FOUND_PATH" != "$OPERATOR_PATH" ]] \
-   || [[ "$(user_tag "$OPERATOR" ManagedBy)" != "$TAG_MANAGED_BY" ]]; then
+# Read before the test rather than inside it: a read that fails inside `[[ ]]`
+# is an empty string, and would be refused as somebody else's user rather than
+# as unreadable.
+FOUND_MANAGED_BY="$(user_tag "$OPERATOR" ManagedBy)" || exit 1
+if [[ "$FOUND_PATH" != "$OPERATOR_PATH" || "$FOUND_MANAGED_BY" != "$TAG_MANAGED_BY" ]]; then
   echo "REFUSING: ${OPERATOR} sits at ${FOUND_PATH} and is not a user this script" >&2
   echo "          manages. Retiring somebody else's identity is not something to" >&2
   echo "          do by analogy with the name. Nothing done." >&2
@@ -610,9 +618,9 @@ echo "      issued before ${REVOKE_BEFORE} is refused"
 # now is already retired above, so a failure here is reported and ends nothing.
 echo "==> Clearing earlier revocations that can no longer refuse any session"
 PRUNE_MAX="$("$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" \
-  --query 'Role.MaxSessionDuration' --output text 2>&1 || true)"
+  --query 'Role.MaxSessionDuration' --output text 2>/dev/null || true)"
 PRUNE_LIST="$("$AWS_BIN" iam list-role-policies --role-name "$DEV_TESTER_ROLE_NAME" \
-  --query 'PolicyNames' --output text 2>&1)" || PRUNE_LIST="unreadable"
+  --query 'PolicyNames' --output text 2>/dev/null)" || PRUNE_LIST="unreadable"
 if [[ ! "$PRUNE_MAX" =~ ^[0-9]+$ || "$PRUNE_LIST" == "unreadable" ]]; then
   echo "    WARNING: could not read ${DEV_TESTER_ROLE_NAME}'s session length or its"
   echo "      policies, so no earlier revocation was cleared. Nothing is exposed by"
@@ -663,8 +671,9 @@ echo "theirs to refuse it by, and AWS ends a chained session within the hour."
 if (( ! DRIVEN_BY_OFFBOARD )); then
   echo ""
   echo "Still owed: the host account, the address on the SSH allow-list and the"
-  echo "repository access. One command ends all of them, for each environment:"
-  echo "  < <the credential file your alias selects> \\"
-  echo "    bash scripts/offboard-dev-tester.sh --target <env> --account ${OPERATOR} \\"
+  echo "repository access. One command ends all of them, on staging, the only"
+  echo "environment a dev-and-tester is onboarded onto:"
+  echo "  < ~/AWS/AWS_OPERATOR.txt \\"
+  echo "    bash scripts/offboard-dev-tester.sh --target staging --account ${OPERATOR} \\"
   echo "      --github-login <their GitHub login, or none>"
 fi

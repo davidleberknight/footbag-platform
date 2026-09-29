@@ -177,6 +177,10 @@ function awsStub(): string {
       // call does, with no NoSuchEntity in it, so a script that took that for
       // "none" would be caught.
       `[ -f "$S/unreadable-$2" ] && { echo "aws: [ERROR]: An error occurred (AccessDenied) when calling the operation: not authorized" >&2; exit 254; }`,
+      // "warn-on-success" puts a line on stderr for every IAM call, the way the
+      // CLI prints a deprecation or library warning for a call that succeeded.
+      // An acknowledged fake: what is asserted is that no read takes it as data.
+      `[ "$1" = iam ] && [ -f "$S/warn-on-success" ] && echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2`,
       'case "$2" in',
       '  get-caller-identity)',
       '    case "$profile" in',
@@ -601,7 +605,8 @@ describe('manage-human-operator.sh — offboarding', () => {
     const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/Still owed/);
-    expect(r.stdout).toMatch(/bash scripts\/offboard-dev-tester\.sh --target <env> --account test_operator/);
+    expect(r.stdout).toMatch(/bash scripts\/offboard-dev-tester\.sh --target staging --account test_operator/);
+    expect(r.stdout).not.toMatch(/--target <env>/);
     expect(r.stdout).toMatch(/--github-login/);
     expect(r.stdout).not.toMatch(/terraform\.tfvars|values file/);
   });
@@ -666,6 +671,35 @@ describe('manage-human-operator.sh — offboarding', () => {
     expect(r.stdout).not.toMatch(/login profile: none/);
   });
 
+  it('fails rather than calling the user absent when IAM cannot read it', () => {
+    writeFileSync(join(stateDir, 'unreadable-get-user'), '', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read the IAM user test_operator/);
+    expect(r.stderr).not.toMatch(/there is no IAM user named/);
+    expect(mutatingCalls()).toHaveLength(0);
+  });
+
+  it('refuses as unreadable, not as somebody else\'s, a user whose tags cannot be read', () => {
+    writeFileSync(join(stateDir, 'unreadable-list-user-tags'), '', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read test_operator's ManagedBy tag from IAM/);
+    expect(r.stderr).not.toMatch(/is not a user this script/);
+    expect(mutatingCalls()).toHaveLength(0);
+  });
+
+  it('retires the identity when the CLI prints warnings on stderr for calls that succeed', () => {
+    // A warning read together with an answer would be a key id to retire and a
+    // decision the simulator never gave, so every answer is read from stdout.
+    writeFileSync(join(stateDir, 'warn-on-success'), '', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    expect(keyRows()).toHaveLength(0);
+    expect(r.stdout).toMatch(/refused by the policy simulator/);
+    expect(calls().filter((c) => /access-key-id .*(urllib3|InsecureRequestWarning)/.test(c))).toEqual([]);
+  });
+
   it('refuses a user that does not exist, and says that is the reason', () => {
     // The reason is asserted, not just the refusal. An absent user also trips
     // the ownership check below it, so a test that only pinned the exit code
@@ -697,6 +731,17 @@ describe('manage-human-operator.sh — verify', () => {
     const r = run(['--verify', OPERATOR], READY);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/user:\s+absent/);
+  });
+
+  it('fails rather than reporting the operator absent when IAM cannot read the user', () => {
+    // Absent is an answer IAM gives by name. A denied call, an expired session
+    // or a dropped connection is no answer, and reporting it as absent would
+    // pass a read-back of an identity nobody had looked at.
+    writeFileSync(join(stateDir, 'unreadable-get-user'), '', 'utf-8');
+    const r = run(['--verify', OPERATOR], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read the IAM user test_operator/);
+    expect(r.stdout).not.toMatch(/user:\s+absent/);
   });
 
   it('reports key age as information and does not fail on an old key', () => {

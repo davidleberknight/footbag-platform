@@ -62,8 +62,8 @@ is_exempt() {
     # identity underneath it would be circular.
     scripts/install-operator-key.sh) return 0 ;;
     # It creates a dev-and-tester's own profiles and proves each by naming it on
-    # the call, on a machine that holds no footbag-operator key to fall back to.
-    # Supplying an identity underneath it would be circular.
+    # the call, so an identity supplied underneath it would be circular, whether
+    # or not the machine also holds footbag-operator.
     scripts/accept-dev-tester-onboarding.sh) return 0 ;;
     # It requires an explicit profile and proves the chained runtime profiles
     # before cutting a key. A defaulted identity would let a rotation act on the

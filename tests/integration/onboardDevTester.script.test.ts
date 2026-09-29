@@ -16,8 +16,8 @@
  * alone unless told to re-issue it. Last, runs that stop part way, which must
  * withdraw what they created and nothing that pre-dated them.
  *
- * Every external tool is a stub: aws, the host step, the allow-list step, the
- * IAM read-back, age and Terraform. age's stub writes the header age would and
+ * Every external tool is a stub: aws, the host step, the allow-list step, age
+ * and Terraform. age's stub writes the header age would and
  * copies the cleartext after it, so the suite can read the bundle; that the
  * header tag is age's own is proved against the real binary in the
  * delivery-format suite.
@@ -64,9 +64,18 @@ function stub(name: string, body: string): string {
  * written it is an account with the role applied and no user of the name.
  * "user" makes the user exist and be ours, "policy" gives it the grant,
  * "active-key" an active key, and "unreadable-<subcommand>" makes that read
- * fail the way a denied call does. Not-found answers are printed as the CLI
- * prints them, captured from a real read: the error code is what the scripts
- * recognise, and the rest of the message is not a contract.
+ * fail the way a denied call does. "late-unreadable-get-user" denies get-user
+ * once the run has minted its key, which is the read-back failing after
+ * everything else succeeded. "grant-lost" makes the grant fail to stick, and
+ * "minted-lost" the minted key, as though somebody removed either in between.
+ * "warn-on-success" puts a line on stderr for every call, successful or not, the way the CLI prints a deprecation or library warning;
+ * it is an acknowledged fake, because what is asserted is that no read takes it
+ * as data, not its wording. Not-found answers are printed as the CLI prints them,
+ * captured from a real read: the error code is what the scripts recognise, and
+ * the rest of the message is not a contract.
+ *
+ * The key the run mints is remembered in "minted-key", so it is listed as the
+ * CLI would list it, and deleting it removes that key and no other.
  */
 function awsStub(): string {
   const log = join(dir, 'calls.log');
@@ -76,7 +85,11 @@ function awsStub(): string {
     `
 printf '%s\\n' "$*" >> ${JSON.stringify(log)}
 S=${S}
+[[ -e "$S/warn-on-success" ]] && echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2
 [[ -e "$S/unreadable-$2" ]] && { echo "aws: [ERROR]: An error occurred (AccessDenied) when calling the operation: not authorized" >&2; exit 254; }
+if [[ "$2" == "get-user" && -e "$S/late-unreadable-get-user" && -e "$S/minted-key" ]]; then
+  echo "aws: [ERROR]: An error occurred (AccessDenied) when calling the GetUser operation: not authorized" >&2; exit 254
+fi
 case "$1 $2" in
   "sts get-caller-identity") echo ${JSON.stringify(OPERATOR_ARN)} ;;
   "iam get-role") exit 0 ;;
@@ -91,11 +104,19 @@ case "$1 $2" in
       *"Key=='OperatorRole'"*) [[ -e "$S/partial-tags" ]] || echo dev_tester ;;
     esac ;;
   "iam create-user") touch "$S/user" ;;
-  "iam put-user-policy") touch "$S/policy" ;;
+  "iam put-user-policy") [[ -e "$S/grant-lost" ]] || touch "$S/policy" ;;
   "iam delete-user-policy") rm -f "$S/policy" ;;
   "iam delete-user") rm -f "$S/user" ;;
-  "iam update-access-key") touch "$S/key-inactive" ;;
-  "iam delete-access-key") rm -f "$S/active-key" "$S/key-inactive" ;;
+  "iam update-access-key")
+    case "$*" in
+      *${JSON.stringify(MINTED_KEY_ID)}*) touch "$S/minted-inactive" ;;
+      *) touch "$S/key-inactive" ;;
+    esac ;;
+  "iam delete-access-key")
+    case "$*" in
+      *${JSON.stringify(MINTED_KEY_ID)}*) rm -f "$S/minted-key" "$S/minted-inactive" ;;
+      *) rm -f "$S/active-key" "$S/key-inactive" ;;
+    esac ;;
   "iam get-user-policy")
     [[ -e "$S/policy" ]] && { echo AssumeFootbagDevTester; exit 0; }
     echo "aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetUserPolicy operation: The user policy with name AssumeFootbagDevTester cannot be found." >&2
@@ -106,12 +127,17 @@ case "$1 $2" in
     exit 254 ;;
   "iam list-access-keys")
     case "$*" in
-      *"length("*) [[ -e "$S/active-key" ]] && echo 1 || echo 0 ;;
+      *"length("*) n=0; [[ -e "$S/active-key" ]] && n=$((n+1)); [[ -e "$S/minted-key" ]] && n=$((n+1)); echo "$n" ;;
       *)
         st=Active; [[ -e "$S/key-inactive" ]] && st=Inactive
-        [[ -e "$S/active-key" ]] && printf '%s\\t%s\\t2026-01-01T00:00:00Z\\n' ${JSON.stringify(EARLIER_KEY_ID)} "$st"; true ;;
+        [[ -e "$S/active-key" ]] && printf '%s\\t%s\\t2026-01-01T00:00:00Z\\n' ${JSON.stringify(EARLIER_KEY_ID)} "$st"
+        st=Active; [[ -e "$S/minted-inactive" ]] && st=Inactive
+        [[ -e "$S/minted-key" ]] && printf '%s\\t%s\\t2026-09-01T00:00:00Z\\n' ${JSON.stringify(MINTED_KEY_ID)} "$st"
+        true ;;
     esac ;;
-  "iam create-access-key") printf '%s\\t%s\\n' ${JSON.stringify(MINTED_KEY_ID)} ${JSON.stringify(MINTED_SECRET)} ;;
+  "iam create-access-key")
+    [[ -e "$S/minted-lost" ]] || touch "$S/minted-key"
+    printf '%s\\t%s\\n' ${JSON.stringify(MINTED_KEY_ID)} ${JSON.stringify(MINTED_SECRET)} ;;
   "lightsail get-instance-access-details")
     printf 'ssh-ed25519\\tAAAAC3NzaC1lZDI1NTE5AAAAIFixtureHostKeyEd25519\\n'
     printf 'ssh-rsa\\tAAAAB3NzaC1yc2EAAAADAQABFixtureHostKeyRsa\\n' ;;
@@ -120,11 +146,33 @@ esac`,
   );
 }
 
-/** The host step: records how it was called and hands back a password. */
+/**
+ * The host step: records how it was called and hands back a password. Asked to
+ * inspect, it answers as the real one does, from files the test writes: the
+ * account live and holding the key given, unless "host-absent", "host-locked"
+ * or "host-other-key" says otherwise, or "host-unreadable" makes the read fail.
+ */
 function provisionStub(): string {
+  const D = JSON.stringify(dir);
   return stub(
     'provision',
     `
+if [[ " $* " == *" --inspect "* ]]; then
+  printf '%s\\n' "$*" >> ${JSON.stringify(join(dir, 'inspect.args'))}
+  IFS= read -r sudo_line || true
+  printf '%s\\n' "$sudo_line" > ${JSON.stringify(join(dir, 'inspect.stdin'))}
+  [[ -e ${D}/host-unreadable ]] && { echo "ERROR: could not read the account." >&2; exit 1; }
+  [[ -e ${D}/host-absent ]] && { echo "ACCOUNT absent"; exit 0; }
+  echo "==> Account:     ${ACCOUNT}  for "
+  echo "ACCOUNT present"
+  if [[ -e ${D}/host-locked ]]; then echo "LOCKED yes"; else echo "LOCKED no"; fi
+  if [[ -e ${D}/host-other-key ]]; then
+    echo "KEY 256 SHA256:fixtureSomebodyElsesKeyFingerprint0000000000 other (ED25519)"
+  else
+    echo "KEY $(ssh-keygen -l -f ${JSON.stringify(join(dir, 'id_ed25519_james.pub'))})"
+  fi
+  exit 0
+fi
 printf '%s\\n' "$*" > ${JSON.stringify(join(dir, 'provision.args'))}
 printf '%s\\n' "\${OPACC_SEALED_OUT:-}" > ${JSON.stringify(join(dir, 'provision.out'))}
 IFS= read -r sudo_line || true
@@ -207,7 +255,6 @@ function env(): Record<string, string> {
     ONBOARD_DEV_TESTER_PROVISION_CMD: provisionStub(),
     ONBOARD_DEV_TESTER_AGE_BIN: ageStub(),
     ONBOARD_DEV_TESTER_ADDRESS_CMD: childStub('address'),
-    ONBOARD_DEV_TESTER_VERIFY_CMD: childStub('verify'),
     TF_OUTPUT_BIN: terraformStub(),
   };
 }
@@ -418,11 +465,65 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(read('address.args')).toContain('--address 198.51.100.7/32 ');
   });
 
-  it('reads the identity back from IAM once it is sealed', () => {
+  it('reads the identity back from IAM once it is sealed, down to the key it sealed', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status, r.out).toBe(0);
-    expect(read('verify.args')).toBe(`--verify ${ACCOUNT}\n`);
-    expect(read('verify.stdin')).toBe('');
+    expect(r.out).toMatch(/Reading james_leberknight back from IAM/);
+    expect(r.out).toMatch(/grant: {3}AssumeFootbagDevTester/);
+    expect(r.out).toContain(`key:     ${MINTED_KEY_ID} active`);
+  });
+
+  it('fails the run when the grant is missing once it is sealed', () => {
+    writeFileSync(join(dir, 'grant-lost'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/does not read back from IAM as onboarded: it does not hold AssumeFootbagDevTester/);
+    expect(r.out).not.toMatch(/Get that file to/);
+  });
+
+  it('fails the run when the key it sealed is not active', () => {
+    writeFileSync(join(dir, 'minted-lost'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(`the key just sealed, ${MINTED_KEY_ID}, is not active`);
+    expect(r.out).not.toMatch(/Get that file to/);
+  });
+
+  it('fails the run when IAM cannot be read back, rather than reading the user as absent', () => {
+    writeFileSync(join(dir, 'late-unreadable-get-user'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/could not read the IAM user james_leberknight/);
+    expect(r.out).toMatch(/does not read back from IAM as onboarded: IAM could not be read/);
+    expect(r.out).not.toMatch(/Get that file to/);
+  });
+
+  it('never reads a warning the CLI prints on stderr as a key id', () => {
+    finished();
+    writeFileSync(join(dir, 'warn-on-success'), '');
+    const r = runInTerminal('APPLY\n', args({}, ['--reissue']));
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain(`Retiring the key being replaced: ${EARLIER_KEY_ID}`);
+    expect(calls().filter((c) => /access-key --user-name/.test(c) && /InsecureRequestWarning|urllib3/.test(c))).toEqual([]);
+    expect(r.out).toContain(`key:     ${MINTED_KEY_ID} active`);
+  });
+
+  it('judges the re-issue on IAM alone, whatever key this machine still holds for the person', () => {
+    // A holder re-issuing their own onboarding keeps the retired key in their
+    // files until they accept the new one; the read-back must not consult it.
+    finished();
+    writeFileSync(
+      credFile,
+      `${OPERATOR_CRED}[${ACCOUNT}]\naws_access_key_id = AKIAEXAMPLEEXAMPLE02\naws_secret_access_key = retired-fixture-secret\n`,
+      { mode: 0o600 },
+    );
+    writeFileSync(
+      configFile,
+      `${OPERATOR_CONFIG}[profile FootbagDevTester]\nrole_arn = arn:aws:iam::000000000000:role/FootbagDevTester\nsource_profile = ${ACCOUNT}\nrole_session_name = ${ACCOUNT}\n`,
+    );
+    const r = runInTerminal('APPLY\n', args({}, ['--reissue']));
+    expect(r.status, r.out).toBe(0);
+    expect(calls().some((c) => /--profile (james_leberknight|FootbagDevTester)/.test(c))).toBe(false);
   });
 
   it('fails, naming the re-run, when the address is not proved on the allow-list', () => {
@@ -542,8 +643,53 @@ describe('onboard-dev-tester.sh — an onboarding that is already finished', () 
     expect(r.out).toMatch(/Already done/);
     expect(r.out).toMatch(/--reissue/);
     expect(mutatingCalls()).toEqual([]);
+    // The host was read, never changed: only the inspection ran.
     expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+    expect(read('inspect.args')).toBe(`--target staging --account ${ACCOUNT} --inspect\n`);
+    expect(read('inspect.stdin')).toBe('fixture-sudo-password\n');
     expect(existsSync(SEALED())).toBe(false);
+  });
+
+  it('refuses to call it done when the host account is locked, as a half-finished offboard leaves it', () => {
+    finished();
+    writeFileSync(join(dir, 'host-locked'), '');
+    const r = runInTerminal('');
+    expect(r.status).toBe(1);
+    expect(r.out).not.toMatch(/Already done/);
+    expect(r.out).toMatch(/their host account is locked/);
+    expect(r.out).toMatch(/--from-step 2/);
+    expect(mutatingCalls()).toEqual([]);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+    expect(read('address.args')).toBe('');
+  });
+
+  it('refuses to call it done when the host account holds any other key', () => {
+    finished();
+    writeFileSync(join(dir, 'host-other-key'), '');
+    const r = runInTerminal('');
+    expect(r.status).toBe(1);
+    expect(r.out).not.toMatch(/Already done/);
+    expect(r.out).toMatch(/does not hold\s+exactly the key given/);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+  });
+
+  it('refuses to call it done when there is no host account', () => {
+    finished();
+    writeFileSync(join(dir, 'host-absent'), '');
+    const r = runInTerminal('');
+    expect(r.status).toBe(1);
+    expect(r.out).not.toMatch(/Already done/);
+    expect(r.out).toMatch(/there is no james_leberknight account on/);
+  });
+
+  it('refuses rather than calling it done when the host cannot be read', () => {
+    finished();
+    writeFileSync(join(dir, 'host-unreadable'), '');
+    const r = runInTerminal('');
+    expect(r.status).toBe(1);
+    expect(r.out).not.toMatch(/Already done/);
+    expect(r.out).toMatch(/their host account could not be\s+read/);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
   });
 
   it('still makes sure of the allow-list entry and reads the identity back', () => {
@@ -551,7 +697,21 @@ describe('onboard-dev-tester.sh — an onboarding that is already finished', () 
     const r = runInTerminal('');
     expect(r.status, r.out).toBe(0);
     expect(read('address.args')).toContain(`--for ${ACCOUNT}; home`);
-    expect(read('verify.args')).toBe(`--verify ${ACCOUNT}\n`);
+    expect(r.out).toMatch(/Reading james_leberknight back from IAM/);
+    expect(r.out).toContain(`key:     ${EARLIER_KEY_ID} active`);
+  });
+
+  it('refuses, before the host step and any confirmation, when IAM cannot say whether the user exists', () => {
+    // Read as absent, a finished onboarding would skip the check above and go on
+    // to issue its host account a fresh password.
+    finished();
+    writeFileSync(join(dir, 'unreadable-get-user'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/could not read the IAM user james_leberknight/);
+    expect(r.out).not.toMatch(/Type 'APPLY'/);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+    expect(mutatingCalls()).toEqual([]);
   });
 
   it('re-issues it only when told to, replacing the key and sealing again', () => {

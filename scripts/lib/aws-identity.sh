@@ -27,6 +27,27 @@
 AWS_IDENTITY_BIN="${AWS_IDENTITY_BIN:-aws}"
 AWS_IDENTITY_REGION="${AWS_IDENTITY_REGION:-us-east-1}"
 
+# _aws_identity_caller_arn [<aws args>...]
+# One get-caller-identity. Prints the ARN on success and returns 0; prints the
+# error text and returns 1 on failure. The ARN is read from stdout alone,
+# because the CLI can print a warning on stderr for a call that succeeded, and
+# taken together with the answer it becomes part of the ARN every check below
+# judges. The error text comes from making the read again with its answer
+# discarded, which is safe because it is a read.
+_aws_identity_caller_arn() {
+  local out err
+  local -a call=(sts get-caller-identity "$@" --query Arn --output text --region "$AWS_IDENTITY_REGION")
+  if out="$("$AWS_IDENTITY_BIN" "${call[@]}" 2>/dev/null)"; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  if err="$("$AWS_IDENTITY_BIN" "${call[@]}" 2>&1 >/dev/null)"; then
+    err="(the call failed, then succeeded when repeated, so there is no error text to show; re-run)"
+  fi
+  printf '%s\n' "$err"
+  return 1
+}
+
 # The ARN from the last successful call.
 AWS_IDENTITY_ARN=""
 
@@ -43,8 +64,7 @@ aws_identity_require_user() {
   local profile="$1" expected="$2" arn
   AWS_IDENTITY_ARN=""
 
-  if ! arn="$("$AWS_IDENTITY_BIN" sts get-caller-identity --profile "$profile" \
-    --query Arn --output text --region "$AWS_IDENTITY_REGION" 2>&1)"; then
+  if ! arn="$(_aws_identity_caller_arn --profile "$profile")"; then
     echo "ERROR: the profile '${profile}' could not resolve an identity at all." >&2
     printf '%s\n' "$arn" | sed 's/^/         /' >&2
     return 1
@@ -122,8 +142,7 @@ aws_identity_require_chain() {
   local profile arn failed=0
 
   for profile in "$@"; do
-    if ! arn="$("$AWS_IDENTITY_BIN" sts get-caller-identity --profile "$profile" \
-      --query Arn --output text --region "$AWS_IDENTITY_REGION" 2>&1)"; then
+    if ! arn="$(_aws_identity_caller_arn --profile "$profile")"; then
       echo "  FAIL ${profile}: ${arn}" >&2
       failed=1
       continue
@@ -244,9 +263,7 @@ aws_identity_resolve() {
     subject="the AWS credentials in your environment"
   fi
 
-  if ! arn="$("$AWS_IDENTITY_BIN" sts get-caller-identity \
-    ${scope[@]+"${scope[@]}"} \
-    --query Arn --output text --region "$AWS_IDENTITY_REGION" 2>&1)"; then
+  if ! arn="$(_aws_identity_caller_arn ${scope[@]+"${scope[@]}"})"; then
     echo "ERROR: ${subject} did not authenticate against AWS." >&2
     printf '%s\n' "$arn" | sed 's/^/         /' >&2
     return 1

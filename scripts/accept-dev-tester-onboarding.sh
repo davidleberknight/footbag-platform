@@ -27,6 +27,12 @@
 #   - Write a [footbag-operator] section, or change any AWS section but this
 #     person's own. The job role's profile is added only where absent, and one
 #     that already chains from somebody else is refused.
+#   - Use a key pair whose private half is not the public half's own, or copy
+#     over one half of a pair already at the path the tooling uses.
+#   - Take the job-role profile's word for the grant. The CLI answers it from
+#     its session cache, so the grant is proved by a fresh session signed with
+#     the new key, and this person's cached sessions are removed when the key
+#     changes.
 #   - Edit an SSH stanza this machine already carries. A missing one is written.
 #   - Leave the one-time password standing, or accept a new one shorter than 12
 #     characters.
@@ -172,13 +178,51 @@ fi
 NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
 pub_tag() { delivery_age_recipient_tag "$(grep -m1 . "$1" 2>/dev/null)" 2>/dev/null || true; }
 
+# require_pair <private> <public>
+# Refuses unless the private half is the one the public half belongs to, proved
+# by deriving the public key from it. The tag check below reads only the public
+# half, and a private file that does not match it is found only when age fails
+# to open the delivery, with an error that does not say why. ssh-keygen asks
+# for the key's passphrase on the terminal, if it has one, and a key it cannot
+# read is refused as unreadable rather than as a mismatch, so the message
+# points at the real cause.
+require_pair() {
+  local derived
+  if ! derived="$(ssh-keygen -y -f "$1")" || [[ -z "$derived" ]]; then
+    echo "ERROR: ssh-keygen could not read the private key ${1}." >&2
+    echo "       A wrong passphrase, a file that is not a private key, or one that" >&2
+    echo "       other users can read (ssh-keygen refuses those) all end here." >&2
+    echo "       Nothing was copied or opened." >&2
+    exit 1
+  fi
+  if [[ "$(cut -d' ' -f2 <<<"$derived")" != "$(grep -m1 . "$2" | cut -d' ' -f2)" ]]; then
+    echo "ERROR: ${1} is not the private half of ${2}." >&2
+    echo "       Nothing was copied or opened. Move the wrong file aside and re-run." >&2
+    exit 1
+  fi
+}
+
+# One half at the named path without the other is somebody else's file. The
+# copy below would skip the half that is there and bring in the other, leaving
+# two halves that do not belong together.
+if [[ -e "$NAMED_KEY" && ! -e "${NAMED_KEY}.pub" ]] || [[ ! -e "$NAMED_KEY" && -e "${NAMED_KEY}.pub" ]]; then
+  echo "ERROR: only one half of the key pair is at the path the tooling uses:" >&2
+  echo "         ${NAMED_KEY}      $([[ -e "$NAMED_KEY" ]] && echo present || echo missing)" >&2
+  echo "         ${NAMED_KEY}.pub  $([[ -e "${NAMED_KEY}.pub" ]] && echo present || echo missing)" >&2
+  echo "       Nothing was copied or opened. Move the one that is there aside, or" >&2
+  echo "       put its other half beside it, and re-run." >&2
+  exit 1
+fi
+
+echo "  Checking that the private half matches the public one (a key with a"
+echo "  passphrase asks for it here)."
 if [[ -f "${NAMED_KEY}.pub" ]]; then
   if [[ "$(pub_tag "${NAMED_KEY}.pub")" != "$SEALED_TAGS" ]]; then
     echo "ERROR: ${NAMED_KEY} is not the key this delivery was sealed to. Nothing" >&2
     echo "       was moved or opened. Send the holder the public key you meant." >&2
     exit 1
   fi
-  [[ -f "$NAMED_KEY" ]] || { echo "ERROR: ${NAMED_KEY} has no private half." >&2; exit 1; }
+  require_pair "$NAMED_KEY" "${NAMED_KEY}.pub"
   echo "  ${NAMED_KEY} is the pair this delivery was sealed to"
 else
   FOUND=()
@@ -191,6 +235,7 @@ else
     echo "       to; exactly one must. Nothing was moved or opened." >&2
     exit 1
   fi
+  require_pair "${FOUND[0]}" "${FOUND[0]}.pub"
   # Copied, never moved. The pair may be the one this machine signs everything
   # else with, and moving it would break each of those without a word; a copy
   # leaves every other use of it as it was.
@@ -207,6 +252,7 @@ else
   cp -n -p -- "${FOUND[0]}.pub" "${NAMED_KEY}.pub"
   chmod 600 -- "$NAMED_KEY"
   [[ -f "$NAMED_KEY" && -f "${NAMED_KEY}.pub" ]] || { echo "ERROR: the copy did not land." >&2; exit 1; }
+  require_pair "$NAMED_KEY" "${NAMED_KEY}.pub"
   echo "  copied"
 fi
 
@@ -265,6 +311,26 @@ fi
 RT_PRESENT=0
 aws_config_has_profile "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" && RT_PRESENT=1
 
+# The CLI keeps each job-role session it is issued in its cache and answers the
+# profile from there until the session expires, up to an hour. A re-onboarding
+# leaves the profile exactly as it was, so a session cached before an offboard
+# would go on being used, and the role refuses every one of those. Only this
+# person's job-role sessions are removed, found by the role and session name the
+# cache file records; the CLI asks for a fresh one on its next call.
+CLI_CACHE="${HOME}/.aws/cli/cache"
+clear_cached_sessions() {
+  local f cleared=0
+  [[ -d "$CLI_CACHE" ]] || return 0
+  for f in "$CLI_CACHE"/*.json; do
+    [[ -f "$f" ]] || continue
+    grep -qF -- "assumed-role/${DEV_TESTER_PROFILE}/${ACCOUNT}\"" "$f" || continue
+    secret_file_destroy "$f"
+    echo "    removed a cached ${DEV_TESTER_PROFILE} session of ${ACCOUNT}'s: ${f}"
+    cleared=1
+  done
+  (( cleared )) || echo "    no cached ${DEV_TESTER_PROFILE} session of ${ACCOUNT}'s to remove"
+}
+
 if [[ "$CURRENT_KEY" == "$DELIVERY_AWS_ACCESS_KEY_ID" && -n "$DT_SOURCE" ]] && (( RT_PRESENT )); then
   echo "  already in place: [${ACCOUNT}] holds ${CURRENT_KEY}, and both profiles exist"
 else
@@ -298,6 +364,7 @@ else
   if [[ "$CURRENT_KEY" != "$DELIVERY_AWS_ACCESS_KEY_ID" ]]; then
     aws_cred_put "$CRED_FILE" "$ACCOUNT" "$DELIVERY_AWS_ACCESS_KEY_ID" "$DELIVERY_AWS_SECRET_ACCESS_KEY" || {
       echo "ERROR: could not write the credential: ${AWS_CRED_ERROR}" >&2; exit 1; }
+    clear_cached_sessions
   fi
   if [[ -z "$DT_SOURCE" ]]; then
     aws_config_add_role_profile "$CONFIG_FILE" "$DEV_TESTER_PROFILE" \
@@ -320,17 +387,37 @@ DELIVERY_AWS_SECRET_ACCESS_KEY=""
 # judge the outcome either way.
 
 step "Proving who you are on AWS"
-if ! "$AWS_BIN" sts get-caller-identity --profile "$DEV_TESTER_PROFILE" \
-    --query Arn --output text --region us-east-1 >/dev/null 2>&1; then
-  echo "  waiting for the new key to take effect (up to $(( POLL * 24 ))s)"
-  for (( try = 1; try <= 24; try++ )); do
+# The job role is proved by a fresh assume signed with the new key itself, never
+# through the role profile, which the CLI can answer from a session it cached
+# before an offboard; that session would pass every proof here and then be
+# refused on real work.
+FRESH_CALL=(sts assume-role --profile "$ACCOUNT" --role-arn "$DELIVERY_DEV_TESTER_ROLE_ARN"
+  --role-session-name "$ACCOUNT" --query AssumedRoleUser.Arn --output text --region us-east-1)
+FRESH_WANT="arn:aws:sts::${DELIVERY_AWS_ACCOUNT_ID}:assumed-role/${DEV_TESTER_PROFILE}/${ACCOUNT}"
+FRESH_ARN=""
+for (( try = 0; try <= 24; try++ )); do
+  if (( try )); then
+    (( try == 1 )) && echo "  waiting for the new key to take effect (up to $(( POLL * 24 ))s)"
     sleep "$POLL"
-    "$AWS_BIN" sts get-caller-identity --profile "$DEV_TESTER_PROFILE" \
-      --query Arn --output text --region us-east-1 >/dev/null 2>&1 && break
-  done
-fi
+  fi
+  FRESH_ARN="$("$AWS_BIN" "${FRESH_CALL[@]}" 2>/dev/null)" && break
+  FRESH_ARN=""
+done
 aws_identity_require_user "$ACCOUNT" "$ACCOUNT" || exit 1
 echo "  [${ACCOUNT}] is IAM user ${ACCOUNT}"
+if [[ "$FRESH_ARN" != "$FRESH_WANT" ]]; then
+  echo "ERROR: a fresh session of ${DEV_TESTER_PROFILE}, signed with your new key, was not" >&2
+  echo "       issued as ${FRESH_WANT}." >&2
+  if [[ -n "$FRESH_ARN" ]]; then
+    echo "       It came back as ${FRESH_ARN}." >&2
+  else
+    echo "       AWS said:" >&2
+    "$AWS_BIN" "${FRESH_CALL[@]}" 2>&1 >/dev/null | sed 's/^/         /' >&2 || true
+  fi
+  echo "       Ask the holder who onboarded you to check your grant." >&2
+  exit 1
+fi
+echo "  a fresh ${DEV_TESTER_PROFILE} session, signed with your new key: ${FRESH_ARN}"
 aws_identity_resolve "$DEV_TESTER_PROFILE" || exit 1
 aws_identity_require_assumed_role "$DEV_TESTER_PROFILE" || exit 1
 if [[ "$AWS_IDENTITY_SESSION_NAME" != "$ACCOUNT" ]]; then

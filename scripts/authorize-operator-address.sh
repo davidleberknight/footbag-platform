@@ -457,9 +457,14 @@ fi
 # learned and why it failed both survive.
 live_read() {
   local states port ranges
+  # Read from stdout alone, so a warning the CLI prints on stderr beside a
+  # successful answer is never handed to jq; the error text is fetched by
+  # reading again only when the read failed.
+  local -a call=(lightsail get-instance-port-states
+    --region us-east-1 --instance-name "$INSTANCE" --output json)
   LIVE_WHY=""
-  if ! states="$("$AWS_BIN" lightsail get-instance-port-states \
-      --region us-east-1 --instance-name "$INSTANCE" --output json 2>&1)"; then
+  if ! states="$("$AWS_BIN" "${call[@]}" 2>/dev/null)"; then
+    states="$("$AWS_BIN" "${call[@]}" 2>&1 >/dev/null)" || true
     LIVE_WHY="the port-state read failed: ${states}"
     return 1
   fi

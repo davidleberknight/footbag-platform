@@ -31,16 +31,16 @@ for arg in "$@"; do
   esac
 done
 
+# --redact -v in both modes, matching the flags the runner's action passes.
+# Without them a scan prints a count and nothing else: "leaks found: 2" tells
+# the reader a number and sends them to re-run the scanner by hand to learn
+# which rule, which file, which line. --redact keeps the matched value itself
+# out of the output, which is what makes printing the rest safe in a terminal
+# and a log.
 if [ "$staged" -eq 1 ]; then
-  native_args="git --staged --config .gitleaks.toml --no-banner"
-  docker_args="git --staged --config /repo/.gitleaks.toml --no-banner"
+  native_args="git --staged --config .gitleaks.toml --no-banner --redact -v"
+  docker_args="git --staged --config /repo/.gitleaks.toml --no-banner --redact -v"
 else
-  # --redact -v, matching the flags the runner's action passes. Without them
-  # this printed a count and nothing else: "leaks found: 13" tells the reader a
-  # number and sends them to re-run the scanner by hand to learn which rule,
-  # which file, which commit. The runner has said all of that on every run.
-  # --redact keeps the matched value itself out of the output, which is what
-  # makes printing the rest safe in a terminal and a log.
   native_args="detect --source . --config .gitleaks.toml --no-banner --redact -v"
   docker_args="detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact -v"
 fi
@@ -124,8 +124,10 @@ fi
 if [ "$rc" -ne 0 ] && [ "$staged" -eq 1 ]; then
   echo >&2
   echo "COMMIT REFUSED: the secret scanner found something in the staged changes." >&2
-  echo "If it is a genuine false positive, the allowlist file takes a per-finding" >&2
-  echo "fingerprint entry; if it is real, remove the value rather than allowlisting" >&2
+  echo "Each finding above names its file, line and rule. A synthetic AWS key id in" >&2
+  echo "a test is allowed when its body spells FIXTURE or EXAMPLE, so rename it that" >&2
+  echo "way. Any other genuine false positive takes a per-finding fingerprint entry" >&2
+  echo "in .gitleaksignore; if it is real, remove the value rather than allowlisting" >&2
   echo "it. To commit anyway: git commit --no-verify" >&2
 fi
 

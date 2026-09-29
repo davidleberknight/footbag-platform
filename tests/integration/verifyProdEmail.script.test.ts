@@ -42,7 +42,7 @@ let fakeBin: string;
  * whether the identity check passes; `mailFrom` is the bounce-domain status the
  * report is built from.
  */
-function writeFakeAws(arn: string, mailFrom: string): void {
+function writeFakeAws(arn: string, mailFrom: string, opts: { warn?: boolean; sesDenied?: boolean } = {}): void {
   fakeBin = path.join(dir, 'bin');
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.writeFileSync(
@@ -50,6 +50,21 @@ function writeFakeAws(arn: string, mailFrom: string): void {
     [
       '#!/usr/bin/env bash',
       'args="$*"',
+      // `warn` puts a line on stderr beside every answer, as the CLI prints a
+      // deprecation or library notice; an acknowledged fake, since what is
+      // asserted is that it is never read as a status. `sesDenied` refuses the
+      // identity reads the way a principal without the read permission is.
+      ...(opts.warn
+        ? ['echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2']
+        : []),
+      ...(opts.sesDenied
+        ? [
+            'if [[ "$args" == *"get-email-identity"* ]]; then',
+            '  echo "An error occurred (AccessDeniedException) when calling the GetEmailIdentity operation: not authorized" >&2',
+            '  exit 254',
+            'fi',
+          ]
+        : []),
       'case "$args" in',
       `  *"sts get-caller-identity"*) echo "${arn}" ;;`,
       `  *MailFromAttributes*) echo "${mailFrom}" ;;`,
@@ -118,6 +133,22 @@ describe('verify-prod-email.sh custom bounce-domain report', () => {
     const r = run(['--profile', 'footbag-production', '--confirm-production']);
     expect(r.stdout).toMatch(/Custom bounce domain: PENDING -- NOT healthy/);
     expect(r.stdout).toMatch(/mail still goes\s+out but cannot align/);
+  });
+
+  it('reads the statuses, not a warning the CLI prints beside them', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { warn: true });
+    const r = run(['--profile', 'footbag-production', '--confirm-production']);
+    expect(r.status, String(r.stderr)).toBe(0);
+    expect(r.stdout).toMatch(/Sender identity: noreply@\S+ \(verified\)/);
+    expect(r.stdout).toMatch(/Custom bounce domain: healthy/);
+  });
+
+  it('still tells a denied read apart from an unverified sender', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { sesDenied: true });
+    const r = run(['--profile', 'footbag-production', '--confirm-production']);
+    expect(r.status, String(r.stderr)).toBe(0);
+    expect(r.stdout).toMatch(/status not readable by this profile; sending anyway/);
+    expect(r.stdout).toMatch(/Custom bounce domain: status not readable by this profile/);
   });
 
   it('distinguishes not-yet-configured from unhealthy', () => {

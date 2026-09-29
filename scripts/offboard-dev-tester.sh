@@ -97,8 +97,7 @@
 #       --github-login <their GitHub login, or none>
 #
 # The redirect carries the shared `footbag` account's sudo password, which the
-# host is always reached as (~/AWS/AWS_OPERATOR_PRODUCTION.txt on production).
-# Step 1 consumes it.
+# host is always reached as. Step 1 consumes it.
 #
 # The two repositories are read from the remotes of this checkout and of the
 # private operations checkout it links to, or from FOOTBAG_PRIVATE_REPO when that
@@ -106,14 +105,15 @@
 # allowed to manage both repositories' collaborators.
 #
 # Flags:
-#   --target <staging|production>  deployed environment; no default
+#   --target staging               the only environment a dev-and-tester is
+#                                  onboarded onto; required rather than defaulted
 #   --account <name>               the dev-and-tester being offboarded
 #   --github-login <login|none>    their GitHub login, required; `none` says in
 #                                  so many words that they hold no repository
 #                                  access, rather than letting an omission say it
 #   --from-step <1-4>              resume a run that stopped part way
 #   --yes                          accept this command's own confirmations, the
-#                                  AWS step's and staging's allow-list step's in
+#                                  AWS step's and the allow-list step's in
 #                                  advance;
 #                                  the host step always asks at the
 #                                  terminal, so a person runs this, never a job
@@ -127,7 +127,6 @@
 #   OFFBOARD_AWS_BIN      replaces the aws CLI used for the caller check and the
 #                         IAM user read
 #   OFFBOARD_SSH_CONFIG   the SSH config file to read and change
-#   OFFBOARD_SSH_ADD      replaces ssh-add
 #   OFFBOARD_ADDRESS_CMD  replaces the allow-list child
 #   OFFBOARD_GH_BIN       replaces the GitHub CLI
 #   OFFBOARD_PUBLIC_REPO  the public repository, instead of this checkout's remote
@@ -159,7 +158,6 @@ GH_BIN="${OFFBOARD_GH_BIN:-gh}"
 AWS_BIN="${OFFBOARD_AWS_BIN:-aws}"
 AWS_IDENTITY_BIN="$AWS_BIN"
 SSH_CONFIG="${OFFBOARD_SSH_CONFIG:-${HOME}/.ssh/config}"
-SSH_ADD_BIN="${OFFBOARD_SSH_ADD:-ssh-add}"
 AWS_CONFIG_PATH="${AWS_CONFIG_FILE:-${HOME}/.aws/config}"
 AWS_CRED_PATH="${AWS_SHARED_CREDENTIALS_FILE:-${HOME}/.aws/credentials}"
 # The chained profile the onboarding writes, spelled as the AWS half spells it.
@@ -184,7 +182,16 @@ while (( $# )); do
   esac
 done
 
-require_target "$TARGET" staging production || exit 2
+# Onboarding reaches staging only, so offboarding does too. A production run
+# would find nothing of theirs there, and its closing report that nothing else
+# is owed would leave their staging account and allow-list entry standing.
+if [[ "$TARGET" == "production" ]]; then
+  echo "ERROR: a dev-and-tester is never onboarded onto production, so there is" >&2
+  echo "       nothing of theirs there to offboard. Run it with --target staging." >&2
+  echo "       Nothing done." >&2
+  exit 2
+fi
+require_target "$TARGET" staging || exit 2
 
 if [[ -z "$ACCOUNT" ]]; then
   echo "ERROR: --account names the operator being retired." >&2
@@ -444,8 +451,7 @@ if (( FROM_STEP <= 3 )); then
     while IFS= read -r cidr; do
       [[ -z "$cidr" ]] && continue
       ADDRESS_ARGS=(--target "$TARGET" --address "$cidr" --remove)
-      # Production's list asks at the terminal whatever it is told.
-      [[ "$ASSUME_YES" == "yes" && "$TARGET" == "staging" ]] && ADDRESS_ARGS+=(--yes)
+      [[ "$ASSUME_YES" == "yes" ]] && ADDRESS_ARGS+=(--yes)
       if ! bash "$ADDRESS_CMD" "${ADDRESS_ARGS[@]}" </dev/null; then
         echo "" >&2
         echo "ERROR: ${cidr} was not proved off the ${TARGET} allow-list. The host account" >&2
@@ -611,10 +617,14 @@ else
     exit 1
   fi
 
+  # Shredded, and deliberately not taken out of the SSH agent. Acceptance copies
+  # the pair the onboarding was sealed to, which may be the person's everyday
+  # key, and `ssh-add -d` removes an identity by its public key, so it would
+  # unload the everyday original too and stop their other SSH sessions. The
+  # account it logged in to is retired, so a copy left loaded opens nothing.
   if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]]; then
-    "$SSH_ADD_BIN" -d "$NAMED_KEY" >/dev/null 2>&1 || true
     secret_file_destroy "$NAMED_KEY" "${NAMED_KEY}.pub"
-    echo "  ${NAMED_KEY_TILDE} key pair: shredded, and taken out of the agent"
+    echo "  ${NAMED_KEY_TILDE} key pair: shredded"
   else
     echo "  ${NAMED_KEY_TILDE} key pair: none here"
   fi

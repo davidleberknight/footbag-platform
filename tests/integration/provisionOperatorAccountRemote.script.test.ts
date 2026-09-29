@@ -323,8 +323,13 @@ describe('the offboard never sweeps a key off the shared account', () => {
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`REFUSING: a key on ${LEAVER} is also authorized on the shared`);
-    expect(r.stderr).toContain(`re-onboard ${LEAVER} with`);
-    expect(r.stderr).toContain('onboard-dev-tester.sh');
+    // The route that works: a different key of theirs onto the shared account,
+    // proved by a login, before the overlapping one comes off. Re-onboarding
+    // is no route, since onboarding makes no key pair and refuses a live
+    // account holding any key but the one given.
+    expect(r.stderr).toMatch(/move their way into\s+footbag onto a different key of theirs first/);
+    expect(r.stderr).toMatch(/setup-operator-workstation\.sh --target <environment>\s+--check/);
+    expect(r.stderr).not.toContain('onboard-dev-tester.sh');
     expect(r.stderr).not.toContain('--rotate --key-only');
     expect(r.stderr).toContain('authorize-operator-key.sh --remove');
     expect(r.stderr).toContain('Nothing done.');

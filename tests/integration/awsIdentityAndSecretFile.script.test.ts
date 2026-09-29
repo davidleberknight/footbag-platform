@@ -49,6 +49,10 @@ function awsStub(arns: Record<string, string>): string {
     path,
     [
       '#!/usr/bin/env bash',
+      // A warning on stderr for every call, as the CLI prints a deprecation or
+      // library notice beside a successful answer. An acknowledged fake: what is
+      // asserted is that it never becomes part of the ARN, not its wording.
+      '[ -n "${AWS_STUB_WARN:-}" ] && echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2',
       'profile=""',
       'prev=""',
       'for a in "$@"; do',
@@ -67,11 +71,11 @@ function awsStub(arns: Record<string, string>): string {
   return path;
 }
 
-function runIdentity(body: string, arns: Record<string, string>) {
+function runIdentity(body: string, arns: Record<string, string>, env: Record<string, string> = {}) {
   const res = spawnSync(
     'bash',
     ['-c', `set -uo pipefail; source "${IDENTITY_LIB}"; AWS_IDENTITY_BIN="${awsStub(arns)}"; ${body}`],
-    { encoding: 'utf-8', env: { ...process.env, ...NO_AWS_CREDENTIALS }, ...SPAWN_GUARD },
+    { encoding: 'utf-8', env: { ...process.env, ...NO_AWS_CREDENTIALS, ...env }, ...SPAWN_GUARD },
   );
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
@@ -393,6 +397,39 @@ describe('aws_identity_resolve', () => {
       { p: OPERATOR },
     );
     expect(r.stdout).toContain('arn=none');
+  });
+});
+
+describe('a warning the CLI prints beside a successful answer', () => {
+  const WARN = { AWS_STUB_WARN: '1' };
+
+  it('never becomes part of the ARN a named profile resolves to', () => {
+    const r = runIdentity(
+      `aws_identity_require_user op footbag-operator && printf 'ARN=%s\\n' "$AWS_IDENTITY_ARN"`,
+      { op: OPERATOR },
+      WARN,
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`ARN=${OPERATOR}\n`);
+    expect(r.stdout).not.toMatch(/InsecureRequestWarning/);
+  });
+
+  it('never becomes part of the ARN the ambient chain resolves to', () => {
+    const r = runIdentity(`aws_identity_resolve rt && printf 'ARN=%s|\\n' "$AWS_IDENTITY_ARN"`, { rt: STAGING_ROLE }, WARN);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`ARN=${STAGING_ROLE}|`);
+  });
+
+  it('never becomes part of what a chained profile is reported as', () => {
+    const r = runIdentity(`aws_identity_require_chain rt`, { rt: STAGING_ROLE }, WARN);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/InsecureRequestWarning/);
+  });
+
+  it('still shows what AWS said when the call itself fails', () => {
+    const r = runIdentity(`aws_identity_require_user missing footbag-operator`, {}, WARN);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/config profile could not be found/);
   });
 });
 

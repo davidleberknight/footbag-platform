@@ -67,36 +67,80 @@ _iam_operator_refuse_reserved() {
 
 # ── Reads ────────────────────────────────────────────────────────────────────
 
-# The user's IAM path, or nothing when the user does not exist.
-iam_operator_path() {
-  "$IAM_OPERATOR_AWS_BIN" iam get-user --user-name "$1" --query 'User.Path' --output text 2>/dev/null
-}
-
-iam_operator_tag() {
-  "$IAM_OPERATOR_AWS_BIN" iam list-user-tags --user-name "$1" \
-    --query "Tags[?Key=='${2}'].Value" --output text 2>/dev/null || true
-}
-
-# Both reads below fail closed. IAM answering by name that the entity does not
+# Every read here fails closed. IAM answering by name that the entity does not
 # exist is an answer; any other failure (a denied call, a network error, an
-# expired session) is not one, and reading it as "none" is how a retirement
-# reported keys and a grant as gone while both were still live. The not-found
-# answer is recognised by its error code, NoSuchEntity, which the CLI prints
-# inside a longer message whose wording is not a contract.
+# expired session) is not one. Read as "none", it would report keys and a grant
+# as gone while both are still live, or a live user as absent, sending an
+# onboarding re-run on to re-issue its host password. The not-found answer is
+# recognised by its error code, NoSuchEntity, which the CLI prints inside a
+# longer message whose wording is not a contract.
+#
+# A successful read is taken from stdout alone. The CLI can print a warning on
+# stderr for a call that succeeded (a deprecation notice, a library warning),
+# and captured together with the answer it becomes a key id or a policy name.
+
+# _iam_operator_error_of <aws args...>
+# The error text of a read that has just failed, from making it again with its
+# answer discarded. Repeating it is safe because it is a read, and it keeps the
+# library free of temp files, which it has no trap to clean up.
+_iam_operator_error_of() {
+  local err
+  if err="$("$IAM_OPERATOR_AWS_BIN" "$@" 2>&1 >/dev/null)"; then
+    echo "(the call failed, then succeeded when repeated, so there is no error text to show; re-run)"
+    return 0
+  fi
+  printf '%s\n' "$err"
+}
+
+# The user's IAM path, or nothing when IAM says the user does not exist.
+# Returns 1, having said why on stderr, when IAM could not be read.
+iam_operator_path() {
+  local out err
+  local -a call=(iam get-user --user-name "$1" --query 'User.Path' --output text)
+  if out="$("$IAM_OPERATOR_AWS_BIN" "${call[@]}" 2>/dev/null)"; then
+    [[ -n "$out" && "$out" != "None" ]] && printf '%s\n' "$out"
+    return 0
+  fi
+  err="$(_iam_operator_error_of "${call[@]}")"
+  [[ "$err" == *NoSuchEntity* ]] && return 0
+  echo "ERROR: could not read the IAM user ${1}:" >&2
+  printf '%s\n' "$err" | sed 's/^/         /' >&2
+  return 1
+}
+
+# iam_operator_tag <name> <key>
+# The tag's value, or nothing when the user carries no such tag. Returns 1,
+# having said why on stderr, when IAM could not be read, so an unreadable tag is
+# refused as unreadable rather than judged as a stranger's user.
+iam_operator_tag() {
+  local out err
+  local -a call=(iam list-user-tags --user-name "$1"
+    --query "Tags[?Key=='${2}'].Value" --output text)
+  if out="$("$IAM_OPERATOR_AWS_BIN" "${call[@]}" 2>/dev/null)"; then
+    [[ -n "$out" && "$out" != "None" ]] && printf '%s\n' "$out"
+    return 0
+  fi
+  err="$(_iam_operator_error_of "${call[@]}")"
+  echo "ERROR: could not read ${1}'s ${2} tag from IAM:" >&2
+  printf '%s\n' "$err" | sed 's/^/         /' >&2
+  return 1
+}
 
 # Every access key the user holds, one `<id> <status> <created>` line each, and
 # nothing for a user IAM says does not exist. Returns 1, having said why on
 # stderr, when IAM could not be read.
 iam_operator_keys() {
-  local out
-  if out="$("$IAM_OPERATOR_AWS_BIN" iam list-access-keys --user-name "$1" \
-      --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text 2>&1)"; then
+  local out err
+  local -a call=(iam list-access-keys --user-name "$1"
+    --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text)
+  if out="$("$IAM_OPERATOR_AWS_BIN" "${call[@]}" 2>/dev/null)"; then
     [[ -n "$out" && "$out" != "None" ]] && printf '%s\n' "$out"
     return 0
   fi
-  [[ "$out" == *NoSuchEntity* ]] && return 0
+  err="$(_iam_operator_error_of "${call[@]}")"
+  [[ "$err" == *NoSuchEntity* ]] && return 0
   echo "ERROR: could not read ${1}'s access keys from IAM:" >&2
-  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  printf '%s\n' "$err" | sed 's/^/         /' >&2
   return 1
 }
 
@@ -105,18 +149,20 @@ iam_operator_keys() {
 # 1, having said why on stderr, when IAM could not be read, so no caller can
 # mistake an unreadable grant for a missing one.
 iam_operator_policy_state() {
-  local out
-  if out="$("$IAM_OPERATOR_AWS_BIN" iam get-user-policy --user-name "$1" \
-      --policy-name "$IAM_OPERATOR_POLICY_NAME" --query PolicyName --output text 2>&1)"; then
+  local err
+  local -a call=(iam get-user-policy --user-name "$1"
+    --policy-name "$IAM_OPERATOR_POLICY_NAME" --query PolicyName --output text)
+  if "$IAM_OPERATOR_AWS_BIN" "${call[@]}" >/dev/null 2>&1; then
     echo "present"
     return 0
   fi
-  if [[ "$out" == *NoSuchEntity* ]]; then
+  err="$(_iam_operator_error_of "${call[@]}")"
+  if [[ "$err" == *NoSuchEntity* ]]; then
     echo "absent"
     return 0
   fi
   echo "ERROR: could not read whether ${1} holds ${IAM_OPERATOR_POLICY_NAME}:" >&2
-  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  printf '%s\n' "$err" | sed 's/^/         /' >&2
   return 1
 }
 
@@ -124,17 +170,19 @@ iam_operator_policy_state() {
 # Prints `present` or `absent` for a console login profile, failing closed the
 # same way: a login profile nobody could read is not one proved absent.
 iam_operator_login_profile_state() {
-  local out
-  if out="$("$IAM_OPERATOR_AWS_BIN" iam get-login-profile --user-name "$1" 2>&1)"; then
+  local err
+  local -a call=(iam get-login-profile --user-name "$1")
+  if "$IAM_OPERATOR_AWS_BIN" "${call[@]}" >/dev/null 2>&1; then
     echo "present"
     return 0
   fi
-  if [[ "$out" == *NoSuchEntity* ]]; then
+  err="$(_iam_operator_error_of "${call[@]}")"
+  if [[ "$err" == *NoSuchEntity* ]]; then
     echo "absent"
     return 0
   fi
   echo "ERROR: could not read whether ${1} has a console login profile:" >&2
-  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  printf '%s\n' "$err" | sed 's/^/         /' >&2
   return 1
 }
 
@@ -142,19 +190,30 @@ iam_operator_login_profile_state() {
 # Sets IAM_OPERATOR_STATE to absent, ours or foreign, and IAM_OPERATOR_FOUND_PATH.
 # Ownership is proved from the path and all three tags together, because any one
 # of them could be a coincidence and the set is what only these scripts write.
+# Returns 1, having said why on stderr, when any of them could not be read.
+#
+# Each read carries its own `|| return 1`. A caller writes this function under
+# `||`, and inside it errexit is then off, so a failed read would otherwise run
+# on as an empty answer; and a read made inside `[[ ]]` never reports failure.
 iam_operator_state() {
-  local name="$1"
-  IAM_OPERATOR_FOUND_PATH="$(iam_operator_path "$name" || true)"
-  if [[ -z "$IAM_OPERATOR_FOUND_PATH" || "$IAM_OPERATOR_FOUND_PATH" == "None" ]]; then
+  local name="$1" project managed_by operator_role
+  IAM_OPERATOR_FOUND_PATH="$(iam_operator_path "$name")" || return 1
+  if [[ -z "$IAM_OPERATOR_FOUND_PATH" ]]; then
     IAM_OPERATOR_STATE="absent"
-  elif [[ "$IAM_OPERATOR_FOUND_PATH" != "$IAM_OPERATOR_PATH" ]] \
-     || [[ "$(iam_operator_tag "$name" Project)" != "$IAM_OPERATOR_TAG_PROJECT" ]] \
-     || [[ "$(iam_operator_tag "$name" ManagedBy)" != "$IAM_OPERATOR_TAG_MANAGED_BY" ]] \
-     || [[ "$(iam_operator_tag "$name" OperatorRole)" != "$IAM_OPERATOR_TAG_OPERATOR_ROLE" ]]; then
+    return 0
+  fi
+  project="$(iam_operator_tag "$name" Project)" || return 1
+  managed_by="$(iam_operator_tag "$name" ManagedBy)" || return 1
+  operator_role="$(iam_operator_tag "$name" OperatorRole)" || return 1
+  if [[ "$IAM_OPERATOR_FOUND_PATH" != "$IAM_OPERATOR_PATH" \
+        || "$project" != "$IAM_OPERATOR_TAG_PROJECT" \
+        || "$managed_by" != "$IAM_OPERATOR_TAG_MANAGED_BY" \
+        || "$operator_role" != "$IAM_OPERATOR_TAG_OPERATOR_ROLE" ]]; then
     IAM_OPERATOR_STATE="foreign"
   else
     IAM_OPERATOR_STATE="ours"
   fi
+  return 0
 }
 
 # iam_operator_refuse_foreign <name>

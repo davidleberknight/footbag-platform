@@ -66,18 +66,17 @@
 #       --key-line "ssh-ed25519 AAAAC3Nza... robin@example" --sealed
 #
 # Which file belongs on the left is not a guess and not a preference: it follows
-# the account the alias connects as, and each account has its own file per
-# environment, because staging and production are separate hosts with separate
-# passwords:
+# the account the alias connects as, and each account has its own file:
 #
-#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR.txt  (staging only; none on production)
+#   shared footbag account:  ~/AWS/AWS_OPERATOR.txt
+#   your own named account:  ~/AWS/HOST_OPERATOR.txt
 #
 # A run started without the redirect names the one it needs.
 #
 # Flags:
-#   --target <staging|production>  deployed environment; no default, never
-#                                  inherited from ambient state
+#   --target staging               the only environment a named account exists
+#                                  on; required, never inherited from ambient
+#                                  state
 #   --account <name>               the Linux account name to create
 #   --operator "<Full Name>"       who the account belongs to, for the
 #                                  account's comment field
@@ -121,6 +120,14 @@
 #                                  is connected as, and refuses to leave the host
 #                                  with nobody able to log in and use sudo.
 #                                  Needs no key and mints no password.
+#   --inspect                      read the account and change nothing: prints
+#                                  ACCOUNT present|absent, then for one that is
+#                                  present LOCKED yes|no (the same test the
+#                                  reopen decision uses) and one KEY line per
+#                                  key it accepts. Takes no key, no operator
+#                                  name and no terminal. It exists so a finished
+#                                  onboarding's host account can be proved live
+#                                  before the onboarding is called done.
 #
 # The private half of that keypair never leaves its owner's machine and never
 # enters the vault: it identifies them, so sharing it destroys the attribution
@@ -140,12 +147,15 @@ KEY_TMP=""
 ROTATE=0
 OFFBOARD=0
 SEALED=0
+INSPECT_ONLY=0
 
 usage() {
   cat <<'EOF'
 Usage: < <the credential file your alias selects> bash scripts/provision-operator-account.sh \
-         --target <staging|production> --account <name> --operator "<Full Name>" \
+         --target staging --account <name> --operator "<Full Name>" \
          --key-line "<ssh public key>" (--sealed | --offboard)
+       < <the credential file your alias selects> bash scripts/provision-operator-account.sh \
+         --target staging --account <name> --inspect
 
 Reads the sudo password from stdin (line 1), so the redirect is not optional, and
 refuses an empty first line rather than sending an empty password to the host. It
@@ -153,7 +163,7 @@ needs a terminal as well: --offboard stops for a typed APPLY before withdrawing
 access, and --sealed asks APPLY before reopening or re-issuing an existing
 account. scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh run it.
 
-  --target <staging|production>  deployed environment; no default
+  --target staging               the only environment a named account exists on
   --account <name>               Linux account name to create
   --operator "<Full Name>"       who it belongs to, for the account's comment field
   --key-line "<key>"             the account owner's public key, pasted whole (preferred)
@@ -163,6 +173,8 @@ account. scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh run it
                                  file named in OPACC_SEALED_OUT, to be sealed
   --offboard                     disable the account and sweep the person's keys
                                  off every account on the host. Destructive.
+  --inspect                      read the account and change nothing: whether it
+                                 exists, whether it is locked, the keys it accepts
 
 Override the SSH target:
   DEPLOY_TARGET=footbag-staging ...
@@ -193,13 +205,21 @@ while [[ $# -gt 0 ]]; do
       ;;
     --offboard) OFFBOARD=1; shift ;;
     --sealed) SEALED=1; shift ;;
+    --inspect) INSPECT_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-if [[ "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
-  echo "ERROR: --target must be 'staging' or 'production'; there is no default." >&2
+# Every account made or retired here is a dev-and-tester's, and a dev-and-tester
+# is onboarded onto staging only.
+if [[ "$TARGET" == "production" ]]; then
+  echo "ERROR: no named account is made or retired on production. A dev-and-tester" >&2
+  echo "       is onboarded onto staging only. Nothing done." >&2
+  exit 2
+fi
+if [[ "$TARGET" != "staging" ]]; then
+  echo "ERROR: --target must be 'staging'; there is no default." >&2
   exit 2
 fi
 if [[ -z "$ACCOUNT" ]]; then
@@ -215,7 +235,20 @@ fi
 # the name there is demanding a value nothing reads, on the one operation that
 # must have the fewest ways to fail: the one-command offboard passes the account
 # and the mode and has no name to give.
-if [[ -z "$OPERATOR" && "$OFFBOARD" -ne 1 ]]; then
+# A read needs neither the name nor a key, and refuses both as arguments below.
+if [[ "$INSPECT_ONLY" -eq 1 ]]; then
+  if [[ "$SEALED" -eq 1 || "$OFFBOARD" -eq 1 ]]; then
+    echo "ERROR: --inspect reads the account and changes nothing; it is not combined" >&2
+    echo "       with --sealed or --offboard." >&2
+    exit 2
+  fi
+  if [[ -n "$OPERATOR" || -n "$KEY_LINE_ARG" || -n "$KEY_FILE" ]]; then
+    echo "ERROR: --inspect takes only --target and --account. Anything else given" >&2
+    echo "       here would be silently ignored." >&2
+    exit 2
+  fi
+fi
+if [[ -z "$OPERATOR" && "$OFFBOARD" -ne 1 && "$INSPECT_ONLY" -ne 1 ]]; then
   echo "ERROR: --operator is required. It is written into the account itself, so" >&2
   echo "       the host says whose login this is, and an unattributable login is" >&2
   echo "       the thing the named-account rule exists to prevent." >&2
@@ -229,7 +262,7 @@ fi
 # Offboarding needs no key: it is ending an access rather than granting one, and
 # demanding the departing person's public key to withdraw their access would be
 # a requirement nobody can always meet.
-if [[ "$OFFBOARD" -eq 0 && -z "$KEY_LINE_ARG" && -z "$KEY_FILE" ]]; then
+if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$KEY_LINE_ARG" && -z "$KEY_FILE" ]]; then
   echo "ERROR: the operator's public key is required: --key-line \"<key>\" for a" >&2
   echo "       key you can paste, or --key-file <path> if it arrived as a file." >&2
   exit 2
@@ -247,7 +280,7 @@ if [[ "$SEALED" -eq 1 && "$OFFBOARD" -eq 1 ]]; then
   echo "       They are opposite intentions; name the one you mean." >&2
   exit 2
 fi
-if [[ "$SEALED" -eq 0 && "$OFFBOARD" -eq 0 ]]; then
+if [[ "$SEALED" -eq 0 && "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 ]]; then
   echo "ERROR: name the operation: --sealed to create or re-issue the account, or" >&2
   echo "       --offboard to end its access. scripts/onboard-dev-tester.sh and" >&2
   echo "       scripts/offboard-dev-tester.sh pass the right one." >&2
@@ -309,7 +342,7 @@ fi
 # Skipped entirely when offboarding, which takes no key: the whole of this
 # section validates something that run is not given and must not require.
 KEY_FINGERPRINT=""
-if [[ "$OFFBOARD" -eq 0 ]]; then
+if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 ]]; then
 
 if [[ -n "$KEY_LINE_ARG" ]]; then
   KEY_TMP="$(umask 077 && mktemp)"
@@ -351,7 +384,7 @@ if [[ -z "$KEY_LINE" ]]; then
   exit 1
 fi
 
-fi  # end of the key section, skipped when offboarding
+fi  # end of the key section, skipped when offboarding or inspecting
 
 # ── The operator's own credential ────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -458,6 +491,50 @@ fi
 ACCOUNT_EXISTS="no"
 [[ "$ACCOUNT_PROBE" == "EXISTS" ]] && ACCOUNT_EXISTS="yes"
 
+# inspect_account
+# Reads an existing account through the remote half's read-only mode into
+# INSPECT and the INSPECT_* fields, and sets INSPECT_LOCKED to yes or no.
+# Retired means locked now: an offboard's marker, a login shell that admits
+# nobody, or a locked password. Returns 1 when the account could not be read.
+inspect_account() {
+  INSPECT="$({
+      printf '%s\n' "$SUDO_PASS"
+      printf 'OPACC_MODE=%q\n' "inspect"
+      printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
+      cat "$REMOTE_HALF"
+    } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash')" || return 1
+  INSPECT_SHELL="$(sed -n 's/^SHELL //p' <<<"$INSPECT")"
+  INSPECT_PASSWORD="$(sed -n 's/^PASSWORD //p' <<<"$INSPECT")"
+  INSPECT_KEYS="$(sed -n 's/^KEY //p' <<<"$INSPECT")"
+  INSPECT_RETIRED="$(sed -n 's/^RETIRED //p' <<<"$INSPECT")"
+  INSPECT_LOCKED="no"
+  if grep -qx 'OFFBOARDED yes' <<<"$INSPECT" \
+     || [[ "$INSPECT_SHELL" == */nologin || "$INSPECT_SHELL" == */false \
+           || "$INSPECT_PASSWORD" == L || "$INSPECT_PASSWORD" == LK ]]; then
+    INSPECT_LOCKED="yes"
+  fi
+  return 0
+}
+
+# ── Inspecting ───────────────────────────────────────────────────────────────
+#
+# Read-only, for a caller that has to prove the host side of something before
+# calling it done. The facts go to stdout one per line, and nothing is changed.
+if [[ "$INSPECT_ONLY" -eq 1 ]]; then
+  if [[ "$ACCOUNT_EXISTS" == "no" ]]; then
+    echo "ACCOUNT absent"
+    exit 0
+  fi
+  if ! inspect_account; then
+    echo "ERROR: could not read ${ACCOUNT} on ${REMOTE}. Nothing changed." >&2
+    exit 1
+  fi
+  echo "ACCOUNT present"
+  echo "LOCKED ${INSPECT_LOCKED}"
+  [[ -n "$INSPECT_KEYS" ]] && sed 's/^/KEY /' <<<"$INSPECT_KEYS"
+  exit 0
+fi
+
 # ── Offboarding ──────────────────────────────────────────────────────────────
 #
 # The devops guide has stated the offboarding rule since before any of this
@@ -517,22 +594,11 @@ fi
 # neither is patched from here. Read-only until the typed APPLY.
 REOPEN=0
 if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
-  if ! INSPECT="$({
-      printf '%s\n' "$SUDO_PASS"
-      printf 'OPACC_MODE=%q\n' "inspect"
-      printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
-      cat "$REMOTE_HALF"
-    } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash')"; then
+  if ! inspect_account; then
     echo "ERROR: could not read ${ACCOUNT} on ${REMOTE}. Nothing changed." >&2
     exit 1
   fi
-  INSPECT_SHELL="$(sed -n 's/^SHELL //p' <<<"$INSPECT")"
-  INSPECT_PASSWORD="$(sed -n 's/^PASSWORD //p' <<<"$INSPECT")"
-  INSPECT_KEYS="$(sed -n 's/^KEY //p' <<<"$INSPECT")"
-  INSPECT_RETIRED="$(sed -n 's/^RETIRED //p' <<<"$INSPECT")"
-  if grep -qx 'OFFBOARDED yes' <<<"$INSPECT" \
-     || [[ "$INSPECT_SHELL" == */nologin || "$INSPECT_SHELL" == */false \
-           || "$INSPECT_PASSWORD" == L || "$INSPECT_PASSWORD" == LK ]]; then
+  if [[ "$INSPECT_LOCKED" == "yes" ]]; then
     REOPEN=1
     echo ""
     echo "${ACCOUNT} on ${REMOTE} was retired by an offboard (shell '${INSPECT_SHELL}',"

@@ -627,10 +627,11 @@ describe('arming.sh — the email switch', () => {
     expect(res.stdout).toMatch(/Type 'APPLY' only if every one of 0 and a-e is true/);
   });
 
-  it('names the personal file when the alias connects as a named account', () => {
-    // Same degradation, different file. An operator reading this message goes
+  it('names no file when the production alias connects as a named account, since none exists there', () => {
+    // Same degradation, and no file named. An operator reading this message goes
     // and looks at the file it names, so naming the shared one while connected
-    // as a person sends them to write their own password into the wrong place.
+    // as a person sends them to write their own password into the wrong place,
+    // and naming a personal production file sends them to fill one nothing uses.
     const tfvars = writeTfvars(EMAIL_TFVARS);
     const { binDir, pinFile } = writeHostStandIns('');
     const result = spawnSync(
@@ -662,7 +663,9 @@ describe('arming.sh — the email switch', () => {
       },
     );
     const out = result.stdout ?? '';
-    expect(out).toMatch(/HOST_OPERATOR_PRODUCTION\.txt is missing or unreadable/);
+    expect(out).toMatch(/Host env file NOT read: no credential file could be chosen/);
+    expect(out).toMatch(/named account on production, where none exists/);
+    expect(out).not.toMatch(/HOST_OPERATOR_PRODUCTION\.txt/);
     expect(out).not.toMatch(/AWS_OPERATOR_PRODUCTION\.txt is missing/);
   });
 

@@ -439,6 +439,43 @@ describe('install-operator-key.sh — what it refuses without a terminal', () =>
   });
 });
 
+describe('install-operator-key.sh — the probe of the pasted key', () => {
+  it('reads the identity the key resolves to, not a warning the CLI prints beside it', () => {
+    // The warning line is an acknowledged fake: what is asserted is that it is
+    // never matched as part of the ARN, which would refuse a good key.
+    const aws = join(workDir, 'aws');
+    writeFileSync(
+      aws,
+      [
+        '#!/usr/bin/env bash',
+        'echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2',
+        '[[ "$*" == *"sts get-caller-identity"* ]] && { echo "arn:aws:iam::000000000000:user/footbag-operator"; exit 0; }',
+        'exit 64',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const akid = 'AKIAEXAMPLEEXAMPLE01';
+    const sak = 'fixtureSecretAccessKeyValue0000000000000';
+    const res = spawnSync('script', ['-qec', `bash ${JSON.stringify(SCRIPT)}`, '/dev/null'], {
+      encoding: 'utf-8',
+      input: `${akid}\n${sak}\nno\n`,
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        HOME: workDir,
+        AWS_SHARED_CREDENTIALS_FILE: join(workDir, 'credentials'),
+        AWS_CONFIG_FILE: join(workDir, 'config'),
+        INSTALL_OPERATOR_KEY_AWS_BIN: aws,
+      },
+      ...SPAWN_GUARD,
+    });
+    const out = res.stdout ?? '';
+    expect(out).toMatch(/authenticates as arn:aws:iam::000000000000:user\/footbag-operator\r?\n/);
+    expect(out).not.toMatch(/which is not user\/footbag-operator/);
+    expect(out).toMatch(/Not confirmed; nothing has been changed/);
+  });
+});
+
 // The chained runtime profiles live in the config file, which is a different
 // file from the credentials one and uses a different section spelling. It was
 // the operator's to hand-edit, and the installer then proved a chain it had left

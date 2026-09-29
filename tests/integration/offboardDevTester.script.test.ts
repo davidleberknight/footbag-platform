@@ -94,6 +94,10 @@ function sshStub(): string {
     'utf-8',
   );
   chmodSync(path, 0o755);
+  // ssh-add, first on the path, logging every call and touching no real agent.
+  const sshAdd = join(bin, 'ssh-add');
+  writeFileSync(sshAdd, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(join(workDir, 'ssh-add.log'))}\n`, 'utf-8');
+  chmodSync(sshAdd, 0o755);
   return bin;
 }
 
@@ -342,7 +346,6 @@ function run(options: RunOptions = {}) {
       OFFBOARD_HOST_CMD: childStub('host-child', hostLog, hostExit, true),
       OFFBOARD_AWS_CMD: childStub('aws-child', awsLog, awsExit),
       OFFBOARD_SSH_CONFIG: sshConfig,
-      OFFBOARD_SSH_ADD: '/bin/true',
       OFFBOARD_ADDRESS_CMD: addressStub(listed, removeExit),
       OFFBOARD_GH_BIN: noGh ? join(workDir, 'no-such-gh') : ghStub(github),
       OFFBOARD_PUBLIC_REPO: PUBLIC_REPO,
@@ -450,6 +453,18 @@ describe('offboard-dev-tester offboards the named identity this machine accepted
     expect(readFileSync(awsCred, 'utf-8')).not.toContain(`[${ACCOUNT}]`);
     expect(readFileSync(awsConfig, 'utf-8')).not.toContain('FootbagDevTester');
     expect(readFileSync(awsConfig, 'utf-8')).not.toContain('footbag-staging-runtime');
+  });
+
+  it('shreds their key pair without unloading anything from the SSH agent', () => {
+    // The pair may be a copy of the person's everyday key, and ssh-add -d
+    // removes an identity by its public key, so it would take the everyday
+    // original out of the agent too.
+    workstationHeldIt();
+    const r = run({ keepConfig: true });
+    expect(r.status, r.stderr).toBe(0);
+    expect(existsSync(namedKey)).toBe(false);
+    const log = join(workDir, 'ssh-add.log');
+    expect(existsSync(log) ? readFileSync(log, 'utf-8') : '').not.toMatch(/(^|\s)-[a-zA-Z]*[dD]/m);
   });
 
   it('leaves footbag-operator and the alias stanza byte for byte, whatever else it removes', () => {
@@ -625,17 +640,19 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     expect(r.stdout).not.toMatch(/Done\./);
   });
 
-  it('never pre-accepts a production removal, which asks at the terminal', () => {
+  it('refuses production, where no dev-and-tester is ever onboarded, before anything changes', () => {
+    // A production run would find nothing of theirs and then report nothing
+    // else owed, leaving their staging account and allow-list entry standing.
     writeFileSync(sshConfig, stanza('footbag').replace('footbag-staging', 'footbag-production'), 'utf-8');
     const r = run({
       args: ['--target', 'production', '--account', ACCOUNT, '--github-login', LOGIN, '--yes'],
       listed: ['203.0.113.7/32'],
       keepConfig: true,
     });
-    expect(r.status, r.stderr).toBe(0);
-    const removal = addressCalls().split('\n').find((l) => l.includes('--remove')) ?? '';
-    expect(removal).toContain('--target production --address 203.0.113.7/32 --remove');
-    expect(removal).not.toContain('--yes');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/never onboarded onto production/);
+    expect(r.stdout).not.toMatch(/Nothing else is owed/);
+    expect(outwardChanges()).toBe('');
   });
 });
 

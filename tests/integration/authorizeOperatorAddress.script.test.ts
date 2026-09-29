@@ -92,6 +92,12 @@ interface Estate {
   after2222?: string[];
   callerArn?: string;
   live?: LiveRead;
+  /**
+   * A line on stderr beside every answer, as the CLI prints a deprecation or
+   * library notice. An acknowledged fake: what is asserted is that it is never
+   * handed to the JSON parser, not its wording.
+   */
+  warn?: boolean;
 }
 
 /**
@@ -103,7 +109,7 @@ interface Estate {
  * made after the apply is answered by what the apply did.
  */
 function awsStub(estate: Estate = {}): string {
-  const { before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok' } = estate;
+  const { before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false } = estate;
   const afterSet = after ?? before;
   const path = join(workDir, 'aws-stub.sh');
   const states = (on22: string[], on2222: string[]) =>
@@ -132,6 +138,7 @@ function awsStub(estate: Estate = {}): string {
     path,
     [
       '#!/usr/bin/env bash',
+      ...(warn ? ['echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2'] : []),
       'if [[ "$1" == "configure" && "$2" == "list-profiles" ]]; then',
       "  printf '%s\\n' footbag-operator",
       '  exit 0',
@@ -338,6 +345,13 @@ describe('authorize-operator-address treats an unreadable firewall as unknown, n
     expect(r.status).toBe(1);
     expect(r.stdout).not.toMatch(/Already absent/);
     expect(r.stderr).toMatch(/could not be read/);
+    expect(applyRan()).toBe(false);
+  });
+
+  it('reads the firewall through a warning the CLI prints beside a successful answer', () => {
+    const r = run({ fileBody: listOf([`  "${EXISTING}", # dave_doe; home`, `  "${NEW_ADDRESS}", # jane_doe; office`]), before: [EXISTING, NEW_ADDRESS], warn: true });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Already authorized/);
     expect(applyRan()).toBe(false);
   });
 

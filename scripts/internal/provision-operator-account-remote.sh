@@ -260,8 +260,14 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
       echo "       Offboarding sweeps it off every account, ${OPACC_SHARED_ACCOUNT}" >&2
       echo "       included, so whoever reaches ${OPACC_SHARED_ACCOUNT} with it would" >&2
       echo "       lose that way in too. Resolve it first, then re-run:" >&2
-      echo "         - the same person's key on both: re-onboard ${OPACC_ACCOUNT} with" >&2
-      echo "           onboard-dev-tester.sh, which gives it a key pair of its own" >&2
+      echo "         - an administrator's own key, used on both: move their way into" >&2
+      echo "           ${OPACC_SHARED_ACCOUNT} onto a different key of theirs first. Authorize" >&2
+      echo "           it there with authorize-operator-key.sh, point the IdentityFile" >&2
+      echo "           of their footbag-<environment> alias at it, and prove a login" >&2
+      echo "           with it (setup-operator-workstation.sh --target <environment>" >&2
+      echo "           --check). Only then remove the overlapping key from" >&2
+      echo "           ${OPACC_SHARED_ACCOUNT} with authorize-operator-key.sh --remove, which" >&2
+      echo "           does not check whether it is the key they are connected with." >&2
       echo "         - a key that never belonged on ${OPACC_SHARED_ACCOUNT}: remove it from" >&2
       echo "           there deliberately with authorize-operator-key.sh --remove" >&2
       echo "       Nothing done." >&2

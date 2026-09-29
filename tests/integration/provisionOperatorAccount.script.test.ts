@@ -60,7 +60,13 @@ function sshStub(existingAccount: boolean): string {
       '  esac',
       'done',
       '# Drain whatever the caller piped in, so it never blocks on a full pipe.',
-      'cat > /dev/null',
+      '# An inspection is answered with FAKE_INSPECT, the lines the remote half',
+      '# prints, or fails when FAKE_INSPECT_FAILS is set.',
+      'piped="$(cat)"',
+      'if [[ "$piped" == *"OPACC_MODE=inspect"* ]]; then',
+      '  [[ -n "${FAKE_INSPECT_FAILS:-}" ]] && exit 1',
+      '  printf "%s" "${FAKE_INSPECT:-}"',
+      'fi',
       'exit 0',
     ].join('\n'),
   );
@@ -163,6 +169,7 @@ function runScript(
     input?: string;
     resolvableAlias?: boolean;
     connectsAs?: string;
+    env?: Record<string, string>;
   } = {},
 ): RunResult {
   const resolvable = opts.resolvableAlias ?? true;
@@ -178,6 +185,7 @@ function runScript(
       FOOTBAG_PROVISION_SSH: sshStub(opts.existingAccount ?? false),
       FOOTBAG_KNOWN_HOSTS: PIN,
       OPACC_SEALED_OUT: outFile(),
+      ...(opts.env ?? {}),
     },
     ...SPAWN_GUARD,
   });
@@ -244,13 +252,29 @@ describe('provision-operator-account.sh — invocation guards', () => {
   it('refuses to infer the environment, so a run never lands on an inherited target', () => {
     const result = runScript(args({ '--target': '' }));
     expect(result.exitCode).toBe(2);
-    expect(result.stderr).toMatch(/--target must be 'staging' or 'production'; there is no default/);
+    expect(result.stderr).toMatch(/--target must be 'staging'; there is no default/);
   });
 
-  it('rejects an environment that is neither staging nor production', () => {
+  it('rejects an environment that is not staging', () => {
     const result = runScript(args({ '--target': 'prod' }));
     expect(result.exitCode).toBe(2);
-    expect(result.stderr).toMatch(/--target must be 'staging' or 'production'/);
+    expect(result.stderr).toMatch(/--target must be 'staging'/);
+  });
+
+  it('refuses production, where no named account is made or retired, before reading anything', () => {
+    for (const mode of ['--sealed', '--inspect']) {
+      const argv =
+        mode === '--inspect'
+          ? ['--target', 'production', '--account', 'robin_fielder', '--inspect']
+          : sealed({ '--target': 'production' });
+      const result = runScript(argv);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toMatch(/no named account is made or retired on production/);
+      expect(result.stdout).not.toMatch(/SSH OK/);
+    }
+    const offboard = runScript(['--target', 'production', '--account', 'robin_fielder', '--offboard']);
+    expect(offboard.exitCode).toBe(2);
+    expect(offboard.stderr).toMatch(/no named account is made or retired on production/);
   });
 
   it('shows an account name in the convention it tells the operator to type', () => {
@@ -341,15 +365,9 @@ describe('provision-operator-account.sh — invocation guards', () => {
     expect(result.stderr ?? '').toMatch(/SSH alias 'some-other-host' is not configured/);
   });
 
-  it('names the credential file for the target it was actually given', () => {
-    // A production run refused with the staging file named is a refusal the
-    // operator cannot act on: they re-run with the file the message gave, and
-    // it fails the same way.
-    const result = runScript(sealed({ '--target': 'production' }), { input: '' });
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
-
+  it('names the staging credential file, the one environment it runs against', () => {
     const staging = runScript(sealed({ '--target': 'staging' }), { input: '' });
+    expect(staging.exitCode).toBe(1);
     expect(staging.stderr).toMatch(/AWS_OPERATOR\.txt/);
     expect(staging.stderr).not.toMatch(/AWS_OPERATOR_PRODUCTION\.txt/);
   });
@@ -847,6 +865,68 @@ describe('provision-operator-account.sh — offboarding', () => {
     );
     expect(r.stdout).toMatch(/disabled, not deleted/);
     expect(r.stdout).toMatch(/home directory/);
+  });
+});
+
+/**
+ * A read of the account for a caller that has to prove the host side of an
+ * onboarding before calling it done. It changes nothing, so it needs no key, no
+ * operator name and no terminal, and it refuses anything it would ignore.
+ */
+describe('provision-operator-account.sh — inspecting', () => {
+  const INSPECT = ['--target', 'staging', '--account', 'robin_fielder', '--inspect'];
+  const fp = () =>
+    spawnSync('ssh-keygen', ['-l', '-f', VALID_KEY], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout.trim();
+
+  it('reports an account that does not exist, and needs no key or name to do it', () => {
+    const r = runScript(INSPECT, { existingAccount: false });
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^ACCOUNT absent$/m);
+  });
+
+  it('reports a live account and the keys it accepts', () => {
+    const r = runScript(INSPECT, {
+      existingAccount: true,
+      env: { FAKE_INSPECT: `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${fp()}\n` },
+    });
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^ACCOUNT present$/m);
+    expect(r.stdout).toMatch(/^LOCKED no$/m);
+    expect(r.stdout).toContain(`KEY ${fp()}`);
+  });
+
+  it('reports a locked account as locked, even where no offboard marker was left', () => {
+    // An offboard that stopped part way locks the account before it moves the
+    // keys aside, so the marker alone would call it live.
+    for (const facts of ['SHELL /usr/sbin/nologin\nPASSWORD P\n', 'SHELL /bin/bash\nPASSWORD L\n']) {
+      const r = runScript(INSPECT, {
+        existingAccount: true,
+        env: { FAKE_INSPECT: `${facts}OFFBOARDED no\nKEY ${fp()}\n` },
+      });
+      expect(r.exitCode, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/^LOCKED yes$/m);
+    }
+  });
+
+  it('fails when the account cannot be read, rather than describing it', () => {
+    const r = runScript(INSPECT, { existingAccount: true, env: { FAKE_INSPECT_FAILS: '1' } });
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toMatch(/could not read robin_fielder/);
+    expect(r.stdout).not.toMatch(/^ACCOUNT present$/m);
+  });
+
+  it('refuses a key or an operator name it would ignore', () => {
+    const r = runScript([...INSPECT, '--key-file', VALID_KEY], { existingAccount: true });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/--inspect takes only --target and --account/);
+    const n = runScript([...INSPECT, '--operator', 'Robin Fielder'], { existingAccount: true });
+    expect(n.exitCode).toBe(2);
+  });
+
+  it('is never combined with an operation that changes the account', () => {
+    const r = runScript([...INSPECT, '--sealed'], { existingAccount: true });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/changes nothing; it is not combined/);
   });
 });
 

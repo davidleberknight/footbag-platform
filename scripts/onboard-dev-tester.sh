@@ -55,7 +55,8 @@
 # finishes the work: the host account holding exactly the key given is issued a
 # fresh password, and the IAM user's keys are retired and one reissued. An
 # onboarding counts as finished when IAM shows the grant and an active key,
-# because the key is committed only once the sealed file exists.
+# because the key is committed only once the sealed file exists, and the host
+# account reads back live holding exactly the key given.
 #
 # Usage. The redirect is the sudo password of the account your alias connects
 # as, which the host step reads; this script reads nothing from stdin itself:
@@ -88,7 +89,6 @@
 #   ONBOARD_DEV_TESTER_PROVISION_CMD  replaces the host step
 #   ONBOARD_DEV_TESTER_AGE_BIN        replaces age
 #   ONBOARD_DEV_TESTER_ADDRESS_CMD    replaces the allow-list step
-#   ONBOARD_DEV_TESTER_VERIFY_CMD     replaces the closing IAM read-back
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -126,7 +126,6 @@ IAM_OPERATOR_AWS_BIN="$AWS_BIN"
 AGE_BIN="${ONBOARD_DEV_TESTER_AGE_BIN:-age}"
 PROVISION_CMD="${ONBOARD_DEV_TESTER_PROVISION_CMD:-${SCRIPT_DIR}/provision-operator-account.sh}"
 ADDRESS_CMD="${ONBOARD_DEV_TESTER_ADDRESS_CMD:-${SCRIPT_DIR}/authorize-operator-address.sh}"
-VERIFY_CMD="${ONBOARD_DEV_TESTER_VERIFY_CMD:-${SCRIPT_DIR}/manage-human-operator.sh}"
 
 # Spelled as literals, as in manage-human-operator.sh: a check that reads the
 # name from the place the credential came from is not a check.
@@ -235,7 +234,6 @@ delivery_require_tools "age=${AGE_BIN}" openssl=openssl ssh-keygen=ssh-keygen ||
 [[ "$AWS_BIN" != "aws" ]] && echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
 [[ -n "${ONBOARD_DEV_TESTER_PROVISION_CMD:-}" ]] && echo "SYNTHETIC: host step='${PROVISION_CMD}' -- no host is being changed." >&2
 [[ -n "${ONBOARD_DEV_TESTER_ADDRESS_CMD:-}" ]] && echo "SYNTHETIC: allow-list step='${ADDRESS_CMD}' -- no firewall is being changed." >&2
-[[ -n "${ONBOARD_DEV_TESTER_VERIFY_CMD:-}" ]] && echo "SYNTHETIC: read-back='${VERIFY_CMD}' -- nothing is read from IAM." >&2
 
 if [[ -t 0 ]]; then
   echo "ERROR: stdin is a terminal. The host step reads the sudo password of the" >&2
@@ -271,7 +269,10 @@ if ! "$AWS_BIN" iam get-role --role-name "$FOOTBAG_DEV_TESTER_ROLE" >/dev/null 2
   exit 1
 fi
 
-iam_operator_state "$ACCOUNT"
+# A user IAM could not be read is neither absent nor ours. Read as absent, a
+# finished onboarding would skip the check below and go on to re-issue a live
+# host password before the create failed.
+iam_operator_state "$ACCOUNT" || exit 1
 case "$IAM_OPERATOR_STATE" in
   foreign) iam_operator_refuse_foreign "$ACCOUNT"; exit 1 ;;
   ours) IAM_USER_EXISTS=1 ;;
@@ -296,15 +297,95 @@ onboard_address() {
   fi
 }
 
-# Read back from IAM what the onboarding claims: the path, the tags, the one
-# grant and an active key.
+# onboard_readback [<key id>]
+# Reads back from IAM what the onboarding claims: a user of ours (the path and
+# all three tags), the one grant, and an active key, the one just minted when it
+# is named. Anything else, a read that failed included, fails the run.
+#
+# IAM only, never this machine's AWS files. A holder re-issuing their own
+# onboarding still has the key it just retired in their files until they accept
+# the new one, and what those files resolve to says nothing about what IAM
+# holds for the person the file was sealed to.
 onboard_readback() {
+  local want_key="${1:-}" policy keys active
   echo ""
   echo "==> Reading ${ACCOUNT} back from IAM"
-  if ! bash "$VERIFY_CMD" --verify "$ACCOUNT" </dev/null; then
-    echo "ERROR: ${ACCOUNT} does not read back as onboarded. See the findings above." >&2
+  if ! iam_operator_state "$ACCOUNT"; then
+    onboard_readback_failed "IAM could not be read."
+  fi
+  if [[ "$IAM_OPERATOR_STATE" != "ours" ]]; then
+    onboard_readback_failed "the user reads back as ${IAM_OPERATOR_STATE}, not as one of ours at ${IAM_OPERATOR_PATH} with all three ownership tags."
+  fi
+  echo "    user:    ours, at ${IAM_OPERATOR_FOUND_PATH}, all three ownership tags"
+  policy="$(iam_operator_policy_state "$ACCOUNT")" || onboard_readback_failed "IAM could not be read."
+  if [[ "$policy" != "present" ]]; then
+    onboard_readback_failed "it does not hold ${IAM_OPERATOR_POLICY_NAME}, so it reaches nothing."
+  fi
+  echo "    grant:   ${IAM_OPERATOR_POLICY_NAME}"
+  keys="$(iam_operator_keys "$ACCOUNT")" || onboard_readback_failed "IAM could not be read."
+  active="$(printf '%s\n' "$keys" | awk -F'\t' '$2=="Active"{print $1}')"
+  if [[ -n "$want_key" ]]; then
+    if ! grep -qxF -- "$want_key" <<<"$active"; then
+      onboard_readback_failed "the key just sealed, ${want_key}, is not active."
+    fi
+    echo "    key:     ${want_key} active"
+  elif [[ -z "$active" ]]; then
+    onboard_readback_failed "it holds no active key."
+  else
+    echo "    key:     ${active//$'\n'/ } active"
+  fi
+}
+
+onboard_readback_failed() {
+  echo "ERROR: ${ACCOUNT} does not read back from IAM as onboarded: ${1}" >&2
+  echo "       Do not send the sealed file on the strength of this run. Re-running" >&2
+  echo "       the same command reads IAM again, and completes whatever it finds" >&2
+  echo "       missing." >&2
+  exit 1
+}
+
+# The host half of a finished onboarding, proved before it is called done. IAM
+# alone cannot say: an offboard that locked the host account and then failed to
+# reach IAM leaves the grant and the key live over an account nobody can use.
+# Read through the host step's read-only inspection, which consumes this run's
+# stdin for the sudo password; this is on the way to an exit, so nothing later
+# needs it. A host that cannot be read is a refusal, never "done".
+onboard_host_finished() {
+  local out given held
+  echo ""
+  echo "==> Reading ${ACCOUNT} on the ${TARGET} host"
+  if ! out="$(bash "$PROVISION_CMD" --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
+    echo "ERROR: IAM shows ${ACCOUNT} onboarded, but their host account could not be" >&2
+    echo "       read, so the onboarding is not proved finished. Nothing was changed." >&2
+    echo "       Re-run once the host is reachable." >&2
     exit 1
   fi
+  if ! grep -qx 'ACCOUNT present' <<<"$out"; then
+    echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but there is no ${ACCOUNT} account on" >&2
+    echo "          the ${TARGET} host. Nothing was changed. Re-run with --reissue, which" >&2
+    echo "          creates it and seals a fresh file." >&2
+    exit 1
+  fi
+  if ! grep -qx 'LOCKED no' <<<"$out"; then
+    echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account is locked," >&2
+    echo "          which is what an offboard that stopped part way leaves. Nothing was" >&2
+    echo "          changed. Finish the offboarding, then onboard them again:" >&2
+    echo "            bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT} \\" >&2
+    echo "              --github-login <their GitHub login, or none> --from-step 2" >&2
+    exit 1
+  fi
+  # The SHA256 field alone: the length and the comment are presentation.
+  given="$(awk '{print $2}' <<<"$KEY_FINGERPRINT")"
+  held="$(sed -n 's/^KEY //p' <<<"$out" | awk '{print $2}' | sed '/^$/d' | sort -u)"
+  if [[ "$held" != "$given" ]]; then
+    echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account does not hold" >&2
+    echo "          exactly the key given to this run. It holds:" >&2
+    printf '%s\n' "${held:-none}" | sed 's/^/            /' >&2
+    echo "          Nothing was changed. A lost or replaced key is offboarded, then" >&2
+    echo "          re-onboarded under the same name with a fresh pair." >&2
+    exit 1
+  fi
+  echo "    host:    live, holding exactly ${given}"
 }
 
 # A finished onboarding is read back rather than re-issued. The key is committed
@@ -317,9 +398,11 @@ if (( IAM_USER_EXISTS )); then
   KEYS_NOW="$(iam_operator_keys "$ACCOUNT")" || exit 1
   ACTIVE_KEYS="$(printf '%s\n' "$KEYS_NOW" | awk -F'\t' '$2=="Active"{print $1}' | tr '\n' ' ')"
   if [[ "$POLICY_NOW" == "present" && -n "${ACTIVE_KEYS// /}" ]] && (( ! REISSUE )); then
+    onboard_host_finished
     echo ""
     echo "Already done: ${ACCOUNT} holds the ${FOOTBAG_DEV_TESTER_ROLE} grant and an active key"
-    echo "(${ACTIVE_KEYS% }), which exists only once a sealed file has been made."
+    echo "(${ACTIVE_KEYS% }), which exists only once a sealed file has been made, and"
+    echo "their host account is live holding exactly the key given."
     echo "Nothing is re-issued. If the sealed file was lost, or they have forgotten"
     echo "their password, re-run with --reissue, which replaces both."
     onboard_address
@@ -466,7 +549,7 @@ echo "Sealed: ${OUT_FILE}"
 echo "Only the private half of ${KEY_FINGERPRINT%% (*} opens it."
 
 onboard_address
-onboard_readback
+onboard_readback "$IAM_KEY_AKID"
 
 echo ""
 echo "1. Get that file to ${OPERATOR} by any channel. It is useless to anybody else."

@@ -149,6 +149,9 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 - **No tests that run on the dev DB.** Tests always use `setTestEnv` + `createTestDb` from `tests/fixtures/testDb.ts`.
 - **No test artifacts under the project root.** Temp DBs, WAL sidecars, admin-allowlist files, scratch fixtures — all in `os.tmpdir()` with a `footbag-test-` prefix (`setTestEnv` builds the database path, `tests/fixtures/scratchDir.ts` builds everything else, and a conventions check refuses a temp path spelled any other way). Project-root leaks survive worker timeouts / OOM / WAL races against `afterAll`; a `/tmp` leak is reclaimed by the session sweep in `tests/global-setup.ts`, which collects by prefix and skips anything touched in the last two hours, not by the operating system.
 - **No unbounded process spawn.** Every synchronous spawn a test makes (`spawnSync`, `execFileSync`, `execSync`) passes the shared bound from `tests/fixtures/spawnGuard.ts`. A synchronous spawn blocks the worker's event loop, and `testTimeout` is a timer on that loop, so it cannot fire while the loop is frozen: a command that never returns parks the worker with no failure reported and no test named, and the suite stops making progress instead of failing. Node's own `timeout` acts beneath the loop and turns that into an ordinary failure; `SIGKILL` rather than the default `SIGTERM`, because a script waiting on input or a lock can ignore a polite signal. The convention gate in `scripts/ci/assert_conventions.sh` enforces this at file level: a test file that spawns synchronously must import the shared bound.
+- **No invented secret-shaped literals.** A fake AWS key id (`AKIA…`/`ASIA…`) or any other
+  credential-shaped value in a test is copied from one `.gitleaks.toml` already allowlists; a new
+  one fails the pre-commit secret scan. If none fits, ask; never extend the allowlist.
 
 ## Coverage floor
 
