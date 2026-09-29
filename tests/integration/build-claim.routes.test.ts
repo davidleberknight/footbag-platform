@@ -3,11 +3,10 @@
  *
  * The route builds a claimed account for a real legacy record and signs the
  * caller in as it. Building the account drives the real register → verify →
- * claim journey, whose verify step reads a drained stub-SES outbox that only a
- * running stack produces, so the full build is exercised by the operator-run
- * real-claim crawl (tests/dev/real-claim-crawl.dev.test.ts), not here. This file
- * owns the build-free guards: a missing or malformed legacy id is refused before
- * any account is built, so the affordance never acts on a bad request. The
+ * claim journey, which the integration tier runs in-process against a committed
+ * Hall-of-Fame record. This file owns the build-free guards: a missing or
+ * malformed legacy id is refused before any account is built, so the affordance
+ * never acts on a bad request. The
  * production-refusal case lives in devRoutes.prodGate.test.ts (the whole /dev
  * router is unmounted in production).
  */

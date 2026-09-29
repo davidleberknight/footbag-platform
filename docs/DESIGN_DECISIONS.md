@@ -793,7 +793,7 @@ Requirements:
 
 - A rule that cannot be checked without judgment, or whose covered set grows unenumerably, is enforced by the bug-hunt review rather than added to the gate.
 
-- The local convention gate and `./run_all_tests.sh` pass before any push.
+- The local convention gate and `./run_all_tests.sh --full` pass before any push.
 
 Trade-offs:
 

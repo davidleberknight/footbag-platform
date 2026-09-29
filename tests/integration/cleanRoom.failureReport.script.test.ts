@@ -83,7 +83,7 @@ exit 0
   return dir;
 }
 
-function runCleanRoom(binDir: string): { status: number | null; out: string } {
+function runCleanRoom(binDir: string, args: string[] = ['--quick']): { status: number | null; out: string } {
   const home = path.join(scratch, path.basename(path.dirname(binDir)), 'home');
   mkdirSync(home, { recursive: true });
   // The script keeps the last run's gate logs under TMPDIR, at a path a real
@@ -92,7 +92,7 @@ function runCleanRoom(binDir: string): { status: number | null; out: string } {
   // stub output where the reason for a real failure belongs.
   const logRoot = path.join(scratch, path.basename(path.dirname(binDir)), 'tmp');
   mkdirSync(logRoot, { recursive: true });
-  const r = spawnSync('bash', [SCRIPT, '--quick'], {
+  const r = spawnSync('bash', [SCRIPT, ...args], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     env: { PATH: `${binDir}:${process.env.PATH ?? ''}`, HOME: home, TERM: 'dumb', TMPDIR: logRoot },
@@ -206,6 +206,73 @@ describe('run_clean_room.sh: a failed gate says why, at the end of the run', () 
     expect(readFileSync(path.join(logRoot, 'footbag-clean-room-last', 'integration.log'), 'utf8')).toContain(
       GATE_SAID,
     );
+  });
+});
+
+/** npm that passes everything and records each invocation's arguments, one line per call. */
+function npmRecordingTo(file: string): string {
+  return `echo "$*" >> ${JSON.stringify(file)}\nexit 0`;
+}
+
+describe('run_clean_room.sh: each tier runs once', () => {
+  // A full run's coverage gate executes exactly the unit and integration files,
+  // so the two plain tiers run only on --quick, where there is no coverage run.
+  it('runs the unit and integration tiers once, as the coverage run, on a full run', () => {
+    const calls = path.join(scratch, 'full-calls.txt');
+    const { out } = runCleanRoom(stubBin('full-once', npmRecordingTo(calls)), []);
+    const ran = readFileSync(calls, 'utf8');
+    expect(ran, out).toContain('run test:coverage');
+    expect(ran).not.toContain('run test:unit');
+    expect(ran).not.toContain('run test:integration');
+  });
+
+  it('keeps the plain unit and integration tiers, and no coverage run, on --quick', () => {
+    const calls = path.join(scratch, 'quick-calls.txt');
+    const { out } = runCleanRoom(stubBin('quick-tiers', npmRecordingTo(calls)));
+    const ran = readFileSync(calls, 'utf8');
+    expect(ran, out).toContain('run test:unit');
+    expect(ran).toContain('run test:integration');
+    expect(ran).not.toContain('run test:coverage');
+  });
+
+  it('leaves out the suite needing the pinned Python environment from the coverage run when it cannot be built', () => {
+    const calls = path.join(scratch, 'full-exclude-calls.txt');
+    runCleanRoom(stubBin('full-exclude', npmRecordingTo(calls)), []);
+    expect(readFileSync(calls, 'utf8')).toMatch(
+      /run test:coverage -- --exclude tests\/integration\/clubChainRedirected\.test\.ts/,
+    );
+  });
+
+  it('runs the hook fixture suite once, as its own gate, not again inside the harness check', () => {
+    const { out } = runCleanRoom(stubBin('harness-once', NPM_ALL_PASS), []);
+    expect(out).toContain('[clean-room:harness] bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures');
+    expect(out).toContain('[clean-room:hook-fixtures] bash scripts/ci/test_hooks.sh');
+  });
+});
+
+describe('run_clean_room.sh: one result line per gate for the caller', () => {
+  it('writes each gate, passed, failed or not run, to the results file', () => {
+    const results = path.join(scratch, 'results-file', 'results.tsv');
+    const { out } = runCleanRoom(stubBin('results-file', NPM_INTEGRATION_FAILS), ['--quick', '--results', results]);
+    const rows = readFileSync(results, 'utf8').trim().split('\n');
+    expect(rows, out).toContain('build\tPASS\t');
+    expect(rows).toContain('integration\tFAIL\texit 1');
+    expect(rows).toContain('integration-club-chain\tNOTRUN\tthe pinned Python environment could not be built');
+  });
+
+  it('empties the results file first, so an earlier run cannot speak for this one', () => {
+    const results = path.join(scratch, 'results-stale', 'results.tsv');
+    mkdirSync(path.dirname(results), { recursive: true });
+    writeFileSync(results, 'coverage\tPASS\t\n');
+    // An install that fails stops the run before any gate, so nothing is written.
+    runCleanRoom(stubBin('results-stale', 'if [ "$1" = ci ]; then exit 1; fi\nexit 0'), ['--results', results]);
+    expect(readFileSync(results, 'utf8')).toBe('');
+  });
+
+  it('refuses --results without a path', () => {
+    const { status, out } = runCleanRoom(stubBin('results-no-path', NPM_ALL_PASS), ['--results']);
+    expect(status, out).toBe(2);
+    expect(out).toContain('--results needs a file path');
   });
 });
 

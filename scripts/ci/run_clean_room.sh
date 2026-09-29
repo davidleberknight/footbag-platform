@@ -24,8 +24,9 @@
 # It never runs in the working checkout, and it never writes there. Everything
 # happens in a throwaway git worktree under a temporary directory, removed on a
 # trap covering EXIT, INT and TERM. That is also what makes the loader gate safe
-# to run here: the worktree holds only committed material, so the real-data trees
-# the loader would otherwise overwrite are simply absent, which is the same
+# to run here: the worktree holds the committed tree plus the uncommitted and
+# untracked non-ignored files, never the gitignored real-data trees the loader
+# would otherwise overwrite, so they are simply absent, which is the same
 # condition the runner enjoys and the reason that gate has been runner-only.
 #
 # It refuses rather than adapting when the local toolchain cannot reproduce the
@@ -37,11 +38,11 @@
 # Two jobs are GitHub-hosted and have no local form at all: the CodeQL analysis
 # and the pull-request dependency review.
 #
-# Five more have a local form that this room does not run: the secret scan, the
-# coverage thresholds, terraform, the browser suite and the security probes.
+# Four more have a local form that this room does not run: the secret scan,
+# terraform, the browser suite and the security probes.
 # They belong to `./run_all_tests.sh --full`, which is the command that stands
 # for the push gate; this room is the isolation gate inside it and its value is
-# the empty home and the committed-only tree, not breadth. The distinction
+# the empty home and a tree with nothing gitignored in it, not breadth. The distinction
 # matters because this script used to close by saying the runner saw the same
 # tree in the same conditions, which was a claim about all of CI made by
 # something running two thirds of it.
@@ -63,13 +64,24 @@
 #   scripts/ci/run_clean_room.sh              # what a commit of the current tree would do
 #   scripts/ci/run_clean_room.sh --head       # the last commit, ignoring uncommitted work
 #   scripts/ci/run_clean_room.sh --quick      # build, unit and integration only
+#   scripts/ci/run_clean_room.sh --results F  # also write one line per gate to F
+#
+# A full run executes the unit and integration tiers once, instrumented, as the
+# coverage gate: coverage runs exactly those files, so running them again
+# uninstrumented would only repeat every test. --quick keeps the two plain tiers.
+#
+# --results writes `label<TAB>PASS|FAIL|NOTRUN<TAB>detail` per gate, so
+# run_all_tests.sh can give each gate run here its own row rather than one row
+# for the whole room.
 set -euo pipefail
 
+CALLER_DIR="$PWD"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 FROM_HEAD=0
 QUICK=0
+RESULTS_FILE=""
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
@@ -80,10 +92,31 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --head)  FROM_HEAD=1; shift ;;
     --quick) QUICK=1; shift ;;
+    --results)
+      [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR: --results needs a file path." >&2; usage 2; }
+      RESULTS_FILE="$2"; shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage 2 ;;
   esac
 done
+
+# Emptied before anything can fail, so a run that stops at a precondition leaves
+# no earlier run's rows behind for a caller to read as this run's. A relative path
+# is the caller's, not the repository root this script has moved to.
+if [[ -n "$RESULTS_FILE" ]]; then
+  [[ "$RESULTS_FILE" == /* ]] || RESULTS_FILE="${CALLER_DIR}/${RESULTS_FILE}"
+  mkdir -p "$(dirname "$RESULTS_FILE")"
+  : > "$RESULTS_FILE"
+fi
+
+# One line per gate for the caller. Tabs and newlines inside the detail would
+# break the line format, so they are flattened to spaces.
+record_result() {
+  [[ -n "$RESULTS_FILE" ]] || return 0
+  local detail="${3//$'\t'/ }"
+  detail="${detail//$'\n'/ }"
+  printf '%s\t%s\t%s\n' "$1" "$2" "$detail" >> "$RESULTS_FILE"
+}
 
 # ---- Preconditions -----------------------------------------------------------
 
@@ -194,6 +227,7 @@ unrun() {
   GATE_NAMES+=("$name")
   GATE_RESULTS+=("NOT RUN (${reason})")
   ANY_UNRUN=1
+  record_result "$name" NOTRUN "$reason"
 }
 
 # What a failed gate's log is reduced to at the end of the run.
@@ -246,10 +280,12 @@ gate() {
   GATE_NAMES+=("$name")
   if (( rc == 0 )); then
     GATE_RESULTS+=("PASS")
+    record_result "$name" PASS ""
   else
     GATE_RESULTS+=("FAIL (exit ${rc})")
     FAIL_LOGS+=("$name")
     ANY_FAIL=1
+    record_result "$name" FAIL "exit ${rc}"
     echo "ERROR: [clean-room:${name}] FAILED (exit ${rc})" >&2
   fi
 }
@@ -333,7 +369,6 @@ if (( PY_READY == 0 )) && [[ -s "$PY_SETUP_LOG" ]]; then
 fi
 
 gate build       npm run build
-gate unit        npm run test:unit
 
 # One integration suite drives the legacy club extractors as real subprocesses,
 # and they parse mirror HTML with BeautifulSoup, so it needs the pinned
@@ -344,11 +379,22 @@ gate unit        npm run test:unit
 # tests. So the tier runs without that one suite and the suite is named NOT RUN,
 # which is the same treatment the gates below give a missing sqlite3, and the run
 # ends INCOMPLETE rather than green.
+#
+# A full run takes both tiers once, through the coverage gate, which runs exactly
+# the unit and integration files with instrumentation and then holds the
+# thresholds. That suite drives a script whose one src/ import, the external-URL
+# shape check, many other suites exercise, so leaving it out does not move the
+# coverage totals.
 PY_ONLY_SUITE="tests/integration/clubChainRedirected.test.ts"
-if (( PY_READY )); then
-  gate integration npm run test:integration
+PY_EXCLUDE=()
+(( PY_READY )) || PY_EXCLUDE=(-- --exclude "$PY_ONLY_SUITE")
+if (( QUICK )); then
+  gate unit        npm run test:unit
+  gate integration npm run test:integration ${PY_EXCLUDE[@]+"${PY_EXCLUDE[@]}"}
 else
-  gate integration npm run test:integration -- --exclude "$PY_ONLY_SUITE"
+  gate coverage    npm run test:coverage ${PY_EXCLUDE[@]+"${PY_EXCLUDE[@]}"}
+fi
+if (( ! PY_READY )); then
   unrun integration-club-chain "the pinned Python environment could not be built"
 fi
 
@@ -356,15 +402,16 @@ if (( QUICK == 0 )); then
   gate lint              npm run lint
   gate conventions       bash scripts/ci/assert_conventions.sh
   gate generated-content bash scripts/ci/assert_generated_content_current.sh
-  gate harness           bash scripts/ci/assert_claude_harness.sh
+  # The hook fixture suite runs once, as its own gate on the next line.
+  gate harness           bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures
   gate hook-fixtures     bash scripts/ci/test_hooks.sh
 
   # The loader gate and the guards that read what it builds have been
   # runner-only, not because a workstation cannot run them but because running
   # them in the working checkout would overwrite the real-data trees a
   # maintainer holds and cannot regenerate. Here there is nothing to overwrite:
-  # the worktree carries only committed material, which is the same thing the
-  # runner checks out. This is the point of the clean room, not an aside.
+  # the worktree carries no gitignored real-data tree, which is the same thing
+  # the runner checks out. This is the point of the clean room, not an aside.
   if ! command -v sqlite3 >/dev/null 2>&1; then
     unrun db-load-smoke "sqlite3 is not installed"
     unrun freestyle-db-integrity "sqlite3 is not installed"
@@ -376,8 +423,10 @@ if (( QUICK == 0 )); then
     if (( PY_READY )); then
       gate freestyle-db-integrity env FOOTBAG_TEST_DB=./database/footbag-ci.db \
         bash scripts/ci/run_db_integrity_guards.sh
+      # -rs names every skipped test and why, so a suite that passes with skips
+      # says which ones in the report rather than only how many.
       gate legacy-pytest env PYTHONDONTWRITEBYTECODE=1 \
-        python3 -m pytest legacy_data/tests/ -q -p no:cacheprovider
+        python3 -m pytest legacy_data/tests/ -q -rs -p no:cacheprovider
     else
       unrun freestyle-db-integrity "could not build the pinned Python environment"
       unrun legacy-pytest "could not build the pinned Python environment"
@@ -403,7 +452,11 @@ echo "    dependency-review   pull-request only, GitHub-hosted"
 echo "    dependency-audit    reads registry state at push time, not now"
 echo ""
 echo "  Carried by ./run_all_tests.sh --full, not by this room:"
-echo "    secret-scan  coverage  terraform  e2e  security-probes"
+echo "    secret-scan  terraform  e2e  security-probes"
+if (( QUICK )); then
+  echo "  Not run by --quick: coverage, lint, conventions, generated-content, harness,"
+  echo "    hook-fixtures, the database gates and the legacy Python suite."
+fi
 echo ""
 echo "  This machine's, not the runner's:"
 echo "    ffmpeg  $(ffmpeg -version 2>/dev/null | head -1 | cut -d' ' -f3 || echo absent)"
@@ -455,5 +508,5 @@ if (( ANY_UNRUN )); then
   exit 77
 fi
 echo "Clean room green: every gate it ran passed, in an empty home with no"
-echo "inherited shell state and only committed material on disk. Read that"
+echo "inherited shell state, and the working tree minus ignored files. Read that"
 echo "against the block above, which says what it did not run."

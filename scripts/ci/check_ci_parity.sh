@@ -58,7 +58,7 @@ declare -A COVERED_BY=(
   [e2e]="e2e"
   [security-probes]="security-probes"
   [terraform]="terraform"
-  [legacy-pytest]="python-pipeline"
+  [legacy-pytest]="legacy-pytest"
   [db-load-smoke]="db-load-smoke"
   [freestyle-db-integrity]="freestyle-db-integrity"
   [codeql]="EXCLUDED: static analysis runs on GitHub's infrastructure and has no local form"
@@ -91,8 +91,12 @@ JOBS_LIST="$(printf '%s\n' "${JOBS[@]}")"
 # and could not have failed if the clean room had stopped running them. A label
 # earns its place by being registered in one of the two files, or the mapping
 # that names it is not evidence of anything.
-LOCAL_GATES="$(grep -oE '^\s*run_gate +[a-z0-9-]+' "$RUNNER" | awk '{print $2}'; \
-               grep -oE '^\s*gate +[a-z0-9-]+' "$CLEAN_ROOM" | awk '{print $2}')"
+#
+# The runner registers a gate with run_gate, or with checkout_gate for one the
+# clean room takes over under --full; both schedule it in every other mode.
+RUNNER_GATE_RE='^\s*(run_gate|checkout_gate) +[a-z0-9-]+'
+ROOM_GATES="$(grep -oE '^\s*gate +[a-z0-9-]+' "$CLEAN_ROOM" | awk '{print $2}')"
+LOCAL_GATES="$(grep -oE "$RUNNER_GATE_RE" "$RUNNER" | awk '{print $2}'; printf '%s\n' "$ROOM_GATES")"
 
 violations=0
 for job in "${JOBS[@]}"; do
@@ -208,7 +212,7 @@ done
 # gate that would have to skip for it to go unrun.
 # =============================================================================
 
-RUNNER_GATES="$(grep -oE '^\s*run_gate +[a-z0-9-]+' "$RUNNER" | awk '{print $2}')"
+RUNNER_GATES="$(grep -oE "$RUNNER_GATE_RE" "$RUNNER" | awk '{print $2}')"
 
 # Gates on the runner's list that stand for a STEP of a workflow job rather than
 # a job of its own. The job table cannot reach these: a job's second `run:` line
@@ -261,6 +265,33 @@ while IFS= read -r listed; do
     violations=$((violations + 1))
   fi
 done <<<"$RUNNER_EQUIVALENTS"
+
+# =============================================================================
+# What the runner leaves to the clean room under --full.
+#
+# Under --full the runner does not run the gates on ROOM_CARRIES_UNDER_FULL in
+# the checkout, because the clean room runs them. A label on that list the room
+# does not register is a gate a full run executes nowhere at all, and it would
+# still show up green: the runner no longer runs it and nothing reports its
+# absence until the push. The unit and integration tiers are registered by the
+# room's quick path; under --full it runs them as the coverage gate, which the
+# job table above already holds to the room.
+# =============================================================================
+
+CARRIES_LINE="$(grep -E '^ROOM_CARRIES_UNDER_FULL=' "$RUNNER" || true)"
+if [[ -z "$CARRIES_LINE" ]]; then
+  echo "  FAIL: ${RUNNER} declares no ROOM_CARRIES_UNDER_FULL, so which gates a full run leaves" >&2
+  echo "        to the clean room cannot be checked." >&2
+  violations=$((violations + 1))
+else
+  for carried in $(sed -E 's/^ROOM_CARRIES_UNDER_FULL="([^"]*)".*/\1/' <<<"$CARRIES_LINE"); do
+    if ! grep -qx "$carried" <<<"$ROOM_GATES"; then
+      echo "  FAIL: run_all_tests.sh leaves '${carried}' to the clean room under --full, but the" >&2
+      echo "        clean room registers no such gate, so a full run executes it nowhere." >&2
+      violations=$((violations + 1))
+    fi
+  done
+fi
 
 # =============================================================================
 # Step-level parity: every command the workflow invokes, not merely every job.

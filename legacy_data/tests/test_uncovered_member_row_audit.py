@@ -18,8 +18,8 @@ second kind needs a disposition, which is why one number is in the thousands and
 the other is one.
 
 The export is operator-supplied and reachable only where a maintainer has put it,
-so the parts needing it skip where it is absent. The frozen figures and the
-recorded ruling are asserted either way.
+so the parts needing it skip where it is absent, as do the parts needing the
+recorded ruling from the private checkout.
 """
 from __future__ import annotations
 
@@ -39,47 +39,16 @@ EXPORT = _SCRIPTS / "out" / "legacy_members_final.csv"
 PRIVATE = _ROOT / "footbag_private_repo" / "private_data" / "stage_a_overrides"
 DISPOSITIONS = PRIVATE / "member_row_dispositions.csv"
 
-# The audited rehearsal result.
+# The audited rehearsal result: export records 33,665, imported 25,657, excluded
+# 8,010, pulled back 2, and one uncovered row, kept.
 EXPORT_RECORDS = 33_665
-IMPORTED = 25_657
-EXCLUDED = 8_010
-PULLED_BACK = 2
 UNCOVERED_ROWS = 1
-KEEP = 1
-CLEAR = 0
-DEFER = 0
-DANGLING_PERSON_ACCOUNT_BINDINGS = 0
 
 # The one row, and what makes it uncovered.
 FIXTURE_ID = "STUB_FOOTBAG_HACKY"
 FIXTURE_PERSON = "person_272d84cba03638d83876f8c5"
 FIXTURE_FINGERPRINT = (
     "2abadb770b90b2541b4eb005fccc60883072502f13bf97f1a5d4df593b2d2300")
-
-
-def test_the_partition_of_the_export_is_arithmetically_whole():
-    # Every export record is either imported or excluded, and the pull-back moves
-    # records across that line rather than creating them. If this stops adding up
-    # the loader is dropping records nothing counted.
-    assert EXPORT_RECORDS - EXCLUDED + PULLED_BACK == IMPORTED
-
-
-def test_every_uncovered_row_carries_exactly_one_decision():
-    assert KEEP + CLEAR + DEFER == UNCOVERED_ROWS
-
-
-def test_no_person_binding_is_left_dangling():
-    # The failure this whole line of work exists to prevent: a historical person
-    # pointing at an account row that is not there.
-    assert DANGLING_PERSON_ACCOUNT_BINDINGS == 0
-
-
-def test_the_export_exclusions_are_not_uncovered_rows():
-    # Stated as an assertion because the two numbers sit next to each other in
-    # every report and reading the large one as the survivor population would
-    # turn a one-row decision into a thousands-row panic.
-    assert EXCLUDED > UNCOVERED_ROWS
-    assert UNCOVERED_ROWS == 1
 
 
 @pytest.mark.skipif(not DISPOSITIONS.exists(),

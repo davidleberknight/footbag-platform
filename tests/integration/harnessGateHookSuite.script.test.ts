@@ -34,7 +34,7 @@ const scratch = createScratchDir('harness-gate-hook-suite');
 
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
-function runGateWithStubSuite(label: string, suiteBody: string): string {
+function runGateWithStubSuite(label: string, suiteBody: string, args: string[] = []): string {
   const root = path.join(scratch, label);
   mkdirSync(path.join(root, 'scripts', 'ci'), { recursive: true });
   copyFileSync(path.join(REPO_ROOT, GATE_REL), path.join(root, GATE_REL));
@@ -42,7 +42,7 @@ function runGateWithStubSuite(label: string, suiteBody: string): string {
     mode: 0o755,
   });
 
-  const r = spawnSync('bash', [path.join(root, GATE_REL)], {
+  const r = spawnSync('bash', [path.join(root, GATE_REL), ...args], {
     cwd: root,
     encoding: 'utf8',
     ...SPAWN_GUARD,
@@ -70,5 +70,28 @@ describe('the harness gate: what a failing hook fixture suite tells the reader',
     const out = runGateWithStubSuite('passing', `echo "${SUITE_SAID}"\nexit 0`);
     expect(out).toContain('hook fixture suite passes');
     expect(out, 'a green suite has nothing to report').not.toContain(SUITE_SAID);
+  });
+});
+
+describe('the harness gate when its caller runs the hook fixture suite as a gate of its own', () => {
+  // The clean room runs the suite as its own gate, so the harness check leaving
+  // it out there is what keeps a full local run from executing it twice.
+  it('does not run the suite under --skip-hook-fixtures, and says so', () => {
+    const out = runGateWithStubSuite('skipped', `echo "${SUITE_SAID}"\nexit 1`, ['--skip-hook-fixtures']);
+    expect(out).toContain('hook fixture suite not run here: the caller runs it as its own gate');
+    expect(out, 'the suite must not have run at all').not.toContain(SUITE_SAID);
+  });
+
+  it('refuses an argument it does not know rather than running a different set of checks', () => {
+    const root = path.join(scratch, 'unknown-arg');
+    mkdirSync(path.join(root, 'scripts', 'ci'), { recursive: true });
+    copyFileSync(path.join(REPO_ROOT, GATE_REL), path.join(root, GATE_REL));
+    const r = spawnSync('bash', [path.join(root, GATE_REL), '--skip-hook-fixture'], {
+      cwd: root,
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('unknown argument: --skip-hook-fixture');
   });
 });

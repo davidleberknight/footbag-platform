@@ -127,6 +127,42 @@ describe('a job the local runners do not cover', () => {
   });
 });
 
+describe('the jobs only the clean room runs under --full', () => {
+  // Under --full the coverage run and the legacy Python suite run only in the
+  // clean room, so the room dropping either gate must fail.
+  it('refuses a clean room that stops running the coverage gate', () => {
+    const res = inFixtureRepo({
+      'scripts/ci/run_clean_room.sh': replaceOnce('gate coverage ', 'gate removed-coverage '),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("claims local gate 'coverage', which no runner registers");
+  });
+
+  it('refuses a clean room that stops running the legacy Python suite', () => {
+    const res = inFixtureRepo({
+      'scripts/ci/run_clean_room.sh': replaceOnce('gate legacy-pytest ', 'gate removed-legacy-pytest '),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("claims local gate 'legacy-pytest', which no runner registers");
+  });
+
+  it('refuses a gate the runner leaves to the clean room that the room does not run', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce('ROOM_CARRIES_UNDER_FULL="build ', 'ROOM_CARRIES_UNDER_FULL="ghost-gate build '),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("leaves 'ghost-gate' to the clean room under --full");
+  });
+
+  it('refuses a runner that no longer says which gates it leaves to the clean room', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce('ROOM_CARRIES_UNDER_FULL="', 'RENAMED_CARRIES="'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('declares no ROOM_CARRIES_UNDER_FULL');
+  });
+});
+
 describe("the runner's own list of gates that stand for a push-gate job", () => {
   // run_all_tests.sh refuses to report green when one of these did not run.
   // A name missing from it is a gate whose absence goes unnoticed; a name too

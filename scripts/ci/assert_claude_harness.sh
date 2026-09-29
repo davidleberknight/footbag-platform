@@ -9,8 +9,21 @@
 # This is the must-have subset. Each check runs independently and the script
 # aggregates failures so one run reports every problem, then exits non-zero if any
 # check failed.
+#
+# Usage: assert_claude_harness.sh [--skip-hook-fixtures]
+#   --skip-hook-fixtures  leave Check 10 to the caller, which runs the hook fixture
+#                         suite as a gate of its own. The clean room does, and this is
+#                         what keeps a full local run executing that suite once.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
+
+SKIP_HOOK_FIXTURES=0
+for arg in "$@"; do
+  case "$arg" in
+    --skip-hook-fixtures) SKIP_HOOK_FIXTURES=1 ;;
+    *) echo "[harness] ERROR: unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
 
 fail=0
 self="scripts/ci/assert_claude_harness.sh"
@@ -200,7 +213,9 @@ fi
 # decision. The fixtures pipe synthetic tool events through each hook and assert the
 # permission decision, so a regression in a guard or the read-only auto-approver
 # (a reopened bypass, an over-block) fails the build here.
-if [ -x scripts/ci/test_hooks.sh ]; then
+if [ "$SKIP_HOOK_FIXTURES" -eq 1 ]; then
+  echo "[harness] hook fixture suite not run here: the caller runs it as its own gate"
+elif [ -x scripts/ci/test_hooks.sh ]; then
   # Captured rather than discarded. The suite is silent on success and prints one
   # self-contained line per failing fixture, naming the hook, the command and the
   # decision it wanted, so re-showing it costs nothing on a green run and is the

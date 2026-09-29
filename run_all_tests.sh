@@ -15,8 +15,9 @@
 #   - It NEVER invokes the loader-pipeline scripts (scripts/reset-local-db.sh,
 #     scripts/ci/stage_*.sh) that write into legacy_data/ IN THIS CHECKOUT. The
 #     clean-room gate runs the loader inside a throwaway git worktree holding
-#     only committed material, where the real-data trees a maintainer cannot
-#     regenerate are simply absent. The safety rule is about what the loader can
+#     the committed tree plus uncommitted and untracked non-ignored files, where
+#     the gitignored real-data trees a maintainer cannot regenerate are simply
+#     absent. The safety rule is about what the loader can
 #     overwrite, and in that worktree the answer is nothing.
 #   - As defense-in-depth it fingerprints legacy_data/ and curated/ before and
 #     after the run and ABORTS non-zero if any changed, so a future gate that
@@ -60,7 +61,7 @@
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS adapter smoke suite
 #   ./run_all_tests.sh --with-realdata-invariants # read-only whole-population invariants over a loaded real dataset (dev load or staging)
 #   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
-#   ./run_all_tests.sh --full       # everything a non-operator can run: full suite + coverage + security probes + pentest + a11y + persona crawl + real-data invariants + clean room (the staging-AWS smoke shows as SKIP; mutation runs only by name)
+#   ./run_all_tests.sh --full       # everything that needs only this checkout, each test once: full suite + coverage + security probes + pentest + a11y + clean room (the staging-AWS smoke shows as SKIP; persona crawl, real-data invariants, legacy mirror and mutation run only by name)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
 #   ./run_all_tests.sh --help
 
@@ -80,23 +81,20 @@ FULL=0
 # explicit --with-smoke). The gate then renders a SKIP row and never runs:
 # the staging-AWS adapter smoke is operator-only and not part of --full.
 SMOKE_OPTIONAL=0
-# Set when the persona crawl runs only because --full implied it (not an explicit
-# --with-persona-crawl). In that case an absent dev DB (a fixture-seeded clone with
-# no operator dataset) SKIPs the gate instead of failing the run, so --full is
-# usable by a developer or tester without the operator data handoff.
-PERSONA_CRAWL_OPTIONAL=0
 WITH_PERSONA_CRAWL=0
 WITH_REALDATA_INVARIANTS=0
-# Set when the real-data invariant gate runs only because --full implied it (not
-# an explicit --with-realdata-invariants). In that case an absent operator dataset
-# (a fixture-seeded clone) SKIPs the gate instead of failing the whole run.
-REALDATA_INVARIANTS_OPTIONAL=0
 # Mutation testing measures whether a regression in the scoped guards would
 # actually fail a test, which coverage cannot tell you. It is the slowest gate
 # by a wide margin: the runner forces single-threaded test execution, so its
 # baseline pass alone costs roughly a quarter-hour however little is mutated.
 # That cost is why no other flag implies it: it runs only when asked for by name.
 WITH_MUTATION=0
+# The legacy-mirror suite covers code that is retired at go-live and takes long
+# enough to matter, and the push gate never runs it, so no other flag implies it.
+WITH_LEGACY_MIRROR=0
+# Leaves the secret scan out. The push gate still runs it, so a run that used
+# this ends INCOMPLETE rather than GREEN and says why.
+SKIP_SECRET_SCAN=0
 A11Y=0
 FAIL_FAST=0
 for arg in "$@"; do
@@ -106,13 +104,15 @@ for arg in "$@"; do
     --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
     --with-realdata-invariants) WITH_REALDATA_INVARIANTS=1 ;;
     --with-mutation|--stryker) WITH_MUTATION=1 ;;
+    --with-legacy-mirror) WITH_LEGACY_MIRROR=1 ;;
+    --skip-secret-scan)   SKIP_SECRET_SCAN=1 ;;
     --a11y)               A11Y=1 ;;
     --pentest)            PENTEST=1 ;;
     --full)               FULL=1 ;;
     --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--with-mutation|--stryker] [--a11y] [--pentest] [--full] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--with-mutation|--stryker] [--with-legacy-mirror] [--skip-secret-scan] [--a11y] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -133,7 +133,8 @@ Options:
                 worker, so start ./run_dev.sh first; the gate errors out when the
                 app is unreachable. Point the stack elsewhere with
                 PERSONA_CRAWL_BASE_URL, or target a record with
-                PERSONA_CRAWL_LEGACY_ID. Never runs in CI.
+                PERSONA_CRAWL_LEGACY_ID. Never implied by --full, and never
+                runs in CI; the same claim journey runs in the integration tier.
   --with-realdata-invariants
                 Additionally run read-only, PII-safe whole-population invariant
                 checks over a loaded real dataset: reconciliation and field
@@ -142,8 +143,9 @@ Options:
                 (no attribution links to a missing account, every claimed
                 account points at a real member, every stored email lowercased).
                 Output is counts and PASS/FAIL only. Reads the dev DB by default;
-                point FOOTBAG_DB_PATH at staging to run it there. SKIPs on a
-                fixture-seeded clone (no real dataset). Never runs in CI.
+                point FOOTBAG_DB_PATH at staging to run it there. Errors out on
+                a fixture-seeded clone (no real dataset). Never implied by
+                --full, and never runs in CI.
   --with-mutation, --stryker
                 Additionally run mutation testing over the scoped authorization
                 guards: each guard is broken one edit at a time and the suite is
@@ -154,26 +156,39 @@ Options:
                 report are written outside the repository. No other flag implies
                 it, including --full: ask for it by name or it does not run.
                 SKIPs when the runner is not installed. Never runs in CI.
+  --with-legacy-mirror
+                Additionally run the legacy-mirror Python suite
+                (legacy_data/legacy_mirror/tests/). Its code is retired at
+                go-live and the push gate never runs it, so no other flag,
+                including --full, implies it. SKIPs when the legacy pipeline's
+                Python environment is missing.
+  --skip-secret-scan
+                Leave the secret scan out. The push gate still runs it, so the
+                run ends INCOMPLETE rather than GREEN and names it.
   --pentest     Additionally run the heavyweight pentest harness
                 (npm run test:pentest:heavy). Boots a throwaway stack and runs
                 the security-header walk, internal-route, and upload-abuse
                 probes plus the Docker-gated OWASP ZAP baseline. Opt-in because
                 it is slow and the ZAP leg needs Docker; CI does not run it.
-  --full        Everything a non-operator can run: the full suite plus the
-                coverage thresholds, the blocking security probes, --pentest,
-                --a11y and the persona crawl, and the clean-room gate that rebuilds the
+  --full        Everything that needs only this checkout: the full suite plus
+                the coverage thresholds, the blocking security probes, --pentest,
+                --a11y, and the clean-room gate that rebuilds the
                 tree in a throwaway worktree and runs the suite as the push gate
                 sees it, including the loader smoke and the database-integrity
-                guards. With it, the gate set matches CI apart from CodeQL and
+                guards. Each test runs once: build, lint, conventions,
+                generated-content, the unit and integration tiers (as the
+                coverage run) and the legacy Python suite run only in the clean
+                room, and each gets its own row in the summary.
+                With it, the gate set matches CI apart from CodeQL and
                 dependency-review, both GitHub-hosted (see the
                 header). Mutation testing is never part of --full; the
                 summary warns of it and of any other opt-in gate the run
                 left out. The staging-AWS adapter smoke is
                 operator-only and never part of --full; it shows as a SKIP row.
-                Run it deliberately with --with-smoke (operator workstation). The persona crawl
-                likewise SKIPs (with a warning) when the dev DB lacks the operator
-                dataset (no claimable real record), so --full also completes for a
-                developer or tester without the data handoff.
+                Run it deliberately with --with-smoke (operator workstation). The
+                persona crawl and the real-data invariants need a loaded dev
+                database, so they too run only by name, and --full completes the
+                same on any clone.
   --a11y        Additionally run the axe WCAG 2.1 AA accessibility scan of the
                 high-traffic public pages (npm run test:e2e:a11y) against a
                 throwaway browser stack. Opt-in because it boots the full e2e
@@ -182,9 +197,9 @@ Options:
   -h, --help    Show this message.
 
 SAFE BY DESIGN: this runner never writes to legacy_data/ or curated/. The loader
-gate runs only inside the clean room's throwaway worktree, which holds committed
-material and nothing a maintainer cannot regenerate, and this runner fingerprints
-the real-data trees before/after to prove nothing changed.
+gate runs only inside the clean room's throwaway worktree, which holds what the
+next push would carry and nothing a maintainer cannot regenerate, and this
+runner fingerprints the real-data trees before/after to prove nothing changed.
 
 Not run here:
   - CodeQL static analysis and the pull-request dependency review: GitHub-hosted,
@@ -201,14 +216,14 @@ USAGE
   esac
 done
 
-# --full is full mode plus every opt-in gate except mutation testing, which costs
-# a quarter-hour of single-threaded running before it reports anything and so is
-# never implied by another flag. Staging smoke is
-# included but degrades to a SKIP when staging credentials are absent (see
-# SMOKE_OPTIONAL), so --full runs end to end on a workstation without an AWS
-# profile while still exercising everything that can run there. The persona crawl
-# likewise degrades to a SKIP under --full (see PERSONA_CRAWL_OPTIONAL) when the dev
-# DB lacks the operator dataset, so --full completes on a fixture-seeded clone too.
+# --full is full mode plus the opt-in gates that need nothing but this checkout:
+# the pentest and the a11y scan. It needs no machine-local data or credentials,
+# so it runs the same on any clone. The gates that do need them (the staging
+# smoke, the persona crawl against a running dev stack, the real-data invariants
+# over a loaded real dataset) and mutation testing, a quarter-hour of
+# single-threaded running, run only when asked for by name, and every run names
+# them with their switch. The staging smoke still renders a SKIP row under --full
+# for visibility (see SMOKE_OPTIONAL).
 if (( FULL == 1 )); then
   QUICK=0
   PENTEST=1
@@ -220,10 +235,6 @@ if (( FULL == 1 )); then
     WITH_SMOKE=1
     SMOKE_OPTIONAL=1
   fi
-  WITH_PERSONA_CRAWL=1
-  PERSONA_CRAWL_OPTIONAL=1
-  WITH_REALDATA_INVARIANTS=1
-  REALDATA_INVARIANTS_OPTIONAL=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
@@ -260,6 +271,8 @@ GATE_LOG_DIR="${TMPDIR:-/tmp}/footbag-run-all-last"
 rm -rf "$GATE_LOG_DIR"
 mkdir -p "$GATE_LOG_DIR"
 PREFLIGHT_LOG="${GATE_LOG_DIR}/preflight.log"
+# Where the clean room writes one line per gate it ran, so each gets its own row.
+CLEAN_ROOM_RESULTS="${GATE_LOG_DIR}/clean-room-results.tsv"
 
 # Every tool the gates below reach for, reported before any of them runs, so a
 # missing one is named here rather than discovered as a skip an hour in. Also
@@ -479,14 +492,18 @@ dump_failures() {
 # warning, a check that did not run, a stubbed seam, a deprecation. They streamed
 # past an hour before the end, so they are collected here, from the preflight and
 # from every gate, whatever its result.
-NOTICE_GRAMMAR='WARNING|WARN[: ]|\[missing\]|NOT RUN|INCOMPLETE|[Nn]ote:|SYNTHETIC|deprecated|skipping|still missing|not installed|absent'
+NOTICE_GRAMMAR='WARNING|WARN[: ]|\[missing\]|NOT RUN|INCOMPLETE|[Nn]ote:|SYNTHETIC|deprecated|skipping|still missing|not installed|absent|[0-9]+ skipped|^SKIPPED'
 
 notices_from() {
   local label="$1" log="$2" hits total
   [[ -s "$log" ]] || return 0
-  hits="$(grep -E "$NOTICE_GRAMMAR" "$log" | awk '!seen[$0]++' | head -n 15 || true)"
+  # A check that did not run comes first, so the cap below can never hide one
+  # behind warnings printed earlier in the log. A passing test's own line (✓) is
+  # never a notice, however its name reads: "absent" in a test title is not
+  # something absent from this run.
+  hits="$( { grep -E 'NOT RUN' "$log"; grep -E "$NOTICE_GRAMMAR" "$log"; } | grep -v '✓' | awk '!seen[$0]++' | head -n 15 || true)"
   [[ -n "$hits" ]] || return 0
-  total="$(grep -E "$NOTICE_GRAMMAR" "$log" | awk '!seen[$0]++' | wc -l || true)"
+  total="$(grep -E "$NOTICE_GRAMMAR" "$log" | grep -v '✓' | awk '!seen[$0]++' | wc -l || true)"
   echo ""
   echo "──── ${label} ────"
   printf '%s\n' "$hits" | sed 's/^/    /'
@@ -522,9 +539,12 @@ print_notices() {
 # could not run; any other gate says why on its last line.
 skip_reason() {
   local log="$1" reason
-  reason="$(grep -E 'NOT RUN' "$log" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+/ /g' | paste -sd ';' - || true)"
+  # The room's summary rows, one per gate it could not run. Matched by the row's
+  # shape, because the room also says "NOT RUN" in prose earlier in its output.
+  reason="$(grep -E '^[[:space:]]+[a-z0-9-]+[[:space:]]+NOT RUN \(' "$log" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+/ /g' | paste -sd ';' - || true)"
   [[ -n "$reason" ]] || reason="$(grep -v '^[[:space:]]*$' "$log" | tail -n 1 | sed -E 's/^[[:space:]]+//' || true)"
-  printf '%s' "${reason:-no reason printed}" | cut -c1-200
+  # Never cut: a truncated list drops exactly the gates at its end.
+  printf '%s' "${reason:-no reason printed}"
 }
 
 # A Ctrl-C or a kill used to end the run with no report at all, and the exit trap
@@ -534,9 +554,15 @@ on_interrupt() {
   trap - INT TERM
   echo "" >&2
   echo "→ run_all_tests.sh: INTERRUPTED${CURRENT_GATE:+ during the ${CURRENT_GATE} gate}. The report below covers the gates that finished." >&2
+  # The room writes each gate's line as that gate finishes, so the ones it
+  # completed before the interrupt still get their rows.
+  if [[ "$CURRENT_GATE" == clean-room && -n "${CLEAN_ROOM_RESULTS:-}" ]]; then
+    import_clean_room_results "$CLEAN_ROOM_RESULTS"
+  fi
   summarize
   dump_failures
   print_notices
+  print_not_checked
   exit 130
 }
 trap on_interrupt INT TERM
@@ -568,6 +594,13 @@ run_gate() {
     FAIL_LOGS+=("$name")
     ANY_FAIL=1
     echo "ERROR: [${name}] FAILED (exit ${rc})" >&2
+  fi
+  # Here rather than after the call, so a fail-fast exit below still reports each
+  # gate the clean room ran. The gate itself ran in a subshell and cannot do it.
+  if [[ "$name" == clean-room && -n "${CLEAN_ROOM_RESULTS:-}" ]]; then
+    import_clean_room_results "$CLEAN_ROOM_RESULTS"
+  fi
+  if (( rc != 0 && rc != 77 )); then
     if (( FAIL_FAST == 1 )); then
       # Report before the fingerprint guard, not after: it exits 2 on its own, and
       # its most common trip is an unrelated concurrent writer rather than
@@ -577,10 +610,177 @@ run_gate() {
       summarize
       dump_failures
       print_notices
+      print_not_checked
       assert_real_data_untouched
       exit 1
     fi
   fi
+}
+
+# A summary row for something this run did not execute as a gate of its own,
+# with the reason in the row.
+note_gate() {
+  GATE_NAMES+=("$1")
+  GATE_RESULTS+=("$2")
+  echo "→ [$1] $2"
+}
+
+# A gate that could not run has not passed, and a run carrying one cannot promise
+# what a reader takes "all gates passed" to mean. Saying so is the difference
+# between knowing this tree is good and knowing only that nothing objected.
+#
+# Only a gate that stands for a push-gate job can change that promise, though.
+# The operator-only and real-data gates skip on any machine without the operator
+# dataset or an AWS profile, and the push gate never runs them either, so
+# counting those would make a clean verdict unreachable and teach the reader to
+# ignore it. They are reported, not held against the run.
+PUSH_GATE_EQUIVALENTS="build lint audit conventions harness generated-content secret-scan unit integration e2e terraform security-probes clean-room"
+SKIPPED_PREDICTIVE=()
+SKIPPED_LOCAL_ONLY=()
+NOT_SCHEDULED_OPT_IN=()
+
+# What this run did not check, printed on every exit that reports: the normal end,
+# a fail-fast stop and an interrupt. It fills SKIPPED_PREDICTIVE, which the final
+# verdict reads.
+#
+# Printed on every run, including a clean one. The question this runner exists to
+# answer is "will my push pass", and the honest answer always carries a footnote:
+# a short list of things GitHub will do that no workstation can. Printing it only
+# on failure would teach the reader that a clean run checked everything, which is
+# the belief that makes a surprise red mark surprising.
+print_not_checked() {
+  local i _equivalent _opt_in names
+  SKIPPED_PREDICTIVE=()
+  SKIPPED_LOCAL_ONLY=()
+  NOT_SCHEDULED_OPT_IN=()
+  names="$(printf '%s\n' "${GATE_NAMES[@]}")"
+  for i in "${!GATE_NAMES[@]}"; do
+    [[ "${GATE_RESULTS[$i]}" == SKIP* ]] || continue
+    if grep -qw "${GATE_NAMES[$i]}" <<< "$PUSH_GATE_EQUIVALENTS"; then
+      SKIPPED_PREDICTIVE+=("${GATE_NAMES[$i]}: ${GATE_RESULTS[$i]}")
+    else
+      SKIPPED_LOCAL_ONLY+=("${GATE_NAMES[$i]}: ${GATE_RESULTS[$i]}")
+    fi
+  done
+
+  # A gate this mode never scheduled is as unchecked as one that tried and could
+  # not run, and counting only the second is how a --quick run came to announce
+  # that everything the push gate runs had passed here. Nothing had skipped,
+  # because nothing had been asked to.
+  for _equivalent in $PUSH_GATE_EQUIVALENTS; do
+    grep -qx "$_equivalent" <<< "$names" && continue
+    if (( FULL == 1 )) && grep -qx clean-room <<< "$names"; then
+      # Under --full every one of these is scheduled, in the checkout or in the
+      # clean room, so a missing row means the room stopped before reporting it.
+      SKIPPED_PREDICTIVE+=("${_equivalent} (the clean room runs it under --full and reported no result; see the clean-room row)")
+    elif (( FULL == 1 )); then
+      SKIPPED_PREDICTIVE+=("${_equivalent} (not reached: the run stopped before the clean room, which runs it under --full)")
+    else
+      SKIPPED_PREDICTIVE+=("${_equivalent} (not run in this mode; --full runs it)")
+    fi
+  done
+
+  # The opt-in gates this mode never scheduled, each with the switch that runs
+  # it. None stands for a push-gate job, but a run that says nothing about them
+  # lets the reader believe --full ran everything.
+  for _opt_in in \
+    "staging-aws-smoke:--with-smoke" \
+    "persona-crawl:--with-persona-crawl" \
+    "realdata-invariants:--with-realdata-invariants" \
+    "a11y:--a11y" \
+    "pentest:--pentest" \
+    "mutation:--with-mutation" \
+    "legacy-mirror:--with-legacy-mirror"; do
+    grep -qx "${_opt_in%%:*}" <<< "$names" && continue
+    NOT_SCHEDULED_OPT_IN+=("${_opt_in%%:*} (not run; ${_opt_in#*:} runs it)")
+  done
+
+  echo ""
+  echo "=============================================="
+  echo " WHAT THIS RUN DID NOT CHECK"
+  echo "=============================================="
+  echo "  Never checkable on any workstation:"
+  echo "    CodeQL static analysis   runs on GitHub's own infrastructure. It reports"
+  echo "                             findings into the repository's code-scanning view"
+  echo "                             rather than failing the push."
+  echo "    dependency review        runs only on a pull request, and only looks at a"
+  echo "                             change to the dependency list."
+  if (( ${#SKIPPED_LOCAL_ONLY[@]} > 0 )); then
+    echo ""
+    echo "  Not run here, and not run by the push gate either, so they change nothing"
+    echo "  about whether your push passes:"
+    printf '    %s\n' "${SKIPPED_LOCAL_ONLY[@]}"
+  fi
+  echo ""
+  echo "  WARNING: opt-in checks this run did not do. The push gate does not run"
+  echo "  them either, so they change nothing about whether your push passes:"
+  if (( ${#NOT_SCHEDULED_OPT_IN[@]} > 0 )); then
+    printf '    %s\n' "${NOT_SCHEDULED_OPT_IN[@]}"
+  fi
+  # The pentest gate runs the scriptable probes and the passive ZAP baseline; its
+  # two heavier legs run only when asked for, whatever this runner's flags.
+  echo "    pentest active ZAP scan and dependency scan (not run; npm run test:pentest:heavy -- --all runs them)"
+  if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
+    echo ""
+    echo "  THE PUSH GATE RUNS THESE AND THIS RUN COULD NOT:"
+    printf '    %s\n' "${SKIPPED_PREDICTIVE[@]}"
+  fi
+  echo "=============================================="
+}
+
+# Each test runs once. Under --full the clean room runs these against exactly what
+# the next push would carry, in the runner's own conditions, so the checkout does
+# not run them a second time. The unit and integration tiers run there once, as
+# the coverage run. Everything that needs this machine stays in the checkout.
+ROOM_CARRIES_UNDER_FULL="build lint conventions generated-content unit integration"
+
+room_carries() {
+  (( FULL == 1 )) && [[ " ${ROOM_CARRIES_UNDER_FULL} " == *" $1 "* ]]
+}
+
+# run_gate for a gate the clean room carries under --full: runs it in every other
+# mode, and under --full leaves it to the room, whose own row replaces it.
+checkout_gate() {
+  if room_carries "$1"; then
+    echo ""
+    echo "→ [$1] left to the clean room, which runs it once against what the push would carry"
+    return 0
+  fi
+  run_gate "$@"
+}
+
+# One summary row per gate the clean room ran, read from the file it writes, so
+# the table says which check failed rather than only that the room did. The
+# room's own row still carries the verdict and the failure recap; these rows add
+# no failure of their own. The coverage run is the unit and integration tiers, so
+# those two rows follow its result.
+import_clean_room_results() {
+  local file="$1" label status detail coverage_status="" tier
+  [[ -s "$file" ]] || return 0
+  while IFS=$'\t' read -r label status detail; do
+    [[ -n "$label" ]] || continue
+    case "$status" in
+      PASS)   GATE_RESULTS+=("PASS (clean room)") ;;
+      FAIL)   GATE_RESULTS+=("FAIL (clean room${detail:+, ${detail}})") ;;
+      NOTRUN) GATE_RESULTS+=("NOT RUN (clean room: ${detail:-no reason given})") ;;
+      *)      continue ;;
+    esac
+    GATE_NAMES+=("$label")
+    [[ "$label" == coverage ]] && coverage_status="$status"
+  done < "$file"
+  [[ -n "$coverage_status" ]] || return 0
+  for tier in unit integration; do
+    # A here-string, not a pipe: grep -q exiting early can kill the writer on
+    # SIGPIPE, and under pipefail a match then reads as a miss.
+    grep -qx "$tier" <<< "$(printf '%s\n' "${GATE_NAMES[@]}")" && continue
+    GATE_NAMES+=("$tier")
+    case "$coverage_status" in
+      PASS) GATE_RESULTS+=("PASS (clean room, in the coverage run)") ;;
+      FAIL) GATE_RESULTS+=("FAIL (clean room, in the coverage run)") ;;
+      *)    GATE_RESULTS+=("NOT RUN (clean room: the coverage run did not run)") ;;
+    esac
+  done
+  return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -742,7 +942,7 @@ gate_persona_crawl() {
 
   # Require a loaded DB carrying a claimable real record (a Hall-of-Fame honoree
   # with a legacy link, the crawl's default target). A name-free, dataset-agnostic
-  # probe. Absent → SKIP under --full, FAIL under an explicit --with-persona-crawl.
+  # probe. Absent → FAIL: the gate runs only when asked for by name.
   local have_db=0
   if [[ -f database/footbag.db ]] && command -v sqlite3 >/dev/null 2>&1; then
     local claimable
@@ -750,14 +950,8 @@ gate_persona_crawl() {
     [[ "${claimable}" != "0" ]] && have_db=1
   fi
   if (( have_db == 0 )); then
-    if (( PERSONA_CRAWL_OPTIONAL == 1 )); then
-      echo "  WARNING: persona crawl needs a loaded dev DB (a claimable real record);" >&2
-      echo "  a fixture-seeded clone has none, so this gate is SKIPPED. Every other gate still runs." >&2
-      echo "  To exercise it, load the operator dataset (./run_dev.sh --all-data), then run with --with-persona-crawl." >&2
-      return 77
-    fi
-    echo "ERROR: persona crawl needs a loaded dev DB (a claimable real record)." >&2
-    echo "Recommendation: ./run_dev.sh --all-data (load the operator dataset), then re-run." >&2
+    echo "ERROR: persona crawl needs a loaded dev DB (a claimable Hall-of-Fame record)." >&2
+    echo "Recommendation: build the dev DB with ./run_dev.sh --from-csv or --all-data, then re-run." >&2
     return 1
   fi
 
@@ -811,8 +1005,7 @@ gate_realdata_invariants() {
   # (the dev local operator load, or staging via FOOTBAG_DB_PATH). Emits only
   # counts and PASS/FAIL, never names or emails, and runs no writer, so the
   # real-data fingerprint guard stays satisfied. Absent a real load (a
-  # fixture-seeded clone) it SKIPs under --full and FAILs under an explicit
-  # --with-realdata-invariants.
+  # fixture-seeded clone) it FAILs: it runs only when asked for by name.
   local db="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 
   if ! command -v sqlite3 >/dev/null 2>&1; then
@@ -829,12 +1022,6 @@ gate_realdata_invariants() {
   fi
   members=${members//[^0-9]/}; members=${members:-0}
   if (( members < min_members )); then
-    if (( REALDATA_INVARIANTS_OPTIONAL == 1 )); then
-      echo "  WARNING: real-data invariants need a loaded real dataset (found ${members} legacy_members," >&2
-      echo "  below the ${min_members}-row real-load threshold), so this gate is SKIPPED." >&2
-      echo "  To exercise it, load the operator dataset (./run_dev.sh --all-data), then re-run." >&2
-      return 77
-    fi
     echo "ERROR: real-data invariants need a loaded real dataset; found only ${members} legacy_members." >&2
     echo "Recommendation: ./run_dev.sh --all-data, or point FOOTBAG_DB_PATH at the staging database." >&2
     return 1
@@ -843,19 +1030,13 @@ gate_realdata_invariants() {
   # Run the field/reconciliation gates (G1-G6). A distinct exit status (78) from
   # the detail script means the load is purely mirror-derived, so its
   # authoritative-only gates (real_name, honor flags) do not apply to a dev seed:
-  # SKIP under --full, a hard error only under an explicit
-  # --with-realdata-invariants — the same policy as the under-threshold load above.
+  # a hard error, since the gate runs only when asked for by name — the same
+  # policy as the under-threshold load above.
   local g6_out g_rc=0
   g6_out=$(FOOTBAG_DB_PATH="${db}" bash scripts/validate-legacy-import-gates.sh 2>&1)
   g_rc=$?
   if (( g_rc == 78 )); then
     printf '── reconciliation + field invariants (G1-G6) ──\n%s\n' "${g6_out}"
-    if (( REALDATA_INVARIANTS_OPTIONAL == 1 )); then
-      echo "  WARNING: the loaded legacy_members are entirely mirror-derived; the authoritative export is not loaded," >&2
-      echo "  so the real_name / honor invariants are not applicable and this gate is SKIPPED." >&2
-      echo "  To exercise it, load the operator dataset (./run_dev.sh --all-data), then re-run." >&2
-      return 77
-    fi
     echo "ERROR: real-data invariants need the authoritative legacy load; the legacy_members are entirely mirror-derived." >&2
     echo "Recommendation: ./run_dev.sh --all-data, or point FOOTBAG_DB_PATH at the staging database." >&2
     return 1
@@ -961,38 +1142,45 @@ gate_audit() {
   # report, so the match is conservative and never silences an actual finding.
   if printf '%s' "$out" | grep -qiE 'code undefined|audit endpoint returned an error|security/audits/[a-z]+ failed|request to .*registry.* failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|fetch failed'; then
     echo ""
-    echo "  audit SKIPPED: npm registry audit endpoint unreachable; no advisory"
-    echo "  data was retrieved. Re-run when connectivity recovers. CI enforces"
-    echo "  the audit on every push."
+    echo "  No advisory data was retrieved, and CI enforces the audit on every push."
+    # Last, because the summary row takes a skipped gate's reason from its last line.
+    echo "  audit SKIPPED: npm registry audit endpoint unreachable; re-run when connectivity recovers."
     return 77
   fi
   return "$rc"
 }
 
-# Legacy-data pipeline suite (pytest). Carries the only regression coverage for
-# the member pipeline's production/staging refusal guards, the credential-header
-# abort, claim-state preservation, and the loader exclusion rules — so it runs
-# on every full local pass. Every test writes only to pytest tmp_path fixtures,
-# but pytest itself would otherwise write into legacy_data/ (a .pytest_cache
-# directory there, since its rootdir resolves to legacy_data, plus __pycache__
-# bytecode), landing build artifacts in the real-data tree. PYTHONPYCACHEPREFIX
-# redirects every bytecode write to a throwaway temp dir outside the tree, and
-# -p no:cacheprovider disables the pytest cache, so the gate leaves legacy_data/
-# byte-for-byte untouched. Any change to this invocation must preserve that
-# (verify with the fingerprint guard).
-gate_python_pipeline() {
-  # Runs under the legacy pipeline's own environment, which carries the same
-  # requirements file CI's pytest job installs. This runner never builds it: the
-  # environment lives inside legacy_data/, which no test-runner entry point
-  # writes. The seeder's environment is never borrowed either: the two are kept
-  # apart by the interpreter contract in scripts/lib/python-env.sh.
-  local py
+# The legacy Python suites run here under pytest, which would otherwise write into
+# legacy_data/ (a .pytest_cache directory there, since its rootdir resolves to
+# legacy_data, plus __pycache__ bytecode), landing build artifacts in the
+# real-data tree. PYTHONPYCACHEPREFIX redirects every bytecode write to a
+# throwaway temp dir outside the tree, and -p no:cacheprovider disables the pytest
+# cache, so these gates leave legacy_data/ byte-for-byte untouched. Any change to
+# these invocations must preserve that (verify with the fingerprint guard).
+#
+# Both run under the legacy pipeline's own environment, which carries the same
+# requirements file CI's pytest job installs. This runner never builds it: the
+# environment lives inside legacy_data/, which no test-runner entry point writes.
+# The seeder's environment is never borrowed either: the two are kept apart by
+# the interpreter contract in scripts/lib/python-env.sh.
+pipeline_python() {
   # shellcheck source=scripts/lib/python-env.sh
-  if ! py="$(source scripts/lib/python-env.sh && footbag_python pipeline fail 2>/dev/null)"; then
+  (source scripts/lib/python-env.sh && footbag_python pipeline fail 2>/dev/null)
+}
+
+run_legacy_pytest() {
+  local py="$1"; shift
+  PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest "$@" -q -p no:cacheprovider
+}
+
+# Opt-in only: the push gate never runs this suite and its code is retired at go-live.
+gate_legacy_mirror() {
+  local py
+  if ! py="$(pipeline_python)"; then
     echo "  the legacy pipeline environment is missing — skipping. Build it with: bash legacy_data/run_pipeline.sh venv"
     return 77
   fi
-  PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest legacy_data/tests/ legacy_data/legacy_mirror/tests/ -q -p no:cacheprovider
+  run_legacy_pytest "$py" legacy_data/legacy_mirror/tests/
 }
 
 # =============================================================================
@@ -1004,15 +1192,26 @@ gate_python_pipeline() {
 # =============================================================================
 echo "→ run_all_tests.sh starting (mode: $( (( QUICK )) && echo quick || echo full )$( (( WITH_SMOKE )) && echo +smoke || true )$( (( PENTEST )) && echo +pentest || true ))"
 
-run_gate build       npm run build
-run_gate lint        npm run lint
+checkout_gate build       npm run build
+checkout_gate lint        npm run lint
 run_gate audit       gate_audit
-run_gate conventions bash scripts/ci/assert_conventions.sh
-run_gate harness     bash scripts/ci/assert_claude_harness.sh
-run_gate generated-content bash scripts/ci/assert_generated_content_current.sh
-run_gate secret-scan gate_secret_scan
-run_gate unit        npm run test:unit
-run_gate integration npm run test:integration
+checkout_gate conventions bash scripts/ci/assert_conventions.sh
+# The harness self-check's one machine-local check reads the gitignored
+# per-developer settings file, which the clean room cannot see, so under --full
+# the checkout still runs it, leaving the hook fixture suite to the room.
+if (( FULL == 1 )); then
+  run_gate harness-local bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures
+else
+  run_gate harness     bash scripts/ci/assert_claude_harness.sh
+fi
+checkout_gate generated-content bash scripts/ci/assert_generated_content_current.sh
+if (( SKIP_SECRET_SCAN == 1 )); then
+  note_gate secret-scan "SKIP (left out by --skip-secret-scan; the push gate still runs it)"
+else
+  run_gate secret-scan gate_secret_scan
+fi
+checkout_gate unit        npm run test:unit
+checkout_gate integration npm run test:integration
 
 if (( QUICK == 0 )); then
   run_gate e2e        gate_e2e
@@ -1031,32 +1230,36 @@ if (( WITH_REALDATA_INVARIANTS == 1 )); then
   run_gate realdata-invariants gate_realdata_invariants
 fi
 
+# The e2e gate runs every Playwright spec, the @a11y ones included, so wherever
+# it ran the a11y gate would only repeat them. It runs on its own only where e2e
+# did not, which is --quick --a11y.
 if (( A11Y == 1 )); then
-  run_gate a11y       gate_a11y
+  if (( QUICK == 0 )); then
+    note_gate a11y "COVERED (the e2e gate ran the @a11y specs)"
+  else
+    run_gate a11y       gate_a11y
+  fi
 fi
 
 if (( PENTEST == 1 )); then
   run_gate pentest    gate_pentest
 fi
 
-# The coverage thresholds and the security probes mirror their CI jobs, and run
-# under --full only. Coverage re-runs the whole unit and integration suite with
-# instrumentation, several minutes on top of the suites the default run has
-# already executed, and it enforces a floor that catches a cliff (a deleted
-# suite, a large untested module) rather than measuring assertion strength,
-# which is the mutation gate's job. The probes boot a second throwaway stack.
+# The security probes mirror their CI job and run under --full only; they boot a
+# second throwaway stack. The coverage thresholds run under --full too, inside
+# the clean room, where that run is also the one pass of the unit and
+# integration tiers.
 if (( FULL == 1 )); then
-  run_gate coverage        npm run test:coverage
   run_gate security-probes gate_security_probes
 fi
 
-# The legacy-data pipeline suite runs under --full only. CI runs it on every
-# push, so the default run here is deliberately narrower than CI on this one
-# gate: it is several hundred Python tests over the migration pipeline, and the
-# day-to-day loop does not touch that code. Anyone changing anything under
-# legacy_data/ runs --full, or pytest directly, before pushing.
-if (( FULL == 1 )); then
-  run_gate python-pipeline gate_python_pipeline
+# The legacy-data pipeline suite runs under --full only, in the clean room, as the
+# push gate runs it. The default run is deliberately narrower than CI here: it is
+# several hundred Python tests over the migration pipeline, and the day-to-day
+# loop does not touch that code.
+
+if (( WITH_LEGACY_MIRROR == 1 )); then
+  run_gate legacy-mirror gate_legacy_mirror
 fi
 
 if (( WITH_MUTATION == 1 )); then
@@ -1066,13 +1269,14 @@ fi
 # The loader pipeline is absent from THIS runner for the reason it always was: it
 # writes legacy_data fixtures and is safe only where there is nothing real to
 # overwrite. It is no longer absent from the machine, though. The clean-room gate
-# below runs it inside a throwaway worktree holding only committed material,
-# which is the same condition the runner checks out into.
+# below runs it inside a throwaway worktree holding what the next push would
+# carry and none of the gitignored real-data trees, which is the same condition
+# the runner checks out into.
 # Under --full, which is the mode to reach for before a push: it installs from
 # the lockfile and re-runs the suite, so it roughly doubles the wall clock of an
 # ordinary run and earns that only when the question is "will the runner agree".
 if (( FULL == 1 )); then
-  run_gate clean-room bash scripts/ci/run_clean_room.sh
+  run_gate clean-room bash scripts/ci/run_clean_room.sh --results "$CLEAN_ROOM_RESULTS"
 fi
 
 # The whole report first: the gate table, the failure details, the notices, and
@@ -1084,88 +1288,7 @@ fi
 summarize
 dump_failures
 print_notices
-
-# A gate that could not run has not passed, and a run carrying one cannot promise
-# what a reader takes "all gates passed" to mean. Saying so is the difference
-# between knowing this tree is good and knowing only that nothing objected.
-#
-# Only a gate that stands for a push-gate job can change that promise, though.
-# The operator-only and real-data gates skip on any machine without the operator
-# dataset or an AWS profile, and the push gate never runs them either, so
-# counting those would make a clean verdict unreachable and teach the reader to
-# ignore it. They are reported, not held against the run.
-PUSH_GATE_EQUIVALENTS="build lint audit conventions harness generated-content secret-scan unit integration e2e terraform coverage security-probes python-pipeline clean-room"
-SKIPPED_PREDICTIVE=()
-SKIPPED_LOCAL_ONLY=()
-for i in "${!GATE_NAMES[@]}"; do
-  [[ "${GATE_RESULTS[$i]}" == SKIP* ]] || continue
-  if grep -qw "${GATE_NAMES[$i]}" <<< "$PUSH_GATE_EQUIVALENTS"; then
-    SKIPPED_PREDICTIVE+=("${GATE_NAMES[$i]}: ${GATE_RESULTS[$i]}")
-  else
-    SKIPPED_LOCAL_ONLY+=("${GATE_NAMES[$i]}: ${GATE_RESULTS[$i]}")
-  fi
-done
-
-# A gate this mode never scheduled is as unchecked as one that tried and could
-# not run, and counting only the second is how a --quick run came to announce
-# that everything the push gate runs had passed here. Nothing had skipped, because
-# nothing had been asked to.
-for _equivalent in $PUSH_GATE_EQUIVALENTS; do
-  printf '%s\n' "${GATE_NAMES[@]}" | grep -qx "$_equivalent" && continue
-  SKIPPED_PREDICTIVE+=("${_equivalent} (not run in this mode; --full runs it)")
-done
-unset _equivalent
-
-# The opt-in gates this mode never scheduled, each with the switch that runs it.
-# None stands for a push-gate job, but a run that says nothing about them lets
-# the reader believe --full ran everything, and the mutation gate never runs
-# unless asked for by name.
-NOT_SCHEDULED_OPT_IN=()
-for _opt_in in \
-  "staging-aws-smoke:--with-smoke" \
-  "persona-crawl:--with-persona-crawl" \
-  "realdata-invariants:--with-realdata-invariants" \
-  "a11y:--a11y" \
-  "pentest:--pentest" \
-  "mutation:--with-mutation"; do
-  printf '%s\n' "${GATE_NAMES[@]}" | grep -qx "${_opt_in%%:*}" && continue
-  NOT_SCHEDULED_OPT_IN+=("${_opt_in%%:*} (not run; ${_opt_in#*:} runs it)")
-done
-unset _opt_in
-
-# Printed on every run, including a clean one. The question this runner exists to
-# answer is "will my push pass", and the honest answer always carries a footnote:
-# a short list of things GitHub will do that no workstation can. Printing it only
-# on failure would teach the reader that a clean run checked everything, which is
-# the belief that makes a surprise red mark surprising.
-echo ""
-echo "=============================================="
-echo " WHAT THIS RUN DID NOT CHECK"
-echo "=============================================="
-echo "  Never checkable on any workstation:"
-echo "    CodeQL static analysis   runs on GitHub's own infrastructure. It reports"
-echo "                             findings into the repository's code-scanning view"
-echo "                             rather than failing the push."
-echo "    dependency review        runs only on a pull request, and only looks at a"
-echo "                             change to the dependency list."
-if (( ${#SKIPPED_LOCAL_ONLY[@]} > 0 )); then
-  echo ""
-  echo "  Not run here, and not run by the push gate either, so they change nothing"
-  echo "  about whether your push passes:"
-  printf '    %s\n' "${SKIPPED_LOCAL_ONLY[@]}"
-fi
-if (( ${#NOT_SCHEDULED_OPT_IN[@]} > 0 )); then
-  echo ""
-  echo "  WARNING: opt-in gates this mode did not run. The push gate does not run"
-  echo "  them either, so they change nothing about whether your push passes:"
-  printf '    %s\n' "${NOT_SCHEDULED_OPT_IN[@]}"
-fi
-if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
-  echo ""
-  echo "  THE PUSH GATE RUNS THESE AND THIS RUN COULD NOT:"
-  printf '    %s\n' "${SKIPPED_PREDICTIVE[@]}"
-fi
-echo "=============================================="
+print_not_checked
 
 # The verdicts, after the whole report. The real-data guard exits 2 the moment it
 # trips, and what trips it is usually a legacy mirror crawl writing alongside the
