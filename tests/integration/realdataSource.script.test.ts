@@ -174,7 +174,7 @@ beforeAll(() => {
   // reach beyond this machine records being called. curl fails, so no readiness
   // poll ever finds a server, whatever is listening on this machine's ports.
   recordingStub('curl', ['exit 7']);
-  recordingStub('terraform', ['echo d111111abcdef8.cloudfront.net']);
+  recordingStub('terraform', ['echo d1234abcdef8.cloudfront.net']);
   recordingStub('aws', ['echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/stub"']);
   recordingStub('docker');
   recordingStub('gitleaks');

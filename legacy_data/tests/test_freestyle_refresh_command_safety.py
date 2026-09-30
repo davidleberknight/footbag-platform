@@ -268,7 +268,7 @@ class TestTheLauncherSaysWhichCommandsDestroy:
         cannot tell whether the help itself still carries it.
         """
         text = self.help_text()
-        marker = "Refreshing freestyle without losing local work:"
+        marker = "Refreshing freestyle without losing local work"
         assert marker in text, "the help has no section naming the routine refresh"
         section = text.split(marker, 1)[1].split("DB rebuild modes", 1)[0]
         assert "freestyle/run_freestyle.sh" in section

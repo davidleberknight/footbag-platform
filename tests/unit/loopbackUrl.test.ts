@@ -21,7 +21,7 @@ describe('isLoopbackBaseUrl', () => {
   // deployed site, directly or through a name that only looks local.
   it('refuses a deployed host, a lookalike name, credentials, another scheme, and garbage', () => {
     for (const url of [
-      'https://d111111abcdef8.cloudfront.net',
+      'https://d1234abcdef8.cloudfront.net',
       'http://localhost.example.test:3000',
       'http://127.0.0.1.example.test/',
       'http://user:pw@localhost:3000',
