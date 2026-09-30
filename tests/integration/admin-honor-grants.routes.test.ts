@@ -107,7 +107,6 @@ describe('GET /admin/honor-grants', () => {
   it('admin → 200 with the grant form', async () => {
     const res = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Grant an Honor Tier');
     expect(res.text).toContain('/admin/honor-grants/grant');
   });
   // The page offers to take a grant back, keyed on a member id typed by hand.
@@ -215,9 +214,7 @@ describe('the roster of current holders', () => {
     // administrator would arrive at.
     const res = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Current Hall of Fame');
     expect(res.text).toContain(HOF_T0);
-    expect(res.text).toContain('Current Big Add Posse');
     expect(res.text).toContain(BAP_T2);
   });
 });

@@ -14,7 +14,7 @@
  *   - Fallback path: conceptsHrefForTerm returns bare URL for unknown terms
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +28,7 @@ import { conceptsHrefForTerm } from '../../src/services/conceptsAnchors';
 const { dbPath } = setTestEnv('3094');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -103,7 +104,7 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
     // The "clipper" foundational atom anchors at slug `clipper_stall`, not
     // `clipper`: the canonical slug is the anchor, and the community
     // shorthand `#clipper` is rendered through a displaySlug override.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="term-clipper_stall"');
     expect(res.text).toContain('id="term-mirage"');
@@ -119,14 +120,14 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
   });
 
   it('preserves id="term-pixie" and id="term-fairy" anchors in the set-modifiers subsection (cross-link integrity)', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="set-modifiers-tier-1"');
     expect(res.text).toContain('id="term-pixie"');
     expect(res.text).toContain('id="term-fairy"');
   });
 
   it('renders id="term-set-realization" and id="term-standalone-realization" anchors for the two set-role definitions', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="term-set-realization"');
     expect(res.text).toContain('id="term-standalone-realization"');
   });
@@ -137,7 +138,7 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
     // an operator already carried by the intermediate-operators list or the
     // body-modifier reference) is invalid HTML and makes the deep-link target
     // ambiguous, so the link-target anchor families must each be collision-free.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     const anchorIds = [...res.text.matchAll(/id="([^"]+)"/g)]
       .map(m => m[1])
@@ -149,7 +150,7 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
   });
 
   it('renders id="term-X" on the §3 modifier quick-reference subsection', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="modifier-reference"');
     expect(res.text).toContain('id="term-stepping"');
     expect(res.text).toContain('id="term-paradox"');
@@ -163,14 +164,14 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
   });
 
   it('§3 modifier quick-reference cross-links to §13 connective panels for paradox / spinning / ducking', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="#glossary-panel-paradox"');
     expect(res.text).toContain('href="#glossary-panel-spinning"');
     expect(res.text).toContain('href="#glossary-panel-ducking"');
   });
 
   it('relative-side subsection explains SAME / OP / paradox coexistence and that OP is not X-Dex', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // The consolidated relative-side explainer is present with anchored terms.
     expect(res.text).toContain('Relative-side relationships');
     expect(res.text).toContain('id="term-same-side"');
@@ -191,30 +192,30 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
 
 describe('walking-progression page — concept links deep-link via fragments', () => {
   it('butterfly references go to /freestyle/concepts#term-butterfly', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/concepts#term-butterfly"');
   });
 
   it('paradox references go to the §13 connective panel anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-paradox"');
   });
 
   it('stepping / pixie references go to /freestyle/concepts#term-{slug}', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toContain('href="/freestyle/concepts#term-stepping"');
     // pixie has a §13 connective panel, so it deep-links there
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-pixie"');
   });
 
   it('ducking references go to the §13 connective panel anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-ducking"');
   });
 
   it('no concept links remain at the bare /freestyle/concepts URL', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     // Match Related-concepts links specifically (the step concept-links region).
     // Any "Related concepts:" link should carry a fragment.
     const stepLinksRegion = res.text.match(/Related concepts:[\s\S]*?<\/p>/g) ?? [];
@@ -228,19 +229,19 @@ describe('walking-progression page — concept links deep-link via fragments', (
 
 describe('modifier-family pages — conceptsHref deep-links to connective-panel anchors', () => {
   it('/freestyle/modifier/spinning concepts link goes to #glossary-panel-spinning', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-spinning"');
   });
 
   it('/freestyle/modifier/paradox concepts link goes to #glossary-panel-paradox', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-paradox"');
   });
 
   it('/freestyle/modifier/ducking concepts link goes to #glossary-panel-ducking', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-ducking"');
   });
@@ -257,7 +258,7 @@ describe('Concepts trick links use canonical underscore slugs (no dead hyphenate
   ];
 
   it('links the formerly-hyphenated template tricks by their canonical underscore slug', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     for (const slug of UNDERSCORE_TARGETS) {
       expect(res.text, `${slug} should link by its canonical underscore slug`).toContain(`href="/freestyle/tricks/${slug}"`);
     }

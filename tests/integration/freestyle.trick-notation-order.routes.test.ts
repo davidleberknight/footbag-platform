@@ -11,13 +11,14 @@
  * file would pass or fail for the wrong reason.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3611');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 const NOTATION = 'aria-label="Movement notation"';
 const ABOUT = 'About this trick';
@@ -45,7 +46,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(slug: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  const res = await getPage(`/freestyle/tricks/${slug}`);
   expect(res.status).toBe(200);
   return res.text;
 }

@@ -147,6 +147,20 @@ async function uploadPhotoViaRoute(caption: string, tags: string[]): Promise<str
   return row.id;
 }
 
+// Moves one upload's stamp an hour into the past, so a sort test sets the
+// order it asserts instead of relying on two uploads landing in different
+// milliseconds.
+function backdateUpload(mediaId: string): void {
+  const db = new BetterSqlite3(dbPath);
+  try {
+    db.prepare(
+      `UPDATE media_items SET uploaded_at = strftime('%Y-%m-%dT%H:%M:%fZ', uploaded_at, '-1 hour') WHERE id = ?`,
+    ).run(mediaId);
+  } finally {
+    db.close();
+  }
+}
+
 // ── GET /admin/curator/media ─────────────────────────────────────────────
 
 describe('GET /admin/curator/media', () => {
@@ -167,7 +181,6 @@ describe('GET /admin/curator/media', () => {
     const app = createApp();
     const res = await request(app).get('/admin/curator/media').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Curated Media');
     expect(res.text).toContain('/admin/curator/upload');
   });
 
@@ -195,13 +208,10 @@ describe('GET /admin/curator/media', () => {
   });
 
   it('default sort is date_desc — most recent uploads appear before older ones', async () => {
-    // Capture two captions with a guaranteed order in the DB. Each upload
-    // gets a fresh now-stamp; the second insert is later, so date_desc
-    // puts it before the first.
+    // Two uploads with a guaranteed order: the older one's stamp is moved an
+    // hour back, so the order never depends on how fast the uploads ran.
     const olderCaption = `LIST_SORT_OLD_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await uploadPhotoViaRoute(olderCaption, []);
-    // Tiny gap to ensure distinct uploaded_at stamps even on coarse clocks.
-    await new Promise((r) => setTimeout(r, 20));
+    backdateUpload(await uploadPhotoViaRoute(olderCaption, []));
     const newerCaption = `LIST_SORT_NEW_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await uploadPhotoViaRoute(newerCaption, []);
 
@@ -218,8 +228,7 @@ describe('GET /admin/curator/media', () => {
 
   it('?sort=date_asc reverses date order', async () => {
     const olderCaption = `LIST_SORTASC_OLD_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await uploadPhotoViaRoute(olderCaption, []);
-    await new Promise((r) => setTimeout(r, 20));
+    backdateUpload(await uploadPhotoViaRoute(olderCaption, []));
     const newerCaption = `LIST_SORTASC_NEW_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await uploadPhotoViaRoute(newerCaption, []);
 

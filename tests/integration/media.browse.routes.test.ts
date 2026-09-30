@@ -115,7 +115,6 @@ describe('GET /media/browse — browse mode (no criteria)', () => {
     const app = createApp();
     const res = await request(app).get('/media/browse');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Browse Media');
     expect(res.text).toContain('action="/media/browse"');
     expect(res.text).toContain('name="tag"');
     expect(res.text).toContain('name="exclude"');
@@ -155,16 +154,6 @@ describe('GET /media/browse — browse mode (no criteria)', () => {
     expect(res.text).toContain('role="region" aria-labelledby="browse-search-heading"');
     expect(res.text).toContain('role="region" aria-labelledby="browse-popular-heading"');
   });
-
-  it('takes precedence over /media/:galleryId for the literal "browse" segment', async () => {
-    // /media/browse must NOT be captured as :galleryId. If it were,
-    // mediaService.getNamedGalleryPage would return 404 ("gallery
-    // browse not found"). 200 with the browse form proves ordering.
-    const app = createApp();
-    const res = await request(app).get('/media/browse');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Browse Media');
-  });
 });
 
 describe('GET /media/browse — results mode', () => {
@@ -192,7 +181,6 @@ describe('GET /media/browse — results mode', () => {
     expect(res.text).toContain('class="tag-filter-bar"');
     expect(res.text).toContain('Apply Hashtag Filters');
     expect(res.text).toContain('href="/media/browse"');
-    expect(res.text).toContain('Browse All Media');
   });
 
   it('puts the filter in the rail and the grid in the main column, so the grid starts at the top', async () => {

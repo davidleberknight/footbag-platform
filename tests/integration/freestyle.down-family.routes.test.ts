@@ -15,7 +15,7 @@
  * (CLIP start, OP/SAME). JOB taken as authoritative.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -29,6 +29,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3169');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -155,7 +156,7 @@ describe('RESOLVED_ADD_FORMULAS — down family entries', () => {
 
 describe('Down-family detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/double-over-down renders 4 ADD + TOE-set tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double_over_down');
+    const res = await page('/freestyle/tricks/double_over_down');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -167,7 +168,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/down-double-down renders 4 ADD + CLIP-set start (not TOE)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/down_double_down');
+    const res = await page('/freestyle/tricks/down_double_down');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     // CLIP is the first surface token. Confirm CLIP renders as op-token.
@@ -176,7 +177,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/down-diver renders 5 ADD + DIVE body action token', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/down_diver');
+    const res = await page('/freestyle/tricks/down_diver');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // DIVE is a body-action token in operationalNotationRendering vocabulary
@@ -185,7 +186,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
   });
 
   it('down-diver detail page surfaces the "Diving Down Double-Down" alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/down_diver');
+    const res = await page('/freestyle/tricks/down_diver');
     expect(res.status).toBe(200);
     // alias should render in the "Also known as" row via aliases_json
     expect(res.text).toMatch(/diving down double-down/i);
@@ -194,7 +195,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
 
 describe('Down umbrella family (the one ruled structural decomposition)', () => {
   it('the Down root section renders in the family view, aggregating its variant branches', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     // The umbrella root has no raw trick_family rows of its own; its section
     // is the union of the variant branches' members.
@@ -208,7 +209,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
   });
 
   it('the Down umbrella family-anchor links to the family page, not a missing trick page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const downIdx = res.text.indexOf('id="family-down"');
     expect(downIdx).toBeGreaterThan(-1);
     const nextSection = res.text.indexOf('id="family-', downIdx + 1);
@@ -220,7 +221,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
   });
 
   it('an official family parent that also has its own trick row still links its anchor to the family page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const bIdx = res.text.indexOf('id="family-barfly"');
     expect(bIdx).toBeGreaterThan(-1);
     const nextSection = res.text.indexOf('id="family-', bIdx + 1);
@@ -232,7 +233,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
   });
 
   it('variant branches keep their own presentation alongside the umbrella, tier deciding the form', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // Parent-tier variants render as full sections; minor-tier variants render
     // in the Minor Lineages band with a working ?family= link. Both remain
     // reachable, and all aggregate into the Down section.
@@ -241,7 +242,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
   });
 
   it('the dod sub-label folds into the Double-Over-Down branch section', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const dodIdx = res.text.indexOf('id="family-double_over_down"');
     expect(dodIdx).toBeGreaterThan(-1);
     const nextSection = res.text.indexOf('id="family-', dodIdx + 1);
@@ -251,7 +252,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
   });
 
   it('?family=down filters to the union of the contained raw labels', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?family=down');
+    const res = await page('/freestyle/tricks?family=down');
     expect(res.status).toBe(200);
     for (const member of ['barfly', 'blurriest', 'fusion', 'cold_fusion', 'paradon', 'dolomite']) {
       expect(res.text).toContain(`data-trick-slug="${member}"`);
@@ -261,7 +262,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
 
 describe('Down-family browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three down-family browse cards render JOB + ADD (not "canonical decomposition pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     for (const slug of ['double_over_down', 'down_double_down', 'down_diver']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);

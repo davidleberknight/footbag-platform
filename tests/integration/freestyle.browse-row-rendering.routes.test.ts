@@ -26,7 +26,7 @@
  *   - Tier-4 executable-accounting prose stays off browse rows
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -44,6 +44,7 @@ import {
 const { dbPath } = setTestEnv('3095');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -173,20 +174,16 @@ afterAll(() => cleanupTestDb(dbPath));
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks (By ADD) — route stability', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-  });
-
   it('renders the two-line row stack container', async () => {
     // The same contract every browse view holds; the ADD view is not special.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('renders ADD-group sections with anchor IDs', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toContain('id="add-1"');
     expect(res.text).toContain('id="add-2"');
     expect(res.text).toContain('id="add-4"');
@@ -201,7 +198,7 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 
 describe('dictionary trick row — required slots', () => {
   it('links the trick name to its page and offers a separate Detail control', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     // The plain-English name is the route to the trick's page, the way every
     // other entity list on the site links its title.
     expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
@@ -214,14 +211,14 @@ describe('dictionary trick row — required slots', () => {
   });
 
   it('renders the #slug tag-identity chip on every row', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#ripwalk</span>');
     expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#mobius</span>');
     expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#montage</span>');
   });
 
   it('renders the difficulty value on every row, in parentheses beside the notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     // The value is the number alone. Spelling out "N ADD" per row would
     // restate the grouping header on the one view that already says it, so
     // the row carries the compact form on every view alike.
@@ -235,7 +232,7 @@ describe('dictionary trick row — required slots', () => {
     // A first-class trick carries no tokenized operational notation of its
     // own; its chain is a plain curator string. Without it the whole
     // first-class cohort would render an empty notation column.
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     const toeStallRow = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
     expect(toeStallRow).not.toBeNull();
     expect(toeStallRow![0]).toMatch(/<code class="dict-trick-row-notation-value">/);
@@ -246,7 +243,7 @@ describe('dictionary trick row — required slots', () => {
     // A row states what a trick is, never how far along our own authoring of
     // it has got. Status belongs on the trick detail page.
     for (const view of ['add', 'family', 'category', 'component', 'topology']) {
-      const res = await request(createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.text, `${view} must render no decomposition-under-review pill`)
         .not.toContain('decomposition under review');
       expect(res.text, `${view} must render no incomplete badge`)
@@ -265,7 +262,7 @@ describe('dictionary trick row — required slots', () => {
       '/freestyle/tricks?view=component',
       '/freestyle/tricks?view=topology',
     ]) {
-      const res = await request(createApp()).get(url);
+      const res = await page(url);
       expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
       expect(res.text).not.toContain('Notation pending');
     }
@@ -356,7 +353,7 @@ describe('dictionary trick row — required slots', () => {
       '/freestyle/tricks?view=topology',
       '/freestyle/tricks?view=movement-system',
     ]) {
-      const res = await request(createApp()).get(url);
+      const res = await page(url);
       expect(res.status).toBe(200);
       const sweep = stripFirstClassCardRegions(res.text);
       for (const pattern of accountingPatterns) {
@@ -371,7 +368,7 @@ describe('dictionary trick row — required slots', () => {
   it('a trick with no notation renders an empty notation column, not a placeholder', async () => {
     // torque carries no operational notation at all. The row shows its
     // difficulty value and stops; it never announces the absence.
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     const torqueStart = res.text.indexOf('data-trick-slug="torque"');
     expect(torqueStart).toBeGreaterThan(-1);
     const torqueEnd = res.text.indexOf('</article>', torqueStart);
@@ -381,13 +378,13 @@ describe('dictionary trick row — required slots', () => {
   });
 
   it('does NOT render prose description in the browse row', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     // The legacy By ADD view emitted .trick-description; the row never does.
     expect(res.text).not.toContain('trick-description');
   });
 
   it('renders a row article element for every seeded trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     // Each row renders as <article class="dict-trick-row" data-trick-slug="...">.
     const slugAttrCount = (res.text.match(/data-trick-slug="/g) ?? []).length;
     expect(slugAttrCount).toBeGreaterThanOrEqual(6);
@@ -400,7 +397,7 @@ describe('dictionary trick row — required slots', () => {
 
 describe('dictionary trick row — sparse and deep render through the same template', () => {
   it('Toe Stall (sparse) renders cleanly: linked name, Detail control, chain', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/toe_stall">toe stall<\/a>/);
     expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/toe_stall">Detail<\/a>/);
     const toeStallRow = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
@@ -411,7 +408,7 @@ describe('dictionary trick row — sparse and deep render through the same templ
   it('Montage (deep) renders cleanly: the same two columns, no extra apparatus', async () => {
     // A seven-operator compound gets no richer treatment than a one-operator
     // trick: the depth lives in the notation, not in extra rows or chrome.
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
     const montageEnd = res.text.indexOf('</article>', montageStart);
@@ -436,7 +433,7 @@ describe('dictionary trick row — sparse and deep render through the same templ
 
 describe('dictionary-trick-card — grouping', () => {
   it('Ripwalk card lands inside the 4-ADD section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const sectionStart = res.text.indexOf('id="add-4"');
     const nextSectionStart = res.text.indexOf('id="add-5"', sectionStart);
     expect(sectionStart).toBeGreaterThan(-1);
@@ -446,7 +443,7 @@ describe('dictionary-trick-card — grouping', () => {
   });
 
   it('Mobius card lands inside the 5-ADD section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const sectionStart = res.text.indexOf('id="add-5"');
     const nextSectionStart = res.text.indexOf('id="add-7"', sectionStart);
     expect(sectionStart).toBeGreaterThan(-1);
@@ -465,19 +462,19 @@ describe('dictionary-trick-card — grouping', () => {
 
 describe('GET /freestyle/tricks?view=family — trick rows', () => {
   it('renders family sections with anchor IDs', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="family-butterfly"');
   });
 
   it('family section heading wraps an <a> family-filter link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // Family name renders display-cased (first letter capitalised).
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=butterfly">Butterfly family<\/a><\/h2>/);
   });
 
   it('family section renders the two-line dict-trick-row stack', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('dict-trick-row-stack');
     // The rows inside the family section carry data-trick-slug from our seeded set.
     expect(res.text).toContain('data-trick-slug="butterfly"');
@@ -485,14 +482,14 @@ describe('GET /freestyle/tricks?view=family — trick rows', () => {
   });
 
   it('butterfly family heading renders the walking-progression cross-link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('trick-family-cross-link');
     expect(res.text).toContain('href="/freestyle/progression/walking-family"');
     expect(res.text).toContain('Walking-family progression');
   });
 
   it('anchor-first ordering: butterfly base trick renders before its compound members', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const familySectionStart = res.text.indexOf('id="family-butterfly"');
     expect(familySectionStart).toBeGreaterThan(-1);
     const familySectionEnd = res.text.indexOf('</section>', familySectionStart);
@@ -508,20 +505,20 @@ describe('GET /freestyle/tricks?view=family — trick rows', () => {
 
 describe('other dictionary views — per-view rendering contract', () => {
   it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('/freestyle/tricks?view=component returns 200 and uses the two-line row contract', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.status).toBe(200);
     expect(res.text).toContain('dict-trick-row-stack');
   });
 
   it('/freestyle/tricks?view=modifier returns 200 (the modifier browse)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
+    const res = await page('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
     // ?view=modifier renders the modifier-grouped browse, not a component
     // alias. Active-toggle marker confirms the routing.
@@ -529,7 +526,7 @@ describe('other dictionary views — per-view rendering contract', () => {
   });
 
   it('/freestyle/tricks?view=category returns 200 and uses the two-line row contract', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
     expect(res.text).toContain('dict-trick-row-stack');
   });
@@ -544,7 +541,7 @@ describe('other dictionary views — per-view rendering contract', () => {
     const POPULATED = new Set(['add', 'family', 'category', 'component', 'topology', 'movement-system', 'dex-count']);
     for (const view of ['add', 'family', 'set', 'category', 'component', 'topology', 'movement-system', 'dex-count']) {
       const url = `/freestyle/tricks?view=${view}`;
-      const res = await request(createApp()).get(url);
+      const res = await page(url);
       expect(res.status).toBe(200);
       expect(res.text, `${url} must not render card-density markup`).not.toContain('dict-card-stack');
       if (POPULATED.has(view)) {

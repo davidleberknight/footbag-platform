@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -36,6 +37,7 @@ import { CANONICAL_SETS } from '../../src/content/freestyleCanonicalSets';
 const { dbPath } = setTestEnv('3221');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -86,17 +88,17 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/sets/:slug — set detail page', () => {
   it('returns 200 for a canonical-set slug (pixie)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.status).toBe(200);
   });
 
   it('returns 404 for an unknown slug (anti-enumeration)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/this-is-not-a-real-set');
+    const res = await page('/freestyle/sets/this-is-not-a-real-set');
     expect(res.status).toBe(404);
   });
 
   it('renders the display name and #set_<slug> hashtag in the header', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.text).toContain('Pixie');
     expect(res.text).toContain('#set_pixie');
   });
@@ -105,72 +107,72 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
   // sections render directly; a migrated set like pixie absorbs them into the
   // teaching layer.
   it('renders the formula as a code block', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/blurry');
+    const res = await page('/freestyle/sets/blurry');
     expect(res.text).toContain('class="set-detail-formula"');
     expect(res.text).toContain('CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt;');
   });
 
   it('renders the movement explanation', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/blurry');
+    const res = await page('/freestyle/sets/blurry');
     expect(res.text).toMatch(/Stepping combined with a paradox-style orientation change/);
   });
 
   it('renders derived systems as anchor links to /freestyle/sets/<slug>', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     // pixie lists terraging, sailing, etc. as derived
     expect(res.text).toMatch(/href="\/freestyle\/sets\/terraging"/);
   });
 
   it('renders related systems for sets that have them', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     // pixie's related: fairy
     expect(res.text).toMatch(/href="\/freestyle\/sets\/fairy"/);
   });
 
   it('renders source provenance label', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.text).toContain('set-card-source--platform-tracked');
     expect(res.text).toContain('Tracked here');
   });
 
   it('renders audit-status label for sets that carry one (atomic = partial)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/atomic');
     expect(res.text).toContain('set-card-audit--partial');
   });
 
   it('renders the conflict audit label for surging', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/surging');
+    const res = await page('/freestyle/sets/surging');
     expect(res.text).toContain('set-card-audit--conflict');
     expect(res.text).toContain('Documented disagreement');
   });
 
   it('renders the holden-only audit label and dashed-border style for bubba', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/bubba');
+    const res = await page('/freestyle/sets/bubba');
     expect(res.text).toContain('set-card-audit--holden-only');
     expect(res.text).toContain('set-card-source--holden-only');
   });
 
   it('renders example-tricks section populated when modifier-link rows exist', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.text).toContain('class="set-detail-trick-list"');
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/pixie_mirage"/);
   });
 
   it('links an example trick covered only through an alias on the tag its clip carries', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/media/browse?context&#x3D;pixie_symposium_mirage_folded');
     expect(res.text).not.toContain('/media/browse?context&#x3D;pixie_mirage');
   });
 
   it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/bubba');
+    const res = await page('/freestyle/sets/bubba');
     expect(res.text).toContain('set-detail-examples-section--empty');
     expect(res.text).toContain('No tricks are linked to this set yet');
   });
 
   it('renders cross-links to the encyclopedia, compositional hub, and movement-system axis', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     // The back control lands on the Set Encyclopedia, the canonical set surface.
     expect(res.text).toContain('href="/freestyle/sets">Back to Set Encyclopedia<');
     expect(res.text).toContain('href="/freestyle/compositional-sets#single-dex-primitives"');
@@ -183,27 +185,27 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
   });
 
   it('omits the operator-reference cross-link for a set with no operators-page entry', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     // Set operators live on their own set pages, not the body-operator index, so
     // pixie carries no operators anchor rather than a broken one.
     expect(res.text).not.toContain('href="/freestyle/operators#pixie"');
   });
 
   it('does NOT render the operator-reference cross-link for holden-only sets without a modifier', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/bubba');
+    const res = await page('/freestyle/sets/bubba');
     expect(res.text).not.toContain('href="/freestyle/operators#bubba"');
   });
 
   it('renders the component-mechanics not-a-set reminder', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.text).toContain('Component mechanics');
     expect(res.text).toContain('are body modifiers, not sets');
   });
 
   it('uses the subtype label as eyebrow text', async () => {
-    const pixieRes = await request(await createApp()).get('/freestyle/sets/pixie');
+    const pixieRes = await page('/freestyle/sets/pixie');
     expect(pixieRes.text).toContain('True core sets');
-    const blurryRes = await request(await createApp()).get('/freestyle/sets/blurry');
+    const blurryRes = await page('/freestyle/sets/blurry');
     expect(blurryRes.text).toContain('Composite / derived sets');
   });
 });
@@ -220,14 +222,14 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 
 describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
   it('first-in-subtype (toe): renders next=clipper, no previous', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/toe');
+    const res = await page('/freestyle/sets/toe');
     expect(res.text).toContain('class="set-detail-sibling-nav"');
     expect(res.text).toMatch(/<a class="set-detail-sibling-nav-next" href="\/freestyle\/sets\/clipper">/);
     expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-prev"/);
   });
 
   it('middle-in-subtype (stepping): renders prev=fairy AND next=quantum', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('class="set-detail-sibling-nav"');
     expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/fairy">/);
     expect(res.text).toMatch(/<a class="set-detail-sibling-nav-next" href="\/freestyle\/sets\/quantum">/);
@@ -242,7 +244,7 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
   });
 
   it('last-in-subtype (tapping): renders prev=slapping, no next (miraging removed)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/tapping');
+    const res = await page('/freestyle/sets/tapping');
     expect(res.text).toContain('class="set-detail-sibling-nav"');
     expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/slapping">/);
     // Tapping is now the last true-core set, so there is no next sibling and no
@@ -251,7 +253,7 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
   });
 
   it('sibling strip is placed between cross-references and provenance footer', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     const crossLinksIdx = res.text.indexOf('class="set-detail-cross-links"');
     const siblingIdx    = res.text.indexOf('class="set-detail-sibling-nav"');
     const provenanceIdx = res.text.indexOf('class="set-detail-provenance"');
@@ -269,7 +271,7 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
     // every priority set (which all have at least one sibling) renders
     // the strip — no contradicting case.
     for (const slug of ['pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'tapping']) {
-      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const res = await page(`/freestyle/sets/${slug}`);
       expect(res.text).toContain('class="set-detail-sibling-nav"');
     }
   });
@@ -277,14 +279,14 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
 
 describe('/freestyle/sets routes render directly', () => {
   it('/freestyle/sets renders the Set Encyclopedia', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Set Encyclopedia');
     expect(res.text).toContain('class="wrapper sets-encyclopedia"');
   });
 
   it('/freestyle/sets/reference renders the flat Holden reference table directly', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     expect(res.status).toBe(200);
     // The flat-reference table content lives in freestyle/moves.hbs
     expect(res.text).toContain('Set Notation');   // page heading region
@@ -306,7 +308,7 @@ describe('GET /freestyle/sets/:slug — non-set slug redirects to its Freestyle 
 
 describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name equivalences)', () => {
   it('atomic does not show Illusioning as an equivalent name; it is a distinct standalone movement', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
     // Atomic and Illusioning are distinct under current doctrine, so atomic has
     // no equivalent-name section, and its Set Encyclopedia teaching page states
@@ -316,7 +318,7 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
   });
 
   it('keeps the equivalent name out of the structural Equivalence readings slot', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/atomic');
     // The structural ≡ slot stays its own section with its own reading...
     expect(res.text).toContain('Equivalence readings');
     expect(res.text).toContain('Toe set Illusion');
@@ -326,13 +328,13 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
   });
 
   it('a set without equivalent names (pixie) does not render the section', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Equivalent names');
   });
 
   it('quantum names Miraging only to disambiguate it, never as an equivalent or related set', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/quantum');
+    const res = await page('/freestyle/sets/quantum');
     expect(res.status).toBe(200);
     // Miraging is not a set: the quantum page must not chip-link it as a set page.
     // It may name Miraging only to disambiguate it as a distinct historical nickname,
@@ -402,7 +404,7 @@ function presentSectionsInOrder(text: string): { present: string[]; ascending: b
 
 describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail shell', () => {
   it('atomic renders its below-fold reference sections in trick-detail order (its teaching page covers formula and movement explanation; no equivalent-name section)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/atomic');
     const { present, ascending } = presentSectionsInOrder(res.text);
     // Atomic now has a Set Encyclopedia teaching page, so the Formula and Movement
     // explanation reference blocks are covered by the teaching layout above and no
@@ -418,7 +420,7 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
   });
 
   it('furious renders its below-fold reference sections in trick-detail order (its teaching page covers formula and movement explanation)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/furious');
+    const res = await page('/freestyle/sets/furious');
     const { present, ascending } = presentSectionsInOrder(res.text);
     expect(ascending).toBe(true);
     // Furious now has a Set Encyclopedia teaching page, so the Formula and Movement
@@ -440,7 +442,7 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
 describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)', () => {
   for (const slug of ['atomic', 'quantum', 'nuclear']) {
     it(`renders the X-Dex receiver note and Freestyle Concepts cross-link on ${slug}`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const res = await page(`/freestyle/sets/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('X-Dex behavior');
       // The note is notation-authoritative: X-Dex is scored from the [XDEX] flag,
@@ -451,7 +453,7 @@ describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)',
   }
 
   it('omits the X-Dex receiver note on a non-receiver set (pixie)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    const res = await page('/freestyle/sets/pixie');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('X-Dex behavior');
   });
@@ -459,7 +461,7 @@ describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)',
 
 describe('GET /freestyle/sets/stepping — set-page educational reference implementation', () => {
   it('returns 200 and renders the launch-set subtitle', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Stepping');
     expect(res.text).toMatch(/launch set/);
@@ -467,7 +469,7 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
   });
 
   it('renders the frozen set teaching template, concept before mechanics', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('<h2>What it is</h2>');
     expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it launches</h2>');
@@ -482,21 +484,21 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
   });
 
   it('absorbs the thin Formula / Movement sections into the teaching layer', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     // On a migrated set the teaching layer replaces the bare Formula/Movement headings.
     expect(res.text).not.toContain('<h2>Formula</h2>');
     expect(res.text).not.toContain('<h2>Movement</h2>');
   });
 
   it('teaches the set notation: stepping is the CLIP > OP IN [DEX] launch, not a body token', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\]/);
     expect(res.text).toMatch(/stepping\(\+1\) \+ mirage\(2\)/);
     expect(res.text).toMatch(/not as a \[BOD\] or \[PDX\] token/);
   });
 
   it('contrasts stepping with pixie as a separate launch (no research pre-judgement)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('Stepping vs a plain clipper or toe set');
     expect(res.text).toContain('Stepping is a launch, not a body movement');
     expect(res.text).toContain('Stepping vs pixie');
@@ -505,7 +507,7 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
   });
 
   it('renders progression with anchor on butterfly, landing on named tricks (clickable underscore slugs)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('set-step-1-butterfly');
     expect(res.text).toContain('set-step-2-ripwalk');
     expect(res.text).toContain('set-step-3-parkwalk');
@@ -516,7 +518,7 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
   });
 
   it('renders representative tricks as clickable links, organized by category', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('href="/freestyle/tricks/stepping_mirage"');
     expect(res.text).toContain('href="/freestyle/tricks/stepping_whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/stepping_eggbeater"');
@@ -527,7 +529,7 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
   });
 
   it('keeps the structural reference layer (derived systems, cross-references, provenance) below the teaching layer', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('Derived systems');
     expect(res.text).toContain('Cross-references');
     expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('Cross-references'));
@@ -543,7 +545,7 @@ describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fa
 
   for (const slug of MIGRATED) {
     it(`${slug} renders the frozen teaching layer (concept-first headings)`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const res = await page(`/freestyle/sets/${slug}`);
       expect(res.status).toBe(200);
       for (const heading of ['What it is', 'How it launches', 'JOB notation', 'Where it appears', 'How it composes', 'Launch notes']) {
         expect(res.text, `${slug} / ${heading}`).toContain(`<h2>${heading}</h2>`);
@@ -551,13 +553,13 @@ describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fa
     });
 
     it(`${slug} absorbs the thin Formula/Movement sections into the teaching layer`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const res = await page(`/freestyle/sets/${slug}`);
       expect(res.text).not.toContain('<h2>Formula</h2>');
       expect(res.text).not.toContain('<h2>Movement</h2>');
     });
 
     it(`${slug} modifier route redirects to its set page`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/modifier/${slug}`);
+      const res = await page(`/freestyle/modifier/${slug}`);
       expect(res.status).toBe(301);
       expect(res.headers['location']).toBe(`/freestyle/sets/${slug}`);
     });
@@ -577,7 +579,7 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
   };
 
   it('names the source above the formula, and that source is the compilation for blazing', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/blazing');
+    const res = await page('/freestyle/sets/blazing');
     expect(res.status).toBe(200);
     const body = formulaSection(res.text);
     expect(body, 'formula section').not.toBeNull();
@@ -596,14 +598,14 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
   // relation was unsettled before the ruling, and a page that still says so
   // contradicts the dictionary it sits beside.
   it('states the settled side reference on the blazing page, beside the quoted formula', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/blazing');
+    const res = await page('/freestyle/sets/blazing');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/side the set originates from is the reference/);
     expect(res.text).not.toMatch(/side relation is not settled/);
   });
 
   it('states the settled side reference where whirling is distinguished from blazing', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/whirling');
+    const res = await page('/freestyle/sets/whirling');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/side the set originates from is the reference/);
     expect(res.text).not.toMatch(/side relation is not settled/);
@@ -611,7 +613,7 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
 
   it('credits the platform, not the compilation, where the formula is the platform own', async () => {
     for (const slug of ['toe', 'clipper']) {
-      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const res = await page(`/freestyle/sets/${slug}`);
       const body = formulaSection(res.text);
       expect(body, slug).not.toBeNull();
       expect(body!).toContain('Source: Platform entry-surface reference');
@@ -667,7 +669,7 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
   it('teaches notation in prose where it shows no formula', async () => {
     // The education-backed pages still say what the notation is; they just do not
     // print the bare string. This is the reader-facing half of that branch.
-    const res = await request(await createApp()).get('/freestyle/sets/whirling');
+    const res = await page('/freestyle/sets/whirling');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/aria-label="JOB notation"/);
   });

@@ -14,7 +14,7 @@
  *   - Canonical ontology untouched (no DB writes by the route)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -27,6 +27,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3092');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const EXPECTED_STEPS_IN_ORDER = [
   { slug: 'butterfly',  adds: '3', name: 'butterfly' },
@@ -59,7 +60,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/progression/walking-family', () => {
   it('returns 200 and renders the page', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Walking-family progression');
   });
@@ -69,7 +70,7 @@ describe('GET /freestyle/progression/walking-family', () => {
     // exist in the dictionary collapses the whole page to the fail-safe notice.
     // The dada_curve step is the one whose slug must match the canonical
     // underscore form; a hyphenated slug silently breaks the entire page.
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('temporarily unavailable');
     expect(res.text).toContain('step-5-dada_curve');
@@ -77,7 +78,7 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('renders all 7 steps in fixed order', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     let lastIndex = -1;
     for (let i = 0; i < EXPECTED_STEPS_IN_ORDER.length; i++) {
@@ -91,7 +92,7 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('renders each step with name, ADD value, and detail link', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     for (const step of EXPECTED_STEPS_IN_ORDER) {
       expect(res.text).toContain(`href="/freestyle/tricks/${step.slug}"`);
       expect(res.text).toContain(`${step.adds} ADD`);
@@ -99,7 +100,7 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('marks butterfly step as anchor (is-anchor CSS class)', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     const butterflyStart = res.text.indexOf('step-1-butterfly');
     expect(butterflyStart).toBeGreaterThan(-1);
     // Look for "is-anchor" class within ~200 chars before the anchor id
@@ -108,14 +109,14 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('does NOT mark non-anchor steps as is-anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     // Count occurrences of is-anchor class — should be exactly 1
     const matches = res.text.match(/is-anchor/g) ?? [];
     expect(matches.length).toBe(1);
   });
 
   it('renders per-step educational rationale prose', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     // Spot-check key prose phrases from the rationale set
     expect(res.text).toMatch(/wing-motion foundation/i);
     expect(res.text).toMatch(/Adding a stepping motion mid-wing/i);
@@ -127,7 +128,7 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('renders per-step symbolic-note attribution', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     // Symbolic notes pre-shaped; spot-check
     expect(res.text).toMatch(/Anchor of the butterfly-wing topology/i);
     expect(res.text).toMatch(/Self-atom in the butterfly-walking family/i);
@@ -135,7 +136,7 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('renders related Freestyle Concepts links for each step (deep-linked via fragments)', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toMatch(/Related concepts:/);
     // All step-concept links deep-link via fragment (#term-X or #glossary-panel-X).
     const fragmentLinks = res.text.match(/href="\/freestyle\/concepts#[^"]+"/g) ?? [];
@@ -143,18 +144,18 @@ describe('GET /freestyle/progression/walking-family', () => {
   });
 
   it('disclaimer footer rendered', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toContain('symbolic-layer-footer');
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('breadcrumb back to /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
   });
 
   it('renders progression-chain ordered list (mobile-friendly vertical structure)', async () => {
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toContain('progression-chain');
     expect(res.text).toContain('progression-step');
   });
@@ -170,7 +171,7 @@ describe('GET /freestyle/progression/walking-family — graceful failure', () =>
 
   it('route returns 200 even if content is empty', async () => {
     // (chain is fully seeded here; just confirms no 500 on the happy path)
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     expect(res.status).not.toBe(500);
   });
@@ -181,7 +182,7 @@ describe('GET /freestyle/progression/walking-family — route ordering', () => {
     // Sanity: the literal progression route is registered before the param
     // route so it gets matched first. If route ordering broke, the trick route
     // would catch it and produce a 404 for a slug like "progression/walking-family".
-    const res = await request(createApp()).get('/freestyle/progression/walking-family');
+    const res = await page('/freestyle/progression/walking-family');
     expect(res.status).toBe(200);
     // The page heading distinguishes this from any trick-detail render
     expect(res.text).toMatch(/Walking-family progression/);

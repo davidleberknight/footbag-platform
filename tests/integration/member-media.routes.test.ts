@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -29,6 +30,7 @@ import {
 const { dbPath } = setTestEnv('3211');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const MEMBER_ID = 'media-member-1';
 const MEMBER_SLUG = 'media_uploader';
@@ -160,7 +162,7 @@ const PROFILE_HREF = `href="/members/${MEMBER_SLUG}"`;
 
 describe('member-uploaded media surfaces', () => {
   it('browse default surfaces the photos and video as community content', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
+    const res = await page(`/media/browse?tag=by_${MEMBER_SLUG}`);
     expect(res.status).toBe(200);
     // Six non-avatar uploads carry #by_; the avatar is excluded from the count.
     expect(res.text).toContain('Showing 6 ');
@@ -169,12 +171,12 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('the avatar is excluded from the browse/gallery query', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
+    const res = await page(`/media/browse?tag=by_${MEMBER_SLUG}`);
     expect(res.text).not.toContain('Showing 7 ');
   });
 
   it('the named gallery renders only its matching media', async () => {
-    const res = await request(createApp()).get(`/media/${FUNKY_GALLERY_ID}`);
+    const res = await page(`/media/${FUNKY_GALLERY_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Named Gallery: Footbag Highlights');
     // Only the three #footbags photos satisfy the #footbags AND #by_ criteria.
@@ -184,7 +186,7 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('the Personal Gallery is reachable by URL and reads as its owner', async () => {
-    const res = await request(createApp()).get(`/media/${PERSONAL_GALLERY_ID}`);
+    const res = await page(`/media/${PERSONAL_GALLERY_ID}`);
     expect(res.status).toBe(200);
     // A gallery whose only criterion is the owner's uploader tag is that
     // person's gallery, so the member heads the page rather than the stored
@@ -195,7 +197,7 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('the member-galleries list shows the named gallery but excludes the Personal Gallery', async () => {
-    const res = await request(createApp()).get('/media/member-galleries');
+    const res = await page('/media/member-galleries');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Footbag Highlights');
     expect(res.text).toContain(`href="/media/${FUNKY_GALLERY_ID}"`);
@@ -203,7 +205,7 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('a gallery item shows the in-gallery pager and the uploader', async () => {
-    const res = await request(createApp()).get(`/media/${FUNKY_GALLERY_ID}/${P1}`);
+    const res = await page(`/media/${FUNKY_GALLERY_ID}/${P1}`);
     expect(res.status).toBe(200);
     // A 3-item gallery shows prev and/or next neighbors.
     expect(res.text).toMatch(/rel="(prev|next)"/);
@@ -211,7 +213,7 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('a standalone item with no context hides the pager and never dead-ends', async () => {
-    const res = await request(createApp()).get(`/media/item/${P1}`);
+    const res = await page(`/media/item/${P1}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/rel="(prev|next)"/);
     // A back link is always present so the page never dead-ends.
@@ -219,20 +221,20 @@ describe('member-uploaded media surfaces', () => {
   });
 
   it('trick reference links to the trick gallery and shows the member clip', async () => {
-    const trickPage = await request(createApp()).get(`/freestyle/tricks/${TRICK_SLUG}`);
+    const trickPage = await page(`/freestyle/tricks/${TRICK_SLUG}`);
     expect(trickPage.status).toBe(200);
     expect(trickPage.text).toContain('See All Videos for');
     // Handlebars HTML-escapes '=' in the href to '&#x3D;'. The trick slug rides
     // as a locked ?context= token (matching club/event/member gallery links).
     expect(trickPage.text).toContain(`/media/browse?context&#x3D;${TRICK_SLUG}`);
 
-    const gallery = await request(createApp()).get(`/media/browse?context=${TRICK_SLUG}`);
+    const gallery = await page(`/media/browse?context=${TRICK_SLUG}`);
     expect(gallery.status).toBe(200);
     expect(gallery.text).toContain('Around the world line');
   });
 
   it('offers the curator opt-in on a mixed topic set', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=chinlone');
+    const res = await page('/media/browse?tag=chinlone');
     expect(res.status).toBe(200);
     // Two community + three curated chinlone items make the set filterable, so
     // the pinned "Curated" opt-in suggestion appears (its include href adds
@@ -263,7 +265,7 @@ describe('a member name on media surfaces resolves by the role it plays', () => 
   });
 
   it('gives an anonymous viewer the same member-gallery chip link', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=chinlone');
+    const res = await page('/media/browse?tag=chinlone');
     expect(res.status).toBe(200);
     expect(res.text).toContain(MEMBER_NAME);
     expect(res.text).toContain(GALLERY_HREF);
@@ -279,7 +281,7 @@ describe('a member name on media surfaces resolves by the role it plays', () => 
   });
 
   it('leaves that same heading plain for an anonymous viewer, who cannot open a profile', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
+    const res = await page(`/media/browse?tag=by_${MEMBER_SLUG}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain(`<h1>${MEMBER_NAME}</h1>`);
     expect(res.text).not.toContain(PROFILE_HREF);

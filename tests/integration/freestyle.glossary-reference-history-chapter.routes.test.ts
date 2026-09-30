@@ -9,7 +9,7 @@
  * link, and citation is preserved; no tier-break divider precedes the topic.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -21,6 +21,7 @@ import {
 const { dbPath } = setTestEnv('3569');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -31,7 +32,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function concepts(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/concepts');
+  const res = await page('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }

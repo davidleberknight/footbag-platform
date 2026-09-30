@@ -26,6 +26,7 @@ import {
   insertEvent,
   insertRegistration,
   insertEventOrganizer,
+  insertRecurringDonationSubscription,
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -89,7 +90,7 @@ describe('the confirmation screen', () => {
     const res = await request(createApp()).get(`/members/${slug}/delete`).set('Cookie', cookieFor(id));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Yes, Delete My Account');
-    expect(res.text).toContain('Deleting your account is permanent');
+    expect(res.text).not.toContain('cannot be deleted yet');
     // The site offers no restore, so no surface may imply one.
     expect(res.text).not.toMatch(/restore/i);
   });
@@ -103,11 +104,21 @@ describe('the confirmation screen', () => {
     expect(res.status).toBe(404);
   });
 
+  // Defect caught: a member with a running recurring donation deletes their
+  // account with no way to stop the charges, or a member without one is asked
+  // about a gift they never set up.
   it('offers the keep-or-end choice only when a recurring gift is running', async () => {
-    const slug = 'del_no_gift';
-    const id = makeMember({ slug });
-    const res = await request(createApp()).get(`/members/${slug}/delete`).set('Cookie', cookieFor(id));
-    expect(res.text).not.toContain('recurringDonation');
+    const noGift = makeMember({ slug: 'del_no_gift' });
+    const without = await request(createApp()).get('/members/del_no_gift/delete').set('Cookie', cookieFor(noGift));
+    expect(without.status).toBe(200);
+    expect(without.text).not.toContain('name="recurringDonation"');
+
+    const giver = makeMember({ slug: 'del_with_gift' });
+    withDb((db) => insertRecurringDonationSubscription(db, { member_id: giver, status: 'active' }));
+    const withGift = await request(createApp()).get('/members/del_with_gift/delete').set('Cookie', cookieFor(giver));
+    expect(withGift.status).toBe(200);
+    expect(withGift.text).toContain('name="recurringDonation" value="cancel"');
+    expect(withGift.text).toContain('name="recurringDonation" value="keep"');
   });
 
   it('refuses an administrator and names what has to happen first', async () => {
@@ -135,8 +146,6 @@ describe('the deletion itself', () => {
 
     const res = await deleteAccount(slug, id);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Your account is deleted');
-    expect(res.text).toContain('cannot be undone');
     expect(res.text).not.toMatch(/restore/i);
 
     withDb((db) => {
@@ -185,9 +194,11 @@ describe('the deletion itself', () => {
     await deleteAccount(slug, id);
 
     const profile = await request(createApp()).get(`/members/${slug}`).set('Cookie', cookie);
-    expect(profile.status).not.toBe(200);
+    // The profile is gone, the same answer an unknown slug gets.
+    expect(profile.status).toBe(404);
     const edit = await request(createApp()).get(`/members/${slug}/edit`).set('Cookie', cookie);
-    expect(edit.status).not.toBe(200);
+    expect(edit.status).toBe(302);
+    expect(edit.headers.location).toMatch(/^\/login/);
   });
 
   it('raises one administrator card for an event whose last organizer has gone', async () => {

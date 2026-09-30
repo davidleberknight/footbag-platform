@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -34,6 +35,7 @@ const { dbPath } = setTestEnv('3093');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 function authCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'country-test-user', role: 'member' })}`;
@@ -230,15 +232,10 @@ afterAll(() => cleanupTestDb(dbPath));
 // ----------------------------------------------------------------------------
 
 describe('GET /clubs/usa — leader summary on club cards', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
-    expect(res.status).toBe(200);
-  });
-
   it('renders the single leader for a 1-leader club', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Alice OneLeader');
     // No overflow when total ≤ cap.
     const cardSlice = sliceCard(res.text, 'club_country_one');
@@ -405,8 +402,7 @@ describe('GET /clubs/usa — vitality metadata row', () => {
 
 describe('GET /clubs/usa — anonymous viewers see no leader names', () => {
   it('PRIVACY GATE: renders no leader summary and no leader names unauthenticated', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="club-leaders-summary"');
     expect(res.text).not.toContain('Leaders:');
@@ -418,8 +414,7 @@ describe('GET /clubs/usa — anonymous viewers see no leader names', () => {
   });
 
   it('still renders the public vitality count chips unauthenticated', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(sliceCard(res.text, 'club_country_two')).toContain('2 leaders');
     expect(sliceCard(res.text, 'club_country_two')).toContain('5 members');
     // And the no-signal club stays chipless for an anonymous viewer too: the

@@ -20,7 +20,7 @@
  * here before it ships.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -33,6 +33,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3201');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -64,8 +65,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Primitive vs Compound — atom-page callout', () => {
   it('mirage page renders the "Core movement atom" primitive-note callout', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     // Section wrapper present with stable test class.
     expect(res.text).toContain('class="content-section trick-primitive-note"');
@@ -78,8 +78,7 @@ describe('Primitive vs Compound — atom-page callout', () => {
   });
 
   it('whirl page renders the same callout (locked wording across all atoms)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-primitive-note"');
     expect(res.text).toContain('Core movement atom');
@@ -87,8 +86,7 @@ describe('Primitive vs Compound — atom-page callout', () => {
   });
 
   it('compound trick-detail does NOT render the primitive-note callout', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/paradox-mirage');
+    const res = await page('/freestyle/tricks/paradox-mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-primitive-note"');
     expect(res.text).not.toContain('Core movement atom');
@@ -97,16 +95,14 @@ describe('Primitive vs Compound — atom-page callout', () => {
 
 describe('Primitive vs Compound — equivalence-topology suppression on atoms', () => {
   it('mirage page does NOT render the equivalence-topology section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-equivalence-topology"');
     expect(res.text).not.toContain('Alternate derivations');
   });
 
   it('whirl page does NOT render the equivalence-topology section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-equivalence-topology"');
   });
@@ -114,8 +110,7 @@ describe('Primitive vs Compound — equivalence-topology suppression on atoms', 
 
 describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => {
   it('Freestyle Concepts renders the "Primitives and compounds" section at the canonical anchor', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Canonical anchor for deep-link stability.
     expect(res.text).toContain('id="primitives-and-compounds"');
@@ -124,8 +119,7 @@ describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => 
   });
 
   it('doctrine prose names all four locked terms (atom / primitive / compound / compositional structure)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Terminology surfaces (case-insensitive, since prose mixes inline emphasis).
     expect(res.text).toMatch(/foundational primitive/i);
@@ -135,8 +129,7 @@ describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => 
   });
 
   it('doctrine prose names each of the 12 core atoms', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Each atom enumerated by name in the doctrine paragraph.
     for (const atom of [
@@ -149,8 +142,7 @@ describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => 
   });
 
   it('doctrine prose preserves the constraint framing (not difficulty / not ADD)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // The "decomposition is a structural claim, not a difficulty claim"
     // paragraph is the doctrine's key guardrail — assert verbatim.
@@ -159,8 +151,7 @@ describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => 
   });
 
   it('renders the primitives-and-compounds section with its deep-link anchor', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="primitives-and-compounds"');
   });

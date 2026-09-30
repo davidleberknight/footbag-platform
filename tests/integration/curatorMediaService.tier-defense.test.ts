@@ -20,7 +20,7 @@ import {
   cleanupTestDb,
 } from '../fixtures/testDb';
 import { insertMember, insertMemberTierGrant } from '../fixtures/factories';
-import { ForbiddenError } from '../../src/services/serviceErrors';
+import { ForbiddenError, NotFoundError } from '../../src/services/serviceErrors';
 import type { MediaStorageAdapter } from '../../src/adapters/mediaStorageAdapter';
 import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingAdapter';
 
@@ -36,6 +36,8 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: TIER0_ID, slug: 'svc_def_t0' });
   insertMember(db, { id: TIER1_ID, slug: 'svc_def_t1' });
+  // A created gallery is stamped by the platform's system member.
+  insertMember(db, { id: 'member-svc-tier-defense-system', slug: 'svc_def_system', is_system: 1 });
   // TIER1_ID is the negative control: same call, but the gate passes.
   insertMemberTierGrant(db, { member_id: TIER1_ID, new_tier_status: 'tier1' });
   db.close();
@@ -53,6 +55,7 @@ function noopStorage(): MediaStorageAdapter {
     async exists() { return false; },
     async headSize() { return null; },
     async generatePresignedPutUrl() { return '/stub-presigned'; },
+    async generatePresignedGetUrl() { return '/stub-presigned'; },
   };
 }
 
@@ -131,40 +134,38 @@ describe('curatorMediaService defense-in-depth: Tier 0 actor blocked', () => {
 });
 
 describe('curatorMediaService defense-in-depth: Tier 1 actor passes the gate', () => {
-  // Negative control: Tier 1 actors pass assertTier1Benefits. The call
-  // proceeds past the gate and fails for unrelated reasons (missing
-  // gallery row, invalid filename, etc.). Whatever the error, it is
-  // NOT a ForbiddenError raised by the gate.
-  it('createGallery does not throw ForbiddenError for a Tier 1 actor', async () => {
+  // Control: the same calls from a Tier 1 actor get past the gate. Each case
+  // asserts the concrete outcome the call reaches beyond it, so a call that
+  // throws early for any other reason, or never reaches the gate, fails here.
+  // Defect caught: the tier gate refuses a member it should admit.
+  it('createGallery creates the gallery for a Tier 1 actor', async () => {
     const svc = buildSvc();
-    let thrown: unknown;
-    try {
-      await svc.createGallery({
-        actorMemberId: TIER1_ID,
-        actorIsAdmin: false,
-        ownerMemberId: TIER1_ID,
-        ownerSlug: 'svc_def_t1',
-        updates: { name: 'OK', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
-      });
-    } catch (err) {
-      thrown = err;
-    }
-    expect(thrown).not.toBeInstanceOf(ForbiddenError);
+    const result = await svc.createGallery({
+      actorMemberId: TIER1_ID,
+      actorIsAdmin: false,
+      ownerMemberId: TIER1_ID,
+      ownerSlug: 'svc_def_t1',
+      updates: { name: 'OK', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+    });
+    expect(result.id).toEqual(expect.any(String));
   });
 
-  it('updateGallery does not throw ForbiddenError for a Tier 1 actor (NotFound is fine)', async () => {
+  it('updateGallery reaches the gallery lookup for a Tier 1 actor', async () => {
     const svc = buildSvc();
-    let thrown: unknown;
-    try {
-      await svc.updateGallery({
-        actorMemberId: TIER1_ID,
-        actorIsAdmin: false,
-        galleryId: 'gallery_does_not_exist',
-        updates: { name: 'OK', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
-      });
-    } catch (err) {
-      thrown = err;
-    }
-    expect(thrown).not.toBeInstanceOf(ForbiddenError);
+    await expect(svc.updateGallery({
+      actorMemberId: TIER1_ID,
+      actorIsAdmin: false,
+      galleryId: 'gallery_does_not_exist',
+      updates: { name: 'OK', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+    })).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('deleteGallery reaches the gallery lookup for a Tier 1 actor', async () => {
+    const svc = buildSvc();
+    await expect(svc.deleteGallery({
+      actorMemberId: TIER1_ID,
+      actorIsAdmin: false,
+      galleryId: 'gallery_does_not_exist',
+    })).rejects.toBeInstanceOf(NotFoundError);
   });
 });

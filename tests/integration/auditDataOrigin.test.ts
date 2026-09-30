@@ -43,7 +43,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  cleanupTestDb(db, dbPath);
+  db.close();
+  cleanupTestDb(dbPath);
 });
 
 describe('audit ledger data-origin stamp', () => {

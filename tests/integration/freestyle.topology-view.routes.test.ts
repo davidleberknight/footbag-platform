@@ -19,7 +19,7 @@
  *   - Generalized two-line dictionary-trick-row partial used
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -36,6 +36,7 @@ import {
 const { dbPath } = setTestEnv('3098');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -92,17 +93,13 @@ afterAll(() => cleanupTestDb(dbPath));
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks?view=topology — route + toggle', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
-    expect(res.status).toBe(200);
-  });
-
   it('marks "Movement Neighborhoods" active in the view toggle', async () => {
     // The toggle label is "Movement Neighborhoods" (not "By
     // topology"), framing the observational topology surface as
     // relationship browsing rather than primary taxonomy. The
     // underlying ?view=topology URL is preserved for stable backlinks.
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
+    expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="trick-view-toggle-active">Movement Neighborhoods</);
   });
 
@@ -113,7 +110,7 @@ describe('GET /freestyle/tricks?view=topology — route + toggle', () => {
     // browse-view toggle is checked against every actual browse-view URL.
     for (const view of ['add', 'family', 'category', 'component']) {
       const url = `/freestyle/tricks?view=${view}`;
-      const res = await request(createApp()).get(url);
+      const res = await page(url);
       expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
     }
   });
@@ -127,13 +124,13 @@ describe('topology view — Movement Neighborhoods framing', () => {
   it('renders the Movement Neighborhoods note without an observational badge', async () => {
     // Movement Neighborhoods is a movement-feel grouping, NOT the
     // observational staging layer — it carries no observational badge.
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('class="topology-view-note"');
     expect(res.text).not.toContain('class="symbolic-layer-badge"');
   });
 
   it('renders a footer cross-referencing the By family view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('class="symbolic-layer-footer"');
     expect(res.text).toMatch(/not an official family classification/i);
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
@@ -144,7 +141,7 @@ describe('topology view — Movement Neighborhoods framing', () => {
     // "Movement Neighborhoods"; backend slug + URL parameter
     // ?view=topology preserved for URL stability. The surface is a
     // movement-feel grouping, not the observational staging layer.
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/Movement Neighborhoods/);
     expect(res.text).toMatch(/share a movement feel/i);
   });
@@ -153,7 +150,7 @@ describe('topology view — Movement Neighborhoods framing', () => {
     // The jump-nav only renders groups with at least one member, so the
     // framing note must independently name all six so the scheme reads
     // up front regardless of which groups currently populate.
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     const noteMatch = res.text.match(/<p class="topology-view-note">[\s\S]*?<\/p>/);
     expect(noteMatch, 'topology-view-note paragraph').not.toBeNull();
     const note = noteMatch![0];
@@ -170,7 +167,7 @@ describe('topology view — Movement Neighborhoods framing', () => {
   });
 
   it('the intro jump-nav lists all six neighborhood category names', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     const navMatch = res.text.match(/<nav [^>]*aria-label="Movement Neighborhood categories"[\s\S]*?<\/nav>/);
     expect(navMatch, 'neighborhood jump nav').not.toBeNull();
     const nav = navMatch![0];
@@ -195,7 +192,7 @@ describe('topology view — Movement Neighborhoods framing', () => {
 
 describe('topology view — six pedagogical groups', () => {
   it('renders the hippy-downtime-dex group with mirage + butterfly compounds', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('id="topology-hippy-downtime-dex"');
     const start = res.text.indexOf('id="topology-hippy-downtime-dex"');
     const end   = res.text.indexOf('</section>', start);
@@ -207,7 +204,7 @@ describe('topology view — six pedagogical groups', () => {
   });
 
   it('renders the leggy-dex group with whirl + legover + swirl + montage', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('id="topology-leggy-dex"');
     const start = res.text.indexOf('id="topology-leggy-dex"');
     const end   = res.text.indexOf('</section>', start);
@@ -219,7 +216,7 @@ describe('topology view — six pedagogical groups', () => {
   });
 
   it('renders the whirl-swirl-structures group with only whirl-base + swirl-base tricks', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('id="topology-whirl-swirl-structures"');
     const start = res.text.indexOf('id="topology-whirl-swirl-structures"');
     const end   = res.text.indexOf('</section>', start);
@@ -233,7 +230,7 @@ describe('topology view — six pedagogical groups', () => {
   });
 
   it('renders the pixie-uptime-dex group when at least one trick has a pixie link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('id="topology-pixie-uptime-dex"');
     const start = res.text.indexOf('id="topology-pixie-uptime-dex"');
     const end   = res.text.indexOf('</section>', start);
@@ -242,7 +239,7 @@ describe('topology view — six pedagogical groups', () => {
   });
 
   it('renders the symposium-clipper-structures group with symposium-whirl + montage', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('id="topology-symposium-clipper-structures"');
     const start = res.text.indexOf('id="topology-symposium-clipper-structures"');
     const end   = res.text.indexOf('</section>', start);
@@ -252,7 +249,7 @@ describe('topology view — six pedagogical groups', () => {
   });
 
   it('renders the ducking-clipper-structures group with ducking-whirl + montage', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('id="topology-ducking-clipper-structures"');
     const start = res.text.indexOf('id="topology-ducking-clipper-structures"');
     const end   = res.text.indexOf('</section>', start);
@@ -262,7 +259,7 @@ describe('topology view — six pedagogical groups', () => {
   });
 
   it('does NOT surface the 6 advanced CSV-based topology groups (deferred taxonomy)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).not.toContain('id="topology-butterfly-wing-topology"');
     expect(res.text).not.toContain('id="topology-whirl-rotational-topology"');
     expect(res.text).not.toContain('id="topology-mirage-topology"');
@@ -278,7 +275,7 @@ describe('topology view — six pedagogical groups', () => {
 
 describe('topology view — out-of-topology behaviour', () => {
   it('a trick whose base is not in any of the six groups appears in none of them', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     // 'lone-trick' has base_trick='clipper-stall' and no modifier links;
     // it should not appear in any of the six topology groups.
     expect(res.text).not.toContain('data-trick-slug="lone-trick"');
@@ -291,7 +288,7 @@ describe('topology view — out-of-topology behaviour', () => {
 
 describe('topology view — group rendering', () => {
   it('each group heading carries a one-line body-mechanics definition', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     // The hippy-downtime-dex group's definition mentions hip-driven thigh swing.
     const start = res.text.indexOf('id="topology-hippy-downtime-dex"');
     const end   = res.text.indexOf('</section>', start);
@@ -301,18 +298,18 @@ describe('topology view — group rendering', () => {
   });
 
   it('group heading wraps the topology name in a self-anchored link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=topology#topology-hippy-downtime-dex">Hippy downtime dex<\/a><\/h2>/);
   });
 
   it('group sections use the two-line dict-trick-row stack', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('cards within a group sort ADD ascending then name (leggy: legover 2 ADD before whirl 3 before swirl 3 before montage 7)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     const start = res.text.indexOf('id="topology-leggy-dex"');
     const end   = res.text.indexOf('</section>', start);
     const region = res.text.slice(start, end);
@@ -336,7 +333,7 @@ describe('topology view — group rendering', () => {
 
 describe('topology view — intentional cross-group membership', () => {
   it('montage appears in leggy-dex, whirl-swirl-structures, symposium-clipper, ducking-clipper (4 groups)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     const expectMontageIn = (topologySlug: string) => {
       const start = res.text.indexOf(`id="topology-${topologySlug}"`);
       expect(start, `topology-${topologySlug} group must exist`).toBeGreaterThan(-1);
@@ -360,13 +357,13 @@ describe('topology view — row-uniformity invariant', () => {
     // Neighborhoods (topology) view uses the two-line dict-trick-row contract.
     // Token markup renders: op-tokens in the line-2 JOB
     // value, sem-tokens in the line-1 interpretation slot.
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/<article class="dict-trick-row[^"]*"[^>]*data-trick-slug="/);
     expect(res.text).toMatch(/class="(?:op-token|sem-token)/);
   });
 
   it('rows carry notation and a difficulty value, with no green ADD chip', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="whirl"[\s\S]*?<\/article>/);
     expect(m).not.toBeNull();

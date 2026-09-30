@@ -13,12 +13,14 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3601');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -44,7 +46,7 @@ async function searchPage(q: string): Promise<{ status: number; text: string }> 
 
 describe('GET /freestyle/search (server-rendered)', () => {
   it('returns a usable page with no query', async () => {
-    const res = await request(await createApp()).get('/freestyle/search');
+    const res = await page('/freestyle/search');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Search Tricks');
   });
@@ -149,12 +151,12 @@ describe('GET /freestyle/search — family-page results', () => {
   });
 
   it('links only to family pages that actually render', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/butterfly');
+    const res = await page('/freestyle/families/butterfly');
     expect(res.status).toBe(200);
   });
 
   it('carries the updated intro wording', async () => {
-    const res = await request(await createApp()).get('/freestyle/search');
+    const res = await page('/freestyle/search');
     expect(res.text).toContain('Find a trick or family page by name.');
   });
 });
@@ -227,13 +229,13 @@ describe('GET /freestyle/search/suggest (JSON typeahead)', () => {
 
 describe('route ordering', () => {
   it('serves /freestyle/search as the search page, not a trick slug', async () => {
-    const res = await request(await createApp()).get('/freestyle/search');
+    const res = await page('/freestyle/search');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Search Tricks');
   });
 
   it('still resolves a real trick detail slug', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
   });
 });

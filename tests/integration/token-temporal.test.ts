@@ -43,6 +43,7 @@ beforeAll(async () => {
     displayName: 'Vera Fy',
     tier: 'tier0',
     emailVerified: false,
+    testingUsage: 'Email-verify token temporal probe fixture.',
     coverageNotes: ['email-verify token temporal probe'],
   });
   db.close();

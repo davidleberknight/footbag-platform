@@ -16,12 +16,11 @@ const REPO_ROOT = path.resolve(__dirname, '..');
  * Single worker so SQLite WAL stays sequential and the per-test persona
  * seeders don't race the running app's writes.
  *
- * When PLAYWRIGHT_BASE_URL is set, the suite targets that deployed
- * environment instead (the post-deploy browser smoke): the URL becomes
- * baseURL and no local stack is booted.
+ * These specs seed the local stack's database, so they only ever run against
+ * it. The read-only check against a deployed environment lives in e2e/deployed
+ * and has its own config (playwright.deployed.config.ts); it is ignored here.
  */
 const PORT = Number(process.env.E2E_PORT ?? 3000);
-const DEPLOYED_BASE_URL = process.env.PLAYWRIGHT_BASE_URL;
 
 // Every budget below is a ceiling that only a hung or broken application should
 // ever reach, never a performance assertion. They are sized for an old, slow, or
@@ -39,9 +38,13 @@ const budget = (ms: number): number => Math.round(ms * TIMEOUT_FACTOR);
 
 export default defineConfig({
   testDir: 'e2e',
+  testIgnore: ['deployed/**'],
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  // A focused test left in a spec narrows the whole browser tier to that test,
+  // and the push gate would report a pass for everything it skipped.
+  forbidOnly: !!process.env.CI,
   // Quarantined tests never run by default; select explicitly with --grep @quarantined.
   grepInvert: /@quarantined/,
   timeout: budget(90_000),
@@ -49,7 +52,7 @@ export default defineConfig({
   outputDir: path.resolve(__dirname, 'test-results'),
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
-    baseURL: DEPLOYED_BASE_URL ?? `http://127.0.0.1:${PORT}`,
+    baseURL: `http://127.0.0.1:${PORT}`,
     headless: true,
     viewport: { width: 1280, height: 800 },
     trace: 'retain-on-failure',
@@ -63,20 +66,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // Local runs boot the throwaway stack; a deployed-target run must not.
-  ...(DEPLOYED_BASE_URL
-    ? {}
-    : {
-        webServer: {
-          command: 'bash scripts/e2e/start-stack.sh',
-          cwd: REPO_ROOT,
-          url: `http://127.0.0.1:${PORT}/health/ready`,
-          reuseExistingServer: false,
-          // Boot provisions a database, applies the schema, seeds it, and cold-starts
-          // three processes through a TypeScript loader; on a slow disk that is minutes.
-          timeout: budget(240_000),
-          stdout: 'pipe' as const,
-          stderr: 'pipe' as const,
-        },
-      }),
+  webServer: {
+    command: 'bash scripts/e2e/start-stack.sh',
+    cwd: REPO_ROOT,
+    url: `http://127.0.0.1:${PORT}/health/ready`,
+    reuseExistingServer: false,
+    // Boot provisions a database, applies the schema, seeds it, and cold-starts
+    // three processes through a TypeScript loader; on a slow disk that is minutes.
+    timeout: budget(240_000),
+    stdout: 'pipe' as const,
+    stderr: 'pipe' as const,
+  },
 });

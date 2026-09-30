@@ -16,7 +16,7 @@
  *      view links to it for set definitions.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -33,6 +33,7 @@ import {
 const { dbPath } = setTestEnv('3527');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -113,7 +114,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/tricks?view=set');
+  const res = await getPage('/freestyle/tricks?view=set');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -171,7 +172,7 @@ describe('GET /freestyle/tricks?view=set', () => {
     expect(details![0]).toContain('href="/freestyle/sets"');
     expect(details![0]).toMatch(/count alone/);
 
-    const fam = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const fam = await getPage('/freestyle/tricks?view=family');
     expect(fam.status).toBe(200);
     const famDetails = fam.text.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
     expect(famDetails, 'family-view rationale disclosure present').not.toBeNull();

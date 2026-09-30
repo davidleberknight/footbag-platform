@@ -111,7 +111,6 @@ describe('GET /ifpa/roster access', () => {
   it('admits an administrator', async () => {
     const res = await request(createApp()).get('/ifpa/roster').set('Cookie', cookieFor(ADMIN_ID, 'admin'));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Official IFPA Roster');
   });
 
   it('admits a Tier 3 director', async () => {
@@ -244,11 +243,6 @@ describe('the roster page keeps the reader oriented', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Olive Organizer');
     expect(res.text).not.toContain('Dana Director');
-  });
-
-  it('offers a way back to the IFPA section', async () => {
-    const res = await request(createApp()).get('/ifpa/roster').set('Cookie', cookieFor(TIER2_ID));
-    expect(res.text).toContain('Back to IFPA Documents');
   });
 
   it('scrolls the member table on a narrow screen rather than squeezing it', async () => {

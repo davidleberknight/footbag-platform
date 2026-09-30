@@ -29,6 +29,8 @@ import { createScratchDir } from '../fixtures/scratchDir';
 
 const LIB = join(process.cwd(), 'scripts/lib/ssh-alias.sh');
 const REAL_SSH = '/usr/bin/ssh';
+// skip-fails-in-ci: the runIf blocks below skip without a real ssh client,
+// and this refusal makes that absence a failure on the runner.
 if (!existsSync(REAL_SSH) && process.env.CI) {
   throw new Error(`${REAL_SSH} is required for these cases and is missing on this runner.`);
 }

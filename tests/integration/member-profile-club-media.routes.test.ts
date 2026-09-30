@@ -109,7 +109,7 @@ describe('M_View_Profile — club + media on the public profile', () => {
     const res = await request(createApp()).get(`/members/${HOF_SLUG}`);
     expect(res.status).toBe(200); // HoF profile is visitor-visible
     expect(res.text).not.toContain('Seattle Footbag');
-    expect(res.text).not.toContain('View all media');
+    expect(res.text).not.toContain('View All Media');
     expect(res.text).not.toContain('gallery-grid');
   });
 

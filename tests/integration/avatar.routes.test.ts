@@ -363,7 +363,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'flash.jpg');
     expect(uploadRes.status).toBe(303);
-    const flashSet = (uploadRes.headers['set-cookie'] ?? []).find((c: string) =>
+    const flashSet = (uploadRes.get('Set-Cookie') ?? []).find((c: string) =>
       c.startsWith('footbag_flash='),
     );
     expect(flashSet).toBeTruthy();
@@ -379,7 +379,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(firstGet.text).toContain('Avatar updated: flash.jpg');
 
     // The same request must clear the flash cookie so a reload does not re-show.
-    const setCookies = (firstGet.headers['set-cookie'] ?? []) as string[];
+    const setCookies = firstGet.get('Set-Cookie') ?? [];
     expect(setCookies.some((c) => /^footbag_flash=;/.test(c))).toBe(true);
 
     // Without the cookie, the message must not appear.
@@ -402,7 +402,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .attach('avatar', validJpeg, 'my-photo.jpg');
     expect(uploadRes.status).toBe(303);
 
-    const setCookies = (uploadRes.headers['set-cookie'] ?? []) as string[];
+    const setCookies = uploadRes.get('Set-Cookie') ?? [];
     const flashCookie = setCookies.find((c) => c.startsWith('footbag_flash='));
     expect(flashCookie).toBeTruthy();
 
@@ -443,7 +443,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'tamper.jpg');
     expect(uploadRes.status).toBe(303);
-    const flashSet = (uploadRes.headers['set-cookie'] ?? []).find((c: string) =>
+    const flashSet = (uploadRes.get('Set-Cookie') ?? []).find((c: string) =>
       c.startsWith('footbag_flash='),
     );
     expect(flashSet).toBeTruthy();

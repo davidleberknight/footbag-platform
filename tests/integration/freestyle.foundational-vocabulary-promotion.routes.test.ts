@@ -24,7 +24,7 @@
  *   - The 4 entries appear in RESOLVED_ADD_FORMULAS
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -38,6 +38,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3160');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // 4 promoted slugs + their expected operational-notation tokens (the
 // operational-notation-display partial splits each token into its own
@@ -124,21 +125,12 @@ describe('Foundational-vocabulary promotion — RESOLVED_FORMULAS overlay carrie
   );
 });
 
-describe('Foundational-vocabulary promotion — trick-detail page renders for each slug', () => {
-  it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
-    '/freestyle/tricks/%s returns 200',
-    async (slug) => {
-      const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
-      expect(res.status).toBe(200);
-    },
-  );
-});
-
 describe('Foundational-vocabulary promotion — JOB renders via tokenized op-notation partial', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug, r.jobTokens, r.forbiddenJobTokens] as const))(
     '%s renders each expected op-token in the operational-notation-display section',
     async (slug, jobTokens, forbidden) => {
-      const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.status).toBe(200);
       // The Set notation section must be present
       expect(res.text).toContain('operational-notation-display');
       // Each expected token must appear inside a span with op-token class.
@@ -173,7 +165,7 @@ describe('Foundational-vocabulary promotion — no "canonical decomposition pend
     async (slug) => {
       // Browse view first — if the trick is in FIRST_CLASS_TIER_2, its
       // card on /freestyle/tricks?view=add must NOT show canonical decomposition pending.
-      const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+      const res = await page('/freestyle/tricks?view=add');
       // Find this trick's card via the data-trick-slug marker.
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       if (idx < 0) {
@@ -191,7 +183,7 @@ describe('Foundational-vocabulary promotion — no "canonical decomposition pend
 
 describe('Foundational-vocabulary promotion — no tautological compound-slot leakage', () => {
   it('around-the-world-kick does NOT render its own canonical name as a fake chain reading', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/around_the_world_kick');
+    const res = await page('/freestyle/tricks/around_the_world_kick');
     // The equivalent-readings chain (semanticNotation layer 2) must NOT
     // simply echo "around the world kick" as a tautological reading.
     // If it does, the chain row is information-free.
@@ -199,7 +191,7 @@ describe('Foundational-vocabulary promotion — no tautological compound-slot le
   });
 
   it('triple-around-the-world does NOT echo its own canonical name in a chain row', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/triple_around_the_world');
+    const res = await page('/freestyle/tricks/triple_around_the_world');
     expect(res.text).not.toMatch(/<a[^>]*data-token-slug="triple_around_the_world"/);
   });
 });
@@ -233,28 +225,28 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
     '%s appears as an article card on the ADD browse view',
     async (slug) => {
-      const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+      const res = await page('/freestyle/tricks?view=add');
       expect(res.status).toBe(200);
       expect(res.text).toContain(`data-trick-slug="${slug}"`);
     },
   );
 
   it('around-the-world-kick appears under the 1 ADD section', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const oneAddSectionMatch = res.text.match(/<section[^>]*id="add-1"[\s\S]*?<\/section>/);
     expect(oneAddSectionMatch).toBeTruthy();
     expect(oneAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="around_the_world_kick"');
   });
 
   it('triple-around-the-world appears under the 4 ADD section', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const fourAddSectionMatch = res.text.match(/<section[^>]*id="add-4"[\s\S]*?<\/section>/);
     expect(fourAddSectionMatch).toBeTruthy();
     expect(fourAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="triple_around_the_world"');
   });
 
   it('double-around-the-world-heel appears under the 3 ADD section', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const threeAddSectionMatch = res.text.match(/<section[^>]*id="add-3"[\s\S]*?<\/section>/);
     expect(threeAddSectionMatch).toBeTruthy();
     expect(threeAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="double_around_the_world_heel"');
@@ -264,7 +256,7 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
     // Surfaces are distinguished by the DB `category` field, not hidden at
     // the kind layer: the Clipper Kick ends in bag contact and renders in
     // the ADD ladder like every stall.
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const oneAddSectionMatch = res.text.match(/<section[^>]*id="add-1"[\s\S]*?<\/section>/);
     expect(oneAddSectionMatch).toBeTruthy();
     expect(oneAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="clipper"');
@@ -297,7 +289,7 @@ describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer co
   });
 
   it('/freestyle/observational page renders a reduced count, not 558', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);
     // Without any promotions the tracked count renders as 558;
     // promotions reduce it as slugs promote out of observational.
@@ -306,7 +298,7 @@ describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer co
   });
 
   it('/freestyle/observational does NOT list any of the 4 promoted slugs as tracked names', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     // The tracked-names section renders #slug tags. After promotion, these
     // slugs must not appear as observational entries.
     expect(res.text).not.toMatch(/#around_the_world_kick/);

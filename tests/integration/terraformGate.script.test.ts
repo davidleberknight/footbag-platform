@@ -59,11 +59,13 @@ interface Invocation {
 let workdir: string;
 let invocations: Invocation[];
 let gateStatus: number | null;
+let gateStdout: string;
 const workdirs: string[] = [];
 
 /** What one run of the gate produced. */
 interface GateRun {
   status: number | null;
+  stdout: string;
   stderr: string;
   invocations: Invocation[];
 }
@@ -151,6 +153,7 @@ function runGate(fail = ''): GateRun {
 
   return {
     status: res.status,
+    stdout: res.stdout ?? '',
     stderr: res.stderr ?? '',
     invocations: existsSync(record)
       ? readFileSync(record, 'utf8')
@@ -165,6 +168,7 @@ beforeAll(() => {
   const run = runGate();
   workdir = workdirs[0];
   gateStatus = run.status;
+  gateStdout = run.stdout;
   invocations = run.invocations;
 });
 
@@ -198,6 +202,20 @@ describe('gate_terraform', () => {
     expect(invocations.filter((i) => i.argv.includes('init')).length).toBe(TREES.length);
   });
 
+  // Defect caught: a passing gate leaves an empty log, so nobody reading it can
+  // tell which stacks were covered or whether the loop ran at all.
+  it('names every stack it validated in its log', () => {
+    for (const tree of TREES) {
+      expect(gateStdout, `no log line for ${tree}`).toContain(`terraform: ${tree} initialised and validated`);
+    }
+  });
+
+  it('does not claim a stack whose validation failed', () => {
+    const run = runGate(`validate:${TREES[0]}`);
+    expect(run.status).not.toBe(0);
+    expect(run.stdout).not.toContain(`terraform: ${TREES[0]} initialised and validated`);
+  });
+
   it.each([
     ['AWS_PROFILE', 'footbag-test-nonexistent-profile'],
     ['AWS_CONFIG_FILE', '/dev/null'],
@@ -211,6 +229,23 @@ describe('gate_terraform', () => {
     for (const invocation of invocations) {
       expect(invocation.env[key], `${invocation.argv.join(' ')} received ${key}`).toBe(value);
     }
+  });
+
+  // Defect caught: every run downloads every provider again for every stack,
+  // hundreds of megabytes each time, because the only copy lived in a data
+  // directory the run throws away; or the shared cache lands inside the
+  // repository or the throwaway directory, where it is lost or tracked.
+  it('shares one persistent provider cache outside the repository across every stack', () => {
+    const inits = invocations.filter((i) => i.argv.includes('init'));
+    expect(inits.length).toBe(TREES.length);
+    const caches = new Set(inits.map((i) => i.env.TF_PLUGIN_CACHE_DIR));
+    expect(caches.size, 'every stack uses the same cache').toBe(1);
+    const cache = [...caches][0];
+    expect(cache, 'the cache is set').toBeTruthy();
+    expect(cache).toBe(join(workdir, '.terraform.d', 'plugin-cache'));
+    expect(cache.startsWith(REPO_ROOT)).toBe(false);
+    expect(cache.startsWith(join(workdir, 'log')), 'the cache sits in the throwaway directory').toBe(false);
+    expect(existsSync(cache), 'the cache directory exists for terraform to fill').toBe(true);
   });
 
   it('initializes into a throwaway data directory, never the operator’s .terraform', () => {
@@ -246,7 +281,7 @@ describe('gate_terraform', () => {
   });
 
   it('leaves the operator’s own initialized trees untouched', () => {
-    // gate_smoke reads outputs from terraform/staging/.terraform, so the gate must
+    // The staging smoke reads outputs from terraform/staging/.terraform, so the gate must
     // not re-initialize or remove it. Anything the gate writes goes under LOG_DIR.
     for (const stack of TREES) {
       const dataDir = join(REPO_ROOT, 'terraform', stack, '.terraform');

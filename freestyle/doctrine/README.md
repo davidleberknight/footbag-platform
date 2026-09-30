@@ -27,7 +27,9 @@ instead of an unexplained edit.
 
 - `src/content/freestyleOperatorReference.ts` is the canonical home for every
   operator's ADD value, structure, and X-Dex behavior, with the
-  `freestyle/inputs/base_dictionary/trick_modifiers.csv` registry as its data-side mirror.
+  modifier registry as its data-side mirror (the
+  `freestyle/inputs/base_dictionary/trick_modifiers.csv` seed before cutover, the
+  `freestyle_trick_modifiers` table after).
   These documents link to it and never duplicate its values.
 - These documents are canonical for rulings and method: which expert and curator
   rulings are in force, what each ruling means, how evidence was weighed, and which

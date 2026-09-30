@@ -13,7 +13,7 @@
  *      Illusion). No new freestyle_tricks row; new alias row only.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -27,6 +27,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3165');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -113,7 +114,7 @@ describe('RESOLVED_ADD_FORMULAS — pixie-clipper entries', () => {
 
 describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/pixie_opposite_clipper renders 3 ADD hero chip + JOB tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie_opposite_clipper');
+    const res = await page('/freestyle/tricks/pixie_opposite_clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">3 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -127,7 +128,7 @@ describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
   });
 
   it('/freestyle/tricks/pixie_same_clipper renders 3 ADD hero chip + JOB tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie_same_clipper');
+    const res = await page('/freestyle/tricks/pixie_same_clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">3 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -142,7 +143,7 @@ describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
 
 describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   it('pixie-opposite-clipper card on /freestyle/tricks?view=dex-count renders JOB + ADD inline', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="pixie_opposite_clipper"');
     expect(idx).toBeGreaterThan(-1);
@@ -155,7 +156,7 @@ describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   });
 
   it('pixie-same-clipper card renders JOB + ADD inline', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="pixie_same_clipper"');
     expect(idx).toBeGreaterThan(-1);
@@ -176,7 +177,7 @@ describe('toe-blizzard alias of quantum-illusion (Red equivalence ruling)', () =
   // attachment). Future detail-route alias redirect is deferred.
 
   it('quantum-illusion detail page surfaces toe-blizzard as an alternate name', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/quantum_illusion');
+    const res = await page('/freestyle/tricks/quantum_illusion');
     expect(res.status).toBe(200);
     // The detail page resolves aliases from the canonical freestyle_trick_aliases
     // table (the same source the browse listing reads), so it surfaces the alias

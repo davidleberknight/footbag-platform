@@ -54,6 +54,7 @@ function row(
     description:    null,
     aliases_json:   null,
     notation:       null,
+    operational_notation: null,
     sort_order:     0,
   };
 }

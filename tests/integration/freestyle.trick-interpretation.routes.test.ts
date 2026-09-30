@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -29,6 +30,7 @@ import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/fac
 const { dbPath } = setTestEnv('3331');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 let testDbHandle: ReturnType<typeof createTestDb>;
 
 beforeAll(async () => {
@@ -79,14 +81,14 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
   it('renders the interpretation section on /freestyle/tricks/eggbeater', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-interpretation"');
     expect(res.text).toContain('Naming &amp; interpretation');
   });
 
   it('surfaces "atomic legover" once, via the Compressed-from line, not repeated as a canonical reading', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     // The reading is owned by the Compressed-from surface near the hero.
     expect(res.text).toContain('class="trick-compressed-from-reading">atomic legover');
     // The interpretation section no longer restates it as a canonical reading,
@@ -95,12 +97,12 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
   });
 
   it('surfaces the historical reading "illusion + legover"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     expect(res.text).toMatch(/Historical reading[\s\S]*?illusion \+ legover/);
   });
 
   it('renders the structural-note framing about the historical reading not implying a productive modifier family', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     expect(res.text).toContain('Both readings describe the same trick.');
     // Handlebars HTML-escapes the curator-authored straight quotes, so
     // match the rendered &quot; form.
@@ -109,7 +111,7 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
   });
 
   it('does NOT create an illusioning modifier link or modifier reference from this section', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     // The section must not produce a modifier-page anchor for "illusioning".
     expect(res.text).not.toMatch(/href="\/freestyle\/modifiers\/illusioning"/);
     expect(res.text).not.toMatch(/href="[^"]*illusioning[^"]*"/);
@@ -138,7 +140,7 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
 
 describe('Naming & interpretation overlay — interpretation note (torque)', () => {
   it('surfaces only the historical variant (canonical reading lives in the equivalent-readings chain)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Naming &amp; interpretation');
     expect(res.text).toMatch(/Historical reading[\s\S]*?stepping opposite osis/);
@@ -153,7 +155,7 @@ describe('Naming & interpretation overlay — interpretation note (torque)', () 
 
 describe('Naming & interpretation overlay — terminology note (clipper)', () => {
   it('renders the section with the kick as the canonical reading and distinguishes the clipper stall', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    const res = await page('/freestyle/tricks/clipper');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Naming &amp; interpretation');
     expect(res.text).toMatch(/Canonical reading[\s\S]*?cross-body inside-foot kick/);
@@ -162,20 +164,20 @@ describe('Naming & interpretation overlay — terminology note (clipper)', () =>
   });
 
   it('does NOT frame the clipper as a stall', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    const res = await page('/freestyle/tricks/clipper');
     expect(res.text).not.toMatch(/Canonical reading[\s\S]*?cross-body inside-foot stall/);
     expect(res.text).not.toContain("clipper is a stall, not a kick");
   });
 
   it('does NOT render a "Historical reading" label (the clipper stall is a separate record, not a reading of this trick)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    const res = await page('/freestyle/tricks/clipper');
     expect(res.text).not.toContain('Historical reading');
   });
 });
 
 describe('Naming & interpretation overlay — opt-in scope', () => {
   it('does NOT render the section on /freestyle/tricks/legover (no curator entry)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/legover');
+    const res = await page('/freestyle/tricks/legover');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-interpretation"');
     expect(res.text).not.toContain('Naming &amp; interpretation');
@@ -184,13 +186,13 @@ describe('Naming & interpretation overlay — opt-in scope', () => {
 
 describe('Naming & interpretation overlay — non-interference', () => {
   it('eggbeater page still shows the canonical legover family link (overlay does not displace family)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     // Family link to the canonical base remains.
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/legover"/);
   });
 
   it('eggbeater page still shows ADD value 4 (overlay does not change ADD math)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     // ADD value 4 appears somewhere on the page (hero stat, decomposition
     // row, or About block). The exact selector varies by template state;
     // assert the numeric value is present at least once.

@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -53,7 +54,7 @@ function storedBirthDate(): string | null {
 }
 
 /** The edit form carries every mandatory field; a case overrides what it tests. */
-function postEdit(fields: Record<string, string>): request.Test {
+function postEdit(fields: Record<string, string>): Test {
   return request(createApp())
     .post(`/members/${MEMBER_SLUG}/edit`)
     .set('Cookie', ownCookie())

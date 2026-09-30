@@ -30,7 +30,7 @@
  * presentation-object divergence in browse density).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -43,6 +43,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3101');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // paradox-whirl + spinning-whirl are absent from PILOTS — they are
 // promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl.
@@ -104,8 +105,7 @@ describe('Presentation-hierarchy contract — ADD View row order', () => {
   // for a trick by name, and the notation is reference material beside it.
   for (const pilot of PILOTS) {
     it(`renders ${pilot.slug} identity-before-notation in ADD View`, async () => {
-      const app = createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
+      const res = await page('/freestyle/tricks?view=add');
       expect(res.status).toBe(200);
       const row = trickRowRegion(res.text, pilot.slug);
       expect(row, `add-row not found for ${pilot.slug} in ADD View`).not.toBeNull();
@@ -128,8 +128,7 @@ describe('Presentation-hierarchy contract — Family View row order', () => {
   // wrapper, no green chip.
   for (const pilot of PILOTS) {
     it(`renders ${pilot.slug} identity-before-notation in Family View`, async () => {
-      const app = createApp();
-      const res = await request(app).get('/freestyle/tricks?view=family');
+      const res = await page('/freestyle/tricks?view=family');
       expect(res.status).toBe(200);
       const row = trickRowRegion(res.text, pilot.slug);
       expect(row, `trick-row not found for ${pilot.slug} in Family View`).not.toBeNull();
@@ -150,9 +149,8 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
   // SAME row contract; only the grouping (ADD bucket vs family section)
   // differs. (Long-term target: every browse view on this same contract.)
   it('dimwalk renders identity-before-notation in BOTH ADD and Family', async () => {
-    const app = createApp();
-    const add = await request(app).get('/freestyle/tricks?view=add');
-    const fam = await request(app).get('/freestyle/tricks?view=family');
+    const add = await page('/freestyle/tricks?view=add');
+    const fam = await page('/freestyle/tricks?view=family');
 
     for (const [label, html] of [['ADD', add.text], ['Family', fam.text]] as const) {
       const row = trickRowRegion(html, 'dimwalk');
@@ -165,9 +163,8 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
   });
 
   it('the detail page is reached the same way in both views', async () => {
-    const app = createApp();
-    const add = await request(app).get('/freestyle/tricks?view=add');
-    const fam = await request(app).get('/freestyle/tricks?view=family');
+    const add = await page('/freestyle/tricks?view=add');
+    const fam = await page('/freestyle/tricks?view=family');
 
     for (const pilot of PILOTS) {
       const addRow = trickRowRegion(add.text, pilot.slug);
@@ -187,9 +184,8 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
   });
 
   it('ADD value rides the grouping header + line-2 ADD slot in both views (no green chip)', async () => {
-    const app = createApp();
-    const add = await request(app).get('/freestyle/tricks?view=add');
-    const fam = await request(app).get('/freestyle/tricks?view=family');
+    const add = await page('/freestyle/tricks?view=add');
+    const fam = await page('/freestyle/tricks?view=family');
 
     for (const pilot of PILOTS) {
       const addRow = trickRowRegion(add.text, pilot.slug);
@@ -208,7 +204,6 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
 
 describe('Presentation-hierarchy contract — dict-card-header is removed everywhere', () => {
   it('no card on the trick dictionary index emits a dict-card-header wrapper', async () => {
-    const app = createApp();
     for (const url of [
       '/freestyle/tricks',
       '/freestyle/tricks?view=family',
@@ -216,7 +211,7 @@ describe('Presentation-hierarchy contract — dict-card-header is removed everyw
       '/freestyle/tricks?view=component',
       '/freestyle/tricks?view=topology',
     ]) {
-      const res = await request(app).get(url);
+      const res = await page(url);
       expect(res.status).toBe(200);
       expect(
         res.text,

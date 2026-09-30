@@ -24,7 +24,7 @@
  *   TypeScript content.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -44,6 +44,7 @@ import {
 const { dbPath } = setTestEnv('3103');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -147,8 +148,7 @@ describe('Family override — content module', () => {
 
 describe('Family view — rev_whirl is a route-out, not a family', () => {
   it('does NOT render a rev_whirl family section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     // rev_whirl has too sparse a lineage to be a public family: no
     // top-level section, no "Rev Whirl family" heading.
@@ -157,8 +157,7 @@ describe('Family view — rev_whirl is a route-out, not a family', () => {
   });
 
   it('the rev_whirl, hatchet, mullet rows are absent from the family view entirely', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     for (const slug of ['rev_whirl', 'hatchet', 'mullet']) {
       expect(
         res.text,
@@ -168,8 +167,7 @@ describe('Family view — rev_whirl is a route-out, not a family', () => {
   });
 
   it('the Whirl family does NOT absorb the rev_whirl rows', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     expect(sectionStart).toBeGreaterThan(-1);
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
@@ -185,8 +183,7 @@ describe('Family view — rev_whirl is a route-out, not a family', () => {
 
 describe('Family view — Whirl family renders separately', () => {
   it('Whirl family section renders under its own "Whirl" heading + invariant', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?family=whirl">Whirl family<\/a>/);
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
@@ -198,8 +195,7 @@ describe('Family view — Whirl family renders separately', () => {
     // rev_up moved into a self-bucket singleton family that the length>1
     // filter drops from family view. tomahawk remains curator-deferred in
     // Whirl.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
@@ -218,8 +214,7 @@ describe('Family view — Whirl family renders separately', () => {
     // curator-authored chain reading that places it in whirl-family
     // lineage; its FRONT WHIRL execution is a contextual detail-page note,
     // not a family-membership commitment.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
@@ -229,7 +224,7 @@ describe('Family view — Whirl family renders separately', () => {
 
 describe('Family filter — rev_whirl rows stay reachable by raw label', () => {
   it('?family=rev_whirl returns 200 and lists its rows (raw trick_family untouched)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?family=rev_whirl');
+    const res = await page('/freestyle/tricks?family=rev_whirl');
     expect(res.status).toBe(200);
     for (const slug of ['rev_whirl', 'hatchet', 'mullet']) {
       expect(

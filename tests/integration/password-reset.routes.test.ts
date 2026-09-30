@@ -206,7 +206,7 @@ describe('POST /password/reset/:token', () => {
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
     // A response that establishes a session must not be cacheable.
@@ -262,7 +262,7 @@ describe('POST /password/reset/:token', () => {
       });
       expect(res.status).toBe(422);
       expect(res.text).toContain('invalid, expired, or already used');
-      const cookies = res.headers['set-cookie'] as string[] | undefined;
+      const cookies = res.get('Set-Cookie');
       expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBeFalsy();
       const ro = new BetterSqlite3(dbPath, { readonly: true });
       const row = ro.prepare('SELECT password_version FROM members WHERE id=?').get(MEMBER_ID) as
@@ -414,6 +414,7 @@ describe('POST /password/reset/:token — session reissue failure', () => {
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
 
     adapterMod.setJwtSigningAdapterForTests({
+      kid: realAdapter.kid,
       signJwt: async () => {
         // Mirrors a real KMS Sign rejection wire shape (the AWS SDK throws an
         // Error subclass with name='AccessDeniedException' on IAM regression).
@@ -434,7 +435,7 @@ describe('POST /password/reset/:token — session reissue failure', () => {
     expect(res.text).toContain('could not sign you in');
     expect(res.text).toContain('login page');
 
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     const sessionCookieIssued = cookies?.some((c) =>
       c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
@@ -501,7 +502,8 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
         );
       },
       processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
       }),
     });
 

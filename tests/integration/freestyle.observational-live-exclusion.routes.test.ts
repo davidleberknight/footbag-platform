@@ -11,7 +11,7 @@
  * waiting-on-a-ruling count recomputed from the runtime-filtered universe.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
@@ -19,6 +19,7 @@ import { OBSERVATIONAL_UNIVERSE } from '../../src/content/freestyleObservational
 
 const { dbPath } = setTestEnv('3121');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Comparison key mirrors the service: alphanumeric-only, so a hyphen candidate
 // slug and an underscore database slug collapse to the same key.
@@ -56,18 +57,18 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/observational — live publication exclusion', () => {
   it('excludes a candidate now published as an active canonical trick (slug normalized)', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain(EXCLUDED_ACTIVE!.name);
   });
 
   it('excludes a candidate now registered as an alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).not.toContain(EXCLUDED_ALIAS!.name);
   });
 
   it('still renders an unaffected control candidate', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).toContain(CONTROL!.name);
   });
 });

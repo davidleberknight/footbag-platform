@@ -176,7 +176,7 @@ describe('the loss is stated before the database is deleted', () => {
     const noticeAt = indexOrFail(SOURCE, NOTICE_CALL);
     const deletions = SOURCE.match(DELETE_LINES) ?? [];
     expect(deletions).toHaveLength(1);
-    expect(indexOrFail(SOURCE, deletions[0])).toBeGreaterThan(noticeAt);
+    expect(indexOrFail(SOURCE, deletions[0]!)).toBeGreaterThan(noticeAt);
   });
 
   it('puts nothing between the notice and the deletion', () => {
@@ -187,7 +187,7 @@ describe('the loss is stated before the database is deleted', () => {
     expect(callLineEnd).toBeGreaterThan(-1);
     const deletions = SOURCE.match(DELETE_LINES) ?? [];
     expect(deletions).toHaveLength(1);
-    const between = SOURCE.slice(callLineEnd + 1, indexOrFail(SOURCE, deletions[0]));
+    const between = SOURCE.slice(callLineEnd + 1, indexOrFail(SOURCE, deletions[0]!));
     expect(between.trim()).toBe('');
   });
 

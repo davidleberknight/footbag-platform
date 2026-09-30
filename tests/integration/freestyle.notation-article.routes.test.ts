@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3419');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -15,7 +16,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Jobs notation article page', () => {
   it('serves Ben Job\'s article verbatim with the historical attribution', async () => {
-    const res = await request(createApp()).get('/freestyle/notation-article');
+    const res = await page('/freestyle/notation-article');
     expect(res.status).toBe(200);
     expect(res.text).toContain('By the Way, Not the Name');
     expect(res.text).toContain('A List By the Way');
@@ -24,13 +25,13 @@ describe('Jobs notation article page', () => {
   });
 
   it('orients the reader with a hero intro that says what the document is and why it matters', async () => {
-    const res = await request(createApp()).get('/freestyle/notation-article');
+    const res = await page('/freestyle/notation-article');
     expect(res.text).toContain('gave the dictionary its notation');
     expect(res.text).toContain('read as a formula of surfaces, dexterities, and body positions');
   });
 
   it('reproduces the article without the footbag.org page chrome', async () => {
-    const res = await request(createApp()).get('/freestyle/notation-article');
+    const res = await page('/freestyle/notation-article');
     // Site navigation, copyright, and implementation credits surrounding the
     // archived copy are page chrome, not the article, and must not appear.
     expect(res.text).not.toContain('Website implementation by');
@@ -38,7 +39,7 @@ describe('Jobs notation article page', () => {
 });
 
 describe('Freestyle Concepts Jobs-notation section — source-location prose removed', () => {
-  const concepts = async () => (await request(createApp()).get('/freestyle/concepts')).text;
+  const concepts = async () => (await page('/freestyle/concepts')).text;
 
   it('links to the article page and keeps only the historical citation', async () => {
     const html = await concepts();

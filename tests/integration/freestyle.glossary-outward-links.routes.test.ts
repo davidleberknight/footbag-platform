@@ -29,7 +29,7 @@
  *     not appear in the rendered HTML.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -41,6 +41,7 @@ import {
 const { dbPath } = setTestEnv('3164');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -52,7 +53,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/concepts — standardized outward-link phrasings', () => {
   it('"View full ontology →" appears on derivation-atlas panels', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // The phrase appears at least once per panel × 5 panels — but we
     // only assert at least one occurrence here; per-panel coverage is
@@ -61,14 +62,14 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
   });
 
   it('"View full ontology →" appears on family cards', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Family cards link to /freestyle/tricks/{anchor-slug}. Whirl is
     // the canonical root family-anchor and always renders.
     expect(res.text).toContain('href="/freestyle/tricks/whirl"');
   });
 
   it('a family card with teaching shows a compact projection and links the full article', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const startIdx = res.text.indexOf('id="term-down"');
     expect(startIdx).toBeGreaterThan(-1);
     const endIdx = res.text.indexOf('</article>', startIdx);
@@ -82,17 +83,17 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
   });
 
   it('"Browse {Name} tricks" replaces "See tricks using {Name}" on modifier feel-cards', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/Browse \w[\w\s-]*tricks/i);
   });
 
   it('Forbidden phrasing "See tricks using" is retired from Freestyle Concepts', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/See tricks using/i);
   });
 
   it('Forbidden phrasing "Learn more about" is retired from connective panels', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // The phrase is forbidden as an outward-link affordance. It may
     // appear in incidental prose elsewhere, so we scope the check to
     // the connective-panel deep-link slot via the .panel-deep-link
@@ -102,7 +103,7 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
   });
 
   it('unified .glossary-outward-link class binds the standardized links', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // At minimum, the atlas panels and family cards carry the class.
     // The test pins presence; count assertions would be brittle across
     // future curator additions.
@@ -113,7 +114,7 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
 
 describe('GET /freestyle/concepts — ADD Accounting mobius doctrine-lighting cleanup', () => {
   it('ADD Accounting mobius observationalNote carries no rotational-continuity framing', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const startIdx = res.text.indexOf('add-example-mobius');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</article>', startIdx);
@@ -126,7 +127,7 @@ describe('GET /freestyle/concepts — ADD Accounting mobius doctrine-lighting cl
   });
 
   it('ADD Accounting mobius observationalNote is self-contained (gyro layered on torque)', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const startIdx = res.text.indexOf('add-example-mobius');
     const endIdx = res.text.indexOf('</article>', startIdx);
     const region = res.text.slice(startIdx, endIdx);

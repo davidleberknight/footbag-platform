@@ -19,7 +19,7 @@
  *   - Service failure (missing CSV) fails-graceful: panel absent, no 500
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3091');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Seed the dictionary with the 8 flagship slugs + a sample of butterfly-wing-topology
 // members + whirl-rotational-topology members (so the topology-group reverse-lookup
@@ -84,7 +85,7 @@ const ALLOW_LISTED = [
 describe('symbolic Related Topology panel — allow-listed slugs', () => {
   for (const slug of ALLOW_LISTED) {
     it(`renders the panel on /freestyle/tricks/${slug}`, async () => {
-      const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('symbolic-related-topology');
       expect(res.text).toMatch(/Related topology tricks/i);
@@ -95,7 +96,7 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
   }
 
   it('panel includes reason text "Shares <topology>"', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
+    const res = await page('/freestyle/tricks/ripwalk');
     expect(res.status).toBe(200);
     // Ripwalk's primary topology is butterfly-wing-topology
     expect(res.text.toLowerCase()).toContain('shares butterfly wing topology');
@@ -104,7 +105,7 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
   it('panel excludes the current trick (no self-reference)', async () => {
     // Matador's topology is butterfly-wing-topology; the panel should list
     // other butterfly-wing members but NOT matador itself.
-    const res = await request(createApp()).get('/freestyle/tricks/matador');
+    const res = await page('/freestyle/tricks/matador');
     expect(res.status).toBe(200);
     // The trick name appears in the page header (hero); count separately
     // the symbolic-topology-members-list section by isolating it.
@@ -119,7 +120,7 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
 
   it('panel caps members at 6', async () => {
     // Montage is on whirl-rotational-topology which has many members
-    const res = await request(createApp()).get('/freestyle/tricks/montage');
+    const res = await page('/freestyle/tricks/montage');
     expect(res.status).toBe(200);
     const panelStart = res.text.indexOf('symbolic-topology-members-list');
     const panelEnd   = res.text.indexOf('symbolic-layer-footer');
@@ -131,7 +132,7 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
   });
 
   it('canonical family relating renders separately from the symbolic panel', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
+    const res = await page('/freestyle/tricks/ripwalk');
     expect(res.status).toBe(200);
     // Canonical same-family relating is owned by the Family ladder; the
     // observational symbolic panel is a distinct, later section.
@@ -146,14 +147,14 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
 
 describe('symbolic Related Topology panel — non-allow-listed slugs', () => {
   it('does NOT render the panel on butterfly (not in the allow-list)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/butterfly');
+    const res = await page('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('symbolic-related-topology');
     expect(res.text).not.toMatch(/Related topology tricks/i);
   });
 
   it('does NOT render the panel on mirage (not in the allow-list)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('symbolic-related-topology');
   });
@@ -163,7 +164,7 @@ describe('symbolic Related Topology panel — service contract', () => {
   it('panel view-model includes observational layer marker', async () => {
     // Verified by HTML; deeper service-level layer-marker check lives in
     // symbolicGrammarService.test.ts.
-    const res = await request(createApp()).get('/freestyle/tricks/spinning_whirl');
+    const res = await page('/freestyle/tricks/spinning_whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('symbolic-layer-badge');
     // Unified tooltip per UX-CONSOLIDATION-1: "supplementary; does not change canonical classifications"
@@ -171,7 +172,7 @@ describe('symbolic Related Topology panel — service contract', () => {
   });
 
   it('panel description renders a footer disclaiming non-canonical status', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/phoenix');
+    const res = await page('/freestyle/tricks/phoenix');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/observational symbolic-grammar layer/i);
     expect(res.text).toMatch(/canonical relating lives in the related tricks section/i);

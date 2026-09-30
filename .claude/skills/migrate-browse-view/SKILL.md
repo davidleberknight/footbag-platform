@@ -167,13 +167,15 @@ If the new CSS exceeds ~40 lines, the change is probably reshaping the row: that
 Each view ships a focused integration test at
 `tests/integration/freestyle.{view}-view.routes.test.ts` covering:
 
-1. **Route + view toggle**: returns 200; the view's toggle entry is active (or deliberately absent)
+1. **Route + view toggle**: the view's toggle entry is active (or deliberately absent), asserted in the same case as the 200 rather than in a standalone status test
 2. **Grouping wrapper**: anchor IDs render; the heading carries its self-anchor link and count chip
 3. **Heading system**: the group heading uses `.section-heading`, so a bespoke one cannot creep back
 4. **Within-group ordering**: assert the sort with an example spanning three or more ADD values
 5. **Empty-group hiding**: groups with zero members render no anchor
 6. **Intentional duplication** where a trick can appear in several groups (component, topology)
 7. **Row contract**: the view renders `dict-trick-row-stack` and at least one `data-trick-slug=`
+
+The cases read one shared response per path, per the repeated-requests anti-pattern in `.claude/rules/testing.md`.
 
 Then add the view to the shared guard in
 `tests/integration/freestyle.browse-row-contract.routes.test.ts`, which loops every browse view and
@@ -202,7 +204,8 @@ If moving off legacy markup, find the old assertions for that view, most likely 
 - `npm run build`: clean.
 - The view's own suite, the shared row-contract guard, and the cross-view rendering suite, named
   explicitly.
-- `npm run test:pre-pr` as the gate, since the row partial and the row view-model are shared.
+- The importers of the row partial and the row view-model, named explicitly, since both are shared; the
+  runner is the human-run gate.
 - Every new assertion demonstrated red before it goes green.
 - A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
   view at desktop and at 480px, confirming row rhythm, heading weight, count-chip treatment and the

@@ -62,7 +62,7 @@ describe('captcha gate on registration', () => {
       });
 
     expect(res.status).toBe(422);
-    expect(res.text).toContain('verification');
+    expect(res.text).toContain('Please complete the verification challenge');
     // The gate fires before any DB read, so no account row is written.
     expect(memberByEmail(email)).toBeUndefined();
     // The rejected render has to be recoverable: registration asks for a lot,
@@ -95,7 +95,7 @@ describe('captcha gate on login', () => {
       });
 
     expect(res.status).toBe(422);
-    expect(res.text).toContain('verification');
+    expect(res.text).toContain('Please complete the verification challenge');
     // No credential check ran, so no session cookie is issued.
     expect(sessionCookies(res)).toHaveLength(0);
   });
@@ -115,7 +115,7 @@ describe('captcha gate on verify-email resend', () => {
     // A passing challenge renders the resend confirmation at 200; the gate
     // turns it into a 422 with the generic challenge message instead.
     expect(res.status).toBe(422);
-    expect(res.text).toContain('verification');
+    expect(res.text).toContain('Please complete the verification challenge');
     // The failed-challenge render must not also claim the visitor just
     // registered. The page's three states are mutually exclusive, and a
     // rejected resend sitting under a success message tells the reader the
@@ -162,7 +162,7 @@ describe('captcha gate on password-reset request', () => {
       });
 
     expect(res.status).toBe(422);
-    expect(res.text).toContain('verification');
+    expect(res.text).toContain('Please complete the verification challenge');
     // The gate fires before requestPasswordReset, so no reset token is issued.
     const tokens = db
       .prepare('SELECT COUNT(*) AS n FROM account_tokens WHERE member_id = ?')
@@ -193,7 +193,7 @@ describe('captcha gate on password reset', () => {
       });
 
     expect(res.status).toBe(422);
-    expect(res.text).toContain('verification');
+    expect(res.text).toContain('Please complete the verification challenge');
     // The reset token is never consumed and password_version never bumps,
     // because the gate fires before completePasswordReset runs.
     const after = db

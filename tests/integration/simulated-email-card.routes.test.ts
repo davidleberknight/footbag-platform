@@ -50,7 +50,7 @@ async function registerFlash(
     confirmPassword: 'simpass!1',
   });
   expect(reg.status).toBe(303);
-  const setCookie = (reg.headers['set-cookie'] ?? []) as string[];
+  const setCookie = reg.get('Set-Cookie') ?? [];
   const flash = setCookie.find((c) => c.startsWith('footbag_flash='));
   expect(flash).toBeTruthy();
   return flash!.split(';')[0];
@@ -188,15 +188,5 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     // Exactly one Open link (mine), not one per pending user.
     const openLinks = res.text.match(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</g);
     expect(openLinks?.length ?? 0).toBe(1);
-  });
-});
-
-describe('GET /internal/dev-outbox — retired', () => {
-  it('no longer serves the dev-outbox view (route removed, and /internal has no router at all)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/internal/dev-outbox');
-    expect(res.status).not.toBe(200);
-    expect(res.text).not.toContain('Dev Outbox');
-    expect(res.text).not.toContain('Delivered At');
   });
 });

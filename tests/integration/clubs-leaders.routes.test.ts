@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -37,6 +38,7 @@ const { dbPath } = setTestEnv('3092');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 function authCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'leaders-test-user', role: 'member' })}`;
@@ -399,8 +401,7 @@ describe(`GET /clubs/${CLUB_KEY} — Leaders section (authenticated)`, () => {
 
 describe(`GET /clubs/${CLUB_KEY} — Leaders hidden from anonymous visitors`, () => {
   it('PRIVACY GATE: renders no Leaders section and no leader names unauthenticated', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await page(`/clubs/${CLUB_KEY}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('>Leaders<');
     expect(res.text).not.toContain('Zelda Headleader');
@@ -446,8 +447,7 @@ describe('GET /clubs/club_test_solo_coleader — lone co-leader presents as Lead
 // covered by the country-page leader-summary tests and the curator-panel tests.
 describe(`GET /clubs/${CLUB_KEY} — no public at-a-glance card`, () => {
   it('renders no at-a-glance card or vitality chips to unauthenticated visitors', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await page(`/clubs/${CLUB_KEY}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('aria-label="At a glance"');
     expect(res.text).not.toMatch(/2 leaders/);
@@ -457,8 +457,7 @@ describe(`GET /clubs/${CLUB_KEY} — no public at-a-glance card`, () => {
 
 describe('GET /clubs/club_test_no_leaders — no vitality surface without classification evidence', () => {
   it('renders no vitality chips when the club has no candidate row', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_test_no_leaders');
+    const res = await page('/clubs/club_test_no_leaders');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('aria-label="At a glance"');
     expect(res.text).not.toContain('No known leaders yet');
@@ -515,8 +514,7 @@ describe('GET /clubs/club_test_affil_leader — affiliation-derived provisional 
   });
 
   it('PRIVACY GATE: renders no affiliation-derived leader names to anonymous visitors', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_test_affil_leader');
+    const res = await page('/clubs/club_test_affil_leader');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Petra Affilleader');
     expect(res.text).not.toContain('Carlos Affilcontact');

@@ -56,12 +56,9 @@ afterAll(() => {
 /** One event with one doubles result, and whoever the caller names on it. */
 function seedResult(
   participants: Array<{ name: string; personId?: string | null; memberId?: string | null }>,
-  opts: { title?: string; tag?: string } = {},
+  opts: { title?: string } = {},
 ): string {
-  const eventId = insertEvent(db, {
-    title: opts.title ?? 'Test Open',
-    hashtag: opts.tag ?? `testopen${Math.random().toString(36).slice(2, 8)}`,
-  });
+  const eventId = insertEvent(db, { title: opts.title ?? 'Test Open' });
   const disciplineId = insertDiscipline(db, eventId, { name: 'Open Doubles Net' });
   const uploadId = insertResultsUpload(db, eventId, uploaderId);
   const entryId = insertResultEntry(db, eventId, uploadId, disciplineId, { placement: 1 });
@@ -77,7 +74,7 @@ function seedResult(
 
 /** The profile's own lookup, exercised through the shipped statements. */
 function resultsFor(memberSlug: string) {
-  return memberServiceMod.memberService.getOwnProfile(memberSlug).content.eventGroups;
+  return memberServiceMod.memberService.getOwnProfile(memberSlug).content.eventGroups!;
 }
 
 describe('a member who claimed a historical person and never had an account', () => {

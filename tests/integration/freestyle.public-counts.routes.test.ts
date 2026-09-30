@@ -14,7 +14,7 @@
  *     shrinking, and the retired "no real move is left out" copy is gone.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -44,6 +44,7 @@ const ACTIVE_CANONICAL = 3;
 const SEARCHABLE_ALIASES = 2;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -70,7 +71,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Dictionary summary counts are source-of-truth driven', () => {
   it('reports active pages, searchable nicknames, and the documented universe from live sources', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     const html = res.text;
 
@@ -86,7 +87,7 @@ describe('Dictionary summary counts are source-of-truth driven', () => {
   });
 
   it('preserves the historical universe wording and drops the retired copy', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     const html = res.text;
     expect(html).toContain('preserved as names resolve');
     expect(html).toContain('only the unresolved work surface shrinks');
@@ -123,7 +124,7 @@ describe('Generated census reconciles', () => {
 
 describe('Emerging Vocabulary section totals reconcile to the generated surface', () => {
   it('renders the documented-archive disclosures with live-derived totals', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);
     // The archive subsections carry numeric counts computed from the
     // runtime-filtered rows (never hard-coded census figures).
@@ -134,7 +135,7 @@ describe('Emerging Vocabulary section totals reconcile to the generated surface'
   });
 
   it('frames itself as the active decision surface plus the resolved archive', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     const html = res.text;
     expect(html).toContain('Nothing here duplicates a published canonical trick');
     expect(html).toContain('not active publication candidates');

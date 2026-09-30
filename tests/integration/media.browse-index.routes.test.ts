@@ -18,7 +18,7 @@
  * behind it, so it is never offered as a destination.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -32,6 +32,7 @@ import {
 const { dbPath } = setTestEnv('4042');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 /** The index blocks, in render order, so a test can slice one block out. */
 const POPULAR_HEADING = 'id="browse-popular-heading"';
@@ -98,29 +99,29 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media/browse — Popular tags', () => {
   it('serves the index to a signed-out visitor', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.status).toBe(200);
     expect(res.text).toContain(POPULAR_HEADING);
   });
 
   it('includes a curator-published tag even though one system account owns it', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.text).toContain('#passback_records');
   });
 
   it('includes a tag two different members share', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.text).toContain('#zulu_combo');
   });
 
   it('excludes a single member\'s personal tag and every uploader marker', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.text).not.toContain('#my_private_tag');
     expect(res.text).not.toContain('#by_member_a');
   });
 
   it('links each tag to its media gallery', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     // Handlebars escapes the query separator, so the rendered attribute carries
     // the entity rather than a bare "=".
     expect(res.text).toContain('href="/media/browse?tag&#x3D;zulu_combo"');
@@ -129,7 +130,7 @@ describe('GET /media/browse — Popular tags', () => {
 
 describe('GET /media/browse — All tags', () => {
   it('lists community tags alphabetically', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     const start = res.text.indexOf(ALL_HEADING);
     const end = res.text.indexOf(HELP_HEADING);
     expect(start).toBeGreaterThan(-1);
@@ -141,7 +142,7 @@ describe('GET /media/browse — All tags', () => {
   });
 
   it('keeps curator-published tags out, so the index is the shared vocabulary', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     const start = res.text.indexOf(ALL_HEADING);
     const end = res.text.indexOf(HELP_HEADING);
     const section = res.text.slice(start, end);
@@ -154,7 +155,7 @@ describe('GET /media/browse — All tags', () => {
 
 describe('GET /media/browse — recent events and tutorials highlight', () => {
   it('orders event hashtags newest first and carries the tutorial tag beside them', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     const start = res.text.indexOf(HIGHLIGHT_HEADING);
     const end = res.text.indexOf(ALL_HEADING);
     expect(start).toBeGreaterThan(-1);
@@ -165,7 +166,7 @@ describe('GET /media/browse — recent events and tutorials highlight', () => {
   });
 
   it('omits an event hashtag with no media, and every club hashtag', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     const start = res.text.indexOf(HIGHLIGHT_HEADING);
     const end = res.text.indexOf(ALL_HEADING);
     const section = res.text.slice(start, end);
@@ -177,19 +178,19 @@ describe('GET /media/browse — recent events and tutorials highlight', () => {
 
 describe('the hashtag index has one home', () => {
   it('sends the retired index path to the browse landing', async () => {
-    const res = await request(createApp()).get('/tags');
+    const res = await page('/tags');
     expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/media/browse');
   });
 
   it('does not capture the autocomplete endpoint', async () => {
-    const res = await request(createApp()).get('/tags/suggest?q=zulu');
+    const res = await page('/tags/suggest?q=zulu');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/json/);
   });
 
   it('lists the browse landing in the XML sitemap, and not the retired path', async () => {
-    const res = await request(createApp()).get('/sitemap.xml');
+    const res = await page('/sitemap.xml');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/media/browse<');
     expect(res.text).not.toContain('/tags<');

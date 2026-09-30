@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import type { Response } from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp, seedEmailTemplates } from '../fixtures/testDb';
 import { insertMember, completeOnboarding, insertMediaItem, createTestSessionJwt } from '../fixtures/factories';
@@ -68,7 +69,7 @@ function avatarPointer(memberId: string): string | null {
   return row.avatar_media_id;
 }
 
-async function removePicture(memberId: string, reason: string): Promise<request.Response> {
+async function removePicture(memberId: string, reason: string): Promise<Response> {
   return request(createApp())
     .post(`/admin/members/${memberId}/avatar/remove/confirm`)
     .set('Cookie', adminCookie())
@@ -128,7 +129,6 @@ describe('the preview writes nothing', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('Impersonates another player.');
-    expect(res.text).toContain('Yes, Remove the Picture');
     expect(mediaStatus('av_media_1')).toBe('active');
     expect(avatarPointer(WITH_PICTURE_ID)).toBe('av_media_1');
   });

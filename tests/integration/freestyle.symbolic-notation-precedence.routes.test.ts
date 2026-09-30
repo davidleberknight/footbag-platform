@@ -13,7 +13,7 @@
  *     operational tokens.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -30,6 +30,7 @@ import {
 const { dbPath } = setTestEnv('3100');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -104,38 +105,36 @@ describe('branch-family chain additions render symbolically', () => {
   }
 
   it('paradox_blender renders its chain reading on the page and its notation on the row', async () => {
-    const app = createApp();
-    const page = await request(app).get('/freestyle/tricks/paradox_blender');
+    const page = await getPage('/freestyle/tricks/paradox_blender');
     expect(page.status).toBe(200);
     expect(readings(page.text)).toBeTruthy();
 
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expect(rowFor(res.text, 'paradox_blender')).toMatch(/class="dict-trick-row-notation-value">/);
   });
 
   it('food_processor surfaces the Red-locked Blurry-Blender reading', async () => {
-    const page = await request(createApp()).get('/freestyle/tricks/food_processor');
+    const page = await getPage('/freestyle/tricks/food_processor');
     expect(page.status).toBe(200);
     expect(readings(page.text)).toMatch(/blurry[\s\S]{0,300}blender/i);
   });
 
   it('spender surfaces the curator-prose-confirmed reading', async () => {
-    const page = await request(createApp()).get('/freestyle/tricks/spender');
+    const page = await getPage('/freestyle/tricks/spender');
     expect(page.status).toBe(200);
     expect(readings(page.text)).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
   });
 
   it('paradox_drifter: the held miraging reading never surfaces, on the page or the row', async () => {
-    const app = createApp();
     // The deeper 'paradox miraging clipper' reading is held with drifter's own
     // decomposition, and 'paradox drifter' echoes the canonical name. Neither
     // the page nor the row may show the miraging nickname.
-    const page = await request(app).get('/freestyle/tricks/paradox_drifter');
+    const page = await getPage('/freestyle/tricks/paradox_drifter');
     expect(page.status).toBe(200);
     expect(readings(page.text)).not.toMatch(/miraging/);
 
-    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=dex-count');
     const row = rowFor(res.text, 'paradox_drifter');
     expect(row).not.toMatch(/miraging/);
     expect(row).toMatch(/class="dict-trick-row-notation-value">/);
@@ -153,7 +152,7 @@ describe('rendering precedence preserved (no regression)', () => {
     // The fixture row is seeded in beforeAll. It carries operational
     // notation but no chain registry entry — verifies the symbolic-first
     // / op-notation-fallback contract still holds for un-chained rows.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="slice_n_fallback_fixture"');
     expect(idx).toBeGreaterThan(-1);

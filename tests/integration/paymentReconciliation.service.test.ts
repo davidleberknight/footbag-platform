@@ -32,7 +32,6 @@ const NOW = new Date('2026-07-20T03:00:00.000Z');
 const IN_WINDOW = '2026-07-18T12:00:00.000Z';
 const BEFORE_WINDOW = '2026-06-01T12:00:00.000Z';
 
-let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function openDb(): BetterSqlite3.Database {
   return new BetterSqlite3(dbPath);
@@ -74,7 +73,7 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER, slug: 'recon_member', display_name: 'Recon Member', login_email: 'recon@example.com' });
   insertMember(db, { id: ADMIN, slug: 'recon_admin', display_name: 'Recon Admin', login_email: 'recon-admin@example.com', is_admin: 1 });
   db.close();
-  createApp = await importApp();
+  await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -280,9 +279,18 @@ describe('pass 1: one-time payments against the provider ledger', () => {
   });
 
   it('ignores an unsettled provider intent, which is an abandoned checkout rather than a gap', async () => {
+    // The platform's own checkout, abandoned at the card form: the intent
+    // carries the key of the local row it was opened for, that row is still
+    // pending and recent, and no money moved.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-abandoned', member_id: MEMBER, created_at: '2026-07-20T02:00:00.000Z',
+        status: 'pending', amount_cents: 5000, stripe_payment_intent_id: null,
+      });
+    });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_abandoned', amountCents: 5000, currency: 'USD',
+      id: 'pi_abandoned', platformPaymentId: 'pay-abandoned', amountCents: 5000, currency: 'USD',
       status: 'requires_payment_method', createdAt: IN_WINDOW,
     });
     const result = await (await svc()).runReconciliation({ now: NOW });
@@ -298,7 +306,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_amt', amountCents: 9900, currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+      id: 'pi_amt', platformPaymentId: 'pay-amt', amountCents: 9900, currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
     });
     await (await svc()).runReconciliation({ now: NOW });
     expect(issueTypes()).toContain('payment_amount_mismatch');
@@ -314,7 +322,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_cur', amountCents: 2500, currency: 'EUR', status: 'succeeded', createdAt: IN_WINDOW,
+      id: 'pi_cur', platformPaymentId: 'pay-cur', amountCents: 2500, currency: 'EUR', status: 'succeeded', createdAt: IN_WINDOW,
     });
     await (await svc()).runReconciliation({ now: NOW });
     expect(issueTypes()).toContain('payment_amount_mismatch');
@@ -329,7 +337,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_st', amountCents: 2500, currency: 'USD', status: 'canceled', createdAt: IN_WINDOW,
+      id: 'pi_st', platformPaymentId: 'pay-st', amountCents: 2500, currency: 'USD', status: 'canceled', createdAt: IN_WINDOW,
     });
     await (await svc()).runReconciliation({ now: NOW });
     expect(issueTypes()).toContain('payment_status_mismatch');
@@ -401,7 +409,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_refunded_away', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      id: 'pi_refunded_away', platformPaymentId: 'pay-refunded-away', amountCents: 5000, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
     adapter.setLedgerRefund({
@@ -424,7 +432,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_part_refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      id: 'pi_part_refunded', platformPaymentId: 'pay-part-refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
     adapter.setLedgerRefund({
@@ -444,7 +452,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_twice_refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      id: 'pi_twice_refunded', platformPaymentId: 'pay-twice-refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
     adapter.setLedgerRefund({
@@ -468,7 +476,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_failed_refund', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      id: 'pi_failed_refund', platformPaymentId: 'pay-failed-refund', amountCents: 5000, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
     adapter.setLedgerRefund({
@@ -488,7 +496,7 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_refund_known', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      id: 'pi_refund_known', platformPaymentId: 'pay-refund-known', amountCents: 5000, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
     adapter.setLedgerRefund({
@@ -897,7 +905,7 @@ describe('records the comparison deliberately does not report', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_refunded', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      id: 'pi_refunded', platformPaymentId: 'pay-refunded', amountCents: 2500, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
 
@@ -917,7 +925,7 @@ describe('records the comparison deliberately does not report', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_settled', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      id: 'pi_settled', platformPaymentId: 'pay-still-pending', amountCents: 2500, currency: 'USD', status: 'succeeded',
       createdAt: IN_WINDOW,
     });
 
@@ -1080,7 +1088,7 @@ describe('re-running the pass', () => {
     });
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
-      id: 'pi_untouched', amountCents: 9900, currency: 'USD', status: 'canceled', createdAt: IN_WINDOW,
+      id: 'pi_untouched', platformPaymentId: 'pay-untouched', amountCents: 9900, currency: 'USD', status: 'canceled', createdAt: IN_WINDOW,
     });
     await (await svc()).runReconciliation({ now: NOW });
     const db = openDb();
@@ -1753,5 +1761,3 @@ describe('reconciliation window', () => {
     expect(window.createdAfter).toBe('2026-07-13T03:00:00.000Z');
   });
 });
-
-void createApp;

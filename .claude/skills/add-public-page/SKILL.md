@@ -37,7 +37,7 @@ If this task adds a **new top-level nav section**, also read:
 
 ## Step 3: Architecture context
 
-Path-scoped rule files in `.claude/rules/` auto-attach when Claude reads or edits files in their matching paths. For public-page work this typically loads `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, and `db-layer.md`. Trust those rules; do not restate them in your plan.
+Path-scoped rule files in `.claude/rules/` govern the paths the change touches. For public-page work these are typically `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, and `db-layer.md`. Read each touched path's rule yourself (root `CLAUDE.md` rule 8); do not restate them in your plan.
 
 Two architecture rules sit outside any path-scoped file and apply broadly:
 
@@ -91,7 +91,6 @@ If in doubt about a layout, flag it to the human rather than shipping something 
 
 - write or update integration tests in `tests/integration/` using factory helpers from `tests/fixtures/factories.ts` (see `tests/CLAUDE.md` for conventions and `write-tests` skill for guidance)
 - make excellent adversarial tests: happy path, auth gates, not-found, draft/unpublished leakage, route ordering, edge cases from acceptance criteria
-- run `npm test` to confirm all tests pass
-- run `npm run build` (`tsc -p tsconfig.json`) to confirm no type errors
+- verify per the defaults in root `CLAUDE.md`: `npm run build` plus the named suites the change reaches and their importers; the runner is the human-run gate
 - only use browser automation if the human explicitly asked for it (see `browser-qa` skill)
 - after changes, invoke `doc-sync` to check whether the owning service's file-header JSDoc or `.claude/rules/view-layer.md` needs updating

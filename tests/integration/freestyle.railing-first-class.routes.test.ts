@@ -19,7 +19,7 @@
  * as an "Expanded" line directly below the shorthand tokens.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -36,6 +36,7 @@ import {
 const { dbPath } = setTestEnv('3201');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -87,7 +88,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function trick(slug: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  const res = await page(`/freestyle/tricks/${slug}`);
   expect(res.status).toBe(200);
   return res.text;
 }

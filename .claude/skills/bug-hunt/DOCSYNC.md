@@ -1,11 +1,11 @@
 # Bug Hunt — documentation-synchronization reference
 
 Documentation-layer method detail for the bug-hunt skill, kept out of SKILL.md to stay
-under the 500-line ceiling; SKILL.md Phase E points here. This is the full-surface
+under the 500-line ceiling; the Lane 3 row of SKILL.md's dispatch table points here. This is the full-surface
 doc-to-doc and doc-to-code synchronization method: it finds drift, contradiction, stale
 claims, broken references, and terminology divergence across the entire committed
 documentation universe. Three of its concerns live elsewhere and are not restated: the
-deployed-surface derivation and story classification (SKILL.md Phase B), the service-JSDoc
+deployed-surface derivation and story classification (`.claude/skills/deployed-surface/SKILL.md`), the service-JSDoc
 contract sweep (`REFERENCE.md` §4.4B.8), and refutation/dryness (SKILL.md Phases G and the
 stopping condition).
 

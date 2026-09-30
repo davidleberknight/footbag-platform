@@ -188,16 +188,28 @@ describe('startDonation: amount and note handling', () => {
     }
   });
 
+  function storedCents(reference: string): number {
+    const db = openDb();
+    try {
+      return (db.prepare('SELECT amount_cents FROM payments WHERE id = ?')
+        .get(reference) as { amount_cents: number }).amount_cents;
+    } finally {
+      db.close();
+    }
+  }
+
   it('accepts a currency symbol and thousands separators the member may paste', async () => {
     const paymentService = await svc();
-    await expect(paymentService.startDonation(M_PLAIN, '$1,250.00', null, false, '/x'))
-      .resolves.toBeTruthy();
+    const started = await paymentService.startDonation(M_PLAIN, '$1,250.00', null, false, '/x');
+    expect(storedCents(started.reference)).toBe(125000);
   });
 
   it('accepts the exact floor and ceiling', async () => {
     const paymentService = await svc();
-    await expect(paymentService.startDonation(M_PLAIN, 100, null, false, '/x')).resolves.toBeTruthy();
-    await expect(paymentService.startDonation(M_PLAIN, 2_000_000, null, false, '/x')).resolves.toBeTruthy();
+    const floor = await paymentService.startDonation(M_PLAIN, 100, null, false, '/x');
+    const ceiling = await paymentService.startDonation(M_PLAIN, 2_000_000, null, false, '/x');
+    expect(storedCents(floor.reference)).toBe(100);
+    expect(storedCents(ceiling.reference)).toBe(2_000_000);
   });
 
   it('rejects a note longer than the stored limit', async () => {

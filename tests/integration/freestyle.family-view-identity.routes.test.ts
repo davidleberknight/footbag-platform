@@ -34,7 +34,7 @@
  *      tokens in ADD View as in Family View.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -47,6 +47,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3097');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Whirl-family compounds the user named as the validation cohort.
 // Each must:
@@ -108,16 +109,14 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Family View — whirl-family pilot contract', () => {
   it('renders the whirl family section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     // Section id is `family-{familySlug}` per the family-view template.
     expect(res.text).toContain('id="family-whirl"');
   });
 
   it('renders all documented whirl-family pilot compounds', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     for (const pilot of WHIRL_PILOTS) {
       expect(res.text).toContain(`data-trick-slug="${pilot.slug}"`);
@@ -125,8 +124,7 @@ describe('Family View — whirl-family pilot contract', () => {
   });
 
   it('does NOT render non-tricks in family view', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     for (const nonTrick of NON_TRICK_SAMPLES) {
       expect(res.text).not.toContain(`data-trick-slug="${nonTrick}"`);
@@ -144,8 +142,7 @@ describe('Family View — formula visibility on whirl compounds', () => {
     // sole chain reading is "blurry whirl" — tautological with the
     // title — so the ≡ slot stays empty (cleanest visible state).
     // Compositional decomposition is available on the trick-detail page.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     const cardRegion = res.text.match(
       /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
@@ -156,8 +153,7 @@ describe('Family View — formula visibility on whirl compounds', () => {
   });
 
   it('does NOT render "Notation pending" for whirl-family pilots that have curated chains', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
 
     // For each pilot with a curator-authored chain, the card region
@@ -196,9 +192,8 @@ describe('ADD view and Family view — shared two-line row contract', () => {
 
   for (const slug of IDENTITY_PILOTS) {
     it(`'${slug}' renders the same two-line row contract in ADD and Family views`, async () => {
-      const app = createApp();
-      const addView    = await request(app).get('/freestyle/tricks?view=add');
-      const familyView = await request(app).get('/freestyle/tricks?view=family');
+      const addView    = await page('/freestyle/tricks?view=add');
+      const familyView = await page('/freestyle/tricks?view=family');
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 

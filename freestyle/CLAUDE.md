@@ -1,11 +1,12 @@
 # CLAUDE.md — freestyle/
 
-Local rules for the living freestyle pipeline.
+Local rules for the pre-go-live freestyle pipeline.
 
 ## Scope
 
-This subtree rebuilds the freestyle tables from committed inputs. It is the one
-pipeline that survives the `legacy_data/` freeze, so it must stay self-contained:
+This subtree rebuilds the freestyle tables from committed inputs. It keeps
+changing after the `legacy_data/` freeze, until it too is deleted after cutover,
+so it must stay self-contained:
 read only from `freestyle/inputs/` (and `curated/` for media), never from
 `legacy_data/`, and never from the live network.
 
@@ -40,7 +41,8 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
   `inputs/curated/records/records_master.csv` and
   `inputs/curated/records/consecutives_records.csv` have no producing pipeline and no
   export back out, so those CSVs and the loaded tables are the only two authoritative
-  copies: a correction is edited in the CSV and reloaded.
+  copies: before cutover a correction is edited in the CSV and reloaded; after
+  cutover it is made in the admin record editors.
 - **Read inputs from `freestyle/inputs/`.** When adding a loader input, put the
   file under `freestyle/inputs/` and reference it via `SCRIPT_DIR.parent` (the
   `freestyle/` root), not `legacy_data/`.

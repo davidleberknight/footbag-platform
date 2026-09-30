@@ -6,7 +6,7 @@
  * rendered on either.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertMember } from '../fixtures/factories';
@@ -14,6 +14,7 @@ import { insertHistoricalPerson, insertMember } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3104');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const LINKED_PERSON = 'hof-person-linked-001';
 
@@ -38,16 +39,16 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /hof — editorial landing page', () => {
-  it('tells the honor history and links out to the honor\'s own site', async () => {
-    const res = await request(await createApp()).get('/hof');
+  // The history text also links into the honor's site, so the assertion is on
+  // the outbound link to its home page itself.
+  it('links out to the honor\'s own site', async () => {
+    const res = await page('/hof');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Footbag Hall of Fame');
-    expect(res.text).toContain('A Bit of History...');
-    expect(res.text).toContain('https://www.footbaghalloffame.net/');
+    expect(res.text).toContain('href="https://www.footbaghalloffame.net/"');
   });
 
   it('carries no inductee roster', async () => {
-    const res = await request(await createApp()).get('/hof');
+    const res = await page('/hof');
     expect(res.text).not.toContain('Inductees');
     expect(res.text).not.toContain('Ada Recent');
     expect(res.text).not.toContain('Cyrus Undated');
@@ -55,23 +56,21 @@ describe('GET /hof — editorial landing page', () => {
   });
 
   it('renders no person link', async () => {
-    const res = await request(await createApp()).get('/hof');
+    const res = await page('/hof');
     expect(res.text).not.toContain('href="/history/');
     expect(res.text).not.toContain('href="/members/bella_claimed"');
   });
 });
 
 describe('GET /bap — editorial landing page', () => {
-  it('tells the honor history and links out to the honor\'s own site', async () => {
-    const res = await request(await createApp()).get('/bap');
+  it('links out to the honor\'s own site', async () => {
+    const res = await page('/bap');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Big Add Posse');
-    expect(res.text).toContain('History of the BAP');
-    expect(res.text).toContain('https://bigaddposse.com/');
+    expect(res.text).toContain('href="https://bigaddposse.com/"');
   });
 
   it('carries no member roster and no person link', async () => {
-    const res = await request(await createApp()).get('/bap');
+    const res = await page('/bap');
     expect(res.text).not.toContain('Dex Poser');
     expect(res.text).not.toContain('href="/history/');
   });

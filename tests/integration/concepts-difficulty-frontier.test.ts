@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 
-import { setTestEnv, createTestDb } from '../fixtures/testDb';
+import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -98,14 +98,16 @@ describe('the name the difficulty note used to carry', () => {
 
 describe('the claims the note still makes', () => {
   let db: Database.Database;
+  let dbPath: string;
 
   beforeAll(() => {
-    setTestEnv();
-    db = createTestDb();
+    ({ dbPath } = setTestEnv('4232'));
+    db = createTestDb(dbPath);
   });
 
   afterAll(() => {
     db.close();
+    cleanupTestDb(dbPath);
   });
 
   const seedTrick = (slug: string, adds: string) =>

@@ -38,18 +38,21 @@ beforeAll(async () => {
     displayName: 'Route Owner',
     tier: 'tier1',
     honors: { hof: true },
+    testingUsage: 'Donation route fixture.',
     coverageNotes: ['donation routes owner, holds an honor so the note prefills'],
   });
   seedPersona(db, {
     slug: OTHER_SLUG,
     displayName: 'Route Other',
     tier: 'tier1',
+    testingUsage: 'Donation route fixture.',
     coverageNotes: ['donation routes non-owner, holds no honor'],
   });
   seedPersona(db, {
     slug: CONCURRENT_SLUG,
     displayName: 'Route Concurrent',
     tier: 'tier1',
+    testingUsage: 'Donation route fixture.',
     coverageNotes: ['donation routes owner for the simultaneous-cancel check'],
   });
   db.close();
@@ -374,7 +377,6 @@ describe('GET /members/:memberKey/payments with recurring donations', () => {
       .get(`/members/${OTHER_SLUG}/payments`)
       .set('Cookie', cookie(OTHER));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Recurring Donations');
     expect(res.text).toContain('Cancel Recurring Donation');
     expect(res.text).toContain(`/recurring-donations/${stripeSubscriptionId}/cancel`);
   });

@@ -15,7 +15,7 @@ The §-numbers are stable category identifiers cited in `BUGS.md` finding `Class
 
 ## Bug categories — catalog (§4.4)
 
-The implementation-layer (security/correctness) sweep categories §4.4.1–§4.4.48, followed by the documentation/hygiene sweep §4.4B. SKILL.md Phases D and E frame the two sweeps and refer to these category numbers.
+The implementation-layer (security/correctness) sweep categories §4.4.1–§4.4.48, followed by the documentation/hygiene sweep §4.4B. The Lane 2 and Lane 3 rows of SKILL.md's dispatch table frame the two sweeps and refer to these category numbers.
 
 #### 4.4.1 Logic errors
 
@@ -173,7 +173,7 @@ These are the service-JSDoc / DATA_GOVERNANCE / USER_STORIES non-negotiables. A 
 
 A deployed story that fails its own success criteria is a bug even when the code "works" mechanically.
 
-- Build the traceability matrix (SKILL.md Phase B) before this pass.
+- Build the traceability matrix from Lane 0's story classification (`.claude/skills/deployed-surface/SKILL.md`) before this pass.
 - For each Complete and deployed story, verify all acceptance/success criteria against routes, controllers, services, templates, DB writes, audit rows, and permission gates.
 - For each Partial and deployed story, verify that the missing criteria are explicitly documented as accepted deviations.
 - If a discrepancy may be a bad user story rather than bad code, ask one maintainer question instead of guessing.
@@ -562,7 +562,7 @@ Extends §4.4.16 with the design-hygiene framing; cross-referenced to avoid drif
 Committed-test rule violations only. Coverage *gaps* (a surface that lacks a test) stay in the §5 punch list at the end of this file; this category is for committed tests that break a hard testing rule.
 
 - `.skip`, `.todo`, or `xit` in committed test code (quarantine has its own tagged process).
-- Status-only assertions where a body assertion is required (see Cross-cutting observations below).
+- Status-only assertions where a body assertion is required. A body assertion here names the defect it catches: seeded data rendered, a draft or private row withheld, a branch taken, or the route serving the wrong template. A pin on static copy is not a fix (see Cross-cutting observations below).
 - **Real or real-looking PII** in fixtures, snapshots, seed data, or any test/data string value — real footbag-community-figure names, real maintainer names (team members), and real emails. Use clearly-synthetic names; preserve only the variant relationship a scenario exercises (diacritic, long/short, surname-split). Per the `DATA_GOVERNANCE` synthetic-only rule. Reproduction: cross-reference person-name string literals against real community / maintainer identities; high-signal fields are `creator:`, `person_name:`, `real_name:`, `display_name:`, and the name-variant fixtures in `tests/fixtures/` + `src/content/`.
 - A test constructing a writable path from `process.cwd()` / project root instead of `os.tmpdir()` with the `footbag-test-` prefix.
 - A `logger.error()` produced by a test without an `expectLoggedError(pattern)` opt-in.
@@ -593,7 +593,7 @@ Report service-JSDoc findings under `Design-divergence and hygiene` unless the i
 
 Patterns that recur across multiple sites. Useful to scan once before per-file work.
 
-1. **Status-only assertions on static surfaces** (`expect(res.status).toBe(200)`). The five public static routes (`/sideline`, `/hof`, `/bap`, `/legal`, `/ifpa`) now carry a body assertion on the happy path, so a regression to an empty or wrong template breaks the test. Remaining: loose patches of freestyle browse-view tests may still be status-only; audit them for the same gap. The fix is small (one body assertion per route) but spread across many files.
+1. **Status-only assertions on static surfaces** (`expect(res.status).toBe(200)`). The defect a static route can have is serving an empty or wrong template, so each needs one assertion that tells its page apart from its siblings; the five public static routes (`/sideline`, `/hof`, `/bap`, `/legal`, `/ifpa`) carry one. Further copy assertions on the same page catch nothing more and are change-detectors, not the fix. Remaining: loose patches of freestyle browse-view tests may still be status-only; there the fix is one assertion on the data the view renders (a seeded row, a group, a count against its rows), not on its prose.
 
 2. **KMS-failure pattern applies to any signing-dependent recovery path.** The pattern: if `signJwt` throws between a DB commit and the cookie issuance, the user is locked out of all sessions with no working cookie. Recovery must route to a separate JWT-issuing flow (password reset). When future signing surfaces land, copy this pattern.
 
@@ -693,7 +693,7 @@ A grep hit alone is never a finding.
 
 ## Testing and CI/CD verification improvement punch list — detail (§5.1–§5.6)
 
-SKILL.md's verification-layer sweep (Phase F) frames this punch list; the classification rule and the guard/automation/coverage checklists are here.
+SKILL.md's verification-layer sweep (the Lane 4 row of its dispatch table) frames this punch list; the classification rule and the guard/automation/coverage checklists are here.
 
 ### 5.1 Classification rule
 

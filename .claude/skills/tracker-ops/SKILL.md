@@ -43,7 +43,8 @@ the human's instruction as given.
   - "Is this tracked / in scope?": search titles and bodies with
     `gh search issues --repo "$FOOTBAG_PRIVATE_REPO" "<terms>"` or list open issues and match.
     An open issue covering the work is the scope record; its absence for significant new work is
-    a question for the human, not a blocker to invent around.
+    a question for the human, not a blocker to invent around. Before filing a "gap", classify it per
+    `.claude/skills/deployed-surface/SKILL.md`; a not-yet-built status is never an issue.
 - **Optional convenience when the `footbag_private_repo/` symlink is present:** the shipped
   `footbag_private_repo/track-issues.sh` viewer wraps these same read-only API calls behind
   presets (no arg dashboard, `<label>`, `actionable`, `mine`, `blocked`, `all`, `<number>`).

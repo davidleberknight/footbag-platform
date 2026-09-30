@@ -8,7 +8,7 @@
  * freestyle.family-detail.routes.test.ts.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -21,6 +21,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3250');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -41,7 +42,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/tricks/:slug — empty state (no records, no media)', () => {
   it('renders a coherent 200 page for an active trick with zero records and zero media', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     // The main content rendered (the trick name and the always-present
     // source-note footer), not a 404, a 500, or a bare stub.
@@ -50,7 +51,7 @@ describe('GET /freestyle/tricks/:slug — empty state (no records, no media)', (
   });
 
   it('omits the records section when the trick has no records', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     // The consecutive-records table renders only when recordCount > 0.
     expect(res.text).not.toContain('id="passback-records"');
@@ -58,7 +59,7 @@ describe('GET /freestyle/tricks/:slug — empty state (no records, no media)', (
   });
 
   it('omits the media section when the trick has no reference media', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     // The Media section (and its anchor target) renders only when reference
     // media exists, so no dangling #media anchor is left behind.

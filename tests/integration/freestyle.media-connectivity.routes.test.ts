@@ -10,7 +10,7 @@
  * could only borrow one arbitrary member's gallery and mislabel it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -29,6 +29,7 @@ import {
 const { dbPath } = setTestEnv('3202');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -54,7 +55,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Family detail surfaces its members\' media', () => {
   it('renders a gallery link for a covered member and none for an uncovered one', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    const res = await page('/freestyle/families/whirl');
     expect(res.status).toBe(200);
     const html = res.text;
     // Per-member gallery link (Handlebars escapes '=' to &#x3D;).
@@ -64,7 +65,7 @@ describe('Family detail surfaces its members\' media', () => {
   });
 
   it('promotes no single member gallery as the family\'s own clip', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    const res = await page('/freestyle/families/whirl');
     const html = res.text;
     expect(html).not.toContain('Watch a clip from this family');
     // The invented coverage vocabulary reached a visitor only here.
@@ -75,13 +76,13 @@ describe('Family detail surfaces its members\' media', () => {
 
 describe('Set detail surfaces its example tricks\' media', () => {
   it('renders a gallery link for a covered example trick', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/media/browse?context&#x3D;atomic_mirage');
   });
 
   it('promotes no single example gallery as the set\'s own clip', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/atomic');
     const html = res.text;
     expect(html).not.toContain('Watch a clip from this set');
     expect(html).not.toContain('Tutorial available');

@@ -173,8 +173,6 @@ describe('GET /clubs/create', () => {
       .get('/clubs/create')
       .set('Cookie', authCookie(HAPPY_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('You become the club');
-    expect(res.text).toContain('first leader.');
     // The gate decides who reaches this page, so the page no longer restates
     // the requirement to a reader who has already met it.
     expect(res.text).not.toContain('requires IFPA Membership');

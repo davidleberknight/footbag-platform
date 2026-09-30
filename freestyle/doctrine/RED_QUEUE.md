@@ -22,7 +22,7 @@ has a chain to amend instead of an unexplained edit.
 
 **2. Delete this entry.** The queue lists open work only.
 
-**3. Update the machine-readable registry.** `QUESTION_REGISTRY.csv` is the grain
+**3. Update the machine-readable registry.** Before cutover, `QUESTION_REGISTRY.csv` is the grain
 behind this document and is wired into the build: the observational-universe content
 generator loads it and exits outright if it is missing, because doctrine blockers
 cannot be validated without it. An Emerging Vocabulary row names a question there as
@@ -31,15 +31,17 @@ question that is answered.
 
 **4. If the ruling defines an operator, update the operator authority.** An
 operator's ADD, structure and X-Dex behaviour are owned by
-`src/content/freestyleOperatorReference.ts`, mirrored on the data side by
-`inputs/base_dictionary/trick_modifiers.csv`. The generator cross-checks these: a
+`src/content/freestyleOperatorReference.ts`, mirrored on the data side by the
+modifier registry: the `inputs/base_dictionary/trick_modifiers.csv` seed before
+cutover, and the `freestyle_trick_modifiers` table, changed through a reviewed
+database migration, after. The generator cross-checks these: a
 ledger row still claiming an operator is undefined while the registry defines it is
 reported as a reconciliation defect, and the registry wins. Creating a modifier is
 deliberately code-managed with no in-app editor, because publishing one publishes its
 ADD to public surfaces.
 
-**5. Clear the rows the answer unblocks, then re-run the generator and read its
-warnings.** It reports rows gated on an operator the registry now defines, rows whose
+**5. Clear the rows the answer unblocks, then, before cutover, re-run the generator
+and read its warnings.** It reports rows gated on an operator the registry now defines, rows whose
 owner disagrees with their question's owner, and names the live database has resolved
 that the ledger still holds. Those warnings are the checklist for what the ruling left
 half-done.
@@ -50,7 +52,7 @@ audited admin surfaces — the trick edit page for scalar fields, the seven edit
 prose fields, aliases, source links and modifier links. The committed-CSV rebuild path
 is pre-go-live history and is not used to edit a live row.
 
-**7. Rebuild and run the QC.** `run_freestyle.sh` rebuilds the freestyle tables from
+**7. Before cutover, rebuild and run the QC.** `run_freestyle.sh` rebuilds the freestyle tables from
 the committed inputs; the trick-dictionary QC is a hard gate and must pass, including
 the alias-versus-active-canonical collision check. The media-coverage QC is advisory.
 

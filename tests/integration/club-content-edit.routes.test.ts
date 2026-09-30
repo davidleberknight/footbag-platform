@@ -38,7 +38,7 @@ function seedClubWithLeader(
   const memberId = `ccl-member-${_n}`;
   // The public club key is the stored hashtag minus '#': tag '#club_ccl_<n>'
   // serves at /clubs/club_ccl_<n>.
-  const tagId = insertTag(db, { tag_normalized: `#club_ccl_${_n}`, tag_display: `#club_ccl_${_n}`, is_standard: 1, standard_type: 'club' });
+  const tagId = insertTag(db, { tag_normalized: `#club_ccl_${_n}`, tag_display: `#club_ccl_${_n}`, standard_type: 'club' });
   // A country that names states, with one named, is the ordinary case: the
   // country page groups by state only when every club in it has one.
   insertClub(db, {

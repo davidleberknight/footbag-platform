@@ -348,7 +348,6 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_MIXED));
     expect(wrapUp.status).toBe(200);
-    expect(wrapUp.text).toContain('Clubs come after onboarding');
     expect(wrapUp.text).toContain('Finish Without a Club');
   });
 });

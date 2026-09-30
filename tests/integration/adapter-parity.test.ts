@@ -1716,11 +1716,12 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
               id: sessionOverrides.id ?? 'cs_fake_123',
               url: sessionOverrides.url === undefined ? 'https://checkout.stripe.example/cs_fake_123' : sessionOverrides.url,
               payment_intent: sessionOverrides.payment_intent === undefined ? 'pi_fake_123' : sessionOverrides.payment_intent,
+              livemode: false,
             };
           },
           async expire(id) {
             captured.expiredSessions.push(id);
-            return { id, url: null, payment_intent: null };
+            return { id, url: null, payment_intent: null, livemode: false };
           },
         },
       },
@@ -2273,7 +2274,6 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       paymentId: 'pay-parity-9',
       amountCents: 2500,
       currency: 'USD',
-      descriptor: 'Recurring donation',
       comment: null,
       successUrl: 'https://footbag.org/payments/success?session_id={CHECKOUT_SESSION_ID}',
       cancelUrl: 'https://footbag.org/payments/cancel?session_id={CHECKOUT_SESSION_ID}',
@@ -2374,6 +2374,7 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
             }
             return client.checkout.sessions.create(params, options);
           },
+          expire: (id) => client.checkout.sessions.expire(id),
         },
       },
     };

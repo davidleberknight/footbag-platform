@@ -9,7 +9,7 @@
  * media item exists.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -27,6 +27,7 @@ import {
 const { dbPath } = setTestEnv('3779');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Three coverage states, each a single-token slug so the record's trick_name
 // slugifies back onto its trick with no abbreviation ambiguity.
@@ -78,7 +79,7 @@ const galleryHref = (slug: string) => `/media/browse?context&#x3D;${slug}`;
 
 describe('GET /freestyle/tricks — browse-card media hashtag reflects curated coverage', () => {
   it('a record-only trick renders its hashtag as a plain token, not a gallery link', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // The trick appears (its hashtag token is present) ...
     expect(res.text).toContain(`#${RECORD_ONLY}`);
@@ -88,20 +89,20 @@ describe('GET /freestyle/tricks — browse-card media hashtag reflects curated c
   });
 
   it('a curated-media trick keeps its clickable gallery hashtag', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(galleryHref(CURATED));
   });
 
   it('a no-media trick shows no clickable media signal', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`#${NO_MEDIA}`);
     expect(res.text).not.toContain(galleryHref(NO_MEDIA));
   });
 
   it('the destination reached from a clickable hashtag holds at least one media item', async () => {
-    const res = await request(await createApp()).get(`/media/browse?context=${CURATED}`);
+    const res = await page(`/media/browse?context=${CURATED}`);
     expect(res.status).toBe(200);
     // The curated gallery for this trick surfaces its tutorial clip.
     expect(res.text).toContain('curatedvid1');

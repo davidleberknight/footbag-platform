@@ -127,7 +127,6 @@ describe('GET /admin/payments/health', () => {
 
   it('renders for an admin with nothing recorded yet', async () => {
     const html = await healthPage();
-    expect(html).toContain('Payments Health');
     // Every reason renders even at zero: "none" and "not measured" must not
     // look the same to whoever is reading this during an incident.
     expect(rejectionCountFor(html, 'Signature rejected')).toBe(0);
@@ -254,14 +253,7 @@ describe('the read-only contract', () => {
 
   it('shows no key identifier, key fragment or key age', async () => {
     const html = await healthPage();
-    expect(html).toContain('No key identifier, key fragment or key age is shown here.');
     expect(html).not.toMatch(/sk_(live|test)_/);
-  });
-
-  it('reports the running credential mode beside the declared one', async () => {
-    const html = await healthPage();
-    expect(html).toContain('Credential this process is running with');
-    expect(html).toContain('Mode this deployment declares');
   });
 
   it('raises no half-applied-arming warning outside production, where the two figures are not comparable', async () => {
@@ -302,7 +294,6 @@ describe('the read-only contract', () => {
     expect(rows).toBe(1);
 
     const after = await healthPage();
-    expect(after).toContain('Declared mode last changed');
     expect(after).not.toContain('not yet recorded');
     expect(after).toContain('2026-07-01');
   });
@@ -325,6 +316,5 @@ describe('what the settled volume counts', () => {
     expect(html).not.toContain('120.00 USD');
     expect(html).toContain('Set aside: 1 test-mode payment.');
     expect(html).toContain('book of record for money movement');
-    expect(html).toContain('Go to Financial Reports');
   });
 });

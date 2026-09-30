@@ -7,6 +7,8 @@ description: Audit invariants before modifying the historical pipeline. Trigger 
 
 Audits a proposed pipeline change against eight structural invariants before any edit lands. Does not write code on its own; it surfaces risks, proposes the minimal fix, and pauses for approval.
 
+Lifecycle scope: the historical pipeline is pre-go-live data-load tooling. This skill applies until cutover; the pipeline, its CSVs and this skill retire when the pipeline is deleted after the final production load is signed off. After cutover the production database is the source of truth.
+
 ## When this skill triggers
 
 Any change that touches:

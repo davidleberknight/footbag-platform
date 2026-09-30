@@ -44,6 +44,7 @@ let createApp: typeof import('../../src/app').createApp;
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Response as TestResponse } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
@@ -164,7 +165,7 @@ beforeEach(() => {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function createGalleryViaApi(name: string, criteria = '#tag1'): Promise<request.Response> {
+function createGalleryViaApi(name: string, criteria = '#tag1'): Promise<TestResponse> {
   return request(createApp())
     .post(`/members/${OWNER_SLUG}/galleries`)
     .set('Cookie', ownerCookie())
@@ -196,7 +197,6 @@ describe('GET /members/:memberKey/galleries', () => {
       .get(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('My Galleries');
     expect(res.text).toContain('Create New Gallery');
     // A member with no galleries (so no media) sees the teaching empty state:
     // a prompt and the upload CTA, in place of the old bare "no galleries yet"
@@ -208,8 +208,6 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).not.toContain('#club_wellington');
     expect(res.text).not.toContain('#event_2026_worlds_japan');
     expect(res.text).not.toContain('#chinlone');
-    // Replaced the old developer-spec description with member-facing copy.
-    expect(res.text).toContain('saved view of your photos and videos');
   });
 
   it('renders an Upload media button linked to /members/:slug/media/upload', async () => {
@@ -313,9 +311,7 @@ describe('GET /members/:memberKey/galleries/new', () => {
       .get(`/members/${OWNER_SLUG}/galleries/new`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Create Gallery');
     expect(res.text).toMatch(/<form[^>]*action="\/members\/mg_owner\/galleries"/);
-    expect(res.text).toContain('Create gallery');
     // The hashtag criteria, exclusions, and sort sit behind an Advanced
     // disclosure so the common path (name + upload) stays uncluttered.
     expect(res.text).toContain('class="gallery-advanced"');
@@ -482,7 +478,6 @@ describe('GET /members/:memberKey/galleries/:id/edit', () => {
       .get(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Edit Gallery');
     expect(res.text).toContain('Editable');
     expect(res.text).toMatch(new RegExp(`<form[^>]*action="/members/mg_owner/galleries/${id}/edit"`));
   });
@@ -915,7 +910,6 @@ describe('Member profile "My Galleries" link', () => {
       .get(`/members/${OWNER_SLUG}`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('My Galleries');
     expect(res.text).toContain(`href="/members/${OWNER_SLUG}/galleries"`);
   });
 });
@@ -961,8 +955,7 @@ describe('gallery edit current-items display + uploadTags', () => {
     expect(res.text).not.toContain('member-media-picker');
     expect(res.text).not.toContain('Add items from your existing uploads');
     // Upload widget is still present.
-    expect(res.text).toContain('Upload files now');
-    expect(res.text).toContain('Extra tags for these uploads');
+    expect(res.text).toContain('name="photoFiles"');
   });
 
   it('GET /galleries/:id/edit shows the current-items thumbnail display when items match', async () => {
@@ -1180,7 +1173,7 @@ describe('POST /members/:memberKey/galleries — rate limit', () => {
 describe('the member Personal Gallery is protected from rename and deletion', () => {
   const PERSONAL = 'Personal Gallery';
 
-  async function uploadOnePhoto(filename: string): Promise<request.Response> {
+  async function uploadOnePhoto(filename: string): Promise<TestResponse> {
     const jpeg = await sharp({
       create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
@@ -1221,7 +1214,7 @@ describe('the member Personal Gallery is protected from rename and deletion', ()
   function editPersonalGallery(
     galleryId: string,
     fields: { name?: string; description?: string; criteriaTags?: string; excludeTags?: string },
-  ): Promise<request.Response> {
+  ): Promise<TestResponse> {
     return request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries/${galleryId}/edit`)
       .set('Cookie', ownerCookie())

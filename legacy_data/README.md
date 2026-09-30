@@ -3,6 +3,10 @@
 Historical footbag results pipeline. Produces the canonical relational dataset
 covering 1980–present and loads it into the platform SQLite database.
 
+This is pre-go-live data-load tooling. At cutover the production database becomes
+the source of truth, and this subtree, its Python and its CSV inputs are deleted
+once the final production load is signed off.
+
 ---
 
 ## Quick start

@@ -49,11 +49,34 @@ function writeWorkflow({ node = '22.22.1', python = '3.12.12', gitleaks = '8.24.
   writeFileSync(
     workflow,
     [
+      '  TOOL_FFMPEG_VERSION: "6.1"',
+      '  TOOL_SQLITE3_VERSION: "3.45"',
+      '  TOOL_JQ_VERSION: "1.7"',
+      '  TOOL_AGE_VERSION: "1.1"',
       `          GITLEAKS_VERSION: "${gitleaks}"`,
       `          terraform_version: ${terraform}`,
       '',
     ].join('\n'),
   );
+}
+
+// The versions the runner's package index serves for the recorded pins, and the
+// ones an Ubuntu 22.04 workstation ships, in each tool's own output format.
+function stubPackagedTools(kind: 'runner' | 'older') {
+  const runner = kind === 'runner';
+  stub('sqlite3', `echo "${runner ? '3.45.1' : '3.37.2'} 2024-01-30 16:01:20 abc"`);
+  stub('ffmpeg', `echo "ffmpeg version ${runner ? '6.1.1-3ubuntu5' : '4.4.2-0ubuntu0.22.04.1'} Copyright (c) 2000-2023"`);
+  stub('jq', `echo "jq-${runner ? '1.7.1' : '1.6'}"`);
+  stub('age', `echo "${runner ? '1.1.1' : 'v1.0.0'}"`);
+}
+
+function run(fn: 'tool_report' | 'tool_report_require', tools: string[]) {
+  const res = spawnSync('bash', ['-c', `source "${LIB}"; ${fn} ${tools.join(' ')}`], {
+    encoding: 'utf-8',
+    env: { ...process.env, PATH: bin, TOOL_REPORT_ROOT: root },
+    ...SPAWN_GUARD,
+  });
+  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
 function report(tools: string[]) {
@@ -90,7 +113,7 @@ describe('tool-report.sh — versions come from the workflow', () => {
     stub('terraform', 'echo "Terraform v1.14.7"; echo "on linux_amd64"');
     const r = report(['node', 'python', 'gitleaks', 'terraform']);
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain('all 4 tools present at the expected versions');
+    expect(r.stdout).toContain('all 4 tools present');
     expect(r.stdout).not.toContain('[missing]');
   });
 
@@ -160,5 +183,53 @@ describe('tool-report.sh — it informs, it does not gate', () => {
     expect(r.stdout).toContain('jq is not installed');
     expect(r.stdout).toContain('age is not installed');
     expect(r.stdout).toContain('4 tool problem(s) above');
+  });
+});
+
+describe('tool-report.sh — packaged tools at another version are noted, never failed', () => {
+  it('prints nothing extra when the packaged tools match the recorded versions', () => {
+    stubPackagedTools('runner');
+    const r = run('tool_report', ['sqlite3', 'ffmpeg', 'jq', 'age']);
+    expect(r.stdout).not.toContain('[missing]');
+    expect(r.stdout).not.toContain('[note]');
+    expect(r.stdout).toContain('all 4 tools present');
+  });
+
+  // Defect caught: setup reinstalling, or the report failing, on every
+  // workstation whose distribution ships older packages.
+  it('notes an older workstation package as a difference, not a problem', () => {
+    stubPackagedTools('older');
+    const r = run('tool_report', ['sqlite3', 'ffmpeg', 'jq', 'age']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('[note] ffmpeg 4.4.2 is installed; the push gate runs 6.1');
+    expect(r.stdout).toContain('[note] jq 1.6 is installed; the push gate runs 1.7');
+    expect(r.stdout).not.toContain('[missing]');
+    expect(r.stdout).toContain('all 4 tools present');
+  });
+
+  // Defect caught: a runner image update turns CI red on a commit that changed nothing.
+  it('in CI, annotates a version difference and still passes', () => {
+    stubPackagedTools('older');
+    const r = run('tool_report_require', ['sqlite3', 'ffmpeg', 'jq', 'age']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('::warning title=Tool version::ffmpeg 4.4.2 is installed');
+    expect(r.stdout).toContain('4 tools present');
+  });
+
+  it('in CI, passes silently when every tool is at the recorded version', () => {
+    stubPackagedTools('runner');
+    const r = run('tool_report_require', ['sqlite3', 'ffmpeg', 'jq', 'age']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('::warning');
+  });
+
+  // Defect caught: a deleted provisioning step lets the tool-gated suites skip
+  // their cases on the runner and report green.
+  it('in CI, fails on a missing tool', () => {
+    stubPackagedTools('runner');
+    rmSync(join(bin, 'jq'));
+    const r = run('tool_report_require', ['sqlite3', 'jq']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('[missing] jq is not installed');
   });
 });

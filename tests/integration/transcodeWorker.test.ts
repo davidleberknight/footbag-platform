@@ -179,11 +179,11 @@ describe('POST /transcode/dispatch — happy path', () => {
 
   it('cannot be double-claimed: second dispatch returns 409', async () => {
     const events: CapturedEvent[] = [];
-    let resolveFinalize: (() => void) | null = null;
+    const finalizeGate: { release?: () => void } = {};
     const w = makeWorker({
       finalize: () =>
         new Promise<{ mediaId: string }>((resolve) => {
-          resolveFinalize = () => resolve({ mediaId: 'media_double_001' });
+          finalizeGate.release = () => resolve({ mediaId: 'media_double_001' });
         }),
       events,
     });
@@ -201,7 +201,7 @@ describe('POST /transcode/dispatch — happy path', () => {
       .send({ jobId });
     expect(second.status).toBe(409);
 
-    resolveFinalize?.();
+    finalizeGate.release?.();
     await w.pendingForTests();
   });
 });

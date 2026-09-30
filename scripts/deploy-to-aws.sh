@@ -150,16 +150,21 @@ ALWAYS-ON
 ─────────────────────────────────────────────────────────────────────
 Code + docker images ship every deploy. The post-deploy smoke check runs every
 deploy, and a production deploy additionally runs the route smoke and security
-probes against staging first and refuses if either fails, unless SKIP_SMOKE=yes
-is set. `npm test` is NOT run by the deploy: it is the local pre-PR gate, and
-the deploy assumes it passed. The curator seed step (seed_fh_curator.py against
+probes against staging first and refuses if either fails. A production deploy
+first passes the release gate (scripts/verify-production-release.sh): a clean
+tree on origin/main, CI green for that commit, a ./run_all_tests.sh --full pass
+for that exact tree, staging already running it, a ./run_all_tests.sh --staging
+pass against that deploy, and no SKIP_SMOKE, SKIP_TESTS, schema-drift or
+lock-holder override. A staging deploy runs no tests: the local --full run is
+the gate before it. The curator seed step (seed_fh_curator.py against
 /curated/**/*.meta.json sidecars) runs unconditionally before any DB ships to
 staging.
 
 ENV OVERRIDES
 ─────────────────────────────────────────────────────────────────────
   DEPLOY_TARGET=<alias>            SSH alias (default: footbag-staging).
-  SKIP_SMOKE=yes                   Skip post-deploy smoke check.
+  SKIP_SMOKE=yes                   Skip post-deploy smoke check (staging only;
+                                   production refuses it).
   SMOKE_BASE_URL=<url>             Override smoke target (default: the
                                    environment's public CloudFront URL).
   CURATOR_SEED=no                  Skip the curator seed step (rare; used

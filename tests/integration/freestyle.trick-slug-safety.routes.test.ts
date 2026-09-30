@@ -10,7 +10,7 @@
  * the controller never needs a per-slug special case.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
@@ -18,6 +18,7 @@ import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/fac
 const { dbPath } = setTestEnv('3099');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -64,7 +65,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function get(slug: string) {
-  return request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  return page(`/freestyle/tricks/${slug}`);
 }
 
 describe('GET /freestyle/tricks/:slug — slug safety across canonical, alias, retired, unknown', () => {

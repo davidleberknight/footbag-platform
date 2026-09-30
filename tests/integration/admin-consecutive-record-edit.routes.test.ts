@@ -226,11 +226,9 @@ describe('consecutive-kicks records — add new', () => {
   it('shows a New Record button on the browse and a blank new form', async () => {
     const browse = await get('/admin/freestyle/consecutive-records', admin());
     expect(browse.text).toContain('/admin/freestyle/consecutive-records/new');
-    expect(browse.text).toContain('New Record');
 
     const form = await get('/admin/freestyle/consecutive-records/new', admin());
     expect(form.status).toBe(200);
-    expect(form.text).toContain('New Consecutive-kicks Record');
     expect(form.text).toContain('action="/admin/freestyle/consecutive-records"'); // create target
   });
 
@@ -255,7 +253,7 @@ describe('consecutive-kicks records — add new', () => {
     const res = await post('/admin/freestyle/consecutive-records', admin(), bodyFor('999', { player1: 'Dup Attempt' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('already used by another row');
-    expect(res.text).toContain('New Consecutive-kicks Record'); // still the new form
+    expect(res.text).toContain('action="/admin/freestyle/consecutive-records"'); // still the new form
     expect(res.text).toContain('Dup Attempt');                  // submitted value survives
   });
 

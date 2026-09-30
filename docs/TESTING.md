@@ -10,7 +10,7 @@
 
 This file does not duplicate:
 
-- the edge-case lists, anti-pattern lists, adversarial input list, factories pattern, adapter parity test contracts, or the coverage floor that live in `.claude/rules/testing.md` and `tests/CLAUDE.md`,
+- the edge-case lists, anti-pattern lists, adversarial input list, and coverage floor in `.claude/rules/testing.md`, the adapter parity test contract in `.claude/rules/adapter-conventions.md`, or the factories pattern in `tests/CLAUDE.md`,
 - the security and privacy policy in `docs/DATA_GOVERNANCE.md` (member-data visibility taxonomy, anti-enumeration rules, logging hygiene, legacy archive handling, contributor obligations),
 - the pipeline validation gates in §8.9 of this document. The operational-readiness rules live in GO_LIVE_PLAN.md (private GitHub repo); they govern cutover readiness rather than tests, so no test anchors on them.
 
@@ -57,7 +57,7 @@ A change that adds an effect must not shrink the test to that effect alone. In t
 
 A test must not inherit from the machine it runs on the state or the timing that decides its verdict.
 
-The state half: a test whose result depends on a file, a directory, an installed binary, or an exported variable that a developer's machine has and a clean checkout does not. Such a test is green wherever that input happens to be right, and the branch where the contract breaks is unreachable on the machine that holds it, so no amount of local running can find it. Two suites failed this way at once: one reached an operator signing key beneath the home directory, the other read a Terraform values file that git ignores. Neither asserted the wrong contract. Both were satisfied by the filesystem rather than by the code, and both were green on the maintainer's machine and red on the runner. The same defect pointed the other way is worse and quieter: sixteen cases gated on an installed encoder skipped silently on the runner and reported green having executed nothing.
+The state half: a test whose result depends on a file, a directory, an installed binary, or an exported variable that a developer's machine has and a clean checkout does not. Such a test is green wherever that input happens to be right, and the branch where the contract breaks is unreachable on the machine that holds it, so no amount of local running can find it. A test that reaches an operator signing key beneath the home directory, or reads a Terraform values file that git ignores, is satisfied by the filesystem rather than by the code: green on the maintainer's machine and red on the runner. The same defect pointed the other way is worse and quieter: cases gated on an installed tool skip silently on the runner and report green having executed nothing.
 
 The timing half: an assertion pinned to the single outcome an idle machine produced, where the choice between legitimate outcomes is not deterministic. A test that only passes on an idle machine is not verified.
 
@@ -160,7 +160,7 @@ Standard techniques to draw from when shaping a test:
 
 - Equivalence partitioning + boundary value analysis: input validation. Partition the input space into classes (valid, malformed, oversized, wrong type, unicode mischief, injection attempt); test one representative per class plus the boundary (empty, single, max, max+1, unicode normalization edge, leap year, NULL).
 - Pairwise / combinatorial coverage: matrix-shaped concerns (role x route x method x auth-state). Use all-pairs rather than full Cartesian when the matrix is large.
-- Property-based testing (fast-check): invariant-shaped assertions ("for all inputs, property P holds"). Selective use for validators, encoders, security pure functions, anti-enumeration helpers. Not a universal requirement.
+- Property-based testing: invariant-shaped assertions ("for all inputs, property P holds"). Selective use for validators, encoders, security pure functions, anti-enumeration helpers. Not a universal requirement.
 - Scenario tests with explicit state transitions: state-machine-shaped concerns (multi-step wizard, token lifecycle, audit emission on state-changing paths).
 - Selective fuzzing: parsers, validators, complex input handlers. Targeted at the specific module. Name pathological-input timing (catastrophic regex backtracking / ReDoS) as an explicit goal for any hand-written regex validator — the freestyle notation grammar, slug and URL validators.
 - Rate-limit + resource-bound assertions: denial-of-service concerns. Configuration verification, not load testing (load is deferred per §14).
@@ -186,7 +186,7 @@ What follows is the depth expected on top of that floor, not an alternative to i
 
   Anti-enumeration equivalence means the two responses are the same, compared whole under a normalization that redacts only what legitimately varies per request. It does not mean the same within a tolerance. A tolerance cannot fail: the login check was once a plus-or-minus five percent comparison of body *lengths*, and appending the submitted address to the refusal message -- a one-character difference in a multi-kilobyte page -- passed it. `tests/fixtures/normalizeAntiEnumerationBody.ts` is the shared helper and the shape to copy. Timing is a separate assertion with its own test, not a clause inside this one.
 
-Property-based testing (fast-check) and mutation testing (Stryker) are available techniques for catastrophic surfaces when a specific surface justifies the cost. They are not mandated per catastrophic surface. Selective adoption per §12.2 governs when and where they apply.
+Property-based testing is an available technique for catastrophic surfaces when a specific surface justifies the cost. It is not mandated per catastrophic surface. Selective adoption per §12.2 governs when and where it applies.
 
 A catastrophic surface that lacks any floor item carries an issue in the maintainers' private tracker: surface name plus the missing floor item. The issue is closed when the gap closes. No rigor levels, no target field, no per-test ceremony; one issue per gap, closed with the gap.
 
@@ -273,11 +273,11 @@ Does not belong:
 
 `tests/smoke/`, gated behind `RUN_STAGING_SMOKE=1`, excluded from default `npm test`. Runs against real staging AWS (KMS, SSM) via the assumed-role chain configured by `scripts/test-smoke.sh`. The canonical regression gate for staging-AWS adapter parity.
 
-This tier is the only one that reaches AWS at all, and it reaches it read-and-verify only: identity and parameter reads, and a KMS signature. It sends no email. Every other tier is unauthenticated by construction. The shared setup breaks credential resolution for each worker and everything it spawns, so a test that runs an operator script cannot write to a deployed environment whatever that script would otherwise do, and a convention gate keeps that in place. The rule and its rationale live in `.claude/rules/testing.md`, "Tests never mutate live infrastructure".
+This tier is the only one that reaches AWS or a deployed environment at all, and it reaches them read-and-verify only: identity and parameter reads and a KMS signature; HTTPS probes of the staging CloudFront edge, Google Safe Browsing, Cloudflare Turnstile (production target only) and public reachability targets; and a read of the staging persona catalog over ssh. It sends no email and writes nothing. Every other tier is unauthenticated by construction. The shared setup breaks credential resolution for each worker and everything it spawns, so a test that runs an operator script cannot write to a deployed environment whatever that script would otherwise do, and a convention gate keeps that in place. The rule lives in `.claude/rules/testing.md`, "Tests never mutate live infrastructure". It is enforced in one shared declaration because per file is what failed: a case reached the AWS call on a maintainer's workstation, whose ambient profile was a real operator identity, overwrote a live API key in a deployed Parameter Store with its fixture value, and the suite reported a clean pass.
 
 Belongs:
 
-- Adapter staging-smoke (one per adapter, per `.claude/rules/testing.md` adapter-parity rule)
+- Adapter staging-smoke (one per adapter, per the adapter three-test contract in `.claude/rules/adapter-conventions.md`)
 - Health and readiness checks against staging
 - Identity and KMS round-trip verification
 
@@ -313,7 +313,7 @@ A class, not a folder. Lives wherever the assertion most efficiently lives (unit
 
 - Anti-enumeration property tests
 - Auth-gate and role-gate enforcement assertions
-- CSRF presence on every state-changing verb (scenario test reused per state-changing route via shared helper; a property-test formulation with fast-check is an optional upgrade when the surface justifies it)
+- CSRF presence on every state-changing verb (scenario test reused per state-changing route via shared helper; a property-based formulation is an optional upgrade when the surface justifies it)
 - Rate-limit boundary assertions
 - Session cookie attribute assertions
 - Secret and PII leakage regression tests (see §10)
@@ -349,7 +349,7 @@ Armed production differs in what the live path adds: it resolves `SES_ADAPTER=li
 
 ### 5.10 Real-claim crawl (development)
 
-A development-only tier under `tests/dev/` that builds a claimed account for a real migrated record through `GET /dev/build-claim?as=<legacy_member_id>` and crawls its rendered surfaces (profile, honors, results, media, any co-led club), proving migrated real-world data renders and behaves once a member claims it — the person-neutral successor to the earlier fixed-person journey crawl. It is excluded from the default `npm test` run and is invoked by `npm run test:persona-crawl` (`RUN_PERSONA_CRAWL=1`) and by `./run_all_tests.sh --with-persona-crawl` (opt-in). It needs a loaded real dataset — the dev operator load, or a running staging stack targeted with `PERSONA_CRAWL_BASE_URL` — and skips on a fixture-only clone; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or targets a specific record with `PERSONA_CRAWL_LEGACY_ID`. Every assertion keys on record ids and page structure, never on the claimed person's name or contact details.
+A development-only tier under `tests/dev/` that builds a claimed account for one real migrated record through `GET /dev/build-claim?as=<legacy_member_id>` and checks the result: the claimed owner reaches its own profile edit page, and the public profile renders without template artifacts, proving migrated real-world data survives a claim. It is excluded from the default `npm test` run and is invoked by `npm run test:persona-crawl` (`RUN_PERSONA_CRAWL=1`) and by the `persona-crawl` row of `./run_all_tests.sh` (`--with-persona-crawl` adds it to `--quick`). It runs only on this machine: the row boots a local dev stack over the database at `FOOTBAG_DB_PATH` or `database/footbag.db`, and `PERSONA_CRAWL_BASE_URL` may move it to another loopback address, never further, because the build registers, verifies and claims an account and would leave a deployed site holding a permanent claim against a real record. It needs the full authoritative member load; without it the row reports "not required". It defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or targets a specific record with `PERSONA_CRAWL_LEGACY_ID`. Every assertion keys on record ids and page structure, never on the claimed person's name or contact details.
 
 ---
 
@@ -368,10 +368,11 @@ The default and only Playwright suite. Boot characteristics:
 - Chromium-only
 - `headless: true`
 - 1280 by 800 viewport (desktop default)
-- timeout 30s; expect 3s; action 5s; navigation 8s
+- test, expect, action, navigation and boot time budgets set in `tests/playwright.config.ts`, each scaled by `E2E_TIMEOUT_FACTOR`
 - `trace: 'retain-on-failure'`; `screenshot: 'only-on-failure'`; no video
 - reporter: `list` (local), `[['list'], ['github']]` (CI)
-- webServer: `bash scripts/e2e/start-stack.sh`, healthcheck `/health/ready`, 60s boot
+- `forbidOnly` under CI, so a focused test left in a spec fails the run instead of narrowing it
+- webServer: `bash scripts/e2e/start-stack.sh`, healthcheck `/health/ready`
 
 Belongs in the lightweight suite:
 
@@ -393,9 +394,9 @@ Does not belong:
 
 A test may carry zero or more tags. Tags are how gates select within the suite (§11). Canonical tags:
 
-- `@smoke`. The smallest, fastest, read-only-ish browser tests. They run inside the full local Playwright e2e suite (which boots a throwaway local stack and needs no AWS), and the same subset is selected by `npm run test:e2e:smoke` for a post-deploy browser smoke check against a deployed staging environment. This browser smoke subset is separate from the vitest staging-adapter smoke gate in §5.4, which exercises live-AWS adapters rather than the browser.
+- `@smoke`. The smallest, fastest browser tests. They run inside the full local Playwright e2e suite (which boots a throwaway local stack and needs no AWS), and `npm run test:e2e:smoke` selects the same subset against that local stack. The browser check against a deployed environment is a separate, anonymous, submit-nothing spec run by `npm run test:deployed -- <staging|production>` (§11.7), and both are separate from the vitest staging-adapter smoke gate in §5.4, which exercises live-AWS adapters rather than the browser.
 - `@security`. Security regression sub-class.
-- `@a11y`. Accessibility regression via axe-core against business-critical surfaces; runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`).
+- `@a11y`. Accessibility regression via axe-core against business-critical surfaces; runs in CI on every push and in the full local suite (`./run_all_tests.sh`).
 - `@migration`. Migration and onboarding regression. May live in integration or e2e; cuts across.
 - `@quarantined`. Time-bounded flake quarantine; see §11.3.
 
@@ -420,13 +421,13 @@ Lightweight integration with auth uses the existing `tests/fixtures/personas.ts`
 The platform targets four environments. Each has parity contracts that tests verify.
 
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
-- *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, harness self-check, unit, integration, db-load smoke, e2e, CodeQL static analysis, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
+- *CI.* Runs every job in `.github/workflows/ci.yml` against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
 - *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging-AWS adapter smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
 - *Production.* The real AWS production account. `src/testkit/` and `src/dev-bootstrap/` are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips both subtrees, then rewrites every module still statically imported from them as a no-op stub so app boot survives; a static import added without its stub crashes production boot with `MODULE_NOT_FOUND`, and the convention gate blocks that at merge time); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. Both are permanent in source, build-excluded from prod and never deleted.
 
 ### 7.2 Adapter parity tests are mandatory
 
-The three-test contract from `.claude/rules/testing.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `CaptchaAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, and any future adapter):
+The three-test contract from `.claude/rules/adapter-conventions.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `CaptchaAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, and any future adapter):
 
 - Boot-time config test (`tests/unit/env-config.test.ts`): module-load fails fast when required prod-mode env vars are absent.
 - Interface parity test (`tests/integration/adapter-parity.test.ts`): both implementations satisfy the TypeScript interface with identical observable output structure, exercised via an injected fake client.
@@ -450,7 +451,7 @@ The staging-smoke leg applies to adapters that reach an external service over th
 
 The script does not accept passwords or secrets as command-line arguments. Secrets that the smoke suite needs are read from SSM via the assumed-role chain or piped via stdin from approved secret-manager flows.
 
-The suite reaches live AWS and depends on workstation state a contributor without a deployed-environment role does not hold: the staging runtime AWS profile, an initialized `terraform/staging/` tree, the `footbag-staging` ssh alias, and — for the persona-catalog check — the operator credential file the deploy scripts read. It is not restricted to the IAM user `footbag-operator`: the shared job role `FootbagDevTester` grants staging precisely so somebody who develops and tests can run this, and the runtime profile it needs chains from the profile that assumes that role. A production target is a different matter, and the boundary is the trust policy rather than a convention: production's runtime role trusts the directly authenticated IAM user `footbag-operator` and the host's source-profile IAM user, and no human job role at all. Every entry point fails fast with a plain message when the state is absent, naming what writes it, as do the deploy and activation scripts. A contributor with no AWS access at all loses nothing by skipping it: `./run_all_tests.sh --full` deliberately excludes this suite (its summary row shows SKIP), and every other gate runs without AWS.
+The suite reaches live AWS and depends on workstation state a contributor without a deployed-environment role does not hold: the staging runtime AWS profile, an initialized `terraform/staging/` tree, the `footbag-staging` ssh alias, and — for the persona-catalog check — the operator credential file the deploy scripts read. It is not restricted to the IAM user `footbag-operator`: the shared job role `FootbagDevTester` grants staging precisely so somebody who develops and tests can run this, and the runtime profile it needs chains from the profile that assumes that role. A production target is a different matter, and the boundary is the trust policy rather than a convention: production's runtime role trusts the directly authenticated IAM user `footbag-operator` and the host's source-profile IAM user, and no human job role at all. Every entry point fails fast with a plain message when the state is absent, naming what writes it, as do the deploy and activation scripts. A contributor with no AWS access at all loses nothing by skipping it: the bare `./run_all_tests.sh` contacts no deployed environment, and every one of its gates runs without AWS. The suite runs as the staging AWS smoke row of `./run_all_tests.sh --staging`, through the dev-tester role (§11.7), or on its own through `npm run test:smoke`.
 
 ### 7.4 Staging personas: model and reset
 
@@ -595,7 +596,7 @@ Two data-integrity concerns sit beside the loader's row-count regression. *Idemp
 
 Migration tests in dev and continuous integration use synthetic legacy records that model edge cases without exposing real personal data, and every committed fixture stays synthetic. Real-data validation runs on the staging real-data test ground (§7.8): the full loaded dataset exercises identity matching, claims, and rendering there. Raw legacy PII is never committed as a test fixture, never appears in a snapshot, screenshot, trace, log, or CI artifact, and never travels downward from staging into the repo or the shared pipeline.
 
-Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`, names and membership status only, no contact data) and, for the legacy-import validation class, the legacy-site member dump, which does carry contact data. Two opt-in gates are such tests: the real-claim crawl (`--with-persona-crawl` / `npm run test:persona-crawl`) builds a claimed account for a real record and crawls its surfaces, and the read-only invariant gate (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. Both run from the full operator load (or, re-pointed by env var, against staging), only when asked for by name; `./run_all_tests.sh --full` lists them with their switches and never runs them. A tester who must run a real-data test obtains access to the maintainer-owned handoff it needs from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
+Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`, names and membership status only, no contact data) and, for the legacy-import validation class, the legacy-site member dump, which does carry contact data. Two real-data rows of `./run_all_tests.sh` are such tests: the real-claim crawl (§5.10) builds a claimed account for a real record and checks it renders, and the read-only invariant gate runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. Both run against the local authoritative member load when this machine holds it; without it each row reports "not required", neither holds the run back nor withholds its pass receipt, and `--with-persona-crawl` / `--with-realdata-invariants` add them to `--quick`. `./run_all_tests.sh --staging` runs the same invariants read-only against staging's copy (§11.7); the crawl never leaves this machine. A tester who must run a real-data test obtains access to the maintainer-owned handoff it needs from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
 
 ### 8.6 Migration tests verify the intent, not the loader
 
@@ -633,7 +634,8 @@ Several content domains follow one lifecycle: committed inputs (JSON sidecars or
 CSVs) seed the database pre-go-live; at cutover the persistent production database
 becomes the sole source of truth and an admin surface becomes the only authoring
 path. Curator media, email templates, and the freestyle dictionary all follow it.
-Every domain on this lifecycle carries the same five test legs:
+Every domain on this lifecycle carries the same five test legs; the two pytest legs
+exist only while the pre-go-live seeders do, and are deleted with them after cutover:
 
 - **Conformance drift gate** (unit): the committed inputs and the code registry
   describe the same set — every registered key has exactly one input and vice
@@ -808,7 +810,7 @@ Test fixtures, factories, seed data, snapshots, and persona JSON contain only sy
 
 ### 10.2 Deterministic seeds
 
-Test data is deterministic. The `uid()` counter pattern in `tests/fixtures/factories.ts` provides unique identifiers without random values or wall-clock timestamps. Tests that compare against `Date.now()`, `randomUUID()`, or `crypto.randomBytes()` without freezing the source produce flake; the operational rule against timestamp leakage in `.claude/rules/testing.md` applies.
+Test data is deterministic in everything a test asserts. The `uid()` helper in `tests/fixtures/factories.ts` builds unique identifiers from an in-process counter plus a random tail, because e2e spec processes share one live stack database and a bare counter collides across processes; a test therefore never asserts an id's literal value, and takes it from what the factory returned. Tests that compare against `Date.now()`, `randomUUID()`, or `crypto.randomBytes()` without freezing the source produce flake; the operational rule against timestamp leakage in `.claude/rules/testing.md` applies.
 
 ### 10.3 No committed credentials, auth state, tokens
 
@@ -843,7 +845,7 @@ The `factories.ts` `insertMember` helper accepts overrides; tests that need memb
 
 ### 10.8 Brittle dates avoided
 
-Tests that depend on the current date, the current week, the current season, or the current calendar year are brittle and produce flake. Tests freeze time at the seam (`vi.useFakeTimers()` or equivalent), or assert shape rather than calendar values. The exception is calendar-boundary tests that exist specifically to verify behavior at year, leap-year, or DST transitions; those tests inject the boundary date explicitly.
+Tests that depend on the current date, the current week, the current season, or the current calendar year are brittle and produce flake. Tests freeze time at the seam (`vi.useFakeTimers()` or equivalent), or assert shape rather than calendar values. Fake timers cannot move SQLite's clock, so a fixture read by a gate that compares a stored timestamp with the database's own `now` (tier expiry, Active Player status, a grace window) is seeded relative to the runtime clock through the helpers in `tests/fixtures/clock.ts` (for example, an expiry a given number of days from now), never as an absolute date that silently changes meaning once the calendar passes it. The exception is calendar-boundary tests that exist specifically to verify behavior at year, leap-year, or DST transitions; those tests inject the boundary date explicitly.
 
 ---
 
@@ -854,23 +856,23 @@ Not every test runs every time. This section defines the named gates, what runs 
 ### 11.1 The seven gates
 
 - *Local fast loop.* Typecheck plus lint plus changed-file unit tests via test impact analysis (`vitest --changed`). Sub-30s. Developer-triggered. No gate enforcement; convenience for the working developer.
-- *Pre-PR.* Full unit plus integration plus security regression, plus the secret scan, which no vitest tier can reach and which is otherwise first seen as a red push. Sub-2min on a fresh checkout. The repository ships git hooks under `.githooks/`, activated by `scripts/install-git-hooks.sh`; without it git looks elsewhere and no repo hook fires at all, whatever the directory contains. Activation is automatic: npm's install-time `prepare` step, `run_dev.sh`, `run_all_tests.sh` and the workstation setup script each run it, and it does nothing outside a git checkout or inside a linked worktree. The pre-commit secret scan warns and allows the commit on a machine with no scanner available.
-- *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks plus per-PR dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). Sub-10min. Blocks merge.
-- *On-demand deep audits.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, production-residue audit against the production DB. Operator-invoked when a covered surface changes or ahead of a production deploy; a scheduled nightly trigger is optional future depth on top of the required on-push CI gate. Reports, does not block.
+- *Local gates.* `./run_all_tests.sh --quick`, which `npm run test:pre-pr` runs, before a commit: build, test type-check (`typecheck:tests`), lint, conventions, harness self-check, generated-content, the secret scan (which no vitest tier can reach and which is otherwise first seen as a red push), and the unit and integration tiers, security regression included. The bare `./run_all_tests.sh` before a push and a pull request: every CI job that is safe on a workstation, each test once. `--staging` adds the read-only staging checks. What each proves, the pass receipts, and production readiness are §11.7. The repository ships git hooks under `.githooks/`, activated by `scripts/install-git-hooks.sh`; without it git looks elsewhere and no repo hook fires at all, whatever the directory contains. Activation is automatic: npm's install-time `prepare` step, `run_dev.sh`, `run_all_tests.sh` and the workstation setup script each run it, and it does nothing outside a git checkout or inside a linked worktree. The pre-commit secret scan warns and allows the commit on a machine with no scanner available.
+- *CI on push and pull request.* Every job in `.github/workflows/ci.yml`, triggered by each push and each pull request: the local gates plus the db-load smoke, lightweight Playwright, the staging-safe security probes against a throwaway stack, coverage, CodeQL, and, on a pull request, the dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). The aggregate check blocks merge; the dependency audit and the dependency review report without blocking (§11.4).
+- *On-demand deep audits.* Dependency audit, header check across the route table, production-residue audit against the production DB. Operator-invoked when a covered surface changes or ahead of a production deploy. Reports, does not block.
 - *Post-deploy smoke gate.* Runs automatically inside both deploy scripts (`scripts/smoke-local.sh` + `scripts/smoke-security.sh`) against the deployed target: health and route smoke plus the blocking security probes — auth-gate enforcement, anti-enumeration response equivalence, and the dev-surface environment contract (dev harness present on staging, absent in production). Sub-1min. Blocks deploy promotion on failure. Before a production deploy, the deploy script first runs this same gate against staging and aborts on failure. Distinct from the staging-AWS adapter smoke (§5.4), which exercises live-AWS adapters, not the deployed HTTP surface.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
 
 The db-load smoke gate runs the loader pipeline against fixed fixtures on every CI-on-PR build; it carries no path filter, so a loader regression is caught regardless of which files a change touches. Class-specific gating (running a gate only when the surface it covers has changed) is a pattern the suite may adopt for other gates as tooling permits.
 
-**On a memory-constrained host the pre-PR gate needs splitting.** The full run holds the whole unit and integration suite in one process tree, and on a host with many cores relative to its memory the operating system's memory guard can kill it with no output, which reads as a broken suite rather than an exhausted one. Two things make it complete. `VITEST_MAX_FORKS` caps the worker count regardless of core count, and the suite runs in pieces: `npx vitest run tests/unit`, then `npx vitest run tests/integration --shard=1/3` and its two siblings. Four green runs are the same coverage as one. The deploy scripts run this same suite as their own preflight, so a deploy from such a host needs the same treatment, or `SKIP_TESTS=yes` once a split run has passed.
+**On a memory-constrained host the pre-PR gate needs splitting.** The full run holds the whole unit and integration suite in one process tree, and on a host with many cores relative to its memory the operating system's memory guard can kill it with no output, which reads as a broken suite rather than an exhausted one. Two things make it complete. `VITEST_MAX_FORKS` caps the worker count regardless of core count, and the suite runs in pieces: `npx vitest run tests/unit`, then `npx vitest run tests/integration --shard=1/3` and its two siblings. Four green runs are the same coverage as one. The deploy scripts run this same suite as their own preflight, so a staging deploy from such a host needs the same treatment, or `SKIP_TESTS=yes` once a split run has passed; a production deploy refuses `SKIP_TESTS` (§11.7).
 
 ### 11.2 Selection mechanisms within a gate
 
 - *Test impact analysis* for the local fast loop. `vitest --changed` plus git-diff-driven file selection. The fast loop runs only tests that touch changed code paths.
 - *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`) drives which tests run at each gate.
 - *Risk-severity-based selection* for the on-demand deep audits. Catastrophic and high surfaces (per §3) run in CI on every push. Medium and low surfaces run when the surface changes; a periodic sweep is optional future depth on top of the on-push gate.
-- *Parallel sharding* where the test runner supports it. Vitest workers for unit and integration; Playwright workers are constrained to 1 by SQLite WAL serialization, so Playwright sharding happens via separate processes against separate ephemeral databases.
+- *Parallel workers* where the test runner supports it. Vitest workers for unit and integration; Playwright runs one worker, constrained by SQLite WAL serialization.
 - *Skip-on-unchanged-inputs* where tooling supports it. Layers whose inputs have not changed since the last green can be skipped.
 
 ### 11.3 Flake discipline
@@ -881,14 +883,21 @@ Tests that fail intermittently are quarantined, not ignored. The quarantine mech
 - A quarantine is temporary by intent, and the tracking issue is what carries the deadline. Quarantine count is a health signal the maintainer reads off those issues; sustained growth means the suite or the surface is decaying.
 - `.skip`, `.todo`, and `xit` remain forbidden per `.claude/rules/testing.md`. Quarantine is the only legitimate skip path, and it is time-bounded.
 - Test retries to mask flake are not used. A test that needs retries to pass is a test that does not deserve to pass.
+- Vitest shuffles the order of test files on every run (never the cases inside a file), so a file that depends on another file having run first is found on a workstation instead of on the push. Each run prints its seed; `VITEST_SEED=<seed>` replays that order to reproduce a failure, and is never a way to switch the shuffle off.
+- *Why a network-bound suite runs one file at a time.* A per-test timeout is calibrated against a file running alone; concurrent files contend for the same egress and remote throttles, so a generous budget becomes a coin toss that reads as a slow test asking for a bigger number.
 
 ### 11.4 What blocks what
 
 - *CI on PR* blocks merge.
+- Nothing blocks except a real and serious problem; anything else is a test that simply fails. The dependency audit, the pull-request dependency review, a tool at a different version from the one CI records, and three advisory test-style convention scans (vacuous assertion forms, tool-gated skips, a `cachedGet` suite that writes inside a case) report as warnings and never fail a run. In CI a missing tool fails its job; on a workstation a push-gate check whose tool is absent skips with a warning, because CI runs it on every push (§11.7).
+- *The production release gate* blocks a production deploy until both pass receipts and a green CI run stand for the commit staging runs (§11.7).
 - *Post-deploy smoke gate* blocks deploy promotion (the production deploy script first runs the same gate against the staging deployment and aborts on failure).
 - *On-demand deep audits* report only. A failing audit does not block in-flight PRs but does block the next intentional production deploy until investigated.
 - *On-demand heavyweight pentest* reports only. Findings produce regression tests (§9.6).
 - *Periodic third-party pentest* reports only. Findings produce regression tests and may block a major launch if a catastrophic-risk finding is open.
+- *Why CI parity is mechanical.* `scripts/ci/check_ci_parity.sh` also binds the runner's list of gates that stand for a push-gate job, so one cannot quietly drop off it, and fails if a gate the runner leaves to the clean room is not one the room runs.
+- *Why offline gates run under `aws_isolated_run`.* The terraform gate once called STS on every local run, green while the key worked, and reported a rotated credential as a terraform failure.
+- *Why vitest refuses a foreign config.* Another config silently takes vitest's built-in timeouts, worker cap, pool and sweep, and the first symptom is a timeout at a ceiling that appears nowhere in this tree.
 
 ### 11.5 Token-efficient tiered execution
 
@@ -897,11 +906,13 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 | Tier | Trigger | What runs | Command |
 |---|---|---|---|
 | Inner loop | During edit, focused work | Single file, or tests that import the changed source | `npx vitest run path/to/file.test.ts` or `npx vitest run --related src/changed.ts` |
-| Pre-commit | Before commit | Build, lint, conventions gate, secret scan, unit + integration | `npm run test:pre-pr` |
-| Pre-push | Before push to remote | Every local gate that stands for a push-gate job, each test once | `./run_all_tests.sh --full` |
-| CI on push | Automated | Every workflow job: build, lint, `audit-ci --moderate`, secret scan, conventions, harness, unit, integration, coverage, full Playwright e2e, security probes, terraform, loader smoke, database guards, legacy pytest, CodeQL, and dependency review on pull requests | CI workflow |
-| On-demand deep audits | Operator-invoked when a covered surface changes | Mutation short list, header walk, production-residue audit, optional ZAP | `npm run test:mutation` for the mutation short list; `npm run test:pentest:heavy` and per-audit scripts for the rest |
+| Pre-commit | Before commit | Build, test type-check, lint, conventions, harness, generated-content, secret scan, unit + integration | `./run_all_tests.sh --quick` (what `npm run test:pre-pr` runs) |
+| Pre-push and pull request | Before push to remote or opening a pull request | Every CI job that is safe on a workstation, each test once; no deployed environment | `./run_all_tests.sh` (`--skip-py` leaves out the pre-go-live data-load Python gates and ends INCOMPLETE with no pass receipt; once that Python is declared done the default flips to skipping them and their CI jobs are dropped, and the gates and the switch are later deleted with that Python) |
+| CI on push | Automated | Every job in `.github/workflows/ci.yml` | CI workflow |
+| Staging checks | After a staging deploy, before a production release | The four read-only staging rows (§11.7) | `scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging` |
+| On-demand deep audits | Operator-invoked when a covered surface changes | Header walk, production-residue audit, optional ZAP | `npm run test:pentest:heavy` and per-audit scripts |
 | Post-deploy smoke gate | Every staging or production deploy | `scripts/smoke-local.sh` + `scripts/smoke-security.sh`, invoked by the deploy scripts | Automatic |
+| Production browser check | After a production deploy | The anonymous, submit-nothing browser pass over the pages a visitor lands on first | `npm run test:deployed -- production`, operator-run |
 | Staging-AWS adapter smoke | After changes to staging AWS identity, keys, or IAM | `npm run test:smoke` | Operator-invoked |
 
 **Catastrophic-surface override.** When edits touch auth (`src/services/identityAccessService.ts`, `src/middleware/auth*`, session helpers), privacy boundaries (member-PII reads, anti-enumeration surfaces), or future payment code, run the full test files for those surfaces in the inner loop even if `--related` would skip them. Catastrophic surfaces never skip on inner-loop convenience.
@@ -911,6 +922,27 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 ### 11.6 Secrets and CI
 
 CI logs, CI artifacts, Playwright reports, traces, screenshots, and failure output are treated as potentially public unless explicitly restricted. Tests that require remote credentials receive them through GitHub Actions secrets, SSM, or an equivalent approved secret-management mechanism. Credentials are never echoed, never serialized into artifacts, never embedded in shell command lines. The password-leak regression test (§7.5.4) and the production-residue audit (§9.5) together enforce this property for the dev/staging-only surface; equivalent discipline applies to any other secret introduced into the CI environment.
+
+### 11.7 Local runner tiers, pass receipts, and production readiness
+
+This section owns what each tier of `./run_all_tests.sh` proves and what a production release needs; every other description cites it. `./run_all_tests.sh --help` owns the flags and rows, and `--plan` prints the rows a run would schedule, and where each points, without running anything.
+
+Three tiers, one per environment:
+
+- *Dev, local.* `./run_all_tests.sh --quick`, which `npm run test:pre-pr` runs, is the commit loop: build, test type-check, lint, conventions, harness self-check, generated-content, the secret scan, and the unit and integration tiers. It ends QUICK PASS and names what only the bare run adds. The bare `./run_all_tests.sh` (`--full` is a synonym) is the push and pull-request gate: every CI job that is safe on a workstation, each test once, with the build, lint, conventions, generated-content and unit and integration tiers run inside the clean room (§2.5); plus e2e with its accessibility specs, terraform validation, the blocking security probes against a throwaway local stack, the pentest harness's blocking scriptable probes, the production-strength password hash, and the two real-data rows (§8.5). It contacts no deployed environment and needs no AWS identity or role. The OWASP ZAP scan is not part of it: `--zap` adds it to the pentest harness, and it runs before a production deploy (`./run_all_tests.sh --zap` or `npm run test:pentest:heavy`). Each ZAP scan has a hard time limit, and a scan stopped at it reports NOT RUN.
+- *Staging, opt-in.* `--staging` adds four read-only rows to either mode, run through the dev-tester role (`scripts/as-dev-tester.sh`): the staging AWS adapter smoke (§5.4), the whole-population real-data invariants on the staging host (counts and PASS/FAIL only), route smoke GETs against the staging site, and the anonymous browser check. They run first, after a preflight that names any missing role, wiring or site at the start; a row whose needs are missing fails without running and names the fix, and the local rows still run. Nothing is written to staging, and production is never a target.
+- *Production, strict.* No runner mode touches production. A production deploy passes the production release gate below, and after it the operator runs the anonymous, submit-nothing browser check `npm run test:deployed -- production`.
+
+**The verdict.** Before any gate the bare run refuses only when a tool every gate needs (`sqlite3`, `curl`) is missing. A push-gate check whose own tool this machine lacks (the secret scanner with no running Docker to supply it, or Terraform) skips itself; CI runs it on every push and the release gate requires CI green for the commit, so the skip does not hold the verdict back, and the run prints a warning that this machine lacks a tool the project uses, naming each skipped check and pointing at `bash scripts/setup-dev-workstation.sh`. A bare run ends GREEN when everything it scheduled passed; `--quick` ends QUICK PASS. A run ends INCOMPLETE when a check standing for a push-gate job produced no result at all (the clean room stopped before reporting it, or `--skip-secret-scan` left the scan out), and VOID when the tree changed while the run was in flight, because the gates then read different sources; the VOID report names each file whose content changed, including one that was already modified when the run started. A failing staging row fails the run without taking back the local verdict.
+
+**Pass receipts.** Each is written only by a passing run, readable by its owner alone, and records the hash of the runner that wrote it, so a receipt from a different runner does not count.
+
+- *The local receipt.* A GREEN bare run writes it for the exact tree: commit, tree fingerprint, and whether the tree was clean. A skipped row withholds it, except a push-gate check CI runs and a real-data row on a machine without the authoritative member load.
+- *The staging receipt.* A run whose four staging rows all pass writes it, keyed to the commit staging runs as read from the host. `scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging` is the command that writes it.
+
+**Production readiness.** `scripts/verify-production-release.sh` asks the question on its own, and `deploy_to_aws.sh`, `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` run the same gate before they touch a production host. It requires a clean working tree whose HEAD is the canonical repository's main; CI's aggregate check green on every run for that commit; the local receipt for that tree; staging running that commit, deployed from a clean tree; and the staging receipt for that commit. It refuses `SKIP_SMOKE`, `SKIP_TESTS` and `SMOKE_BASE_URL`, and the three escape hatches `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`. A question it cannot answer is a refusal. Staging is held to none of this: it is where uncommitted work is tried.
+
+The release order that follows: commit and push to main with CI green; the bare run on that tree; deploy staging; the staging checks as a dev-tester; the ZAP scan; `scripts/verify-production-release.sh`; the production deploy; the production browser check.
 
 ---
 
@@ -928,12 +960,11 @@ Uncovered branches are also a read-targeting signal: they are where both the tes
 
 ### 12.2 Selective heavier tooling
 
-Property-based testing (fast-check) and mutation testing (Stryker) are not universal tier-promotion requirements. They are tools to reach for when a specific surface justifies the cost.
+Property-based testing is not a universal tier-promotion requirement. It is a technique to reach for when a specific surface justifies the cost: validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. A property-testing library is added with the first surface that needs one, never ahead of need.
 
-- fast-check: useful for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Install and adopt on the slice that introduces the first property-shaped surface; do not pre-install for hypothetical future need.
-- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Adopted for the authorization guards on exactly that evidence, and scoped to them; widen one subtree at a time, only once the current scope holds its score. Never part of a quick loop, and the cost is hours rather than minutes: the run executes the whole suite once with coverage tracking before it tests a single mutant, which is about a quarter-hour on its own however little is mutated, and grows with the suite rather than with the scope, so that figure rises as the suite does. It then re-runs, per mutant, every test that executes the mutated line. A module on the request hot path is executed by most of the suite, so mutating one costs hours and re-measures the same tests thousands of times. Scope a sweep to the leaf modules of a subtree and leave the hot-path modules out of it; those are assessed by reading their branches and breaking a chosen few by hand, which answers the same question at a cost that fits inside a working session. Give the run the machine to itself: CPU contention produces timeout-based false kills, and a false kill inflates the score the run exists to measure.
+Whether a test would catch the defect it guards is established by the demonstrated-failure requirement in `.claude/rules/testing.md`: break the guarded code by hand and watch the test go red for that reason.
 
-Decisions to adopt either tool, and the specific surface they target, are tracked in the maintainers' private tracker, not here.
+A decision to adopt a heavier tool, and the specific surface it targets, is tracked in the maintainers' private tracker, not here.
 
 ---
 
@@ -970,8 +1001,8 @@ The platform targets WCAG 2.1 AA as the baseline accessibility conformance level
 
 Accessibility testing is a named test layer, not an afterthought. The layer combines:
 
-- *Automated checks* via `@axe-core/playwright` (per the toolchain in §15.2.1) in the lightweight Playwright suite, tagged `@a11y`, against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early. The scan covers the anonymous public pages and the authenticated member and admin surfaces (member dashboard, profile edit, club edit, admin panels), because a member-only form is exactly where form-label and ARIA violations are likeliest to hide.
-- *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that the post-deploy staging browser smoke check (`npm run test:e2e:smoke`) also covers, separate from the vitest staging-adapter smoke gate (§5.4).
+- *Automated checks* via `@axe-core/playwright` (per the toolchain in §15.2.1) in the lightweight Playwright suite, tagged `@a11y`, against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh`); catches automated-detectable regressions early. The scan covers the anonymous public pages and the authenticated member and admin surfaces (member dashboard, profile edit, club edit, admin panels), because a member-only form is exactly where form-label and ARIA violations are likeliest to hide.
+- *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page), selected locally by `npm run test:e2e:smoke`; separate from the anonymous deployed browser check (`npm run test:deployed`, §11.7) and from the vitest staging-adapter smoke gate (§5.4).
 - *Manual audit* by the maintainer or an external accessibility reviewer periodically and before major launches. The third-party periodic pentest engagement (§9.4) may include accessibility scope.
 - *Deeper audit beyond automated coverage* (full keyboard-only journey, screen-reader flow validation, cognitive accessibility) is operator-invoked via the `browser-qa` skill.
 
@@ -994,7 +1025,7 @@ The following test classes are explicitly deferred from this strategy. The defer
 - *Performance and load testing.* Deferred except for one narrowly scoped exception, taken by maintainer decision on 2026-09-13: `scripts/load-check.sh` drives a representative request mix against staging so the go-live origin-latency threshold is calibrated from a measured baseline rather than from a default, which the go-live gate index requires before the go/no-go walk. It is operator-invoked only, never part of CI or the default test run, and refuses production. Everything else in this class stays deferred: no throughput assertion gates a build, and performance assertions in the suite remain limited to per-request resource bounds (request size, response size, worker concurrency) tested as configuration verification. Widening beyond that calibration run is a further scope expansion and updates this section again.
 - *Chaos engineering.* No deliberate failure injection into running stacks. Partial-failure scenarios are tested by simulated failures at the adapter seam in unit and integration tests, not by injecting failures into staging or production.
 - *Visual regression testing.* No automated visual-diff snapshotting. Visual changes are reviewed by the maintainer through the deploy preview, not by a snapshot test. Visual snapshots are brittle and produce flake without commensurate value at the platform's risk profile and scale.
-- *Network-fault testing.* No automated test simulates network partitions, DNS failures, or upstream provider outages. Fault behavior is tested at the adapter contract level (per `.claude/rules/testing.md`) using fakes that return configured error responses.
+- *Network-fault testing.* No automated test simulates network partitions, DNS failures, or upstream provider outages. Fault behavior is tested at the adapter contract level (per `.claude/rules/adapter-conventions.md`) using fakes that return configured error responses.
 
 Deferral does not mean these test classes are unimportant. It means the strategy as designed produces sufficient coverage without them. A future scope expansion that adopts one or more of them updates this section.
 
@@ -1009,11 +1040,17 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Tests that assert what the code does rather than what the user story says.* A test that documents implementation behavior without anchoring to a success criterion blesses accidental behavior and provides false confidence.
 - *Playwright tests for every business-rule branch.* Business rules are covered by unit and integration tests; Playwright is for browser-only assertions and business-critical happy paths plus the minimal negative cases that only a browser can reveal.
 - *Brittle locators.* CSS selectors that depend on auto-generated class names, XPath that depends on DOM structure, and text selectors that depend on copy phrasing are brittle. Prefer role and accessible-name selectors per Playwright best practice.
-- *Asserting on exact prose or wording.* Tests that pin rendered copy with patterns like `expect(res.text).toContain('exact heading')` or `not.toMatch(/old phrase/)` turn every copy edit into a test failure and train reviewers to ignore the suite. Assert structural intent instead: counts of expected elements, presence of IDs and classes, anchor href shape, response status, data attributes. When a literal string is the contract (an SEO meta description, an explicit error message), production code exports the constant and the test imports it rather than duplicating the literal. Email subjects and bodies follow this rule: they come from the committed template sidecars of §5.9, which the sender renders and a test reads through the shared sidecar render helper.
+- *Change-detector tests.* A test is worthless when no plausible production defect can make it fail, only a deliberate edit to the very text or table it asserts. The common case is a positive pin on static copy, such as `expect(res.text).toContain('exact heading')` against a template that always renders that heading: a static page cannot render the wrong words unless a person writes them, so the test costs a render, fails only on an intended edit, and trains reviewers to ignore red. The check is the testing rule's name-the-defect mandate: state in one sentence what a visitor, member, admin or operator would experience if the code broke the way the assertion detects. If the only sentence available is "somebody changed this copy on purpose", the assertion is a change-detector and is not written. Four shapes pass the check although they assert words, and are kept:
+  - *Negative.* An assertion that a wrong statement is absent, where that statement shipped or plausibly could, so a regression would restore it.
+  - *Relation.* Two independently maintained things checked against each other: a card's label against its sidecar, a count chip against the rows it claims, an href's fragment against the id it targets.
+  - *Branch.* Output asserted on both sides of a condition: present under one, absent under the other.
+  - *Authority-fixed wording.* Words an external authority fixes, where a different word is itself the defect: IFPA or governance wording, and operator-facing lines whose meaning decides what an operator does next.
+
+  Where a literal string is the contract (an SEO meta description, an explicit error message), production code exports the constant and the test imports it rather than restating the literal, which makes the assertion a relation. Email subjects and bodies are the same case: they come from the committed template sidecars of §5.9, which the sender renders and a test reads through the shared sidecar render helper.
 - *Arbitrary sleeps.* `await page.waitForTimeout(N)` masks race conditions. Wait on observable conditions (selector visibility, network response, app state).
 - *Depending on real production data in committed or CI tests.* Committed and continuous-integration tests never read or assume real member records; they are synthetic-only and deterministic. Real-data testing is the separate, human-driven staging activity in §7.8, whose output is governed by the PII discipline there and never becomes a committed or CI test.
 - *Depending on real email receipt for routine tests.* The persona switch and the simulated-email card exist to avoid this. Routine tests do not poll a mailbox.
-- *Making staging tests destructive by default.* Staging tests are read-only or explicitly idempotent and audited per §5.4.
+- *Writing to a deployed environment from a test.* Every staging check is read-only (§5.4, §11.7), and no test writes to any deployed environment.
 - *Running penetration tests against production without explicit authorization.* Forbidden per §9.3 and §9.4.
 - *Attacking third-party services.* Forbidden per §9.3.
 - *Using brute force against real accounts.* Forbidden per §9.3.
@@ -1022,6 +1059,8 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Ignoring migration edge cases.* Migration testing covers all four confidence outcomes per §8.2; ignoring medium or low confidence cases is forbidden.
 - *Blurring groups and committees into clubs.* Groups and committees (when implemented) are distinct from clubs per `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`. Tests preserve the distinction.
 - *Introducing a test-only HTTP endpoint outside `src/testkit/` or `src/dev-bootstrap/`.* Forbidden per §7.6.
+- *A test double written from memory for unstructured tool output.* A stub wrote Terraform's lock error as plain lines; the real error is boxed and coloured even when redirected, so the parser matched nothing and told an operator their own stale lock belonged to another machine, and an unparsed timestamp read as midnight and cleared the staleness floor. Forty-two tests passed against the same fiction.
+- *A fixture smaller than what it stands for.* A cap on the logged mail-provider confirmation URL was set at 300 characters while real URLs run 450 to 500, so every genuine confirmation was refused; the unit fixture was 74 characters and the route fixture 52, and both stayed green.
 
 ### 15.2 Tooling appendix
 
@@ -1029,14 +1068,12 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 
 The platform's testing toolchain consists of:
 
-- *Vitest.* Unit and integration test runner. `npm test` excludes `tests/smoke/`, `tests/e2e/`, and `tests/dev/`. The canonical scripts are `npm run test:unit`, `npm run test:integration`, `npm run test:smoke`, `npm run test:e2e`, `npm run test:e2e:smoke` (the `@smoke` browser subset for post-deploy staging, §6.3), `npm run test:persona-crawl` (§5.10), `npm run test:strong-hash` (the strong-password-hash and login-timing checks), `npm run test:pentest:heavy` (§9.3), `npm run test:coverage`, `npm run test:pre-pr`, and `npm run test:all`.
+- *Vitest.* Unit and integration test runner. `npm test` excludes `tests/smoke/`, `tests/e2e/`, and `tests/dev/`. The test scripts live in `package.json`; `./run_all_tests.sh` (§11.7) is the local runner over them, and `npm run test:deployed` (§11.7) is the browser check against a deployed environment.
 - *Supertest.* HTTP assertion helper for integration tests.
 - *better-sqlite3.* Real SQLite per test file; no mocking. Per `tests/CLAUDE.md`.
 - *@vitest/coverage-v8.* Coverage measurement. Thresholds set in `vitest.config.ts`.
 - *Playwright.* Browser automation. Config at `tests/playwright.config.ts`. Single-worker chromium-only headless lightweight suite.
-- *Test fixtures.* `tests/fixtures/factories.ts` (synthetic row factories), `tests/fixtures/testDb.ts` (DB setup and teardown), `tests/fixtures/personas.ts` (member plus tier grant plus JWT plus Playwright cookie composition).
-- *fast-check.* Property-based testing for TypeScript. Selective use for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Not a universal test-tier requirement; introduced on a per-surface basis when an invariant-shaped assertion benefits from it.
-- *Stryker (TypeScript).* Mutation testing: breaks a guard one edit at a time and reports whether any test notices, which is the measure coverage cannot give. Wired as an opt-in gate (`--with-mutation`, which no other flag implies, `--full` included), scoped to the authorization guards rather than the whole codebase, with its sandbox and report written outside the repository. Config in `stryker.config.json`; test selection in `vitest.mutation.config.ts`.
+- *Test fixtures.* `tests/fixtures/factories.ts` (synthetic row factories), `tests/fixtures/testDb.ts` (DB setup and teardown), `tests/fixtures/personas.ts` (member plus tier grant plus JWT plus Playwright cookie composition). Shared assertion helpers, by purpose: `cachedGet.ts` (many assertions on one rendered page), `queryCount.ts` (bounded statement counts), `routeTable.ts` (the live route table the generative sweeps enumerate), `clock.ts` (runtime-relative time), `expectCsrfReject.ts` (the CSRF refusal), `assertSecureSessionCookie.ts` (session cookie attributes), and `assertAppendOnly.ts` (ledger immutability).
 - *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per §14.1, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
 - *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per §9.3. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per §9.6.
 - *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique reference per §4.3 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
@@ -1061,7 +1098,7 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, ac
 - A curated persona catalog (`src/testkit/canonicalPersonas.ts`), seeded into the dev or staging database.
 - `GET /dev/personas`, a grid of cards, one per loadable persona, showing its tier, roles, purpose, and coverage notes. A session-eligible persona card carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path.
 - `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
-- A **Switch to a real member** card on `/dev/personas`: enter a real migrated legacy record's member id and `GET /dev/build-claim?as=<legacy_member_id>` builds a claimed account for it (running the real register, verify, claim, and onboarding journey once), issues a session for it, and lands on its profile, so a tester acts as a real claimed member rather than only a seeded persona. A record already claimed reuses its account, so a repeat switch rebuilds nothing. It needs a loaded real dataset and is the manual peer of the real-claim crawl (§7.8, §10).
+- A **Switch to a real member** card on `/dev/personas`: enter a real migrated legacy record's member id and `GET /dev/build-claim?as=<legacy_member_id>` builds a claimed account for it (running the real register, verify, claim, and onboarding journey once), issues a session for it, and lands on its profile, so a tester acts as a real claimed member rather than only a seeded persona. A record already claimed reuses its account, so a repeat switch rebuilds nothing. It needs a loaded real dataset and is the manual peer of the real-claim crawl (§5.10, §8.5).
 - Each persona's profile About marks it as a test persona and states what it exists to test, so a switched-in profile is never read as a real member.
 - A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.
 - The simulated-email card, captured outbound email rendered inline on every email-gated login page when `SES_ADAPTER=stub`.
@@ -1130,7 +1167,7 @@ This section prescribes, per user story, the tests the platform requires. Each c
 
 A charter references these dimensions by number.
 
-1. Functional happy path: each success criterion; output shape or view-model; rendered content.
+1. Functional happy path: each success criterion; output shape or view-model; the rendered data and state the criterion promises, never static copy.
 2. Functional edge: zero, one, many, and N+1 rows; boundary values; optional-field permutations; draft or unpublished exclusion; route-ordering precedence.
 3. Input and adversarial: malformed, oversized, and wrong-type input; unicode mischief (RTL override, homoglyph, zero-width); SQL injection; XSS into Handlebars; every free-text field.
 4. Authentication: anonymous gate (redirect to login); registered-unverified, deceased, and soft-deleted accounts cannot act; session expiry and the sliding-refresh window; cookie attributes; logout invalidation; password-version bump invalidates other sessions.
@@ -1274,7 +1311,7 @@ A periodic audit of test completeness walks this checklist top to bottom. Each l
 1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17. Pass: every deployed story has a charter, and every applicable charter dimension is met by a test or carries a gap issue in the maintainers' private tracker. A deployed route that maps to no story is unintended scope (§4.1).
 2. **Adapter parity, three legs (§7.2).** Every adapter in `src/adapters/` has a boot-config test (`tests/unit/env-config.test.ts`) and an interface-parity test (`tests/integration/adapter-parity.test.ts`). Every external-service adapter whose live probe is side-effect-free (JWT-KMS, Secrets-SSM, SafeBrowsing, HttpReachability) also has a staging-smoke leg (`tests/smoke/`, including `staging-readiness.test.ts` for the KMS-sign round-trip). The internal docker-network adapters (ImageProcessing, VideoTranscoding) carry only the first two legs, as do the adapters whose live call would mutate a deployed system (MediaStorage-S3, Payment) and the SES adapter, whose live sending is confined to production and verified by `scripts/verify-prod-email.sh`. Pass: the matrix has no missing required leg.
 3. **Stub-versus-live parity.** Every adapter with both a stub and a live implementation asserts identical observable output; single-code-path adapters assert through an injected client. Pass: no stub diverges from its live counterpart untested.
-4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SSM-plus-KMS secret decryption, Safe Browsing, outbound URL reachability including its SSRF refusal, Turnstile captcha secret acceptance (production target only), persona-seed idempotency, and health and readiness. Files run one at a time rather than in parallel: every assertion is a real network round-trip against one environment, so concurrent files contend for the same egress and the same remote throttles, and a per-test timeout calibrated on a file running alone stops meaning anything. Run: `npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
+4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SSM-plus-KMS secret decryption, the archive signing key's SSM round trip, Safe Browsing, outbound URL reachability including its SSRF refusal, Turnstile captcha secret acceptance (production target only), static-asset cache-busting at the staging CloudFront edge, the seeded persona catalog read over ssh (current state only; the seed is never re-run), and health and readiness. Files run one at a time rather than in parallel: every assertion is a real network round-trip against one environment, so concurrent files contend for the same egress and the same remote throttles, and a per-test timeout calibrated on a file running alone stops meaning anything. Run: `npm run test:smoke` (`scripts/test-smoke.sh`), or the staging AWS smoke row of `./run_all_tests.sh --staging`. Pass: every external surface has a smoke probe.
 5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with the post-deploy smoke gate gating promotion. Pass: the residue gate exists and passes; no test writes to production.
 6. **Security regression floor (§9.1).** The `@security` baseline exists across layers: anti-enumeration response equivalence, login timing, SQL injection, XSS, transaction atomicity, no-stack-trace-in-5xx, public-contact-field leakage, security headers, CSRF Origin-pin, rate-limit boundaries, and query-string parsing (that the app parses with Node's parser rather than Express's `extended` default, so bracket notation stays a literal key and no query key reaches prototype names). Pass: each baseline class has a test.
 7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked deviation in the maintainers' private tracker. The audit records which tiers are wired.

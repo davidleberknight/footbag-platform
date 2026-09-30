@@ -269,6 +269,27 @@ describe('run_clean_room.sh: one result line per gate for the caller', () => {
     expect(readFileSync(results, 'utf8')).toBe('');
   });
 
+  // Defect caught: --skip-py still spends minutes building a Python environment,
+  // still runs a Python gate, or leaves one out silently so the room ends green.
+  it('under --skip-py, builds no Python environment and names every Python gate NOT RUN', () => {
+    const bin = stubBin('skip-py', NPM_ALL_PASS);
+    const pyCalls = path.join(scratch, 'skip-py', 'python-calls.txt');
+    const pinned = readFileSync(path.join(REPO_ROOT, '.python-version'), 'utf8').trim().replace(/\.\d+$/, '');
+    for (const py of ['python3', `python${pinned}`]) {
+      writeFileSync(path.join(bin, py), `#!/bin/bash\necho "$*" >> ${JSON.stringify(pyCalls)}\nexit 0\n`, { mode: 0o755 });
+    }
+    const results = path.join(scratch, 'skip-py', 'results.tsv');
+    // The stub worktree is empty, so the shell-script gates fail here; what is
+    // under test is only what happens to the Python gates.
+    const { out } = runCleanRoom(bin, ['--skip-py', '--results', results]);
+    const rows = readFileSync(results, 'utf8').trim().split('\n');
+    for (const g of ['integration-club-chain', 'generated-content', 'db-load-smoke', 'freestyle-db-integrity', 'legacy-pytest']) {
+      expect(rows, out).toContain(`${g}\tNOTRUN\tleft out by --skip-py`);
+    }
+    expect(rows).toContain('coverage\tPASS\t');
+    expect(readFileSync(pyCalls, { encoding: 'utf8', flag: 'a+' })).toBe('');
+  });
+
   it('refuses --results without a path', () => {
     const { status, out } = runCleanRoom(stubBin('results-no-path', NPM_ALL_PASS), ['--results']);
     expect(status, out).toBe(2);

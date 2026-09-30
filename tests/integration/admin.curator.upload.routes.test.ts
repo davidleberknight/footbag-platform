@@ -116,6 +116,7 @@ beforeAll(async () => {
       bytes: Buffer.from('fake-transcoded-mp4'),
       outputFormat: 'mp4',
     }),
+    transcodeFromStorage: async () => { throw new Error('this suite never transcodes from storage'); },
   });
 
   // Redirect /curated/ writes to the temp dir so this suite never touches

@@ -16,7 +16,7 @@
  * turned off.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import {
 const { dbPath } = setTestEnv('4072');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -85,46 +86,46 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/tricks — which alias classes reach a browse row', () => {
   it('shows the community nickname beside the trick name', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Silo Name');
   });
 
   it('never shows an abbreviation', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.text).not.toContain('NH Abbrev');
   });
 
   it('never shows a decomposition used as a name', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.text).not.toContain('Stepping Nickname Host');
   });
 
   it('never shows a same-side or opposite-side marker', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.text).not.toContain('Nickname Host Same Side');
   });
 
   it('never shows a misspelling', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.text).not.toContain('Nicknme Host');
   });
 
   it('shows a non-nickname class a curator displayed deliberately', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.text).toContain('Reverse Exception Host');
   });
 });
 
 describe('GET /freestyle/search — every class still resolves', () => {
   it('finds the trick from an abbreviation the browse row hides', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=NH Abbrev');
+    const res = await page('/freestyle/search?q=NH Abbrev');
     expect(res.status).toBe(200);
     expect(res.text).toContain('nickname_host');
   });
 
   it('finds the trick from a misspelling the browse row hides', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=Nicknme Host');
+    const res = await page('/freestyle/search?q=Nicknme Host');
     expect(res.status).toBe(200);
     expect(res.text).toContain('nickname_host');
   });

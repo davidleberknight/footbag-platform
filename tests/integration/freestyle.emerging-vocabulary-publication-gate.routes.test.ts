@@ -10,12 +10,13 @@
  * survive to the public surface.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { EV_REVIEW_HELD_NAMES } from '../../src/content/freestyleEvReviewHold';
 
 const { dbPath } = setTestEnv('3097');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -27,7 +28,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/observational — publication gate', () => {
   it('renders the Emerging Vocabulary page', async () => {
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Emerging Vocabulary');
   });
@@ -44,7 +45,7 @@ describe('GET /freestyle/observational — publication gate', () => {
   };
 
   it('shows no review-held name on the public observational surface', async () => {
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(leakedIn(res.text)).toEqual([]);
   });
 
@@ -53,7 +54,7 @@ describe('GET /freestyle/observational — publication gate', () => {
     // (publicObservationalUniverse), so the dictionary landing — which carries the
     // Emerging Vocabulary tile count derived from the same view — must not surface a
     // held name either.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(leakedIn(res.text)).toEqual([]);
   });

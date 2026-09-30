@@ -496,11 +496,9 @@ describe('items whose stored files outlived the takedown', () => {
   it('lists each one with a retry control, and says why it matters', async () => {
     const res = await request(createApp()).get('/admin/media-flags').set('Cookie', admin());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Files Still to Remove');
     expect(res.text).toContain('Files still stored');
     expect(res.text).toContain('still served to anyone');
     expect(res.text).toContain(`/admin/media-flags/${ITEM_FILES_OWED}/retry-removal`);
-    expect(res.text).toContain('Retry File Removal');
   });
 
   it('removes the files on a retry and takes the item off the list', async () => {

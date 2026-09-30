@@ -15,7 +15,7 @@
  *     valid browse-view URL
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import {
 const { dbPath } = setTestEnv('3099');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -132,7 +133,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('trick-detail — topology memberships', () => {
   it('mirage surfaces only hippy-downtime-dex (base ∈ HIPPY_BASES)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
     // Should NOT have leggy or whirl-swirl
@@ -141,7 +142,7 @@ describe('trick-detail — topology memberships', () => {
   });
 
   it('whirl surfaces leggy-dex + whirl-swirl-structures (no clipper modifier links)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-leggy-dex"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-whirl-swirl-structures"');
@@ -150,7 +151,7 @@ describe('trick-detail — topology memberships', () => {
   });
 
   it('ducking-whirl surfaces leggy + whirl-swirl + ducking-clipper-structures', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/ducking-whirl');
+    const res = await page('/freestyle/tricks/ducking-whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-leggy-dex"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-whirl-swirl-structures"');
@@ -158,14 +159,14 @@ describe('trick-detail — topology memberships', () => {
   });
 
   it('phoenix surfaces hippy-downtime-dex + pixie-uptime-dex (butterfly base + pixie link)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/phoenix');
+    const res = await page('/freestyle/tricks/phoenix');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-pixie-uptime-dex"');
   });
 
   it('montage surfaces leggy + whirl-swirl + symposium-clipper + ducking-clipper (4 groups)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/montage');
+    const res = await page('/freestyle/tricks/montage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-leggy-dex"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-whirl-swirl-structures"');
@@ -183,12 +184,12 @@ describe('trick-detail — topology memberships', () => {
 // renders a Component-memberships panel or ?view=component deep-links.
 describe('trick-detail — component-memberships panel retired', () => {
   it('mirage renders no Component-memberships panel', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.text).not.toContain('Component memberships');
   });
 
   it('ducking-whirl renders no Component-memberships panel; modifiers owned by the Modifiers section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/ducking-whirl');
+    const res = await page('/freestyle/tricks/ducking-whirl');
     expect(res.text).not.toContain('Component memberships');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-ducking"');
     // The modifier is surfaced via the Modifiers section instead.
@@ -196,7 +197,7 @@ describe('trick-detail — component-memberships panel retired', () => {
   });
 
   it('phoenix renders no Component-memberships panel; modifiers owned by the Modifiers section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/phoenix');
+    const res = await page('/freestyle/tricks/phoenix');
     expect(res.text).not.toContain('Component memberships');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-pixie"');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-ducking"');
@@ -204,7 +205,7 @@ describe('trick-detail — component-memberships panel retired', () => {
   });
 
   it('montage surfaces no ?view=component deep-links', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/montage');
+    const res = await page('/freestyle/tricks/montage');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-paradox"');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-symposium"');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-spinning"');
@@ -218,7 +219,7 @@ describe('trick-detail — component-memberships panel retired', () => {
 
 describe('trick-detail — empty memberships', () => {
   it('a trick with no topology + no component memberships renders no panels', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/lone-trick');
+    const res = await page('/freestyle/tricks/lone-trick');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('trick-semantic-memberships');
     expect(res.text).not.toContain('Topology memberships');
@@ -226,7 +227,7 @@ describe('trick-detail — empty memberships', () => {
   });
 
   it('a trick with topology memberships surfaces them as a Movement neighborhood row in the structural block', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.text).toContain('trick-structural-facts');
     expect(res.text).toContain('Movement neighborhood');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
@@ -240,7 +241,7 @@ describe('trick-detail — empty memberships', () => {
 
 describe('trick-detail — observational badge + visual contract', () => {
   it('the Movement neighborhood row carries the observational symbolic-layer badge', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/montage');
+    const res = await page('/freestyle/tricks/montage');
     // The neighborhood facts are observational; the structural block marks them
     // so the canonical/observational distinction is preserved.
     const blockStart = res.text.indexOf('trick-structural-facts"');
@@ -259,24 +260,24 @@ describe('trick-detail — observational badge + visual contract', () => {
 
 describe('trick-detail — discovery loop integrity', () => {
   it('topology membership links use the canonical ?view=topology URL pattern', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/montage');
+    const res = await page('/freestyle/tricks/montage');
     const links = res.text.match(/href="\/freestyle\/tricks\?view=topology#topology-[a-z-]+"/g) ?? [];
     expect(links.length).toBe(4);
   });
 
   it('surfaces no ?view=component deep-links (component panel retired)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/montage');
+    const res = await page('/freestyle/tricks/montage');
     const links = res.text.match(/href="\/freestyle\/tricks\?view=component#component-[a-z-]+"/g) ?? [];
     expect(links.length).toBe(0);
   });
 
   it('each topology-membership link target exists on the topology browse page (round-trip)', async () => {
-    const detailRes = await request(createApp()).get('/freestyle/tricks/ducking-whirl');
+    const detailRes = await page('/freestyle/tricks/ducking-whirl');
     const linkSlugs = (detailRes.text.match(/#topology-([a-z-]+)/g) ?? [])
       .map(s => s.replace('#topology-', ''));
     expect(linkSlugs.length).toBeGreaterThan(0);
 
-    const topologyRes = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const topologyRes = await page('/freestyle/tricks?view=topology');
     for (const slug of linkSlugs) {
       expect(topologyRes.text, `topology page must render id="topology-${slug}"`)
         .toContain(`id="topology-${slug}"`);

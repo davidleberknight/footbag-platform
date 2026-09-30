@@ -70,8 +70,13 @@ describe('template class vocabulary', () => {
   it('every literal class token in a template has a rule in style.css', () => {
     const defined = definedClassNames();
     const violations: string[] = [];
+    const templates = walkHbs(VIEWS_DIR);
+    // A scan that finds no templates, or no defined classes, passes having
+    // checked nothing.
+    expect(templates.length, `no .hbs files found under ${VIEWS_DIR}`).toBeGreaterThan(50);
+    expect(defined.size, 'no class rules parsed from style.css').toBeGreaterThan(50);
 
-    for (const file of walkHbs(VIEWS_DIR)) {
+    for (const file of templates) {
       const rel = relPath(file);
       const undefinedTokens = new Set(
         literalClassTokens(readFileSync(file, 'utf8')).filter((t) => !defined.has(t)),

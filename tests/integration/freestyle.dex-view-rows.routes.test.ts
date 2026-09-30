@@ -22,7 +22,7 @@
  * The shared dict-card / green ADD chip do NOT appear on rows.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -39,6 +39,7 @@ import {
 const { dbPath } = setTestEnv('3524');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -120,7 +121,7 @@ const NOTATION_PENDING_SLUGS = [
 
 describe('Dex view — two-line row contract', () => {
   it('renders the service-shaped dex-count intro with the derived pending-notation count', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="browse-view-intro"');
     expect(res.text).toMatch(/grouped by how many dexterity moves they involve/i);
@@ -132,7 +133,7 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('renders ONLY the four dex buckets: the unresolved bucket is gone', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<h2>0 dex events</h2>');
     expect(res.text).toContain('<h2>3+ dex events</h2>');
@@ -147,7 +148,7 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('a trick without operational notation never renders in the dex view; modifiers excluded', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     for (const slug of NOTATION_PENDING_SLUGS) {
       expect(res.text, `${slug} must not render in the dex view`)
         .not.toContain(`data-trick-slug="${slug}"`);
@@ -157,7 +158,7 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('notation-pending tricks stay browsable in the ADD view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     // mystery-trick has no notation of any kind. It stays listed and reachable
     // rather than being hidden until someone authors its notation; how far our
     // own authoring has got is not a fact about the trick, so the row states
@@ -168,7 +169,7 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('the dex view buckets by number only, with no Unresolved or Unknown bucket', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=dex-count')).text;
+    const html = (await page('/freestyle/tricks?view=dex-count')).text;
     // Buckets are numeric; the jump nav reaches them by their numeric anchor.
     expect(html).toMatch(/href="#dex-0"/);
     expect(html).toMatch(/href="#dex-3"/);
@@ -178,7 +179,7 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('every representative row carries both columns: identity and notation', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     for (const slug of REPRESENTATIVE) {
       const row = rowFor(res.text, slug);
       // Identity: the name opens the trick's page. Notation: the reference
@@ -191,13 +192,13 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('NO green ADD chip and NO shared dict-card-stack in the dex view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('every representative row carries its notation and its difficulty value', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     for (const slug of REPRESENTATIVE) {
       const row = rowFor(res.text, slug);
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation-value"/);
@@ -209,13 +210,13 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('spin + double-spin (kick-doctrine tricks) are findable in the dex view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).toContain('data-trick-slug="spin"');
     expect(res.text).toContain('data-trick-slug="double-spin"');
   });
 
   it('2-bag-juggling: notation and difficulty, no equivalence reading', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     const row = rowFor(res.text, '2-bag-juggling');
     // An equivalence reading is structural content and belongs on the trick
     // page; no row on any view carries one.
@@ -225,7 +226,7 @@ describe('Dex view — two-line row contract', () => {
   });
 
   it('drifter: notation renders; its held reading never leaks onto the row', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     const row = rowFor(res.text, 'drifter');
     // drifter's "miraging clipper" reading is held for curator review.
     expect(row).not.toMatch(/miraging/);
@@ -237,34 +238,33 @@ describe('Dex view — two-line row contract', () => {
     // value, the page carries the arithmetic behind it. Neither trick has a
     // curator-published formula, so this also pins the modifier-link fallback,
     // which is where most of the dictionary's derivations come from.
-    const app = await createApp();
-    const guay = await request(app).get('/freestyle/tricks/ducking-guay');
+    const guay = await page('/freestyle/tricks/ducking-guay');
     expect(guay.status).toBe(200);
     expect(guay.text).toMatch(/ducking\(\+1\) \+ guay\(2\)/);
 
-    const legover = await request(app).get('/freestyle/tricks/fairy-legover');
+    const legover = await page('/freestyle/tricks/fairy-legover');
     expect(legover.status).toBe(200);
     expect(legover.text).toMatch(/fairy\(\+1\) \+ legover\(2\)/);
   });
 
   it('hop-over (dex-less body atom) buckets as 0 dex even with no notation', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     const zero = sectionFor(res.text, 'dex-0');
     expect(zero, 'hop-over should sit in the 0-dex bucket').toContain('data-trick-slug="hop-over"');
   });
 
   it('spyro is modifier-kind, so it never appears in the trick browse (no dex bucket at all)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).not.toContain('data-trick-slug="spyro"');
   });
 
   it('a body trick that is NOT its own base is dex-uncountable: absent from the view, not bucket 0', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).not.toContain('data-trick-slug="body-compound-fixture"');
   });
 
   it('operational notation appears ONLY inside the JOB slot (no loose bracket tokens)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {

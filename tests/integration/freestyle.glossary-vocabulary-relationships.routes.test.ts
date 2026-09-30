@@ -8,7 +8,7 @@
  * Both legacy anchors preserved for inbound deep-links.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -20,6 +20,7 @@ import {
 const { dbPath } = setTestEnv('3175');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -31,24 +32,24 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
   it('renders the new h3 with id="vocabulary-relationships"', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="vocabulary-relationships"');
     expect(res.text).toMatch(/Vocabulary relationships.*four ways trick names can relate/i);
   });
 
   it('preserves legacy anchor #compression-vs-alternate-derivation for inbound deep-links', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="compression-vs-alternate-derivation"');
   });
 
   it('preserves legacy anchor #symbolic-compression-flow on the Structural compression h4', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="symbolic-compression-flow"');
   });
 
   it('section 1 (Pure aliases) cites the toe-prefix examples', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/Pure aliases/i);
     expect(res.text).toMatch(/toe blur[\s\S]*quantum mirage/i);
     expect(res.text).toMatch(/toe blizzard[\s\S]*quantum illusion/i);
@@ -58,7 +59,7 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
   });
 
   it('section 2 (Structural compression) cites smear / ripwalk / atom smasher / eggbeater / mobius examples', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/Structural compression/i);
     expect(res.text).toMatch(/smear[\s\S]*pixie mirage/i);
     expect(res.text).toMatch(/ripwalk[\s\S]*stepping butterfly/i);
@@ -69,12 +70,12 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
   });
 
   it('section 2 carries the vocabulary-evolution framing sentence (WHY compressed names emerged)', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/commonly\s+repeated\s+compositions\s+acquired\s+compressed\s+names/i);
   });
 
   it('section 3 (Equivalent derivations) preserves flurry + witchdoctor worked examples + ADD breakdowns', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/Equivalent derivations/i);
     // flurry: two paths
     expect(res.text).toMatch(/flurry/i);
@@ -93,14 +94,14 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
   });
 
   it('section 3 carries the historical-readings note (toe-prefix, atomic symposium mirage, barrage-family)', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/historical reading/i);
     expect(res.text).toMatch(/retired[\s\S]*?toe[\s\S]*?prefixed naming/i);
     expect(res.text).toMatch(/barrage-family/i);
   });
 
   it('section 4 (Ontology relationships) cites butterfly / legover / whirl families and eclipse-hop-over', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/Ontology relationships/i);
     expect(res.text).toMatch(/butterfly family/i);
     expect(res.text).toMatch(/legover family/i);
@@ -110,7 +111,7 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
   });
 
   it('sharpened distinctions table renders all 4 rows with the revised "Same structure?" cell', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-equivalence-distinctions"');
     expect(res.text).toMatch(/<th>Relationship<\/th>[\s\S]*<th>Same trick\?<\/th>[\s\S]*<th>Same structure\?<\/th>[\s\S]*<th>What it asserts<\/th>/);
     // The revised cell for equivalent derivation
@@ -123,13 +124,13 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
   });
 
   it('closing paragraph frames the four lenses (vocabulary / composition / derivation / family)', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/notation\s+system\s+isn[\s\S]*just\s+labeling\s+tricks/i);
     expect(res.text).toMatch(/vocabulary,\s+composition,\s+derivation,\s+or\s+family/i);
   });
 
   it('the old "Compression ladders vs alternate derivations" h3 wording is removed (replaced by Vocabulary relationships)', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/Compression ladders vs alternate derivations/i);
   });
 });

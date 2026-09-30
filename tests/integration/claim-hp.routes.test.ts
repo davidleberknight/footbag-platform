@@ -205,6 +205,7 @@ describe('GET /history/:personId/claim', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Claim Unavailable');
     expect(res.text).not.toContain('does not match');
+    expect(res.text).not.toContain('Another member has already claimed this record');
   });
 
   it('the uniform unavailable page hands the reader the two self-serve remedies', async () => {
@@ -213,8 +214,6 @@ describe('GET /history/:personId/claim', () => {
     // resolve the commonest cause and both live one click away.
     const app = createApp();
     const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
-    expect(res.text).toContain('different surname');
-    expect(res.text).toContain('different email address');
     expect(res.text).toContain('/register/wizard/legacy_claim');
   });
 

@@ -2886,7 +2886,7 @@ Success Criteria:
 - Every correction requires a mandatory “reason for correction” note entered by the admin.
 - Each correction is recorded in an audit log that includes before/after values, admin identity, timestamp, and the reason for correction.
 - Participants and organizers see the corrected results in all normal views; where appropriate.
-- Corrections do not bypass normal publishing or sanctioning rules: only events that are otherwise valid (for example sanctioned where required) can have their official results corrected.
+- Corrections do not bypass normal publishing or sanctioning rules: only events that are otherwise valid (for example sanctioned where required) can have their official results corrected. Historical events migrated from the legacy site are valid official records for this purpose, so their results are corrected here too once the migrated data is live.
 
 ### A_Correct_Event_Data
 
@@ -3067,10 +3067,10 @@ Success Criteria, Upload:
 - Uploaded videos go through the curator video pipeline (DD §6.8): ffmpeg full transcode with explicit malware-stripping options, producing a single standardized output rendition. Companion poster goes through the Sharp pipeline.
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
 - Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), source attribution (sourceId referencing an existing media_sources row, or a new source created inline by the admin), and clip ranges (startSeconds, endSeconds) for video reference media.
-- Admin assigns the upload to a category subdirectory under /curated/. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
+- Before go-live, on a developer machine, admin assigns the upload to a category subdirectory under /curated/; a deployed host stores the upload in the database and media bucket with no category directory. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
 - Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags are browsable via the tag gallery at /media/browse?tag=<tag>. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Per-category default tag stacks are also auto-applied (e.g. /curated/freestyle_tricks/ adds `#freestyle #trick`; /curated/freestyle_demos/ adds `#demo`). Filtering by `#curated` returns the all-FH gallery.
 - Tag autocomplete is category-aware: /curated/freestyle_tricks/ uploads autocomplete trick-slugs from the freestyle dictionary (`freestyle_tricks.slug`); admin sees a warning if a tricklike tag matches no known dictionary slug, but the upload still completes. Alias-shaped trick tags (matching `freestyle_trick_aliases.alias_slug`) are canonicalized to the parent trick's slug before insertion; the saved tag set shows the canonical form.
-- Admin can specify an optional external URL on each uploaded item (media_items.external_url; e.g. link to creator page, source article, related event). Validated at the service boundary per DD §3.17. Persists on the row and on the file-paired sidecar (DD §1.13). The upload form works without JavaScript for photo and URL-reference uploads; admin S3-mode video uploads require JavaScript (the noscript banner warns).
+- Admin can specify an optional external URL on each uploaded item (media_items.external_url; e.g. link to creator page, source article, related event). Validated at the service boundary per DD §3.17. Persists on the row, and before go-live on a developer machine also on the file-paired sidecar (DD §1.13). The upload form works without JavaScript for photo and URL-reference uploads; admin S3-mode video uploads require JavaScript (the noscript banner warns).
 - Curator uploads are detached. A gallery is a saved tag query rather than a container of items, so uploaded content joins a gallery by carrying that gallery's include tags. The `#curated` tag marks curator content and is applied automatically to uploads made by an administrator acting as the Footbag Hacky system member; it is reserved, and rejected if supplied as input. Curator gallery management is its own story.
 - Upload completion model varies by media type:
     - Photo and URL-reference uploads complete synchronously: admin sees success or failure in the request-response cycle.
@@ -3099,7 +3099,7 @@ Success Criteria, Delete:
 - Deletion is permanent. There is no soft-delete or restore. The admin sees a confirmation gate before the operation runs.
 - Deleting a media item that does not exist (or is not FH-owned) returns 404.
 
-Success Criteria, Category creation:
+Success Criteria, Category creation (before go-live, on a developer machine):
 
 - Admin enters a new category name during upload (e.g. `tutorials`, `news`); the seeder creates `/curated/{name}/` on next deploy.
 - Filesystem is the source of truth for category existence; no code-side whitelist of valid categories. Category names follow a slug convention (lowercase, alphanumeric plus underscore or hyphen).
@@ -4108,16 +4108,16 @@ Success Criteria:
 
 Access: This source-of-truth behavior is a go-live cutover step run under the system role by the operator; only admins author freestyle content, before and after the cutover.
 
-Story: The freestyle dictionary content switches its source of truth from the committed CSV inputs to the persistent production database at go-live, so that after cutover freestyle content is edited in the running application and the CSV rebuild retires from the production path, mirroring the curated-media source-of-truth model.
+Story: The freestyle dictionary content switches its source of truth from the committed CSV inputs to the persistent production database at go-live, so that after cutover freestyle content is edited in the running application and the CSV rebuild retires, deleted with the rest of the pipeline once the final production load is signed off, mirroring the curated-media source-of-truth model.
 
 Success Criteria:
 
 - Before go-live, the committed CSV inputs are the source of truth: an admin edits a committed CSV and reruns the freestyle rebuild, and git history is the audit trail.
 - The freestyle rebuild refuses to run against any non-development database, with no bypass flag, so it never rewrites a live database; the one sanctioned final CSV rebuild runs on the pre-cutover database immediately before the switch.
-- At the cutover the persistent production database becomes the single source of truth for freestyle content: the CSV rebuild retires from the production path, and the in-app curation surface (A_Edit_Freestyle_Trick) becomes the sole write path.
+- At the cutover the persistent production database becomes the single source of truth for freestyle content: the CSV rebuild retires, and the audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) become the write path for curated content; the symbolic-grammar layers derived from trick data are regenerated in the app from the database when a trick is published or edited; the code-managed registries (the modifier registry and the curated symbolic-grammar layers) change only through a reviewed database migration.
 - Freestyle table rows survive a data-preserving deploy that does not run the rebuild.
 - Recovery from a bad edit is a corrective in-app edit or a database restore; every in-app edit is recorded in the audit trail.
-- Cutover tests pin the switch: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and the in-app curation surface is the sole post-cutover write path.
+- Cutover tests pin the switch: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and after cutover freestyle content is written only through the audited in-app curation surfaces, plus reviewed database migrations for the code-managed registries.
 
 ### SYS_Handle_Stripe_Webhooks
 Access: This event-driven process runs under the system role when Stripe sends webhook events. Only admins can view logs and failure metrics.

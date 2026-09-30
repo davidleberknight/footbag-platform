@@ -13,13 +13,14 @@
  *      link.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3978');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -48,13 +49,13 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/add-analysis — disagreement-row link resolution', () => {
   it('links an active referenced trick to its own page', async () => {
-    const res = await request(await createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks/stepping_legover"');
   });
 
   it('links an inactive-but-aliased structural name straight to the active canonical page', async () => {
-    const res = await request(await createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // Displayed as the structural name, linked to the folk-named canonical.
     expect(res.text).toContain('href="/freestyle/tricks/blaze">whirling mirage</a>');
     // Never linked to the inactive structural row, which would 404.
@@ -62,7 +63,7 @@ describe('GET /freestyle/add-analysis — disagreement-row link resolution', () 
   });
 
   it('renders a nowhere-active referenced name as plain text', async () => {
-    const res = await request(await createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('barraging whirl');                              // the name is still shown
     expect(res.text).not.toContain('href="/freestyle/tricks/barraging_whirl"'); // but never as a link
   });

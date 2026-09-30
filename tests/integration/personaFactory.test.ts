@@ -53,7 +53,7 @@ afterAll(() => {
 
 describe('seedPersona — composition by dimension', () => {
   it('tier0 spec produces a member with no tier grant', () => {
-    const p = seedPersona(db, { slug: 'fac_t0', displayName: 'Fac T0', tier: 'tier0', coverageNotes: ['t0'] });
+    const p = seedPersona(db, { slug: 'fac_t0', displayName: 'Fac T0', tier: 'tier0', testingUsage: 'Factory composition check.', coverageNotes: ['t0'] });
     expect(p.memberId).toBe('member_persona_fac_t0');
     const member = db.prepare(`SELECT is_admin FROM members WHERE id = ?`).get(p.memberId) as { is_admin: number };
     expect(member.is_admin).toBe(0);
@@ -65,7 +65,7 @@ describe('seedPersona — composition by dimension', () => {
     const p = seedPersona(db, {
       slug: 'fac_t1', displayName: 'Fac T1', tier: 'tier1',
       payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier1' }],
-      coverageNotes: ['t1', 'payment'],
+      testingUsage: 'Factory composition check.', coverageNotes: ['t1', 'payment'],
     });
     const grant = db.prepare(
       `SELECT new_tier_status, reason_code FROM member_tier_grants WHERE member_id = ?`,
@@ -80,7 +80,7 @@ describe('seedPersona — composition by dimension', () => {
     const p = seedPersona(db, {
       slug: 'fac_gallery', displayName: 'Fac Gallery', tier: 'tier1',
       gallery: { name: 'My Best Shots' },
-      coverageNotes: ['member named gallery'],
+      testingUsage: 'Factory composition check.', coverageNotes: ['member named gallery'],
     });
     const gallery = db.prepare(
       `SELECT name, is_default FROM member_galleries WHERE owner_member_id = ?`,
@@ -104,7 +104,7 @@ describe('seedPersona — composition by dimension', () => {
   });
 
   it('admin spec sets is_admin=1', () => {
-    const p = seedPersona(db, { slug: 'fac_admin', displayName: 'Fac Admin', tier: 'tier2', isAdmin: true, coverageNotes: ['admin'] });
+    const p = seedPersona(db, { slug: 'fac_admin', displayName: 'Fac Admin', tier: 'tier2', isAdmin: true, testingUsage: 'Factory composition check.', coverageNotes: ['admin'] });
     const member = db.prepare(`SELECT is_admin FROM members WHERE id = ?`).get(p.memberId) as { is_admin: number };
     expect(member.is_admin).toBe(1);
   });
@@ -112,7 +112,7 @@ describe('seedPersona — composition by dimension', () => {
   it('linked legacy spec produces legacy_member + historical_person + claimed link', () => {
     const p = seedPersona(db, {
       slug: 'fac_legacy', displayName: 'Fac Legacy', tier: 'tier0',
-      legacy: { linked: true, realName: 'Legacy Linked' }, coverageNotes: ['legacy-claim'],
+      legacy: { linked: true, realName: 'Legacy Linked' }, testingUsage: 'Factory composition check.', coverageNotes: ['legacy-claim'],
     });
     expect(p.legacyMemberId).toBeDefined();
     expect(p.personId).toBeDefined();
@@ -127,7 +127,7 @@ describe('seedPersona — composition by dimension', () => {
   it('club-leader spec produces club affiliation + leadership signal', () => {
     const p = seedPersona(db, {
       slug: 'fac_leader', displayName: 'Fac Leader', tier: 'tier1',
-      club: { clubName: 'Fac Club', leader: true }, coverageNotes: ['club-leader'],
+      club: { clubName: 'Fac Club', leader: true }, testingUsage: 'Factory composition check.', coverageNotes: ['club-leader'],
     });
     expect(p.clubId).toBeDefined();
     const aff = db.prepare(`SELECT COUNT(*) c FROM member_club_affiliations WHERE member_id = ? AND club_id = ?`).get(p.memberId, p.clubId!) as { c: number };
@@ -142,7 +142,7 @@ describe('seedPersona — composition by dimension', () => {
     const p = seedPersona(db, {
       slug: 'fac_onb', displayName: 'Fac Onb', tier: 'tier0',
       onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending', club_affiliations: 'pending' },
-      coverageNotes: ['partial wizard'],
+      testingUsage: 'Factory composition check.', coverageNotes: ['partial wizard'],
     });
     const rows = db.prepare(
       `SELECT task_type, state, completed_at FROM member_onboarding_tasks WHERE member_id = ? ORDER BY task_type`,
@@ -157,7 +157,7 @@ describe('seedPersona — composition by dimension', () => {
   it('legacy spec with legacyEmail seeds the legacy_members email anchor', () => {
     const p = seedPersona(db, {
       slug: 'fac_legemail', displayName: 'Fac LegEmail', tier: 'tier0',
-      legacy: { linked: false, legacyEmail: 'anchor@legacy.test' }, coverageNotes: ['email fast path'],
+      legacy: { linked: false, legacyEmail: 'anchor@legacy.test' }, testingUsage: 'Factory composition check.', coverageNotes: ['email fast path'],
     });
     const legacy = db.prepare(`SELECT legacy_email FROM legacy_members WHERE legacy_member_id = ?`).get(p.legacyMemberId!) as { legacy_email: string | null };
     expect(legacy.legacy_email).toBe('anchor@legacy.test');
@@ -168,7 +168,7 @@ describe('seedPersona — composition by dimension', () => {
   it('linked legacy spec preserves legacyEmail through the claim upsert', () => {
     const p = seedPersona(db, {
       slug: 'fac_leglinked', displayName: 'Fac LegLinked', tier: 'tier0',
-      legacy: { linked: true, legacyEmail: 'kept@legacy.test' }, coverageNotes: ['linked + email'],
+      legacy: { linked: true, legacyEmail: 'kept@legacy.test' }, testingUsage: 'Factory composition check.', coverageNotes: ['linked + email'],
     });
     const legacy = db.prepare(`SELECT legacy_email, claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?`).get(p.legacyMemberId!) as { legacy_email: string | null; claimed_by_member_id: string | null };
     expect(legacy.legacy_email).toBe('kept@legacy.test');
@@ -179,7 +179,7 @@ describe('seedPersona — composition by dimension', () => {
     const before = Date.now();
     const p = seedPersona(db, {
       slug: 'fac_ap', displayName: 'Fac AP', tier: 'tier0',
-      activePlayer: { expiresInDays: -7 }, coverageNotes: ['expired AP'],
+      activePlayer: { expiresInDays: -7 }, testingUsage: 'Factory composition check.', coverageNotes: ['expired AP'],
     });
     const grant = db.prepare(
       `SELECT change_type, new_active_player_expires_at FROM active_player_grants WHERE member_id = ?`,
@@ -195,7 +195,7 @@ describe('seedPersona — composition by dimension', () => {
     const before = Date.now();
     const p = seedPersona(db, {
       slug: 'fac_ap_current', displayName: 'Fac AP Current', tier: 'tier0',
-      activePlayer: { expiresInDays: 365 }, coverageNotes: ['current AP'],
+      activePlayer: { expiresInDays: 365 }, testingUsage: 'Factory composition check.', coverageNotes: ['current AP'],
     });
     const grant = db.prepare(
       `SELECT new_active_player_expires_at FROM active_player_grants WHERE member_id = ?`,
@@ -212,7 +212,7 @@ describe('seedPersona — composition by dimension', () => {
         { clubName: 'Current Primary', current: true, primary: true },
         { clubName: 'Former Club', current: false },
       ],
-      coverageNotes: ['multi-club'],
+      testingUsage: 'Factory composition check.', coverageNotes: ['multi-club'],
     });
     const affs = db.prepare(
       `SELECT is_current, is_primary FROM member_club_affiliations WHERE member_id = ? ORDER BY is_current DESC`,
@@ -226,7 +226,7 @@ describe('seedPersona — composition by dimension', () => {
   it('mailingList spec creates the parent list and a subscription row at the given status', () => {
     const p = seedPersona(db, {
       slug: 'fac_ml', displayName: 'Fac ML', tier: 'tier1',
-      mailingList: { listSlug: 'fac_list', status: 'unsubscribed' }, coverageNotes: ['mailing list'],
+      mailingList: { listSlug: 'fac_list', status: 'unsubscribed' }, testingUsage: 'Factory composition check.', coverageNotes: ['mailing list'],
     });
     const sub = db.prepare(
       `SELECT mailing_list_id, status FROM mailing_list_subscriptions WHERE member_id = ?`,
@@ -246,7 +246,7 @@ describe('seedPersona — composition by dimension', () => {
         { clubName: 'Resolved Club', resolutionStatus: 'confirmed_current', mapped: true },
         { clubName: 'Junk Club', classification: 'junk' },
       ],
-      coverageNotes: ['club candidate states'],
+      testingUsage: 'Factory composition check.', coverageNotes: ['club candidate states'],
     });
     const affs = db.prepare(
       `SELECT a.resolution_status AS status, a.resolved_club_id AS resolved,
@@ -274,7 +274,7 @@ describe('seedPersona — composition by dimension', () => {
       seedPersona(db, {
         slug: 'fac_clubcards_nolegacy', displayName: 'No Legacy', tier: 'tier0',
         legacyClubCandidates: [{ clubName: 'Orphan' }],
-        coverageNotes: ['guard'],
+        testingUsage: 'Factory composition check.', coverageNotes: ['guard'],
       }),
     ).toThrow(/legacy identity/);
   });
@@ -390,7 +390,7 @@ describe('the question builder on a database holding no administrator', () => {
 
 describe('seedPersona — detection markers', () => {
   it('writes a grep-able tier-grant reason_code and a seed audit action_type', () => {
-    const p = seedPersona(db, { slug: 'fac_marker', displayName: 'Fac Marker', tier: 'tier1', coverageNotes: ['markers'] });
+    const p = seedPersona(db, { slug: 'fac_marker', displayName: 'Fac Marker', tier: 'tier1', testingUsage: 'Factory composition check.', coverageNotes: ['markers'] });
     const grant = db.prepare(
       `SELECT COUNT(*) c FROM member_tier_grants WHERE member_id = ? AND reason_code = 'dev_persona_seed.tier_grant'`,
     ).get(p.memberId) as { c: number };

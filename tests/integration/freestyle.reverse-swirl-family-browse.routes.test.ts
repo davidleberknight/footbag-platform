@@ -16,7 +16,7 @@
  * prove the two do not bleed into each other.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
@@ -24,6 +24,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3121');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 /** The reverse-swirl lineage as the corrected data carries it. */
 const REV_SWIRL_FAMILY = [
@@ -68,7 +69,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function familyView(): Promise<string> {
-  const res = await request(createApp()).get('/freestyle/tricks?view=family');
+  const res = await page('/freestyle/tricks?view=family');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -107,14 +108,14 @@ describe('the By Family browse', () => {
 
 describe('the raw family filter', () => {
   it('heads the reverse-swirl filter with the family name', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?family=rev_swirl');
+    const res = await page('/freestyle/tricks?family=rev_swirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('The Reverse Swirl family');
     expect(res.text).not.toContain('The Rev swirl family');
   });
 
   it('lists exactly the six members', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?family=rev_swirl');
+    const res = await page('/freestyle/tricks?family=rev_swirl');
     for (const t of REV_SWIRL_FAMILY) {
       expect(res.text).toContain(t.name);
     }
@@ -126,7 +127,7 @@ describe('the raw family filter', () => {
 
 describe('what the browse entry does not change', () => {
   it('leaves every trick in the family the data gives it', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?family=swirl');
+    const res = await page('/freestyle/tricks?family=swirl');
     expect(res.status).toBe(200);
     for (const t of SWIRL_FAMILY) {
       expect(res.text).toContain(t.name);
@@ -137,7 +138,7 @@ describe('what the browse entry does not change', () => {
   });
 
   it('leaves the ladder on a member detail page as it was', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/barfly_reverse_swirl');
+    const res = await page('/freestyle/tricks/barfly_reverse_swirl');
     expect(res.status).toBe(200);
     // Driven by trick_family, not by the registry: the same six, before and after.
     for (const t of REV_SWIRL_FAMILY.filter(m => m.slug !== 'barfly_reverse_swirl')) {
@@ -146,7 +147,7 @@ describe('what the browse entry does not change', () => {
   });
 
   it('heads that page Related rather than Family, because it stays a Minor Lineage', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/barfly_reverse_swirl');
+    const res = await page('/freestyle/tricks/barfly_reverse_swirl');
     expect(res.text).toContain('Related');
   });
 });

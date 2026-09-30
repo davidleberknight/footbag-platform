@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import rawRequest from 'supertest';
+import type { Test } from 'supertest';
 import originRequest from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { loadRouteTable, fillParams, type RouteEntry } from '../fixtures/routeTable';
@@ -35,10 +36,12 @@ function isExempt(path: string): boolean {
   return exemptExact.has(path) || exemptPrefixes.some((p) => path.startsWith(p));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function send(app: any, method: string, path: string): any {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-  return rawRequest(app)[method.toLowerCase()](path);
+// The route table only yields the mutation verbs, so the lowercased method is
+// always one of the agent's verb calls.
+type MutationVerb = 'post' | 'put' | 'patch' | 'delete';
+
+function send(app: ReturnType<typeof createApp>, method: string, path: string): Test {
+  return rawRequest(app)[method.toLowerCase() as MutationVerb](path);
 }
 
 beforeAll(async () => {

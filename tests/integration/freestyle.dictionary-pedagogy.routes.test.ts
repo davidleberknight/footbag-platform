@@ -18,7 +18,7 @@
  *   - No curator-internal language reaches the rendered HTML
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -31,6 +31,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3165');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Seed each rendering terminal family with its anchor plus two compounds so it
 // clears the family-view three-member minimum. rev-whirl stays a two-member
@@ -81,20 +82,20 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Dictionary browse — family-view intro paragraph', () => {
   it('renders the familyViewIntro at the top of the family browse view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="browse-view-intro"/);
   });
 
   it('familyViewIntro names the grouping logic + contrasts with ADD view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toMatch(/conserved terminal mechanic/i);
     expect(res.text).toMatch(/ADD view/i);
     expect(res.text).toMatch(/Movement System view/i);
   });
 
   it('familyViewIntro does NOT appear on other views', async () => {
-    const addRes = await request(createApp()).get('/freestyle/tricks?view=add');
+    const addRes = await page('/freestyle/tricks?view=add');
     // The intro paragraph itself is absent; the phrase "conserved terminal
     // mechanic" is not a safe proxy any more because the Reading the
     // Dictionary disclosure names it in its browse-views table on every view.
@@ -105,7 +106,7 @@ describe('Dictionary browse — family-view intro paragraph', () => {
 
 describe('Dictionary — beginner-first landing lede', () => {
   it('renders the orientation tiles on the ADD browse view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Orientation is a row of closed disclosure tiles a reader opens as
     // needed, rather than a block of prose ahead of the dictionary.
@@ -114,7 +115,7 @@ describe('Dictionary — beginner-first landing lede', () => {
   });
 
   it('explains the dictionary in plain, movement-first language', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/movement vocabulary/i);
     // The plain-language explanation lives in the orientation tiles, and each
     // browse axis carries its lens question so a label like "By dex count" is
@@ -127,19 +128,19 @@ describe('Dictionary — beginner-first landing lede', () => {
   });
 
   it('the hero subtitle is page-level — it also shows on the family view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toMatch(/movement vocabulary/i);
   });
 });
 
 describe('Dictionary browse — extended family invariants', () => {
   it('whirl invariant renders under the whirl family heading (regression)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('leggy in dex &gt; ss clipper');
   });
 
   it('rev-whirl is a route-out: no family section, invariant does not surface', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // rev-whirl has too few descendants to be a family, so it renders no
     // family section and its invariant does not appear.
     expect(res.text).not.toContain('id="family-rev-whirl"');
@@ -147,22 +148,22 @@ describe('Dictionary browse — extended family invariants', () => {
   });
 
   it('butterfly invariant renders', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('hippy out dex &gt; ss clipper');
   });
 
   it('mirage invariant renders', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('hippy in dex &gt; op toe');
   });
 
   it('osis invariant renders', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('spin &gt; ss clipper');
   });
 
   it('swirl renders as its own root family, distinct from whirl', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('id="family-swirl"');
     expect(res.text).toContain('leggy xbd out dex &gt; ss clipper');
   });
@@ -170,14 +171,14 @@ describe('Dictionary browse — extended family invariants', () => {
 
 describe('Dictionary browse — family-anchor sub-label', () => {
   it('renders the "Family-anchor:" sub-label under each family heading', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="trick-family-anchor-sublabel"/);
     expect(res.text).toMatch(/class="trick-family-anchor-label"[^>]*>\s*Family-anchor:\s*</);
   });
 
   it('sub-label links an official family parent to its family page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // Whirl has a dedicated family page, so the anchor name links there (the
     // primary explanation of the family) rather than bypassing it to the
     // representative trick.
@@ -189,7 +190,7 @@ describe('Dictionary browse — family-anchor sub-label', () => {
   });
 
   it('sub-label uses the family display name (not the slug) for the link text', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const startIdx = res.text.indexOf('id="family-butterfly"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
@@ -200,15 +201,15 @@ describe('Dictionary browse — family-anchor sub-label', () => {
   });
 
   it('sub-label does NOT appear on non-family views', async () => {
-    const addRes = await request(createApp()).get('/freestyle/tricks?view=add');
+    const addRes = await page('/freestyle/tricks?view=add');
     expect(addRes.text).not.toMatch(/class="trick-family-anchor-sublabel"/);
   });
 });
 
 describe('Dictionary browse — no curator-internal language leakage', () => {
   it('intro paragraphs do not expose pt## tags, Slice X labels, or Wave-N references', async () => {
-    const familyRes = await request(createApp()).get('/freestyle/tricks?view=family');
-    const addRes = await request(createApp()).get('/freestyle/tricks?view=add');
+    const familyRes = await page('/freestyle/tricks?view=family');
+    const addRes = await page('/freestyle/tricks?view=add');
     for (const res of [familyRes, addRes]) {
       const startIdx = res.text.indexOf('browse-view-intro');
       const endIdx = res.text.indexOf('</p>', startIdx);
@@ -222,7 +223,7 @@ describe('Dictionary browse — no curator-internal language leakage', () => {
   });
 
   it('family invariants do not expose curator-internal slugs or commentary', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // The structural-form lines are plain text; no internal references
     // should leak from the content module's comments.
     expect(res.text).not.toContain('FAMILY_INVARIANTS');

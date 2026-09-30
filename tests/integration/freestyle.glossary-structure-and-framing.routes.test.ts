@@ -21,7 +21,7 @@
  *   - Curator-internal language never leaks into the prose.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -33,6 +33,7 @@ import {
 const { dbPath } = setTestEnv('3160');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   // The three new subsections are static curator-authored prose; no
@@ -46,7 +47,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/concepts — Reading the layer labels section', () => {
   it('renders the subsection anchor and heading', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Anchor preserved; the heading is "Reading the layer labels", distinct
     // from the top intro card's title.
@@ -55,7 +56,7 @@ describe('GET /freestyle/concepts — Reading the layer labels section', () => {
   });
 
   it('enumerates the six publication-state vocabulary terms', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const startIdx = res.text.indexOf('glossary-publication-states');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</dl>', startIdx);
@@ -69,7 +70,7 @@ describe('GET /freestyle/concepts — Reading the layer labels section', () => {
   });
 
   it('does NOT leak curator-internal vocabulary', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const startIdx = res.text.indexOf('id="how-to-read"');
     const endIdx = res.text.indexOf('id="derivation-atlas"', startIdx);
     const region = res.text.slice(startIdx, endIdx);
@@ -81,13 +82,13 @@ describe('GET /freestyle/concepts — Reading the layer labels section', () => {
 
 describe('GET /freestyle/concepts — Family-anchor terminology (Families chapter)', () => {
   it('defines family-anchor trick in the Families intro', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/family-anchor trick/i);
     expect(res.text).toMatch(/canonical trick that[\s\S]{0,80}productive root/i);
   });
 
   it('exemplifies family-anchor tricks and counter-examples', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Root-family examples from the two-axis Family entry.
     expect(res.text).toMatch(/Mirage, Whirl, Swirl/);
     // Counter-examples (tricks that are NOT family-anchors)
@@ -95,20 +96,20 @@ describe('GET /freestyle/concepts — Family-anchor terminology (Families chapte
   });
 
   it('cross-links to the dictionary browse views', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
   });
 });
 
 describe('GET /freestyle/concepts — Generative insight (notation chapter)', () => {
   it('renders the subsection anchor and heading', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/id="generative-insight"/);
     expect(res.text).toMatch(/Generative insight/);
   });
 
   it('frames the compositional system as generative', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/<strong>enumerable<\/strong>/);
     expect(res.text).toMatch(/curated subset/i);
     expect(res.text).toMatch(/generative core/i);
@@ -119,7 +120,7 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
     // neighbours already said the notation extends this grammar and that the
     // dictionary is not its closure, so a claim to generate the entire trick
     // space contradicted the text around it.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/generates the entire freestyle trick space/i);
     expect(res.text).toMatch(/extended by further movement primitives, terminals and\s+modifiers/i);
   });
@@ -128,7 +129,7 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
     // A kick is a terminal that scores nothing, so it is not a terminating
     // surface; a trick can end in one, which a skeleton requiring a surface
     // cannot produce.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/kicks can also\s+stand as tricks in their own right/i);
     expect(res.text).not.toMatch(/canonical structural form of a footbag trick/i);
   });
@@ -136,13 +137,13 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
   it('leaves the historical attribution and its enumeration alone', async () => {
     // The correction belongs to the platform's restatement of the idea, never to
     // what the source historically proposed.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/curated subset/i);
     expect(res.text).toMatch(/not its full closure/i);
   });
 
   it('renders the canonical structural formula', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // The canonical formula tokens:
     //   (toe | clip) > [(same | op)(in | out)dexterity]* > (same | op)(toe | clip)
     expect(res.text).toMatch(/\(toe \| clip\)/);
@@ -152,7 +153,7 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
   });
 
   it('does NOT name individuals beyond the codified notation tradition', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const startIdx = res.text.indexOf('id="generative-insight"');
     const endIdx = startIdx + 3000;
     const region = res.text.slice(startIdx, endIdx);
@@ -166,7 +167,7 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
 
 describe('GET /freestyle/concepts — no curator-internal language across new subsections', () => {
   it('the full page does not expose pt## tags, Wave-N tracking, or sprint labels', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Public prose must not carry pt##/Red/James/adjudication/dated
     // curator-review language. The subsections this suite covers must
     // not introduce such language.

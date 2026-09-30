@@ -2,7 +2,7 @@
 
 ## Local Quickstart and Architecture Orientation
 
-This guide helps contributors understand how the platform is structured and get it running locally (view working pages in your browser). It is the single ordered developer procedure: clone the repository, run `bash scripts/setup-dev-workstation.sh`, start the site with `./run_dev.sh`, and run the complete test suite with `./run_all_tests.sh --full`.
+This guide helps contributors understand how the platform is structured and get it running locally (view working pages in your browser). It is the single ordered developer procedure: clone the repository, run `bash scripts/setup-dev-workstation.sh`, start the site with `./run_dev.sh`, and run the complete local test suite with `./run_all_tests.sh`.
 
 > **Who you are (pick your lane).** This guide serves four kinds of contributor:
 >
@@ -67,7 +67,7 @@ Success for this path means you can:
 - install every tool and dependency with `bash scripts/setup-dev-workstation.sh`
 - launch the dev server with `./run_dev.sh`, which builds the local DB on first run
 - verify `/events`, `/events/year/2020`, an event detail page, `/health/live`, and `/health/ready` in a browser (hello world)
-- run the test suite, then the complete local gate with `./run_all_tests.sh --full`
+- run the test suite, then the complete local gate with `./run_all_tests.sh`
 - set up your developer tooling (Git, Claude Code)
 - optionally run the Docker parity stack and local smoke script
 
@@ -101,7 +101,7 @@ One canonical, idempotent script installs every tool the repository needs, at th
 - Terraform at the push gate's version
 - the npm dependencies, with `npm ci` unless `node_modules` already holds every package at the version `package-lock.json` pins
 - Playwright's Chromium browser with its system libraries
-- the two Python environments: the seeder environment under `scripts/.venv`, and the legacy pipeline environment built by `bash legacy_data/run_pipeline.sh venv`
+- the two Python environments: the seeder environment under `scripts/.venv`, and the legacy pipeline environment built by `bash legacy_data/run_pipeline.sh venv`. Both serve only the pre-go-live migration pipelines, which are deleted after cutover.
 - the repository's git hooks
 
 Every download is compared with a pinned checksum before anything from it is unpacked. The script shows its plan and changes nothing until you type `APPLY`; `--check` reports what it would install and changes nothing, and `--yes` accepts the confirmation in advance. Re-run it any time: on a machine that already has everything, it reports that there is nothing to do.
@@ -123,7 +123,7 @@ For the local Docker parity check (§1.13), also have:
   out-of-memory message. Free memory is what counts, not installed memory, so close the browser
   before a deploy on a smaller machine.
 
-**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`. Node comes from `.nvmrc` (22.22.1), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version.
+**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`, and change a version or an override only with `scripts/pin-npm-package.sh`. Node comes from `.nvmrc` (22.22.1), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version.
 
 Notes:
 
@@ -196,7 +196,7 @@ which node
 
 `--check` exits 0 and reports nothing to do; `node -v` prints the version in `.nvmrc`; `which node` resolves to a path under `/home/...`, not `/mnt/c/...`. If the script reports something still missing, open a new terminal and run it again.
 
-The git hooks activate on their own: npm's prepare step runs `scripts/install-git-hooks.sh` on every install, and so does every run of `./run_dev.sh` and `./run_all_tests.sh`. Confirm with `git rev-parse --git-path hooks`, which ends in `.githooks`. The pre-commit hook scans your staged changes for secrets with `gitleaks`, natively at the pinned version or through Docker; on a machine with neither it warns and allows the commit.
+The git hooks activate on their own: npm's prepare step runs `scripts/install-git-hooks.sh` on every install, and so does every run of `./run_dev.sh` and `./run_all_tests.sh`. Confirm with `git rev-parse --git-path hooks`, which ends in `.githooks`. The pre-commit hook scans your staged changes for secrets with `gitleaks`, natively at the pinned version or through a running Docker; on a machine with neither (a different native version counts as neither) it warns and allows the commit, and CI runs the scan on every push.
 
 If installing the npm dependencies fails while compiling `better-sqlite3`:
 
@@ -381,7 +381,7 @@ The suite is split:
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`. A few files drive committed command-line scripts as subprocesses under the legacy pipeline Python environment.
 - `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when verifying staging AWS wiring, and only with staging access (§3).
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
-- `npm run test:pre-pr`; the fast pre-commit loop; build + lint + conventions check + secret scan + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. `./run_all_tests.sh --full` is the commit and PR gate that matches the push.
+- `npm run test:pre-pr`; the fast pre-commit loop, exactly `./run_all_tests.sh --quick`; build + test type-check + lint + conventions check + harness self-check + generated-content + secret scan + unit + integration. The bare `./run_all_tests.sh` is the push and PR gate.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
@@ -390,19 +390,29 @@ The suite includes a migration-testing cluster under `tests/integration/` that e
 
 #### The full local suite (`run_all_tests.sh`)
 
-`npm test` is the inner loop. `./run_all_tests.sh` is the commit and PR gate; run the complete suite before a commit or PR:
+`npm test` is the inner loop. `./run_all_tests.sh --quick` is the commit loop, and the bare `./run_all_tests.sh` is the push and PR gate:
 
 ```bash
-./run_all_tests.sh --full     # the complete suite
+./run_all_tests.sh --quick    # before a commit (what npm run test:pre-pr runs)
+./run_all_tests.sh            # before a push or PR: the complete local suite (--full is a synonym)
+./run_all_tests.sh --plan     # print the rows a run would schedule, and run nothing
+./run_all_tests.sh --skip-py  # the full run minus the pre-go-live Python gates; ends INCOMPLETE, no pass receipt
+                              # (the default flips to skipping them once that Python is declared done)
 ```
 
-The setup script (§1.5) already installed the Playwright browser the e2e gates drive. The runner reports every missing or wrong-version tool up front, each with its fix, before any gate starts.
+The setup script (§1.5) already installed the Playwright browser the e2e gates drive, and every tool the gates use. The runner prints a report of missing or wrong-version tools before any gate starts, and refuses to start only when `sqlite3` or `curl` is missing, because every gate needs them. A push-gate check whose own tool is absent (the gitleaks secret scanner with no running Docker to supply it, or Terraform) skips itself; CI runs it on every push, so the run can still pass, and it ends with a warning that this machine lacks a tool the project uses, naming each skipped check. Re-run `bash scripts/setup-dev-workstation.sh` to install what it names.
 
-Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs the gates that are safe on a workstation and quick enough for a routine pass: build, lint, dependency audit, conventions, harness self-check, generated-content, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` is the run that matches the push gate, and it runs each test once: it adds the blocking security probes, the heavyweight pentest, and the clean-room gate, which rebuilds the tree in a throwaway worktree with an empty home directory and runs, as the push gate sees it, the build, lint, conventions, harness self-check, generated-content check, the unit and integration tiers once as the coverage run, the hook fixtures, the loader smoke, the database-integrity guards and the legacy-data pipeline suite. Those do not run again in the checkout, and the summary gives each its own row; the accessibility specs run inside the e2e gate. The only push-gate jobs it cannot carry are the two GitHub-hosted ones, CodeQL static analysis and the pull-request dependency review. The summary warns about each opt-in gate the run did not include: mutation testing runs only with `--with-mutation`, the staging smoke only with `--with-smoke`, the persona crawl only with `--with-persona-crawl`, the real-data invariants only with `--with-realdata-invariants`, and the legacy-mirror suite only with `--with-legacy-mirror`, so `--full` needs nothing but the checkout. `--skip-secret-scan` leaves the secret scan out, and the run then ends INCOMPLETE. A run that skipped a gate standing for a push-gate job ends as INCOMPLETE rather than green, naming what did not run. A run whose tree changed while it was in flight ends VOID: the gates did not all read the same source, so their verdict is about no single commit, and editing during a run is easy to do by accident when the run takes the better part of an hour. The individual gate results still stand; only the verdict over them is withdrawn. Hold the tree still, or re-run.
+Developers and testers run the bare `./run_all_tests.sh` before a push, and it is meant to pass for them on a plain workstation: it contacts no deployed environment and needs no AWS identity or role. It runs every CI job that is safe on a workstation, each test once, most of them inside the clean room, which rebuilds the tree in a throwaway worktree with an empty home directory and runs them as the push gate sees it. The accessibility specs run inside the e2e gate. The only push-gate jobs it cannot carry are the two GitHub-hosted ones, CodeQL static analysis and the pull-request dependency review. A GREEN run writes the local pass receipt a production release needs. A run ends INCOMPLETE when a check standing for a push-gate job produced no result (for example, `--skip-secret-scan` left the scan out), and VOID when the tree changed while it was in flight: the gates did not all read the same source, so their verdict is about no single commit, and the report names each file whose content changed. The individual gate results still stand; only the verdict over them is withdrawn. Hold the tree still, or re-run. What each tier proves, both pass receipts, and production readiness are in `docs/TESTING.md` §11.7, and `./run_all_tests.sh --help` lists every flag.
 
-> **Real-data testing, for developers and testers.** With the operator dataset loaded, two opt-in gates exercise the real migrated data; `--full` never runs them, and each errors out on a clone without the data it needs. The **real-claim crawl** (`--with-persona-crawl`) builds a claimed account for a real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` and walks its surfaces (profile, honors, results, media, any co-led club), proving migrated data renders and behaves once claimed; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. The **read-only invariant gate** (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. To run either: do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl` and/or `./run_all_tests.sh --with-realdata-invariants`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`. `PERSONA_CRAWL_BASE_URL` aims the crawl at another running stack and `FOOTBAG_DB_PATH` aims the invariant gate at another database. The full flag set with defaults lives in `./run_all_tests.sh -h`.
+`--staging` adds four read-only checks against staging to either mode. They need the dev-tester role, which comes with staging access (§3), write nothing to staging, and never touch production:
+
+```bash
+scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging
+```
+
+> **Real-data testing, for developers and testers.** Two rows of the bare run exercise the real migrated data when this machine holds the full authoritative member load (`./run_dev.sh --all-data`, which needs the operator dataset below); without it each reports "not required" and neither holds the run back. The **real-claim crawl** builds a claimed account for one real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` on a local dev stack the row boots over `FOOTBAG_DB_PATH` or `database/footbag.db`, and checks that the owner reaches its edit page and the profile renders cleanly; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. `PERSONA_CRAWL_BASE_URL` may name another loopback address; anything else is refused, because the crawl claims a real record. The **read-only invariant gate** runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails; `FOOTBAG_DB_PATH` aims it at another database. `--with-persona-crawl` and `--with-realdata-invariants` add either row to `--quick`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`.
 >
-> **Final note — the full data load needs operator data kept out of GitHub.** The full load (`./run_dev.sh --from-csv`) requires the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is kept out of GitHub as a maintainer handoff no committed source can regenerate; it holds member names, membership status, expiration and tier, and no contact data. Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the committed canonical event data plus the committed seed CSVs).
+> **Final note — the full data load needs operator data kept out of GitHub.** The full loads (`./run_dev.sh --from-csv`, and `./run_dev.sh --all-data` for the authoritative member load the real-data rows need) require the operator dataset, which a fresh clone does not have. Part of it is the IFPA member roster, `legacy_data/membership/inputs/membership_input_normalized.csv`, which is kept out of GitHub as a maintainer handoff no committed source can regenerate; it holds member names, membership status, expiration and tier, and no contact data. Request the dataset from the project maintainer if you need the full load. The hello-world journey above and the default `./run_all_tests.sh` need none of it; they run entirely on committed data (the committed canonical event data plus the committed seed CSVs).
 
 #### Writing new tests
 
@@ -422,7 +432,7 @@ Manual curl POSTs against the local dev server must also set `Origin: http://loc
 
 #### Adapter parity test contract
 
-New adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, future) land with three permanent tests per `tests/CLAUDE.md`:
+New adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, future) land with three permanent tests per `.claude/rules/adapter-conventions.md`:
 
 1. Boot-time config test in `tests/unit/env-config.test.ts`; `src/config/env.ts` fails fast at module load when required prod-mode env vars are absent.
 2. Interface parity test in `tests/integration/adapter-parity.test.ts`; both implementations satisfy the TypeScript interface and produce identical-structure observable outputs (injected fake AWS client, not a mocked SDK).
@@ -431,24 +441,6 @@ New adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, future) 
 #### Dev test libraries
 
 `npm ci` brings in the dev-only libraries below. No further setup is required for the contributor unless noted.
-
-**fast-check.** Property-based testing. Import in any unit or integration test:
-
-```typescript
-import fc from 'fast-check';
-
-fc.assert(fc.property(fc.string(), (s) => roundTrip(s) === s));
-```
-
-Use for invariant assertions, fuzzing, and enumeration-safety checks. Targets `docs/TESTING.md` §12.2 Rigor 4.
-
-**@stryker-mutator/core, @stryker-mutator/vitest-runner.** Mutation testing. Configured by `stryker.config.json` at repo root, with test selection in `vitest.mutation.config.ts`. Run:
-
-```bash
-npm run test:mutation
-```
-
-Scope: the safety-critical short list per `docs/TESTING.md` §12.1 (auth, privacy filters, migration matchers, role gates). Targets Rigor 5.
 
 **@axe-core/playwright.** Accessibility checks for Playwright e2e tests. Import inside a test:
 
@@ -467,11 +459,11 @@ Per `docs/TESTING.md` §14.1.
 npx audit-ci --moderate
 ```
 
-Exits non-zero on moderate-or-higher advisories. Per `docs/TESTING.md` §9.
+Exits non-zero on moderate-or-higher advisories when run by hand; CI and `./run_all_tests.sh` report its findings as warnings and never fail on them. Per `docs/TESTING.md` §9.
 
 #### Pentest tooling
 
-**OWASP ZAP.** Heavyweight pentest scanner, run as a Docker image rather than an npm package. The pentest scripts under `scripts/pentest/` pin the image by digest (`ghcr.io/zaproxy/zaproxy@sha256:...`) and Docker pulls it automatically on first use, so there is nothing to install; the ZAP leg of `test:pentest:heavy` needs a running Docker and skips without one.
+**OWASP ZAP.** Heavyweight pentest scanner, run as a Docker image rather than an npm package. The pentest scripts under `scripts/pentest/` pin the image by digest (`ghcr.io/zaproxy/zaproxy@sha256:...`) and Docker pulls it automatically on first use, so there is nothing to install; the ZAP leg of `test:pentest:heavy` needs a running Docker and skips without one. A scan that does not finish within its time limit is stopped and reported NOT RUN, so a hung container cannot stall the run.
 
 Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against production.
 
@@ -635,7 +627,7 @@ Bring the stack down when done by pressing Ctrl+C in the terminal running `npm r
 
 #### 1.14.1 Dev admin allowlist (maintainers)
 
-Admin in dev confers the curator role, which authors real `/curated/` content (the committed source of truth), so it is restricted to the project maintainers and is not a default setup step. Normal local development needs no admin, and a new developer does not self-grant it. If you need admin for a specific task, coordinate with a maintainer rather than adding yourself.
+Admin in dev confers the curator role, which authors real `/curated/` content (the committed source of truth before go-live), so it is restricted to the project maintainers and is not a default setup step. Normal local development needs no admin, and a new developer does not self-grant it. If you need admin for a specific task, coordinate with a maintainer rather than adding yourself.
 
 For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in an operator-local allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The allowlist carries maintainer email addresses, so it lives in the maintainers' private operations checkout rather than this one, reached through the canonical repo-root symlink; a developer without that checkout gets an empty allowlist, which is a supported configuration.
 
@@ -686,7 +678,7 @@ Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at th
 With hello world running and the tests green, here is where to go next:
 
 - **Architecture orientation:** Path B (§2) for the mental model, scope boundaries, and repo map. Read it before doing code work.
-- **More tests:** `./run_all_tests.sh --full` is the complete local gate: the full suite once, with the unit and integration tiers run as the coverage run inside the clean room, plus the security probes and the pentest. It needs nothing but the checkout; the suites that need a loaded dev database or live credentials run only by name, and every run lists them with their switch.
+- **More tests:** `./run_all_tests.sh` is the complete local gate: the full suite once, with the unit and integration tiers run as the coverage run inside the clean room, plus the security probes and the pentest's scriptable probes; the OWASP ZAP scan runs only with `--zap`, before a production deploy. It needs nothing but the checkout and contacts no deployed environment; the real-data rows report "not required" without the full member load, and the read-only staging checks run only with `--staging` and the dev-tester role.
 - **The full dataset:** load the optional operator dataset and footbag.org mirror (§1.10A) when you need the real event archive and member roster; both are gitignored maintainer handoffs.
 - **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
 - **AWS deployment and operations:** see §3. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.

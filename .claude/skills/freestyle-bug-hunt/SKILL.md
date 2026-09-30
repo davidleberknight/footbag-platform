@@ -72,7 +72,7 @@ rule stays here.
    `legacy_data/` is the freestyle maintainer's domain; audit its OUTPUTS (tables, content
    modules, seeded galleries) as deployed. The kickoff prompt can pull loader code in.
 7. **One question at a time** when blocked, per `.claude/rules/asking.md`.
-8. **Deployed-surface discipline** per `.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`: not-yet-built
+8. **Deployed-surface discipline** per `.claude/skills/deployed-surface/SKILL.md`: not-yet-built
    is never a finding. Planned freestyle work (for example a family landing page tracked
    as an open issue in the maintainers' private tracker) is roadmap, not a gap.
 9. **Tracked work is not re-flagged.** Re-derive the tracked freestyle items from the
@@ -203,7 +203,9 @@ Per-finding format:
 - **Description:** <1-3 sentences: which invariant, violated how>
 - **Impact:** <what a visitor or maintainer sees wrong, or what silently corrupts>
 - **Suggested fix:** <1-2 lines; for data findings name the correct write surface
-  (CSV / sidecar / generator / content module), never a direct DB edit>
+  for the phase (before cutover: CSV / sidecar / generator / content module; after
+  cutover: the admin editor, a reviewed database migration, or the content module),
+  never a direct DB edit>
 - **Existing check coverage:** <"pinned by <test/QC gate>" | "no deterministic check">
 ```
 

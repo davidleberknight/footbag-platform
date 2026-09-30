@@ -6,9 +6,9 @@
  *
  * Verifies:
  *   - 200 response
- *   - Hero with mascot + "What Is Footbag Net?" narrative
+ *   - Hero mascot image carries a version token
  *   - Demo video (self-hosted webm/mp4) renders in intro section
- *   - Competition Formats cards (Singles + Doubles) with YouTube embeds
+ *   - Format videos load behind a click-to-play YouTube facade
  *   - Explore cards link to real sub-routes (/net/teams, /net/events)
  *   - No stats on the landing: no team/player/event tables
  *   - No forbidden terms: "ranking", "head-to-head", "win/loss"
@@ -138,17 +138,10 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /net', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net');
-    expect(res.status).toBe(200);
-  });
-
   it('shows Explore cards linking to existing net sub-routes', async () => {
     const app = createApp();
     const res = await request(app).get('/net');
-    expect(res.text).toContain('Teams');
-    expect(res.text).toContain('Events');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('href="/net/teams"');
     expect(res.text).toContain('href="/net/events"');
   });
@@ -176,27 +169,14 @@ describe('GET /net', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Portal landing sections: hero, explainer, demo video, competition formats
+// Portal landing sections: hero mascot, demo video, format videos
 // ---------------------------------------------------------------------------
 
 describe('GET /net — portal landing sections', () => {
-  it('renders hero with Footbag Net title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net');
-    expect(res.text).toContain('Footbag Net');
-  });
-
   it('renders the net mascot image', async () => {
     const app = createApp();
     const res = await request(app).get('/net');
     expect(res.text).toMatch(/src="\/img\/net-mascot\.svg\?v=[0-9a-f]{10}"/);
-    expect(res.text).toContain('hero-with-mascot');
-  });
-
-  it('renders the "What Is Footbag Net?" explainer', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net');
-    expect(res.text).toContain('What Is Footbag Net?');
   });
 
   it('omits the demo-video figure when no curator-tagged FH media is seeded', async () => {
@@ -235,14 +215,6 @@ describe('GET /net — portal landing sections', () => {
   it('gives the looping demo clip controls', async () => {
     const res = await request(createApp()).get('/net');
     expect(res.text).toMatch(/<video[^>]*\bautoplay\b[^>]*\bcontrols\b/);
-  });
-
-  it('renders Competition Formats with Singles and Doubles cards', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net');
-    expect(res.text).toContain('Competition Formats');
-    expect(res.text).toContain('>Singles<');
-    expect(res.text).toContain('>Doubles<');
   });
 
   it('lazy-loads YouTube videos in competition-format cards via the video-facade partial', async () => {

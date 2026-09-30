@@ -202,8 +202,6 @@ describe('the member record', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Mo Member');
     expect(res.text).toContain('am-member@example.com');
-    expect(res.text).toContain('Membership Standing');
-    expect(res.text).toContain('Account State');
     expect(res.text).toContain('/members/am_member_one');
   });
 

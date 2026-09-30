@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # deploy-code.sh
 #
-# Deploys the current working tree to the staging Lightsail host.
+# Deploys the current working tree to the Lightsail host DEPLOY_TARGET names
+# (staging by default; production through deploy_to_aws.sh, behind the release
+# gate).
 # Code and images only; the live database is never touched.
 #
 # Prerequisites:
 #   - ~/.ssh/config alias "footbag-staging" configured with User footbag.
 #     Nothing below passes a login user, a key or a hostname on the command
 #     line, so that alias is the only place the connection is defined.
-#   - npm test passing locally before running this script
+#   - for staging, ./run_all_tests.sh --full passed on this tree;
+#     for production, the release gate (scripts/verify-production-release.sh),
+#     which this script runs again itself before it touches the host
 #   - The target host already provisioned and serving. This deploy promotes code
 #     and images onto a host that is already standing; it creates no instance,
 #     no bucket and no credential, so a first-time environment must be built
@@ -64,7 +68,7 @@ Reads sudo password from stdin (line 1).
 Override the SSH target:
   DEPLOY_TARGET=footbag-staging ...
 
-Skip post-deploy direct-IP smoke check:
+Skip post-deploy direct-IP smoke check (staging only; production refuses it):
   SKIP_SMOKE=yes ...
 EOF
 }
@@ -141,6 +145,17 @@ if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
   echo "       and redirecting a credential file in here does not create one:" >&2
   echo "       it supplies a password without supplying a person." >&2
   exit 1
+fi
+
+# The production release rules: a clean tree on origin/main, green CI, a --full
+# pass for this tree, staging already running it, a --staging pass against that
+# deploy, and no skipped verification or safety step.
+# Checked here as well as in deploy_to_aws.sh, so this leaf holds to them however
+# it was reached. Staging is deliberately not held to them.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  # shellcheck source=lib/production-release-gate.sh
+  source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
+  production_release_gate_require "$REPO_ROOT" || exit 1
 fi
 
 # shellcheck source=lib/image-transfer.sh
@@ -226,8 +241,8 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # ── Verify staging before a production deploy ────────────────────────────────
 # A production deploy promotes what staging is already running, so the full
 # smoke gate (route smoke + security probes) must pass against staging first;
-# a failure aborts before anything on the production host is touched.
-# SKIP_SMOKE=yes remains the operator's deliberate override.
+# a failure aborts before anything on the production host is touched. The
+# release gate above refuses SKIP_SMOKE=yes on production, so this always runs.
 if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
   tf_output_read "$REPO_ROOT/terraform/staging" cloudfront_domain || true
   staging_domain="$TF_OUTPUT_VALUE"
@@ -237,12 +252,10 @@ if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
     echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
     echo "       and the staging address could not be read." >&2
     tf_output_explain "terraform/staging" cloudfront_domain
-    echo "" >&2
-    echo "       SKIP_SMOKE=yes skips the gate deliberately." >&2
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
-  if ! BASE_URL="$STAGING_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
+  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
     exit 1
   fi
@@ -556,19 +569,20 @@ if [[ "$SKIP_SMOKE" == "yes" ]]; then
 elif [[ -z "$SMOKE_BASE_URL" ]]; then
   # A staging or production deploy must never complete with smoke silently
   # skipped: a deploy that "succeeds" unverified is false confidence.
-  # Explicit SKIP_SMOKE=yes remains the operator's deliberate override.
+  # SKIP_SMOKE=yes is a staging-only override; the release gate refuses it on
+  # production.
   if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
     echo "ERROR: no public base URL for $FOOTBAG_ENV, so the deploy cannot be" >&2
     echo "       smoke-checked and will not report itself as done." >&2
     tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_domain
     echo "" >&2
-    echo "       Or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "       Or export SMOKE_BASE_URL (on staging, SKIP_SMOKE=yes skips it deliberately)." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
 else
   echo "==> Running smoke check against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
+  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
@@ -588,3 +602,6 @@ echo ""
 echo "Deploy complete."
 # stderr, for the reason given at the target banner above.
 echo "Origin: http://$HOST_IP" >&2
+# The one check a curl smoke cannot make: pages loading in a real browser with
+# nothing refused by the content security policy and no script errors.
+echo "Next: the read-only browser check, npm run test:deployed -- ${FOOTBAG_ENV}"

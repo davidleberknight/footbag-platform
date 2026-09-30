@@ -126,6 +126,7 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
             slug: 'persona_password_leak',
             displayName: 'Persona Password Leak',
             tier: 'tier0',
+            testingUsage: 'Seed-output password leak check.',
             coverageNotes: ['password-leak regression'],
           },
           { passwordHash },

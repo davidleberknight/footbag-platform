@@ -108,6 +108,9 @@ function makeStubStorage(): StubStorage {
     async generatePresignedPutUrl(key, contentType, expirationSeconds) {
       return `/_stub-presigned-put/${key}?ct=${encodeURIComponent(contentType)}&exp=${expirationSeconds}`;
     },
+    async generatePresignedGetUrl(key, expirationSeconds) {
+      return `/_stub-presigned-get/${key}?exp=${expirationSeconds}`;
+    },
   };
   return stub;
 }
@@ -131,6 +134,14 @@ async function makeJpegBuffer(): Promise<Buffer> {
   return sharp({
     create: { width: 256, height: 256, channels: 3, background: { r: 80, g: 120, b: 160 } },
   }).jpeg().toBuffer();
+}
+
+// A real upload always carries the browser's filename, and the store keeps
+// each uploader's filenames distinct, so every upload here gets its own name.
+let sourceFilenameSeq = 0;
+function nextSourceFilename(ext: 'jpg' | 'mp4'): string {
+  sourceFilenameSeq += 1;
+  return `curator-upload-${sourceFilenameSeq}.${ext}`;
 }
 
 // Minimal MP4 magic: bytes 4..8 = 'ftyp', 8..12 = anything not 'qt  '. ffmpeg
@@ -173,7 +184,7 @@ describe('curatorMediaService.uploadPhoto', () => {
 
     const result = await svc.uploadPhoto({
       adminMemberId: ADMIN_ID,
-      photoBuffer: jpeg,
+      photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'),
       caption: 'A curated photo',
       tags: ['#event_2026_worlds_japan', '#illustration'],
     });
@@ -215,7 +226,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'x'.repeat(501), tags: [],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'x'.repeat(501), tags: [],
     })).rejects.toThrow(/Caption must be 500/);
   });
 
@@ -223,7 +234,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['no-hash'],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['no-hash'],
     })).rejects.toThrow(/must start with '#'/);
   });
 
@@ -231,7 +242,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#WorldsJapan'],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#WorldsJapan'],
     });
     const db = openDb();
     const row = db.prepare(
@@ -246,15 +257,15 @@ describe('curatorMediaService.uploadPhoto', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#CURATED'],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#CURATED'],
     })).rejects.toThrow(/auto-applied by the curator pipeline/);
   });
 
   it('matches case-insensitively: a later #mixedcasematch reuses the #MixedCaseMatch row', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#MixedCaseMatch'] });
-    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#mixedcasematch'] });
+    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#MixedCaseMatch'] });
+    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#mixedcasematch'] });
 
     const db = openDb();
     const tagRows = db.prepare(
@@ -270,7 +281,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     const result = await svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#DupTag', '#duptag'],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#DupTag', '#duptag'],
     });
 
     const db = openDb();
@@ -285,7 +296,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const storage = makeStubStorage();
     const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: Buffer.from('plaintext'), caption: null, tags: [],
+      adminMemberId: ADMIN_ID, photoBuffer: Buffer.from('plaintext'), sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [],
     })).rejects.toThrow(/Only JPEG and PNG/);
     expect(storage.puts).toHaveLength(0);
   });
@@ -296,7 +307,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     // Set valid JPEG magic so the size check fires first.
     oversized[0] = 0xff; oversized[1] = 0xd8; oversized[2] = 0xff;
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: oversized, caption: null, tags: [],
+      adminMemberId: ADMIN_ID, photoBuffer: oversized, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [],
     })).rejects.toThrow(/Photo is too large/);
   });
 
@@ -305,8 +316,8 @@ describe('curatorMediaService.uploadPhoto', () => {
     const jpeg = await makeJpegBuffer();
     const sharedTag = `#idem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    const r1 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [sharedTag] });
-    const r2 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [sharedTag] });
+    const r1 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [sharedTag] });
+    const r2 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [sharedTag] });
 
     const db = openDb();
     const tagCount = db.prepare(`SELECT COUNT(*) AS n FROM tags WHERE tag_normalized = ?`).get(sharedTag) as { n: number };
@@ -326,7 +337,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     const uniqueTag = `#atomicity_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: uniqueCaption, tags: [uniqueTag],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: uniqueCaption, tags: [uniqueTag],
     })).rejects.toThrow(/stub storage failure/);
 
     const db = openDb();
@@ -351,7 +362,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     });
     const jpeg = await makeJpegBuffer();
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [],
     })).rejects.toThrow(/system member/);
   });
 });
@@ -367,7 +378,7 @@ describe('curatorMediaService.uploadVideo', () => {
     const poster = await makeJpegBuffer();
 
     const result = await svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: mp4, posterBuffer: poster,
+      adminMemberId: ADMIN_ID, videoBuffer: mp4, posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'),
       caption: 'demo loop', tags: ['#demo_freestyle'],
     });
 
@@ -400,11 +411,14 @@ describe('curatorMediaService.uploadVideo', () => {
     let transcoderCalled = false;
     const svc = svcModule.createCuratorMediaService({
       storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
-      videoTranscoder: { transcode: async () => { transcoderCalled = true; return { bytes: Buffer.alloc(0), outputFormat: 'mp4' as const }; } },
+      videoTranscoder: {
+        transcode: async () => { transcoderCalled = true; return { bytes: Buffer.alloc(0), outputFormat: 'mp4' as const }; },
+        transcodeFromStorage: async () => { transcoderCalled = true; throw new Error('uploadVideo transcodes in-process'); },
+      },
     });
     const poster = await makeJpegBuffer();
     await expect(svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: Buffer.from('not-a-video'), posterBuffer: poster,
+      adminMemberId: ADMIN_ID, videoBuffer: Buffer.from('not-a-video'), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'),
       caption: null, tags: [],
     })).rejects.toThrow(/Only MP4, WebM, and MOV/);
     expect(transcoderCalled).toBe(false);
@@ -416,7 +430,7 @@ describe('curatorMediaService.uploadVideo', () => {
       videoTranscoder: fakeTranscoder(),
     });
     await expect(svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: Buffer.from('not-an-image'),
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: Buffer.from('not-an-image'), sourceFilename: nextSourceFilename('mp4'),
       caption: null, tags: [],
     })).rejects.toThrow(/Poster must be a JPEG or PNG/);
   });
@@ -436,7 +450,7 @@ describe('curatorMediaService.uploadVideo', () => {
     oversized.write('isom', 8, 'ascii');
     const poster = await makeJpegBuffer();
     await expect(svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: oversized, posterBuffer: poster, caption: null, tags: [],
+      adminMemberId: ADMIN_ID, videoBuffer: oversized, posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'), caption: null, tags: [],
     })).rejects.toThrow(/Video is too large/);
   });
 
@@ -457,6 +471,7 @@ describe('curatorMediaService.uploadVideo', () => {
         order.push(`finish:${label}`);
         return { bytes: Buffer.from(`bytes:${label}`), outputFormat: 'mp4' as const };
       },
+      transcodeFromStorage: async () => { throw new Error('uploadVideo transcodes in-process'); },
     });
 
     const svcFirst = svcModule.createCuratorMediaService({
@@ -470,13 +485,13 @@ describe('curatorMediaService.uploadVideo', () => {
 
     const poster = await makeJpegBuffer();
     const firstP = svcFirst.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, caption: null, tags: [],
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'), caption: null, tags: [],
     });
     await firstStartedP;
 
     // Kick off second; it must wait at the semaphore.
     const secondP = svcSecond.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, caption: null, tags: [],
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'), caption: null, tags: [],
     });
 
     // Give the second a moment to potentially start (it should not).
@@ -497,7 +512,7 @@ describe('curatorMediaService #curated rejection', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#curated'],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#curated'],
     })).rejects.toThrow(/#curated.*auto-applied/);
   });
 
@@ -507,7 +522,7 @@ describe('curatorMediaService #curated rejection', () => {
     });
     const poster = await makeJpegBuffer();
     await expect(svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'),
       caption: null, tags: ['#curated'],
     })).rejects.toThrow(/#curated.*auto-applied/);
   });
@@ -521,7 +536,7 @@ describe('curatorMediaService.editMedia', () => {
     const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     const initialCaption = `EDIT_CAPTION_INITIAL_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: initialCaption, tags: ['#alpha'] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: initialCaption, tags: ['#alpha'] });
     storage.puts.length = 0;
     storage.deletes.length = 0;
 
@@ -542,7 +557,7 @@ describe('curatorMediaService.editMedia', () => {
   it('stamps the row when the external URL is the only field edited', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#stamp_probe'] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#stamp_probe'] });
 
     const db = openDb();
     const read = () => db.prepare(
@@ -571,7 +586,7 @@ describe('curatorMediaService.editMedia', () => {
   it('rewrites tags atomically when tags-only edit is supplied', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#initial_a', '#initial_b'] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#initial_a', '#initial_b'] });
 
     await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, tags: ['#replaced_x', '#replaced_y'] });
 
@@ -589,7 +604,7 @@ describe('curatorMediaService.editMedia', () => {
   it('writes audit entry with media.curated_edited action_type', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'before', tags: [] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'before', tags: [] });
 
     await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, caption: 'after' });
 
@@ -609,7 +624,7 @@ describe('curatorMediaService.editMedia', () => {
   it('rejects #curated in caller-supplied tags', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [] });
     await expect(svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, tags: ['#curated', '#another'] }))
       .rejects.toThrow(/#curated.*auto-applied/);
   });
@@ -617,7 +632,7 @@ describe('curatorMediaService.editMedia', () => {
   it('rejects oversized caption', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [] });
     await expect(svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, caption: 'x'.repeat(501) }))
       .rejects.toThrow(/Caption must be 500/);
   });
@@ -709,8 +724,8 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
     const db2 = openDb();
     const dbTags = db2.prepare(
       `SELECT t.tag_normalized FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_normalized`,
-    ).all(mediaId);
-    expect(dbTags.map((r: { tag_normalized: string }) => r.tag_normalized).sort()).toEqual(
+    ).all(mediaId) as { tag_normalized: string }[];
+    expect(dbTags.map((r) => r.tag_normalized).sort()).toEqual(
       ['#curated', '#freestyle', '#new', '#trick', `#${slug}`].sort(),
     );
     db2.close();
@@ -750,7 +765,7 @@ describe('curatorMediaService.deleteMedia', () => {
     const storage = makeStubStorage();
     const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'will be deleted', tags: ['#del'] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'will be deleted', tags: ['#del'] });
     storage.deletes.length = 0;
 
     await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId });
@@ -774,7 +789,7 @@ describe('curatorMediaService.deleteMedia', () => {
     });
     const poster = await makeJpegBuffer();
     const r = await svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'),
       caption: null, tags: ['#vid_delete'],
     });
     storage.deletes.length = 0;
@@ -789,7 +804,7 @@ describe('curatorMediaService.deleteMedia', () => {
   it('writes audit entry with media.curated_deleted action_type', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [] });
     await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId });
 
     const db = openDb();
@@ -809,7 +824,7 @@ describe('curatorMediaService.deleteMedia', () => {
     const storage = makeStubStorage();
     const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: [] });
     storage.failOnDelete = true;
 
     await expect(svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId })).resolves.toEqual({ mediaId: r.mediaId });
@@ -931,7 +946,7 @@ describe('curatorMediaService.getMediaItem', () => {
     const jpeg = await makeJpegBuffer();
     const caption = `GET_ITEM_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const tag = `#getitem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption, tags: [tag] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption, tags: [tag] });
 
     const item = await svc.getMediaItem(r.mediaId);
     expect(item).not.toBeNull();
@@ -948,7 +963,7 @@ describe('curatorMediaService.getMediaItem', () => {
     });
     const poster = await makeJpegBuffer();
     const r = await svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'),
       caption: null, tags: [],
     });
     const item = await svc.getMediaItem(r.mediaId);
@@ -961,7 +976,7 @@ describe('curatorMediaService.getMediaItem', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     const r = await svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg,
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'),
       caption: `VPLAT_NULL_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       tags: [`#vplat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`],
     });
@@ -977,7 +992,7 @@ describe('curatorMediaService.getMediaItem', () => {
       storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
     });
     const r = await svc.uploadVideo({
-      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: await makeJpegBuffer(),
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: await makeJpegBuffer(), sourceFilename: nextSourceFilename('mp4'),
       caption: null, tags: [],
     });
     const item = await svc.getMediaItem(r.mediaId);
@@ -1055,14 +1070,19 @@ describe('curatorMediaService.listMedia', () => {
     const jpeg = await makeJpegBuffer();
     const uniqueTagA = `#listalpha_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const uniqueTagB = `#listbeta_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const r1 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'first', tags: [uniqueTagA] });
-    // Load-bearing, not padding: the list is ordered by upload time, stamps
-    // are millisecond-resolution, and two uploads in one tick would tie and
-    // come back in whichever order the sort happened to produce. setTimeout
-    // guarantees a minimum, so the two stamps always differ. Do not remove it
-    // as a slow test; remove it only by giving the two rows explicit stamps.
-    await new Promise((r) => setTimeout(r, 5));
-    const r2 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'second', tags: [uniqueTagA, uniqueTagB] });
+    const r1 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'first', tags: [uniqueTagA] });
+    // The list is ordered by upload time at millisecond resolution, so two
+    // uploads in one tick would tie. The first upload's stamp is moved an hour
+    // back, which sets the order this case asserts.
+    const stampDb = new BetterSqlite3(dbPath);
+    try {
+      stampDb.prepare(
+        `UPDATE media_items SET uploaded_at = strftime('%Y-%m-%dT%H:%M:%fZ', uploaded_at, '-1 hour') WHERE id = ?`,
+      ).run(r1.mediaId);
+    } finally {
+      stampDb.close();
+    }
+    const r2 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'second', tags: [uniqueTagA, uniqueTagB] });
 
     const result = svc.listMedia({ page: 1, pageSize: 100 });
     const idsInOrder = result.items.map((i) => i.mediaId);
@@ -1079,8 +1099,8 @@ describe('curatorMediaService.listMedia', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     const filterTag = `#filter_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'unrelated', tags: ['#unrelated'] });
-    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'matched', tags: [filterTag] });
+    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'unrelated', tags: ['#unrelated'] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: 'matched', tags: [filterTag] });
 
     const result = svc.listMedia({ page: 1, pageSize: 100, tagFilter: filterTag });
     const ids = result.items.map((i) => i.mediaId);

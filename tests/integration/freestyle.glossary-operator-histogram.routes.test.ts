@@ -12,7 +12,7 @@
  * present. Counts are seeded, so the expected values are exact.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -30,6 +30,7 @@ import {
 const { dbPath } = setTestEnv('3097');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Pull the numeric count rendered beside a histogram <dt> label, scoped to the
 // operator-histogram section of the page.
@@ -91,7 +92,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function concepts(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/concepts');
+  const res = await page('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -168,7 +169,7 @@ describe('Freestyle Concepts — Operators & Modifiers histogram (shared landing
 
   it('renders the same operator counts as the By the Numbers page (one shared model)', async () => {
     const conceptsSlice = sectionSlice(await concepts());
-    const numbers = await request(await createApp()).get('/freestyle/by-the-numbers');
+    const numbers = await page('/freestyle/by-the-numbers');
     expect(numbers.status).toBe(200);
     // The "Body movements" card and the Concepts operator group read the same
     // shared aggregation, so a movement operator's count matches on both.

@@ -50,7 +50,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       .type('form')
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
     expect(res.status).toBe(303);
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     const session = cookies?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(session).toBeDefined();
     expect(session!).toMatch(/SameSite=Lax/i);
@@ -65,7 +65,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       .type('form')
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
     expect(res.status).toBe(303);
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     const session = cookies?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(session).toBeDefined();
     expect(session!).toMatch(/Secure/i);
@@ -86,7 +86,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBeFalsy();
   });
 });
@@ -120,7 +120,7 @@ describe('CSRF — verb discipline', () => {
       .post('/login')
       .type('form')
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
-    const cookies = loginRes.headers['set-cookie'] as string[];
+    const cookies = loginRes.get('Set-Cookie') ?? [];
     const sessionCookie = cookies.find((c) => c.startsWith('__Host-footbag_session='))!
       .split(';')[0];
 
@@ -130,7 +130,7 @@ describe('CSRF — verb discipline', () => {
     // our own origin, would both be forced logouts the pin would never see.
     const res = await request(app).get('/logout').set('Cookie', sessionCookie);
     expect(res.status).toBe(404);
-    const respCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+    const respCookies = res.get('Set-Cookie') ?? [];
     expect(respCookies.some((c) => /footbag_session=\s*;/.test(c))).toBe(false);
 
     // The session still resolves afterwards: nothing about it changed.

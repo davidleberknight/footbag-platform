@@ -30,9 +30,13 @@ self="scripts/ci/assert_claude_harness.sh"
 SETTINGS=".claude/settings.json"
 
 # Harness prose files scanned for path references (concrete, single-file paths only).
+# Nested CLAUDE.md files load like the root one, and the Claude Code guide cites the
+# harness by path, so a moved skill file left cited in either rots just the same.
 harness_md() {
   { echo CLAUDE.md
     echo PROJECT_SUMMARY_CONCISE.md
+    [ -f docs/CLAUDE_CODE_GUIDE.md ] && echo docs/CLAUDE_CODE_GUIDE.md
+    git ls-files --cached --others --exclude-standard -- ':(glob)**/CLAUDE.md' 2>/dev/null
     find .claude -name '*.md'
   } | sort -u
 }
@@ -125,24 +129,25 @@ else
   echo "[harness] explicit-only skills carry disable-model-invocation"
 fi
 
-# --- Check 5: each SKILL.md stays under the line ceiling or has a supporting reference file ---
+# --- Check 5: each SKILL.md stays under the line ceiling ---
+# The body loads whole whenever the skill fires, so the ceiling applies to it
+# regardless of what else sits in the folder; long reference material moves
+# into a supporting file the body links to.
 CEILING=500
 bad_size=""
 for f in .claude/skills/*/SKILL.md; do
   [ -f "$f" ] || continue
   lines=$(wc -l < "$f")
-  dir=$(dirname "$f")
-  supporting=$(find "$dir" -maxdepth 1 -name '*.md' ! -name 'SKILL.md' | head -1)
-  if [ "$lines" -gt "$CEILING" ] && [ -z "$supporting" ]; then
-    bad_size="${bad_size}  ${f} (${lines} lines, no supporting reference file)"$'\n'
+  if [ "$lines" -gt "$CEILING" ]; then
+    bad_size="${bad_size}  ${f} (${lines} lines)"$'\n'
   fi
 done
 if [ -n "$bad_size" ]; then
-  echo "[harness] FAIL: SKILL.md over ${CEILING} lines without a supporting file:" >&2
+  echo "[harness] FAIL: SKILL.md over ${CEILING} lines; move reference material into a supporting file:" >&2
   printf '%s' "$bad_size" >&2
   fail=1
 else
-  echo "[harness] all SKILL.md within ${CEILING} lines or backed by a supporting file"
+  echo "[harness] all SKILL.md within ${CEILING} lines"
 fi
 
 # --- Check 6: sqlite3 is never auto-allowed without -readonly ---
@@ -174,6 +179,36 @@ if [ -n "$missing_refs" ]; then
   fail=1
 else
   echo "[harness] all concrete rule/skill/hook/agent/doc references resolve"
+fi
+
+# --- Check 7b: every rule's paths: glob matches at least one file ---
+# A glob matching nothing means the rule never attaches, and nothing else notices.
+# Untracked files that are not ignored count, so a rule and the files it governs can
+# land together. A glob under a gitignored tree (a companion checkout reached by a
+# symlink) is exempt: that tree is never in the index, so it matches nothing here by
+# design.
+dead_globs=""
+for f in .claude/rules/*.md; do
+  [ -f "$f" ] || continue
+  fm=$(awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f{print}' "$f")
+  globs=$(printf '%s\n' "$fm" | sed -n 's/^[[:space:]]*-[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p')
+  while IFS= read -r glob; do
+    [ -n "$glob" ] || continue
+    lead=${glob%%/*}
+    if [ "$lead" != "$glob" ] && git check-ignore -q --no-index -- "$lead" 2>/dev/null; then
+      continue
+    fi
+    if [ -z "$(git ls-files --cached --others --exclude-standard -- ":(glob)$glob" 2>/dev/null | head -n 1)" ]; then
+      dead_globs="${dead_globs}  ${f}: ${glob}"$'\n'
+    fi
+  done <<<"$globs"
+done
+if [ -n "$dead_globs" ]; then
+  echo "[harness] FAIL: rule paths: glob(s) matching no file, so the rule never attaches:" >&2
+  printf '%s' "$dead_globs" >&2
+  fail=1
+else
+  echo "[harness] every rule paths: glob matches a file"
 fi
 
 # Heads that can delete or write despite reading in their common form (xargs rm,

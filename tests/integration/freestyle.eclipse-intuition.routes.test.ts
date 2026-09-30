@@ -12,7 +12,7 @@
  * intuition -> About).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -26,6 +26,7 @@ import { getTrickIntuition } from '../../src/content/freestyleTrickIntuition';
 const { dbPath } = setTestEnv('3166');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -65,7 +66,7 @@ describe('Eclipse intuition entry — content module', () => {
 
 describe('Eclipse intuition rendering on /freestyle/tricks/eclipse', () => {
   it('detail page renders the "Movement intuition" section with the eclipse prose', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eclipse');
+    const res = await page('/freestyle/tricks/eclipse');
     expect(res.status).toBe(200);
     // The intuition partial renders a section heading "Movement intuition".
     expect(res.text).toMatch(/Movement intuition/i);
@@ -75,7 +76,7 @@ describe('Eclipse intuition rendering on /freestyle/tricks/eclipse', () => {
   });
 
   it('detail page preserves the existing 3 ADD chip + JOB tokens (intuition does NOT replace notation)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eclipse');
+    const res = await page('/freestyle/tricks/eclipse');
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">3 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
   });

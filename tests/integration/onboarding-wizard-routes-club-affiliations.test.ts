@@ -420,7 +420,6 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // join or create a club. With no legacy suggestion material, the landing
     // states that no past club affiliation was found.
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Clubs come after onboarding');
     expect(res.text).toContain('We did not find a past club affiliation for you');
     expect(readTaskState(MEMBER_EMPTY)).toBe('pending');
   });

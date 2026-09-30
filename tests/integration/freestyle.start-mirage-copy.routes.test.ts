@@ -10,9 +10,10 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('3987');
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
+import { cachedGet } from '../fixtures/cachedGet';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   createTestDb(dbPath);
@@ -25,14 +26,14 @@ afterAll(() => {
 
 describe('GET /freestyle/start Mirage beginner copy', () => {
   it('renders the approved same-toe Mirage paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/start');
+    const res = await page('/freestyle/start');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/catch the bag back on the same toe\s+that made the set/i);
     expect(res.text).toMatch(/circling leg performs the dexterity but does not\s+make the catch/i);
   });
 
   it('does not tell a beginner the Mirage catches on the opposite foot', async () => {
-    const res = await request(createApp()).get('/freestyle/start');
+    const res = await page('/freestyle/start');
     expect(res.text).not.toMatch(/opposite[- ](toe|foot)/i);
   });
 });

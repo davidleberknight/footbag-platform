@@ -15,6 +15,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +29,7 @@ import type { GlossaryTerm } from '../../src/content/freestyleGlossaryTerms';
 const { dbPath } = setTestEnv('4044');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 // src/ modules are imported after setTestEnv so the config singleton sees the
 // test database path.
 let GLOSSARY_TERMS: readonly GlossaryTerm[];
@@ -54,7 +56,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function get(path: string): Promise<string> {
-  const res = await request(await createApp()).get(path);
+  const res = await page(path);
   expect(res.status, path).toBe(200);
   return res.text;
 }
@@ -333,7 +335,7 @@ describe('Cross-surface links land on the right resource', () => {
     const article = await get('/freestyle/notation-article');
     expect(article).toContain('href="/freestyle/concepts#jobs-notation"');
     expect(article).toContain('Back to Freestyle Concepts');
-    const sitemap = await request(await createApp()).get('/sitemap.xml');
+    const sitemap = await page('/sitemap.xml');
     expect(sitemap.text).toContain('/freestyle/concepts');
     expect(sitemap.text).toContain('/freestyle/glossary');
   });

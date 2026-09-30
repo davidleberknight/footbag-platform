@@ -68,7 +68,7 @@ beforeAll(async () => {
     name: 'Club Can A',
     city: 'Portland',
     country: 'USA',
-    hashtag_tag_id: insertTag(db, { tag_normalized: `#${CLUB_A_KEY}`, tag_display: `#${CLUB_A_KEY}`, is_standard: 1, standard_type: 'club' }),
+    hashtag_tag_id: insertTag(db, { tag_normalized: `#${CLUB_A_KEY}`, tag_display: `#${CLUB_A_KEY}`, standard_type: 'club' }),
   });
   insertClub(db, { id: CLUB_B, name: 'Club Can B', city: 'Salem', country: 'USA' });
 

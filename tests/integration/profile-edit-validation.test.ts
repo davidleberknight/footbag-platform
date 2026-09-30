@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -92,7 +93,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // cases exercise other fields, so the helper supplies a valid location and date
 // by default; a case that needs to blank part of it overrides the default
 // explicitly.
-function postEdit(fields: Record<string, string>): request.Test {
+function postEdit(fields: Record<string, string>): Test {
   return request(createApp())
     .post(`/members/${MEMBER_SLUG}/edit`)
     .set('Cookie', ownCookie())

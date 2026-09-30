@@ -13,8 +13,8 @@
  *   - No rankings, win/loss, or head-to-head stats appear
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -40,6 +40,8 @@ const { dbPath } = setTestEnv('3097');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+// Read-only suite: one render of /net/events shared by every case.
+const page = cachedGet(() => createApp());
 
 // Person IDs
 const PERSON_A = 'person-evt-aa-test-1';
@@ -175,34 +177,25 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /net/events', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
-    expect(res.status).toBe(200);
-  });
-
   it('includes the evidence disclaimer', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     expect(res.text).toContain('may not reflect official partnerships');
   });
 
   it('shows events that have net appearances', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Net Worlds 2015');
     expect(res.text).toContain('Net Open 2012');
   });
 
   it('does NOT show events with no net appearances', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     expect(res.text).not.toContain('No Net 2010');
   });
 
   it('orders events by start_date descending (2015 before 2012)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     const pos2015 = res.text.indexOf('Net Worlds 2015');
     const pos2012 = res.text.indexOf('Net Open 2012');
     expect(pos2015).toBeGreaterThan(-1);
@@ -211,8 +204,7 @@ describe('GET /net/events', () => {
   });
 
   it('links to canonical /events/event_{year}_{slug} pages (public list does not expose internal QC route)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     expect(res.text).toContain('/events/event_2015_net_worlds');
     expect(res.text).toContain('/events/event_2012_net_open');
     // Public list never links to the internal QC reviewer view
@@ -220,15 +212,13 @@ describe('GET /net/events', () => {
   });
 
   it('badges the event whose discipline matched its canonical group ambiguously', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     // ev2012 carries the only conflict_flag discipline in this fixture.
     expect(res.text).toContain('Grouping unconfirmed');
   });
 
   it('badges only that event, not every event in the list', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     const badges = res.text.match(/Grouping unconfirmed/g) ?? [];
     expect(badges).toHaveLength(1);
   });
@@ -238,8 +228,7 @@ describe('GET /net/events', () => {
     // one naming pattern, so the stored grouping is a best guess. Nobody has
     // looked at these events; a label saying otherwise told a visitor the
     // opposite of the truth.
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     expect(res.text).not.toContain('Discipline review');
   });
 
@@ -262,16 +251,14 @@ describe('GET /net/events', () => {
     } finally {
       db.close();
     }
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     // One badge, from the one ambiguous match: the rows carrying only the
     // broader flag do not produce one.
     expect((res.text.match(/Grouping unconfirmed/g) ?? [])).toHaveLength(1);
   });
 
   it('carries no badge whose meaning came from the review queue', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     expect(res.text).not.toContain('Multi-stage');
     expect(res.text).not.toContain('unlinked');
   });
@@ -279,14 +266,12 @@ describe('GET /net/events', () => {
   it('does NOT show events with only inferred_partial appearances', async () => {
     // ev2008 has only one appearance for TEAM_AB and it is inferred_partial.
     // The canonical view filters it out, so ev2008 must not appear in the list.
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     expect(res.text).not.toContain('Inferred Only 2008');
   });
 
   it('does not show rankings, win/loss, or head-to-head stats', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/events');
+    const res = await page('/net/events');
     const lower = res.text.toLowerCase();
     expect(lower).not.toContain('win/loss');
     expect(lower).not.toContain('ranking');

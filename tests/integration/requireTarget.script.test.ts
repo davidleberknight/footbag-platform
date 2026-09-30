@@ -101,6 +101,10 @@ describe('every operator script that reaches an environment has the guard', () =
     'activate-payments.sh': 'payments exist in production only; the environment is not a choice',
     'smoke-security.sh':
       'a test harness entry point rather than an operator script, like test-smoke.sh; it probes a base URL and takes its environment from SMOKE_ENV to pick a seeded persona',
+    'smoke-local.sh':
+      'a test harness entry point rather than an operator script, like smoke-security.sh; it probes a base URL and takes its environment from SMOKE_ENV to pick what it checks',
+    'test-deployed.sh':
+      'a test harness entry point (npm run test:deployed) rather than an operator script; it loads anonymous pages read-only and takes its environment as its one argument',
   };
 
   /**

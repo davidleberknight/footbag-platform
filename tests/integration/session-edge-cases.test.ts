@@ -388,6 +388,7 @@ describe('session edge cases — the middleware separates a bad cookie from a br
     const adapterMod = await import('../../src/adapters/jwtSigningAdapter');
     const real = adapterMod.getJwtSigningAdapter();
     adapterMod.setJwtSigningAdapterForTests({
+      kid: real.kid,
       signJwt: (claims, ttl) => real.signJwt(claims, ttl),
       verifyJwt: () => {
         throw new Error('verification key unavailable');
@@ -405,7 +406,9 @@ describe('session edge cases — the middleware separates a bad cookie from a br
   });
 
   it('a database fault during session lookup surfaces as a server error, not as a silent sign-out', async () => {
-    expectLoggedError(/session lookup unavailable|Internal|error/i);
+    // The fault reaches the app's error handler, which logs this line and
+    // answers 500; any other error line in this test is unexpected.
+    expectLoggedError(/^unhandled error$/);
     const dbMod = await import('../../src/db/db');
     // The statement group hands out prepared statements through getters, so the
     // injected statement stands in for the real one for this call only.

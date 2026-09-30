@@ -8,7 +8,8 @@ paths:
 ## When to use
 
 Writing or changing anything under `scripts/` that an operator runs against a real environment:
-an install, an apply, an activation, a provisioning step, a diagnostic. Secret transport has its
+an install, an apply, an activation, a provisioning step, a diagnostic; and fixture stagers under
+`scripts/ci/`, which can meet real data on a workstation. Secret transport has its
 own rule and is not restated here; this one covers the shape of the script around it.
 
 ## What a script owns
@@ -145,6 +146,28 @@ Each of these was violated by a script in this repository, and each failure was 
   are exempt: they hold no state to resume.
 - A header that states why the script exists and what it refuses to do, followed by usage and
   flags.
+
+## Fixture-staging scripts
+
+A fixture stager (`scripts/ci/stage_*.sh` or equivalent) populates paths that on a workstation may
+also hold real data: `legacy_data/legacy_mirror/mirror_footbag_org/` (the legacy site mirror,
+days to regenerate) and `legacy_data/event_results/canonical_input/` (the canonical CSVs, hours
+to regenerate). An empty-target-only guard once wiped a 60 GB real mirror.
+
+- **Detect real data first and refuse to overwrite it.** No flag, environment variable or CI mode
+  bypasses this guard: no `--clobber-real-data`, no `FORCE_REAL_DATA_CLOBBER`, nothing. A signal
+  is a row count or directory population well above any fixture, or a real file the fixture never
+  ships. An operator who genuinely wants a rebuild moves the directory aside by hand first.
+- **`CI=true` and `GITHUB_ACTIONS=true` may auto-enable `--force`**, since CI starts from an empty
+  target, but never past the real-data guard.
+- **Run real-data detection before any empty-target check.**
+- **Mark the header `# REAL-DATA GUARD`**, which is how `scripts/ci/assert_conventions.sh`
+  recognises the script as compliant.
+- **State the threshold in the header** and why it is the line: a threshold real data falls under
+  silently fails to protect.
+
+The same applies to any test-setup script that touches paths outside `tmp/` or a per-test temp
+directory.
 
 ## Testing
 

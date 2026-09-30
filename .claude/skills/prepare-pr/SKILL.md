@@ -15,13 +15,13 @@ Check whether `doc-sync` has been run since the last significant change in this 
 
 Read:
 - current diff (changed files and their diffs)
-- integration test results: run `npm test` if not already done; report pass/fail
-- TypeScript type-check: run `npm run build` (`tsc -p tsconfig.json`) if not already done; report pass/fail
+- verification per the defaults in root `CLAUDE.md`: `npm run build` plus the named suites the change reaches and their importers, run if not already done; report pass/fail
+- the gate: `npm run test:pre-pr`, which the human runs; report its result if the human has shared one, otherwise list it as a prerequisite
 - any open questions or unresolved risks
 
 ## Step 3: Verify architecture compliance
 
-Path-scoped rule files in `.claude/rules/` (auto-attached when matching files are read) define the non-negotiable patterns for service, controller, template, view-layer, and db-layer work. Confirm the change complies. Public-page work also follows the `.claude/rules/view-layer.md` rendering invariants and the owning service's file-header JSDoc; service-boundary work also follows the service's file-header JSDoc ownership and required patterns. Intentional deviations land as private-tracker issues.
+Path-scoped rule files in `.claude/rules/` (read each touched path's rule yourself, per root `CLAUDE.md` rule 8) define the non-negotiable patterns for service, controller, template, view-layer, and db-layer work. Confirm the change complies. Public-page work also follows the `.claude/rules/view-layer.md` rendering invariants and the owning service's file-header JSDoc; service-boundary work also follows the service's file-header JSDoc ownership and required patterns. Intentional deviations land as private-tracker issues.
 
 Flag any violations explicitly in the summary.
 

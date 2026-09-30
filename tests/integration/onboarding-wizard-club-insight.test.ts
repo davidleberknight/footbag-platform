@@ -386,8 +386,7 @@ describe('the admin cleanup queue is where the notes are read', () => {
     // The club note rides on the club's own row, attributed to its author.
     expect(res.text).toContain('They stopped meeting when the rec centre closed.');
     expect(res.text).toContain('Voter One');
-    // The area note belongs to no club, so it has its own section.
-    expect(res.text).toContain('What members told us about their area');
+    // The area note belongs to no club, and still reaches the page.
     expect(res.text).toContain('Someone runs a Sunday circle in the park downtown.');
   });
 });

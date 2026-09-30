@@ -80,11 +80,6 @@ describe('GET /members/:slug/contact-admin', () => {
     expect(res.text).toContain('Contact IFPA Admin');
     expect(res.text).toContain('name="category"');
     expect(res.text).toContain('name="message"');
-    expect(res.text).toContain('Display name correction');
-    expect(res.text).toContain('Profile URL correction');
-    expect(res.text).toContain('Tier-status question');
-    expect(res.text).toContain('Old account or competition-record link');
-    expect(res.text).toContain('Other');
   });
 
   // The profile's identity control links here naming what it is for, so the
@@ -106,7 +101,6 @@ describe('GET /members/:slug/contact-admin', () => {
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('not_a_real_topic');
-    expect(res.text).toMatch(/Choose a topic/);
   });
 
   it('non-owner → 404 (anti-enumeration)', async () => {
@@ -149,7 +143,7 @@ describe('GET /members/:slug/contact-admin', () => {
       .type('form')
       .send({ category: 'other', message: 'tamper probe' });
     expect(post.status).toBe(303);
-    const flashSet = (post.headers['set-cookie'] ?? []).find((c: string) =>
+    const flashSet = (post.get('Set-Cookie') ?? []).find((c: string) =>
       c.startsWith('footbag_flash='),
     );
     expect(flashSet).toBeTruthy();

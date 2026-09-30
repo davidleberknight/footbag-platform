@@ -17,7 +17,7 @@
  *     the service layer; partial never sees it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -36,6 +36,7 @@ import {
 const { dbPath } = setTestEnv('3199');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -118,8 +119,7 @@ describe('Doctrine-divergence registry — ingestion', () => {
 
 describe('Doctrine-divergence rendering — trick-detail surface', () => {
   it('renders the scoring-notes section on a registered slug', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/blurrage');
+    const res = await page('/freestyle/tricks/blurrage');
     expect(res.status).toBe(200);
     // Section wrapper present with stable test class.
     expect(res.text).toContain('class="content-section trick-scoring-notes"');
@@ -132,8 +132,7 @@ describe('Doctrine-divergence rendering — trick-detail surface', () => {
   });
 
   it('surfaces the source-claim vs canonical-value comparison line', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/predator');
+    const res = await page('/freestyle/tricks/predator');
     expect(res.status).toBe(200);
     // Source claim line should render explicitly.
     expect(res.text).toMatch(/Source claim \(an outside source\): 3 ADD/);
@@ -141,8 +140,7 @@ describe('Doctrine-divergence rendering — trick-detail surface', () => {
   });
 
   it('does NOT render scoring-notes for a non-registered slug', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     // Section class must be absent for unregistered slugs.
     expect(res.text).not.toContain('trick-scoring-notes');
@@ -151,23 +149,20 @@ describe('Doctrine-divergence rendering — trick-detail surface', () => {
 
 describe('Doctrine-divergence rendering — surface placement guardrails', () => {
   it('does NOT render scoring-notes on /freestyle/tricks?view=add (browse cards)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Browse cards must stay clean regardless of registry membership.
     expect(res.text).not.toContain('trick-scoring-notes');
   });
 
   it('does NOT render scoring-notes on /freestyle/tricks?view=family (browse cards)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('trick-scoring-notes');
   });
 
   it('does NOT render scoring-notes on /freestyle/glossary', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await page('/freestyle/glossary');
     expect(res.status).toBe(200);
     // Glossary discusses divergence as a concept (future §8 addition);
     // per-trick scoring notes never appear here.
@@ -175,8 +170,7 @@ describe('Doctrine-divergence rendering — surface placement guardrails', () =>
   });
 
   it('does NOT render scoring-notes on /freestyle (landing)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('trick-scoring-notes');
   });
@@ -184,8 +178,7 @@ describe('Doctrine-divergence rendering — surface placement guardrails', () =>
 
 describe('Doctrine-divergence rendering — zero-mismatch invariant preserved', () => {
   it('canonical ADD chip on registered slugs shows the IFPA-derived value, not the source-claim', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/blurrage');
+    const res = await page('/freestyle/tricks/blurrage');
     expect(res.status).toBe(200);
     // The hero / canonical ADD chip must show "4 ADD" (IFPA-derived),
     // never "3 ADD" (PB source-claim). The scoring-notes section

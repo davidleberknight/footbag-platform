@@ -26,8 +26,12 @@
 
   {{#if content.savedFlag}}
     <div class="form-success-banner" role="status">
-      Sidecar saved under <code>/curated/</code>. Run the curator seeder
-      (<code>python scripts/seed_fh_curator.py</code>) to update the platform DB.
+      {{#if content.sidecarWritesEnabled}}
+        Sidecar saved under <code>/curated/</code>. Run the curator seeder
+        (<code>python scripts/seed_fh_curator.py</code>) to update the platform DB.
+      {{else}}
+        Uploaded.
+      {{/if}}
     </div>
   {{/if}}
 

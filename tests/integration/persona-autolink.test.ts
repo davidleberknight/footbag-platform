@@ -22,15 +22,15 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   seedPersona(db, {
     slug: 'al_high', displayName: 'Hy High', realName: 'Hy Highmatch',
-    tier: 'tier0', legacy: { autoLinkConfidence: 'high' }, coverageNotes: ['high'],
+    tier: 'tier0', legacy: { autoLinkConfidence: 'high' }, testingUsage: 'Auto-link confidence fixture.', coverageNotes: ['high'],
   });
   seedPersona(db, {
     slug: 'al_medium', displayName: 'Em Med', realName: 'Em Midmatch',
-    tier: 'tier0', legacy: { autoLinkConfidence: 'medium' }, coverageNotes: ['medium'],
+    tier: 'tier0', legacy: { autoLinkConfidence: 'medium' }, testingUsage: 'Auto-link confidence fixture.', coverageNotes: ['medium'],
   });
   seedPersona(db, {
     slug: 'al_low', displayName: 'El Low', realName: 'El Lowmatch',
-    tier: 'tier0', legacy: { autoLinkConfidence: 'low' }, coverageNotes: ['low'],
+    tier: 'tier0', legacy: { autoLinkConfidence: 'low' }, testingUsage: 'Auto-link confidence fixture.', coverageNotes: ['low'],
   });
   db.close();
   await importApp();

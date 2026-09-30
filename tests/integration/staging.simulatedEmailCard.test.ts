@@ -121,13 +121,11 @@ describe('simulated-email card on staging (SES_ADAPTER=stub) renders like dev', 
     });
 
     try {
-      sesMod.getStubSesAdapterForTests()!.sentMessages.push({
+      await sesMod.getStubSesAdapterForTests()!.sendEmail({
         to:          'local-only@example.com',
         subject:     'Verify your IFPA Footbag account',
         bodyText:    'Confirm: http://localhost/verify/local-token-789',
         from:        'noreply@example.test',
-        messageId:   'local-msg-1',
-        deliveredAt: new Date().toISOString(),
       });
 
       const preview = await svcMod.simulatedEmailService.getEmailPreview();

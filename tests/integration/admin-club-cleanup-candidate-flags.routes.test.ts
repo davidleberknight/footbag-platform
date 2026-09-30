@@ -92,7 +92,7 @@ describe('candidate-flag group rendering', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Wizard Flags by Candidate');
+    expect(res.text).toContain('Wizard Flags by Candidate (');
     expect(res.text).toContain('Main Flagged Candidate');
     expect(res.text).toContain('inactive per: Flag Voter');
     expect(res.text).toContain('Dismissable Candidate');

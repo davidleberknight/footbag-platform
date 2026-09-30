@@ -47,7 +47,7 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
  * binding to a port. Keeping this as a factory (not a module singleton)
  * lets integration tests call createApp() directly without an HTTP server.
  */
-export function createApp(): express.Application {
+export function createApp(): express.Express {
   const app = express();
 
   // Parse query strings with Node's own querystring rather than Express's

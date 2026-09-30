@@ -235,10 +235,8 @@ describe('POST /payments/webhook status mapping', () => {
     const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
     const oversized = JSON.stringify({ id: 'evt_big', padding: 'x'.repeat(1_200_000) });
     const res = await postWebhook(oversized, signStripeWebhook(oversized, STUB_WEBHOOK_SECRET));
-    // 413 from the parser, and in no case a 200: the delivery must not be
-    // acknowledged as processed.
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(res.status).not.toBe(200);
+    // 413 from the parser: the delivery is refused, not acknowledged.
+    expect(res.status).toBe(413);
   });
 
   it('a correctly-signed body that is not JSON is refused, not crashed on', async () => {
@@ -256,8 +254,7 @@ describe('POST /payments/webhook status mapping', () => {
     expectLoggedError(/stripe webhook processing failed/);
     const notJson = 'this is not an event at all';
     const res = await postWebhook(notJson, signStripeWebhook(notJson, STUB_WEBHOOK_SECRET));
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(500);
   });
 
   it('an event carrying no platform metadata is acknowledged, whatever else it lacks', async () => {

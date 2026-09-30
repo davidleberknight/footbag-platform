@@ -7,7 +7,7 @@
  * "Try one" fallback chips are gone.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
@@ -15,6 +15,7 @@ import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from
 const { dbPath } = setTestEnv('3075');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -41,14 +42,14 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media/browse landing — search leads, popular tags follow', () => {
   it('renders the real curated tag in the Popular tags section', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Popular tags');
     expect(res.text).toContain('#passback_records');
   });
 
   it('leaves the unfilled slots empty rather than padding them with tags that match nothing', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     // The one real public tag is the whole block. Nothing else is offered,
     // because nothing else in this database has media behind it.
     expect(res.text).toContain('#passback_records');
@@ -58,14 +59,14 @@ describe('GET /media/browse landing — search leads, popular tags follow', () =
   });
 
   it('drops the hardcoded fallback chips and the separate club/event sections', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.text).not.toContain('/media/browse?tag=demo_net');
     expect(res.text).not.toContain('Try one:');
     expect(res.text).not.toContain('browse-standard-section');
   });
 
   it('leads with the search form, ahead of the popular tags', async () => {
-    const res = await request(createApp()).get('/media/browse');
+    const res = await page('/media/browse');
     expect(res.text.indexOf('browse-search-form')).toBeGreaterThan(-1);
     expect(res.text.indexOf('browse-popular-heading')).toBeGreaterThan(-1);
     expect(res.text.indexOf('browse-search-form')).toBeLessThan(res.text.indexOf('browse-popular-heading'));

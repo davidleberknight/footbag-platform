@@ -1065,7 +1065,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.PAYMENT_ADAPTER = 'stub';
     process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = 'someone@example.com';
-    // Boot succeeds; the allowlist value reaches devShortcuts at runtime.
+    // Staging boots with the allowlist set; the production refusal above is
+    // the other side of this branch.
     await expect(import('../../src/config/env')).resolves.toBeDefined();
   });
 

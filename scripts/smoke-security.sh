@@ -20,6 +20,16 @@
 #                  Note: this probe is deliberately not read-only on
 #                  staging/dev — the registered branch mints a reset token
 #                  and enqueues mail to the non-deliverable test address.
+#   headers        the security headers the application sets reach the visitor
+#                  through whatever sits in front of it: a content security
+#                  policy that forbids framing and admits the captcha host, HSTS
+#                  over HTTPS, nosniff, a referrer policy and a permissions policy.
+#   session-cookie on staging and development, a session issued by the persona
+#                  switch carries the __Host- prefix, a value, HttpOnly, Secure,
+#                  SameSite=Lax and Path=/. The switch writes one audit row on
+#                  the host, as every persona switch does. Production has no persona switch and no way to
+#                  mint a session unattended, so the cookie is proved there by the
+#                  operator's post-deploy sign-in instead.
 #   dev-surface    the dev/test harness must match the environment contract:
 #                  absent (404) in production, where the image strip and the
 #                  env-gated mount exclude it; present in staging/development,
@@ -158,6 +168,70 @@ else
       | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/<address>/g')"
   else
     pass "password-forgot equivalence (identical ${registered_status} both ways)"
+  fi
+fi
+
+# ── Security headers ──────────────────────────────────────────────────────────
+# Read from a public page as a visitor receives it, so a proxy or edge that drops
+# or rewrites a header fails here even when the application set it.
+headers=$(curl -s -D - -o /dev/null --max-time 10 "${BASE_URL}/login" | tr -d '\r' | tr 'A-Z' 'a-z')
+header_value() { printf '%s\n' "$headers" | sed -n "s/^$1: //p" | head -n 1; }
+csp=$(header_value content-security-policy)
+if [[ -z "$csp" ]]; then
+  fail "content security policy — header absent on /login"
+elif [[ "$csp" != *"frame-ancestors 'none'"* ]]; then
+  fail "content security policy — does not forbid framing (frame-ancestors 'none')"
+elif [[ "$csp" != *"https://challenges.cloudflare.com"* ]]; then
+  fail "content security policy — does not admit the captcha host, so sign-in cannot load it"
+else
+  pass "content security policy present, forbids framing, admits the captcha host"
+fi
+if [[ "$(header_value x-content-type-options)" == "nosniff" ]]; then
+  pass "X-Content-Type-Options: nosniff"
+else
+  fail "X-Content-Type-Options — expected nosniff, got '$(header_value x-content-type-options)'"
+fi
+if [[ -n "$(header_value referrer-policy)" ]]; then
+  pass "Referrer-Policy present ($(header_value referrer-policy))"
+else
+  fail "Referrer-Policy — header absent"
+fi
+if [[ -n "$(header_value permissions-policy)" ]]; then
+  pass "Permissions-Policy present"
+else
+  fail "Permissions-Policy — header absent"
+fi
+if [[ "$BASE_URL" == https://* ]]; then
+  hsts=$(header_value strict-transport-security)
+  if [[ "$hsts" == *"max-age="* ]]; then
+    pass "Strict-Transport-Security present over HTTPS"
+  else
+    fail "Strict-Transport-Security — absent over HTTPS"
+  fi
+fi
+
+# ── Session cookie flags ──────────────────────────────────────────────────────
+if [[ "$SMOKE_ENV" == "production" ]]; then
+  echo "  -  session-cookie flags not probed on production (no persona switch; the operator's post-deploy sign-in covers it)"
+else
+  # A cookie carrying a value, not one clearing a session (empty value).
+  cookie=$(curl -s -D - -o /dev/null --max-time 10 "${BASE_URL}/dev/switch?as=${REGISTERED_PROBE_EMAIL%@*}" \
+    | tr -d '\r' | grep -i '^set-cookie: __Host-footbag_session=[^;]' | head -n 1 || true)
+  if [[ -z "$cookie" ]]; then
+    fail "session cookie — the persona switch issued no __Host-footbag_session cookie with a value"
+  else
+    lower=$(printf '%s' "$cookie" | tr 'A-Z' 'a-z')
+    lower="${lower};"
+    missing=""
+    [[ "$lower" == *"; httponly;"* ]] || missing="${missing} HttpOnly"
+    [[ "$lower" == *"; secure;"* ]] || missing="${missing} Secure"
+    [[ "$lower" == *"; samesite=lax;"* ]] || missing="${missing} SameSite=Lax"
+    [[ "$lower" == *"; path=/;"* ]] || missing="${missing} Path=/"
+    if [[ -n "$missing" ]]; then
+      fail "session cookie — missing${missing}"
+    else
+      pass "session cookie carries __Host-, HttpOnly, Secure, SameSite=Lax, Path=/"
+    fi
   fi
 fi
 

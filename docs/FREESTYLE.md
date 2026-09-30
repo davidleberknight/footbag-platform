@@ -6,8 +6,9 @@ go-live, when the live production database is the source of truth. It states
 durable intent only; for operational commands it links out rather than copying.
 
 Audience: a maintainer who is not the original author and starts from zero,
-working against the live production database. The committed CSV pipeline is a
-pre-go-live and local-development tool; this document says where that line falls
+working against the live production database. The committed CSV pipeline is
+pre-go-live migration tooling, deleted once the final production load is signed
+off; this document says where the cutover line falls
 for every mechanism it describes.
 
 ## 1. Orientation
@@ -35,9 +36,9 @@ pieces:
   the curated-media skill; it attaches reference videos to tricks. Never merged
   with the dictionary tables.
 - **The retired build pipeline.** `freestyle/` holds the loaders that rebuilt the
-  dictionary from committed CSVs before cutover. After cutover it is a
-  local-development tool only. See sections 5 and the `freestyle/README.md`
-  runbook.
+  dictionary from committed CSVs before cutover. It is pre-go-live migration
+  tooling and is deleted, with its tests and CI gates, once the final production
+  load is signed off. See section 5 and the `freestyle/README.md` runbook.
 
 ## 2. Post-cutover authority boundaries
 
@@ -65,15 +66,21 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
 3. **Generated or spreadsheet-owned symbolic research.** The six `symbolic_*`
    tables load from committed spreadsheets under `freestyle/symbolic_grammar/`;
    the group-membership layer is machine-generated and the rest are curator
-   research artifacts. The spreadsheets stay authoritative; the database is a
-   rendered copy; their loader must not run inside a general live rebuild.
+   research artifacts. Before cutover the spreadsheets are authoritative and the
+   database is a rendered copy, and their loader must not run inside a general
+   live rebuild. After cutover the database tables are the authority: the layers
+   derived from trick data, group membership among them, are regenerated inside
+   the app, in TypeScript, from the database, when a trick is published or edited;
+   the curated layers change only through a reviewed database migration.
 4. **Sealed provenance inputs.** `freestyle/inputs/footbag_org_moves_metadata.ndjson`
    is a sealed, immutable archive artifact preserved for provenance and as a
    future description-upgrade source. No loader consumes it.
-5. **Public generated content with regeneration guards.** The observational
-   universe and tracked-names content modules are generated from the corpus and
-   gated at request time; a committed-content drift guard fails the build if the
-   generated files fall out of date. Regenerate them, never hand-edit.
+5. **Public content derived from the corpus, served from the database.** At
+   cutover the Emerging Vocabulary universe is computed at request time from
+   database rows: the documented names, doctrine questions and decision groups
+   are rows, and rulings are recorded in the app. No TypeScript in the app is
+   generated, and curator data lives in the database, not in code; the generated
+   content modules that exist before go-live are removed before cutover.
 
 The single-authority rule (tier 2), the alias and slug identity rules, and the
 surface-propagation-by-pointer rule are the invariants every curation edit must
@@ -162,20 +169,22 @@ exception below.
 **Deliberately ruled exceptions (no in-app editor by design):**
 
 - **Modifier-registry creation is authority-blocked and code-managed.** A new
-  modifier is published through the operator reference plus the modifier seed, not
-  an in-app create, because creating one publishes its ADD to public surfaces and
-  the database registry is secondary to the curator-locked operator reference. An
-  in-app creator is possible only once the operator authority exposes a complete
-  machine-readable contract for every modifier.
+  modifier is published through the operator reference plus, before cutover, the
+  modifier seed and, after cutover, a reviewed database migration, not an in-app
+  create, because creating one publishes its ADD to public surfaces and
+  the database registry is secondary to the curator-locked operator reference.
 - **Trick relations are derived and read-only.** No editor exists; the stored
   `freestyle_trick_relations` table is empty by design and is not an incomplete
   surface. A relation editor is built only on a demonstrated curator-authored
   relation the derivation cannot represent.
 - **The six symbolic layers are generated, doctrine-blocked, or code-managed.**
-  Group membership is generated from mechanical sources; equivalence clusters are
-  doctrine-blocked; movement archetypes, topology groups, modifier groups, and
-  glossary crosslinks are intentionally code-managed. The committed spreadsheets
-  stay authoritative; there is no in-app editor.
+  Group membership, and any other layer derived from trick data, is regenerated
+  in the app from the database whenever a trick is published or edited;
+  equivalence clusters are doctrine-blocked; movement archetypes, topology groups,
+  modifier groups, and glossary crosslinks are intentionally code-managed. Before
+  cutover the committed spreadsheets are authoritative; after cutover the database
+  tables are, and the curated layers change only through a reviewed database
+  migration.
 
 ## 5. Pre-go-live CSV provenance (history, not the current edit model)
 
@@ -192,8 +201,9 @@ each owned:
 - The footbag.org moves snapshot and the imported member tips.
 - The `symbolic_grammar` spreadsheets.
 
-After cutover these files and the pipeline are a local-development tool for
-building throwaway databases only, never a production edit path. A maintainer can
+After cutover these files and the pipeline are no longer consumed, and they are
+deleted once the final production load is signed off; they are never a production
+edit path. A maintainer can
 read the git history and the provenance columns to understand where any datum came
 from, without ever mistaking a CSV for a live edit path. The runbook for the
 pipeline is `freestyle/README.md`.
@@ -296,6 +306,6 @@ Each document owns one thing:
   X-Dex authority.
 - The public A–Z glossary and Freestyle Concepts pages, and `docs/GLOSSARY.md` - reader-facing and technical
   term explanation.
-- `freestyle/README.md` - the pipeline runbook (a local-development tool).
+- `freestyle/README.md` - the pipeline runbook (pre-go-live migration tooling).
 - The freestyle skills and the path-scoped `.claude/rules/*` - the agent-facing
   procedures and per-path rules for the area.

@@ -13,7 +13,7 @@
  *      glosses render inline.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -24,6 +24,7 @@ import {
 
 const { dbPath } = setTestEnv('3571');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 const t = (slug: string, fam: string, adds: string, cat: 'body' | 'dex' | 'compound' = 'compound') =>
   ({ slug, canonical_name: slug.replace(/_/g, ' '), trick_family: fam, base_trick: fam, category: cat, adds, is_active: 1 as const });
@@ -59,7 +60,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(slug: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  const res = await getPage(`/freestyle/tricks/${slug}`);
   expect(res.status).toBe(200);
   return res.text;
 }

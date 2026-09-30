@@ -93,6 +93,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickAlias,
 } from '../fixtures/factories';
+import type { FreestyleTrickModifierOverrides } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3565');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -103,7 +104,7 @@ const CEILING = 325_000;
 
 interface Snapshot {
   tricks: Record<string, unknown>[];
-  modifiers: Record<string, unknown>[];
+  modifiers: FreestyleTrickModifierOverrides[];
   aliases: { alias_text: string; trick_slug: string }[];
 }
 

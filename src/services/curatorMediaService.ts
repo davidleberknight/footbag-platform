@@ -81,7 +81,8 @@
  *     it, on create or on rename, because the upload path re-derives that id and
  *     probes by that name. Enforced on every actor, admin included.
  *   - FH-owned writes JSON sidecar at `/curated/galleries/<slug>.json` after commit
- *     (sidecar I/O failure logged but does not roll back DB). Member-owned never
+ *     only where sidecar writes are enabled (a developer machine before go-live;
+ *     sidecar I/O failure logged but does not roll back DB). Member-owned never
  *     touches the filesystem.
  *   - Gallery edit never mutates item tags; current-items display rows derive from
  *     criteria/exclude tags via `listGalleryItemsForDisplay`.
@@ -130,7 +131,7 @@
  *   `/curated/{category}/*.meta.json` (URL-reference sidecars), file-paired
  *   `<slug>.{jpg,png,mp4,webm,mov}` + sibling `<slug>.meta.json` + optional
  *   `<slug>.poster.<ext>`, `/curated/galleries/<slug>.json` (FH gallery sidecars;
- *   source of truth).
+ *   the source of truth before go-live only, written on a developer machine).
  *
  * Side effects:
  *   - audit_entries append per upload or gallery mutation, including
@@ -3681,6 +3682,9 @@ export interface CuratorUploadContent {
   // file is refused before any of it is sent.
   videoMaxMb: number;
   videoMaxBytes: number;
+  // True only where the authoring tree is writable (a developer machine
+  // before go-live), which is the one place the curator seeder applies.
+  sidecarWritesEnabled: boolean;
 }
 
 /** One row of the admin curated-media list, with its delete-confirm state. */
@@ -3703,6 +3707,7 @@ export interface CuratorMediaListContent {
   emptyState: boolean;
   savedWasEdit: boolean;
   savedWasDelete: boolean;
+  sidecarWritesEnabled: boolean;
   uploadHref: string;
   listHref: string;
 }
@@ -3743,6 +3748,7 @@ export interface CuratorGalleryListContent {
   items: CuratorGalleryListRow[];
   emptyState: boolean;
   savedFlag: boolean;
+  sidecarWritesEnabled: boolean;
   newGalleryHref: string;
   listHref: string;
 }
@@ -3859,6 +3865,7 @@ export function getCuratorUploadPage(
       requireCategory: !asyncEnabled,
       videoMaxMb: VIDEO_MAX_MB,
       videoMaxBytes: VIDEO_MAX_BYTES,
+      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
     },
   };
 }
@@ -3931,6 +3938,7 @@ export function getCuratorMediaListPage(
       emptyState: result.items.length === 0,
       savedWasEdit: input.savedFlag === 'edit',
       savedWasDelete: input.savedFlag === 'delete',
+      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
       uploadHref: '/admin/curator/upload',
       listHref,
     },
@@ -4050,6 +4058,7 @@ export function getCuratorGalleryListPage(
       })),
       emptyState: items.length === 0,
       savedFlag: input.savedFlag,
+      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
       newGalleryHref: '/admin/curator/galleries/new',
       listHref: '/admin/curator/galleries',
     },

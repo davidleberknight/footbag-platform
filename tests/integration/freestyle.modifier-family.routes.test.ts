@@ -19,7 +19,7 @@
  *     /freestyle/tricks/:slug
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3093');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -133,20 +134,16 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/modifier/spinning — happy path', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
-    expect(res.status).toBe(200);
-  });
-
   it('renders page title and subtitle (structural framing, not "turning around")', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Spinning');
     expect(res.text).toMatch(/body-rotation operator/);
     expect(res.text).toMatch(/the underlying dexterity unchanged/);
   });
 
   it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('<h2>What it is</h2>');
     expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
@@ -162,14 +159,14 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   });
 
   it('teaches the SPIN [BOD] notation as a scored body event', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('SPIN [BOD]');
     expect(res.text).toContain('(back) SPIN [BOD]');
     expect(res.text).toMatch(/comes from the rotation itself, not from introducing another dexterity, delay, or body relationship/);
   });
 
   it('renders the required common confusions, framing gyro/inspinning as variants', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('Spinning vs gyro');
     expect(res.text).toContain('Spinning vs inspinning');
     expect(res.text).toContain('Rotation vs dexterity');
@@ -181,7 +178,7 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   });
 
   it('renders progression chain with anchor flag on step 1 (underscore slugs, fixed order)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('modifier-step-1-whirl');
     expect(res.text).toContain('modifier-step-2-spinning_whirl');
     expect(res.text).toContain('modifier-step-3-spinning_symposium_whirl');
@@ -198,7 +195,7 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   });
 
   it('renders representative examples as clickable links, organized by category', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('href="/freestyle/tricks/spinning_mirage"');
     expect(res.text).toContain('href="/freestyle/tricks/spinning_whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/spinning_drifter"');
@@ -210,7 +207,7 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   });
 
   it('renders related concepts including the directional variants and sibling rotations', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['gyro', 'inspinning', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
       expect(res.text).toContain(name);
@@ -218,45 +215,41 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   });
 
   it('disclaimer footer rendered', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('symbolic-layer-footer');
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('renders Freestyle Concepts link deep-linking to the spinning connective panel', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-spinning"');
   });
 
   it('breadcrumb back to /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
   });
 });
 
 describe('GET /freestyle/modifier/paradox — happy path', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
-    expect(res.status).toBe(200);
-  });
-
   it('renders page title and subtitle (definition framing, not a formula)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Paradox');
     expect(res.text).toMatch(/changes the relationship between the body, the support leg, and the dexterity/);
   });
 
   it('carries the prominent working-model caveat: our consistent reading, not universal community consensus', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toMatch(/working model this encyclopedia uses for consistent notation and indexing/);
     expect(res.text).toMatch(/do not agree on every Paradox and cross-body case/);
     // The caveat is paradox-specific; pages whose doctrine is settled carry none.
-    const spinning = await request(createApp()).get('/freestyle/modifier/spinning');
+    const spinning = await page('/freestyle/modifier/spinning');
     expect(spinning.text).not.toContain('working model this encyclopedia uses');
   });
 
   it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('<h2>What it is</h2>');
     expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
@@ -273,7 +266,7 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 
   it('teaches the [PDX] notation and distinguishes it from [XBD] and [XDEX]', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('[PDX]');
     expect(res.text).toContain('[XBD]');
     expect(res.text).toContain('[XDEX]');
@@ -284,7 +277,7 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 
   it('renders the required common confusions', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('Paradox vs cross-body ([XBD])');
     expect(res.text).toContain('Paradox vs X-Dex');
     expect(res.text).toContain('Paradox vs same-side and opposite-side');
@@ -292,7 +285,7 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 
   it('renders progression chain with anchor flag on mirage step (underscore slugs)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('modifier-step-1-mirage');
     expect(res.text).toContain('modifier-step-2-paradox_mirage');
     expect(res.text).toContain('modifier-step-3-paradox_whirl');
@@ -302,7 +295,7 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 
   it('renders representative examples as clickable links, organized by category', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('href="/freestyle/tricks/paradox_mirage"');
     expect(res.text).toContain('href="/freestyle/tricks/paradox_whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/paradox_drifter"');
@@ -314,7 +307,7 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 
   it('renders related concepts cross-linking the canonical surfaces', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['symposium', 'atomic', 'miraging', 'nuclear', 'x-dex', 'cross-body traversal', 'whirl', 'mirage']) {
       expect(res.text).toContain(name);
@@ -322,13 +315,13 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 
   it('disclaimer footer rendered', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('symbolic-layer-footer');
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('renders cross-link footer to walking-progression and /freestyle/learn', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('symbolic-crosslinks');
     expect(res.text).toContain('href="/freestyle/progression/walking-family"');
     expect(res.text).toContain('href="/freestyle/learn"');
@@ -336,20 +329,16 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
 });
 
 describe('GET /freestyle/modifier/ducking — happy path', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
-    expect(res.status).toBe(200);
-  });
-
   it('renders page title and subtitle (bag-path framing, not "lowering the head")', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Ducking');
     expect(res.text).toMatch(/body operator/);
     expect(res.text).toMatch(/passes beneath the bag/);
   });
 
   it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('<h2>What it is</h2>');
     expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
@@ -365,14 +354,14 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
   });
 
   it('teaches the DUCK [BOD] notation as a scored body event, not merely a head movement', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('DUCK [BOD]');
     expect(res.text).toMatch(/comes from the body movement itself, not from a dexterity, a delay, or a body relationship/);
     expect(res.text).toMatch(/merely a head movement/);
   });
 
   it('renders the required common confusions, with the ducking family doctrine', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('Ducking vs diving');
     expect(res.text).toContain('Ducking operator vs zulu and weaving sets');
     expect(res.text).toContain('Ducking vs alpine');
@@ -384,7 +373,7 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
   });
 
   it('renders progression chain with anchor flag on butterfly step (underscore slugs)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('modifier-step-1-butterfly');
     expect(res.text).toContain('modifier-step-2-ducking_butterfly');
     expect(res.text).toContain('modifier-step-3-ducking_whirl');
@@ -394,7 +383,7 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
   });
 
   it('renders representative examples as clickable links, including a folk Alpine pattern', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('href="/freestyle/tricks/ducking_mirage"');
     expect(res.text).toContain('href="/freestyle/tricks/ducking_whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/ducking_drifter"');
@@ -406,7 +395,7 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
   });
 
   it('renders related concepts including the ducking family and Alpine as a folk label', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['diving', 'zulu', 'weaving', 'alpine', 'spinning', 'paradox', 'symposium']) {
       expect(res.text).toContain(name);
@@ -414,13 +403,13 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
   });
 
   it('disclaimer footer rendered', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('symbolic-layer-footer');
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('renders cross-link footer to walking-progression and /freestyle/learn', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('symbolic-crosslinks');
     expect(res.text).toContain('href="/freestyle/progression/walking-family"');
     expect(res.text).toContain('href="/freestyle/learn"');
@@ -429,7 +418,7 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
 
 describe('GET /freestyle/modifier/diving — sister operator of ducking', () => {
   it('renders page title and subtitle (over-the-bag framing, complement of ducking)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Diving');
     expect(res.text).toMatch(/body operator/);
@@ -437,7 +426,7 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
   });
 
   it('renders the concept-first sections, parallel to ducking', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('<h2>What it is</h2>');
     expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
@@ -452,14 +441,14 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
   });
 
   it('teaches DIVE [BOD], the same notation as ducking, differing only in path', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('DIVE [BOD]');
     expect(res.text).toMatch(/comes from the body movement itself, not from a dexterity, a delay, or a body relationship/);
     expect(res.text).toMatch(/shares this notation with ducking/);
   });
 
   it('renders the defining distinction and the diving-vs-ducking confusion', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('Diving vs ducking');
     expect(res.text).toContain('Diving operator vs the ducking-family sets');
     expect(res.text).toContain('Diving vs alpine');
@@ -469,7 +458,7 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
   });
 
   it('renders progression with anchor on butterfly, landing on the Pixie Diving Butterfly (darkwalk)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('modifier-step-1-butterfly');
     expect(res.text).toContain('modifier-step-2-diving_butterfly');
     expect(res.text).toContain('modifier-step-3-diving_whirl');
@@ -479,7 +468,7 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
   });
 
   it('renders representative examples as clickable links, including the Alpine Tap pattern', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('href="/freestyle/tricks/diving_mirage"');
     expect(res.text).toContain('href="/freestyle/tricks/diving_whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/diving_drifter"');
@@ -491,7 +480,7 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
   });
 
   it('renders related concepts including ducking (the sister) and the shared family', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/diving');
+    const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['ducking', 'zulu', 'weaving', 'alpine', 'spinning', 'paradox', 'symposium']) {
       expect(res.text).toContain(name);
@@ -501,14 +490,14 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
 
 describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canonical doctrine)', () => {
   it('renders title and subtitle framing tapping as a +1 modifier that adds a quick tap', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/tapping');
+    const res = await page('/freestyle/modifier/tapping');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Tapping');
     expect(res.text).toMatch(/adds a quick tap ahead of the base/);
   });
 
   it('renders the concept-first sections', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/tapping');
+    const res = await page('/freestyle/modifier/tapping');
     for (const h of ['What it is', 'Why it exists', 'How it changes the base trick', 'JOB notation',
       'Where it appears', 'How it composes', 'Representative examples', 'Common confusions',
       'Related concepts', 'Execution notes']) {
@@ -517,14 +506,14 @@ describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canoni
   });
 
   it('reconciles the tap: written as a toe-set dex, scored as a +1 modifier', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/tapping');
+    const res = await page('/freestyle/modifier/tapping');
     expect(res.text).toMatch(/TOE &gt; OP OUT \[DEX\]/);
     expect(res.text).toMatch(/scored as a \+1 modifier on the trick, not as an extra dex folded into the base/);
     expect(res.text).toMatch(/tapping\(\+1\) \+ mirage\(2\)/);
   });
 
   it('teaches tapping as a +1 modifier and keeps the Holden set reading historical', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/tapping');
+    const res = await page('/freestyle/modifier/tapping');
     expect(res.text).toContain('Is the tap a dexterity or a modifier?');
     expect(res.text).toContain('Tapping vs its Holden set reading');
     expect(res.text).toContain('Tapping vs slapping');
@@ -533,7 +522,7 @@ describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canoni
   });
 
   it('renders progression and clickable representative examples across families', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/tapping');
+    const res = await page('/freestyle/modifier/tapping');
     expect(res.text).toContain('modifier-step-1-butterfly');
     expect(res.text).toContain('modifier-step-2-tapping_butterfly');
     expect(res.text).toContain('href="/freestyle/tricks/tapping_mirage"');
@@ -546,7 +535,7 @@ describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canoni
   });
 
   it('renders related concepts including the body-operator contrast and toe-set kin', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/tapping');
+    const res = await page('/freestyle/modifier/tapping');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['ducking', 'diving', 'slapping', 'quantum', 'atomic', 'stepping']) {
       expect(res.text).toContain(name);
@@ -556,7 +545,7 @@ describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canoni
 
 describe('GET /freestyle/modifier/inspinning — closely related rotational operator (finishes the trio)', () => {
   it('renders title and forward-rotation subtitle', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/inspinning');
+    const res = await page('/freestyle/modifier/inspinning');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Inspinning');
     expect(res.text).toMatch(/rotational operator/);
@@ -564,7 +553,7 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
   });
 
   it('renders the concept-first sections', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/inspinning');
+    const res = await page('/freestyle/modifier/inspinning');
     for (const h of ['What it is', 'Why it exists', 'How it changes the base trick', 'JOB notation',
       'Where it appears', 'How it composes', 'Representative examples', 'Common confusions',
       'Related concepts', 'Execution notes']) {
@@ -573,13 +562,13 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
   });
 
   it('teaches SPIN [BOD] as the shared rotational token, distinguished by direction', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/inspinning');
+    const res = await page('/freestyle/modifier/inspinning');
     expect(res.text).toContain('SPIN [BOD]');
     expect(res.text).toMatch(/the chest passes the bag first, where spinning by default passes the back first/);
   });
 
   it('uses "closely related rotational operators" framing, never "rotational family"', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/inspinning');
+    const res = await page('/freestyle/modifier/inspinning');
     expect(res.text).toMatch(/closely related rotational operators/);
     expect(res.text).not.toMatch(/rotational family/);
     expect(res.text).toContain('Inspinning vs spinning');
@@ -588,7 +577,7 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
   });
 
   it('renders progression and clickable representative examples across families', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/inspinning');
+    const res = await page('/freestyle/modifier/inspinning');
     expect(res.text).toContain('modifier-step-1-mirage');
     expect(res.text).toContain('modifier-step-2-inspinning_mirage');
     expect(res.text).toContain('href="/freestyle/tricks/inspinning_clipper"');
@@ -600,7 +589,7 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
   });
 
   it('renders related concepts including spinning and gyro (the rotational trio)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/inspinning');
+    const res = await page('/freestyle/modifier/inspinning');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['spinning', 'gyro', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
       expect(res.text).toContain(name);
@@ -610,7 +599,7 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
 
 describe('GET /freestyle/modifier/:slug — 404 paths', () => {
   it('returns 404 for unknown slug', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/garbage-slug');
+    const res = await page('/freestyle/modifier/garbage-slug');
     expect(res.status).toBe(404);
   });
 });
@@ -619,7 +608,7 @@ describe('GET /freestyle/modifier/:slug — route ordering', () => {
   it('does not collide with /freestyle/tricks/:slug', async () => {
     // Sanity: the modifier route is registered before the trick-detail route
     // in publicRoutes.ts.
-    const res = await request(createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.status).toBe(200);
     // The page does NOT use trick-shell.hbs
     expect(res.text).not.toContain('trick-shell');
@@ -629,7 +618,7 @@ describe('GET /freestyle/modifier/:slug — route ordering', () => {
 
 describe('GET /freestyle/modifier/symposium — concept-first frozen template', () => {
   it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/symposium');
+    const res = await page('/freestyle/modifier/symposium');
     expect(res.status).toBe(200);
     // Concept-first section order: definition before execution.
     expect(res.text).toContain('<h2>What it is</h2>');
@@ -650,7 +639,7 @@ describe('GET /freestyle/modifier/symposium — concept-first frozen template', 
 
 describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely related rotational operators)', () => {
   it('renders page title and subtitle (structural rotational framing)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Gyro');
     expect(res.text).toMatch(/rotational operator/);
@@ -658,7 +647,7 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
   });
 
   it('renders the full 11-section concept-first template, concept before execution', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('<h2>What it is</h2>');
     expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
@@ -674,14 +663,14 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
   });
 
   it('teaches SPIN [BOD] and the gyro-vs-spinning orientation distinction', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('SPIN [BOD]');
     // Gyro flips the leading dex to SAME where spinning leaves it OP.
     expect(res.text).toMatch(/gyro mirage reads SAME IN \[DEX\] where spinning mirage reads OP IN \[DEX\]/);
   });
 
   it('frames gyro/spinning/inspinning as closely related rotational operators', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('Gyro vs spinning');
     expect(res.text).toContain('Gyro vs inspinning');
     expect(res.text).toContain('Rotation vs dexterity');
@@ -694,7 +683,7 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
   });
 
   it('renders progression with anchor on whirl (underscore slugs)', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('modifier-step-1-whirl');
     expect(res.text).toContain('modifier-step-2-gyro_whirl');
     expect(res.text).toContain('modifier-step-3-gyro_symposium_whirl');
@@ -704,7 +693,7 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
   });
 
   it('renders representative examples as clickable links, organized by category', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('href="/freestyle/tricks/gyro_mirage"');
     expect(res.text).toContain('href="/freestyle/tricks/gyro_whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/gyro_eggbeater"');
@@ -716,7 +705,7 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
   });
 
   it('renders related concepts including the closely related rotational operators', async () => {
-    const res = await request(createApp()).get('/freestyle/modifier/gyro');
+    const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['spinning', 'inspinning', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
       expect(res.text).toContain(name);
@@ -729,7 +718,7 @@ describe('GET /freestyle/modifier/:slug — first-class sets redirect to the Set
   // first-class sets. All resolve to their set page, never a modifier stub.
   for (const slug of ['stepping', 'whirling', 'swirling']) {
     it(`permanently redirects /freestyle/modifier/${slug} to /freestyle/sets/${slug}`, async () => {
-      const res = await request(createApp()).get(`/freestyle/modifier/${slug}`);
+      const res = await page(`/freestyle/modifier/${slug}`);
       expect(res.status).toBe(301);
       expect(res.headers['location']).toBe(`/freestyle/sets/${slug}`);
     });

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Regeneration-is-a-no-op guard for the generated freestyle content modules.
 #
+# Pre-go-live only. The app is moving off generated TypeScript entirely: these
+# modules become database-backed, and this guard is deleted with their
+# generators before cutover.
+#
 # src/content/freestyleObservationalUniverse.ts and
 # src/content/freestyleTrackedNames.ts are generated from committed inputs plus,
 # for the observational module, the adjudication table that decides what each

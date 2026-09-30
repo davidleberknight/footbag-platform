@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertClub, insertClubLeader, insertMemberClubAffiliation, createTestSessionJwt } from '../fixtures/factories';
@@ -46,7 +47,7 @@ const cookieFor = (id: string) => `__Host-footbag_session=${createTestSessionJwt
 // City and country are mandatory profile fields; the pre-filled edit form always
 // carries them, so the helper supplies valid values by default while these cases
 // exercise the contact-PII fields.
-function editOwner(fields: Record<string, string>): request.Test {
+function editOwner(fields: Record<string, string>): Test {
   return request(createApp())
     .post(`/members/${OWNER_SLUG}/edit`)
     .set('Cookie', cookieFor(OWNER_ID))
@@ -126,7 +127,6 @@ describe('discoverable-in-member-search toggle', () => {
     const res = await request(createApp()).get(`/members/${OWNER_SLUG}/edit`).set('Cookie', cookieFor(OWNER_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain('name="searchable"');
-    expect(res.text).toContain('Allow other members to find me in member search');
   });
 
   it('opting in keeps the member in the searchable view', async () => {

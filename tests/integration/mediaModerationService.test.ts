@@ -53,6 +53,7 @@ function stubStorage(): StubStorage {
     async exists() { return true; },
     async headSize() { return null; },
     async generatePresignedPutUrl() { return 'https://example.invalid/put'; },
+    async generatePresignedGetUrl() { return 'https://example.invalid/get'; },
   } as StubStorage;
 }
 

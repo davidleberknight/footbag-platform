@@ -14,7 +14,7 @@
  * detail page; provisional ADD is labelled "extrapolated", never canonical.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3220');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   // The sections are content-module-driven. The database-tracked pending rows
@@ -53,7 +54,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/observational');
+  const res = await getPage('/freestyle/observational');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -62,12 +63,8 @@ const primaries = OBSERVATIONAL_UNIVERSE.filter(r => r.groupPrimary);
 const inSection = (s: string) => primaries.filter(r => r.publicSection === s);
 
 describe('GET /freestyle/observational — four-section lifecycle surface', () => {
-  it('returns 200', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
-    expect(res.status).toBe(200);
-  });
-
   it('opens with the orientation line: this is the not-yet-official side of the canonical line', async () => {
+    expect((await getPage('/freestyle/observational')).status).toBe(200);
     const html = await page();
     expect(html).toContain('waiting room of the freestyle dictionary');
     expect(html).toContain('Nothing on this page is an official trick yet');

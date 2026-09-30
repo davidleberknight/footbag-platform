@@ -403,32 +403,6 @@ export function seedAllTasksCompleted(
   };
 }
 
-// A member part-way through the wizard, with all three rows already
-// materialized: the legacy claim answered, the other two still outstanding.
-// Entering a task creates any missing row, so a spec that needs to observe
-// rows as they stand seeds them up front rather than relying on that.
-export function seedMixedTaskState(
-  db: BetterSqlite3.Database,
-  opts: { slug?: string } = {},
-): Persona {
-  const memberId = `mix-${rand()}`;
-  const slug = opts.slug ?? `mix_${rand()}`;
-
-  createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides: { onboarding: 'none', login_email: uniqueEmail('mix') } });
-
-  insertOnboardingTask(db, memberId, 'personal_details', 'pending');
-  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
-  insertOnboardingTask(db, memberId, 'club_affiliations', 'pending');
-
-  return {
-    memberId,
-    slug,
-    cookieHeader: cookieFor(memberId),
-    tier: 'tier0',
-    isAdmin: false,
-  };
-}
-
 // ── E2E-safe persona wrappers ────────────────────────────────────────────────
 // The shared E2E DB persists across spec files, but the uid() counter in
 // factories.ts resets on each import, causing email collisions. These

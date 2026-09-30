@@ -65,6 +65,14 @@
 #   scripts/ci/run_clean_room.sh --head       # the last commit, ignoring uncommitted work
 #   scripts/ci/run_clean_room.sh --quick      # build, unit and integration only
 #   scripts/ci/run_clean_room.sh --results F  # also write one line per gate to F
+#   scripts/ci/run_clean_room.sh --skip-py    # leave out every Python gate
+#
+# --skip-py leaves out every gate that runs the pre-go-live data pipelines'
+# Python: the Python-driven integration suite, the generated-content guard, the
+# loader gate, the freestyle database guards and the legacy-data pytest suite,
+# and it builds no Python environment. Each is recorded
+# NOT RUN, so the room ends INCOMPLETE rather than green: a faster answer about
+# everything else, never a claim about those.
 #
 # A full run executes the unit and integration tiers once, instrumented, as the
 # coverage gate: coverage runs exactly those files, so running them again
@@ -81,6 +89,7 @@ cd "$REPO_ROOT"
 
 FROM_HEAD=0
 QUICK=0
+SKIP_PY=0
 RESULTS_FILE=""
 
 usage() {
@@ -92,6 +101,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --head)  FROM_HEAD=1; shift ;;
     --quick) QUICK=1; shift ;;
+    --skip-py) SKIP_PY=1; shift ;;
     --results)
       [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR: --results needs a file path." >&2; usage 2; }
       RESULTS_FILE="$2"; shift 2 ;;
@@ -343,7 +353,12 @@ if [[ -z "$CI_PYTHON" ]]; then
   exit 1
 fi
 PY_BIN="python${CI_PYTHON%.*}"
-if ! command -v "$PY_BIN" >/dev/null 2>&1; then
+PY_UNRUN_REASON="could not build the pinned Python environment"
+if (( SKIP_PY )); then
+  echo "→ --skip-py: no Python environment is built, and every Python gate reports NOT RUN."
+  PY_BIN=""
+  PY_UNRUN_REASON="left out by --skip-py"
+elif ! command -v "$PY_BIN" >/dev/null 2>&1; then
   echo "→ the runner pins Python ${CI_PYTHON} and this machine has no ${PY_BIN} on PATH."
   echo "  The Python gates will report NOT RUN rather than answer with a different"
   echo "  interpreter. Install it (bash scripts/setup-dev-workstation.sh) to close them."
@@ -368,7 +383,9 @@ if (( PY_READY == 0 )) && [[ -s "$PY_SETUP_LOG" ]]; then
   tail -n 20 "$PY_SETUP_LOG" | sed 's/^/  /'
 fi
 
-gate build       npm run build
+# The build type-checks src/; the tests' own type-check follows it in the same
+# gate, since both are the push gate's type-check job.
+gate build       bash -c 'npm run build && npm run typecheck:tests'
 
 # One integration suite drives the legacy club extractors as real subprocesses,
 # and they parse mirror HTML with BeautifulSoup, so it needs the pinned
@@ -395,13 +412,23 @@ else
   gate coverage    npm run test:coverage ${PY_EXCLUDE[@]+"${PY_EXCLUDE[@]}"}
 fi
 if (( ! PY_READY )); then
-  unrun integration-club-chain "the pinned Python environment could not be built"
+  if (( SKIP_PY )); then
+    unrun integration-club-chain "$PY_UNRUN_REASON"
+  else
+    unrun integration-club-chain "the pinned Python environment could not be built"
+  fi
 fi
 
 if (( QUICK == 0 )); then
   gate lint              npm run lint
   gate conventions       bash scripts/ci/assert_conventions.sh
-  gate generated-content bash scripts/ci/assert_generated_content_current.sh
+  # The generated-content guard regenerates its modules through the freestyle
+  # Python loaders, so --skip-py leaves it out with the other Python gates.
+  if (( SKIP_PY )); then
+    unrun generated-content "$PY_UNRUN_REASON"
+  else
+    gate generated-content bash scripts/ci/assert_generated_content_current.sh
+  fi
   # The hook fixture suite runs once, as its own gate on the next line.
   gate harness           bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures
   gate hook-fixtures     bash scripts/ci/test_hooks.sh
@@ -412,7 +439,12 @@ if (( QUICK == 0 )); then
   # maintainer holds and cannot regenerate. Here there is nothing to overwrite:
   # the worktree carries no gitignored real-data tree, which is the same thing
   # the runner checks out. This is the point of the clean room, not an aside.
-  if ! command -v sqlite3 >/dev/null 2>&1; then
+  # The loader gate runs the Python loaders, so --skip-py leaves it out too.
+  if (( SKIP_PY )); then
+    unrun db-load-smoke "$PY_UNRUN_REASON"
+    unrun freestyle-db-integrity "$PY_UNRUN_REASON"
+    unrun legacy-pytest "$PY_UNRUN_REASON"
+  elif ! command -v sqlite3 >/dev/null 2>&1; then
     unrun db-load-smoke "sqlite3 is not installed"
     unrun freestyle-db-integrity "sqlite3 is not installed"
   else
@@ -428,8 +460,8 @@ if (( QUICK == 0 )); then
       gate legacy-pytest env PYTHONDONTWRITEBYTECODE=1 \
         python3 -m pytest legacy_data/tests/ -q -rs -p no:cacheprovider
     else
-      unrun freestyle-db-integrity "could not build the pinned Python environment"
-      unrun legacy-pytest "could not build the pinned Python environment"
+      unrun freestyle-db-integrity "$PY_UNRUN_REASON"
+      unrun legacy-pytest "$PY_UNRUN_REASON"
     fi
   fi
 fi

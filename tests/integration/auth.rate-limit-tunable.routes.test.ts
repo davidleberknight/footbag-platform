@@ -20,7 +20,7 @@ const { dbPath } = setTestEnv('4206');
 
 const CONFIGURED_CAP = 2;
 
-let app: Express.Application;
+let app: import('express').Express;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

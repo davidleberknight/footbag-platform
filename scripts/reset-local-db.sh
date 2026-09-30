@@ -182,7 +182,7 @@ phase_post_canonical() {
 # Build the freestyle tables via the self-contained freestyle pipeline: records,
 # consecutive records, trick dictionary (curated-v1 + Red overlays + footbag.org
 # provenance + pending), the notation parser, and QC. Freestyle lives outside
-# legacy_data/ so it survives the cutover freeze; this delegates so the build is
+# legacy_data/ so it stays independent of the legacy_data/ freeze; this delegates so the build is
 # defined in exactly one place (freestyle/run_freestyle.sh).
 echo "  → Building freestyle tables (freestyle/run_freestyle.sh)..."
 PYTHON="${PYTHON}" bash freestyle/run_freestyle.sh "${DB_FILE}"
@@ -302,6 +302,12 @@ fi
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   echo "  → Seeding FH (Footbag Hacky) and curator content..."
   "${PYTHON}" scripts/seed_fh_curator.py --db "${DB_FILE}"
+  # The media-tag invariant runs inside the freestyle refresh above, before any
+  # media exists, so on a reset it sees an empty table. Run it again here, after
+  # the only step that writes media rows, and require that there are rows: a
+  # violation in what the curator seed produced fails the reset.
+  echo "  → Checking the media-tag invariant over the seeded curator media..."
+  "${PYTHON}" freestyle/loaders/25_qc_media_tag_invariant.py --db "${DB_FILE}" --require-items
 else
   echo "  → Skipping FH/curator seed (CURATOR_SEED=no; --no-curator-seed was passed)."
 fi

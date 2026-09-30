@@ -3,6 +3,9 @@
 ## Scope
 
 This subtree prepares canonical historical data and loads it into the platform DB.
+It is pre-go-live data-load tooling: at cutover the production database becomes the
+source of truth, and the subtree, its Python and its CSV inputs are deleted once the
+final production load is signed off.
 
 Stay in this lane:
 - Do not modify repo-root code, repo-root docs, `.claude/skills/`, or `.claude/rules/`.

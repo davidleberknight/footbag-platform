@@ -11,8 +11,8 @@
 #   ./run_dev.sh --from-csv       # DESTRUCTIVE: deletes the DB, full enrichment rebuild (no mirror, but needs the gitignored operator roster — not committed-data-only) + persona seed; --no-personas to opt out
 #   ./run_dev.sh --soup-to-nuts   # DESTRUCTIVE: deletes the DB, everything on: mirror rebuild + media + personas (--no-* to opt out)
 #
-# To refresh freestyle from committed inputs WITHOUT losing local curator work,
-# run freestyle/run_freestyle.sh instead. It reconciles in place and deletes
+# Before go-live, to refresh freestyle from committed inputs WITHOUT losing
+# local curator work, run freestyle/run_freestyle.sh instead. It reconciles in place and deletes
 # nothing.
 
 set -euo pipefail
@@ -92,7 +92,7 @@ Local dev launcher.
 Default (no flags): just run the dev stack — code only. No DB rebuild, no
 reseed. If database/footbag.db is missing, bootstrap with --reset first.
 
-Refreshing freestyle without losing local work:
+Refreshing freestyle without losing local work (before go-live):
   Every mode below DESTROYS the local database. For the ordinary case — pulling
   committed freestyle input changes into the database you already have — run
   freestyle/run_freestyle.sh instead. It reconciles in place, keeps everything a

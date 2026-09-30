@@ -143,6 +143,16 @@ if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
   exit 1
 fi
 
+# The production release rules, as in scripts/deploy-code.sh: a clean tree on
+# origin/main, green CI, a --full pass for this tree, staging already running it,
+# a --staging pass against that deploy, and no skipped verification or safety
+# step. Staging is deliberately not held to them.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  # shellcheck source=lib/production-release-gate.sh
+  source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
+  production_release_gate_require "$REPO_ROOT" || exit 1
+fi
+
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
 # for the rationale (verification against the pinned host-key file, fail-fast
 # on dead targets, keepalives across the long docker-save and rsync streams).
@@ -270,9 +280,9 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # ── Verify staging before a production deploy ────────────────────────────────
 # A production deploy promotes what staging is already running, so the full
 # smoke gate (route smoke + security probes) must pass against staging first;
-# a failure aborts before anything on the production host is touched.
-# SKIP_SMOKE=yes remains the operator's deliberate override. Mirrors
-# deploy-code.sh.
+# a failure aborts before anything on the production host is touched. The
+# release gate refuses SKIP_SMOKE=yes on production, so this always runs.
+# Mirrors deploy-code.sh.
 if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
   tf_output_read "$REPO_ROOT/terraform/staging" cloudfront_domain || true
   staging_domain="$TF_OUTPUT_VALUE"
@@ -282,12 +292,10 @@ if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
     echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
     echo "       and the staging address could not be read." >&2
     tf_output_explain "terraform/staging" cloudfront_domain
-    echo "" >&2
-    echo "       SKIP_SMOKE=yes skips the gate deliberately." >&2
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
-  if ! BASE_URL="$STAGING_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
+  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
     exit 1
   fi
@@ -640,20 +648,20 @@ if [[ "${SKIP_SMOKE:-no}" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
 elif [[ -z "$SMOKE_BASE_URL" ]]; then
   # A staging or production deploy must never complete with smoke silently
-  # skipped; the explicit SKIP_SMOKE=yes override remains. Mirrors
-  # deploy-code.sh.
+  # skipped; SKIP_SMOKE=yes is a staging-only override, refused on production
+  # by the release gate. Mirrors deploy-code.sh.
   if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
     echo "ERROR: no public base URL for $FOOTBAG_ENV, so the deploy cannot be" >&2
     echo "       smoke-checked and will not report itself as done." >&2
     tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_domain
     echo "" >&2
-    echo "       Or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "       Or export SMOKE_BASE_URL (on staging, SKIP_SMOKE=yes skips it deliberately)." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
 else
   echo "==> Running smoke check against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
+  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
@@ -749,3 +757,4 @@ echo "Deploy complete."
 # stderr, for the reason given at the target banner above.
 echo "Origin: http://$HOST_IP" >&2
 echo "WARNING: live DB was replaced from scratch."
+echo "Next: the read-only browser check, npm run test:deployed -- ${FOOTBAG_ENV}"

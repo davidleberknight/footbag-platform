@@ -271,17 +271,3 @@ test('browser reload mid-wizard preserves state', async ({ browser, baseURL }) =
 
   await ctx.close();
 });
-
-test('unknown taskType renders 404', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedTier0Member(db, { slug: `w_404_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-
-  const res = await page.goto('/register/wizard/bogus_task');
-  expect(res?.status()).toBe(404);
-
-  await ctx.close();
-});

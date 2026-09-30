@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertMemberLink, createTestSessionJwt } from '../fixtures/factories';
@@ -59,7 +60,7 @@ function readLinks(memberId: string): Array<Record<string, unknown>> {
 // City and country are mandatory profile fields; the pre-filled edit form
 // always carries them, so the helper supplies valid defaults while these cases
 // exercise the external-links behavior.
-function postEdit(slug: string, memberId: string, fields: Record<string, unknown>): request.Test {
+function postEdit(slug: string, memberId: string, fields: Record<string, unknown>): Test {
   return request(createApp())
     .post(`/members/${slug}/edit`)
     .set('Cookie', cookie(memberId))

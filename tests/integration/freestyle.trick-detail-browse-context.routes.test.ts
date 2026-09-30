@@ -14,7 +14,7 @@
  * No trick_family data is written; all surfaces derive from reversible content maps.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -31,6 +31,7 @@ import {
 const { dbPath } = setTestEnv('3561');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 const t = (
   slug: string,
@@ -66,7 +67,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(slug: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  const res = await getPage(`/freestyle/tricks/${slug}`);
   expect(res.status).toBe(200);
   return res.text;
 }

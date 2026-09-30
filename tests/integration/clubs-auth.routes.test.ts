@@ -280,14 +280,6 @@ describe('legacy club description privacy', () => {
 });
 
 describe('GET /clubs/club_evergreen — authenticated', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .get('/clubs/club_evergreen')
-      .set('Cookie', authCookie());
-    expect(res.status).toBe(200);
-  });
-
   it('shows confirmed member names', async () => {
     const app = createApp();
     const res = await request(app)

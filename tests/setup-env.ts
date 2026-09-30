@@ -13,6 +13,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { threadId } from 'node:worker_threads';
 import { vi, beforeEach, afterEach } from 'vitest';
+import type { MockInstance } from 'vitest';
 
 import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';
 import {
@@ -159,7 +160,7 @@ beforeEach(async () => {
 // the spy in beforeAll would lock in stale env values for tests that
 // override them. beforeEach runs after all beforeAll hooks; the
 // idempotent guard ensures the spy is installed exactly once per worker.
-let errorSpy: ReturnType<typeof vi.spyOn> | undefined;
+let errorSpy: MockInstance<typeof import('../src/config/logger').logger.error> | undefined;
 const expectedErrorPatterns: Array<string | RegExp> = [];
 
 export function expectLoggedError(pattern: string | RegExp): void {

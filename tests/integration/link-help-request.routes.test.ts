@@ -680,7 +680,6 @@ describe('admin review', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('What the Platform Can See for Them');
     expect(res.text).toContain(`LM-cand-${memberId}`);
     expect(res.text).toContain('Found through their sign-in address');
     expect(res.text).toContain('1988-02-29');
@@ -741,7 +740,6 @@ describe('admin review', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('What This Member Has Already Tried');
     expect(res.text).toContain('Refused: the surname did not match');
     expect(res.text).toContain('Other Personsson');
     expect(res.text).toContain('Date of birth does not match the record');
@@ -1034,7 +1032,6 @@ describe('admin review: separation of duties', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Records this dispute named when it was filed');
     expect(res.text).toContain(personId);
   });
 

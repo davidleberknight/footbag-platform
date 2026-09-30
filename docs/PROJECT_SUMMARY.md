@@ -451,7 +451,7 @@ The platform uses a focused, mainstream technology stack chosen for volunteer ma
 
 **Back end:**
 
-- Node.js + TypeScript - Unified language stack, strong typing, async-first.
+- Node.js + TypeScript - Unified language stack, strong typing, async-first. The pre-go-live data-load Python (legacy data, freestyle, curated media curation and email template curation) builds the go-live dataset and is deleted after cutover, so the running platform and its tests are TypeScript only; Python remains only in small developer and CI tooling scripts.
 - Express.js - Industry standard HTTP framework with extensive ecosystem.
 
 **Data and Storage:**

@@ -12,7 +12,7 @@
  * visible browse copy.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -24,6 +24,7 @@ import { insertMember, insertFreestyleTrick, insertTtLesson } from '../fixtures/
 
 const { dbPath } = setTestEnv('3784');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -50,7 +51,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('PassBack Tutorials source — rendered classification', () => {
   it('classifies a passback_tutorials clip as Tutorial coverage, not Demo', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // The source is registered as TUTORIAL, so the only trick with media reads
     // as tutorial coverage; without the registration tierOf would be null and it
@@ -60,7 +61,7 @@ describe('PassBack Tutorials source — rendered classification', () => {
   });
 
   it('does not expose the raw passback_tutorials source key as rendered browse copy', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('passback_tutorials');
   });
 });

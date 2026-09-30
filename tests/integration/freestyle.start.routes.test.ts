@@ -15,13 +15,14 @@
  *   - The page hands off to Learn, the dictionary, the glossary, and Freestyle Concepts.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3663');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -32,7 +33,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(path: string): Promise<string> {
-  const res = await request(await createApp()).get(path);
+  const res = await getPage(path);
   expect(res.status).toBe(200);
   return res.text;
 }

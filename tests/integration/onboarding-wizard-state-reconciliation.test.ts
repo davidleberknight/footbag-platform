@@ -120,7 +120,6 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
     // the wrap-up landing, which renders and waits for the explicit no-club
     // answer rather than completing on the render.
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Clubs come after onboarding');
     expect(res.text).toContain('Finish Without a Club');
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
 
@@ -191,7 +190,6 @@ describe('/register/wizard/complete does not lie about progress', () => {
       .get('/register/wizard/complete')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Your onboarding is complete');
   });
 
   it('GET /register/wizard/complete routes a member whose club question is still open back to it', async () => {

@@ -25,7 +25,7 @@
  *   3. The resolver helper itself returns the documented values.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -41,6 +41,7 @@ import {
 const { dbPath } = setTestEnv('3096');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // One representative slug per kind. Each must already be registered in
 // src/content/freestyleTrickKindOverrides.ts; the tests below treat that
@@ -219,8 +220,7 @@ describe('Trick-browse view filter — non-trick kinds excluded', () => {
   // the slug, so every slug is asserted against the same rendered page.
   for (const view of views) {
     it(`excludes every non-trick slug from the ${view.name} view`, async () => {
-      const app = createApp();
-      const res = await request(app).get(view.url);
+      const res = await page(view.url);
       expect(res.status).toBe(200);
       for (const slug of ALL_FILTERED_SAMPLES) {
         expect(res.text, `${slug} in ${view.name} view`).not.toContain(`data-trick-slug="${slug}"`);
@@ -231,15 +231,13 @@ describe('Trick-browse view filter — non-trick kinds excluded', () => {
 
 describe('Trick-browse view filter — true tricks preserved', () => {
   it('renders the control trick in the ADD view', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${TRICK_SAMPLE}"`);
   });
 
   it('renders the control trick in the family view (butterfly family)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     // The control trick has trick_family='butterfly'; family-view groups by
     // family-slug. The card markup carries the trick's data-trick-slug.
@@ -250,15 +248,13 @@ describe('Trick-browse view filter — true tricks preserved', () => {
     // Sanity: the kind discriminator does NOT filter legitimate stalls.
     // clipper-stall (1 ADD) is a tricks-end-in-bag-contact primitive and
     // must remain in the ADD ladder.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${STALL_TRICK_SAMPLE}"`);
   });
 
   it('renders the Clipper Kick in the ADD view (body kick, ends in bag contact)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${BODY_KICK_SAMPLE}"`);
   });

@@ -1,273 +1,113 @@
 ---
 name: write-tests
-description: Write or extend tests for a route, service, or pure function. Use when adding new features, verifying edge-case coverage, or confirming a fix holds.
+description: Write, extend or fix tests for a route, service, pure function, operator script, adapter or browser flow (vitest unit and integration, script test, Playwright e2e, staging smoke). Use when adding a feature, writing a regression test for a bug fix, fixing a failing or flaky test, changing a service contract, checking an assertion or edge-case coverage, or confirming a fix holds.
 ---
 
 # Write Tests
 
-## When to use this skill
+The binding rules are `.claude/rules/testing.md`; read it before writing. This skill is the procedure. Layers, fixtures and naming are in `tests/CLAUDE.md`.
 
-- Adding a new route or service method and want tests alongside or before implementation
-- Checking whether existing coverage is sufficient for a feature
-- Verifying a bug fix is captured by a regression test
-- Doing a focused coverage pass after a feature lands
+Copy this checklist into your working notes and tick it off:
 
-Tests can be written at any point. See `tests/CLAUDE.md` for conventions.
+```
+- [ ] 1 Scope confirmed
+- [ ] 2 Layer chosen
+- [ ] 3 Story, contract and nearby tests read
+- [ ] 4 Cases planned, each with the defect it catches; anti-pattern check passed
+- [ ] 5 Tests written; inputs owned by the test
+- [ ] 6 Failure demonstrated (proportionate)
+- [ ] 7 Reviewer run if required; build and named suites green; reported
+```
 
 ## Step 1: Confirm scope
 
-Read the open issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and rely on the human's instruction). Confirm the feature being tested is in scope. Do not write tests for out-of-scope behavior.
+Read the open issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and rely on the human's instruction). Do not write tests for out-of-scope behaviour. To confirm the surface under test traces to a deployed user story, classify it per `.claude/skills/deployed-surface/SKILL.md`.
 
-## Step 2: Determine test layer
+## Step 2: Choose the layer
 
-**Unit tests** (`tests/unit/`) for exported pure functions with no DB dependency:
-- `slugify()` from `slugify.ts`
-- `personHref()` from `personLink.ts`
-- `groupPlayerResults()` from `playerShaping.ts`
-- `ServiceError` classes and `isServiceError()` from `serviceErrors.ts`
+- **Unit** (`tests/unit/`): exported pure functions with no database, such as `slugify()`, `personHref()`, `groupPlayerResults()` and the `ServiceError` classes. A non-exported function is tested through its integration surface; never widen production exports for a test.
+- **Integration** (`tests/integration/`): routes, database, auth, rendered HTML, and operator scripts (`<script>.script.test.ts`, driven through the script's test seam). Route contracts, auth and ownership gates, privacy boundaries, session edge cases, validation negatives, and business rules through routes.
+- **Browser** (`tests/e2e/`, Playwright): only what a real browser can show: cookie attributes and session behaviour across redirect chains, CSRF-protected form submission where browser semantics matter, the wizard happy paths plus the one negative case per wizard a browser reveals, and upload round-trips. Every business-rule branch belongs in integration. Sessions come from the persona switch (`GET /dev/switch?as=<slug>`).
+- **Smoke** (`tests/smoke/`): read-only live probes of staging wiring only. Read `SMOKE.md` first.
+- **Real-claim crawl** (`tests/dev/`): claims one real migrated record on a local dev stack and walks the surfaces that render it. Extend it only for a surface that renders migrated real-world data.
 
-Non-exported pure functions are tested indirectly through integration tests. Do not modify production code exports just for testing.
+Generative sweeps already cover every route, so check what they give a new route before writing per-route cases for it:
 
-**Integration tests** (`tests/integration/`) for everything involving routes, DB, auth, or rendered HTML:
-- Route contracts (status codes, redirects, rendered content)
-- Auth gates and ownership enforcement
-- Privacy boundaries (purged members excluded, honors-gated profiles, show_competitive_results)
-- Session edge cases (tampered cookies, malformed payloads)
-- Validation negative paths (invalid input, boundary values)
-- Business rules exercised through routes
+- The CSRF sweep (`tests/integration/csrf.sweep.test.ts`) and the member-owned cells of the authorization matrix (`tests/integration/authorization-matrix.test.ts`) read the live route table, so a new state-changing or member-owned route is swept on the day it ships. A route that legitimately falls outside a sweep gets a named exemption with its reason, never silence.
+- The route-wiring crawl (`tests/integration/route-wiring.crawl.test.ts`) follows every rendered link and form for anonymous, member and admin, so a page reachable from a section root is checked for 404, 5xx and template artifacts.
+- A new route still needs its own cases from the rule's edge-case floor; a sweep proves a property across routes, not a route's behaviour.
 
-**Smoke tests** (`tests/smoke/`) for real-AWS wiring contracts only. Opt-in via `npm run test:smoke` (which uses `scripts/test-smoke.sh` to read TF outputs and gate behind `RUN_STAGING_SMOKE=1`). Excluded from default `npm test` and CI. See "Smoke tests" below for scope rules.
+## Step 3: Read what the test must prove
 
-**End-to-end tests** (`tests/e2e/`, Playwright) for assertions only a real browser can make: real cookie attributes (HttpOnly, Secure, SameSite) and session behavior across redirect chains, CSRF-protected form submission where browser semantics matter, the onboarding / legacy-claim / club-cleanup wizard happy paths plus the one negative case per wizard a browser reveals, and avatar / media upload round-trips. Keep the suite small and business-critical — every business-rule branch and validation edge belongs in integration, not here; exhaustive navigation crawls live at the integration HTTP layer, not in a browser. Local e2e obtains a session from the persona-switch route (`GET /dev/switch?as=<slug>`) rather than a full login-plus-email chain. See `docs/TESTING.md` §5.5 and §6 for the belongs / does-not-belong rules.
+1. The acceptance criteria in `docs/USER_STORIES.md` (targeted sections).
+2. The owning service's file-header JSDoc (boundary, required patterns, side effects) and `.claude/rules/view-layer.md` for a rendered route.
+3. The current method shape in TypeScript.
+4. Known deviations: open `bug`-labelled private-tracker issues the test must accept.
+5. Nearby tests in the target directory; follow their patterns.
 
-**Persona-crawl** (`tests/dev/`) is the development-only member-journey and page crawl across the persona set; opt-in via `RUN_PERSONA_CRAWL=1`, excluded from `npm test` and CI. Extend it only when adding a cross-persona page-crawl surface, not for ordinary route coverage.
+Do not invent behaviour the acceptance criteria do not state. Tests prove the code does what the test expects, not that it is correct, so before finishing re-read the story or decision behind the change, confirm every acceptance criterion is exercised by at least one test, and check the adversarial cases missed no input class the story implies.
 
-## Step 3: Understand what needs testing
+## Step 4: Plan the cases
 
-Read:
-1. Acceptance criteria from `docs/USER_STORIES.md` (targeted sections)
-2. Required rendering pattern from the owning service's file-header JSDoc and `.claude/rules/view-layer.md` for the affected route (including any sensitive-page invariants that apply)
-3. Required service-layer pattern from the affected service's file-header JSDoc (boundary, required patterns, side effects)
-4. Current method shape from TypeScript and tests at the cited source path
-5. Known deviations (open `bug`-labeled private-tracker issues) that the test must accept
-6. Nearby tests in the target directory; follow established patterns exactly
+The case floor is the edge-case and adversarial lists in the rule; read them now, not from memory. Two cases the rule does not spell out:
 
-Do not invent behavior not in the acceptance criteria.
+- Privacy: purged members excluded, honours-gated public profiles, no PII to unauthorised viewers.
+- A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
 
-## Step 4: Plan test cases
+For the high-risk areas (auth and session, member privacy, payments, identity claim, erasure), also walk the risk classification and STRIDE vocabulary in `docs/TESTING.md`.
 
-Read `docs/TESTING.md` §4 for the project's test design principles. When you need to confirm the surface under test traces to a deployed user story, use the deployed-surface enumeration method (`.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`). The baseline case list below applies to every route and is the floor; risk-classified surfaces (per TESTING.md §3) layer additional adversarial cases on top per `.claude/rules/testing.md`.
+For a bug fix, name the bug's class before writing the case: a member state a sender or listing forgets, a failure after an earlier step committed, an enumeration leak on a lookup, or a check that can never fail. Where that class has a sweep, the regression test is a new row of the sweep, so the fix also covers every sibling path; a one-off test is right only when no sweep exists for the class.
 
-The baseline case floor for every route and service method is the edge-case list in `.claude/rules/testing.md`; read it now rather than working from memory. Two cases this project has learned the hard way and the rule does not spell out:
+State each planned case with the one sentence naming the defect it catches (the rule's name-the-defect mandate). Then check every case against this list and drop or rewrite any that fails it:
 
-- Privacy: purged members excluded, honors-gated public profiles, PII not leaked to unauthorized viewers.
-- Form-bearing page: the rendered primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test; the static gate in `scripts/ci/assert_conventions.sh` catches the markup at merge time, and an end-to-end submit is the deep check that the wired form reaches its handler.
+- Could only a deliberate edit to copy or a table make it fail? Then it is a change-detector; drop it. Word assertions survive only in the four kept shapes: a negative naming a wrong statement a regression could restore; a relation between two independently maintained things; a branch asserted on both sides; wording an external authority fixes.
+- Does it assert a content module contains its own entries? Assert what the module drives instead.
+- Is it an `.each` row that runs the same path as its neighbours? Fold it into one case.
+- Is it a `typeof` the types guarantee, bare truthiness, or a standalone `returns 200`? Assert the status inside the case that checks the body.
+- Does a read-only suite request the same page in several cases? Share one response through `cachedGet` (`tests/fixtures/cachedGet.ts`) and seed in `beforeAll`. Never write inside a case of a `cachedGet` suite: seed both states up front, or put the write-then-read case in its own file with plain requests (or mark the file `cachedGet-writes:` with the reason).
+- Does the verdict depend on ordering, a clock, a listing, a sleep, or a size smaller than the real input? Fix it per the rule.
 
-For catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim), also consider STRIDE-aware threat coverage per `docs/TESTING.md` §4.2 (a vocabulary, not a per-test artifact) and the verification floor in §4.5.
+## Step 5: Write the tests
 
-State the planned cases before writing code. No traceability entry artifact is required.
+Follow the shapes in `EXAMPLES.md`, and these instructions:
 
-## Step 5: Write tests
+- Import `../fixtures/supertestWithOrigin`, not plain `supertest`, whenever the suite issues any POST, PUT, PATCH or DELETE: those verbs are refused with 403 before the controller runs unless they carry a matching `Origin`.
+- Assert the status inside the case that checks the body, never in a standalone case.
+- Assert on rows the test seeded, not on template copy, so the assertion ties the render to the data.
+- Seed only through the factories; `insertMember()` overrides cover member edge cases (`is_hof`, `is_deceased`, `personal_data_purged_at`).
+- A case that deliberately drives a `logger.error()` calls `expectLoggedError(pattern)` before the action, with a pattern naming the expected line.
+- Many assertions about one page share one response through `cachedGet`.
 
-### Unit tests
+Give the test its own inputs. For every input the test does not create (a file, a directory, an installed binary, an exported variable), write it, stub it, pass its path or set it; a default that resolves to the developer's machine is not an input the test owns.
 
-No DB setup needed. Import the function directly and assert.
+- A case gated on an installed tool probes through `requireToolInCI` in `tests/fixtures/toolAvailability.ts`, which returns availability for `skipIf` locally and throws when the tool is missing and `CI` is set. If the case does not matter enough to provision for, delete it.
+- A claim about what is checked in uses `git grep` or `tests/fixtures/committedFiles.ts`, never a listing of a directory the machine might add to.
+- The shared setup already denies credentials, the home directory, the deployment-environment variable, the media directories and the SSH client; extend that declaration rather than defending a file by hand.
+- Check with `scripts/ci/run_clean_room.sh`, which runs the suite in a throwaway worktree with an empty home and no ambient environment.
 
-```typescript
-import { describe, it, expect } from 'vitest';
-import { slugify } from '../../src/services/slugify';
+Where the machine's speed decides between two legitimate outcomes, assert the contract, not the one outcome an idle machine produced (the load-dependent refusal in `EXAMPLES.md`). A fixed millisecond bound is a statement about the author's machine: measure the reference in the same run. A per-test timeout follows the rule's test-budget rule.
 
-describe('slugify', () => {
-  it('lowercases and replaces spaces with underscores', () => {
-    expect(slugify('John Doe')).toBe('john_doe');
-  });
-});
-```
+## Step 6: Demonstrate failure
 
-### Integration tests
+1. Make the smallest edit to the production code that should break the test: invert the condition, delete the guard, return the other branch.
+2. Run that one test file. It must fail, and the failure must name what you broke.
+3. Restore by reversing your own edit exactly, and run it again. It must pass. Never `git checkout` or `git restore` a file to undo it: the tree may carry other people's uncommitted work.
 
-Use the shared helper from `tests/fixtures/testDb.ts` for new test files:
+How often, per the rule's demonstrated-failure requirement: once per test for a regression test and for any test on auth and session, payments, member privacy, identity claim or erasure; elsewhere once per distinct branch or behaviour a group of tests covers. A test that stays green with the code broken is wrong; fix the assertion until it fails for the right reason.
 
-```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
-import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertEvent, createTestSessionJwt } from '../fixtures/factories';
+## Step 7: Review, run and report
 
-const { dbPath } = setTestEnv('3050');
+**Reviewer.** Run a fresh read-only reviewer subagent when the change touches auth and session, payments, member privacy, identity claim or erasure, or adds more than five test cases. Give it the test diff and the code under test, and this brief: "Report only tests that would still pass with the code they guard broken, each with the one-line code change that proves it. Do not comment on style or ask for more tests." Fix what it reports.
 
-let createApp: Awaited<ReturnType<typeof importApp>>;
+**Run.** `npm run build` plus the suites the change reaches and the suites that import what it changed, named explicitly (`npx vitest run tests/...`); `npm run typecheck:tests` when a test signature changed; `npm run test:coverage` when a coverage question is open. The runner is the human-run gate, not this step.
 
-beforeAll(async () => {
-  const db = createTestDb(dbPath);
+**Report.** Which tests were added or changed, the defect each catches, how failure was demonstrated, the reviewer's findings if it ran, and the result of every run, with full error output for any failure.
 
-  insertMember(db, { id: 'test-001', slug: 'test_user' });
-  insertEvent(db, { status: 'published', title: 'Spring Classic' });
+## Stop when
 
-  db.close();
-  createApp = await importApp();
-});
+Every planned case is written, each has been seen red for its named defect and green after restore, `git status` shows no modified production source from this work, and the build plus the reached suites pass. Then report.
 
-afterAll(() => cleanupTestDb(dbPath));
+## Additional resources
 
-function authCookie(): string {
-  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'test-001', role: 'member' })}`;
-}
-
-describe('GET /events', () => {
-  it('lists published events', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Spring Classic');
-  });
-});
-```
-
-The example imports `../fixtures/supertestWithOrigin`, not plain `supertest`, because state-changing verbs (POST/PUT/PATCH/DELETE) are origin-pinned: the request is rejected with 403 before the controller runs unless it carries a matching `Origin` header, which the wrapper supplies. Use the wrapper whenever a suite issues any state-changing request; plain `supertest` is acceptable only for a GET-only suite.
-
-Test data comes from the factories; `insertMember()` overrides cover edge cases (`{ is_hof: 1 }`, `{ is_deceased: 1 }`, `{ personal_data_purged_at: '2025-01-01T00:00:00.000Z' }`). The anti-patterns that would otherwise bite here, raw inserts, home-rolled temp paths, skipped tests, lowered thresholds, and writes into the real-data trees, are all in `.claude/rules/testing.md`.
-
-### `logger.error()` opt-in
-
-Any test that deliberately exercises an error path producing `logger.error()` calls `expectLoggedError(pattern)` from `tests/setup-env.ts` before the action that triggers it. A substring or RegExp matches the message arg. Without the opt-in, the global afterEach guard fails the test.
-
-```typescript
-import { expectLoggedError } from '../setup-env';
-
-it('outbox failure → 503 + audit row', async () => {
-  expectLoggedError('audit: auth.register_notification_failed');
-  // ... action that throws inside the catch block
-});
-```
-
-## Step 5b: Give the test its own inputs
-
-A test must not inherit from the machine it runs on the state or the timing that decides its
-verdict. A test whose result depends on a file, a directory, an installed binary, or an exported
-variable that a developer's machine has and a clean checkout does not is green wherever that input
-happens to be right, and the branch where the contract breaks is unreachable on the machine that
-holds it. No amount of local running finds that, and Step 6 below does not either: breaking the code
-reddens such a test on the machine where the input is present, and says nothing about the machine
-where it is absent.
-
-So, for every input the test does not itself create:
-
-- Write the file, stub the binary, pass the path, set the variable. A default that resolves to the
-  developer's machine is not an input the test owns. `--signing-key` pointed at a temp file, a
-  Terraform stub answering an output, `--key-dir` on a mkdtemp: those are the shapes.
-- A `skipIf` on an installed binary is a local convenience and never an outcome where the verdict is
-  taken. Skipped locally it spares a developer who has no encoder; skipped on the runner it reports
-  green having executed nothing, which has happened here — sixteen encoder-gated cases once passed
-  that way. So make the tool available on the runner AND make its absence there fail: probe through
-  `requireToolInCI` in `tests/fixtures/toolAvailability.ts`, which returns availability for your
-  `skipIf` and throws when the tool is missing and `CI` is set. A provisioning step someone deletes
-  then fails the build instead of going quiet. If the assertion does not matter enough to provision
-  for, delete the case rather than gating it.
-- Never assert on a listing of a directory the machine might add to, and never grep the working tree
-  when the claim is about what is checked in: `git grep` knows the difference.
-- The shared setup already denies credentials, the home directory, the deployment-environment
-  variable, the media directories and the SSH client. Extend that declaration rather than
-  defending a new file by hand.
-
-`scripts/ci/run_clean_room.sh` is how you check: it runs the suite in a throwaway worktree with an
-empty home and no ambient environment, which is most of what the runner has. It does not deny
-configuration the machine holds outside the home directory, so a suite that reads the SSH client's
-is green in there too; that class is denied in the shared declaration instead.
-
-### The timing half
-
-The same rule reaches the assertions whose verdict the machine's speed decides. An assertion
-pinned to the single outcome an idle machine produced is not a contract: where the choice
-between two legitimate outcomes is scheduling-dependent, the test is green alone and red in the
-full run, and the tempting fix is to weaken it.
-
-The shape that taught this: a query 100,000 characters long is refused at the HTTP layer either
-with a status or by the server destroying the socket, and which one lands depends on how loaded
-the machine is. The test accepted only a status, so it passed on an idle laptop and failed under
-the full parallel suite. The contract is "refused at the HTTP layer, never a 5xx", and the fix
-asserts that, treating the connection-level refusal as one of the legitimate outcomes
-(`tests/integration/freestyle.search-adversarial.routes.test.ts`):
-
-```typescript
-const outcome = await oversizedRequest(path, q);
-if (outcome.kind === 'connection-refused') continue;
-expect(outcome.status, `${path} must not 5xx on ${q.length} chars`).toBeLessThan(500);
-```
-
-Two more of the same family. A fixed millisecond floor or ceiling standing in for "the code did
-the work" is a statement about the author's machine: measure the work's own cost in the same run
-and compare against that, as `tests/integration/security.login-timing.test.ts` does. And a
-per-test timeout calibrated against a file running alone is covered by the test-budget rule in
-`.claude/rules/testing.md`.
-
-## Step 6: Prove each test can fail
-
-A test that has never failed has never been shown to test anything. Before a test is done,
-break the code it covers and confirm it goes red.
-
-For each new or changed test:
-
-1. Make the smallest edit to the production code that should break it — invert the condition
-   the test asserts, delete the guard clause, return the other branch.
-2. Run that one test file. It must fail, and the failure message must name the thing you
-   broke rather than something incidental.
-3. Restore the code and run it again. It must pass.
-
-If the test still passes while the code is broken, the test is wrong, not the code. Fix the
-assertion until it fails for the right reason.
-
-Restore before moving on: `git status` must show no modified production source when you are
-done.
-
-This step is the one that catches a silent gap. The coverage thresholds are satisfied by any
-test that merely executes a line; only breaking the line tells you whether an assertion would
-fail if it were wrong.
-
-## Step 7: Run and report
-
-Run `npm run build` plus the suites the change reaches, named explicitly (`npx vitest run tests/...`). `npm run test:coverage` when a coverage question is open. The full suite belongs at a commit or PR gate, not here.
-
-Report: which tests were added, what each asserts, whether all tests pass, and whether type-check is clean. Flag any failures with the full error output.
-
-## Smoke tests
-
-Run via `npm run test:smoke` against real staging AWS. Gated behind `RUN_STAGING_SMOKE=1` (set by `scripts/test-smoke.sh`). Excluded from default test runs and CI. The canonical example is `tests/smoke/staging-readiness.test.ts`.
-
-**Scope: wiring only.** Smoke verifies that the running infrastructure can reach AWS with the correct identity, the right resources exist with the right metadata, and adapter calls succeed end-to-end. Smoke is not for application logic or library behavior.
-
-In scope for smoke:
-- Identity resolution (assumed-role ARN matches the expected role)
-- AWS resource metadata (key spec, key usage, signing algorithms)
-- Adapter round-trip via real AWS (KMS sign+verify)
-- Alias and ARN addressing variants the production code uses
-- Adapter codepaths whose AWS-side behavior differs
-
-Out of scope for smoke (use unit tests against the adapter):
-- Token tampering, expired-token, `alg=none` rejection
-- Adapter input validation, encoding, error-class shaping
-- Default-vs-override branches whose AWS-side behavior is identical
-
-Out of scope for smoke (use integration tests):
-- End-to-end flows (password reset, outbox drain)
-- Bounce / complaint webhook handling
-- Suppression list, rate-limit, retry behavior
-
-**Bar for adding a smoke assertion:**
-- Must require real AWS to verify (not coverable by a stub)
-- Must catch a specific, named misconfiguration not already detected
-- Must be deterministic (no clock-dependence, no rate-limit-dependence)
-
-Update the test file's header docblock with the new failure-mode entry whenever a smoke assertion lands.
-
-**Adapter parity (long-term).** Per `.claude/rules/testing.md` "Dev↔staging adapter parity," every adapter has three layers: boot-time config (`tests/unit/env-config.test.ts`), interface parity with an injected fake AWS client (`tests/integration/adapter-parity.test.ts`), and the staging smoke. Smoke is the only layer that needs real AWS; do not duplicate parity-test assertions into smoke.
-
-## Database writes in tests
-
-If a test writes to the database, isolate it: use a fresh per-test DB path, or wrap the write in a transaction and roll back in `afterEach`. Do not let writes from one test affect reads in another.
-
-## Composition order
-
-`write-tests` fits anywhere in the flow: before implementation (spec), alongside (driven by code), or after (coverage pass).
-
-Full skill sequence: see the composition order in root `CLAUDE.md`.
+- `.claude/skills/write-tests/EXAMPLES.md`: read before writing a new unit or integration file, or an error-path test.
+- `.claude/skills/write-tests/SMOKE.md`: read before adding or changing anything under `tests/smoke/`.

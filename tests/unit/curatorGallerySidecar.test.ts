@@ -244,9 +244,10 @@ describe('externalLinks (sidecar contract extension)', () => {
     // Every test database sets ALLOW_CURATED_SIDECAR_WRITES, so a sidecar
     // another suite wrote into this very directory while this one was reading
     // would be judged here as though the repository shipped it.
-    const files = committedBasenames('curated/galleries');
+    const files = committedBasenames('curated/galleries').filter((f) => f.endsWith('.json'));
+    // A scan that finds no sidecars passes having checked nothing.
+    expect(files.length, 'no committed gallery sidecars found').toBeGreaterThan(0);
     for (const f of files) {
-      if (!f.endsWith('.json')) continue;
       const txt = await fs.readFile(path.join(galleriesDir, f), 'utf-8');
       const data = JSON.parse(txt);
       expect(Array.isArray(data.externalLinks)).toBe(true);

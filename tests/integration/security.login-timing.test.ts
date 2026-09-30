@@ -9,20 +9,18 @@
  * After the fix, the absent-email branch performs a phantom argon2.verify
  * against a constant dummy hash. Both branches now incur argon2 cost.
  *
- * This test asserts a behavioural floor with no fixed millisecond constant:
- * one argon2 verify is measured in this process as a baseline, interleaved
- * with the logins it gates so both are timed under the same load, and both
- * branches must cost at least three quarters of it, so the floor scales with
- * the machine and with whatever else the suite is running beside it. The
- * absent-email branch must also stay in the same order of magnitude as the
- * present-email branch (ratio within 4x). A regression that re-introduces
- * the immediate return on the absent-email branch does no argon2 work at
- * all, so it fails both assertions on any machine at any load.
+ * Two cases. The structural one asserts that both branches run exactly one
+ * argon2 verify against hashes of the same cost, with no clock involved. The
+ * timing canary keeps one behavioural floor with no fixed millisecond
+ * constant: one argon2 verify is measured in this process as a baseline,
+ * interleaved with the logins it gates so both are timed under the same load,
+ * and the absent-email branch must cost at least three quarters of it. A
+ * regression that re-introduces the immediate return fails both.
  *
  * Anti-enumeration contract: existing and non-existing accounts must be
  * indistinguishable from the outside.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -140,42 +138,27 @@ describe('login wall-clock equalisation (anti-enumeration)', () => {
     ).toBeGreaterThan((baseline * 3) / 4);
   });
 
-  it('absent-email and present-email-wrong-password login wall-clock are in the same order of magnitude', async () => {
-    // Warm-up.
-    await timeLogin(KNOWN_EMAIL, WRONG_PASSWORD);
-    await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
+  // The structural half of the contract, with no clock in it: both branches
+  // run exactly one argon2 verify, against hashes of the same cost. Equal work
+  // is what makes the two indistinguishable; a timing comparison can only
+  // sample it, while this states it. Defect caught: the absent-email branch
+  // skips the verify, runs it twice, or verifies against a cheaper hash, any
+  // of which lets response time reveal whether an email is registered.
+  it('absent-email and present-email logins each run one argon2 verify at the same cost', async () => {
+    const costOf = (encoded: string): string => encoded.split('$')[3];
+    const spy = vi.spyOn(argon2, 'verify');
+    try {
+      await timeLogin(KNOWN_EMAIL, WRONG_PASSWORD);
+      const presentHashes = spy.mock.calls.map((c) => c[0]);
+      spy.mockClear();
+      await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD);
+      const absentHashes = spy.mock.calls.map((c) => c[0]);
 
-    // Sample N times for each path, take median to dampen jitter. The bare
-    // verify is sampled in the same rotation for the reason given on
-    // timeOneArgonVerify: a floor measured in a different stretch of time from
-    // the thing it gates is a reading of the load, not of the code.
-    const N = 3;
-    const baselineSamples: number[] = [];
-    const presentSamples: number[] = [];
-    const absentSamples: number[] = [];
-    for (let i = 0; i < N; i += 1) {
-      baselineSamples.push(await timeOneArgonVerify(argonProbe));
-      presentSamples.push(await timeLogin(KNOWN_EMAIL, WRONG_PASSWORD));
-      absentSamples.push(await timeLogin(ABSENT_EMAIL, WRONG_PASSWORD));
+      expect(presentHashes).toHaveLength(1);
+      expect(absentHashes).toHaveLength(1);
+      expect(costOf(absentHashes[0])).toBe(costOf(presentHashes[0]));
+    } finally {
+      spy.mockRestore();
     }
-    const baseline      = median(baselineSamples);
-    const presentMedian = median(presentSamples);
-    const absentMedian  = median(absentSamples);
-
-    // Both medians sit above the same measured floor as the case above.
-    expect(
-      presentMedian,
-      `present-email login must pay argon2 cost (baseline ${baseline.toFixed(0)} ms)`,
-    ).toBeGreaterThan((baseline * 3) / 4);
-    expect(
-      absentMedian,
-      `absent-email login must pay argon2 cost (baseline ${baseline.toFixed(0)} ms)`,
-    ).toBeGreaterThan((baseline * 3) / 4);
-
-    // Ratio bound: neither path should be >4x the other. Generous tolerance
-    // accommodates CI jitter; tightening risks flake. The bug would push
-    // the ratio toward >20x (immediate return vs full argon2).
-    const ratio = Math.max(presentMedian / absentMedian, absentMedian / presentMedian);
-    expect(ratio).toBeLessThan(4);
   });
 });

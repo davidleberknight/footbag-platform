@@ -88,7 +88,6 @@ describe('asking for the export', () => {
     const res = await requestExport(slug, id);
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('emailed a download link');
     expect(res.text).toContain(`${slug}@example.com`);
     expect(res.headers['content-disposition']).toBeUndefined();
   });

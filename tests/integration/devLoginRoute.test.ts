@@ -34,9 +34,9 @@ beforeAll(async () => {
   // The harness seed password, argon2-hashed, so the real login path verifies it.
   const passwordHash = await argon2.hash(TEST_PERSONA_SEED_PASSWORD_LITERAL);
   // Session-eligible: verified, not deceased, not deleted.
-  seedPersona(db, { slug: 'login_ok', displayName: 'Login Okay', tier: 'tier1', coverageNotes: ['eligible'] }, { passwordHash });
+  seedPersona(db, { slug: 'login_ok', displayName: 'Login Okay', tier: 'tier1', testingUsage: 'Dev login route fixture.', coverageNotes: ['eligible'] }, { passwordHash });
   // Login-blocked: registered but email not verified.
-  seedPersona(db, { slug: 'login_unverified', displayName: 'Login Unverified', tier: 'tier0', emailVerified: false, coverageNotes: ['unverified'] }, { passwordHash });
+  seedPersona(db, { slug: 'login_unverified', displayName: 'Login Unverified', tier: 'tier0', emailVerified: false, testingUsage: 'Dev login route fixture.', coverageNotes: ['unverified'] }, { passwordHash });
   db.close();
   createApp = await importApp();
 });

@@ -53,7 +53,10 @@ function findBareRedirects(file: string): BareRedirect[] {
 describe('redirect-status lint', () => {
   it('no controller emits a bare res.redirect(<path>) without an explicit status code', () => {
     const offenders: BareRedirect[] = [];
-    for (const f of listTsFiles(CONTROLLERS_DIR)) {
+    const controllers = listTsFiles(CONTROLLERS_DIR);
+    // A scan that finds no controllers passes having read nothing.
+    expect(controllers.length, `no controllers found under ${CONTROLLERS_DIR}`).toBeGreaterThan(10);
+    for (const f of controllers) {
       offenders.push(...findBareRedirects(f));
     }
 

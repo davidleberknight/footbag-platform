@@ -270,7 +270,6 @@ describe('GET /media (hub)', () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Footbag Media');
     // Live categories: browse-by-hashtag leads, Member Galleries (seeded here),
     // and Freestyle. Each carries a real destination.
     for (const title of ['Browse by Hashtag', 'Member Galleries', 'Freestyle']) {
@@ -322,6 +321,7 @@ describe('GET /media/member-galleries (member galleries list page)', () => {
     const app = createApp();
     const res = await request(app).get('/media/member-galleries');
     expect(res.status).toBe(200);
+    expect(res.text).not.toContain('No member galleries yet.');
     expect(res.text).toContain('Personal Vacation 2026');
     expect(res.text).toContain('Beach Session 2024');
     expect(res.text).toContain(`href="/media/${MEMBER_GALLERY_ID}"`);

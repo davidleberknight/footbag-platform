@@ -1,35 +1,40 @@
 ---
 paths:
   - "tests/**"
-  - "src/adapters/**"
-  - "scripts/ci/stage_*.sh"
   - "run_all_tests.sh"
   - "legacy_data/tests/**"
   - "legacy_data/legacy_mirror/tests/**"
+  - "vitest*.config.ts"
+  - "src/testkit/**"
+  - "scripts/ci/run_clean_room.sh"
+  - "scripts/test-*.sh"
+  - "scripts/e2e/**"
+  - "scripts/lib/aws-isolation.sh"
+  - "scripts/ci/check_ci_parity.sh"
 ---
 
 # Testing rules
 
-Tests are load-bearing project infrastructure, not ceremony. Every change that affects behavior lands with tests that cover its intent AND its known failure modes. Test coverage is non-negotiable; only the test *shape* is negotiable.
+Every behaviour change lands with tests covering its intent and its known failure modes; only the test's shape is negotiable.
 
-Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.md`. This file is the operational rule set.
+Strategy and rationale (how to derive, layer and verify tests, and why each rule below exists) live in `docs/TESTING.md`. This file is the operational rule set; the `write-tests` skill is the procedure.
 
 ## Mandate
 
-1. **Every bug fix includes a regression test.** The test must fail against the pre-fix code and pass after the fix. This is how we know the fix is real and prevents recurrence.
-2. **Every new feature includes edge-case coverage.** Not just the happy path. The set of edge cases below is the minimum starting point for every feature.
-3. **Every service contract change includes shape assertions.** New method, changed return shape, new error class, new validation — each gets an explicit test against the new shape.
-4. **Tests land in the same change as the code they cover.** Not "add tests later." Not "will add in a follow-up PR." Not "TODO: test this." In the same diff.
-5. **Tests fail on unexpected `logger.error()`.** A global spy in `tests/setup-env.ts` fails any test that produces a `logger.error()` not opted in via `expectLoggedError(pattern)`. The same `logger.error()` line drives the staging/prod CloudWatch admin alarm.
-6. **Every test is demonstrated to fail.** Before a test is done, break the code it covers — invert the condition it asserts, delete the guard clause, return the other branch — confirm it goes red for that reason, and restore. This generalises the regression rule above from bug fixes to every test. A test that passes against broken code asserts nothing, and no threshold can detect it: coverage is satisfied by any test that merely executes a line, whether or not an assertion would fail if the line were wrong. The `write-tests` skill carries the procedure.
+1. **Every bug fix includes a regression test** that fails against the pre-fix code and passes after the fix. A bug in a class with a sweep lands as a row of that sweep.
+2. **Every new feature covers its edge cases**, not only the happy path; the lists below are the floor.
+3. **Every service contract change includes shape assertions**: a new method, return shape, error class or validation each gets an explicit test.
+4. **Tests land in the same diff as the code they cover.** Never "add tests later".
+5. **An unexpected `logger.error()` fails the test.** A global spy in `tests/setup-env.ts` fails any test producing a `logger.error()` not opted in via `expectLoggedError(pattern)`.
+6. **Every test is demonstrated to fail** (the demonstrated-failure requirement). Break the code it covers (invert the condition, delete the guard, return the other branch), confirm it goes red for that reason, and restore. Do this per test for a regression test and for every test on the high-risk areas (auth and session, payments, member privacy, identity claim, erasure); elsewhere once per distinct branch or behaviour a group of tests covers. A test that passes against broken code asserts nothing, and no threshold detects it: coverage is satisfied by any test that merely executes a line. The `write-tests` skill carries the procedure.
+7. **Every assertion names the defect it catches** (the name-the-defect mandate). State in one sentence what a visitor, member, admin or operator would experience if the code broke the way the assertion detects. If the only sentence is "somebody changed this copy on purpose", it is a change-detector: only a deliberate edit to the text or table it asserts can fail it, and it is not written. The four shapes that assert words and still pass are the strategic anti-patterns in `docs/TESTING.md`.
+8. **Every acceptance criterion of the motivating story is exercised by at least one test.**
 
 Do not ask whether to add tests. Add them.
 
 ## Scope of a verification run
 
-Per change: `npm run build` plus the suites the change reaches **and the suites that import what it changed**. `npm run build` type-checks `src/` only, so a changed signature leaves test call sites broken and silent; running the callers' suites is the only thing that catches it.
-
-Widen to the full suite when what changed is shared rather than local:
+Widen the per-change run (root `CLAUDE.md`) to the full suite when what changed is shared rather than local:
 
 - a fixture or factory
 - a service, helper, or type that more than one caller imports
@@ -38,37 +43,17 @@ Widen to the full suite when what changed is shared rather than local:
 - any signature a test calls directly
 - any run on a working tree carrying work that is not yours
 
-`./run_all_tests.sh --full` is the commit and PR gate, always: it is the local run that matches the
-push gate, and it carries what a vitest run cannot — the dependency audit, the harness self-check,
-the generated-content check, the secret scan, the browser tier, and terraform validation. Passing the
-tests is not the same as passing the gate, and a secret scan is the case that proves it: a finding
-there is invisible to every vitest tier and first shows up as a red push.
+Gate vocabulary: a commit uses `./run_all_tests.sh --quick` (what `npm run test:pre-pr` runs: build and `typecheck:tests`, lint, conventions, harness, generated-content, secret scan, unit and integration); a push and a PR use the bare `./run_all_tests.sh`, local only, which also runs e2e, terraform validation, the security probes and the clean room. `--staging` adds the read-only staging rows. `--skip-py` leaves out the pre-go-live data-load Python gates, ends INCOMPLETE and writes no pass receipt, so it never stands in for the push gate. `./run_all_tests.sh --help` owns the details. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
 
-**Run vitest from the repository root, or pass `--config vitest.config.ts`.** The config stamps a
-marker into every worker and `tests/setup-env.ts` refuses without it. A run under somebody else's
-config — an editor integration carrying its own, or a vitest resolved from elsewhere — takes
-vitest's built-in defaults for every timeout, the worker cap, the pool, the stale-artifact sweep and
-the worktree exclusions, and nothing says so. The first symptom is a timeout at a ceiling that
-appears nowhere in this tree, which is not a debuggable failure: it sends the reader hunting for a
-number that does not exist, and it cost a second operator two rounds of correspondence over one that
-was vitest's browser-mode default. The refusal names the cause instead.
+**Run vitest from the repository root, or pass `--config vitest.config.ts`.** Otherwise vitest's built-in defaults apply silently, and `tests/setup-env.ts` refuses the run.
 
-`npm run test:pre-pr` is the fast loop beneath it — build, lint, the conventions gate, the secret
-scan, and the vitest tiers — for the check before a commit rather than before a push. Every
-continuous-integration job, and every command its steps invoke, is reachable from one of those two
-or carries a written reason it cannot be, and `scripts/ci/check_ci_parity.sh` fails the build if
-that stops holding, in both directions. It also binds the runner's own list of the gates that stand
-for a push-gate job, so a gate whose absence should stop a run reporting green cannot quietly drop
-off that list, and it fails if a gate the runner leaves to the clean room under `--full` is not one
-the room runs.
-
-Targeted runs verify a change; only a full run verifies the tree.
+A CI job or step must be reachable from `npm run test:pre-pr` or the bare runner, or carry a written reason it is not; `scripts/ci/check_ci_parity.sh` enforces this in both directions.
 
 ## What "edge cases" means
 
 For every public-facing route:
 
-- Happy path — correct HTTP status, expected content, expected redirects.
+- Happy path — correct HTTP status, the data and state the story promises rendered (not static copy), expected redirects.
 - Authentication gate — 302 redirect if unauthenticated, 200 if authenticated (for protected routes).
 - Authorization gate — 403 or 404 when authenticated-but-not-authorized (admin-only, owner-only, etc.).
 - Not-found — 404 for unknown IDs, slugs, keys.
@@ -84,6 +69,8 @@ For every service method:
 - Correct output shape for the intended view-model or contract consumer.
 - Business rule enforcement — filters, sorts, eligibility checks, tier gates.
 - Transaction atomicity — multi-row writes either all land or none.
+- Failure between steps — where a step commits before a later send, provider call or write, a failure there leaves nothing lost, doubled or reported done.
+- Member state — a path that mails, lists or counts members covers deceased, purged, unverified and bounced members beside a live one.
 - Idempotency — repeating an operation with the same key returns the same id/outcome.
 - Error classes — every `throw` path has a test that asserts the thrown class and the message shape.
 - Boundary values — zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs, extreme dates.
@@ -110,7 +97,7 @@ Before calling a test suite complete, try to break the feature. Common attacks:
 - SQL-injection attempts in every free-text input.
 - XSS attempts in every field that lands in a Handlebars template.
 - Timing attacks against anti-enumeration endpoints (login, password reset, claim lookup).
-- Race conditions — two simultaneous inserts of the same idempotency key; two simultaneous claims of the same legacy account. Distinguish the technique: a deterministic pre-commit of the winner's unique value proves the constraint-to-error mapping, but only two genuinely concurrent HTTP requests (fired with `Promise.all` against the running app) prove request-interleaving safety on a surface with an async boundary; a synchronous single-transaction service cannot race in-process, so the deterministic simulation is the correct evidence there.
+- Race conditions — two simultaneous inserts of one idempotency key; two simultaneous claims of one legacy account. A deterministic pre-commit of the winner's unique value proves the constraint-to-error mapping; only genuinely concurrent requests (`Promise.all` against the running app) prove interleaving safety where there is an async boundary; a synchronous single-transaction service cannot race in-process, so the simulation is the correct evidence there.
 - Expired/wrong-type/replay-attack tokens.
 - Mass assignment / overposting — a state-changing form or JSON body carrying extra fields that target privileged columns (`is_admin`, `tier`, `id`, `slug`, `login_email`, `password_hash`, verification/email-status flags). The handler must persist only its whitelisted fields; the test posts the crafted extras and asserts every privileged column is untouched and no shadow row is conjured by an injected id or slug.
 
@@ -118,112 +105,64 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 
 ## Anti-patterns (forbidden)
 
+Three scans in `scripts/ci/assert_conventions.sh` are advisory and print a warning rather than failing: vacuous assertion forms, tool-gated skips, and `cachedGet` writes inside a case. Every other check named below fails the build.
+
 - **No mocking the DB.** Integration tests run against a real SQLite file per `tests/CLAUDE.md`.
-- **No hand-rolled row inserts.** All test data is created through the shared factories in `tests/fixtures/factories.ts` (which re-exports the row builders in `src/testkit/personaRowBuilders.ts`). A raw `db.prepare('INSERT ...')` for table data in a test is forbidden; if a table has no factory, add one rather than inlining the insert. `scripts/ci/assert_conventions.sh` fails the build on one, so this is enforced rather than requested.
-
-  Two exemptions, and the gate recognises exactly these. A suite that builds its own minimal fixture schema is inserting into that fixture, and the shared factory, which writes the production column set, would fail against it — so an insert is exempt where the file itself creates that table, matched by name rather than by the file merely containing the words, because one suite carries them inside a MySQL dump string and a substring test handed it blanket immunity. And a suite whose subject is the database *refusing* a row cannot use a factory at all: a factory typed to the valid shape cannot construct an invalid one, so the statement is what the assertion is about. The second kind carries `factory-cannot-express: <why>` on the statement or just above it. Per statement, never per file — a file-level marker bought immunity for two ordinary member seeds sitting in a schema suite whose other inserts were genuine refusal probes.
-- **A timestamp tie is broken by `rowid`, never by `id`.** Ids in this tree are `prefix_<randomUUID hex>`, so `ORDER BY created_at, id` is ordering at random the moment two rows share a millisecond, which two service calls in one test do readily. `rowid` is insertion order and is the only monotonic column these tables carry; no table in `database/schema.sql` is declared `WITHOUT ROWID`, so it is always available. This bites exactly where it is hardest to see: the suite passes on the draw, and reading the query back it looks like it already has a tiebreaker. Where the claim is really about which row is which rather than their sequence, assert on identity and order nothing.
-- **An assertion about what the repository ships asks git, not the filesystem.** A directory listing answers a different question, and the difference is whatever happens to be on this disk: a re-encode left behind, an editor swap file, a scratch tree, a sidecar another suite wrote while this one was reading. Counts, sets and equalities over a tracked tree go through `committedFiles` / `committedBasenames` in `tests/fixtures/committedFiles.ts`, the same reasoning as the `git grep` scans in `personaFactory.test.ts`. Use a listing where the subject really is the filesystem, such as what a script just wrote into a temp directory.
-- **A measured bound is measured in the same window as the thing it bounds.** A timing floor taken once in a setup hook is a reading of the most contended moment of the run, when every other file is importing, and the samples it gates are taken later under different load; the two disagree with nothing wrong in the code. Sample the reference alongside the subject and compare medians from the one window. Prefer `performance.now()`: it is monotonic, so a host stepping its wall clock cannot hand back a short or negative interval, and it does not quantise a millisecond-scale path to nothing. And state what the resolution actually buys, measured by injecting a known asymmetry, rather than implying a sensitivity the assertion does not have.
+- **No hand-rolled row inserts.** All test data comes from the shared factories in `tests/fixtures/factories.ts` (which re-exports `src/testkit/personaRowBuilders.ts`); a table without a factory gets one. The conventions gate enforces it, with exactly two exemptions: an insert into a table the file itself creates, matched by name; and a statement whose subject is the database refusing a row, which a factory typed to the valid shape cannot build, marked `factory-cannot-express: <why>` on or just above that statement. Per statement, never per file.
+- **An assertion about what the repository ships asks git, not the filesystem.** Counts, sets and equalities over a tracked tree go through `committedFiles` / `committedBasenames` in `tests/fixtures/committedFiles.ts`, because a listing also sees whatever else is on this disk. Use a listing where the subject really is the filesystem, such as what a script just wrote into a temp directory.
+- **A measured bound is measured in the same window as the thing it bounds.** Sample the reference alongside the subject and compare medians from one window; use `performance.now()`, which is monotonic and sub-millisecond; state the resolution the assertion actually has, measured by injecting a known asymmetry.
 - **No mocking framework internals.** Don't mock Express, Handlebars, JWT, argon2, or SES adapter internals. Use the stub adapters and real middleware.
-- **No timestamp / random / UUID leakage.** Tests that compare against `Date.now()`, `randomUUID()`, or `crypto.randomBytes()` without freezing the source produce flake. Freeze time; seed randomness; or assert shape, not value. The convention gate rejects an unfrozen source inside an `expect(...)`; a bound genuinely derived from a budget the code under test declares says so on the line with a `budget-is-the-contract:` comment, which is also how it satisfies the gate.
-- **No assertion on incidental ordering.** A query without an `ORDER BY` the test itself pins returns rows in whatever order the engine finds convenient, and "the newest row" is not a position. Pin the row: capture the maximum id or rowid before the action and assert on what appeared after it. Reading `[0]` out of an unordered result is a test that passes until the data grows. An `ORDER BY` on a column that is not unique is the same defect in disguise, and it survives review because the ordering looks pinned: `created_at` is a millisecond stamp, so rows written inside one millisecond tie, and SQLite settles a tie under `LIMIT 1` by insertion order, handing back the oldest of them rather than the newest. The tie opens only when the code runs fast enough, which is why it shows up as a failure the full suite produces and a single file never does.
-
-  A unique tiebreaker is not enough, and this is the form that survives review, because the ordering looks carefully pinned. Ending the ordering on the row's own id makes it deterministic, which is what the database-layer rule asks for and is the right thing for a paginated read. It does not make it recent: almost every id in this schema is a prefix plus a random UUID, so on a timestamp tie the winner is decided by a random string. Stable is not newest.
-
-  So do not use ordering as a proxy for identity at all. Either select on a key the test controls and can reconstruct -- an idempotency key, a per-case email address, a caption it generated -- or snapshot the matching ids before the action and take the ones that were not there before. `tests/fixtures/rowPinning.ts` holds both shapes, and they assert how many rows matched, which a newest-row query cannot express. A test that genuinely means to check ordering says so on the line with an `ordering-is-the-contract:` comment naming why, which is also how it satisfies the convention gate.
-- **No test budget that depends on what else is running.** A suite whose assertions are real network round-trips runs one file at a time. A per-test timeout is calibrated against a file running alone, and concurrency silently invalidates that calibration: the files contend for the same egress and the same remote throttles, and a budget that was generous becomes a coin toss. The tell is a test that passes in isolation and fails in the suite, which reads as a slow test asking for a bigger number — the wrong fix, because the number was never the problem. Remove the contention instead (`--no-file-parallelism` in the suite's runner, as `scripts/test-smoke.sh` does), and keep per-test timeouts comfortably above the code's own internal budget so a timeout means the code decided rather than the runner interrupting it. The convention gate rejects the one form of this that a pattern can recognise, a per-test timeout equal to the configured default, which does nothing and reads as though the case had needed it. Whether a number that does differ is large enough is not mechanically decidable: it depends on what the code under test budgets for itself, which is why the rule asks for the ceiling to be expressed against that budget rather than as a bare figure.
+- **No timestamp / random / UUID leakage.** Comparing against `Date.now()`, `randomUUID()` or `crypto.randomBytes()` without freezing the source is flake: freeze time, seed randomness, or assert shape, not value. A fixture compared against SQLite's own clock (tier and Active-Player expiry, grace windows) anchors to now with the runtime-relative helpers in `tests/fixtures/clock.ts` (`isoDaysFromNow`), because fake timers cannot move SQLite's clock and an absolute date flips meaning once the wall clock passes it. The conventions gate rejects an unfrozen source inside an `expect(...)`; a bound derived from a budget the code under test declares says so on the line with `budget-is-the-contract:`.
+- **No assertion on incidental ordering.** Never read `[0]` out of an unordered result. An `ORDER BY` on a non-unique column is the same defect: `created_at` ties inside one millisecond. Ending the order on the row's id makes it stable, not newest (ids are a prefix plus a random UUID); that tiebreaker is right for a paginated production read, never for identity in a test. Select on a key the test controls (an idempotency key, a per-case email) or snapshot ids before the action and take the new ones: `tests/fixtures/rowPinning.ts` holds both shapes and asserts how many rows matched. A test genuinely about ordering says so on the line with `ordering-is-the-contract:`, which is also how it satisfies the gate. The tell is a failure in the full suite that never happens alone.
+- **No test budget that depends on what else is running** (the test-budget rule). A suite whose assertions are real network round-trips runs one file at a time (`--no-file-parallelism`, as `scripts/test-smoke.sh` does). A test that passes alone and fails in the suite is fixed by removing the contention, not by a bigger number. Keep a per-test timeout above the code's own internal budget, so a timeout means the code decided; the gate rejects a timeout equal to the configured default. Files run in a seeded shuffled order; reproduce an order-dependent failure with the `VITEST_SEED` the run printed.
 - **No global state leakage between test files.** Each file owns its temp DB path; no fixture file assumes rows seeded by another file.
-- **No test double that parses unstructured tool output is written from memory.** A double standing in for an external tool falls into two classes and only one is dangerous. Where the consumer asks for a contracted shape and gets it -- an AWS `--query` returning a scalar or fixed row, a match anchored on a name it already knows, a replacement of strings it supplied itself -- a wrong fixture cannot mislead it, and an acknowledged fake is fine. Where the consumer parses output the tool was never obliged to keep stable -- an error message, a banner, a human-readable listing -- the fixture is the only description of that format the tests have, and a wrong one is invisible. Those carry a sample captured from a real run, and a note saying where it came from.
-
-  The cost of skipping it is not theoretical. A stub wrote Terraform's lock error as plain lines under a comment saying it reproduced what Terraform emits; Terraform boxes and colours its errors even when redirected, the parser matched nothing, and the tool told an operator that his own stale lock belonged to another machine. A second defect rode along: with the timestamp unparsed, `date -d ""` returned midnight rather than failing, so an unreadable lock was handed a plausible age and cleared the staleness floor that the comment above it promised would refuse. Forty-two tests passed throughout, because every one of them ran against the same fiction.
-
-  `tests/fixtures/stripeGoldenPayloads.ts` is the worked example and states the procedure: keep the structure the provider sent including fields the handlers ignore, record when it was captured so staleness is visible, and commit nothing whose provenance is uncertain -- an empty set is honest, while stub output relabelled as real reads as evidence. A fixture enlarged by guesswork is worse than a small one that admits what it is.
-- **No fixture smaller than the thing it stands for, where a size is what the code decides on.** The rule above is about a fixture's structure and provenance; this one is about its magnitude, and they fail independently. Where the code under test compares against a length, a size, a count or a duration, the fixture has to arrive at the scale the real input arrives at, or the test exercises the comparison operator and says nothing about the constant.
-
-  The cost is not theoretical. A cap on the logged confirmation URL from the mail provider existed for a good reason -- the request body limit is a megabyte, so an unbounded log of an attacker-chosen URL is a flooding primitive -- and it was set at 300 characters, described as short enough to belong on one line. A real confirmation URL is the endpoint plus the topic identifier plus a token of about 320 characters: 450 to 500 in total. Every genuine URL was refused and the alarm subscription could not be confirmed at all. The unit fixture standing in for "a genuine confirmation URL" was 74 characters and green throughout; the route-level fixture was 52 and would have passed at any cap above 60. Neither could have caught it.
-
-  So: build the fixture from the real shape, state in a comment what the real magnitude is and where that figure came from, and pin the bound from both sides -- a value longer than the real one is accepted, so the next long region name or identifier does not break it, and the refusal lands exactly one byte past the limit. The same discipline applies to a fixture copied out of curated data: a literal with nothing holding it to its source drifts, keeps asserting, and stays green.
+- **No content-module self-assertion.** Importing a content module or table and asserting that it contains its own entries, or has its own size, restates the source. Assert what the module drives instead: the render or derivation that consumes it, checked against the module read at test time.
+- **No table inflation.** An `.each` row earns its place by exercising a distinct branch or boundary. Rows that run one code path N times are one case: loop inside the assertion and name the failing item in its message.
+- **No trivially-true or duplicate checks.** A `typeof` the types guarantee, bare truthiness on a typed field, or a standalone `it('returns 200')` whose status a sibling case or the route-wiring crawl already asserts defends nothing. Assert the status inside the case that checks the body.
+- **No repeated requests to one page** (the repeated-requests anti-pattern). A read-only suite asserting many things about one page shares one response per path through `cachedGet` in `tests/fixtures/cachedGet.ts`; the fixture's header says when a suite keeps its own request.
+- **No test double that parses unstructured tool output is written from memory.** Where the consumer asks for a contracted shape (an AWS `--query` scalar, a match on a name it already knows, strings it supplied itself), an acknowledged fake is fine. Where it parses output the tool never promised to keep stable (an error message, a banner, a human-readable listing), the fixture carries a sample captured from a real run and a note of where it came from, and a test shows that sample parses to the expected fields, so a parser matching nothing fails. `tests/fixtures/stripeGoldenPayloads.ts` is the worked example: keep the provider's full structure including ignored fields, record the capture date, and commit nothing of uncertain provenance.
+- **No fixture smaller than the thing it stands for, where a size is what the code decides on.** Where the code compares against a length, size, count or duration, build the fixture at the real input's scale, state in a comment the real magnitude and where that figure came from, and pin the bound from both sides: a value longer than the real one is accepted, and the refusal lands exactly one byte past the limit. A literal copied from curated data is held to its source.
 - **No silent skips.** `.skip`, `.todo`, `xit` are forbidden in committed code. If a test can't land, the feature can't either.
 - **No "tested manually" as a substitute.** Manual verification is for UI/visual checks. Logic is tested by the suite.
 - **No tests that run on the dev DB.** Tests always use `setTestEnv` + `createTestDb` from `tests/fixtures/testDb.ts`.
-- **No test artifacts under the project root.** Temp DBs, WAL sidecars, admin-allowlist files, scratch fixtures — all in `os.tmpdir()` with a `footbag-test-` prefix (`setTestEnv` builds the database path, `tests/fixtures/scratchDir.ts` builds everything else, and a conventions check refuses a temp path spelled any other way). Project-root leaks survive worker timeouts / OOM / WAL races against `afterAll`; a `/tmp` leak is reclaimed by the session sweep in `tests/global-setup.ts`, which collects by prefix and skips anything touched in the last two hours, not by the operating system.
-- **No unbounded process spawn.** Every synchronous spawn a test makes (`spawnSync`, `execFileSync`, `execSync`) passes the shared bound from `tests/fixtures/spawnGuard.ts`. A synchronous spawn blocks the worker's event loop, and `testTimeout` is a timer on that loop, so it cannot fire while the loop is frozen: a command that never returns parks the worker with no failure reported and no test named, and the suite stops making progress instead of failing. Node's own `timeout` acts beneath the loop and turns that into an ordinary failure; `SIGKILL` rather than the default `SIGTERM`, because a script waiting on input or a lock can ignore a polite signal. The convention gate in `scripts/ci/assert_conventions.sh` enforces this at file level: a test file that spawns synchronously must import the shared bound.
+- **No test artifacts under the project root.** Temp DBs, WAL sidecars and scratch files go under `os.tmpdir()` with a `footbag-test-` prefix (`setTestEnv` builds the database path, `tests/fixtures/scratchDir.ts` everything else; a conventions check refuses a temp path spelled any other way).
+- **No unbounded process spawn.** Every synchronous spawn (`spawnSync`, `execFileSync`, `execSync`) passes the shared bound from `tests/fixtures/spawnGuard.ts`, because a blocked event loop cannot fire `testTimeout` and the suite would hang instead of failing; `SIGKILL`, since a script waiting on input can ignore `SIGTERM`. The gate enforces it at file level.
 - **No invented secret-shaped literals.** A fake AWS key id (`AKIA…`/`ASIA…`) or any other
   credential-shaped value in a test is copied from one `.gitleaks.toml` already allowlists; a new
   one fails the pre-commit secret scan. If none fits, ask; never extend the allowlist.
 
 ## Coverage floor
 
-Thresholds are set in `vitest.config.ts` and are enforced by the `coverage` job in CI on every push, which runs the whole suite instrumented and fails the aggregate gate when a threshold is missed. Each number sits about a point under measured coverage: it is a floor that catches a real drop, not a target to optimise. It is raised deliberately, by a human, when coverage has genuinely improved, and lowering one to admit new code is wrong.
+Thresholds are set in `vitest.config.ts` and enforced by the CI `coverage` job on every push. Each sits about a point under measured coverage; only a human raises one, and none is lowered to admit new code.
 
-Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are held to full coverage by reading the tests, not by a number: no per-path threshold is configured, because a per-path percentage is satisfied by any test that executes the line. The verification floor for those surfaces is the demonstrated-failure requirement in the mandate above.
+Auth, session, member privacy, payments and identity claim have no per-path threshold; their floor is the demonstrated-failure requirement.
 
 New source files must land with tests that keep coverage at or above the current floor.
 
-Coverage measures execution, not assertion: a line can be at 100% because some unrelated test ran through it while nothing checks its result. High coverage with weak assertions is a worse position than lower coverage with strong ones, because it reads as safety. The demonstrated-failure requirement in the mandate above is what closes that gap, and it is the reason a green threshold is never on its own evidence that a surface is defended.
+## Adapter parity
 
-## When tests are insufficient
-
-Tests prove code does what the test expects. They do not prove the code is correct. Before shipping:
-
-- Re-read the user story or design decision that motivated the change.
-- Confirm the acceptance criteria are all exercised by at least one test.
-- Check that the adversarial tests didn't miss a class of input the story implies.
-
-If the story is unclear, escalate to the human before writing tests that encode a guess.
-
-## Dev↔staging adapter parity
-
-Adapters (full set canonical in `docs/TESTING.md` §7.2) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production reuses the staging adapters against the production AWS account.
-
-Every new adapter, or change to an existing adapter's contract, requires three tests. These are long-term tests that describe a permanent contract, not one-shot verifications for the sprint that introduced them.
-
-1. **Boot-time config test** (in `tests/unit/env-config.test.ts`). `src/config/env.ts` must fail-fast at module-load when required prod-mode env vars are absent, with a specific error message. Add a case per new required env var.
-
-2. **Interface parity test** (in `tests/integration/adapter-parity.test.ts`). Both implementations satisfy the TypeScript interface and produce observable outputs with identical structure. Use an injected fake client to stand in for the AWS SDK call path; do not mock the SDK package itself.
-
-3. **Staging-smoke test** (in `tests/smoke/`). Hits real staging AWS via the assumed-role chain. Required only where a live probe is side-effect-free: an adapter whose live call would write to cloud object storage, charge a card, or otherwise mutate a deployed system carries the first two legs only, and its live path is verified by operator tooling instead. The exempt adapters and their reasons are listed in `docs/TESTING.md` §7.2. Gated behind `RUN_STAGING_SMOKE=1` and excluded from the default `npm test` run. Asserts the permanent contract that staging runtime identity is reachable and the adapter's AWS API calls succeed. A failure means staging AWS wiring is broken or incomplete (not that the test is "Phase H-specific" or any other sprint label).
-
-The `tests/smoke/` suite is run by operators on the staging host (or from a workstation with the staging profile configured) after any change to staging AWS runtime identity, KMS keys, or IAM policies the app depends on, via `npm run test:smoke`. It is not part of CI; against production it runs only as the pre-cutover wiring check (`SMOKE_TARGET_ENV=production`), never routinely.
-
-## Fixture-staging scripts: never clobber real data
-
-Test-fixture stagers (`scripts/ci/stage_*.sh` and equivalents) populate paths that, on a developer workstation, may also hold real data: `legacy_data/legacy_mirror/mirror_footbag_org/` (legacy site mirror crawl, multi-day to regenerate), `legacy_data/event_results/canonical_input/` (canonical CSVs, multi-hour pipeline). When you write or modify a fixture-staging script:
-
-- **Detect real data first, refuse to overwrite it. No flag, env var, or CI mode bypasses this guard.** A real-data signal might be: a row count well above any fixture (e.g. `events.csv` rows > 50 vs the fixture's 6), a directory population well above any fixture (e.g. `events/show/` > 100 entries vs the fixture's 0), or the presence of a real file the fixture never ships. An operator who genuinely wants to rebuild must move the directory aside manually before re-running; the script must not offer an in-band escape (no `--clobber-real-data`, no `FORCE_REAL_DATA_CLOBBER`, nothing).
-- **`CI=true` and `GITHUB_ACTIONS=true` may auto-enable `--force`** (since CI starts from an empty target). The real-data guard above fires regardless and is not subject to `--force`.
-- **Run real-data detection before any empty-target check.** A prior fixture stager had only an empty-target guard and wiped a 60 GB real-data mirror on a developer workstation (2026-05-09 incident); detecting real data ahead of the empty-target check prevents recurrence. Mark the header with `# REAL-DATA GUARD` so the convention gate in `scripts/ci/assert_conventions.sh` recognizes the script as compliant. No fixture stager ships today, so this governs any future one.
-- **State the threshold in the script header** so future readers understand why "n > 50" is the line. If the threshold is wrong (real data falls under it), the script silently fails to protect.
-
-The same principle applies to any test-setup script that touches paths outside `tmp/` or per-test temp dirs.
+An adapter change lands with three tests: boot config in `tests/unit/env-config.test.ts`, interface parity in `tests/integration/adapter-parity.test.ts` (an injected fake client, never a mocked SDK), and a staging smoke in `tests/smoke/` only where the live call mutates nothing. The full contract is in `.claude/rules/adapter-conventions.md`.
 
 ## Tests never write real data (hard invariant, by design)
 
-No test, test fixture, or local test-runner entry point writes into the irreplaceable real-data trees — `legacy_data/` and `curated/` — nor into the project root. Every test write goes to `os.tmpdir()` / `mktemp` via the shared helpers (`tests/fixtures/testDb.ts` `setTestEnv` / `createTestDb`; `tests/fixtures/scratchDir.ts` for scratch directories and files; `scripts/e2e/start-stack.sh` `mktemp`). Never construct a writable path from `path.join(process.cwd(), ...)`; use `os.tmpdir()` with a `footbag-test-` prefix so `tests/global-setup.ts` sweeps any SIGKILL/OOM leak.
+No test, test fixture, or local test-runner entry point writes into the irreplaceable real-data trees — `legacy_data/` and `curated/` — nor into the project root. Every test write goes to `os.tmpdir()` through the helpers the anti-patterns above name, or to `mktemp` in a script. Never construct a writable path from `path.join(process.cwd(), ...)`: the `footbag-test-` prefix under `os.tmpdir()` is what lets `tests/global-setup.ts` sweep a SIGKILL/OOM leak.
 
-The only script permitted to write a real-data path is the CI loader tool `scripts/reset-local-db.sh` (the `db-load-smoke` gate). It runs only where there is nothing to clobber: GitHub Actions against a clean checkout, and the clean-room gate's throwaway worktree, which is the same condition. It is never invoked against the working checkout. The clean-room gate runs it inside a throwaway `git worktree` holding the committed tree plus any uncommitted changes but none of the gitignored real-data trees, which is the empty-checkout condition this rule is about rather than an exception to it. Running it on a workstation that holds the machine-local legacy material is forbidden: the site mirror and the footbag.org member dump, neither of which is committed, and which exist only where a maintainer has put them. The competitor-results CSVs under `legacy_data/event_results/canonical_input/` are committed and present in every clone, so a fresh clone is the safe case the developer onboarding guide's database-build step describes. If a loader failure must be reproduced on a machine that holds the machine-local material, reach for `scripts/ci/run_clean_room.sh`, which is that isolated worktree as a standing gate. A maintainer rebuilding a local database uses `scripts/deploy-local-data.sh --from-csv`, which reaches the same loader through the sanctioned wrapper. (It also carries the refuse-on-real-data guards from the section above, but the by-design rule is upstream of that: do not point it at a real checkout at all.)
+The only script permitted to write a real-data path is the loader tool `scripts/reset-local-db.sh`, and only where there is nothing to clobber: CI on a clean checkout, and the clean-room gate's throwaway worktree. It is never run against a working checkout holding the machine-local legacy material (the site mirror and the member dump). To reproduce a loader failure on such a machine, use `scripts/ci/run_clean_room.sh`; to rebuild a local database, use `scripts/deploy-local-data.sh --from-csv`.
 
-`./run_all_tests.sh` is the canonical local full-suite runner and is safe on a workstation holding real `legacy_data/` by design: it keeps the loader gate out of the checkout (under `--full` it runs only inside the clean room's worktree), and it fingerprints `legacy_data/` and `curated/` before and after the run, aborting non-zero if any tree changed. Any new suite added to `run_all_tests.sh` must preserve this — the new gate writes only to tmp.
+`./run_all_tests.sh` is safe on a workstation holding real `legacy_data/` by design: it keeps the loader gate inside the clean room's worktree, and it fingerprints `legacy_data/` and `curated/` before and after the run, aborting non-zero if any tree changed. A new gate writes only to tmp.
 
-Python test gates never let bytecode land in the real-data trees. Because pytest resolves its rootdir to `legacy_data/` and writes `__pycache__` bytecode and a `.pytest_cache` directory next to the source it collects, any pytest gate over the legacy suites (`legacy_data/tests/`, `legacy_data/legacy_mirror/tests/`) runs with `PYTHONPYCACHEPREFIX` pointed at a throwaway temp dir and `-p no:cacheprovider`, so every bytecode and cache write goes outside the tree. The fingerprint deliberately prunes bytecode-cache artifacts (`__pycache__`, `*.pyc`, `.pytest_cache`) from what it hashes: those are regenerable build output, not real data, so a stray write from an ad-hoc manual `pytest legacy_data/tests/` run (which does not inherit the gate's environment) can never masquerade as a real-data change, while a genuine write to a data file still aborts the run.
+Any pytest gate over the legacy suites (`legacy_data/tests/`, `legacy_data/legacy_mirror/tests/`) runs with `PYTHONPYCACHEPREFIX` pointed at a throwaway temp dir and `-p no:cacheprovider`, because pytest otherwise writes bytecode and a cache next to the source it collects. The fingerprint prunes `__pycache__`, `*.pyc` and `.pytest_cache`, so a stray manual pytest run cannot masquerade as a real-data change.
 
 ## Tests never mutate live infrastructure (hard invariant, by design)
 
-The same rule as the data trees above, on a different substrate. No test writes, deletes, or arms anything in a deployed environment: no `put-parameter`, no object written to a bucket, no host file changed, no card charged, no mail to a real recipient.
+No test writes, deletes, or arms anything in a deployed environment: no `put-parameter`, no object written to a bucket, no host file changed, no card charged, no mail to a real recipient.
 
-The default suite reaches AWS not at all, and that is enforced rather than trusted. `tests/setup-env.ts` breaks credential resolution for every worker and everything it spawns, from the single declaration in `tests/fixtures/awsIsolation.ts`: no profile, no config or credentials file, no environment keys, and the instance metadata endpoint disabled, which matters because without it the SDK falls through to a live credential source on any AWS-hosted runner. A spawned child inherits that environment, so a test running an operator script is unauthenticated whatever that script would otherwise do. A convention gate fails the build if the setup stops applying it, if the exception is widened, or if any credential source is dropped from the declaration.
+The default suite reaches AWS not at all, enforced rather than trusted. `tests/setup-env.ts` breaks credential resolution for every worker and everything it spawns, from the single declaration in `tests/fixtures/awsIsolation.ts`: no profile, no config or credentials file, no environment keys, and the instance metadata endpoint disabled. Never widen the exception or drop a credential source; the gate enforces it.
 
-The same default-deny covers the rest of the workstation, from `tests/fixtures/machineIsolation.ts`: the home directory operator keys live under, the deployment-environment variable, the two media directories whose defaults point at gitignored trees inside the checkout, and the SSH client. The last of those cannot be denied with an environment variable, because `ssh -G` reads a system-wide configuration as well as the user's own, and it finds the user's own through the password database rather than through `HOME`, so an empty home neither hides the developer's own SSH configuration nor reproduces a runner, and neither does the clean-room gate. A suite that runs the real client passes `-F` with a configuration file of its own. The declaration writes a stub `ssh` and puts it at the front of `PATH`, which every spawn inherits: it answers the configuration query the way a machine with no stanza for that name answers, and refuses to connect at all, which costs nothing legitimate because a test reaching a deployed host is already forbidden here. A suite that needs an alias to resolve puts its own `ssh` in front of it, visibly, in the file that depends on it. A convention gate fails the build if the stub stops being installed.
+`tests/fixtures/machineIsolation.ts` denies the rest of the workstation the same way: the home directory, the deployment-environment variable, the media directories, and the SSH client through a stub `ssh` at the front of `PATH` that refuses to connect. A suite that runs the real client passes `-F` with a configuration file of its own; a suite that needs an alias to resolve puts its own `ssh` in front, visibly, in the file that depends on it. The gate enforces the stub.
 
-The runner's shell gates are covered by the same invariant and the same way. The declaration has a shell counterpart in `scripts/lib/aws-isolation.sh`, and a gate that must not reach AWS runs its commands through `aws_isolated_run` rather than merely avoiding credentials, so a gate that starts reaching AWS fails at once on every machine instead of passing wherever a key happens to work. A convention gate fails the build if a gate declared offline stops running under it. This is why the terraform gate spent months calling STS on every local run: it was trusted rather than enforced, green while the key worked, and it reported a rotated credential as a terraform failure the moment one stopped.
+The runner's shell gates follow the same invariant: a gate that must not reach AWS runs its commands through `aws_isolated_run` from `scripts/lib/aws-isolation.sh`, so a gate that starts reaching AWS fails at once on every machine. The gate fails the build if a gate declared offline stops running under it.
 
-The one exception is the opt-in smoke tier behind `RUN_STAGING_SMOKE=1`, which exists to prove live wiring and sets its own profile. It may reach AWS only with calls that mutate nothing: identity and parameter reads, and a KMS signature. This is the same side-effect-free condition the adapter-parity section above states: an adapter whose live call would mutate a deployed system carries the boot-config and interface-parity legs only, and its live path is verified by operator tooling instead.
+Isolation lives in the shared declaration; extend it, never isolate per file.
 
-Why it is enforced in one place rather than per file: per file is what failed. A case proving a file-mode refusal passes had to get past every local check to be meaningful, so it reached the AWS call, and on a maintainer's workstation the ambient profile is a real operator identity with write access to both environments. It overwrote a live API key in a deployed Parameter Store with its own fixture value, and the suite reported a clean pass; the damage surfaced later as an unrelated-looking smoke failure. Any convention depending on each author remembering will be broken by the next file, and the file that broke it was the newest one in the tree.
-
-## /curated guardrail (pre-go-live; dev-only)
-
-In dev, curated-media writes mutate the persistent on-disk `/curated/` sidecar files, which are the committed source of truth, so a switchable test-persona admin must not author real curated content. The curator service refuses curated and FH-owned-gallery writes (`assertCuratorActorMayWriteCurated`) from seeded test personas (member ids carrying the `member_persona_` prefix). Real maintainer accounts and the primary maintainer's persona register through the real flow and carry ordinary ids, so they pass; the coming freestyle sidecar curation reuses the same curator service and inherits the guard.
-
-The guard is keyed on `config.allowCuratedSidecarWrites`: it fires only where the on-disk sidecar write is enabled (dev, and the integration-test fixture, which sets `ALLOW_CURATED_SIDECAR_WRITES=1`). Staging and production run with the flag off, write curated content to the DB and object store only, and let any admin curate; there the guard is a no-op. Testing is therefore env-coupled: `tests/integration/curatorMediaService.persona-guard.test.ts` runs with the flag on (persona refused, real admin allowed, member-owned writes unaffected), and `tests/integration/curatorMediaService.persona-guard.sidecars-off.test.ts` boots with the flag cleared to pin the staging/production no-op.
+The one exception is the opt-in smoke tier behind `RUN_STAGING_SMOKE=1`, run through `npm run test:smoke` or the `--staging` rows of the runner, which exists to prove live wiring and sets its own profile. It may make only calls that mutate nothing, the same condition the adapter three-test contract in `.claude/rules/adapter-conventions.md` puts on a staging smoke.

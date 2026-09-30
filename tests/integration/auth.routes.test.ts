@@ -25,7 +25,7 @@ const TEST_PASSWORD      = 'test-password-123';
 const TEST_MEMBER_EMAIL  = 'test-member@example.com';
 const FOOTBAG_PASSWORD   = process.env.STUB_PASSWORD!;
 
-let app: Express.Application;
+let app: import('express').Express;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -72,7 +72,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: TEST_MEMBER_EMAIL, password: TEST_PASSWORD });
 
     expect(res.status).toBe(303);
-    const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('__Host-footbag_session='));
+    const cookie = res.get('Set-Cookie')?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(cookie).toBeTruthy();
   });
 
@@ -107,7 +107,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: 'footbag', password: FOOTBAG_PASSWORD });
 
     expect(res.status).toBe(303);
-    const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('__Host-footbag_session='));
+    const cookie = res.get('Set-Cookie')?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(cookie).toBeTruthy();
   });
 

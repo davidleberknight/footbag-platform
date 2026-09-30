@@ -28,7 +28,7 @@
  * "renders" and "does not render".
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -45,6 +45,7 @@ import {
 const { dbPath } = setTestEnv('3099');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -131,7 +132,7 @@ function familySection(html: string, slug: string): string {
 
 describe('Family view — torque + blender render as their own family parents', () => {
   it('torque renders as its own top-level family with its members folded in', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="family-torque"');
     const section = familySection(res.text, 'torque');
@@ -141,7 +142,7 @@ describe('Family view — torque + blender render as their own family parents', 
   });
 
   it('blender renders as its own top-level family with its members folded in', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('id="family-blender"');
     const section = familySection(res.text, 'blender');
     for (const slug of ['blender', 'paradox_blender', 'mind_bender']) {
@@ -150,7 +151,7 @@ describe('Family view — torque + blender render as their own family parents', 
   });
 
   it('every torque + blender member also appears in the osis section (a branch is contained in its root)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // torque and blender are derived branches of osis, so every member of
     // either branch is also a member of osis and renders in the osis section
     // as well as in its own branch section.
@@ -162,14 +163,14 @@ describe('Family view — torque + blender render as their own family parents', 
   });
 
   it('the torque + blender members do not render as their own top-level families', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     for (const slug of ['mobius', 'paradox_torque', 'paradox_blender', 'mind_bender']) {
       expect(res.text).not.toContain(`id="family-${slug}"`);
     }
   });
 
   it('drifter family renders with drifter as its anchor + high_plains_drifter re-bucketed in', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toContain('id="family-drifter"');
     const section = familySection(res.text, 'drifter');
     expect(section).toContain('data-trick-slug="drifter"');
@@ -183,12 +184,12 @@ describe('Family view — torque + blender render as their own family parents', 
 
 describe('Clipper-Stall family retirement (Family View)', () => {
   it('Family View no longer renders id="family-clipper_stall"', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.text).not.toContain('id="family-clipper_stall"');
   });
 
   it('ducking_clipper / spinning_clipper / reaper / clipper_stall do not appear in any Family-View section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // The clipper_stall ROW (anchor) — singleton in its bucket and the
     // bucket is retired — must not surface inside any family section.
     // Since the test seed has no other 'clipper' family rows, the
@@ -205,7 +206,7 @@ describe('Clipper-Stall family retirement (Family View)', () => {
   });
 
   it('the clipper_stall row + retired members remain visible in the ADD view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain('data-trick-slug="clipper_stall"');
     expect(res.text).toContain('data-trick-slug="ducking_clipper"');
@@ -222,7 +223,7 @@ describe('Clipper-Stall family retirement (Family View)', () => {
 
 describe('Unresolved compounds stay listed, with no review state on the row', () => {
   it('a curator-flagged folk-derived trick is listed like any other', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // A row states what a trick is, never how far along our own authoring of
     // it has got. An unresolved compound is therefore indistinguishable from a
@@ -242,7 +243,7 @@ describe('Unresolved compounds stay listed, with no review state on the row', ()
 
   it('no row on any browse view announces a decomposition under review', async () => {
     for (const view of ['add', 'family', 'dex-count', 'movement-system']) {
-      const res = await request(createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       expect(res.text, `${view} view carries a review state`).not.toContain('dict-trick-row-pending');
     }

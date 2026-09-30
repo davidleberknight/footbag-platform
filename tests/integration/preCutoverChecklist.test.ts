@@ -26,8 +26,14 @@ import {
   insertNameVariant,
   insertTag,
 } from '../fixtures/factories';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
+// The gate scripts the orchestrator runs query the database with sqlite3 and
+// parse JSON with jq. Without them every gate fails for a reason that has
+// nothing to do with the orchestrator; in CI a missing tool fails outright.
+const TOOLS_PRESENT = requireToolInCI('sqlite3', '-version') && requireToolInCI('jq', '--version');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
 
 function tempDir(): string {
@@ -179,7 +185,7 @@ function runChecklist(
   };
 }
 
-describe('pre-cutover checklist orchestrator', () => {
+describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
   let workDir: string;
   let dbPath: string;
   let snapshotDir: string;
@@ -313,7 +319,7 @@ describe('pre-cutover checklist orchestrator', () => {
 // leg is pointed at, and a test that could drive it would have to contact the host
 // it is asserting about.
 
-describe('a targeted run points each leg at the environment it names', () => {
+describe.runIf(TOOLS_PRESENT)('a targeted run points each leg at the environment it names', () => {
   const SOURCE = fs.readFileSync(
     path.join(REPO_ROOT, 'scripts', 'pre-cutover-checklist.sh'), 'utf8');
 
@@ -358,7 +364,7 @@ describe('a targeted run points each leg at the environment it names', () => {
   });
 });
 
-describe('gate scripts that had no red path of their own', () => {
+describe.runIf(TOOLS_PRESENT)('gate scripts that had no red path of their own', () => {
   // A gate nothing has ever shown red proves only that it prints PASS. Each
   // case here puts the exact defect the gate exists to catch into a fixture
   // and requires the gate to catch it.

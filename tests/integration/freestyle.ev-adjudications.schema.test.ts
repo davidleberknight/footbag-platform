@@ -35,6 +35,7 @@ interface AdjudicationRow {
   failure_class: string;
   residual_home: string;
   published_trick_slug: string | null;
+  matched_existing_object: string;
   version: number;
 }
 

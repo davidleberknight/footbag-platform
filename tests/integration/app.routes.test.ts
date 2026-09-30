@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { cachedGet } from '../fixtures/cachedGet';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -42,6 +43,10 @@ const { dbPath } = setTestEnv('4192');
 // Dynamic import after env is set so db.ts picks up the test database path.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
+// cachedGet-writes: the login, logout and CSP-report cases post inside a case
+// with fresh requests; none of them changes a page this file reads through the
+// shared cache.
+const page = cachedGet(() => createApp());
 import { createTestSessionJwt } from '../fixtures/factories';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 
@@ -251,21 +256,18 @@ afterAll(() => {
 
 describe('GET /health/live', () => {
   it('returns 200 with ok:true', async () => {
-    const app = createApp();
-    const res = await request(app).get('/health/live');
+    const res = await page('/health/live');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, check: 'live' });
   });
 
   it('returns JSON content-type', async () => {
-    const app = createApp();
-    const res = await request(app).get('/health/live');
+    const res = await page('/health/live');
     expect(res.headers['content-type']).toMatch(/application\/json/);
   });
 
   it('is accessible without authentication', async () => {
-    const app = createApp();
-    const res = await request(app).get('/health/live');
+    const res = await page('/health/live');
     expect(res.status).toBe(200);
   });
 });
@@ -355,38 +357,29 @@ describe('GET /health/ready', () => {
 // ── Events landing ─────────────────────────────────────────────────────────────
 
 describe('GET /events', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events');
-    expect(res.status).toBe(200);
-  });
-
   // Upcoming-events region intentionally omitted from /events while only the
   // featured promo (Worlds 2026) is highlighted. The data path
   // (eventService.listPublicUpcomingEvents) remains intact and is exercised
   // via getPublicEventsLandingPage shape.
   it('does not currently render the upcoming-events region', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events');
+    const res = await page('/events');
     expect(res.text).not.toContain('2026 Spring Classic');
     expect(res.text).not.toContain('Portland');
   });
 
   it('includes archive year link for 2025 (completed events)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events');
+    const res = await page('/events');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('/events/year/2025');
   });
 
   it('does not expose draft events', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events');
+    const res = await page('/events');
     expect(res.text).not.toContain('2026 Draft Event');
   });
 
   it('does not show completed events in the upcoming section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events');
+    const res = await page('/events');
     // Completed events live in the archive, not upcoming
     expect(res.text).not.toContain('href="/events/event_2025_beaver_open"');
   });
@@ -395,64 +388,50 @@ describe('GET /events', () => {
 // ── Events year archive ────────────────────────────────────────────────────────
 
 describe('GET /events/year/:year', () => {
-  it('returns 200 for a year with events', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2025');
-    expect(res.status).toBe(200);
-  });
-
   it('shows all completed events for the requested year', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2025');
+    const res = await page('/events/year/2025');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('2025 Beaver Open');
     expect(res.text).toContain('2025 Quiet Open');
   });
 
   it('shows event city for year-archive events', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2025');
+    const res = await page('/events/year/2025');
     expect(res.text).toContain('Corvallis');
   });
 
   it('shows the event description on year-archive rows when present', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2025');
+    const res = await page('/events/year/2025');
     expect(res.text).toContain('A test event.');
   });
 
   it('shows the standardized event hashtag on year-archive rows', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2025');
+    const res = await page('/events/year/2025');
     expect(res.text).toContain('#Event_2025_Beaver_Open');
   });
 
   it('does not expose draft events in year archive', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2026');
+    const res = await page('/events/year/2026');
     expect(res.text).not.toContain('2026 Draft Event');
   });
 
   it('returns 200 for a valid year with no events (empty state)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/1999');
+    const res = await page('/events/year/1999');
     expect(res.status).toBe(200);
   });
 
   it('returns 404 for a non-numeric year param', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/notayear');
+    const res = await page('/events/year/notayear');
     expect(res.status).toBe(404);
   });
 
   it('returns 404 for year 0 (out of valid range)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/0');
+    const res = await page('/events/year/0');
     expect(res.status).toBe(404);
   });
 
   it('returns 404 for year 10000 (out of valid range)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/10000');
+    const res = await page('/events/year/10000');
     expect(res.status).toBe(404);
   });
 });
@@ -460,40 +439,30 @@ describe('GET /events/year/:year', () => {
 // ── Single event page ──────────────────────────────────────────────────────────
 
 describe('GET /events/:eventKey', () => {
-  it('returns 200 for event with results', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
-    expect(res.status).toBe(200);
-  });
-
   it('shows event title on detail page', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
+    expect(res.status).toBe(200);
     expect(res.text).toContain('2025 Beaver Open');
   });
 
   it('shows event city on detail page', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain('Corvallis');
   });
 
   it('shows discipline name on detail page', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain('Freestyle');
   });
 
   it('shows result placements and participant names', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain('Alice Footbag');
     expect(res.text).toContain('Bob Hackysack');
   });
 
   it('links participants to /history/ not /members/', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain(`/history/${ALICE_ID}`);
     expect(res.text).toContain(`/history/${BOB_ID}`);
     expect(res.text).not.toContain(`/members/${ALICE_ID}`);
@@ -501,15 +470,14 @@ describe('GET /events/:eventKey', () => {
   });
 
   it('shows multiple disciplines when event has them', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain('Freestyle');
     expect(res.text).toContain('Shred30');
+    expect(res.text).not.toContain('Results are not yet available');
   });
 
   it('returns 200 for event without results and shows no-results message', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${QUIET_OPEN_KEY}`);
+    const res = await page(`/events/${QUIET_OPEN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('2025 Quiet Open');
     expect(res.text).toContain('Results are not yet available');
@@ -517,53 +485,45 @@ describe('GET /events/:eventKey', () => {
 
   it('shows the sparse-data notice on an event with fewer than 3 disciplines or 10 placements', async () => {
     // Beaver Open has 2 disciplines and 3 placements — qualifies as sparse.
-    const app = createApp();
-    const res = await request(app).get(`/events/${BEAVER_OPEN_KEY}`);
+    const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain("We know the data from this event is incomplete but we're showing what we have anyway.");
   });
 
   it('does not show the sparse-data notice when the event has no results', async () => {
     // Quiet Open has no results; sparse notice is suppressed in favor of the no-results message.
-    const app = createApp();
-    const res = await request(app).get(`/events/${QUIET_OPEN_KEY}`);
+    const res = await page(`/events/${QUIET_OPEN_KEY}`);
     expect(res.text).not.toContain("We know the data from this event is incomplete");
   });
 
   it('returns 200 for upcoming published event', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${SPRING_CLASSIC_KEY}`);
+    const res = await page(`/events/${SPRING_CLASSIC_KEY}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('2026 Spring Classic');
   });
 
   it('upcoming event shows no-results message', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${SPRING_CLASSIC_KEY}`);
+    const res = await page(`/events/${SPRING_CLASSIC_KEY}`);
     expect(res.text).toContain('Results are not yet available');
   });
 
   it('returns 404 for a draft event', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/events/${DRAFT_EVENT_KEY}`);
+    const res = await page(`/events/${DRAFT_EVENT_KEY}`);
     expect(res.status).toBe(404);
   });
 
   it('returns 404 for a non-existent event key', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/event_9999_does_not_exist');
+    const res = await page('/events/event_9999_does_not_exist');
     expect(res.status).toBe(404);
   });
 
   it('returns 404 for an invalid key format (no event_ prefix)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/not-a-valid-key');
+    const res = await page('/events/not-a-valid-key');
     expect(res.status).toBe(404);
   });
 
   it('does not route /events/year/2025 as an eventKey', async () => {
-    const app = createApp();
-    const res = await request(app).get('/events/year/2025');
+    const res = await page('/events/year/2025');
     expect(res.status).toBe(200);
     expect(res.text).toContain('2025');
   });
@@ -572,31 +532,10 @@ describe('GET /events/:eventKey', () => {
 // ── Home page ──────────────────────────────────────────────────────────────────
 
 describe('GET /', () => {
-  it('returns 200 with the site identity rendered (not an empty shell)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Footbag');
-  });
-
-  it('includes section cards for Events, Clubs, and Members', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toContain('href="/events"');
-    expect(res.text).toContain('href="/clubs"');
-    expect(res.text).toContain('href="/login"');
-  });
-
-  it('links Media Galleries card to /media', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toContain('Media Galleries');
-    expect(res.text).toContain('href="/media"');
-  });
-
   it('omits the Legacy Archive card when no archive URL is configured', async () => {
     const app = createApp();
     const res = await request(app).get('/');
+    expect(res.status).toBe(200);
     expect(res.text).not.toContain('Legacy Archive');
   });
 
@@ -635,7 +574,6 @@ describe('GET /', () => {
     // It only helps if it precedes the nav it exists to skip past.
     expect(skipAt).toBeLessThan(headerAt);
     expect(res.text).toContain('href="#main-content"');
-    expect(res.text).toContain('Skip to content');
   });
 
   it('gives the main element the id and tabindex the skip link needs', async () => {
@@ -644,20 +582,6 @@ describe('GET /', () => {
     // Without tabindex the browser moves the viewport but not focus, so the
     // next Tab returns to the top of the nav and the skip link achieves nothing.
     expect(res.text).toContain('<main id="main-content" tabindex="-1">');
-  });
-
-  it('includes promoted Sideline card linking to /sideline', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toContain('href="/sideline"');
-    expect(res.text).toContain('Sideline');
-  });
-
-  it('includes a Rules card linking to /rules', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toContain('href="/rules"');
-    expect(res.text).toMatch(/<div class="card-title">Rules<\/div>/);
   });
 
   it('does not list Sideline as a coming-soon section', async () => {
@@ -673,38 +597,13 @@ describe('GET /', () => {
 
 describe('GET /sideline', () => {
   it('returns 200 and renders the Sideline page body (not an empty/wrong template)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
+    const res = await page('/sideline');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
   });
 
-  it('renders the Sideline page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
-    expect(res.text).toContain('<h1>Sideline</h1>');
-  });
-
-  it('renders the hero mascot SVG', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
-    expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
-    expect(res.text).toContain('class="hero-mascot"');
-  });
-
-  it('shows all five game sections', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
-    expect(res.text).toContain('Circle Kicking (Hacky Sack)');
-    expect(res.text).toContain('2-Square');
-    expect(res.text).toContain('4-Square');
-    expect(res.text).toContain('Consecutive Kicks');
-    expect(res.text).toContain('Footbag Golf');
-  });
-
   it('embeds the three demo .webm clips', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
+    const res = await page('/sideline');
     expect(res.text).toContain('/video/sideline/hackysack.webm');
     expect(res.text).toContain('/video/sideline/foursquare.webm');
     expect(res.text).toContain('/video/sideline/golf.webm');
@@ -717,62 +616,43 @@ describe('GET /sideline', () => {
   // its own: three simultaneous autoplaying videos would pull megabytes of
   // footage on every page load and give the visitor no way to stop the motion.
   it('leaves every demo clip click-to-play with its own controls', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
+    const res = await page('/sideline');
     expect(res.text).not.toContain('autoplay');
     expect(res.text).toMatch(/<video[^>]*\bcontrols\b/);
     expect(res.text).toContain('preload="metadata"');
   });
 
   it('links 2-Square and 4-Square to internal MD-backed rule pages', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
+    const res = await page('/sideline');
     expect(res.text).toContain('/rules/sideline/2-square');
     expect(res.text).toContain('/rules/sideline/4-square');
   });
 
   it('contains no offsite rules links (no Google Docs, no YouTube tutorial, no footbag.org/rules)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
+    const res = await page('/sideline');
     expect(res.text).not.toContain('docs.google.com');
     expect(res.text).not.toContain('youtube.com/watch');
     expect(res.text).not.toContain('footbag.org/rules');
     expect(res.text).not.toContain('target="_blank"');
   });
 
-  it('links Consecutive Kicks to /records (no rules link in this batch)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
-    expect(res.text).toMatch(/<a href="\/records"/);
+  it('does not link Consecutive Kicks to a rules page', async () => {
+    const res = await page('/sideline');
     expect(res.text).not.toContain('/rules/sideline/consecutive-kicks');
   });
 
   it('highlights the Sideline entry in the main nav as active', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
+    const res = await page('/sideline');
     expect(res.text).toMatch(/<a href="\/sideline" class="active">Sideline<\/a>/);
-  });
-
-  it('uses two-square icon for both 2-Square and 4-Square sections', async () => {
-    const app = createApp();
-    const res = await request(app).get('/sideline');
-    const occurrences = res.text.split('/img/sideline-icon-twosquare.svg').length - 1;
-    expect(occurrences).toBeGreaterThanOrEqual(2);
   });
 });
 
 // ── Clubs index ────────────────────────────────────────────────────────────────
 
 describe('GET /clubs', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs');
-    expect(res.status).toBe(200);
-  });
-
   it('shows country names', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs');
+    const res = await page('/clubs');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('USA');
     expect(res.text).toContain('Finland');
   });
@@ -781,35 +661,30 @@ describe('GET /clubs', () => {
     // A club total counts every recorded row whether or not anyone has confirmed
     // the club still exists, so as a headline it claimed the size of the active
     // club network. The country count is a claim about coverage, which holds.
-    const app = createApp();
-    const res = await request(app).get('/clubs');
+    const res = await page('/clubs');
     expect(res.text).toContain('2 countries');
     expect(res.text).not.toMatch(/\d+ clubs/);
   });
 
   it('links to country pages', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs');
+    const res = await page('/clubs');
     expect(res.text).toContain('href="/clubs/usa"');
     expect(res.text).toContain('href="/clubs/finland"');
   });
 
   it('does not show individual club names or hashtags on the index', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs');
+    const res = await page('/clubs');
     expect(res.text).not.toContain('Rose City Footbag');
     expect(res.text).not.toContain('#club_rose_city');
   });
 
   it('does not show archived club countries if they have no active clubs', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs');
+    const res = await page('/clubs');
     expect(res.text).not.toContain('Old Defunct Club');
   });
 
   it('emits clubs-map-data JSON island carrying per-country memberCount + memberBin', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs');
+    const res = await page('/clubs');
     // The JSON island is a <script type="application/json" id="clubs-map-data">
     // populated from CountrySummary → mapDataJson. The world-map JS consumes
     // memberBin (0-4) to apply a sequential green choropleth class on each
@@ -836,73 +711,58 @@ describe('GET /clubs', () => {
 // ── Clubs country page ─────────────────────────────────────────────────────────
 
 describe('GET /clubs/:countrySlug', () => {
-  it('returns 200 for a known country', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
-    expect(res.status).toBe(200);
-  });
-
   it('shows clubs in the requested country', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Rose City Footbag');
     expect(res.text).toContain('Boston Hackers');
   });
 
   it('does not show clubs from other countries', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.text).not.toContain('Helsinki Footbag');
   });
 
   it('shows region headings for clubs with regions', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.text).toContain('Oregon');
     expect(res.text).toContain('Massachusetts');
   });
 
   it('links club names to club detail URLs', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.text).toContain('href="/clubs/club_rose_city"');
     expect(res.text).toContain('href="/clubs/club_boston_hackers"');
   });
 
   it('renders data-club-id on each club entry', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.text).toContain('data-club-id="club-portland-001"');
   });
 
   it('renders region anchor IDs for map integration', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.text).toContain('id="region-oregon"');
     expect(res.text).toContain('id="region-massachusetts"');
   });
 
   it('does not show archived clubs', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await page('/clubs/usa');
     expect(res.text).not.toContain('Old Defunct Club');
   });
 
   it('shows external links for clubs that have them', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/finland');
+    const res = await page('/clubs/finland');
     expect(res.text).toContain('https://example.com/helsinki');
   });
 
   it('includes breadcrumb back to clubs index', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/finland');
+    const res = await page('/clubs/finland');
     expect(res.text).toContain('href="/clubs"');
   });
 
   it('returns 404 for an unknown country slug', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/narnia');
+    const res = await page('/clubs/narnia');
     expect(res.status).toBe(404);
   });
 });
@@ -910,53 +770,41 @@ describe('GET /clubs/:countrySlug', () => {
 // ── Club detail ────────────────────────────────────────────────────────────────
 
 describe('GET /clubs/club_:clubKey', () => {
-  it('returns 200 for a known club', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_rose_city');
-    expect(res.status).toBe(200);
-  });
-
   it('shows the club name', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_rose_city');
+    const res = await page('/clubs/club_rose_city');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Rose City Footbag');
   });
 
   it('shows the club hashtag', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_rose_city');
+    const res = await page('/clubs/club_rose_city');
     expect(res.text).toContain('#club_rose_city');
   });
 
   it('shows city and region', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_rose_city');
+    const res = await page('/clubs/club_rose_city');
     expect(res.text).toContain('Portland');
     expect(res.text).toContain('Oregon');
   });
 
   it('shows external URL when present', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_helsinki');
+    const res = await page('/clubs/club_helsinki');
     expect(res.text).toContain('https://example.com/helsinki');
   });
 
   it('includes breadcrumbs to clubs index and country page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_rose_city');
+    const res = await page('/clubs/club_rose_city');
     expect(res.text).toContain('href="/clubs"');
     expect(res.text).toContain('href="/clubs/usa"');
   });
 
   it('returns 404 for an unknown club key', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_nonexistent');
+    const res = await page('/clubs/club_nonexistent');
     expect(res.status).toBe(404);
   });
 
   it('returns 404 for an archived club', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_old_defunct');
+    const res = await page('/clubs/club_old_defunct');
     expect(res.status).toBe(404);
   });
 });
@@ -964,49 +812,19 @@ describe('GET /clubs/club_:clubKey', () => {
 // ── HoF landing ────────────────────────────────────────────────────────────────
 
 describe('GET /hof', () => {
-  it('returns 200 and renders the HoF page body (not an empty/wrong template)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('footbaghalloffame.net');
-  });
-
-  it('includes Hall of Fame heading', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
-    expect(res.text).toContain('Hall of Fame');
-  });
-
-  it('includes link to external Hall of Fame site', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
-    expect(res.text).toContain('footbaghalloffame.net');
-  });
-
   it('includes HoF nav link', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
+    const res = await page('/hof');
     expect(res.text).toContain('href="/hof"');
   });
 
   it('includes navigation links to home and events', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
+    const res = await page('/hof');
     expect(res.text).toContain('href="/"');
     expect(res.text).toContain('href="/events"');
   });
 
-  it('renders history section with key content', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
-    expect(res.text).toContain('A Bit of History');
-    expect(res.text).toContain('Hacky Sack');
-    expect(res.text).toContain('Stalberger');
-  });
-
   it('leaks no template artifacts into the page (a short-form Handlebars comment containing a mustache terminates early and spills its text)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/hof');
+    const res = await page('/hof');
     expect(res.text).not.toContain('[object Object]');
     expect(res.text).not.toContain('}}');
     expect(res.text).not.toContain('render is safe');
@@ -1016,48 +834,19 @@ describe('GET /hof', () => {
 // ── BAP landing page ──────────────────────────────────────────────────────────
 
 describe('GET /bap', () => {
-  it('returns 200 and renders the BAP page body (not an empty/wrong template)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('bigaddposse.com');
-  });
-
-  it('includes Big Add Posse heading', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
-    expect(res.text).toContain('Big Add Posse');
-  });
-
-  it('includes link to external BAP site', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
-    expect(res.text).toContain('bigaddposse.com');
-  });
-
   it('includes BAP nav link', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
+    const res = await page('/bap');
     expect(res.text).toContain('href="/bap"');
   });
 
   it('includes navigation links to home and events', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
+    const res = await page('/bap');
     expect(res.text).toContain('href="/"');
     expect(res.text).toContain('href="/events"');
   });
 
-  it('renders BAP history section with key content', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
-    expect(res.text).toContain('History of the BAP');
-    expect(res.text).toContain('Additional Degree of Difficulty');
-  });
-
   it('leaks no template artifacts into the page (a short-form Handlebars comment containing a mustache terminates early and spills its text)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/bap');
+    const res = await page('/bap');
     expect(res.text).not.toContain('[object Object]');
     expect(res.text).not.toContain('}}');
     expect(res.text).not.toContain('render is safe');

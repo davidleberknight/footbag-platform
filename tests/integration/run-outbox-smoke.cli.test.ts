@@ -5,7 +5,7 @@
  * drains. The drain logic itself is covered by the email-worker suite; this
  * asserts the entry point drives and observes it correctly.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
@@ -25,12 +25,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 function rowFor(recipient: string): { status: string } | undefined {
   const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -53,7 +47,10 @@ describe('runOutboxSmoke (send-path smoke entry point)', () => {
       timeoutSeconds: 10,
       pollMs: 25,
     });
-    await sleep(60);
+    // Drain only once the smoke has enqueued its row; a fixed pause could
+    // drain before the enqueue under load and leave nothing to send. rowFor
+    // throws until exactly one row exists, which is what waitFor retries on.
+    await vi.waitFor(() => rowFor('outbox-smoke-pass@example.com'), { timeout: 5000, interval: 10 });
     const drained = await ops.operationsPlatformService.runEmailWorker();
     expect(drained.sent).toBeGreaterThanOrEqual(1);
 

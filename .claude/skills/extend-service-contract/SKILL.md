@@ -45,7 +45,7 @@ After reading docs:
 
 ## Step 3: Architecture context
 
-Path-scoped rule files in `.claude/rules/` auto-attach when Claude reads or edits files in their matching paths. For service-contract work this typically loads `service-layer.md` (ownership, shape, errors, discriminated-union returns, auth-conditional shaping, file-header JSDoc) and `db-layer.md` (named statements, views, transactions, SQL conventions). Trust those rules; do not restate them in your plan.
+Path-scoped rule files in `.claude/rules/` govern the paths the change touches. For service-contract work these are typically `service-layer.md` (ownership, shape, errors, discriminated-union returns, auth-conditional shaping, file-header JSDoc) and `db-layer.md` (named statements, views, transactions, SQL conventions). Read each touched path's rule yourself (root `CLAUDE.md` rule 8); do not restate them in your plan.
 
 Naming:
 - Services: `{domain}Service.ts` -- camelCase, singular noun.

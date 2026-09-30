@@ -35,13 +35,6 @@ describe('GET /register/check-email — production mode (SES_ADAPTER=live)', () 
     expect(res.text).not.toContain('Staging: email delivery is restricted');
     expect(res.text).not.toContain('simulator.amazonses.com');
   });
-
-  it('retired /internal/dev-outbox no longer serves the dev view in production mode', async () => {
-    const app = createApp();
-    const res = await request(app).get('/internal/dev-outbox');
-    expect(res.status).not.toBe(200);
-    expect(res.text).not.toContain('Dev Outbox');
-  });
 });
 
 describe('member-login sent pages — production mode (SES_ADAPTER=live)', () => {

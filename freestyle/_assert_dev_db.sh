@@ -4,7 +4,7 @@
 # The rebuild DELETE+INSERTs every freestyle table into its target database, so
 # it must never run against a live database. At go-live the live database
 # becomes the single source of truth for freestyle content and this CSV pipeline
-# retires from the production path; until then the guard refuses any target that
+# retires, deleted once the final production load is signed off; until then the guard refuses any target that
 # is not one of this checkout's own disposable databases. There is no bypass
 # flag: an operator who must rebuild does so on a development checkout.
 #

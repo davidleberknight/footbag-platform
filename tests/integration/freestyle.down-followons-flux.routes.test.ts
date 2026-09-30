@@ -20,7 +20,7 @@
  * All JOBs FB.org-confirmed verbatim.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -34,6 +34,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3177');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -101,7 +102,7 @@ describe('RESOLVED_ADD_FORMULAS — down-family follow-ons + flux entries', () =
 
 describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/pixie-double-over-down renders 5 ADD + (plant) pre-state', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie_double_over_down');
+    const res = await page('/freestyle/tricks/pixie_double_over_down');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // (plant) pre-state flag renders with pre-state cssRole
@@ -114,7 +115,7 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
   });
 
   it('/freestyle/tricks/scorpions-tail renders 5 ADD + SPIN body action + lowercase [bod]', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/scorpions_tail');
+    const res = await page('/freestyle/tricks/scorpions_tail');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     // (back) pre-state + SPIN body action + [bod] component (lowercase)
@@ -124,12 +125,12 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
   });
 
   it("scorpions-tail surfaces 'spinning down double-down' alias", async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/scorpions_tail');
+    const res = await page('/freestyle/tricks/scorpions_tail');
     expect(res.text).toMatch(/spinning down double-down/i);
   });
 
   it('/freestyle/tricks/flux renders 4 ADD + (FRONT) pre-state + atomic-osis chain', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/flux');
+    const res = await page('/freestyle/tricks/flux');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toMatch(/class="op-token[^"]*pre-state[^"]*"[^>]*>\(FRONT\)</);
@@ -141,14 +142,14 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
   });
 
   it('flux surfaces "atomic osis" alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/flux');
+    const res = await page('/freestyle/tricks/flux');
     expect(res.text).toMatch(/atomic osis/i);
   });
 });
 
 describe('Down-family follow-ons + flux browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     for (const slug of ['pixie_double_over_down', 'scorpions_tail', 'flux']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);

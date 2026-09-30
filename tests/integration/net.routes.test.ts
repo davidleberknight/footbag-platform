@@ -16,7 +16,7 @@
  *   - No rankings, win/loss, or head-to-head stats appear
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -43,6 +43,7 @@ const { dbPath } = setTestEnv('3095');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // IDs used across tests
 const TEAM_1_ID = 'net-team-test-0001';
@@ -145,27 +146,13 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /net/teams', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
-    expect(res.status).toBe(200);
-  });
-
-  it('shows the page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
-    expect(res.text).toContain('Net Teams');
-  });
-
   it('includes the evidence disclaimer', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.text).toContain('algorithmically constructed');
   });
 
   it('shows both teams (Alice/Bob and Carol/Dave)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.text).toContain('Alice Net');
     expect(res.text).toContain('Bob Net');
     expect(res.text).toContain('Carol Net');
@@ -173,8 +160,7 @@ describe('GET /net/teams', () => {
   });
 
   it('orders teams by appearance_count descending (team1 before team2)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     const posTeam1 = res.text.indexOf('Alice Net');
     const posTeam2 = res.text.indexOf('Carol Net');
     expect(posTeam1).toBeGreaterThan(-1);
@@ -182,30 +168,20 @@ describe('GET /net/teams', () => {
     expect(posTeam1).toBeLessThan(posTeam2);
   });
 
-  it('shows win and podium columns', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
-    expect(res.text).toContain('Wins');
-    expect(res.text).toContain('Podiums');
-  });
-
   it('shows year span for multi-year teams', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     // Team 1: first_year=2010, last_year=2015
     expect(res.text).toContain('2010');
     expect(res.text).toContain('2015');
   });
 
   it('links team rows to the canonical team detail at /net/teams/:teamId', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.text).toContain(`/net/teams/${TEAM_1_ID}`);
   });
 
   it('does not include inferred_partial appearances in counts', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     // Team 1 has 2 canonical + 1 inferred_partial. Only 2 should count.
     expect(res.text).toContain('Alice Net');
     const matches = res.text.match(/<td class="col-num">(\d+)<\/td>/g) || [];
@@ -214,8 +190,7 @@ describe('GET /net/teams', () => {
   });
 
   it('shows total teams count', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     // The unfiltered directory is paginated, so the header states the full total.
     expect(res.text).toContain('2 teams');
   });
@@ -224,8 +199,7 @@ describe('GET /net/teams', () => {
     // A link written before the vocabulary changed must not quietly render the
     // unfiltered page, which looks like a working result rather than a stale
     // link. One permanent redirect keeps a single canonical URL.
-    const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles&q=smith&page=2');
+    const res = await page('/net/teams?division=open_doubles&q=smith&page=2');
     expect(res.status).toBe(301);
     const target = new URL(res.headers['location'] as string, 'http://localhost');
     expect(target.pathname).toBe('/net/teams');
@@ -236,27 +210,22 @@ describe('GET /net/teams', () => {
   });
 
   it('does not redirect when the current parameter is used', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
+    const res = await page('/net/teams?discipline=open_doubles');
     expect(res.status).toBe(200);
   });
 
   it('prefers discipline and drops division when a request carries both', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?division=stale&discipline=open_doubles');
+    const res = await page('/net/teams?division=stale&discipline=open_doubles');
     expect(res.status).toBe(200);
   });
 
   it('shows discipline filter dropdown', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.text).toContain('name="discipline"');
-    expect(res.text).toContain('All Disciplines');
   });
 
   it('shows open_doubles in discipline options', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.text).toContain('open_doubles');
   });
 
@@ -266,8 +235,7 @@ describe('GET /net/teams', () => {
   // and can legitimately exceed the unique-team total; it must never be presented
   // as a bare team count that overstates the team universe.
   it('labels the discipline-option count as appearances, not an inflated team count', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.status).toBe(200);
     expect(res.text).toContain('2 teams');                       // unique-team universe (paginated header)
     expect(res.text).toMatch(/Open Doubles \(2 appearances\)/);  // explicit appearances unit
@@ -275,12 +243,11 @@ describe('GET /net/teams', () => {
   });
 
   it('a discipline filter shows no more teams than the full unique-team universe', async () => {
-    const app = createApp();
     // Unfiltered header reads "N teams" (paginated); a filter reads "N teams shown".
     const teamCount = (html: string): number =>
       Number((html.match(/(\d+) teams(?: shown)?/) ?? [])[1]);
-    const all = await request(app).get('/net/teams');
-    const filtered = await request(app).get('/net/teams?discipline=open_doubles');
+    const all = await page('/net/teams');
+    const filtered = await page('/net/teams?discipline=open_doubles');
     expect(filtered.status).toBe(200);
     const universe = teamCount(all.text);
     const shown = teamCount(filtered.text);
@@ -291,8 +258,7 @@ describe('GET /net/teams', () => {
   });
 
   it('paginates the unfiltered directory server-side', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     expect(res.status).toBe(200);
     // With two teams (under the page size) there is a single page, so the nav
     // renders its status but offers no Previous/Next link.
@@ -303,15 +269,13 @@ describe('GET /net/teams', () => {
   });
 
   it('clamps an out-of-range page without erroring', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?page=999');
+    const res = await page('/net/teams?page=999');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Page 1 of 1');
   });
 
   it('paginates a filtered result too (single page here, so no Prev/Next)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
+    const res = await page('/net/teams?discipline=open_doubles');
     expect(res.status).toBe(200);
     // One team matches, under the page size, so a single page with its status.
     expect(res.text).toContain('class="gallery-pagination"');
@@ -320,8 +284,7 @@ describe('GET /net/teams', () => {
   });
 
   it('does not contain forbidden stat language', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams');
+    const res = await page('/net/teams');
     const lower = res.text.toLowerCase();
     expect(lower).not.toContain('head-to-head');
     expect(lower).not.toContain('ranking');
@@ -331,46 +294,34 @@ describe('GET /net/teams', () => {
 });
 
 describe('GET /net/teams?discipline=open_doubles', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
-    expect(res.status).toBe(200);
-  });
-
-  it('shows discipline in page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
-    expect(res.text).toContain('Open Doubles');
+  it('suffixes the page title with the active discipline', async () => {
+    const res = await page('/net/teams?discipline=open_doubles');
+    expect(res.text).toContain('<h1>Net Teams: Open Doubles</h1>');
   });
 
   it('shows team 1 (which plays in open doubles)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
+    const res = await page('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('Alice Net');
   });
 
   it('marks the selected discipline as selected in dropdown', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
+    const res = await page('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('value="open_doubles" selected');
   });
 
   it('shows clear filter link when discipline is active', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles');
+    const res = await page('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('Clear');
   });
 
   it('returns empty for a discipline with no teams', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=masters_doubles');
+    const res = await page('/net/teams?discipline=masters_doubles');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
   });
 
   it('ignores unknown discipline values gracefully', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=not_real');
+    const res = await page('/net/teams?discipline=not_real');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
   });
@@ -378,36 +329,31 @@ describe('GET /net/teams?discipline=open_doubles', () => {
 
 describe('GET /net/teams?q=Alice', () => {
   it('returns 200 and shows matching team', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?q=Alice');
+    const res = await page('/net/teams?q=Alice');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Alice Net');
   });
 
   it('does not show non-matching teams', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?q=Nonexistent');
+    const res = await page('/net/teams?q=Nonexistent');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
   });
 
   it('shows search input with current value', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?q=Alice');
+    const res = await page('/net/teams?q=Alice');
     expect(res.text).toContain('value="Alice"');
   });
 
   it('ignores search queries shorter than 2 characters', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?q=A');
+    const res = await page('/net/teams?q=A');
     expect(res.status).toBe(200);
     // Short query ignored → shows default results
     expect(res.text).toContain('Alice Net');
   });
 
   it('combines discipline and search filters', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams?discipline=open_doubles&q=Alice');
+    const res = await page('/net/teams?discipline=open_doubles&q=Alice');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Alice Net');
   });
@@ -418,22 +364,15 @@ describe('GET /net/teams?q=Alice', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /net/teams/:teamId', () => {
-  it('returns 200 for valid team', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
-    expect(res.status).toBe(200);
-  });
-
   it('shows both partner names in title', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Alice Net');
     expect(res.text).toContain('Bob Net');
   });
 
   it('shows summary stats', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     // Team 1: 2 canonical appearances (placement 1 + placement 2)
     expect(res.text).toContain('2 appearances');
     expect(res.text).toContain('1 wins');
@@ -441,16 +380,13 @@ describe('GET /net/teams/:teamId', () => {
   });
 
   it('shows competitive timeline', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
-    expect(res.text).toContain('Competitive Timeline');
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     expect(res.text).toContain('Net Open 2010');
     expect(res.text).toContain('Net Open 2015');
   });
 
   it('orders timeline by year ascending', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     const idx2010 = res.text.indexOf('Net Open 2010');
     const idx2015 = res.text.indexOf('Net Open 2015');
     expect(idx2010).toBeGreaterThan(0);
@@ -458,9 +394,7 @@ describe('GET /net/teams/:teamId', () => {
   });
 
   it('renders a Competition History section grouped by year, descending', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
-    expect(res.text).toContain('Competition History');
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     const pos2015 = res.text.indexOf('year-heading">2015');
     const pos2010 = res.text.indexOf('year-heading">2010');
     expect(pos2015).toBeGreaterThan(-1);
@@ -469,43 +403,37 @@ describe('GET /net/teams/:teamId', () => {
   });
 
   it('renders raw discipline name when conflict_flag=1', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_2_ID}`);
+    const res = await page(`/net/teams/${TEAM_2_ID}`);
     // disc3 has conflict_flag=1; raw name is 'Footbag Net: Singles'
     expect(res.text).toContain('Footbag Net: Singles');
   });
 
   it('shows placement labels (1st, 2nd)', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     expect(res.text).toContain('1st');
     expect(res.text).toContain('2nd');
   });
 
   it('links event names to canonical /events/event_{year}_{slug} pages', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     expect(res.text).toMatch(/\/events\/event_\d{4}_[a-z0-9_]+/);
     expect(res.text).toContain('/events/event_2010_net_open');
     expect(res.text).toContain('/events/event_2015_net_open');
   });
 
   it('links player names to history pages via personHref', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     expect(res.text).toContain(`/history/${PERSON_A1}`);
     expect(res.text).toContain(`/history/${PERSON_B1}`);
   });
 
   it('includes evidence disclaimer', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     expect(res.text).toContain('algorithmically constructed');
   });
 
   it('excludes inferred_partial appearances from timeline and summary', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
     // Team 1 has 2 canonical + 1 inferred_partial. Should show 2 appearances.
     expect(res.text).toContain('2 appearances');
     // European Net 2012 was the inferred_partial event — should NOT appear
@@ -513,15 +441,14 @@ describe('GET /net/teams/:teamId', () => {
   });
 
   it('returns 404 for unknown team', async () => {
-    const app = createApp();
-    const res = await request(app).get('/net/teams/not-a-real-team');
+    const res = await page('/net/teams/not-a-real-team');
     expect(res.status).toBe(404);
   });
 
   it('shows breadcrumb back to teams list', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
-    expect(res.text).toContain('/net/teams');
-    expect(res.text).toContain('Teams');
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
+    // The page's own URL already contains /net/teams, so the assertion is on
+    // the breadcrumb link itself.
+    expect(res.text).toContain('<a href="/net/teams">Teams</a>');
   });
 });

@@ -26,6 +26,11 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 //   open-member   the member-only route serves 200 with content
 //   leaky-forgot  forgot-password body differs by account existence
 //   dev-leak      production shape but the dev harness answers 200
+//   no-csp        the sign-in page arrives with no content security policy
+//   no-framing-rule  the policy is present but allows the page to be framed
+//   weak-cookie   the persona switch issues a session cookie without HttpOnly or Secure
+//   clearing-cookie  the switch answers with a flagged cookie that clears the session
+//   admin-path    the session cookie is scoped to /admin rather than the whole site
 const SERVER_JS = `
 const http = require('http');
 const mode = process.env.MODE || 'compliant';
@@ -45,6 +50,30 @@ const srv = http.createServer((req, res) => {
       return;
     }
     if (req.url === '/internal/') { res.writeHead(404); res.end(); return; }
+    if (req.url === '/login' && req.method === 'GET') {
+      const headers = {
+        'content-type': 'text/html',
+        'content-security-policy': mode === 'no-framing-rule'
+          ? "default-src 'self'; script-src 'self' https://challenges.cloudflare.com"
+          : "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'",
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'strict-origin-when-cross-origin',
+        'permissions-policy': 'camera=()',
+      };
+      if (mode === 'no-csp') delete headers['content-security-policy'];
+      res.writeHead(200, headers);
+      res.end('<html>sign in</html>');
+      return;
+    }
+    if (req.url.startsWith('/dev/switch') && mode !== 'production' && mode !== 'dev-leak') {
+      let cookie = '__Host-footbag_session=abc; Path=/; HttpOnly; Secure; SameSite=Lax';
+      if (mode === 'weak-cookie') cookie = '__Host-footbag_session=abc; Path=/; SameSite=Lax';
+      if (mode === 'clearing-cookie') cookie = '__Host-footbag_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
+      if (mode === 'admin-path') cookie = '__Host-footbag_session=abc; Path=/admin; HttpOnly; Secure; SameSite=Lax';
+      res.writeHead(302, { location: '/', 'set-cookie': cookie });
+      res.end();
+      return;
+    }
     if (req.url === '/password/forgot' && req.method === 'POST') {
       const registered = body.includes('personas.test');
       let page = '<html>\\n<form><input value="x"></form>\\nIf the address exists, mail was sent.\\n</html>';
@@ -178,6 +207,39 @@ describe('smoke-security.sh', () => {
     expect(res.status, res.stdout + res.stderr).toBe(0);
     expect(res.stdout).toContain('anti-enumeration probe skipped on production');
     expect(res.stdout).toContain('dev harness absent: /dev/switch');
+  });
+
+  // Defect caught: a proxy or edge drops the policy the app sets, or the policy
+  // is weakened, and a deploy still reports itself verified.
+  it('fails a sign-in page served without a content security policy', async () => {
+    const res = runSmoke(await startTarget('no-csp'), 'staging');
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('content security policy — header absent on /login');
+  });
+
+  it('fails a policy that lets the page be framed', async () => {
+    const res = runSmoke(await startTarget('no-framing-rule'), 'staging');
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("does not forbid framing");
+  });
+
+  // Defect caught: a session cookie readable by page scripts or sent in clear.
+  it('fails a session cookie missing HttpOnly and Secure', async () => {
+    const res = runSmoke(await startTarget('weak-cookie'), 'staging');
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('session cookie — missing HttpOnly Secure');
+  });
+
+  it('fails a cookie that clears the session rather than carrying one', async () => {
+    const res = runSmoke(await startTarget('clearing-cookie'), 'staging');
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('issued no __Host-footbag_session cookie with a value');
+  });
+
+  it('fails a session cookie scoped to part of the site', async () => {
+    const res = runSmoke(await startTarget('admin-path'), 'staging');
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('session cookie — missing Path=/');
   });
 
   it('fails a production target whose dev harness answers', async () => {

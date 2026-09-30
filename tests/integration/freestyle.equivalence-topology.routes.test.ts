@@ -17,7 +17,7 @@
  *     reaches the rendered HTML.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -34,6 +34,7 @@ import {
 const { dbPath } = setTestEnv('3158');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -92,14 +93,14 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('equivalence-topology — section renders for ratified entries', () => {
   it('flurry trick-detail renders the "Alternate derivations" section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/trick-equivalence-topology[^a-z-]/);
     expect(res.text).toMatch(/trick-equivalence-topology-summary-title[^>]*>\s*Alternate derivations\s*</);
   });
 
   it('flurry topology section lists barraging-legover as canonical-primary', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     const startIdx = res.text.indexOf('trick-equivalence-topology"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     expect(startIdx).toBeGreaterThan(0);
@@ -111,7 +112,7 @@ describe('equivalence-topology — section renders for ratified entries', () => 
   });
 
   it('flurry topology section renders the ADD breakdown for both paths', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     // Handlebars HTML-escapes '=' → '&#x3D;' (safe-by-default; browser
     // decodes back to '='). Test pins the escaped form actually present
     // in the HTTP response body.
@@ -120,13 +121,13 @@ describe('equivalence-topology — section renders for ratified entries', () => 
   });
 
   it('witchdoctor trick-detail renders the "Alternate derivations" section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/witchdoctor');
+    const res = await page('/freestyle/tricks/witchdoctor');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/trick-equivalence-topology"/);
   });
 
   it('witchdoctor canonical-primary is the composite-base reading', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/witchdoctor');
+    const res = await page('/freestyle/tricks/witchdoctor');
     expect(res.text).toContain('atom-smasher + symposium');
     expect(res.text).toContain('atomic symposium mirage');
     expect(res.text).toMatch(/trick-equivalence-topology-row--historical/);
@@ -135,7 +136,7 @@ describe('equivalence-topology — section renders for ratified entries', () => 
 
 describe('equivalence-topology — non-topology trick has no section', () => {
   it('paradox-mirage (no topology entry) does NOT render the section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    const res = await page('/freestyle/tricks/paradox-mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/trick-equivalence-topology"/);
     expect(res.text).not.toMatch(/Alternate derivations/);
@@ -144,13 +145,13 @@ describe('equivalence-topology — non-topology trick has no section', () => {
 
 describe('equivalence-topology — curator-internal language never leaks', () => {
   it('flurry render does NOT expose curatorConfirmPending labels', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     expect(res.text).not.toMatch(/curatorConfirmPending/i);
     expect(res.text).not.toMatch(/pending-curator/i);
   });
 
   it('witchdoctor render does NOT expose the curatorNote prose', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/witchdoctor');
+    const res = await page('/freestyle/tricks/witchdoctor');
     // The curatorNote contains text about the "1-component gap"; that
     // string is curator-internal and must not surface publicly.
     expect(res.text).not.toContain('1-component gap');
@@ -158,7 +159,7 @@ describe('equivalence-topology — curator-internal language never leaks', () =>
   });
 
   it('canonical-primary rows do NOT carry a redundant role badge', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     // The role badge renders ONLY on non-canonical rows. Pin by region.
     const startIdx = res.text.indexOf('trick-equivalence-topology-row--canonical-primary');
     const endIdx = res.text.indexOf('</li>', startIdx);
@@ -169,7 +170,7 @@ describe('equivalence-topology — curator-internal language never leaks', () =>
 
 describe('equivalence-topology — chips and badges render human labels, never raw codes', () => {
   it('source chips render the human label; the raw source code stays class-only', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     // flurry's alternate path is curator-derived: visible chip text is the
     // human form; the hyphenated code appears only inside class attributes.
     expect(res.text).toMatch(/source-chip--curator-derived[^>]*>curator derived</);
@@ -177,7 +178,7 @@ describe('equivalence-topology — chips and badges render human labels, never r
   });
 
   it('role badges render the human label; the raw role code stays class-only', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    const res = await page('/freestyle/tricks/flurry');
     expect(res.text).toMatch(/role-badge--alternate-equivalent[^>]*>alternate equivalent</);
     expect(res.text).not.toMatch(/>alternate-equivalent</);
     expect(res.text).not.toMatch(/>canonical-primary</);

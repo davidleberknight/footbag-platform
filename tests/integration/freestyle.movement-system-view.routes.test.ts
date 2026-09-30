@@ -16,7 +16,7 @@
  *   - Anti-enumeration smoke: unknown view values resolve to the ADD view (not movement-system)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -33,6 +33,7 @@ import {
 const { dbPath } = setTestEnv('3098');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -74,13 +75,9 @@ afterAll(() => cleanupTestDb(dbPath));
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks?view=movement-system — route + toggle', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.status).toBe(200);
-  });
-
   it('marks "By movement system" active in the view-toggle bar', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
+    expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="trick-view-toggle-active">By movement system</);
   });
 
@@ -89,14 +86,14 @@ describe('GET /freestyle/tricks?view=movement-system — route + toggle', () => 
     // absent from the view-toggle row. The URLs still resolve (?view=component
     // and ?view=category → 200, each with a retirement notice), but no
     // toggle-row link reaches either.
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=category"');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
   });
 
   it('unknown view query param falls back to ADD view (not movement-system)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=nonsense-axis');
+    const res = await page('/freestyle/tricks?view=nonsense-axis');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-view-toggle-active">By movement system</);
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
@@ -109,13 +106,13 @@ describe('GET /freestyle/tricks?view=movement-system — route + toggle', () => 
 
 describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
   it('renders the observational note + axis-jump nav', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('movement-system-view-note');
     expect(res.text).toMatch(/aria-label="Movement System axes"/);
   });
 
   it('each axis renders as a collapsed disclosure whose summary carries name, count, and definition', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     for (const anchor of ['movement-axis-set-uptime', 'movement-axis-entry-topology', 'movement-axis-midtime-body', 'movement-axis-no-plant-suspension']) {
       const m = res.text.match(new RegExp(`<details class="content-section trick-movement-axis" id="${anchor}"[^>]*>[\\s\\S]*?<\\/summary>`));
       expect(m, `${anchor} is a details element`).not.toBeNull();
@@ -130,7 +127,7 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
   });
 
   it('renders all four axis sections in canonical declaration order', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     const i1 = res.text.indexOf('id="movement-axis-set-uptime"');
     const i2 = res.text.indexOf('id="movement-axis-entry-topology"');
     const i3 = res.text.indexOf('id="movement-axis-midtime-body"');
@@ -143,7 +140,7 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
   });
 
   it('renders axis names + curator-authored axis definitions', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('Set / Uptime Systems');
     expect(res.text).toContain('Entry Topologies');
     expect(res.text).toContain('Midtime Body Modifiers');
@@ -152,7 +149,7 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
   });
 
   it('the intro copy mentions Alternative surfaces as part of the movement-language model', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     // Target the movement-system intro specifically by its opening words (other
     // paragraphs on the page also use .browse-view-intro).
     const introMatch = res.text.match(/<p class="browse-view-intro">By movement system[\s\S]*?<\/p>/);
@@ -161,7 +158,7 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
   });
 
   it('renders each axis\'s tricks as a flat card list (no per-modifier sub-groups)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     // The pixie + atomic tricks render inside the Set / Uptime axis section.
     const axisStart = res.text.indexOf('id="movement-axis-set-uptime"');
     const axisEnd = res.text.indexOf('<section', axisStart + 1);
@@ -181,13 +178,13 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
 
 describe('GET /freestyle/tricks?view=movement-system — cards', () => {
   it('renders the two-line dict-trick-row stack', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('rows carry notation and a difficulty value, with no green ADD chip', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="pixie-illusion"[\s\S]*?<\/article>/);
     expect(m).not.toBeNull();
@@ -197,7 +194,7 @@ describe('GET /freestyle/tricks?view=movement-system — cards', () => {
   });
 
   it('sorts pixie-illusion (ADD 3) before the ADD-4 tricks inside the Set / Uptime axis', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     const axisStart = res.text.indexOf('id="movement-axis-set-uptime"');
     expect(axisStart).toBeGreaterThan(-1);
     const axisEnd = res.text.indexOf('<section', axisStart + 1);
@@ -215,13 +212,13 @@ describe('GET /freestyle/tricks?view=movement-system — cards', () => {
 
 describe('GET /freestyle/tricks?view=movement-system — view isolation', () => {
   it('does not render the Component view note + axis-jump', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).not.toContain('component-view-note');
     expect(res.text).not.toContain('aria-label="Component axes"');
   });
 
   it('does not render the Topology view section headings', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).not.toContain('topology-view-note');
   });
 });

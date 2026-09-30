@@ -25,7 +25,8 @@ I="freestyle/inputs"
 # Production-safety guard: this rebuild wipes and reloads every freestyle table,
 # so it refuses to run against anything but this checkout's own development
 # database. There is no bypass flag; at go-live the live database becomes the
-# source of truth and this pipeline retires from the production path.
+# source of truth and this pipeline retires, deleted once the final production
+# load is signed off.
 bash freestyle/_assert_dev_db.sh "${DB}"
 
 echo "→ Rebuilding freestyle tables into ${DB}"

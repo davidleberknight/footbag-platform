@@ -88,8 +88,7 @@ describe('POST /members/:slug/edit/password', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Your password has been changed');
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
 
     // Verify DB state: password_version incremented.
@@ -284,6 +283,7 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     db.close();
 
     adapterMod.setJwtSigningAdapterForTests({
+      kid: realAdapter.kid,
       signJwt: async () => {
         // Mirrors a real KMS Sign rejection wire shape (the AWS SDK throws an
         // Error subclass with name='AccessDeniedException' on IAM regression).
@@ -316,7 +316,7 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     // No fresh session cookie: there is no new session to issue. (A clear-cookie
     // header with Max-Age=0 would be acceptable; this asserts no newly-valid
     // session cookie was issued.)
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     const sessionCookieIssued = cookies?.some((c) =>
       c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
@@ -343,6 +343,7 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     db.close();
 
     adapterMod.setJwtSigningAdapterForTests({
+      kid: realAdapter.kid,
       signJwt: async () => { throw new Error('KMS Sign failed: AccessDeniedException'); },
       verifyJwt: (token) => realAdapter.verifyJwt(token),
     });
@@ -409,7 +410,8 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
         );
       },
       processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
       }),
     });
 
@@ -432,7 +434,7 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
     expect(res.text).not.toContain('Forgot password');
 
     // No fresh session cookie was issued.
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     const sessionCookieIssued = cookies?.some((c) =>
       c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),

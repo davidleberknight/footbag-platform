@@ -195,6 +195,49 @@ describe("the runner's own list of gates that stand for a push-gate job", () => 
   });
 });
 
+describe('the fast pre-commit loop', () => {
+  // Defect caught: the pre-commit script goes back to carrying its own copy of
+  // the gate list, which then drifts from the runner's quick mode.
+  it('refuses a test:pre-pr that does not run the runner’s quick mode', () => {
+    const res = inFixtureRepo({
+      'package.json': replaceOnce('"test:pre-pr": "./run_all_tests.sh --quick"', '"test:pre-pr": "npm run build && npm test"'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('test:pre-pr must be exactly ./run_all_tests.sh --quick');
+  });
+
+  // Defect caught: the quick mode drops a gate a workflow job relies on, and a
+  // secret or a harness break is first seen as a red push.
+  it('refuses a quick mode that no longer carries a gate a workflow job maps onto', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce(
+        'QUICK_GATES="build lint conventions harness generated-content secret-scan ',
+        'QUICK_GATES="build lint conventions harness generated-content ',
+      ),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("workflow job 'secret-scan' claims the quick mode carries it via 'secret-scan'");
+  });
+
+  // Defect caught: the quick list names a gate the runner never registers, so the
+  // fast loop claims a check it never runs.
+  it('refuses a quick list naming a gate the runner registers nowhere', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce('QUICK_GATES="build ', 'QUICK_GATES="build phantom-gate '),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("lists 'phantom-gate', which the runner registers as no gate");
+  });
+
+  it('refuses a runner that no longer declares its quick set', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce('QUICK_GATES="', 'RENAMED_QUICK="'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('declares no QUICK_GATES');
+  });
+});
+
 describe('step-level coverage, not merely job-level', () => {
   it('refuses a new run: step added to an already-mapped job', () => {
     // The job keeps its mapping and every job-level assertion stays green, so

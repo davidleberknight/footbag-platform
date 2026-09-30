@@ -36,7 +36,6 @@ function liveCapableEnv(): void {
   process.env.FOOTBAG_DB_PATH = ':memory:';
   process.env.PUBLIC_BASE_URL = 'http://localhost';
   process.env.SESSION_SECRET = 'a'.repeat(48);
-  process.env.SES_FEEDBACK_WEBHOOK_KEY = 'b'.repeat(48);
   process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
   process.env.PAYMENTS_ARMED = 'armed';
   process.env.EMAIL_SEND_ARMED = 'armed';

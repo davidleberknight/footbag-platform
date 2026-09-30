@@ -21,7 +21,7 @@
  *     reaches the rendered HTML.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -38,6 +38,7 @@ import {
 const { dbPath } = setTestEnv('3150');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -160,7 +161,7 @@ describe('First-class trick pilot — universal notation card', () => {
     // The ADD derivation is the always-present structural row of the
     // universal notation card; every first-class trick carries a
     // curator-published derivation.
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.status).toBe(200);
     const region = sectionByClass(res.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
@@ -171,7 +172,7 @@ describe('First-class trick pilot — universal notation card', () => {
   it.each(PILOT_SLUGS)('notation card on %s does NOT carry a "First-class" badge', async (slug) => {
     // The notation card is the same for bases and derivatives; no loud
     // public-facing first-class badge is rendered.
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.text).not.toMatch(/class="trick-first-class-strip-badge"/);
     expect(res.text).not.toMatch(/>\s*First-class\s*</);
   });
@@ -179,7 +180,7 @@ describe('First-class trick pilot — universal notation card', () => {
   it.each(PILOT_SLUGS)('notation card on %s does NOT carry a redundant #slug title', async (slug) => {
     // The hero h1 is the page title; the notation card adds no separate
     // #slug title row.
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.text).not.toMatch(/class="trick-first-class-strip-title"/);
     expect(res.text).not.toMatch(/class="trick-notation-summary-heading"/);
   });
@@ -189,7 +190,7 @@ describe('First-class trick pilot — universal notation card', () => {
     // renders as role-classified op-tokens in the Execution notation
     // section. The uppercased canonical-name form ("OSIS") never appears
     // as a tautological chain value.
-    const res = await request(createApp()).get('/freestyle/tricks/osis');
+    const res = await page('/freestyle/tricks/osis');
     const region = sectionByClass(res.text, 'operational-notation-display');
     expect(region).not.toBeNull();
     expect(region!).toMatch(/<h2>Execution notation<\/h2>/);
@@ -202,18 +203,18 @@ describe('First-class trick pilot — universal notation card', () => {
   });
 
   it('osis ADD breakdown shows curator-published flag-decomposition (NOT trivial identity)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/osis');
+    const res = await page('/freestyle/tricks/osis');
     expect(res.text).toContain('spin(1) + xbod(1) + stall(1)');
     expect(res.text).not.toMatch(/osis\(3\)\s*&#x3D;\s*3 ADD/);
   });
 
   it('paradox-mirage ADD breakdown shows the +1-stack derivation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.text).toContain('paradox(+1) + mirage(2)');
   });
 
   it('ripwalk ADD breakdown shows the folk-name resolution', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
+    const res = await page('/freestyle/tricks/ripwalk');
     expect(res.text).toContain('stepping(+1) + butterfly(3)');
   });
 
@@ -221,7 +222,7 @@ describe('First-class trick pilot — universal notation card', () => {
     // The hero's ADD chip is the single source of truth for the numeric
     // total; the notation card carries the structural derivation, not a
     // duplicate total row.
-    const res = await request(createApp()).get('/freestyle/tricks/atomic_butterfly');
+    const res = await page('/freestyle/tricks/atomic_butterfly');
     expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-adds"[^>]*>4 ADD</);
   });
 
@@ -229,7 +230,7 @@ describe('First-class trick pilot — universal notation card', () => {
     // paradox-mirage has no curator-authored operational notation, so
     // the Execution notation section does not render; the ADD derivation
     // section still carries the structural breakdown.
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.text).not.toMatch(/operational-notation-display/);
     const region = sectionByClass(res.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
@@ -241,7 +242,7 @@ describe('First-class trick pilot — universal notation card', () => {
 
 describe('First-class trick pilot — hero record-chip removal', () => {
   it.each(PILOT_SLUGS)('hero on %s does NOT render the "N kicks · record" chip', async (slug) => {
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.text).not.toMatch(/class="trick-hero-meta-chip-record"/);
     expect(res.text).not.toMatch(/kicks\s*·\s*record/i);
     expect(res.text).not.toMatch(/kicks\s*&middot;\s*record/i);
@@ -252,14 +253,14 @@ describe('First-class trick pilot — notation card is universal', () => {
   it('the separate "Notation summary" card was removed app-wide (mobius, a non-first-class control)', async () => {
     // The special first-class summary card no longer exists for any
     // trick; this guards against its reintroduction.
-    const res = await request(createApp()).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/trick-notation-summary/);
     expect(res.text).not.toMatch(/Notation summary/);
   });
 
   it('the separate "Notation summary" card was removed app-wide (blur, a non-first-class control)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/blur');
+    const res = await page('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/trick-notation-summary/);
     expect(res.text).not.toMatch(/Notation summary/);
@@ -268,7 +269,7 @@ describe('First-class trick pilot — notation card is universal', () => {
   it('first-class slugs DO render the ADD derivation section (the card is universal)', async () => {
     // The ADD derivation is now rendered for first-class tricks too; it
     // is the structural row of the one universal notation card.
-    const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const paradoxMirage = await page('/freestyle/tricks/paradox_mirage');
     const region = sectionByClass(paradoxMirage.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
     expect(region!).toMatch(/<dt>Difficulty<\/dt>/);
@@ -278,7 +279,7 @@ describe('First-class trick pilot — notation card is universal', () => {
 
 describe('First-class trick pilot — uniform browse row', () => {
   it.each(PILOT_SLUGS)('renders the shared row contract for %s in the dictionary browse', async (slug) => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
     expect(cardIdx, `row for ${slug} not found in the ADD view`).toBeGreaterThan(0);
@@ -293,7 +294,7 @@ describe('First-class trick pilot — uniform browse row', () => {
     // (non-first-class) is compared against osis (first-class): both carry the
     // same two columns and the same difficulty slot, and neither carries a
     // marker the other lacks.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const regionFor = (slug: string): string => {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `row for ${slug} not found`).toBeGreaterThan(0);
@@ -314,7 +315,7 @@ describe('First-class trick pilot — 4-tier hierarchy contract preservation', (
     // /freestyle/tricks is the By ADD ladder of registry cards; the
     // trick-detail notation card (Execution notation, ADD derivation)
     // never renders here.
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/trick-add-analysis/);
   });
@@ -325,7 +326,7 @@ describe('First-class trick pilot — curator-internal language suppression', ()
     // Provenance is curator-internal metadata, never rendered on the
     // public page. Scan the whole page: the source-note line and any
     // source citation must be absent.
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.text).not.toMatch(/operational-notation-source-note/);
     expect(res.text).not.toMatch(/Source:/i);
     expect(res.text).not.toMatch(/footbag\.org/i);

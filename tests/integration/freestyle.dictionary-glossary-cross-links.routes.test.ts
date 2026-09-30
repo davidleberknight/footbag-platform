@@ -23,6 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -35,6 +36,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3100');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -146,8 +148,7 @@ describe('Browse rows carry no chain tokens on any view', () => {
 
 describe('Freestyle Concepts modifier cards — "See tricks using X" deep-links', () => {
   it('renders a tricks-link footer on every set-modifier card', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Each modifier card carries the tricks-link paragraph; spot-check the four
     // most pedagogically central ones. The movement-system view groups by axis,
@@ -162,14 +163,12 @@ describe('Freestyle Concepts modifier cards — "See tricks using X" deep-links'
   });
 
   it('renders the tricks-link class wrapper on the footer paragraph', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-modifier-card-tricks-link"');
   });
 
   it('preserves the modifier-pixie deep-link anchor, cross-linked to its set definition', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Pixie is set vocabulary, defined in the Timing & Sets chapter. Its feel
     // card moved there, but the modifier-pixie anchor that dictionary tokens
     // deep-link to survives as a thin cross-link so those deep links resolve.
@@ -182,8 +181,7 @@ describe('Freestyle Concepts modifier cards — "See tricks using X" deep-links'
 
 describe('Freestyle heroes carry their own parts only, never navigation', () => {
   it('the Freestyle Concepts hero holds no action link to another page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     const hero = res.text.match(/<div class="hero[^"]*"[\s\S]*?<\/div>\s*<div class="wrapper/);
     expect(hero, 'Concepts hero block').not.toBeNull();
@@ -191,8 +189,7 @@ describe('Freestyle heroes carry their own parts only, never navigation', () => 
   });
 
   it('the trick-dictionary hero holds no action link to another page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const hero = res.text.match(/<div class="hero[^"]*"[\s\S]*?<\/div>\s*<div class="wrapper/);
     expect(hero, 'dictionary hero block').not.toBeNull();
@@ -200,8 +197,7 @@ describe('Freestyle heroes carry their own parts only, never navigation', () => 
   });
 
   it('Freestyle Concepts still cross-references the trick dictionary in its body', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
   });
 });

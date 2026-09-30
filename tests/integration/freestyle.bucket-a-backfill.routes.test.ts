@@ -36,7 +36,7 @@
  * change to the backfill set is visible in the test diff.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -50,6 +50,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3158');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // 15 first-class Bucket A slugs. Browse card renders the JOB row from
 // the RESOLVED_FORMULAS overlay; "canonical decomposition pending" line disappears.
@@ -148,7 +149,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // A trick's execution chain is trick-page content: the browse row carries
 // identity and a difficulty value, and the chain reads on the page itself.
 async function pageFor(slug: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  const res = await page(`/freestyle/tricks/${slug}`);
   expect(res.status, `${slug} detail page must render`).toBe(200);
   return res.text;
 }
@@ -195,8 +196,7 @@ describe('Bucket A backfill — trick-detail "Set notation" rendering (4 non-fir
   it.each(NON_FIRST_CLASS_BACKFILL.map(r => [r.slug, r.expectedJobRaw] as const))(
     '/freestyle/tricks/%s renders the Set notation section with the derived JOB',
     async (slug, expectedJobRaw) => {
-      const app = await createApp();
-      const res = await request(app).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
       expect(res.status).toBe(200);
       // The "Set notation" section renders for non-first-class tricks
       // that have operationalNotation populated via the overlay.
@@ -227,7 +227,6 @@ describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_A
       const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
       expect(entry).toBeDefined();
       expect(entry?.operationalNotation).toBeTruthy();
-      expect(typeof entry?.operationalNotation).toBe('string');
       expect((entry?.operationalNotation ?? '').length).toBeGreaterThan(10);
     },
   );

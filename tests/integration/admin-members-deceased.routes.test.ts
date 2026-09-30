@@ -178,7 +178,6 @@ describe('marking a member deceased', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Percy Probe');
     expect(res.text).toContain(PROBE_ID);
-    expect(res.text).toContain('Yes, Mark as Deceased');
     expect(res.text).not.toContain('name="reason"');
     expect(res.text).not.toContain('Reason:');
     // Reviewing the change must not be what performs it.

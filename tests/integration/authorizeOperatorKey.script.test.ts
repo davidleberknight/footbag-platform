@@ -127,7 +127,7 @@ function runScript(args: string[]): RunResult {
 }
 
 /** The full valid argument set, so each case can vary one thing. */
-function args(overrides: Partial<Record<string, string>> = {}): string[] {
+function args(overrides: Record<string, string> = {}): string[] {
   const base: Record<string, string> = {
     '--target': 'staging',
     '--account': 'footbag',

@@ -11,7 +11,7 @@
  * pixie, and pickup by one change, and is not one change from fairy).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -24,6 +24,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3563');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const ATOMS: [string, string][] = [
   ['mirage', 'Mirage'],
@@ -48,7 +49,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function concepts(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/concepts');
+  const res = await page('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -161,7 +162,7 @@ describe('Dexterities teaching spine — mindset, counterparts, repetition', () 
   });
 
   it('the compound-name table (in Reading the Dictionary on the trick dictionary) clarifies coordinated movements, not reordered sequences', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     const html = res.text;
     const disclosureAt = html.indexOf('id="reading-the-dictionary"');

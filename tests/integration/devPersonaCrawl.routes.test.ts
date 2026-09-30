@@ -2,9 +2,9 @@
  * Persona switch + authenticated page crawl across the whole seeded catalog.
  *
  * For every persona the harness can seed (the canonical catalog minus the
- * unbuilt-feature personas and the build-on-switch DL special user, who is built
- * through real flows against loaded pipeline data and is exercised by the
- * separate dev-only crawl), this pins the switch-and-render contract end to end:
+ * unbuilt-feature personas), this pins the switch-and-render contract end to
+ * end; a real claimed member built from loaded pipeline data is exercised by
+ * the separate dev-only crawl:
  *
  *   - a session-eligible persona switches to a real session cookie and reaches
  *     its own authenticated pages (home, owner profile edit, member galleries);

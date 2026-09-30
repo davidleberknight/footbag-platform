@@ -10,13 +10,14 @@
  *     Structurally related tricks section.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3231');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -45,28 +46,28 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('trick-detail About fallback + relatives', () => {
   it('renders the high-confidence generated About for a single established-operator compound', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/spinning_whirl');
+    const res = await page('/freestyle/tricks/spinning_whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('data-structural-about');
     expect(res.text).toContain('Spinning Whirl builds on Whirl, adding the spinning operator.');
   });
 
   it('no longer renders a separate Structural Neighbors block (consolidated into Structurally related tricks)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/spinning_whirl');
+    const res = await page('/freestyle/tricks/spinning_whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('data-section="structural-neighbors"');
     expect(res.text).not.toContain('Structural Neighbors');
   });
 
   it('never displays a thin placeholder description and adds no generated filler when unqualified', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/popular_thing');
+    const res = await page('/freestyle/tricks/popular_thing');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Popular freestyle trick.');
     expect(res.text).not.toContain('data-structural-about');
   });
 
   it('renders no Structurally related tricks section for a family-null trick with no relatives', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/lonely_null');
+    const res = await page('/freestyle/tricks/lonely_null');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Structurally related tricks');
   });

@@ -8,7 +8,7 @@
  * portal route tests, which seed tricks and records.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -16,6 +16,7 @@ const { dbPath } = setTestEnv('3993');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -26,19 +27,15 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle with no tricks or records loaded', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.status).toBe(200);
-  });
-
   it('omits the gated Trick Dictionary and Trick Records tiles entirely', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
+    expect(res.status).toBe(200);
     expect(res.text).not.toContain('>Trick Dictionary<');
     expect(res.text).not.toContain('>Trick Records<');
   });
 
   it('renders one History tile linking the history page, with no section deep-link tiles and no coming-soon placeholder', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Story of Freestyle');
     expect(res.text).toContain('href="/freestyle/history"');
     expect(res.text).not.toContain('History Timeline');
@@ -48,7 +45,7 @@ describe('GET /freestyle with no tricks or records loaded', () => {
   });
 
   it('still renders the always-available banner destinations', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('href="/freestyle/concepts"');
     expect(res.text).toContain('href="/freestyle/competition"');

@@ -15,7 +15,7 @@
  *   - The view renders the same shared row as every other browse view
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +28,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3097');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -111,13 +112,9 @@ afterAll(() => cleanupTestDb(dbPath));
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks?view=category — route + spreadsheet retirement', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.status).toBe(200);
-  });
-
   it('retires the 5-column spreadsheet headers', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
+    expect(res.status).toBe(200);
     expect(res.text).not.toContain('<th>Trick</th>');
     expect(res.text).not.toContain('<th>Description</th>');
     expect(res.text).not.toContain('<th>Notation</th>');
@@ -125,7 +122,7 @@ describe('GET /freestyle/tricks?view=category — route + spreadsheet retirement
   });
 
   it('renders the shared row stack instead of a records-table', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('records-table-wrap');
   });
@@ -137,22 +134,22 @@ describe('GET /freestyle/tricks?view=category — route + spreadsheet retirement
 
 describe('category view — section anchors + headings', () => {
   it('compound category section carries id="category-compound"', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toContain('id="category-compound"');
   });
 
   it('set category section carries id="category-set" when populated', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toContain('id="category-set"');
   });
 
   it('section heading wraps the label in a self-anchored link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=category#category-compound">[^<]+<\/a><\/h2>/);
   });
 
   it('section heading carries a count chip', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     // 5 compound tricks were seeded above.
     expect(res.text).toMatch(/id="category-compound"[\s\S]*?<span class="section-count">5<\/span>/);
   });
@@ -164,7 +161,7 @@ describe('category view — section anchors + headings', () => {
 
 describe('category view — within-group ordering', () => {
   it('compound category sorts by ADD ascending then name alphabetical', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     const sectionStart = res.text.indexOf('id="category-compound"');
     expect(sectionStart).toBeGreaterThan(-1);
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
@@ -194,7 +191,7 @@ describe('category view — within-group ordering', () => {
 
 describe('category view — modifier exclusion', () => {
   it('modifier-category rows do NOT render in any category group', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     // The 'spinning' modifier row (category='modifier') must not appear as a card.
     expect(res.text).not.toMatch(/data-trick-slug="spinning"[^>]*>/);
     // No "Modifier" category heading either.
@@ -208,14 +205,14 @@ describe('category view — modifier exclusion', () => {
 
 describe('category view — shared dictionary-trick-row partial', () => {
   it('rows in the category view carry the same data attributes as every other view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toMatch(/<article class="dict-trick-row[^"]*"\s+data-trick-slug="ripwalk"/);
     // data-media-coverage is emitted on every row root regardless of view.
     expect(res.text).toMatch(/data-media-coverage="(?:tutorial|demo|none)"/);
   });
 
   it('rows render operational notation (role-tagged tokens) when populated', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.text).toContain('class="op-token op-token--component-flag');
   });
 });

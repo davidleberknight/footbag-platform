@@ -38,7 +38,7 @@ function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
-function stub(): ReturnType<typeof secrets.getStubSecretsAdapterForTests> {
+function stub(): NonNullable<ReturnType<typeof secrets.getStubSecretsAdapterForTests>> {
   const s = secrets.getStubSecretsAdapterForTests();
   if (!s) throw new Error('stub secrets adapter not active');
   return s;

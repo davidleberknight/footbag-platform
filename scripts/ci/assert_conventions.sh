@@ -6,7 +6,8 @@
 #   bash scripts/ci/assert_conventions.sh
 #
 # A failure prints offending file:line. Fix by relocating the call to the
-# canonical site named in each rule's heading below.
+# canonical site named in each rule's heading below. A few checks marked
+# Advisory print a WARNING instead and never fail the gate (see warn()).
 
 set -euo pipefail
 
@@ -19,7 +20,7 @@ skipped_count=0
 
 # Which rule each violation belonged to.
 #
-# The gate runs sixty-five checks, prints a progress line for each, and keeps
+# The gate runs about seventy checks, prints a progress line for each, and keeps
 # going after a violation so one run reports everything wrong rather than the
 # first thing. The cost is that a failure early on is pushed out of the sixty-line
 # tail the outer runners re-show, and the verdict at the end was a bare count: a
@@ -32,6 +33,20 @@ skipped_count=0
 current_check=""
 violations_at_check=0
 failed_checks=()
+
+# A finding worth a person's attention that never fails the gate. Only a real and
+# serious problem blocks; a pattern a legitimate test can also match, or a test
+# style that harms no user, is reported instead. The WARNING line is what the
+# local runner's end-of-run notices collect; under GitHub Actions it also becomes
+# an annotation on the run.
+warned_checks=()
+warn() {
+  echo "  WARNING: $1" >&2
+  warned_checks+=("$current_check")
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::warning title=Conventions::${current_check}: $1"
+  fi
+}
 
 attribute_violations() {
   if [ -n "$current_check" ] && [ "$violations" -gt "$violations_at_check" ]; then
@@ -335,11 +350,10 @@ fi
 # Rule: every fixture-staging script must declare the real-data guard.
 # Reason: scripts/ci/stage_*.sh files populate paths that on a workstation
 # may hold real data (legacy mirror, canonical CSVs, uploaded media). The
-# .claude/rules/testing.md "Fixture-staging scripts" rule mandates a real-
-# data detection that runs before any destructive operation, declared by a
-# `# REAL-DATA GUARD` header marker. A stager omitting the marker has not
-# declared the guard. The 2026-05-09 incident (60 GB mirror lost to --force)
-# is the precedent. No such stager exists today; this check guards any future one.
+# .claude/rules/operator-scripts.md "Fixture-staging scripts" section mandates
+# a real-data detection that runs before any destructive operation, declared by
+# a `# REAL-DATA GUARD` header marker. A stager omitting the marker has not
+# declared the guard; an empty-target-only guard once wiped a 60 GB real mirror.
 if check "# REAL-DATA GUARD marker in scripts/ci/stage_*.sh" scripts/ci; then
 missing=""
 for f in scripts/ci/stage_*.sh; do
@@ -349,7 +363,7 @@ for f in scripts/ci/stage_*.sh; do
 done
 if [ -n "$missing" ]; then
   printf '%b' "$missing" >&2
-  echo "  FAIL: fixture-staging scripts must declare the real-data guard; see .claude/rules/testing.md 'Fixture-staging scripts' section" >&2
+  echo "  FAIL: fixture-staging scripts must declare the real-data guard; see .claude/rules/operator-scripts.md 'Fixture-staging scripts' section" >&2
   violations=$((violations + 1))
 fi
 fi
@@ -606,6 +620,91 @@ if [ -n "$skip_hits" ]; then
   echo "$skip_hits" >&2
   echo "  FAIL: committed skipped tests are forbidden; gate conditionally with skipIf or fix the test" >&2
   violations=$((violations + 1))
+fi
+fi
+
+# Rule: a test asserts something that can fail.
+# Reason: each form below passes whatever the code does, and each has been found
+# in this suite. A case titled only "returns 200" repeats a status a sibling case
+# or the route-wiring crawl already asserts; `expect(true)` asserts nothing; a
+# bare early return on a non-200 status skips the assertion exactly when the page
+# is broken; an assertion inside `if (res.text.includes(...))` runs only when the
+# page already agrees; a committed `.only(` silently drops every other case in
+# the file; mocking the database driver, the web framework, the template engine,
+# the token library or the password hasher replaces the code under test with the
+# test's own assumptions; and an expected-error pattern with a bare `error` or
+# `Internal` alternative accepts any error line, switching off the guard that
+# fails a test on an unexpected one.
+#
+# Advisory: a test that cannot fail harms no user, and some patterns can match
+# legitimate code, so this warns and never blocks. A committed `.only(` needs no
+# block here either: vitest refuses it when CI is set, so the run fails there.
+if check "tests/ carry no vacuous assertion forms" tests; then
+vacuous_hits=$(grep -rnE --include='*.ts' \
+  -e "\bit\(\s*['\"]returns 200['\"]" \
+  -e 'expect\(\s*true\s*\)' \
+  -e 'if \(\s*res\.status\s*!==?\s*200\s*\)\s*return\s*;' \
+  -e 'if \(\s*res\.text\.includes\(' \
+  -e '\b(it|test|describe)\.only\(' \
+  -e "vi\.mock\(\s*['\"](better-sqlite3|express|express-handlebars|jsonwebtoken|argon2)['\"]" \
+  -e 'expectLoggedError\(/[^/]*(\|(error|Internal)\b|\b(error|Internal)\|)' \
+  tests/ || true)
+if [ -n "$vacuous_hits" ]; then
+  echo "$vacuous_hits" >&2
+  warn "an assertion that may not be able to fail; fold the status into a case that checks the body, assert unconditionally, drop .only, use the stub adapters, or name the expected error line"
+fi
+fi
+
+# Rule: a unit or integration suite that skips on a missing tool fails instead
+# where the verdict is taken.
+# Reason: a `skipIf` on an installed binary reports green on a runner that lacks
+# the tool, having executed nothing. `requireToolInCI` (tests/fixtures/
+# toolAvailability.ts) returns availability for the skip and throws when the
+# tool is missing and CI is set. A suite that fails on the runner some other way
+# says so with a `skip-fails-in-ci:` comment beside the code that fails it. The
+# check reads the file as a whole, so a file mixing one probed skip with another
+# raw one is left to review. The smoke and dev tiers are gated by their own
+# environment variables and are out of scope. Advisory: the file-level match can
+# flag a suite that already fails on the runner another way, so it warns.
+if check "tool-gated skips in tests/ fail on the runner" tests/unit tests/integration; then
+skipif_files=$(grep -rlE --include='*.ts' '\.(skipIf|runIf)\(' tests/unit tests/integration || true)
+skipif_hits=""
+if [ -n "$skipif_files" ]; then
+  skipif_hits=$(echo "$skipif_files" | xargs grep -L -e 'toolAvailability' -e 'skip-fails-in-ci:' || true)
+fi
+if [ -n "$skipif_hits" ]; then
+  echo "$skipif_hits" >&2
+  warn "a skipIf/runIf suite should probe through requireToolInCI, or mark the line that fails it in CI with skip-fails-in-ci:"
+fi
+fi
+
+# Rule: a suite that shares page responses through cachedGet writes nothing
+# once its cases start.
+# Reason: every case reading a path through the shared cache sees the first
+# render. A row inserted or a request that changes state inside a case can make
+# a later case read a page that no longer matches the database, or make the
+# result depend on case order. Seeding belongs in beforeAll. A suite that writes
+# after its cached reads on purpose, with fresh requests for the paths it
+# changes, says so with `cachedGet-writes:` and the reason. Advisory: the scan
+# reads write-shaped calls, not their effect, so it warns.
+if check "cachedGet suites write nothing inside a case" tests; then
+cached_files=$(grep -rlE --include='*.ts' "from '[./]*/?fixtures/cachedGet'" tests || true)
+cached_hits=""
+if [ -n "$cached_files" ]; then
+  # A write counts from the first per-case hook or case onwards: beforeEach
+  # runs once per case, so it writes between the cached reads just as a case does.
+  cached_hits=$(echo "$cached_files" | xargs grep -L 'cachedGet-writes:' \
+    | xargs -r perl -ne '
+        $in = 1 if /^\s*(beforeEach|afterEach|(it|test)(\.each|\.concurrent|\.sequential)?)\s*[\(\`]/;
+        if ($in && /insert[A-Z]\w*\(|\.run\(|\b\w*[dD][bB]\.exec\(|\.(post|put|patch|delete)\(/) {
+          print "$ARGV:$.: $_"; close ARGV; $in = 0; next;
+        }
+        if (eof) { close ARGV; $in = 0; }
+      ' || true)
+fi
+if [ -n "$cached_hits" ]; then
+  echo "$cached_hits" >&2
+  warn "a cachedGet suite writes inside a case; seed in beforeAll, or mark the file with cachedGet-writes: and the reason"
 fi
 fi
 
@@ -957,9 +1056,11 @@ unset _aws_var
 # gate cannot describe an isolation it does not apply, and `command -v terraform`
 # is a presence guard rather than an invocation so it does not match.
 #
-# gate_smoke is the single declared exception, the same shape as the smoke opt-in
-# that exempts one tier on the TypeScript side: it is the operator-only live-AWS
-# suite, it says so, and it is the one gate whose purpose is to reach the estate.
+# The gate_staging_* gates are the declared exception, the same shape as the
+# smoke opt-in that exempts one tier on the TypeScript side: they run only under
+# --staging, they say so, and reaching the staging estate read-only is their
+# purpose. The exemption is by that prefix and nothing else, so a gate under any
+# other name is held to the rule.
 _gate_names="$(grep -oE '^gate_[a-z_]+\(\)' run_all_tests.sh | sed 's/()$//')"
 if [[ -z "$_gate_names" ]]; then
   echo "  FAIL: no gate functions found in run_all_tests.sh; this check has stopped scanning" >&2
@@ -972,7 +1073,7 @@ fi
 # A check whose correctness rests on that is the shape this repository has
 # already been bitten by once.
 for _gate in $_gate_names; do
-  [[ "$_gate" == "gate_smoke" ]] && continue
+  [[ "$_gate" == gate_staging_* ]] && continue
   _body="$(sed -n "/^${_gate}()/,/^}/p" run_all_tests.sh | sed 's/#.*//')"
   _calls="$(printf '%s\n' "$_body" \
     | grep -E '(^|[;&|(]|&&)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(aws|terraform)[[:space:]]' || true)"
@@ -991,6 +1092,51 @@ if ! sed -n '/^gate_terraform()/,/^}/p' run_all_tests.sh | sed 's/#.*//' | grep 
   echo "  FAIL: gate_terraform must init into a throwaway TF_DATA_DIR; -backend=false alone reuses the operator's initialized S3 backend" >&2
   violations=$((violations + 1))
 fi
+fi
+
+# Rule: the local runner reaches staging only from its staging preflight and its
+# gate_staging_* gates, --full turns on no staging leg, and no line of the runner
+# names a production target.
+# Reason: tests are local. The thorough local run once grew staging legs, one of
+# which registered and claimed an account on the staging site on every run, and
+# its preflight asked AWS, opened an ssh session to the staging host and curled
+# the staging site before a single local gate ran. Staging is reached only by the
+# opt-in --staging switch, read-only, and production by no runner mode at all. A
+# rule each edit must remember is broken by the next edit, so the tokens that can
+# only mean staging contact are held to the two places allowed to make it, with
+# comments stripped so a line cannot describe a contact it does not make.
+if check "the local runner reaches staging only from its staging gates" run_all_tests.sh; then
+_outside_staging="$(sed 's/#.*//' run_all_tests.sh | awk '
+  /^(gate_staging_[a-z_]+|staging_preflight)\(\) \{/ { skip = 1; next }
+  skip && /^}/ { skip = 0; next }
+  !skip { print NR ": " $0 }')"
+_staging_hits="$(printf '%s\n' "$_outside_staging" \
+  | grep -E 'realdata-staging\.sh|staging_cf_domain|terraform/staging|footbag-staging-runtime|(^|[^A-Za-z0-9_-])ssh([^A-Za-z0-9_-]|$)' || true)"
+if [[ -n "$_staging_hits" ]]; then
+  echo "  FAIL: run_all_tests.sh reaches staging outside the staging preflight and the gate_staging_ gates:" >&2
+  printf '    run_all_tests.sh:%s\n' "$_staging_hits" >&2
+  violations=$((violations + 1))
+fi
+# The block that says what --full implies: the one `if (( FULL == 1 ))` block
+# that turns on the pentest.
+_full_block="$(awk '
+  /^if \(\( FULL == 1 \)\); then$/ { inblk = 1; body = ""; next }
+  inblk && /^fi$/ { if (body ~ /PENTEST=1/) { printf "%s", body; exit } inblk = 0; next }
+  inblk { body = body $0 "\n" }' run_all_tests.sh | sed 's/#.*//')"
+if [[ -z "$_full_block" ]]; then
+  echo "  FAIL: no block in run_all_tests.sh says what --full implies (an if (( FULL == 1 )) block setting PENTEST=1); this check has stopped scanning" >&2
+  violations=$((violations + 1))
+elif grep -qE '(^|[^A-Za-z0-9_])(STAGING|WITH_SMOKE|WITH_STAGING[A-Z_]*)=' <<<"$_full_block"; then
+  echo "  FAIL: the --full block turns on a staging leg; the local run reaches no deployed environment, and staging is --staging's alone" >&2
+  violations=$((violations + 1))
+fi
+_prod_hits="$(sed 's/#.*//' run_all_tests.sh | grep -nE 'SMOKE_TARGET_ENV=production|SMOKE_ENV=production|test-deployed\.sh production|terraform/production|footbag-production' || true)"
+if [[ -n "$_prod_hits" ]]; then
+  echo "  FAIL: run_all_tests.sh names a production target; no runner mode may reach production:" >&2
+  printf '    run_all_tests.sh:%s\n' "$_prod_hits" >&2
+  violations=$((violations + 1))
+fi
+unset _outside_staging _staging_hits _full_block _prod_hits
 fi
 
 # Rule: the same setup denies every worker the rest of the machine it runs on.
@@ -1812,11 +1958,11 @@ fi
 # in src/services and src/controllers. Use a comma, parentheses, or a colon
 # instead. Comment blocks (Handlebars and code) are stripped before scanning;
 # curator-audit metadata (resolvedFormulas `provenance`, not rendered) and
-# standalone "—" no-value placeholders are exempt; dev-only and internal-QC
-# surfaces are out of scope.
+# standalone "—" no-value placeholders are exempt; dev-only surfaces are out
+# of scope.
 if check "visitor-facing em dashes" src/views src/content; then
 emdash_hits=""
-for f in $(grep -rl '—' src/views --include='*.hbs' 2>/dev/null | grep -vE 'internal-qc/|/dev/' || true); do
+for f in $(grep -rl '—' src/views --include='*.hbs' 2>/dev/null | grep -vE '/dev/' || true); do
   h=$(perl -0777 -pe 's/\{\{!--.*?--\}\}//gs; s/\{\{!.*?\}\}//gs' "$f" | grep -nE '—' | sed "s|^|$f:|" || true)
   [ -n "$h" ] && emdash_hits="${emdash_hits}${h}"$'\n'
 done
@@ -1825,7 +1971,7 @@ content_emdash=$(grep -rnE '—' src/content --include='*.ts' \
   | grep -vE 'provenance:' \
   || true)
 [ -n "$content_emdash" ] && emdash_hits="${emdash_hits}${content_emdash}"$'\n'
-for f in $(grep -rl '—' src/services src/controllers --include='*.ts' 2>/dev/null | grep -v 'internal-qc/' || true); do
+for f in $(grep -rl '—' src/services src/controllers --include='*.ts' 2>/dev/null || true); do
   s=$(perl -0777 -pe 's{//[^\n]*}{}g; s{/\*.*?\*/}{}gs;' "$f" \
         | grep -nE '—' \
         | grep -vE "(['\"\`])—" \
@@ -1882,7 +2028,7 @@ arrow_label='(&rarr;|&larr;|→|←)[[:space:]]*</(a|button)>|<(a|button)[^>]*>[
 arrow_icon='<(a|button)[^>]*aria-label=[^>]*>[[:space:]]*(<span[^>]*>)?[[:space:]]*(&rarr;|&larr;|→|←)[[:space:]]*(</span>)?[[:space:]]*</(a|button)>'
 arrow_hits=""
 for f in $(grep -rlE '&rarr;|&larr;|→|←' src/views --include='*.hbs' 2>/dev/null \
-             | grep -vE 'internal-qc/|/dev/|/admin/' || true); do
+             | grep -vE '/dev/|/admin/' || true); do
   h=$(perl -0777 -pe 's/\{\{!--.*?--\}\}//gs; s/\{\{!.*?\}\}//gs' "$f" \
         | grep -nE "$arrow_label" | grep -vE "$arrow_icon" | sed "s|^|$f:|" || true)
   [ -n "$h" ] && arrow_hits="${arrow_hits}${h}"$'\n'
@@ -2198,6 +2344,11 @@ fi
 
 # Flush the last check's attribution before reporting.
 attribute_violations ""
+
+if [ "${#warned_checks[@]}" -gt 0 ]; then
+  echo "[conventions] WARNING: ${#warned_checks[@]} advisory finding(s), not failing the gate:" >&2
+  printf '  %s\n' "${warned_checks[@]}" >&2
+fi
 
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2

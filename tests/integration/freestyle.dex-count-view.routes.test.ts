@@ -18,7 +18,7 @@
  * to the ADD view.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -31,6 +31,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3215');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -81,31 +82,27 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/tricks?view=dex-count', () => {
-  it('returns 200', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.status).toBe(200);
-  });
-
   it('renders the view-toggle link as active when ?view=dex-count', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
+    expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span[^>]*class="trick-view-toggle-active"[^>]*>By dex count<\/span>/);
   });
 
   it('renders the view-toggle link as inactive when on a different view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toContain('href="/freestyle/tricks?view=dex-count"');
     expect(res.text).toContain('>By dex count</a>');
   });
 
   it('renders the dex-count intro line on the dex-count view only', async () => {
-    const dexRes = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const dexRes = await page('/freestyle/tricks?view=dex-count');
     expect(dexRes.text).toContain('how many dexterity moves they involve');
-    const addRes = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const addRes = await page('/freestyle/tricks?view=add');
     expect(addRes.text).not.toContain('how many dexterity moves they involve');
   });
 
   it('groups tricks into the four dex buckets only (no unresolved bucket)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     // Bucket headings (pre-shaped labels)
     expect(res.text).toContain('<h2>0 dex events</h2>');
     expect(res.text).toContain('<h2>1 dex event</h2>');
@@ -120,7 +117,7 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
   });
 
   it('places each seeded trick in the right bucket via section id; uncountable rows absent', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     // Section ids match #dex-{count}.
     expect(res.text).toMatch(/id="dex-0"[^>]*>[\s\S]*?data-trick-slug="toe-stall"/);
     expect(res.text).toMatch(/id="dex-1"[^>]*>[\s\S]*?data-trick-slug="mirage"/);
@@ -130,7 +127,7 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
   });
 
   it('does NOT render dex-count sections on the ADD view (avoids cross-view leakage)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('<h2>0 dex events</h2>');
     expect(res.text).not.toContain('<h2>1 dex event</h2>');
     expect(res.text).not.toContain('<h2>2 dex events</h2>');
@@ -138,7 +135,7 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
   });
 
   it('unknown query value falls back to the default ADD view (validation)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=does-not-exist');
+    const res = await page('/freestyle/tricks?view=does-not-exist');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span[^>]*class="trick-view-toggle-active"[^>]*>By ADD<\/span>/);
     expect(res.text).not.toContain('<h2>0 dex events</h2>');

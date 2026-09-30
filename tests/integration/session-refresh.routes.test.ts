@@ -81,6 +81,7 @@ describe('sliding-session refresh window', () => {
     const adapterMod = await import('../../src/adapters/jwtSigningAdapter');
     const real = adapterMod.getJwtSigningAdapter();
     adapterMod.setJwtSigningAdapterForTests({
+      kid: real.kid,
       signJwt: () => {
         throw new Error('signing key unavailable');
       },

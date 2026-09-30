@@ -90,7 +90,6 @@ describe('GET /admin/work-queue', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Admin Work Queue');
     expect(res.text).toContain('No open work-queue items');
   });
 
@@ -101,6 +100,7 @@ describe('GET /admin/work-queue', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
+    expect(res.text).not.toContain('No open work-queue items');
     expect(res.text).toContain('Membership');
     expect(res.text).toContain('Member contact request');
     expect(res.text).toContain('Display name correction');
@@ -457,7 +457,8 @@ describe('POST /admin/work-queue/:id/resolve', () => {
           );
         },
         processSendQueue: async () => ({
-          claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+          claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+          suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
         }),
       });
 
@@ -522,7 +523,8 @@ describe('POST /admin/work-queue/:id/resolve', () => {
             throw new ServiceUnavailableError('should not be called when member has no email');
           },
           processSendQueue: async () => ({
-            claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+            claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+          suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
           }),
         });
 

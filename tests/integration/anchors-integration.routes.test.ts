@@ -538,7 +538,8 @@ describe('mailbox-control verification email enqueue failure', () => {
         throw new ServiceUnavailableError('synthetic enqueue failure for mailbox-control email');
       },
       processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
       }),
     });
     try {

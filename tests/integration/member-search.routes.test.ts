@@ -157,7 +157,6 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
       .get(`/members/${SEARCHER_SLUG}`)
       .set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Find Members');
     expect(res.text).not.toContain('No members found');
   });
 

@@ -53,6 +53,16 @@ def main() -> int:
         default=str(REPO_ROOT / "database" / "footbag.db"),
         help="Path to SQLite DB (default: repo-root database/footbag.db)",
     )
+    ap.add_argument(
+        "--require-items",
+        action="store_true",
+        help=(
+            "Fail when there are no active media items to check. Passed where "
+            "the check runs after the step that creates them, so a reordering "
+            "that puts it back in front of its producer fails instead of "
+            "passing on an empty table."
+        ),
+    )
     args = ap.parse_args()
 
     db_path = Path(args.db)
@@ -117,6 +127,13 @@ def main() -> int:
     print("=" * 72)
     print(f"Media-tag invariant QC — {total} active media_items checked")
     print("=" * 72)
+    if total == 0 and args.require_items:
+        print(
+            "FAIL: no active media items to check; this run was expected to "
+            "follow the step that creates them.",
+            file=sys.stderr,
+        )
+        return 1
     if failures:
         print(f"VIOLATIONS: {len(failures)}", file=sys.stderr)
         for f in failures:

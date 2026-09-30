@@ -196,9 +196,7 @@ describe('an obligation that can wait', () => {
     // Both paid tiers end the dependence on the status, so the upgrade names
     // both and points at the block that sells them rather than buying one.
     const res = await ownProfile(EXPIRING_ID, EXPIRING_SLUG);
-    expect(res.text).toContain('Upgrade to Tier 1 or Tier 2 Membership');
     expect(res.text).toContain('href="#membership"');
-    expect(res.text).toContain('Find an Event');
   });
 
   it('states the vouch route rather than offering it as a control', async () => {

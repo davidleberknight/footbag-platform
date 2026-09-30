@@ -10,10 +10,11 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('3216');
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
+import { cachedGet } from '../fixtures/cachedGet';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -39,7 +40,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('freestyle By the Numbers — count universe reconciles', () => {
   it('states the browsable dictionary-trick total and excludes modifiers', async () => {
-    const res = await request(createApp()).get('/freestyle/by-the-numbers');
+    const res = await page('/freestyle/by-the-numbers');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Counts cover 2 dictionary tricks/);
     // The imprecise "active canonical tricks" label is gone, and the modifier
@@ -49,13 +50,13 @@ describe('freestyle By the Numbers — count universe reconciles', () => {
   });
 
   it('keeps incomplete rows inside the stated total, named as a subset', async () => {
-    const res = await request(createApp()).get('/freestyle/by-the-numbers');
+    const res = await page('/freestyle/by-the-numbers');
     expect(res.text).toContain('1 of them still awaits a complete notation breakdown');
   });
 
   it('renders a sentence whose two numbers reconcile with the underlying sets', async () => {
     // Seeded: 2 dictionary tricks (one notated, one awaiting) + 1 modifier.
-    const res = await request(createApp()).get('/freestyle/by-the-numbers');
+    const res = await page('/freestyle/by-the-numbers');
     const m = res.text.match(
       /Counts cover (\d+) dictionary tricks(?:; (\d+) of them still (?:await|awaits) a complete notation breakdown)?\./,
     );

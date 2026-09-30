@@ -15,6 +15,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -32,6 +33,7 @@ import {
 const { dbPath } = setTestEnv('4134');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 let db: BetterSqlite3.Database;
 
 const ADMIN_ID  = 'aaaaaaaa-0000-0000-0000-00000000diag';
@@ -100,7 +102,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/tricks/:slug — parser diagnostic visibility', () => {
   it('shows a signed-out reader none of the diagnostic material', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/diag_disagreeing_trick');
+    const res = await page('/freestyle/tricks/diag_disagreeing_trick');
 
     expect(res.status).toBe(200);
     for (const phrase of DIAGNOSTIC_PHRASES) {
@@ -109,7 +111,7 @@ describe('GET /freestyle/tricks/:slug — parser diagnostic visibility', () => {
   });
 
   it('does not leak the computed value or the asserted-vs-computed disagreement', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/diag_disagreeing_trick');
+    const res = await page('/freestyle/tricks/diag_disagreeing_trick');
 
     // The derivation without its escaping, so the assertion holds however the
     // template renders the equals sign.
@@ -130,7 +132,7 @@ describe('GET /freestyle/tricks/:slug — parser diagnostic visibility', () => {
   });
 
   it('still renders the settled editorial page to a reader', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/diag_disagreeing_trick');
+    const res = await page('/freestyle/tricks/diag_disagreeing_trick');
 
     // The published value and the prose stay: removing the diagnostic must not
     // remove the page's own account of the trick.

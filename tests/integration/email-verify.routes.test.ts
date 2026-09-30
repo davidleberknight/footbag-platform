@@ -142,7 +142,7 @@ describe('GET /verify/:token', () => {
     expect(res.status).toBe(303);
     // Post-verify landing is the first outstanding onboarding task.
     expect(res.headers.location).toBe('/register/wizard/personal_details');
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
     // A response that establishes a session must not be cacheable.
@@ -188,7 +188,7 @@ describe('GET /verify/:token', () => {
     // lost exactly this case: nothing changed, so nothing was written, while a
     // session went out with no trail behind it.
     expect(res.status).toBe(303);
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -295,6 +295,7 @@ describe('GET /verify/:token — session reissue failure', () => {
     const token = tokenFromOutbox('verify-kmsfail@example.com');
 
     adapterMod.setJwtSigningAdapterForTests({
+      kid: realAdapter.kid,
       signJwt: async () => {
         const err = new Error('KMS Sign failed: AccessDeniedException');
         err.name = 'KMSAccessDenied';
@@ -310,7 +311,7 @@ describe('GET /verify/:token — session reissue failure', () => {
     expect(res.text).toContain('could not sign you in');
     expect(res.text).toContain('Sign In');
 
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     const sessionCookieIssued = cookies?.some((c) =>
       c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
@@ -530,7 +531,8 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
         throw new ServiceUnavailableError('synthetic enqueue failure for verify-resend');
       },
       processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
       }),
     });
 

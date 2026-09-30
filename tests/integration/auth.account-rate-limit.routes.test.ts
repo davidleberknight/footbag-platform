@@ -24,7 +24,7 @@ const { dbPath } = setTestEnv('4207');
 
 const ACCOUNT_CAP = 3;
 
-let app: Express.Application;
+let app: import('express').Express;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

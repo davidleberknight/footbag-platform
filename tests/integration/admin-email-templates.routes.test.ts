@@ -145,7 +145,7 @@ describe('POST /admin/email-templates/:key/edit', () => {
     const email = await import('../../src/services/emailService');
     email.emailService.send({
       template: 'club_coleader_invite',
-      params: { inviteeName: 'Renee', clubName: 'Boulder Footbag' },
+      params: { leaderName: 'Lee', inviteeName: 'Renee', clubName: 'Boulder Footbag' },
       recipientEmail: 'roundtrip@example.com',
       recipientMemberId: MEMBER_ID,
     });

@@ -45,7 +45,6 @@ process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
 process.env.PAYMENT_ADAPTER           = 'live';
 process.env.STRIPE_WEBHOOK_SECRET     = 'whsec_live_realvalue';
-process.env.SES_FEEDBACK_WEBHOOK_KEY  = 'b'.repeat(48); // required when SES_ADAPTER=live
 process.env.CAPTCHA_ADAPTER           = 'live'; // production boot rejects the captcha stub
 process.env.TURNSTILE_SITE_KEY        = '1x00000000000000000000AA'; // required with the live adapter; its secret resolves lazily and is never touched here
 

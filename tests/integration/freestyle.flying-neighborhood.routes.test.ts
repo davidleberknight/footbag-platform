@@ -8,7 +8,7 @@
  * Operators page routes Flying's "Browse tricks" action to this neighborhood.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
@@ -16,6 +16,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3286');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -49,7 +50,7 @@ function flyingGroupSlice(html: string): string {
 
 describe('GET /freestyle/tricks?view=topology — Flying neighborhood', () => {
   it('renders a Flying neighborhood populated by the Flying body component', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="topology-flying"');
     const slice = flyingGroupSlice(res.text);
@@ -59,7 +60,7 @@ describe('GET /freestyle/tricks?view=topology — Flying neighborhood', () => {
   });
 
   it('excludes a trick that only has "flying" in its name (no Flying body token)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=topology');
+    const res = await page('/freestyle/tricks?view=topology');
     const slice = flyingGroupSlice(res.text);
     expect(slice).not.toContain('/freestyle/tricks/flying_fish');
   });
@@ -67,7 +68,7 @@ describe('GET /freestyle/tricks?view=topology — Flying neighborhood', () => {
 
 describe('GET /freestyle/operators — Flying browse target', () => {
   it("routes Flying's Browse tricks to the Flying movement neighborhood, not a dictionary search", async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-flying"');
     // The temporary search workaround for Flying is gone.

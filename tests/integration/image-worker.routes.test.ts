@@ -6,6 +6,7 @@
  * concurrency semaphore returns 503 when the in-flight cap is exhausted.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import sharp from 'sharp';
 import { createImageWorkerApp } from '../../src/imageWorker';
@@ -895,7 +896,7 @@ describe('POST /process/video-from-storage', () => {
       return { app, puts };
     }
 
-    let stderrSpy: ReturnType<typeof vi.spyOn>;
+    let stderrSpy: MockInstance<typeof process.stderr.write>;
     beforeEach(() => {
       stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     });
@@ -1105,7 +1106,7 @@ describe('POST /process/video-from-storage', () => {
    */
   describe('transcode failure shaping', () => {
     let savedMemoryLimit: string | undefined;
-    let stderrSpy: ReturnType<typeof vi.spyOn>;
+    let stderrSpy: MockInstance<typeof process.stderr.write>;
 
     beforeEach(() => {
       savedMemoryLimit = process.env.IMAGE_MEMORY_LIMIT;

@@ -66,7 +66,7 @@ export async function expectCsrfReject(
     expect(res.status, `${tag}: expected 403, got ${res.status}`).toBe(403);
     expect(res.text, `${tag}: 403 body did not match /Forbidden/i`).toMatch(/Forbidden/i);
 
-    const setCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+    const setCookies = res.get('Set-Cookie') ?? [];
     const sessionIssued = setCookies.some((c) => c.startsWith('__Host-footbag_session='));
     expect(sessionIssued, `${tag}: __Host-footbag_session issued despite CSRF reject`).toBe(false);
   }

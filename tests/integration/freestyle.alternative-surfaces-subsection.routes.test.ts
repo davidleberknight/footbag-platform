@@ -16,7 +16,7 @@
  *     and the standard JOB / ADD notation line.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -29,6 +29,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3218');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -67,7 +68,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Movement System view: alternative-surfaces subsection', () => {
   it('renders the Alternative surfaces section on ?view=movement-system as a collapsed disclosure', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="alt-surfaces"');
     // Collapsed details whose summary carries the heading, count, and intro.
@@ -77,7 +78,7 @@ describe('Movement System view: alternative-surfaces subsection', () => {
   });
 
   it('renders the four surface-group labels', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('Sole and heel');
     expect(res.text).toContain('Inside and outside');
     expect(res.text).toContain('Head, neck, and shoulder');
@@ -85,7 +86,7 @@ describe('Movement System view: alternative-surfaces subsection', () => {
   });
 
   it('does not render a flying / airborne group, and no flying trick appears on the page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     expect(res.text).not.toContain('Flying and airborne variants');
     // Flying tricks carry no modifier links, so they ride no axis; with the
     // group gone they appear nowhere on this view.
@@ -93,7 +94,7 @@ describe('Movement System view: alternative-surfaces subsection', () => {
   });
 
   it('renders each trick with the shared dictionary-trick-row (name + Trick Detail link + JOB line)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=movement-system');
     // Standard browse-row markup, not a bespoke inline list.
     expect(res.text).toContain('class="dict-trick-row"');
     expect(res.text).not.toContain('alt-surface-trick-list');
@@ -106,14 +107,14 @@ describe('Movement System view: alternative-surfaces subsection', () => {
   });
 
   it('does NOT render the Alternative surfaces section on ?view=add', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('id="alt-surfaces"');
     expect(res.text).not.toMatch(/Alternative surfaces <span class="section-count">/);
   });
 
   it('does NOT render the Alternative surfaces section on ?view=family', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('id="alt-surfaces"');
   });

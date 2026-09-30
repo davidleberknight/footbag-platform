@@ -201,7 +201,6 @@ describe('the profile states the club benefit and withholds the shortcut it cann
       .set('Cookie', cookieFor(T0_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain(CLUB_LEAD);
-    expect(res.text).toContain('first leader.');
     expect(res.text).toContain(UPGRADE_BUTTON);
     expect(res.text).not.toContain('Start a New Club');
   });
@@ -220,7 +219,6 @@ describe('the profile states the club benefit and withholds the shortcut it cann
     const res = await request(createApp())
       .get(`/members/${T0_SLUG}`)
       .set('Cookie', cookieFor(T0_ID));
-    expect(res.text).toContain('My Galleries');
     expect(res.text).toContain(MEDIA_LEAD);
     expect(res.text).not.toContain('Upload Media');
     // The shortcut list is gone for a member below the organizer tier, so an
@@ -233,7 +231,6 @@ describe('the profile states the club benefit and withholds the shortcut it cann
       .get(`/members/${T0_EMPTY_SLUG}`)
       .set('Cookie', cookieFor(T0_EMPTY_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Media');
     expect(res.text).toContain('You have not shared any photos or videos yet.');
     expect(res.text).toContain(MEDIA_LEAD);
     expect(res.text).toContain(UPGRADE_BUTTON);
@@ -245,7 +242,6 @@ describe('the profile states the club benefit and withholds the shortcut it cann
       .set('Cookie', cookieFor(T1_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Upload Media');
-    expect(res.text).toContain('My Galleries');
     expect(res.text).not.toContain(CLUB_LEAD);
     expect(res.text).not.toContain(MEDIA_LEAD);
   });

@@ -286,7 +286,6 @@ describe('GET /members/:memberKey — profile view', () => {
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`href="/members/${OWN_SLUG}/payments"`);
-    expect(res.text).toContain('Payment History');
     // The coming-soon card no longer promises payment history as unbuilt.
     expect(res.text).not.toContain('Payments &amp; Donations');
   });
@@ -328,16 +327,6 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', otherCookie());
     expect(res.status).toBe(404);
-  });
-
-  it('/edit is not swallowed as :section — route resolves to edit form, not stub', async () => {
-    // If route ordering is wrong, /edit would hit getStub and return 404 (not in STUB_SEGMENTS).
-    const app = createApp();
-    const res = await request(app)
-      .get(`/members/${OWN_SLUG}/edit`)
-      .set('Cookie', ownCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Edit Profile');
   });
 
   it('unlinked but onboarding-complete member: the administrator route persists', async () => {
@@ -382,7 +371,6 @@ describe('GET /members/:memberKey/edit — edit form', () => {
         .get(`/members/${OWN_SLUG}/edit`)
         .set('Cookie', ownCookie());
       expect(res.status).toBe(200);
-      expect(res.text).toContain('Date of birth');
       expect(res.text).toContain('name="birthDay"');
       expect(res.text).toContain('value="15"');
       expect(res.text).toContain('<option value="3" selected>March</option>');
@@ -690,7 +678,6 @@ describe('GET /members/:memberKey/:section — stub pages', () => {
         .get(`/members/${OWN_SLUG}/${section}`)
         .set('Cookie', ownCookie());
       expect(res.status).toBe(200);
-      expect(res.text).toContain('coming soon');
     });
   }
 

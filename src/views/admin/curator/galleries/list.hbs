@@ -27,7 +27,11 @@
   {{/if}}
 
   {{#if content.emptyState}}
-    <p class="empty-state">No FH-owned named galleries yet. Use the Create button above, or run <code>python scripts/seed_fh_curator.py</code> to bootstrap from <code>/curated/galleries/*.json</code>.</p>
+    {{#if content.sidecarWritesEnabled}}
+      <p class="empty-state">No FH-owned named galleries yet. Use the Create button above, or run <code>python scripts/seed_fh_curator.py</code> to bootstrap from <code>/curated/galleries/*.json</code>.</p>
+    {{else}}
+      <p class="empty-state">No FH-owned named galleries yet. Use the Create button above.</p>
+    {{/if}}
   {{else}}
     <div class="records-table-wrap">
       <table class="data-table">

@@ -8,7 +8,7 @@
  * tokens are untouched; only the scored/decomposition labels are suppressed.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -30,6 +30,7 @@ const HELD_FORMULA_SLUGS = [
 ];
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -53,7 +54,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('miraging is never a public scored / decomposition / equivalence label', () => {
   it('the ADD view shows no miraging(+1) scoring chip for the held-formula compounds', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // No public scoring chip anywhere may score a miraging component.
     expect(res.text).not.toMatch(/miraging\(\+?1\)/);
@@ -61,21 +62,21 @@ describe('miraging is never a public scored / decomposition / equivalence label'
 
   it('the held-formula compound detail pages score no miraging component', async () => {
     for (const slug of HELD_FORMULA_SLUGS) {
-      const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text, `${slug} scores miraging`).not.toMatch(/miraging\(\+?1\)/);
     }
   });
 
   it('the ADD-analysis resolved-formula table scores no miraging component', async () => {
-    const res = await request(await createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/miraging\(\+?1\)/);
   });
 
   it('drifter and DLO render with no miraging reading', async () => {
     for (const slug of ['drifter', 'double_leg_over']) {
-      const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text, `${slug} shows miraging`).not.toMatch(/miraging clipper|miraging legover/);
     }

@@ -25,7 +25,7 @@
  * search term they know.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -41,6 +41,7 @@ import {
 const { dbPath } = setTestEnv('3098');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 /** The trick every alias in this file hangs off. */
 const HOST = 'whirl';
@@ -86,7 +87,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 /** The browse listing, where a trick's alternate names sit beside its row. */
 async function browseRow(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/tricks');
+  const res = await page('/freestyle/tricks');
   expect(res.status).toBe(200);
   expect(res.text, 'the host trick must appear in the listing').toContain(HOST);
   expect(res.text, 'the alternate-name slot must render at all').toContain(ALSO_CALLED);
@@ -95,7 +96,7 @@ async function browseRow(): Promise<string> {
 
 /** The trick's own page, the other surface carrying the same slot. */
 async function detailPage(): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${HOST}`);
+  const res = await page(`/freestyle/tricks/${HOST}`);
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -150,7 +151,7 @@ describe('a name kept off the page still finds its trick', () => {
   // publication state gates display only. Asserted for the superseded class
   // because that is where the terminology ruling put every delay-form name.
   it('resolves a hidden superseded name through search without naming it back', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=Hidden Old Name');
+    const res = await page('/freestyle/search?q=Hidden Old Name');
     expect(res.status).toBe(200);
     expect(res.text, 'the hidden name must still find its trick').toContain(HOST);
     expect(offeredBack(res.text), 'a hidden name is never offered back as an alternate name')
@@ -158,7 +159,7 @@ describe('a name kept off the page still finds its trick', () => {
   });
 
   it('resolves a held-back nickname the same way', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=Held Back Nickname');
+    const res = await page('/freestyle/search?q=Held Back Nickname');
     expect(res.status).toBe(200);
     expect(res.text).toContain(HOST);
     expect(offeredBack(res.text)).not.toContain('Held Back Nickname');
@@ -167,7 +168,7 @@ describe('a name kept off the page still finds its trick', () => {
   it('does offer back a published alias, so the check above can fail', async () => {
     // The control. Without it the two assertions above would pass against a
     // page that never offers any alias back, including a broken one.
-    const res = await request(await createApp()).get('/freestyle/search?q=Shown Nickname');
+    const res = await page('/freestyle/search?q=Shown Nickname');
     expect(res.status).toBe(200);
     expect(offeredBack(res.text)).toContain('Shown Nickname');
   });

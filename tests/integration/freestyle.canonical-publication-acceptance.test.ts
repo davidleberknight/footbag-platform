@@ -565,7 +565,7 @@ describe('a refresh will not take the historical ten back', () => {
 
 describe('a trick the committed inputs never carried survives a refresh', () => {
   // The case the funnel is actually for: a name no input asks for, published by a
-  // curator, then refreshed. This is the post-cutover lifecycle.
+  // curator, then refreshed. This is the curator lifecycle before cutover, while refreshes still run.
   it('was published from a real ruling naming a slug no input carries', () => {
     expect(NOVEL.candidateId).toBeTruthy();
     expect(NOVEL.slug).toBeTruthy();

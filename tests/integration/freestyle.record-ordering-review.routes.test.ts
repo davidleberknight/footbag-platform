@@ -13,7 +13,7 @@
  *     treated as curator-review.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleRecord, insertFreestyleTrick } from '../fixtures/factories';
@@ -21,6 +21,7 @@ import { insertFreestyleRecord, insertFreestyleTrick } from '../fixtures/factori
 const { dbPath } = setTestEnv('3651');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -54,7 +55,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function recordsHtml(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/records');
+  const res = await page('/freestyle/records');
   expect(res.status).toBe(200);
   return res.text;
 }

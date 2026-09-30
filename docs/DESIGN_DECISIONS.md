@@ -616,7 +616,7 @@ Curator content has two source-of-truth phases tied to the platform lifecycle.
 
 Before go-live, curator content is sourced from `/curated/`, a directory tree in the application repository, with one JSON sidecar per item. The seeder (`scripts/seed_fh_curator.py`) is the only path from `/curated/` to the platform DB and S3. The DB and S3 are derived materializations: either can be wiped and rebuilt from `/curated/` by re-running the seeder. This is what lets curator content be authored, reviewed in git, and seeded before any persistent DB exists. The `/curated/` sidecars are themselves produced by an upstream pre-go-live data-prep layer (curator staging, discovery, and promotion inputs); that layer and the sidecars it emits are authoring inputs only.
 
-After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; `/curated/` is a development-only authoring surface: committed to git and read by the seeder on the workstation that builds the database. What reaches a host is that database and the media bytes the seeder produced. This source-of-truth pattern, committed authoring inputs seeded into a derived database before go-live and the persistent database as the source of truth after, is reused beyond curator media: the email templates and the freestyle dictionary follow the same pre-go-live-curate-then-cut-over-to-the-database model.
+After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; before go-live, `/curated/` is a development-only authoring surface: committed to git and read by the seeder on the workstation that builds the database, and it retires with the seeder at cutover. What reaches a host is that database and the media bytes the seeder produced. This source-of-truth pattern, committed authoring inputs seeded into a derived database before go-live and the persistent database as the source of truth after, is reused beyond curator media: the email templates and the freestyle dictionary follow the same pre-go-live-curate-then-cut-over-to-the-database model. All pre-go-live data-load Python (the legacy-data and freestyle pipelines and the curated media curation and email template curation seeders, with their loaders, build scripts, tests and CI gates) is pre-go-live migration tooling. Python remains only as developer and CI tooling: small parsing scripts in CI checks and operator scripts, never application code. No TypeScript in the application is generated, and curator data lives in the database, not in code. At cutover the production database becomes the sole source of truth and all content is edited in the running application; the migrated content is never again authored in CSVs or rebuilt locally. The pipeline code, its tests and its CI jobs are deleted once the final production load is signed off, leaving TypeScript as the platform's one application language.
 
 The DB schema carries no filesystem coupling in either phase; admin edit and delete locate the sidecar that produced a given `media_items` row at runtime by matching the row's `(video_platform, video_url)` against sidecars on disk.
 
@@ -793,7 +793,7 @@ Requirements:
 
 - A rule that cannot be checked without judgment, or whose covered set grows unenumerably, is enforced by the bug-hunt review rather than added to the gate.
 
-- The local convention gate and `./run_all_tests.sh --full` pass before any push.
+- The local convention gate and `./run_all_tests.sh` pass before any push.
 
 Trade-offs:
 
@@ -4438,9 +4438,9 @@ Requirements:
 - GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference. CI runners are named by release (`ubuntu-24.04`), never `*-latest`, which moves to a new operating system on the provider's schedule.
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
 - Each project MCP server package is an exactly pinned devDependency governed by the lockfile, and `.mcp.json` runs it from `node_modules/.bin`, never through `@latest` or an `npx` fetch. A version bump is a reviewed PR, not a transparent upstream change.
-- Every dependency, devDependency and override in `package.json` is pinned to an exact version (no `^` or `~`), enforced by the version-pin convention gate (`scripts/ci/check_version_pins.sh`). The lockfile is the canonical source for transitive versions, and installs read it with `npm ci`.
+- Every dependency, devDependency and override in `package.json` is pinned to an exact version (no `^` or `~`), enforced by the version-pin convention gate (`scripts/ci/check_version_pins.sh`). The lockfile is the canonical source for transitive versions, and installs read it with `npm ci`. A version in `package.json`, an override among them, is changed only by `scripts/pin-npm-package.sh`, which moves that one package in the lockfile and refuses any other change to it.
 - The Node and Python runtimes are pinned exactly in `.nvmrc` and `.python-version`. CI, the local runners and the workstation setup script all read those two files, so no second copy of either version exists to drift.
-- Python packages are hash-pinned: each `requirements.in` names the direct dependencies and compiles to a `requirements.txt` pinning every package in the closure with its file hashes, installed with `--require-hashes`. The compiled files are regenerated only by `scripts/lock-python-deps.sh`.
+- Python packages are hash-pinned: each `requirements.in` names the direct dependencies and compiles to a `requirements.txt` pinning every package in the closure with its file hashes, installed with `--require-hashes`. The compiled files are regenerated only by `scripts/lock-python-deps.sh`. The requirement files and the lock script serve only the pre-go-live data-load Python and are deleted with it; the pinned runtime stays for the developer and CI tooling.
 - Every Terraform tree declares an exact `required_version`, equal to the version CI runs.
 - A remote image a script runs (the secret-scan container, the ZAP scanner) is pinned by digest, and a CLI a script fetches is pinned by version.
 - Operating-system packages are pinned through the image that carries them (the named CI runner release, the base image digest) rather than by per-package `package=version` pins. Packages on a deployed host follow the security-patching cadence.
@@ -4607,7 +4607,7 @@ Requirements:
 
 - Repository-level vulnerability alerting is enabled, so the maintainer is notified when a dependency carries a published advisory.
 
-- The dependency audit fails CI at moderate severity and above, and the pull-request dependency review inspects what each change introduces.
+- The dependency audit reports advisories at moderate severity and above, and the pull-request dependency review inspects what each change introduces. Both report as warnings and never fail CI: an advisory is published upstream on its own schedule and can land on a commit that changed nothing, so acting on it is the maintainer's patching decision, not a red build.
 
 - Host operating-system packages and container base images are patched on the documented operational cadence, with the health endpoints and logs verified after any restart.
 
@@ -4618,6 +4618,37 @@ Trade-offs:
 Impact:
 
 - Patching is System Administrator work and the user stories assign it there.
+
+## 7.9 Production Release Gate
+
+Decision:
+
+A production release ships only a proven tree: committed, on the canonical repository's main, green in CI, passed by the complete local test run on that exact tree, already running on staging, and passed there by the read-only staging checks. Every path that ships code to production enforces this before it touches a host, and no verification or safety step can be switched off for production. Staging is held to none of it, because staging is where uncommitted work is tried.
+
+Rationale:
+
+- Production promotes what staging has already run, so a defect the staging checks can reveal is found before the public meets it.
+- Two pass receipts, one written by the complete local run and one by the staging checks, let the gate prove the suites passed without re-running them at deploy time, and bind each proof to the tree or commit it covers.
+- The local run needs no AWS identity, so any contributor can produce its receipt; the staging checks read a deployed environment, so they need the dev-tester role.
+- Switches that serve staging iteration become risks on production, where skipping a check or killing a database lock holder unasked acts on real members' data.
+
+Requirements:
+
+- One sourced library holds the rules. A standalone check runs them on request, and the production deploy entry point and each script it hands off to run them before touching a host, so a script reached some other way is held to the same rules.
+- The gate refuses a working tree that is not clean; an origin other than the canonical repository; a HEAD that is not the canonical main; a commit whose CI aggregate check is not green on every run; a missing local pass receipt for that exact tree; a staging host running a different commit or one deployed from a dirty tree; and a missing staging pass receipt for the commit staging runs.
+- Each receipt is readable only by its owner and records the runner that wrote it; a receipt from a different runner, or owned by another account, does not count.
+- A production deploy refuses `SKIP_SMOKE`, `SKIP_TESTS`, `SMOKE_BASE_URL`, `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`, and refuses the gate's own test seams.
+- A question the gate cannot answer, such as an unreadable CI status or an unreachable staging host, is a refusal.
+- No test writes to a deployed environment. The staging checks are read-only, and the check after a production deploy is an operator-run browser pass that signs in as nobody and submits nothing.
+- The OWASP ZAP scan of the local stack runs before a production deploy, not in every local run: it is report-only and slow, and the blocking security probes that run every time cover the same ground. It is an operator step the gate does not enforce, and a scan stopped at its time limit reports NOT RUN, which is not a clean scan. The dependency audit is the same kind of check, report-only and read from the live registry, so it too runs before a production deploy rather than in every local run; CI reports it on every push.
+
+Trade-offs:
+
+- A production release waits for a staging deploy and a staging check of the same commit, however small the change.
+
+Impact:
+
+- The production procedure is: CI green on main, the complete local run, a staging deploy, the staging checks as a dev-tester, the standalone check, the production deploy, then the anonymous production browser check. The runbook lives in DEVOPS_GUIDE.md (private GitHub repo), and `docs/TESTING.md` owns what each test tier proves.
 
 # 8. Logging, Monitoring & Abuse Prevention
 

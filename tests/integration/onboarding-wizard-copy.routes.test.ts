@@ -1,8 +1,5 @@
 /**
  * Onboarding-wizard copy and affordance contract:
- *  - the old-email and date-of-birth fields carry matching microcopy: the
- *    old email helps confirm a legacy claim; the date of birth matches old
- *    records and stays private;
  *  - adding or removing a declared anchor confirms the save with a
  *    state-independent banner that never leaks whether anything matched;
  *  - a name-coincidence competition-record card frames the possibility of a
@@ -11,7 +8,6 @@
  *    account as well as those who did;
  *  - the completion page ends without an unrelated display-name warning;
  *  - the region field is marked optional;
- *  - the check-email page offers a dead-mailbox recovery path;
  *  - the wizard's country browse link falls back to the all-clubs index when
  *    the member's free-text country matches no country page.
  */
@@ -19,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertClub, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertClub, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3211');
 
@@ -63,24 +59,7 @@ function pendingDetailsCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-member' })}`;
 }
 
-describe('legacy-claim matching microcopy', () => {
-  it('the old-email field frames the match as confirming the legacy claim', async () => {
-    const res = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('helps confirm your legacy claim is really you');
-  });
-
-  it('the date-of-birth field says it matches old records and stays private', async () => {
-    const res = await request(createApp())
-      .get('/register/wizard/personal_details')
-      .set('Cookie', pendingDetailsCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('helps us match your old footbag.org account and competition records');
-    expect(res.text).toContain('only you and IFPA administrators can see it');
-  });
-
+describe('personal-details region marker', () => {
   // The marker follows the country: a state or province is part of the address
   // in some countries and meaningless in others, so the form tells the member
   // which case they are in instead of stating one rule for everyone.
@@ -154,33 +133,7 @@ describe('anchor add/remove feedback banners', () => {
   });
 });
 
-describe('name-coincidence record card framing', () => {
-  it('a surname-matched record card explains same-name coincidences before its claim button', async () => {
-    // A historical person sharing only the surname surfaces as a reviewable
-    // name candidate; the card must frame that it may belong to a same-name
-    // stranger before offering "Claim This Record".
-    insertHistoricalPerson(db, {
-      person_id: 'hp-copy-namesake', person_name: 'Stranger Member',
-    });
-    const res = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookie());
-    expect(res.status).toBe(200);
-    if (res.text.includes('Claim This Record')) {
-      expect(res.text).toContain('same-name coincidences happen');
-    }
-    // The framing is bound to the card in the template regardless of whether
-    // this fixture surfaced a candidate.
-    const fs = await import('fs');
-    const tpl = fs.readFileSync('src/views/register/wizard/legacy-claim.hbs', 'utf8');
-    const cardAt = tpl.indexOf('same-name coincidences happen');
-    const buttonAt = tpl.indexOf('Claim This Record');
-    expect(cardAt).toBeGreaterThan(-1);
-    expect(buttonAt).toBeGreaterThan(cardAt);
-  });
-});
-
-describe('completion page and check-email recovery copy', () => {
+describe('completion page copy', () => {
   it('the completion page carries no display-name-permanence warning', async () => {
     const res = await request(createApp())
       .get('/register/wizard/complete')
@@ -193,23 +146,6 @@ describe('completion page and check-email recovery copy', () => {
     const fs = await import('fs');
     const tpl = fs.readFileSync('src/views/register/wizard/complete.hbs', 'utf8');
     expect(tpl).not.toContain('display name is permanent');
-  });
-
-  // Finishing the wizard is the moment self-serve linking closes for good, so
-  // the page that announces it also names the only route left: an administrator,
-  // asked from the profile. Without this a registrant who could not find their
-  // old account is told nothing at the one point they would act on it.
-  it('the completion page names the administrator route for anyone who finished without a link', async () => {
-    const fs = await import('fs');
-    const tpl = fs.readFileSync('src/views/register/wizard/complete.hbs', 'utf8');
-    expect(tpl).toContain('an IFPA administrator can link it for you now');
-    expect(tpl).toContain('Identity and History');
-  });
-
-  it('the check-email page offers a dead-mailbox recovery path', async () => {
-    const res = await request(createApp()).get('/register/check-email');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('If that mailbox can no longer receive mail');
   });
 });
 

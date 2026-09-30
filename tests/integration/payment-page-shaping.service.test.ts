@@ -50,6 +50,7 @@ function membershipRow(overrides: Partial<PaymentRow> = {}): PaymentRow {
     stripe_checkout_session_id: 'cs_test_1',
     stripe_invoice_id: null,
     recurring_subscription_id: null,
+    donation_note: null,
     purchased_tier_status: 'tier1',
     last_stripe_event_created: null,
     ...overrides,

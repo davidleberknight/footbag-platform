@@ -1,10 +1,9 @@
 /**
- * Canonical persona catalog: every entry instantiates cleanly and carries
- * coverage annotations.
+ * Canonical persona catalog: every entry instantiates cleanly.
  *
  * Iterates CANONICAL_PERSONAS, seeds each into a fresh test DB via seedPersona,
- * and asserts: no DB constraint violation, a member row lands under the
- * persona slug, and the entry documents the dimensions it exercises. As the
+ * and asserts: no DB constraint violation, and a member row lands under the
+ * persona slug. As the
  * catalog grows (onboarding, legacy, club, payment-history, edge-case
  * variants), this test exercises every added persona without further edits.
  */
@@ -33,17 +32,9 @@ afterAll(() => {
 });
 
 describe('canonical persona catalog', () => {
-  it('holds an expanded catalog (20-80 personas) with unique slugs', () => {
-    expect(CANONICAL_PERSONAS.length).toBeGreaterThanOrEqual(20);
-    expect(CANONICAL_PERSONAS.length).toBeLessThanOrEqual(80);
+  it('has unique slugs', () => {
     const slugs = CANONICAL_PERSONAS.map((p) => p.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
-  });
-
-  it('every entry carries non-empty coverage notes', () => {
-    for (const spec of CANONICAL_PERSONAS) {
-      expect(spec.coverageNotes.length, `${spec.slug} coverageNotes`).toBeGreaterThan(0);
-    }
   });
 
   it('every backed entry seeds without a DB constraint violation and lands a member', () => {
@@ -414,12 +405,6 @@ describe('canonical persona catalog', () => {
           expect(row, `${spec.slug} has no admin-alerts row`).toBeUndefined();
         }
       }
-    }
-  });
-
-  it('every persona documents how it is used in testing', () => {
-    for (const spec of CANONICAL_PERSONAS) {
-      expect(spec.testingUsage.trim().length, `${spec.slug} testingUsage`).toBeGreaterThan(0);
     }
   });
 

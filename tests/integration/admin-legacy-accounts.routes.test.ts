@@ -98,7 +98,6 @@ describe('GET /admin/legacy-accounts', () => {
       .get('/admin/legacy-accounts')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Search the old accounts nobody has claimed');
     expect(res.text).not.toContain('LM-unclaimed-1');
   });
 

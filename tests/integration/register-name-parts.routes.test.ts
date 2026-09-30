@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -33,7 +34,7 @@ function readByEmail(email: string): NameRow | undefined {
   return row;
 }
 
-function register(fields: Record<string, string>): request.Test {
+function register(fields: Record<string, string>): Test {
   return request(createApp())
     .post('/register')
     .type('form')

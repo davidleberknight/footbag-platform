@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +29,7 @@ import {
 const { dbPath } = setTestEnv('3523');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -90,7 +92,7 @@ function rowFor(html: string, slug: string): string {
 
 describe('Family view — two-line row contract', () => {
   it('200 + family section headers + family-anchor sublabel preserved', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await getPage('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     for (const fam of FAMILIES) {
       expect(res.text, `${fam} section missing`).toContain(`id="family-${fam}"`);
@@ -101,7 +103,7 @@ describe('Family view — two-line row contract', () => {
   });
 
   it('every family member renders both columns of the shared dict-trick-row', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await getPage('/freestyle/tricks?view=family');
     for (const slug of ALL_MEMBERS) {
       const row = rowFor(res.text, slug);
       expect(row, `${slug} missing identity`).toMatch(/class="dict-trick-row-identity"/);
@@ -110,13 +112,13 @@ describe('Family view — two-line row contract', () => {
   });
 
   it('NO green ADD chip (.dict-card-add) and NO shared dict-card-stack in the family view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await getPage('/freestyle/tricks?view=family');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('every family row carries its notation and its difficulty value', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await getPage('/freestyle/tricks?view=family');
     for (const slug of ALL_MEMBERS) {
       const row = rowFor(res.text, slug);
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation-value"/);
@@ -150,7 +152,7 @@ describe('Family view — two-line row contract', () => {
   });
 
   it('anchor-first ordering preserved: family base trick renders before its compounds', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await getPage('/freestyle/tricks?view=family');
     const start = res.text.indexOf('id="family-mirage"');
     const end = res.text.indexOf('</section>', start);
     const section = res.text.slice(start, end);
@@ -158,7 +160,7 @@ describe('Family view — two-line row contract', () => {
   });
 
   it('operational notation appears ONLY inside the JOB slot (no loose bracket tokens)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await getPage('/freestyle/tricks?view=family');
     const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {

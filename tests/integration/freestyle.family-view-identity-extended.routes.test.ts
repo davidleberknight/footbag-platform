@@ -16,7 +16,7 @@
  *   - Category-view changes (out of scope here; covered separately).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -29,6 +29,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3098');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Each pilot lists slug, canonical name, ADD value, family slug,
 // and the FIRST reading the chain emits. The test asserts both
@@ -176,8 +177,7 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
 
   for (const section of familySections) {
     it(`renders the ${section.family} family section with all pilots`, async () => {
-      const app = createApp();
-      const res = await request(app).get('/freestyle/tricks?view=family');
+      const res = await page('/freestyle/tricks?view=family');
       expect(res.status).toBe(200);
       expect(res.text).toContain(`id="family-${section.family}"`);
       for (const pilot of section.pilots) {
@@ -189,15 +189,14 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
 
 describe('Chain entries surface as visible formulas', () => {
   it('renders the first-reading tokens for each chained pilot on its trick page', async () => {
-    const app = createApp();
     // A chain reading is structural content: it reads on the trick's own page,
     // either as its own section or, when the About build path already says the
     // same thing, through that line. Browse rows carry identity and notation.
     for (const pilot of PILOTS_WITH_CHAINS) {
-      const page = await request(app).get(`/freestyle/tricks/${pilot.slug}`);
-      expect(page.status, `${pilot.slug} page must render`).toBe(200);
-      const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-      const buildPath = page.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
+      const trickPage = await page(`/freestyle/tricks/${pilot.slug}`);
+      expect(trickPage.status, `${pilot.slug} page must render`).toBe(200);
+      const readings = trickPage.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+      const buildPath = trickPage.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
       for (const token of pilot.firstReadingTokens) {
         expect(
           readings + buildPath,
@@ -208,8 +207,7 @@ describe('Chain entries surface as visible formulas', () => {
   });
 
   it('does NOT render "Notation pending" for any chained pilot', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
 
     for (const pilot of PILOTS_WITH_CHAINS) {
@@ -241,9 +239,8 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
   for (const slug of IDENTITY_PILOTS) {
     it(`'${slug}' renders the same two-line row contract in ADD and Family views`, async () => {
       const pilot = ALL_PILOTS.find(p => p.slug === slug)!;
-      const app = createApp();
-      const addView    = await request(app).get('/freestyle/tricks?view=add');
-      const familyView = await request(app).get('/freestyle/tricks?view=family');
+      const addView    = await page('/freestyle/tricks?view=add');
+      const familyView = await page('/freestyle/tricks?view=family');
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 
@@ -270,10 +267,10 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
 
       // The trick's first reading is structural content and reads on its own
       // page; no row in either view carries it.
-      const page = await request(app).get(`/freestyle/tricks/${slug}`);
-      expect(page.status).toBe(200);
-      const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-      const buildPath = page.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
+      const trickPage = await page(`/freestyle/tricks/${slug}`);
+      expect(trickPage.status).toBe(200);
+      const readings = trickPage.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+      const buildPath = trickPage.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
       for (const token of pilot.firstReadingTokens) {
         expect(readings + buildPath, `${slug} page missing first-reading token '${token}'`)
           .toMatch(new RegExp(token, 'i'));
@@ -288,15 +285,13 @@ describe('Family View — non-trick filter regression guard', () => {
   // Even with the expanded pilot cohort, modifier / operator rows must
   // still be filtered from family-view buckets.
   it('paradox (modifier) does NOT appear in family view even with trick_family=mirage', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('data-trick-slug="paradox"');
   });
 
   it('pixie (operator) does NOT appear in family view even with trick_family=butterfly', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('data-trick-slug="pixie"');
   });

@@ -9,12 +9,13 @@
  * their Movement blocks render.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3970');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -29,12 +30,12 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('spin/juggling rendering probe', () => {
   it.each([['spin'], ['double-spin'], ['2-bag-juggling'], ['3-bag-juggling']])('GET /freestyle/tricks/%s returns 200', async (slug) => {
-    const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.status).toBe(200);
   });
 
   it('spin renders its notation tokenized, in the Execution block', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/spin');
+    const res = await page('/freestyle/tricks/spin');
     // "SPIN" is the trick's own name, so the Movement block would only repeat
     // the h1 and is suppressed; the Execution chain carries the tokens.
     expect(res.text).toContain('operational-notation-display');
@@ -42,28 +43,28 @@ describe('spin/juggling rendering probe', () => {
   });
 
   it('spin cross-links to its operator collection (See also: Spinning tricks)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/spin');
+    const res = await page('/freestyle/tricks/spin');
     expect(res.text).toContain('See also:');
     expect(res.text).toContain('Spinning tricks');
     expect(res.text).toContain('href="/freestyle/modifier/spinning"');
   });
 
   it('double-spin renders both SPIN tokens in JOB block', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double-spin');
+    const res = await page('/freestyle/tricks/double-spin');
     expect(res.text).toContain('notation-display');
     const spinMatches = res.text.match(/notation-token[^>]*>SPIN</g) ?? [];
     expect(spinMatches.length).toBeGreaterThanOrEqual(2);
   });
 
   it('2-bag-juggling renders TOE > TOE tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/2-bag-juggling');
+    const res = await page('/freestyle/tricks/2-bag-juggling');
     expect(res.text).toContain('notation-display');
     const toeMatches = res.text.match(/notation-token[^>]*>TOE</g) ?? [];
     expect(toeMatches.length).toBeGreaterThanOrEqual(2);
   });
 
   it('3-bag-juggling renders three TOE tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/3-bag-juggling');
+    const res = await page('/freestyle/tricks/3-bag-juggling');
     const toeMatches = res.text.match(/notation-token[^>]*>TOE</g) ?? [];
     expect(toeMatches.length).toBeGreaterThanOrEqual(3);
   });
@@ -71,13 +72,13 @@ describe('spin/juggling rendering probe', () => {
   // Kick-doctrine reclassification: spin + double-spin are first-class tricks
   // (not modifiers), so they must be findable in the trick-browse views.
   it.each([['spin'], ['double-spin']])('%s is findable in the ADD browse view (kick-doctrine trick)', async (slug) => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${slug}"`);
   });
 
   it('spin + double-spin also appear in the dex-count browse view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).toContain('data-trick-slug="spin"');
     expect(res.text).toContain('data-trick-slug="double-spin"');
   });

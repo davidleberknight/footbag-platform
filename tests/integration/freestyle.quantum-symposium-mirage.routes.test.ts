@@ -11,7 +11,7 @@
  * pattern established in earlier slices.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -25,6 +25,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3180');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -64,7 +65,7 @@ describe('RESOLVED_ADD_FORMULAS — quantum-symposium-mirage entry', () => {
 
 describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/quantum_symposium_mirage renders 4 ADD + (no plant while) pre-state + symposium body fusion', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/quantum_symposium_mirage');
+    const res = await page('/freestyle/tricks/quantum_symposium_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -77,13 +78,13 @@ describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () =>
   });
 
   it('detail page surfaces "backside symposium toe blur" as folk-name alias in S3 "Also known as"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/quantum_symposium_mirage');
+    const res = await page('/freestyle/tricks/quantum_symposium_mirage');
     expect(res.text).toContain('Also known as');
     expect(res.text).toMatch(/backside symposium toe blur/i);
   });
 
   it('browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="quantum_symposium_mirage"');
     expect(idx).toBeGreaterThan(-1);

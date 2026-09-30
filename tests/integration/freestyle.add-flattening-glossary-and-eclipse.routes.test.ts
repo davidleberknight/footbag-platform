@@ -14,7 +14,7 @@
  *    now in FIRST_CLASS_TIER_2 so its browse card renders JOB + ADD.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +28,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3164');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -88,7 +89,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Freestyle Concepts ADD Accounting — ADD-flattening note', () => {
   it('/freestyle/concepts renders the advanced-tier ADD-flattening note in the ADD Accounting section', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     // The ADD Accounting section anchor must be present
     expect(res.text).toContain('id="section-add-accounting"');
@@ -97,14 +98,14 @@ describe('Freestyle Concepts ADD Accounting — ADD-flattening note', () => {
   });
 
   it('the note cites hop-over / walk-over / wrap as the 2-ADD held-stall leg-over family example', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/hop-over[\s\S]*walk-over[\s\S]*wrap/);
     // Allow whitespace (incl. newlines from HTML wrapping) between tokens
     expect(res.text).toMatch(/held-stall\s+leg-over chassis/);
   });
 
   it('the note preserves the doctrine framing (historical ADD stays canonical; structural / mechanical relationships discussed separately)', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('preserves historical ADD doctrine');
     expect(res.text).toContain('structural and mechanical relationships');
   });
@@ -121,7 +122,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
   });
 
   it('/freestyle/tricks/eclipse renders the curator-supplied op-notation tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eclipse');
+    const res = await page('/freestyle/tricks/eclipse');
     expect(res.status).toBe(200);
     // The Set notation section must be present
     expect(res.text).toContain('operational-notation-display');
@@ -136,7 +137,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
   });
 
   it('eclipse appears in the FIRST_CLASS_TIER_2 cohort (browse card renders JOB + ADD)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     // Locate the eclipse card
     const idx = res.text.indexOf('data-trick-slug="eclipse"');
@@ -164,7 +165,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
 
 describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', () => {
   it('double-knee renders the sui-generis self-token JOB "double knee" with 1 ADD', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double_knee');
+    const res = await page('/freestyle/tricks/double_knee');
     expect(res.status).toBe(200);
     // Self-token JOB; renderer exempts from the tautological-JOB guard
     // per the SUI_GENERIS_SELF_TOKEN_SLUGS allowlist. The fixture uses the
@@ -193,7 +194,7 @@ describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', ()
   });
 
   it('peak-stall renders as 1-ADD folk-name surface stall (JOB "[set] > peak")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/peak-stall');
+    const res = await page('/freestyle/tricks/peak-stall');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">1 ADD<\/span>/);
     // Set notation present
@@ -201,7 +202,7 @@ describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', ()
   });
 
   it('2-bag-juggling renders as 2-ADD multi-bag boundary-object row', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/2-bag-juggling');
+    const res = await page('/freestyle/tricks/2-bag-juggling');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">2 ADD<\/span>/);
   });
@@ -209,7 +210,7 @@ describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', ()
 
 describe('Freestyle Concepts ADD Accounting — multi-bag governing rule', () => {
   it('/freestyle/concepts renders the multi-bag boundary-doctrine note in the ADD Accounting section', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Multi-bag governing rule');
     expect(res.text).toContain('one additional ADD for each');
@@ -220,7 +221,7 @@ describe('Freestyle Concepts ADD Accounting — multi-bag governing rule', () =>
   });
 
   it('the multi-bag note explicitly notes the single-bag dictionary axes do NOT classify multi-bag rows', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/single-bag dictionary axes[\s\S]*do not classify multi-bag rows/);
   });
 });

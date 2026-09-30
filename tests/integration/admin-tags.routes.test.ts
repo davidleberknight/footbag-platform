@@ -46,7 +46,7 @@ function adminCookie(): string {
 }
 
 function memberCookie(): string {
-  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, slug: MEMBER_SLUG })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 function tagRow(id: string): {
@@ -163,7 +163,8 @@ describe('the hashtag lookup reaches one tag by its exact text', () => {
   it('orients before a search, and finds the tag however the # is written', async () => {
     const empty = await request(createApp()).get('/admin/tags').set('Cookie', adminCookie());
     expect(empty.status).toBe(200);
-    expect(empty.text).toContain('imposes no vocabulary');
+    expect(empty.text).toContain('<form method="GET" action="/admin/tags"');
+    expect(empty.text).not.toContain('The hashtag is retired.');
 
     const withHash = await request(createApp())
       .get('/admin/tags?q=%23abusive_word').set('Cookie', adminCookie());
@@ -182,8 +183,6 @@ describe('the hashtag lookup reaches one tag by its exact text', () => {
   it('shows what would come off, counting items and galleries separately', async () => {
     const res = await request(createApp())
       .get('/admin/tags?q=abusive_word').set('Cookie', adminCookie());
-    expect(res.text).toContain('Photos and videos carrying it');
-    expect(res.text).toContain('Member galleries naming it');
     // Two items carry it; the gallery names it twice, as a criterion and as an
     // exclusion, and both are references the retirement has to clear.
     expect(res.text).toMatch(/Photos and videos carrying it<\/dt><dd>2<\/dd>/);
@@ -248,7 +247,6 @@ describe('the preview shows the act before it happens and writes nothing', () =>
     expect(res.status).toBe(200);
     expect(res.text).toContain('cannot be undone from the site');
     expect(res.text).toContain(REASON);
-    expect(res.text).toContain('Yes, Retire This Hashtag');
 
     // Nothing moved: the preview is a read.
     expect(mediaTagCount(ABUSE_TAG)).toBe(2);

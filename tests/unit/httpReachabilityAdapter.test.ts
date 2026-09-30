@@ -261,8 +261,16 @@ describe('DisabledHttpReachabilityAdapter', () => {
     expect(result.reachable).toBe(true);
   });
 
+  // Defect caught: the adapter chosen to keep outbound traffic off makes a
+  // network request anyway.
   it('does not perform any fetch', async () => {
-    const adapter = createDisabledHttpReachabilityAdapter();
-    await adapter.check('https://anything.example/');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('no network in this test'));
+    try {
+      const adapter = createDisabledHttpReachabilityAdapter();
+      await adapter.check('https://anything.example/');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

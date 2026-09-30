@@ -12,12 +12,14 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3785');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Seed `n` active compound tricks whose trick_family is the given curated family.
 function seedFamily(
@@ -62,7 +64,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function familyView(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+  const res = await page('/freestyle/tricks?view=family');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -100,7 +102,7 @@ describe('by-family browse — members of a below-floor family stay reachable', 
   // whirl has two members, so its family section does not render, but the member
   // tricks must remain reachable through every other surface.
   it('keeps a below-floor family member on its own trick page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/whirl_m0');
+    const res = await page('/freestyle/tricks/whirl_m0');
     expect(res.status).toBe(200);
   });
 

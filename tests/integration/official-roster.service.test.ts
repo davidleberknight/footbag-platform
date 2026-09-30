@@ -244,7 +244,7 @@ describe('list email redaction', () => {
   });
 
   it('never returns the raw login_email or the visibility flag to callers', () => {
-    const row = ors.list(ADMIN_ID)[0] as Record<string, unknown>;
+    const row = ors.list(ADMIN_ID)[0];
     expect(row).not.toHaveProperty('login_email');
     expect(row).not.toHaveProperty('email_visibility');
   });

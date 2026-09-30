@@ -48,7 +48,7 @@ done
 declare -A COVERED_BY=(
   [typecheck]="build"
   [lint]="lint"
-  [dependency-audit]="audit"
+  [dependency-audit]="EXCLUDED: report-only and read from the live registry, so CI reports it on every push and the runner runs it on request (--audit) before a production deploy"
   [secret-scan]="secret-scan"
   [conventions]="conventions"
   [harness]="harness"
@@ -128,17 +128,19 @@ done
 #
 # The check above binds the workflow to the full runner. It does not bind the
 # workflow to `npm run test:pre-pr`, which is the gate the rules and the
-# onboarding guide actually tell an author to run before pushing, and which for a
-# long time was build, lint, conventions and vitest. A secret-scan failure
+# onboarding guide actually tell an author to run before committing, and which
+# for a long time was build, lint, conventions and vitest. A secret-scan failure
 # therefore could not be seen locally by anyone following the documented loop,
 # and was first visible as a red push. That is the same drift this file was
 # written to stop, one entry point over.
 #
-# A job here is either reachable from test:pre-pr or carries the reason it cannot
-# be. The bar for the fast loop is stricter than for the full runner: a gate
-# belongs here only if it is quick and needs nothing beyond the checkout, because
-# a slow or flaky gate in the pre-commit path gets skipped by hand, which is
-# worse than not claiming it.
+# The fast loop has one home: test:pre-pr is exactly the runner's --quick mode,
+# and the runner declares the gates that mode schedules in QUICK_GATES (its own
+# suite proves the mode schedules exactly that list). So a job here is either
+# carried by a gate on that list or carries the reason it cannot be. The bar for
+# the fast loop is stricter than for the full runner: a gate belongs here only if
+# it is quick and needs nothing beyond the checkout, because a slow or flaky gate
+# in the pre-commit path gets skipped by hand, which is worse than not claiming it.
 # =============================================================================
 
 PACKAGE_JSON="${REPO_ROOT}/package.json"
@@ -149,16 +151,30 @@ if [[ -z "$PRE_PR" ]]; then
   echo "  FAIL: package.json declares no test:pre-pr script, which the rules name as the pre-commit gate." >&2
   exit 1
 fi
+if [[ "$PRE_PR" != "./run_all_tests.sh --quick" ]]; then
+  echo "  FAIL: test:pre-pr must be exactly ./run_all_tests.sh --quick, so the fast loop's gate list" >&2
+  echo "        has one home; it is '${PRE_PR}'." >&2
+  violations=$((violations + 1))
+fi
 
-# Workflow job -> the literal the pre-PR script must contain to speak for it.
+QUICK_LINE="$(grep -E '^QUICK_GATES=' "$RUNNER" || true)"
+if [[ -z "$QUICK_LINE" ]]; then
+  echo "  FAIL: ${RUNNER} declares no QUICK_GATES, so what the fast loop carries cannot be checked." >&2
+  violations=$((violations + 1))
+  QUICK_LIST=""
+else
+  QUICK_LIST="$(sed -E 's/^QUICK_GATES="([^"]*)".*/\1/' <<<"$QUICK_LINE" | tr ' ' '\n' | grep -v '^$' || true)"
+fi
+
+# Workflow job -> the quick-mode gate that speaks for it.
 declare -A PRE_PR_COVERED_BY=(
-  [typecheck]="npm run build"
-  [lint]="npm run lint"
-  [conventions]="assert_conventions.sh"
-  [secret-scan]="secret_scan.sh"
-  [unit-tests]="npm test"
-  [integration-tests]="npm test"
-  [harness]="EXCLUDED: gates the AI harness configuration rather than application source, and is carried by the full runner"
+  [typecheck]="build"
+  [lint]="lint"
+  [conventions]="conventions"
+  [secret-scan]="secret-scan"
+  [unit-tests]="unit"
+  [integration-tests]="integration"
+  [harness]="harness"
   [dependency-audit]="EXCLUDED: needs a live call to the registry audit endpoint, so a network hiccup would block every commit"
   [coverage]="EXCLUDED: re-runs the whole instrumented suite, minutes on top of a loop with a sub-two-minute target"
   [e2e]="EXCLUDED: needs browsers and a running stack"
@@ -181,8 +197,8 @@ for job in "${JOBS[@]}"; do
     continue
   fi
   [[ "$mapping" == EXCLUDED:* ]] && continue
-  if [[ "$PRE_PR" != *"$mapping"* ]]; then
-    echo "  FAIL: workflow job '${job}' claims test:pre-pr carries it via '${mapping}', which that script does not run." >&2
+  if ! grep -qx "$mapping" <<<"$QUICK_LIST"; then
+    echo "  FAIL: workflow job '${job}' claims the quick mode carries it via '${mapping}', which QUICK_GATES does not list." >&2
     violations=$((violations + 1))
   fi
 done
@@ -193,6 +209,16 @@ for job in "${!PRE_PR_COVERED_BY[@]}"; do
     violations=$((violations + 1))
   fi
 done
+
+# A name on the quick list the runner registers nowhere is a gate the fast loop
+# claims and never runs.
+while IFS= read -r quick_gate; do
+  [[ -n "$quick_gate" ]] || continue
+  if ! grep -qx "$quick_gate" <<<"$LOCAL_GATES"; then
+    echo "  FAIL: QUICK_GATES in ${RUNNER} lists '${quick_gate}', which the runner registers as no gate." >&2
+    violations=$((violations + 1))
+  fi
+done <<<"$QUICK_LIST"
 
 # =============================================================================
 # The runner's own list of gates that stand for a push-gate job.

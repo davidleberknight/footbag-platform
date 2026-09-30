@@ -19,7 +19,7 @@
  * refactor breaks the rendered output, these tests fail.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3177');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 const TS = '2026-05-24T00:00:00.000Z';
 
@@ -117,7 +118,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // ── DATW + DLO + rev_whirl: Execution notation + ADD rows per the user's exact spec ──
 describe('DATW + DLO + rev_whirl: rendered Execution notation + ADD per curator spec', () => {
   it('DATW renders Execution notation "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double_around_the_world');
+    const res = await getPage('/freestyle/tricks/double_around_the_world');
     expect(res.status).toBe(200);
     // The operational chain renders as role-classified op-tokens in the
     // Execution notation section; assert each token in order.
@@ -129,7 +130,7 @@ describe('DATW + DLO + rev_whirl: rendered Execution notation + ADD per curator 
   });
 
   it('DLO renders Execution notation "SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/double_leg_over');
+    const res = await getPage('/freestyle/tricks/double_leg_over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(
       />SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</,
@@ -138,7 +139,7 @@ describe('DATW + DLO + rev_whirl: rendered Execution notation + ADD per curator 
   });
 
   it('rev_whirl renders Execution notation + ADD "xbody(1) + dex(1) + stall(1)" + ALT "rev(0) + whirl(3)"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/rev_whirl');
+    const res = await getPage('/freestyle/tricks/rev_whirl');
     expect(res.status).toBe(200);
     // Execution notation chain.
     expect(res.text).toMatch(
@@ -151,7 +152,7 @@ describe('DATW + DLO + rev_whirl: rendered Execution notation + ADD per curator 
   });
 
   it('rev_whirl Execution notation carries the actual chain, NOT a "canonical decomposition pending" placeholder', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/rev_whirl');
+    const res = await getPage('/freestyle/tricks/rev_whirl');
     // The Execution notation section renders the real operational chain.
     const classIdx = res.text.indexOf('operational-notation-display');
     expect(classIdx).toBeGreaterThan(0);
@@ -166,7 +167,7 @@ describe('DATW + DLO + rev_whirl: rendered Execution notation + ADD per curator 
 // ── Canonical ADD browse cleanliness ─────────────────────────────────────
 describe('Canonical ADD browse: unreviewed FM-sourced compounds stay out', () => {
   it('the 9 FM-sourced compounds do NOT appear in /freestyle/tricks?view=add', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     for (const slug of [
       'bladerunner', 'bling_blang', 'cold_fusion', 'flurricane',
@@ -178,12 +179,12 @@ describe('Canonical ADD browse: unreviewed FM-sourced compounds stay out', () =>
   });
 
   it('"FM dex-count convention" prose does NOT appear on any canonical surface', async () => {
-    const browse = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const browse = await getPage('/freestyle/tricks?view=add');
     expect(browse.text).not.toContain('FM dex-count convention');
     expect(browse.text).not.toContain('(DEX) events =');
-    const cloudKick = await request(await createApp()).get('/freestyle/tricks/cloud_kick');
+    const cloudKick = await getPage('/freestyle/tricks/cloud_kick');
     expect(cloudKick.text).not.toContain('FM dex-count convention');
-    const rake = await request(await createApp()).get('/freestyle/tricks/rake');
+    const rake = await getPage('/freestyle/tricks/rake');
     expect(rake.text).not.toContain('FM dex-count convention');
   });
 });
@@ -191,8 +192,7 @@ describe('Canonical ADD browse: unreviewed FM-sourced compounds stay out', () =>
 // ── rake + pendulum browse cards: JOB-form chain readings suppressed ──
 describe('rake + pendulum: no reading echoes the execution notation', () => {
   it('rake has NO "swing toe" reading (execution-form leakage)', async () => {
-    const app = await createApp();
-    const page = await request(app).get('/freestyle/tricks/rake');
+    const page = await getPage('/freestyle/tricks/rake');
     expect(page.status).toBe(200);
     // ≡ "swing toe" was just the lowercase execution-form echo; the audit
     // listed it as leakage. The execution chain already reads
@@ -208,8 +208,7 @@ describe('rake + pendulum: no reading echoes the execution notation', () => {
   });
 
   it('pendulum has NO "toe swing" reading and its chain is the canonical bracket form', async () => {
-    const app = await createApp();
-    const page = await request(app).get('/freestyle/tricks/pendulum');
+    const page = await getPage('/freestyle/tricks/pendulum');
     expect(page.status).toBe(200);
     const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
     expect(readings).not.toMatch(/toe[\s\S]*?swing/i);
@@ -227,7 +226,7 @@ describe('rev_up demoted from canonical ADD browse', () => {
     // rev_up is structurally distinct from rev_whirl (per curator) but
     // had no curator-authored structural decomposition; demoted via
     // is_active=0 in red_corrections until its own reading is published.
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('data-trick-slug="rev_up"');
   });
 });
@@ -235,7 +234,7 @@ describe('rev_up demoted from canonical ADD browse', () => {
 // ── Compound-description slot leakage prevention ─────────────────────────
 describe('Compound-description slot leakage prevention', () => {
   it('cloud_kick browse card has NO standalone op-notation chip (would echo JOB)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks?view=add');
     const card = res.text.match(/data-trick-slug="cloud_kick"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     expect(card![0]).not.toMatch(/<code class="dict-card-notation/);
@@ -244,14 +243,14 @@ describe('Compound-description slot leakage prevention', () => {
   });
 
   it('flying_inside browse card has NO standalone op-notation chip', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks?view=add');
     const card = res.text.match(/data-trick-slug="flying_inside"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     expect(card![0]).not.toMatch(/<code class="dict-card-notation/);
   });
 
   it('DATW browse card has NO ≡ tautological reading ("double around the world")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks?view=add');
     const card = res.text.match(/data-trick-slug="double_around_the_world"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     // Tautological filter drops the canonical-name echo.
@@ -259,14 +258,14 @@ describe('Compound-description slot leakage prevention', () => {
   });
 
   it('cloud_kick detail page has NO tautological hero-formula ("cloud kick = 1 ADD")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/cloud_kick');
+    const res = await getPage('/freestyle/tricks/cloud_kick');
     // The hero-formula slot is suppressed for atomic/no-modifier-link
     // tricks (would otherwise render the tautological identity).
     expect(res.text).not.toMatch(/class="trick-hero-formula"/);
   });
 
   it('rake detail page has NO tautological hero-formula ("rake = 2 ADD")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/rake');
+    const res = await getPage('/freestyle/tricks/rake');
     expect(res.text).not.toMatch(/class="trick-hero-formula"/);
   });
 });
@@ -275,14 +274,14 @@ describe('Compound-description slot leakage prevention', () => {
 describe('Token normalization: BOD + UNS uppercase in ADD displays', () => {
   // The `= N ADD` terminator is not rendered in breakdowns.
   it('flying_inside renders ADD with uppercase BOD(1)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/flying_inside');
+    const res = await getPage('/freestyle/tricks/flying_inside');
     expect(res.text).toMatch(/BOD\(1\)/);
     // The lowercase bod(1) form should not appear in ADD displays.
     expect(res.text).not.toMatch(/>bod\(1\)</);
   });
 
   it('cloud_kick renders ADD with uppercase UNS(1)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/cloud_kick');
+    const res = await getPage('/freestyle/tricks/cloud_kick');
     expect(res.text).toMatch(/UNS\(1\)/);
     expect(res.text).not.toMatch(/unusual surface\(1\)/);
   });
@@ -291,7 +290,7 @@ describe('Token normalization: BOD + UNS uppercase in ADD displays', () => {
 // ── Emerging Vocabulary still accessible ─────────────────────────────────
 describe('Emerging Vocabulary remains accessible', () => {
   it('/freestyle/observational responds 200 with the Emerging Vocabulary title', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
+    const res = await getPage('/freestyle/observational');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Emerging Vocabulary');
   });
@@ -302,7 +301,7 @@ describe('Emerging Vocabulary remains accessible', () => {
     // and the sentence names the community sources. No count and no
     // review-queue framing on the landing; the observational page carries
     // the detail.
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks?view=add');
     expect(res.text).toContain('class="dict-emerging-line"');
     expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>/);
   });

@@ -19,7 +19,7 @@
  *        future drift before it ships).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -32,6 +32,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3205');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -100,7 +101,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Part 1 — description column refinement', () => {
   it('suppresses the description when it literally repeats the notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/illusion');
+    const res = await page('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     // The redundant DB description should NOT render as the trick-description
     // paragraph. The notation itself still renders elsewhere on the page;
@@ -111,7 +112,7 @@ describe('Part 1 — description column refinement', () => {
   });
 
   it('replaces the description with the curator override on compound tricks', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/double_legover');
+    const res = await page('/freestyle/tricks/double_legover');
     expect(res.status).toBe(200);
     // The override prose renders; the pre-existing DB description does NOT.
     expect(res.text).toMatch(/mirage \+ legover chain/);
@@ -120,7 +121,7 @@ describe('Part 1 — description column refinement', () => {
   });
 
   it('passes genuine prose descriptions through unchanged', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/A rotational dex with the leg circling cross-body to a clipper stall\./);
   });
@@ -132,7 +133,7 @@ describe('Part 2 — reverse-pair transform overlay', () => {
     // <dl> row, so a non-first-class rev(0) entry surfaces it visibly
     // without the reader needing the Notation Summary card. The section
     // also carries the rev(0) explainer and the base cross-link.
-    const res = await request(createApp()).get('/freestyle/tricks/illusion');
+    const res = await page('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');
     // The transform section carries an ALT-labeled <dl> row with the
@@ -146,7 +147,7 @@ describe('Part 2 — reverse-pair transform overlay', () => {
   });
 
   it('renders the locked rev(0) explainer on illusion (drift guard)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/illusion');
+    const res = await page('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     // Verbatim assertion on the locked operator explainer. Any wording
     // change to the rev(0) framing must surface here before shipping.
@@ -155,12 +156,12 @@ describe('Part 2 — reverse-pair transform overlay', () => {
   });
 
   it('cross-links the base trick on illusion (mirage)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/illusion');
+    const res = await page('/freestyle/tricks/illusion');
     expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/mirage">mirage<\/a>/);
   });
 
   it('renders the transform section on orbit (rev(0) + around-the-world)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/orbit');
+    const res = await page('/freestyle/tricks/orbit');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');
     expect(res.text).toMatch(/rev\(0\) \+ around-the-world/);
@@ -168,13 +169,13 @@ describe('Part 2 — reverse-pair transform overlay', () => {
   });
 
   it('does NOT render the transform section on a non-reverse-pair trick (whirl)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-transform"');
   });
 
   it('does NOT render the transform section on the BASE trick (mirage; not the reverse)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     // Transforms render on the REVERSE side only — mirage is the base, not the reverse.
     expect(res.text).not.toContain('class="content-section trick-transform"');
@@ -183,8 +184,8 @@ describe('Part 2 — reverse-pair transform overlay', () => {
 
 describe('Cross-cutting: REV_ZERO_EXPLAINER source-of-truth', () => {
   it('illusion and orbit render the same rev(0) explainer (single source of truth)', async () => {
-    const illusionRes = await request(createApp()).get('/freestyle/tricks/illusion');
-    const orbitRes    = await request(createApp()).get('/freestyle/tricks/orbit');
+    const illusionRes = await page('/freestyle/tricks/illusion');
+    const orbitRes    = await page('/freestyle/tricks/orbit');
     // Extract the explainer paragraph from each; both should match the same locked string.
     const illusionMatch = illusionRes.text.match(/<p class="trick-transform-explainer">([\s\S]*?)<\/p>/);
     const orbitMatch    = orbitRes.text.match(/<p class="trick-transform-explainer">([\s\S]*?)<\/p>/);

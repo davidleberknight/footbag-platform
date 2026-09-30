@@ -28,6 +28,7 @@ import {
   insertFreestyleTrickModifierLink,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import type { FreestyleTrickOverrides } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3965');
 
@@ -317,7 +318,7 @@ beforeAll(async () => {
   // shown to drop it when it changes what the parse was taken from, and to keep
   // it when it does not. One row per case, because the first save that clears the
   // parse would otherwise leave nothing for the next assertion to observe.
-  const seededParse = {
+  const seededParse: FreestyleTrickOverrides = {
     slug: 'parse_seed',
     canonical_name: 'Parse Seed',
     adds: '2',

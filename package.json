@@ -14,6 +14,7 @@
     "dev:all": "bash scripts/dev.sh",
     "compose:dev": "bash scripts/compose-dev.sh",
     "build": "tsc -p tsconfig.json",
+    "typecheck:tests": "tsc -p tsconfig.tests.json",
     "lint": "eslint src",
     "audit": "audit-ci --moderate",
     "verify:seed-urls": "tsx scripts/verify-seed-urls.ts",
@@ -28,11 +29,11 @@
     "test:e2e": "playwright test -c tests/playwright.config.ts",
     "test:e2e:smoke": "playwright test -c tests/playwright.config.ts --grep @smoke",
     "test:e2e:a11y": "playwright test -c tests/playwright.config.ts --grep @a11y",
+    "test:deployed": "bash scripts/test-deployed.sh",
     "test:pentest:heavy": "bash scripts/pentest/run-heavy.sh",
     "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**' --coverage",
-    "test:mutation": "stryker run",
-    "test:pre-pr": "npm run build && npm run lint && bash scripts/ci/assert_conventions.sh && bash scripts/ci/secret_scan.sh --skip-ok && npm test",
-    "test:all": "npm run build && npm run lint && bash scripts/ci/assert_conventions.sh && npm test && npm run test:smoke && npm run test:e2e",
+    "test:pre-pr": "./run_all_tests.sh --quick",
+    "test:all": "npm run build && npm run typecheck:tests && npm run lint && bash scripts/ci/assert_conventions.sh && npm test && npm run test:e2e",
     "prepare": "test ! -f scripts/install-git-hooks.sh || bash scripts/install-git-hooks.sh"
   },
   "dependencies": {
@@ -60,8 +61,6 @@
     "@axe-core/playwright": "4.11.3",
     "@playwright/mcp": "0.0.80",
     "@playwright/test": "1.58.2",
-    "@stryker-mutator/core": "9.6.1",
-    "@stryker-mutator/vitest-runner": "9.6.1",
     "@types/better-sqlite3": "7.6.13",
     "@types/busboy": "1.5.4",
     "@types/cookie-parser": "1.4.10",
@@ -72,7 +71,6 @@
     "@vitest/coverage-v8": "4.1.11",
     "audit-ci": "7.1.0",
     "eslint": "10.4.1",
-    "fast-check": "4.8.0",
     "happy-dom": "20.9.0",
     "supertest": "7.2.2",
     "tsx": "4.22.4",
@@ -83,8 +81,7 @@
   },
   "overrides": {
     "qs": "6.16.0",
-    "fast-uri": "3.1.7",
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "5.0.12",
     "postcss": "8.5.26"
   }
 }

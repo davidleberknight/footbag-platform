@@ -12,7 +12,7 @@
  *   - trick search excludes modifier/operator rows but keeps sets and tricks.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickModifier } from '../fixtures/factories';
@@ -20,6 +20,7 @@ import { insertFreestyleTrick, insertFreestyleTrickModifier } from '../fixtures/
 const { dbPath } = setTestEnv('3214');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -59,14 +60,14 @@ function operatorRow(html: string, slug: string): string {
 
 describe('GET /freestyle/operators — role-aware hashtags', () => {
   it('renders a modifier as #operator_, never a bare trick tag', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.status).toBe(200);
     expect(operatorRow(res.text, 'spinning')).toContain('#operator_spinning');
     expect(operatorRow(res.text, 'spinning')).not.toContain('>#spinning<');
   });
 
   it('does not list set primitives, so their #set_ hashtags are not on this page', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).not.toContain('#set_pixie');
     expect(res.text).not.toContain('#set_atomic');
   });
@@ -77,13 +78,13 @@ describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
     // slapping is a set with no authored teaching page, so its modifier route
     // still resolves to a data-driven stub (unlike pixie or atomic, which now
     // redirect to their set-encyclopedia pages).
-    const res = await request(await createApp()).get('/freestyle/modifier/slapping');
+    const res = await page('/freestyle/modifier/slapping');
     expect(res.status).toBe(200);
     expect(res.text).toContain('#set_slapping');
   });
 
   it('honors the curator role override: whirling is a first-class set, so its modifier route redirects to the set page', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/whirling');
+    const res = await page('/freestyle/modifier/whirling');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/sets/whirling');
   });
@@ -91,20 +92,20 @@ describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
 
 describe('GET /freestyle/tricks/:slug — modifier/operator redirect', () => {
   it('redirects a modifier-category row to its operator page (301)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/spinning');
+    const res = await page('/freestyle/tricks/spinning');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/modifier/spinning');
   });
 
   it('does NOT redirect a set primitive — pixie still renders as a trick (dual-role)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie');
+    const res = await page('/freestyle/tricks/pixie');
     expect(res.status).toBe(200);
     // On the trick surface, the dual-role concept shows its bare trick tag.
     expect(res.text).toContain('#pixie');
   });
 
   it('shows a set-only concept its set tag on the trick surface (atomic → #set_atomic)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atomic');
+    const res = await page('/freestyle/tricks/atomic');
     expect(res.status).toBe(200);
     expect(res.text).toContain('#set_atomic');
   });
@@ -112,7 +113,7 @@ describe('GET /freestyle/tricks/:slug — modifier/operator redirect', () => {
 
 describe('GET /freestyle/search — excludes modifier/operator rows', () => {
   it('returns tricks but not modifier rows', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=spin');
+    const res = await page('/freestyle/search?q=spin');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/freestyle/tricks/spinning-butterfly');
     // The modifier-category "spinning" row must not appear as a search result.
@@ -120,7 +121,7 @@ describe('GET /freestyle/search — excludes modifier/operator rows', () => {
   });
 
   it('keeps set primitives in search (pixie is a dual-role trick)', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=pixie');
+    const res = await page('/freestyle/search?q=pixie');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/freestyle/tricks/pixie');
   });

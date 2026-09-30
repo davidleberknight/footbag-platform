@@ -13,6 +13,11 @@ function makeSecrets(apiKey: string): SecretsAdapter {
     async getRequired(_key: string) {
       return apiKey;
     },
+    async getAbsolute(_name: string) {
+      return undefined;
+    },
+    async deleteAbsolute(_name: string) {},
+    invalidate(_key: string) {},
   };
 }
 

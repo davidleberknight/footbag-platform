@@ -26,8 +26,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  seedPersona(db, { slug: 'sw_member', displayName: 'Switch Member', tier: 'tier1', coverageNotes: ['switch member'] });
-  seedPersona(db, { slug: 'sw_admin', displayName: 'Switch Admin', tier: 'tier2', isAdmin: true, coverageNotes: ['switch admin'] });
+  seedPersona(db, { slug: 'sw_member', displayName: 'Switch Member', tier: 'tier1', testingUsage: 'Switch route fixture.', coverageNotes: ['switch member'] });
+  seedPersona(db, { slug: 'sw_admin', displayName: 'Switch Admin', tier: 'tier2', isAdmin: true, testingUsage: 'Switch route fixture.', coverageNotes: ['switch admin'] });
   db.close();
   createApp = await importApp();
 });

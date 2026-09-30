@@ -1,7 +1,7 @@
 # Bug Hunt — design-layer reference
 
 Design-layer method detail for the bug-hunt skill, kept out of SKILL.md to stay under the
-500-line ceiling; SKILL.md Phase C points here. Evidence at this layer is doc sections,
+500-line ceiling; the Lane 1 row of SKILL.md's dispatch table points here. Evidence at this layer is doc sections,
 contracts, and reconstructed data flows, not file:line; code and deployment artifacts serve
 only as design evidence (implementation status where docs claim it, parity, testability,
 schema alignment, cutover risk).

@@ -8,7 +8,7 @@
  * wording that must not drift.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
@@ -16,6 +16,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3529');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -47,13 +48,13 @@ const browseSmaller   = (html: string) => html.match(/core famil(?:y|ies) and (\
 
 describe('GET /freestyle/tricks — precise, consistent family-count labels', () => {
   it('the browse explanation states the rendered roster as core families plus smaller lineages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('3 family groupings organize tricks by structural anchor: 2 core families and 1 smaller lineage that may later roll into broader family hierarchies.');
   });
 
   it('the browse roster count equals core families plus smaller lineages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const groupings = Number(browseGroupings(res.text));
     const core = Number(browseCore(res.text));
     const smaller = Number(browseSmaller(res.text));
@@ -61,7 +62,7 @@ describe('GET /freestyle/tricks — precise, consistent family-count labels', ()
   });
 
   it('the browse names the Family-Parent tier "core families"', async () => {
-    const browse = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const browse = await page('/freestyle/tricks?view=family');
     expect(browse.text).toContain('core families');
   });
 });

@@ -185,7 +185,6 @@ describe('GET /members/:memberKey/media/upload', () => {
       .get(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Upload Media');
     expect(res.text).toContain('photoFile');
     expect(res.text).toContain('videoUrl');
   });

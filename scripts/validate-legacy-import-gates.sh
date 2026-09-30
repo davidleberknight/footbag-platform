@@ -17,14 +17,22 @@
 #   G6: tier-mapping fallback readiness (at least one HoF or BAP honor flag present)
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db). No FOOTBAG_ENV
-# guard; suitable on any environment.
+# guard; suitable on any environment. The database is opened read-only, so the
+# gates can run against a live host database without any chance of writing it.
+#
+# It also runs streamed, with no file of its own on disk: the staging real-data
+# leg sends this body over ssh and runs it on the host with an absolute
+# FOOTBAG_DB_PATH. There is no repository to move into then, so the move to the
+# repository root happens only when the script was started from a file.
 #
 # Usage:
 #   ./scripts/validate-legacy-import-gates.sh
 #   FOOTBAG_DB_PATH=/path/to/db ./scripts/validate-legacy-import-gates.sh
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+if [[ -f "$0" ]]; then
+  cd "$(dirname "$0")/.."
+fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 
@@ -33,7 +41,7 @@ if [[ ! -f "${DB_FILE}" ]]; then
   exit 1
 fi
 
-q() { sqlite3 "${DB_FILE}" "$1"; }
+q() { sqlite3 -readonly "${DB_FILE}" "$1"; }
 
 fail=0
 

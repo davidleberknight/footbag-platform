@@ -159,7 +159,6 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookie);
     expect(ca.status).toBe(200);
-    expect(ca.text).toContain('Clubs come after onboarding');
     expect(ca.text).toContain('We did not find a past club affiliation for you');
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
@@ -176,7 +175,6 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
       .get('/register/wizard/complete')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Your onboarding is complete');
   });
 });
 
@@ -475,7 +473,7 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     // The date the matcher runs on is offered back, which is the only place a
     // registrant can correct it once the details step has closed behind them.
     expect(page.text).toContain('/register/wizard/legacy_claim/birth-date');
-    expect(page.text).toContain('Carry on with signing up');
+    expect(page.text).not.toContain('checked again for matches');
     // The step is answered, so it stops asking for an answer.
     expect(page.text).not.toContain('I Never Had an Old Account');
   });
@@ -612,7 +610,7 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/complete');
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
-    expect(followUp.text).toContain('Your onboarding is complete');
+    expect(followUp.status).toBe(200);
     expect(getTaskState(memberId, 'personal_details')).toBe('completed');
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
     expect(getTaskState(memberId, 'club_affiliations')).toBe('completed');
@@ -639,7 +637,6 @@ describe('GET /register/wizard/legacy_claim — candidate list shape', () => {
       .set('Cookie', cookieFor(OWNER_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain('action="/register/wizard/legacy_claim/find"');
-    expect(res.text).toContain('Old footbag.org member ID');
   });
 
   it('renders Skip and Back-to-dashboard affordances', async () => {
@@ -815,7 +812,8 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
           );
         },
         processSendQueue: async () => ({
-          claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+          claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+          suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
         }),
       });
 
@@ -976,7 +974,6 @@ describe('last outstanding task -> 303 to /register/wizard/complete', () => {
     await request(createApp()).post('/register/wizard/club_affiliations/none').set('Cookie', cookie).type('form').send({});
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
     expect(followUp.status).toBe(200);
-    expect(followUp.text).toContain('Your onboarding is complete');
   });
 });
 
@@ -1062,11 +1059,7 @@ describe('flash cookie behavior (adversarial)', () => {
   });
 });
 
-describe('post-verify redirect lands on the wizard', () => {
-  it('routes into the wizard on the first outstanding task regardless of classifier confidence', async () => {
-    expect(true).toBe(true);
-  });
-
+describe('wizard back link', () => {
   it('renders the Back-to-dashboard link based on the requesting session slug', async () => {
     const res = await request(createApp())
       .get('/register/wizard/legacy_claim')

@@ -12,7 +12,7 @@
  * reintroducing a second row system fails here rather than shipping.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -30,6 +30,7 @@ import {
 const { dbPath } = setTestEnv('3525');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -83,14 +84,14 @@ const BROWSE_VIEWS: Array<[string, string]> = [
 describe('Browse-shell row-contract stability guard — every browse view uses the two-line dict-trick-row', () => {
   for (const [view, label] of BROWSE_VIEWS) {
     it(`${label} (?view=${view}) renders the two-line dict-trick-row stack`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       expect(res.text, `${label} must render dict-trick-row-stack`).toContain('dict-trick-row-stack');
       expect(res.text, `${label} must render dict-trick-row articles`).toMatch(/<article class="dict-trick-row/);
     });
 
     it(`${label} (?view=${view}) does NOT render the legacy shared dictionary-trick-card`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.text, `${label} must NOT use dict-card-stack`).not.toContain('dict-card-stack');
       expect(res.text, `${label} must NOT use dict-card--registry`).not.toContain('dict-card--registry');
       // No per-row green ADD chip anywhere in a migrated view.
@@ -108,7 +109,7 @@ describe('Browse-shell row-contract stability guard — every browse view uses t
 describe('Control-separation rule — name opens the page, Detail agrees with it, hashtag signals media', () => {
   for (const [view, label] of BROWSE_VIEWS) {
     it(`${label} (?view=${view}) links the trick name to that trick's detail page`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       // Anchored on the destination a visitor lands on, not on how the control
       // is marked up: the name of a listed trick resolves to that trick's page.
@@ -117,7 +118,7 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
     });
 
     it(`${label} (?view=${view}) sends the name and the Detail control to the same page`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       // Two controls on one row that both open the trick must not disagree about
       // where they go; a row where they diverge is lying about one of them.
       const nameHrefs = [...res.text.matchAll(/<a[^>]*href="(\/freestyle\/tricks\/[^"]+)"[^>]*>ducking whirl<\/a>/g)]
@@ -130,7 +131,7 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
     });
 
     it(`${label} (?view=${view}) offers a separate Detail link to the detail page`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       // Anchored on the pairing a visitor relies on, the control's visible
       // label and where it resolves to. Presentation classes are deliberately
       // not pinned: how the control is styled is free to change, where it
@@ -139,7 +140,7 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
     });
 
     it(`${label} (?view=${view}) renders the hashtag as a plain token when the trick has no media`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.text, `${label} must render a plain hashtag token`).toMatch(/<span class="hashtag" aria-label="Tag identity">/);
       expect(res.text, `${label} must not link a hashtag for a trick with no media`).not.toMatch(/hashtag--media/);
     });
@@ -152,7 +153,7 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
 describe('Alias slot uniformity — every browse view surfaces a trick\'s folk names', () => {
   for (const [view, label] of BROWSE_VIEWS) {
     it(`${label} (?view=${view}) renders the "Also called" slot`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       expect(res.text, `${label} must list the aliased trick`).toContain('data-trick-slug="ducking-whirl"');
       expect(res.text, `${label} must render the alias slot`).toContain('Also called');

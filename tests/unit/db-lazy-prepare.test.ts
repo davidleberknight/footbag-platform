@@ -95,8 +95,8 @@ describe('db.ts lazy-prepare contract', () => {
     init.close();
     process.env.FOOTBAG_DB_PATH = dbPath;
     const mod = await import('../../src/db/db');
-    const rows = mod.publicEvents.listUpcoming.all('2025-01-01');
-    expect(Array.isArray(rows)).toBe(true);
+    // A fresh schema holds no events, so a working statement returns none.
+    expect(mod.publicEvents.listUpcoming.all('2025-01-01')).toEqual([]);
   });
 
   it('D: every getter on every exported statement group parses against the current schema', async () => {

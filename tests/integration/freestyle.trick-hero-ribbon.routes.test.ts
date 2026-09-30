@@ -6,12 +6,13 @@
  * renders in the page body, below the hero, never inside it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3142');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -31,13 +32,13 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/tricks/:slug — hero identity + body taxonomy ribbon', () => {
   it('renders the plain trick name in the hero h1', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<h1>Mirage</h1>');
   });
 
   it('renders the taxonomy ribbon in the page body, after the hero, not inside it', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     const heroTitleIdx = res.text.indexOf('<h1>Mirage</h1>');
     const shellIdx     = res.text.indexOf('class="wrapper trick-shell"');
     const ribbonIdx    = res.text.indexOf('class="trick-hero-meta-ribbon"');

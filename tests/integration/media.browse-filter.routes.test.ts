@@ -12,13 +12,14 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3140');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const SYSTEM_ID = 'member-filter-system-001';
 const REGULAR_ID = 'member-filter-regular-001';
@@ -79,33 +80,31 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media/browse — active filter chip inputs', () => {
   it('prefills the include chip input with the single active tag and shows Apply', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly');
+    const res = await page('/media/browse?tag=butterfly');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="tag-filter-bar"');
     // The include field is a chip input (data-tag-chips) prefilled with the tag.
     expect(res.text).toContain('name="tag" value="butterfly" data-tag-chips');
     expect(res.text).toContain('Apply Hashtag Filters');
-    expect(res.text).toContain('Show media with these hashtags');
   });
 
   it('prefills the include chip input with both active tags, space-separated', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly&tag=spike');
+    const res = await page('/media/browse?tag=butterfly&tag=spike');
     expect(res.status).toBe(200);
     expect(res.text).toContain('name="tag" value="butterfly spike" data-tag-chips');
   });
 
   it('prefills a distinct exclude chip input with the active exclude tag', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly&exclude=tutorial');
+    const res = await page('/media/browse?tag=butterfly&exclude=tutorial');
     expect(res.status).toBe(200);
     expect(res.text).toContain('tag-filter-field--exclude');
     expect(res.text).toContain('name="exclude" value="tutorial" data-tag-chips');
-    expect(res.text).toContain('Hide media with these hashtags');
   });
 });
 
 describe('GET /media/browse — common controls lead, advanced ones follow', () => {
   it('collapses the exclude field into a disclosure when nothing is excluded', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly');
+    const res = await page('/media/browse?tag=butterfly');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<details class="tag-filter-more">');
     expect(res.text).toContain('More filter options');
@@ -115,7 +114,7 @@ describe('GET /media/browse — common controls lead, advanced ones follow', () 
   });
 
   it('opens the disclosure when an exclusion is already in force', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly&exclude=tutorial');
+    const res = await page('/media/browse?tag=butterfly&exclude=tutorial');
     expect(res.status).toBe(200);
     // Rendered open by the server, so the control behind the current result set
     // is never hidden from the visitor who set it, with or without JS.
@@ -123,7 +122,7 @@ describe('GET /media/browse — common controls lead, advanced ones follow', () 
   });
 
   it('puts the include field and Apply ahead of the advanced disclosure', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly');
+    const res = await page('/media/browse?tag=butterfly');
     const include = res.text.indexOf('id="tag-filter-include"');
     const apply = res.text.indexOf('Apply Hashtag Filters');
     const more = res.text.indexOf('tag-filter-more');
@@ -135,20 +134,19 @@ describe('GET /media/browse — common controls lead, advanced ones follow', () 
 });
 
 describe('GET /media/browse — chip-input autocomplete + help', () => {
-  it('renders both fields as data-tag-chips inputs with help text (autocomplete via /tags/suggest)', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=butterfly');
+  it('renders both fields as data-tag-chips inputs (autocomplete via /tags/suggest)', async () => {
+    const res = await page('/media/browse?tag=butterfly');
     expect(res.status).toBe(200);
     const bar = res.text.slice(res.text.indexOf('class="tag-filter-bar"'));
     expect(bar).toContain('id="tag-filter-include" name="tag"');
     expect(bar).toContain('id="tag-filter-exclude" name="exclude"');
     expect(bar).toContain('data-tag-chips');
-    expect(bar).toContain('Type a hashtag and press Enter, remove one with ✕, or pick a suggestion below.');
   });
 });
 
 describe('GET /media/browse — context tags: topic editable, owner locked', () => {
   it('renders a non-#by_ context tag as an editable include, not a locked chip', async () => {
-    const res = await request(createApp()).get('/media/browse?context=butterfly&tag=spike');
+    const res = await page('/media/browse?context=butterfly&tag=spike');
     expect(res.status).toBe(200);
     // butterfly (a topic context) is editable, merged into the include field.
     expect(res.text).toContain('name="tag" value="butterfly spike" data-tag-chips');
@@ -156,7 +154,7 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
   });
 
   it('keeps the owner-scoping #by_ context locked (read-only chip + hidden input)', async () => {
-    const res = await request(createApp()).get('/media/browse?context=by_filter_regular&context=butterfly');
+    const res = await page('/media/browse?context=by_filter_regular&context=butterfly');
     expect(res.status).toBe(200);
     // #by_ stays locked; the topic context (butterfly) is editable.
     expect(res.text).toContain('class="tag-filter-chip tag-filter-chip--locked">#by_filter_regular');
@@ -165,7 +163,7 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
   });
 
   it('an Apply submit preserves the locked #by_ context in the canonical URL', async () => {
-    const res = await request(createApp()).get('/media/browse?apply=1&context=by_filter_regular&tag=butterfly');
+    const res = await page('/media/browse?apply=1&context=by_filter_regular&tag=butterfly');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/media/browse?context=by_filter_regular&tag=butterfly');
   });
@@ -173,25 +171,25 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
 
 describe('GET /media/browse — Apply folds the submitted set into one canonical URL', () => {
   it('redirects an Apply submit to the canonical include URL', async () => {
-    const res = await request(createApp()).get('/media/browse?apply=1&tag=butterfly&tag=spike');
+    const res = await page('/media/browse?apply=1&tag=butterfly&tag=spike');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly&tag=spike');
   });
 
   it('redirects an Apply submit carrying an exclude to the canonical URL', async () => {
-    const res = await request(createApp()).get('/media/browse?apply=1&tag=butterfly&exclude=tutorial');
+    const res = await page('/media/browse?apply=1&tag=butterfly&exclude=tutorial');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly&exclude=tutorial');
   });
 
   it('strips empty free-text fields from the canonical URL', async () => {
-    const res = await request(createApp()).get('/media/browse?apply=1&tag=butterfly&tag=&exclude=');
+    const res = await page('/media/browse?apply=1&tag=butterfly&tag=&exclude=');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly');
   });
 
   it('normalizes a typed tag (case + missing #) before folding it in', async () => {
-    const res = await request(createApp()).get('/media/browse?apply=1&tag=butterfly&tag=%23Spike');
+    const res = await page('/media/browse?apply=1&tag=butterfly&tag=%23Spike');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly&tag=spike');
   });

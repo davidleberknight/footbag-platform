@@ -4,10 +4,14 @@ const { dbPath } = setTestEnv('3986');
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 import { insertMember, insertCuratorVideo } from '../fixtures/factories';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+// cachedGet-writes: the last case seeds a curated clip to flip the page's
+// no-clips state and reads the page with a fresh request.
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   createTestDb(dbPath);
@@ -20,7 +24,7 @@ afterAll(() => {
 
 describe('freestyle landing foundations gallery link', () => {
   it('embeds no foundations mosaic: the clips live in their own gallery', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="tricks-mosaic"');
     expect(res.text).not.toContain('tricks-mosaic-cell');
@@ -28,12 +32,12 @@ describe('freestyle landing foundations gallery link', () => {
   });
 
   it('withholds the gallery card until a clip is curated, so it never opens an empty gallery', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).not.toContain('href="/media/gallery_foundations_of_freestyle"');
   });
 
   it('renders the two reference banners and retires Start Here / Go Deeper', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('The Language of Freestyle');
     expect(res.text).toContain('Analysis &amp; Competition');
     // The retired cards were headed "Start Here" and "Go Deeper". Anchored on
@@ -52,7 +56,7 @@ describe('freestyle landing foundations gallery link', () => {
   });
 
   it('Freestyle Media section is a single invite into the consolidated media page', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Browse Freestyle Media');
     expect(res.text).toContain('href="/freestyle/media"');
     // The per-collection sub-tiles live on /freestyle/media now; the landing no
@@ -62,7 +66,7 @@ describe('freestyle landing foundations gallery link', () => {
   });
 
   it('links to Freestyle by the Numbers as a card and embeds none of it', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle by the Numbers');
     expect(res.text).toContain('href="/freestyle/by-the-numbers"');
@@ -73,7 +77,7 @@ describe('freestyle landing foundations gallery link', () => {
   });
 
   it('places the Freestyle by the Numbers card below the Featured videos showcase', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     const featuredAt = res.text.indexOf('id="featured"');
     const cardAt = res.text.indexOf('href="/freestyle/by-the-numbers"');
     expect(featuredAt).toBeGreaterThan(-1);

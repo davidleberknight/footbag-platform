@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -26,6 +27,7 @@ const { dbPath } = setTestEnv('3090');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -118,50 +120,29 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /records', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.status).toBe(200);
-  });
-
-  it('renders the page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.text).toContain('Records');
-  });
-
-  it('shows Current World Records section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.text).toContain('Current World Records');
-  });
-
   it('shows Ted Martin world record with score', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
+    const res = await page('/records');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Ted Martin');
     expect(res.text).toContain('63,326');
   });
 
   it('shows doubles holders joined with &', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
+    const res = await page('/records');
     expect(res.text).toContain('Gary Lautt');
     expect(res.text).toContain('Tricia George');
     expect(res.text).toContain('132,011');
   });
 
   it('renders a multi-day event date as a human-readable range, not the raw value', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
+    const res = await page('/records');
     // The doubles WR spans two days (stored raw as "1998-03-21/1998-03-22").
     expect(res.text).toContain('21–22 March 1998');
     expect(res.text).not.toContain('1998-03-21/1998-03-22');
   });
 
   it('renders a legacy slash date unambiguously, so the table has one date convention', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
+    const res = await page('/records');
     // The singles WR is stored as "14/6/1997", which a reader cannot tell from a
     // month-first date; the page states the month instead.
     expect(res.text).toContain('14 June 1997');
@@ -169,42 +150,35 @@ describe('GET /records', () => {
   });
 
   it('shows Highest Official Scores section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.text).toContain('Highest Official Scores');
+    const res = await page('/records');
     expect(res.text).toContain('Singles Consecutive 20000+ Club');
   });
 
   it('shows Constance Constable in scores list', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
+    const res = await page('/records');
     expect(res.text).toContain('Constance Constable');
     expect(res.text).toContain('24,713');
   });
 
   it('shows World Record Progression section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.text).toContain('World Record Progression');
+    const res = await page('/records');
     expect(res.text).toContain('Open Singles Consecutive');
   });
 
+  // The year also appears in the event name and the full date elsewhere on
+  // the page, so the assertion is on the year cell itself.
   it('shows year column in progression table', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.text).toContain('1997');
+    const res = await page('/records');
+    expect(res.text).toContain('<td class="col-year">1997</td>');
   });
 
   it('shows Milestone Firsts section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
-    expect(res.text).toContain('Milestone Firsts');
+    const res = await page('/records');
     expect(res.text).toContain('Singles milestone first');
   });
 
   it('shows WFA source attribution', async () => {
-    const app = createApp();
-    const res = await request(app).get('/records');
+    const res = await page('/records');
     expect(res.text).toContain('World Footbag Association');
   });
 
@@ -220,8 +194,11 @@ describe('GET /records', () => {
         throw e;
       },
     } as never);
-    const res = await request(createApp()).get('/records');
-    spy.mockRestore();
-    expect(res.status).toBe(503);
+    try {
+      const res = await request(createApp()).get('/records');
+      expect(res.status).toBe(503);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

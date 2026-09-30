@@ -25,7 +25,7 @@
  * are NOT.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -41,6 +41,7 @@ import {
 const { dbPath } = setTestEnv('3102');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -121,8 +122,7 @@ describe('Family invariant — content module', () => {
 
 describe('Family invariant — rendered on Family View', () => {
   it('renders the Whirl family invariant line on /freestyle/tricks?view=family', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="trick-family-shared-structure"');
     expect(res.text).toMatch(
@@ -131,8 +131,7 @@ describe('Family invariant — rendered on Family View', () => {
   });
 
   it('positions the invariant BETWEEN section heading and card stack on Whirl family', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     // Slice the rendered HTML scoped to the whirl family section.
     const sectionStart = res.text.indexOf('id="family-whirl"');
     expect(sectionStart).toBeGreaterThan(-1);
@@ -149,8 +148,7 @@ describe('Family invariant — rendered on Family View', () => {
   });
 
   it('renders the Butterfly family invariant line', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-butterfly"');
     expect(sectionStart).toBeGreaterThan(-1);
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
@@ -164,8 +162,7 @@ describe('Family invariant — rendered on Family View', () => {
 
 describe('Family invariant — does NOT destabilize card rendering', () => {
   it('Whirl family rows render with the two-line dict-trick-row contract', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);

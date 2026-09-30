@@ -15,7 +15,7 @@
  *   - unresolved (display_name only) renders as plain text
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -36,6 +36,7 @@ const { dbPath } = setTestEnv('3080');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const PERSON_ID          = 'person-freestyle-test-001';
 const FREESTYLE_PLAYER_ID = 'person-freestyle-player-001';
@@ -262,15 +263,13 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle', () => {
   it('returns 200 with page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle Footbag');
   });
 
   it('contains a link to /freestyle/records', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('/freestyle/records');
   });
 });
@@ -278,29 +277,21 @@ describe('GET /freestyle', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/records', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
-    expect(res.status).toBe(200);
-  });
-
   it('shows public probable records', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Torque');
     expect(res.text).toContain('Whirl');
   });
 
   it('links resolved person_id to /history/:personId', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).toContain(`/history/${PERSON_ID}`);
     expect(res.text).toContain('Alice Shredder');
   });
 
   it('renders display_name as plain text when no person_id', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).toContain('Unknown Player');
     // Should not be wrapped in an /history link
     expect(res.text).not.toContain('/history/null');
@@ -308,28 +299,24 @@ describe('GET /freestyle/records', () => {
   });
 
   it('notes that some record names are not in the current dictionary when a record is unlinked', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).toMatch(/not match a[\s\S]*trick in the current dictionary/i);
   });
 
   it('does not show provisional records', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).not.toContain('Hidden Player');
     expect(res.text).not.toContain('Secret Trick');
   });
 
   it('does not show superseded records', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).not.toContain('Old Record Holder');
     // Value 30 could appear in other records, so check via holder name
   });
 
   it('shows video link when video_url is present', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).toContain('https://youtu.be/abc123');
   });
 });
@@ -337,34 +324,25 @@ describe('GET /freestyle/records', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/leaders', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/leaders');
-    expect(res.status).toBe(200);
-  });
-
   it('shows Alice Shredder as a leader (has 1 public record)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/leaders');
+    const res = await page('/freestyle/leaders');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Alice Shredder');
   });
 
   it('links resolved person_id holders to /history/:personId', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/leaders');
+    const res = await page('/freestyle/leaders');
     expect(res.text).toContain(`/history/${PERSON_ID}`);
   });
 
   it('renders unresolved holder as plain text', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/leaders');
+    const res = await page('/freestyle/leaders');
     expect(res.text).toContain('Unknown Player');
     expect(res.text).not.toContain('/history/null');
   });
 
   it('does not include provisional records in leader counts', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/leaders');
+    const res = await page('/freestyle/leaders');
     expect(res.text).not.toContain('Hidden Player');
   });
 });
@@ -373,8 +351,7 @@ describe('GET /freestyle/leaders', () => {
 
 describe('GET /freestyle — enriched landing page', () => {
   it('surfaces the records page (leaders is reachable from there)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('/freestyle/records');
   });
 });
@@ -383,15 +360,13 @@ describe('GET /freestyle — enriched landing page', () => {
 
 describe('GET /freestyle/about', () => {
   it('returns 200 with page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/about');
+    const res = await page('/freestyle/about');
     expect(res.status).toBe(200);
     expect(res.text).toContain('About Freestyle');
   });
 
   it('contains competition format content', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/about');
+    const res = await page('/freestyle/about');
     expect(res.text).toContain('Routines');
     expect(res.text).toContain('30 Second Shred');
     expect(res.text).toContain('Sick 3');
@@ -401,15 +376,13 @@ describe('GET /freestyle/about', () => {
   });
 
   it('names the four routine judging axes as the rules score them, with variety inside composition', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/about');
+    const res = await page('/freestyle/about');
     expect(res.text).toContain('composition (the variety and breadth of distinct');
     expect(res.text).not.toContain('variety (breadth of tricks');
   });
 
   it('links onward to the trick dictionary, glossary, and learn pages', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/about');
+    const res = await page('/freestyle/about');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('href="/freestyle/learn"');
@@ -420,15 +393,13 @@ describe('GET /freestyle/about', () => {
 
 describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   it('returns 200 with page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Move Sets');
   });
 
   it('contains core set names', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     expect(res.text).toContain('Pixie');
     expect(res.text).toContain('Fairy');
     expect(res.text).toContain('Nuclear');
@@ -441,16 +412,14 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   // row carries a stable id="move-<slug>" anchor for future backlinking.
 
   it('renders trick-matched basic-set labels as anchors to /freestyle/tricks/:slug', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     expect(res.text).toContain('<a href="/freestyle/tricks/pixie">Pixie</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/fairy">Fairy</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/stepping">Stepping</a>');
   });
 
   it('renders unmatched basic-set labels as plain text (no anchor)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     // Slapping, Bubba, Frantic, Flailing, Infracting are in the table but
     // not seeded as trick slugs — should render without /freestyle/tricks/ links.
     expect(res.text).not.toContain('/freestyle/tricks/slapping');
@@ -464,16 +433,14 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
     // "Terraging (Double Pixie)". slugify yields "terraging-double-pixie",
     // which does not match 'terraging' — so the row stays plain text under
     // the strict-match rule. No representative-link guess.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     expect(res.text).toContain('Terraging (Double Pixie)');
     expect(res.text).not.toContain('/freestyle/tricks/terraging_double_pixie');
     expect(res.text).not.toMatch(/<a[^>]+href="\/freestyle\/tricks\/terraging"[^>]*>Terraging \(Double Pixie\)/);
   });
 
   it('keeps modifier-only labels plain (no link to hidden modifier surface)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     // Nuclear, Miraging, Blurry, Swirling, Whirling, Diving slugify to
     // freestyle_trick_modifiers slugs but NOT to freestyle_tricks slugs;
     // they must not render as /freestyle/tricks/* links and must not
@@ -488,8 +455,7 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   });
 
   it('cross-links variant-tag list items where the label matches', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     expect(res.text).toContain('<a href="/freestyle/tricks/surging">Surging</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/blazing">Blazing</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/pogo">Pogo</a>');
@@ -499,8 +465,7 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   });
 
   it('emits stable move-<slug> anchor ids on every row and tag', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets/reference');
     // Anchor-id derives from slugify(label) regardless of whether the row
     // links anywhere; this gives future trick-detail backlinking a stable
     // target without requiring a re-author pass on the moves page.
@@ -516,8 +481,7 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
 
 describe('Set-notation reference cross-links', () => {
   it('Concepts §3 intermediate-operators block links to /freestyle/sets/reference', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
     const linkIdx         = res.text.indexOf('href="/freestyle/sets/reference"', intermediateIdx);
     expect(intermediateIdx).toBeGreaterThan(0);
@@ -525,16 +489,14 @@ describe('Set-notation reference cross-links', () => {
   });
 
   it('/freestyle/learn lists the historical move-set compilation as a shipped entry, named as historical', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/learn');
+    const res = await page('/freestyle/learn');
     expect(res.text).toMatch(/href="\/freestyle\/sets\/reference"[^>]*>Historical Move-Set Reference/);
   });
 
   it('landing surfaces Operators & Modifiers as a banner tile linking to /freestyle/operators', async () => {
     // The Language banner carries an "Operators & Modifiers" tile with a single
     // outbound link to /freestyle/operators. No embedded operator-board.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Operators &amp; Modifiers');
     expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).not.toContain('class="operator-board ');
@@ -551,18 +513,18 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
   // modifier feel cards live only in Freestyle Concepts §6.
 
   it('returns 200 with page title', async () => {
-    const res = await request(createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Operators &amp; Modifiers');
   });
 
   it('renders breadcrumb back to /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
   });
 
   it('renders the compact index and a minimal cross-cutting decomposition tail', async () => {
-    const res = await request(createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     // Compact index rows (not the old feel-card scroll).
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('id="operator-paradox"');
@@ -580,7 +542,7 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
   });
 
   it('cross-links the dictionary movement-system view and the set encyclopedia', async () => {
-    const res = await request(createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
     expect(res.text).toContain('href="/freestyle/sets"');
   });
@@ -593,19 +555,19 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   // badge).
 
   it('returns 200 with page title', async () => {
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);
     // The public label for the observational layer is "Emerging Vocabulary".
     expect(res.text).toContain('Emerging Vocabulary');
   });
 
   it('renders breadcrumb back to /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
   });
 
   it('renders the observational layer note + canonical references', async () => {
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).toContain('class="observational-layer-note"');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/operators"');
@@ -625,7 +587,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     //
     // This test fails if any future PR re-adds these entries to the
     // observational module.
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     // Check the card-name <h3> elements specifically, not the full
     // card region — observational readings legitimately reference
     // canonical tricks by name (e.g. Big Orange has reading
@@ -647,7 +609,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // than verbose "observational · {sourceLabel}" prose. Badge
     // variants are PB / FM / SG / FF / FB / OTHER
     // (FB covers the footbag.org /newmoves source).
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     const badgeMatches = res.text.match(
       /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|FB|OTHER)"[^>]*title="[^"]+"[^>]*>(PB|FM|SG|FF|FB|OTHER)</g,
     ) ?? [];
@@ -662,7 +624,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // Chip labels are human-readable source names (PassBack /
     // FootbagMoves / Stanford shorthand), not raw badge codes
     // (PB/FM/SG). The CSS class carries the badge code.
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).toMatch(/class="observed-source-strip"/);
     expect(res.text).toMatch(
       /class="observed-source-strip-item observed-source-strip-item--PB"[^>]*>PassBack</,
@@ -672,14 +634,14 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('observational cards have NO hashtag chip (canonical-only convention)', async () => {
     // Identity-layer forever-invariant: observational entries never get
     // #-tag chips.
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).not.toMatch(/<span[^>]*class="[^"]*hashtag[^"]*"[^>]*>#/);
   });
 
   it('observational cards have NO trick-detail href (no /freestyle/tricks/{folkSlug})', async () => {
     // Forever-invariant: observational entries never get a
     // /freestyle/tricks/{slug} route.
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     // Pull the observational card region (first observed-card-grid through
     // the observational-footer). Multiple grids exist (one per ADD
     // bucket); slicing from the first to the footer captures them all.
@@ -706,7 +668,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // The single most important forever-invariant: no canonical
     // cross-contamination. Folk slugs from the observational content
     // module must NEVER surface on /freestyle/tricks.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // None of the observational folk names appear as cards on the
     // canonical trick dictionary index. Sample drawn from original
@@ -727,7 +689,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 
   it('observational entries do NOT appear on /freestyle/operators', async () => {
-    const res = await request(createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     for (const name of [
       // Observational-only names that must NOT appear on canonical surfaces.
       // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
@@ -741,7 +703,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 
   it('observational entries do NOT appear on landing /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     for (const name of [
       // Observational-only names that must NOT appear on canonical surfaces.
       // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
@@ -759,7 +721,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // proposedAddFormula=null. The template's {{#if proposedAddFormula}}
     // guard means the formula <code> block does not render for these
     // entries. Cards still render the proposedAddTotal where present.
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     // The expansion cohort still renders cards (count assertion in
     // earlier test). For null-formula entries, the formula <code>
     // block must NOT carry a placeholder marker like "null" or "TBD".
@@ -773,7 +735,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // numeric claim from PassBack. After the ADD-bucket refactor the
     // external-claim label is null and the span simply does not render
     // (the template's {{#if externalClaimLabel}} guard suppresses it).
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     // No literal null leaks through
     expect(res.text).not.toMatch(/class="observed-card-external-claim"[^>]*>\s*null/);
     // Em-dash framing no longer used
@@ -786,22 +748,22 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // by name in the Folk / Unresolved full list. Proposed readings are
     // not rendered on this surface; they stay curator-internal until a
     // structural reading is adjudicated.
-    const res = await request(createApp()).get('/freestyle/observational');
+    const res = await page('/freestyle/observational');
     expect(res.text).toContain('Leaning Jowler');
   });
 });
 
 describe('GET /freestyle/operators — orientation lede', () => {
   it('orientation lede cross-links to the By Movement System dictionary view', async () => {
-    const res = await request(createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 });
 
 describe('GET /freestyle/concepts §6 is the per-modifier reference home (operators is the index)', () => {
   it('Concepts §6 keeps the full per-modifier reference + anchors; operators carries only the minimal tail', async () => {
-    const concepts  = await request(createApp()).get('/freestyle/concepts');
-    const operators = await request(createApp()).get('/freestyle/operators');
+    const concepts  = await page('/freestyle/concepts');
+    const operators = await page('/freestyle/operators');
     // The full per-modifier reference + its #term-{slug} anchors live in
     // Freestyle Concepts (the load-bearing anchor home that semantic tokens link to).
     for (const anchor of [
@@ -821,15 +783,14 @@ describe('GET /freestyle/concepts §6 is the per-modifier reference home (operat
   });
 
   it('Concepts §6 heading carries an "Open standalone" link to /freestyle/operators', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/<a class="glossary-section-canonical-link" href="\/freestyle\/operators">/);
   });
 });
 
 describe('GET /freestyle/glossary (A-to-Z term list)', () => {
   it('returns 200 with the Freestyle Glossary heading', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await page('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<h1[^>]*>\s*Freestyle Glossary\s*<\/h1>/);
   });
@@ -837,29 +798,25 @@ describe('GET /freestyle/glossary (A-to-Z term list)', () => {
 
 describe('GET /freestyle/concepts', () => {
   it('returns 200 with page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle Concepts');
   });
 
   it('renders breadcrumb back to /freestyle', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle"');
   });
 
   it('contains ADD-system core terms', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('Delay');
     expect(res.text).toContain('Dexterity');
     expect(res.text).toContain('BOP');
   });
 
   it('contains run-quality floor labels', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('Guiltless');
     expect(res.text).toContain('Fearless');
     expect(res.text).toContain('Tiltless');
@@ -867,31 +824,27 @@ describe('GET /freestyle/concepts', () => {
   });
 
   it('contains play-quality adjectives', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('Slurry');
     expect(res.text).toContain('Froggy');
   });
 
   it('contains run / combo / style vocabulary', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('Connector Trick');
     expect(res.text).toContain('Shred Circle');
     expect(res.text).toContain('Density');
   });
 
   it('contains common abbreviations', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('PDX');
     expect(res.text).toContain('PS Whirl');
     expect(res.text).toContain('SS');
   });
 
   it('contains structural-compression and core-trick concepts', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // §7 carries the notation thesis (with Jobs notation reference
     // preserved as the historical name of the semantic layer); §composition
     // hosts the worked structural-compression treatment as part of the
@@ -905,8 +858,7 @@ describe('GET /freestyle/concepts', () => {
   });
 
   it('does not expose review-status or source-discussion content', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toContain('Pending Red');
     expect(res.text).not.toContain('Community-only');
     expect(res.text).not.toContain('review_status');
@@ -920,8 +872,7 @@ describe('GET /freestyle/concepts — operator board is NOT rendered in §3 (aut
   // and /freestyle/learn (educational pathways). The Concepts page's role is terminology
   // and execution detail, not visual taxonomy; rendering it here would be a duplication.
   it('does not render the operator-board partial on the Concepts page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toContain('class="operator-board ');
     expect(res.text).not.toContain('class="operator-glyph"');
   });
@@ -931,8 +882,7 @@ describe('GET /freestyle/concepts — operator board is NOT rendered in §3 (aut
     // landing page and /freestyle/learn. The Concepts page's §6 carries the
     // modifier-reference + intermediate-operator + execution-mechanics
     // content without the operator-board visual taxonomy.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const sec6Idx = res.text.indexOf('id="section-modifiers"');
     const sec7Idx = res.text.indexOf('id="section-notation"');
     expect(sec6Idx).toBeGreaterThan(0);
@@ -944,15 +894,13 @@ describe('GET /freestyle/concepts — operator board is NOT rendered in §3 (aut
 
 describe('GET /freestyle/concepts — intermediate-operator reference subsection (§3)', () => {
   it('renders the intermediate-operators subsection heading and anchor', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="intermediate-operators"');
     expect(res.text).toMatch(/Intermediate operators/);
   });
 
   it('renders every authored operator entry with its term anchor', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const expectedSlugs = [
       'atomic', 'blurry', 'quantum', 'nuclear',
       'barraging', 'inspinning', 'whirling', 'double',
@@ -966,24 +914,21 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   });
 
   it('renders the locked decomposition strings on confirmed entries', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('stepping paradox');
     expect(res.text).toContain('compressed atomic');
     expect(res.text).toContain('paradox + illusion');
   });
 
   it('flags pending entries with the inline pending badge', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
     // double is the one remaining pending entry (high folded into barraging).
     expect(pendingFlags.length).toBe(1);
   });
 
   it('renders a plain lineage line on the nuclear entry (no curator-workflow language)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('A settled decomposition.');
     expect(res.text).not.toContain('Curator-adjudicated');
   });
@@ -992,8 +937,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
     // Settled doctrine: Furious is the canonical set; Barraging is not a set but a
     // historical name for it. The entry names Furious as the set and does not
     // reintroduce the old "distinct by timing, pending audit" framing.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const idx = res.text.indexOf('id="term-barraging"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 2000);
@@ -1004,8 +948,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   it('tags the historical nickname patterns (barraging, miraging) in the operator reference', async () => {
     // The reference makes the official-set-vs-nickname split explicit: Barraging
     // and Miraging carry a "historical name" flag; official sets do not.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const entry = (slug: string) => {
       const i = res.text.indexOf(`id="term-${slug}"`);
       return i < 0 ? '' : res.text.slice(i, i + 500);
@@ -1015,8 +958,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   });
 
   it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const idxAtomic    = res.text.indexOf('id="term-atomic"');
     const idxWhirling  = res.text.indexOf('id="term-whirling"');
     const idxDouble    = res.text.indexOf('id="term-double"');
@@ -1026,8 +968,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   });
 
   it('renders the inspinning term anchor inside the intermediate-operators block', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
     expect(intermediateIdx).toBeGreaterThan(0);
     const inspinIdx = res.text.indexOf('id="term-inspinning"', intermediateIdx);
@@ -1035,8 +976,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   });
 
   it('renders inspinning as a resolved entry (no pending badge)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const inspinIdx = res.text.indexOf('id="term-inspinning"');
     expect(inspinIdx).toBeGreaterThan(0);
     // Slice from inspinning's <dt> to the next <dt> (or end of <dl>) and confirm
@@ -1050,8 +990,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   it('surfaces +1 spin status on inspinning', async () => {
     // Any spin contributes +1 ADD, so inspinning (a forward-rotation spin)
     // renders as +1 — superseding the earlier +0 directional-only reading.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const inspinIdx = res.text.indexOf('id="term-inspinning"');
     expect(inspinIdx).toBeGreaterThan(0);
     const slice = res.text.slice(inspinIdx, inspinIdx + 2000);
@@ -1060,8 +999,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
   });
 
   it('orders inspinning before whirling within the body-tier subsequence', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const idxInspinning = res.text.indexOf('id="term-inspinning"');
     const idxWhirling   = res.text.indexOf('id="term-whirling"');
     expect(idxInspinning).toBeGreaterThan(0);
@@ -1073,8 +1011,7 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
 
 describe('GET /freestyle — glossary link', () => {
   it('links to /freestyle/glossary on the landing page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('/freestyle/glossary');
   });
 });
@@ -1083,50 +1020,43 @@ describe('GET /freestyle — glossary link', () => {
 
 describe('GET /freestyle/tricks/:slug', () => {
   it('returns 200 for a known trick slug', async () => {
-    const app = createApp();
     // 'Torque' was inserted in beforeAll with slug 'torque'
-    const res = await request(app).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Torque');
     expect(res.text).toContain('Alice Shredder');
   });
 
   it('links holder to /history/:personId', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     expect(res.text).toContain(`/history/${PERSON_ID}`);
   });
 
   it('returns 404 for an unknown slug', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/not-a-real-trick');
+    const res = await page('/freestyle/tricks/not-a-real-trick');
     expect(res.status).toBe(404);
   });
 
   it('shows video link when present', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     expect(res.text).toContain('https://youtu.be/abc123');
   });
 
   it('shows Record Progression section when superseded records exist', async () => {
-    const app = createApp();
     // Torque has fr-old (30) superseded by fr-public-linked (42)
-    const res = await request(app).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     expect(res.text).toContain('Record Progression');
   });
 
   it('shows superseded holder in progression section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     // Old Record Holder is superseded but should appear in progression history
     expect(res.text).toContain('Old Record Holder');
   });
 
   it('does not show progression section for a trick with only one record', async () => {
-    const app = createApp();
     // 'Whirl' has only one record (no superseded entries)
-    const res = await request(app).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Record Progression');
   });
@@ -1136,8 +1066,7 @@ describe('GET /freestyle/tricks/:slug', () => {
 
 describe('records page trick links', () => {
   it('links trick names to /freestyle/tricks/:slug on records page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/records');
+    const res = await page('/freestyle/records');
     expect(res.text).toContain('/freestyle/tricks/torque');
   });
 });
@@ -1146,8 +1075,7 @@ describe('records page trick links', () => {
 
 describe('GET /history/:personId — freestyle records section', () => {
   it('shows freestyle records section for a player with records', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/history/${FREESTYLE_PLAYER_ID}`);
+    const res = await page(`/history/${FREESTYLE_PLAYER_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle Records');
     expect(res.text).toContain('Pixie');
@@ -1155,21 +1083,18 @@ describe('GET /history/:personId — freestyle records section', () => {
   });
 
   it('shows video link with timecode on player freestyle section', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/history/${FREESTYLE_PLAYER_ID}`);
+    const res = await page(`/history/${FREESTYLE_PLAYER_ID}`);
     expect(res.text).toContain('https://youtu.be/pixie123');
     expect(res.text).toContain('0:42');
   });
 
   it('does not show provisional records on player page', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/history/${FREESTYLE_PLAYER_ID}`);
+    const res = await page(`/history/${FREESTYLE_PLAYER_ID}`);
     expect(res.text).not.toContain('Hidden Trick');
   });
 
   it('includes link to /freestyle/records from player freestyle section', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/history/${FREESTYLE_PLAYER_ID}`);
+    const res = await page(`/history/${FREESTYLE_PLAYER_ID}`);
     expect(res.text).toContain('/freestyle/records');
   });
 });
@@ -1181,8 +1106,7 @@ describe('GET /history/:personId — freestyle records section', () => {
 
 describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
   it('renders a Media section that links to the trick gallery, not inline clips', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
+    const res = await page('/freestyle/tricks/ref-media-audit');
     expect(res.status).toBe(200);
     // Links to the trick's full video gallery (locked-context convention).
     expect(res.text).toContain('href="/media/browse?context&#x3D;ref-media-audit"');
@@ -1208,8 +1132,7 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
 
 describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () => {
   it('renders the section with role-classified token spans (O1b/O1c — refined per-token tooltips)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    const res = await page('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
     // Operational tokens render in their own Execution notation section
     // (operational-notation-display class preserved), only for non-first-class
@@ -1231,16 +1154,14 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   });
 
   it('omits the section entirely when operational_notation is null', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-empty');
+    const res = await page('/freestyle/tricks/op-notation-empty');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('operational-notation-display');
     expect(res.text).not.toContain('JOB notation');
   });
 
   it('places the operational section between Notation and the structural-decomposition diagnostic', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    const res = await page('/freestyle/tricks/op-notation-seeded');
     // Find the indices in the rendered HTML; assert ordering Notation < operational < diagnostic.
     // The semantic Notation section may not render for this fixture (notation column
     // is null), so we use the operational section's position relative to a known later
@@ -1255,8 +1176,7 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   });
 
   it('renders the notation Concepts deeplink below the notation block', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    const res = await page('/freestyle/tricks/op-notation-seeded');
     expect(res.text).toContain('class="notation-glossary-link"');
     // Anchored on the pairing a visitor relies on, the control's visible label
     // and where it resolves to. The deeplink targets the Freestyle Concepts
@@ -1268,8 +1188,7 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   });
 
   it('uses the refined per-token tooltip for OP (O1c)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    const res = await page('/freestyle/tricks/op-notation-seeded');
     // The per-token tooltip states the component-relative SAME/OP meaning:
     // each side reads against the most recent side-bearing component, not a
     // fixed plant foot.
@@ -1281,8 +1200,7 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   it('never renders source-provenance prose, even when operational_notation_source is populated', async () => {
     // Source provenance is curator-internal metadata, not public detail-card
     // copy: the Execution notation block must never surface it.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-with-source');
+    const res = await page('/freestyle/tricks/op-notation-with-source');
     expect(res.status).toBe(200);
     // The operational/Execution notation block still renders its tokens.
     expect(res.text).toContain('operational-notation-display');
@@ -1292,16 +1210,14 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   });
 
   it('omits the source-note element when operational_notation_source is null', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    const res = await page('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
     expect(res.text).toContain('operational-notation-display');
     expect(res.text).not.toContain('class="operational-notation-source-note"');
   });
 
   it('places the Token-reference link directly after the token block (no source-note between)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/op-notation-with-source');
+    const res = await page('/freestyle/tricks/op-notation-with-source');
     const tokensIdx  = res.text.indexOf('class="operational-notation-tokens"');
     const linkIdx    = res.text.indexOf('class="notation-glossary-link"');
     expect(tokensIdx).toBeGreaterThan(-1);
@@ -1314,8 +1230,7 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
 
 describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', () => {
   it('Layer 2: renders the curated equivalence chain for a trick with an authored chain (mobius)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="equivalent-readings');
     expect(res.text).toContain('Equivalent readings');
@@ -1340,8 +1255,7 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
   });
 
   it('Layer 1 + Layer 2 coexistence: mobius renders both Notation and Equivalent readings sections', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
     // Both sections present and Notation precedes Equivalent readings.
     const notationIdx   = res.text.indexOf('notation-display-tokens');
@@ -1351,8 +1265,7 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
   });
 
   it('Mobius equivalence chain shows the curator-confirmed status (no pending flag)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     // Within the Equivalent readings section, no pending flag.
     const sectionStart = res.text.indexOf('class="equivalent-readings');
     const sectionEnd   = res.text.indexOf('</section>', sectionStart);
@@ -1366,8 +1279,7 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     // condition. The fixture matches the same conditions:
     // non-core slug, resolvable base_trick=butterfly, no chain, no
     // operational_notation.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/nf3-layer3-fixture');
+    const res = await page('/freestyle/tricks/nf3-layer3-fixture');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="semantic-base-lineage');
     expect(res.text).toMatch(/Built on <a href="\/freestyle\/tricks\/butterfly">butterfly<\/a>/);
@@ -1376,8 +1288,7 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
   });
 
   it('Layer 4: a core atom with no notation and no chain renders no semantic-notation block (butterfly)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/butterfly');
+    const res = await page('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="equivalent-readings');
     expect(res.text).not.toContain('class="semantic-base-lineage');
@@ -1385,16 +1296,14 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
   });
 
   it('Layer 5b: a non-core trick with no notation, no base, no chain renders the pending-curation cue (nf2b-gap)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/nf2b-gap');
+    const res = await page('/freestyle/tricks/nf2b-gap');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="semantic-notation-pending"');
     expect(res.text).toContain('Compositional reading pending curation.');
   });
 
   it('auto-link restraint: only CORE_TRICKS / operator-reference tokens become links; other tokens stay plain', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     // 'osis' is a CORE atom → linked
     expect(res.text).toMatch(/href="\/freestyle\/concepts#term-osis"/);
     // 'gyro' is a Tier-1 operator-board primitive but NOT in
@@ -1425,8 +1334,7 @@ describe('GET /freestyle/concepts — operational notation subsection', () => {
     // sits on the <details> element; the title text
     // lives in the <summary>. All #op-* child anchors remain reachable
     // (browsers auto-open <details> when navigating to a child anchor).
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="operational-notation"');
     // Anchor proximity to title text.
@@ -1437,23 +1345,20 @@ describe('GET /freestyle/concepts — operational notation subsection', () => {
   });
 
   it('defines per-token anchors for the 6 component flags', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     for (const flag of ['dex', 'del', 'bod', 'xbd', 'pdx', 'xdex']) {
       expect(res.text).toContain(`id="op-flag-${flag}"`);
     }
   });
 
   it('defines per-token anchors for both sides (SAME, OP)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="op-side-same"');
     expect(res.text).toContain('id="op-side-op"');
   });
 
   it('defines anchors for sequence operators and pre-states', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="op-seq-minor"');
     expect(res.text).toContain('id="op-seq-major"');
     expect(res.text).toContain('id="op-prestate-back"');
@@ -1465,8 +1370,7 @@ describe('GET /freestyle/concepts — operational notation subsection', () => {
     // In the 14-section IA, ADD Accounting is §8, Community Vocabulary
     // is §12, Historical Terms is §13, and Sources is §14. The
     // trick-level ADD definition lives in §8.
-    const app = createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="section-add-accounting"');
     expect(res.text).toContain('id="section-community"');
     expect(res.text).toContain('id="section-sources"');
@@ -1478,7 +1382,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     // The traditional-reference + run-quality anchors are preserved
     // (anchor-preservation forever-rule), living inside §8 ADD
     // Accounting.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="traditional-reference"');
     expect(res.text).toContain('id="run-quality"');
   });
@@ -1488,7 +1392,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     // dedicated subsections + worked examples. The cross-link to
     // combo-analysis for run-quality / format vocabulary is preserved
     // at the section footer.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
     // §10 Run Architecture is the explicit anchor section for run-
     // level material; its cross-link to combo-analysis must also exist.
@@ -1496,7 +1400,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
   });
 
   it('history page links to the ADD analysis and Insights pages as its difficulty evidence', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/add-analysis"');
     expect(res.text).toContain('href="/freestyle/insights"');
     // The narrative history page no longer routes readers through a run-quality anchor.
@@ -1506,7 +1410,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
   });
 
   it('history page links to the whirl family page and the operators reference', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/families/whirl"');
     expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=movement-system"');
@@ -1516,7 +1420,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     // The legacy footbag.org site goes dark at cutover, so the sources list
     // names it as a citation without linking to it; the surviving outbound
     // reference site stays hyperlinked.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('<strong>Footbag.org</strong>');
     expect(res.text).toContain('historical per-trick move list');
     expect(res.text).not.toContain('href="https://www.footbag.org');
@@ -1524,7 +1428,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
   });
 
   it('Concepts surviving outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Each verified outbound URL should appear with both attributes.
     const checks = [
       'https://www.footbagmoves.com/',
@@ -1540,7 +1444,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
   });
 
   it('§11 spyro is documented as a modifier-only descriptor, not an inspin synonym', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Spyro is a modifier-only folk descriptor (not a standalone dictionary
     // trick); it is explicitly NOT equated to inspin.
     expect(res.text).toMatch(/modifier-only folk descriptor/);
@@ -1553,7 +1457,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     // a retirement notice that directs the user to Family + Movement
     // System as canonical replacements. Route still returns 200 for
     // bookmark continuity.
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="category-view-retirement-notice"');
     expect(res.text).toMatch(/This view is being retired/);
@@ -1580,21 +1484,21 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   // links); the earlier condensed-history assertions were retired with that page.
 
   it('Concepts §1 carries the vocabulary-stabilization framing paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/vocabulary stabilized by roughly 2007.{0,15}2008/);
     expect(res.text).toContain('glossary-vocabulary-stabilization-note');
     expect(res.text).toContain('href="/freestyle/history"');
   });
 
   it('Concepts §6 carries the compositional-layering opening paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('glossary-compositional-layering-note');
     expect(res.text).toMatch(/simultaneous additional\s+constraint/);
     expect(res.text).toMatch(/usually harder than the\s+sum of their parts/);
   });
 
   it('Concepts §6 acknowledges evolved-ADD-value conventions with cross-link to add-analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/modifier weights have varied historically/);
     // Cross-link to add-analysis from §6 (one of several inbound surfaces).
     const sec6Idx = res.text.indexOf('id="section-modifiers"');
@@ -1607,21 +1511,21 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // The note lives solely on the whirl family card's observationalNote;
     // a prior standalone static duplicate (before the family-tree block)
     // was removed. Guard against the duplicate returning.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('Why whirl anchors combinations');
     const occurrences = (res.text.match(/Why whirl anchors combinations/g) ?? []).length;
     expect(occurrences, 'whirl resolution-point note renders exactly once').toBe(1);
   });
 
   it('whirl family card no longer presents an unsupported network / most-documented claim', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/most documented two-trick/);
     expect(res.text).not.toMatch(/22 years of Sick3/);
     expect(res.text).not.toMatch(/most common opening element/);
   });
 
   it('whirl family card is mechanically accurate: cross-body clipper terminal, no clipper entry claim', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Canonical whirl uses generic SET (may enter from toe or clipper), so the card
     // must describe only the terminal, never a fixed clipper entry or a "lands where
     // it began" relationship.
@@ -1634,7 +1538,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   it('Concepts keeps internal/developer jargon out of user-facing prose', async () => {
     // Public-facing prose hygiene: registry names, sprint/ruling refs, and
     // internal tooling words must not leak onto the rendered Concepts page.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/MODIFIER_COMPOSITIONS/);
     expect(res.text).not.toMatch(/\bpt8\b/);
     expect(res.text).not.toMatch(/Red pt\d/);
@@ -1642,7 +1546,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   });
 
   it('Concepts §7 carries the operator-notation framing paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('glossary-operator-notation-framing');
     expect(res.text).toMatch(/compact symbolic shorthand for trick\s+composition/);
     // Worked paradox example with op-tokens.
@@ -1655,14 +1559,14 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // definition lives in the §8 philosophy paragraph; the
     // mobius worked example is a structured card in the §8 worked-
     // examples grid (compactNotation "gyro torque" + derivation visible).
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/additive structural accounting/);
     expect(res.text).toContain('id="add-example-mobius"');
     expect(res.text).toMatch(/gyro torque/);
   });
 
   it('Concepts §8 worked-example status chips render the shaped label, never the raw code', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     // Visible chip text is the pre-shaped statusLabel; the raw status
     // code never appears as element text (the 'pending-doctrine' label
     // form is 'pending doctrine' whenever an example carries it).
@@ -1675,7 +1579,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // vocabulary, so these anchors live there rather than on the
     // Concepts page. The combo-analysis route-test file also covers these;
     // the assertion here pins the canonical-home contract.
-    const res = await request(createApp()).get('/freestyle/combo-analysis');
+    const res = await page('/freestyle/combo-analysis');
     const ids = [
       'run-quality-tiltless', 'run-quality-guiltless', 'run-quality-tripless',
       'run-quality-fearless', 'run-quality-beastly', 'run-quality-godly',
@@ -1691,13 +1595,13 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // The framing is a single sentence. The .glossary-about-framing
     // hook + the "footbag community built informally" attribution are
     // preserved for inbound deep-links + community-attribution semantics.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('glossary-about-framing');
     expect(res.text).toMatch(/footbag community built informally/);
   });
 
   it('history page opens with the thesis and the language framing', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('class="history-thesis"');
     expect(res.text).toMatch(/expanded the shared vocabulary/);
     expect(res.text).toMatch(/Freestyle footbag is a language/);
@@ -1706,7 +1610,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   });
 
   it('history page frames difficulty as a moving ceiling counted in ADD, never equating ADD with execution difficulty', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('id="difficulty"');
     expect(res.text).toMatch(/Difficulty became a moving ceiling/);
     expect(res.text).toMatch(/counts recognized trick components in ADD/);
@@ -1715,14 +1619,14 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   });
 
   it('history difficulty section carries the documented unique-Fearless frontier progression', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toMatch(/The frontier keeps moving/);
     expect(res.text).toMatch(/19 in 2005/);
     expect(res.text).toMatch(/25 in 2023/);
   });
 
   it('history page explains the vocabulary expanding by composition', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('id="vocabulary"');
     expect(res.text).toMatch(/expanded by composition/);
     expect(res.text).toMatch(/the most productive operators/);
@@ -1730,7 +1634,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   });
 
   it('history page ends on the naming to notation to classification arc', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('id="this-encyclopedia"');
     expect(res.text).toMatch(/This encyclopedia is the latest step/);
     const vocabIdx = res.text.indexOf('id="vocabulary"');
@@ -1741,7 +1645,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   });
 
   it('history page links onward to the learning path, dictionary, glossary, and Freestyle Concepts', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/learn"');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
@@ -1761,7 +1665,7 @@ describe('Formula accountability contracts', () => {
     // resolveTrickKind now classifies spyro as a modifier, so it's filtered
     // out of every browse view regardless of which 1-ADD rows the test
     // fixture happens to seed.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/data-trick-slug="spyro"/);
     expect(res.text).not.toContain('href="/freestyle/tricks/spyro"');
   });
@@ -1769,7 +1673,7 @@ describe('Formula accountability contracts', () => {
   it('dictionary does NOT surface the "outside-in mirage" misleading reading anywhere', async () => {
     // surfaceOnBrowse:false on the illusion alias-governance entry
     // suppresses the misleading reading from compact browse cards.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/outside-in mirage/);
   });
 
@@ -1782,7 +1686,7 @@ describe('Formula accountability contracts', () => {
     // pill (curator-authored via freestyleUnresolvedCompounds.ts) is the only
     // honest "pending" surface; "core atom" implementation language never
     // leaks to public.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     for (const slug of ['mirage', 'butterfly']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card not found in dictionary`).toBeGreaterThan(0);
@@ -1807,7 +1711,7 @@ describe('Formula accountability contracts', () => {
     // spin), so spot-checks assert the primitive forms, not shorthand
     // like "clipper(1) = 1 ADD" or "mirage(2) = 2 ADD".
     const eq = '(?:=|&#x3D;)';
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     const derivationMatches = res.text.match(/class="add-analysis-derivation-line"/g) ?? [];
     expect(derivationMatches.length).toBe(17);  // 17 worked examples
@@ -1823,7 +1727,7 @@ describe('Formula accountability contracts', () => {
   });
 
   it('paradox term entry in Concepts §3 surfaces the canonical formula visibly', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const paradoxIdx = res.text.indexOf('id="term-paradox"');
     expect(paradoxIdx).toBeGreaterThan(0);
     // Read forward to the close of the <dd>.
@@ -1837,7 +1741,7 @@ describe('Formula accountability contracts', () => {
   });
 
   it('paradox connective panel notation hint carries the canonical formula', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const panelIdx = res.text.indexOf('id="glossary-panel-paradox"');
     expect(panelIdx).toBeGreaterThan(0);
     const nextPanelIdx = res.text.indexOf('id="glossary-panel-', panelIdx + 50);
@@ -1847,7 +1751,7 @@ describe('Formula accountability contracts', () => {
   });
 
   it('ADD Analysis surfaces paradox notation as the entry-topology case', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // CLIP > OP IN [DEX] is still surfaced, but framed as paradox's entry case
     // (a side-switch that can also occur mid-trick), not paradox in every form.
     expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\]/);
@@ -1856,7 +1760,7 @@ describe('Formula accountability contracts', () => {
   });
 
   it('Worlds 2023 Team Freestyle featured caption carries Scott Davidson + Tuan Vu attribution', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     const captionMatch = res.text.match(/<p class="featured-caption[^"]*">[^<]*<\/p>/g) ?? [];
     const worldsCaption = captionMatch.find(c => /Scott Davidson|Tuan Vu/.test(c));
     expect(worldsCaption, 'Worlds 2023 caption attribution missing').toBeDefined();
@@ -1872,7 +1776,7 @@ describe('Formula accountability contracts', () => {
     // and is not
     // guarded out here; that single use case is asserted positively in
     // the foundational-formula test below.
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     const slice = res.text.slice(gridStart, gridEnd);
@@ -1886,14 +1790,14 @@ describe('Formula accountability contracts', () => {
 
 describe('Freestyle IA realignment — landing and Concepts contract', () => {
   it('landing retires the "Glossary, Dictionary, and Notation — three layers" framing', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).not.toContain('Glossary, Dictionary, and Notation');
     expect(res.text).not.toContain('Three reference layers');
     expect(res.text).not.toContain('The Freestyle Reference');
   });
 
   it('landing surfaces Trick Dictionary + Glossary + Freestyle Concepts + Set Encyclopedia via the Language banner', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     // The retired top-reference-jump band must be gone.
     expect(res.text).not.toContain('class="freestyle-top-reference-jump"');
     expect(res.text).not.toMatch(/<a class="freestyle-top-reference-link"/);
@@ -1906,20 +1810,20 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
   });
 
   it('landing surfaces a single dictionary link, not multiple browse CTAs', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).not.toMatch(/Browse by component\s*&rarr;/);
     expect(res.text).not.toMatch(/>Browse tricks\s*&rarr;/);
   });
 
   it('Concepts retires the "Glossary, Dictionary, and Notation — three layers" heading', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toContain('Glossary, Dictionary, and Notation');
     expect(res.text).not.toContain('three complementary layers');
   });
 
   it('Concepts intro links to dictionary and set-notation reference without three-layer rhetoric', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/sets/reference"');
   });
@@ -1929,7 +1833,7 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
     // Symposium-action invariant holds on the operator-board partial
     // wherever it renders; we assert it against /freestyle/learn, the
     // operator-board host surface.
-    const res = await request(createApp()).get('/freestyle/learn');
+    const res = await page('/freestyle/learn');
     expect(res.text).toMatch(/Active leg jumps \+ lands solo/i);
     // The retired "illusion + body rotation" misreading must not reappear.
     expect(res.text).not.toContain('An illusion combined with body rotation');
@@ -1940,7 +1844,7 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
     // (with the pixie/fairy set-modifier grid) now precedes families in the
     // Foundations spine, so the family grid is bounded by the families section on
     // the low side and the Notation topic on the high side.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const familiesAt = res.text.indexOf('id="section-families"');
     const notationAt = res.text.indexOf('id="section-notation"');
     expect(familiesAt).toBeGreaterThan(0);
@@ -1967,7 +1871,7 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
     // decomposable set/compound operators and Stepping are rendered by the
     // intermediate-operators list and the body-modifier reference, so rendering
     // them here too would put each operator's term-{slug} anchor on two elements.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="set-modifiers-tier-1"');
     const gridStart = res.text.indexOf('class="glossary-set-modifiers-grid"');
     expect(gridStart).toBeGreaterThan(0);
@@ -1995,7 +1899,7 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
     // Retired prose / classes: glossary-compression-one-liner,
     // glossary-compression-expanded text-muted (content lives in a <li>
     // inside glossary-equivalence-worked-example).
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     const nextH4 = res.text.indexOf('glossary-equivalence-worked-heading', flowIdx + 1);
@@ -2022,7 +1926,7 @@ describe('Freestyle landing — portal IA', () => {
   it('exposes the freestyle-portal-lede intro content-section', async () => {
     // Structural invariant: the landing renders the lede surface with the
     // documented class hooks. Copy is not pinned by this test.
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
     expect(res.text).toMatch(/class="freestyle-portal-lede-paragraph"/);
   });
@@ -2031,7 +1935,7 @@ describe('Freestyle landing — portal IA', () => {
     // The standalone `freestyle-featured-video` block was retired; San Marino
     // is one of two hardcoded curated entries inside the demonstrations grid.
     // The legacy class must stay gone.
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).not.toContain('class="freestyle-featured-video"');
   });
 });
@@ -2044,14 +1948,14 @@ describe('Freestyle landing — portal IA', () => {
 
 describe('Landing — legacy landing grids retired', () => {
   it('Basic Components grid does NOT render on /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).not.toContain('class="freestyle-basic-components-grid"');
     expect(res.text).not.toContain('class="freestyle-component-card"');
     expect(res.text).not.toContain('id="component-dex"');
   });
 
   it('Core Tricks grid does NOT render on /freestyle', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).not.toContain('class="freestyle-core-trick-grid"');
     expect(res.text).not.toContain('class="core-trick-object"');
     expect(res.text).not.toContain('id="core-trick-whirl"');
@@ -2065,26 +1969,26 @@ describe('Freestyle landing — Featured strip', () => {
   // (Circle / Sick 3 / Shred 30) are the card titles; curated
   // demonstrations follow as exemplars. Empty array hides section content.
   it('renders the Featured heading + grid', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toMatch(/class="[^"]*\bfreestyle-featured\b/);
     expect(res.text).toMatch(/<h2>Featured Videos<\/h2>/);
   });
 
   it('renders every competition-format name as a card title', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toMatch(/>Circle</);
     expect(res.text).toMatch(/>Sick 3</);
     expect(res.text).toMatch(/>Shred 30</);
   });
 
   it('renders both curated demonstration entries (Conlon 1998 + San Marino 2026)', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('id="featured-conlon-1998"');
     expect(res.text).toContain('id="featured-san-marino-2026"');
   });
 
   it('drops the retired five-slot demonstration scaffolding and pending copy', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     for (const key of ['sam-conlon', 'classic-circle', 'artistic-routine', 'modern-technical-shred', 'educationally-readable-run']) {
       expect(res.text).not.toContain(`id="demonstration-${key}"`);
     }
@@ -2103,7 +2007,7 @@ describe('Freestyle Concepts — [PDX] component-flag definition', () => {
     // The definition marks the paradox relationship on a dexterity, states its
     // independence from [XBD] and from IN/OUT direction, and frames
     // CLIP > OP IN [DEX] as an entry example rather than the definition.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const pdxIdx = res.text.indexOf('id="op-flag-pdx"');
     expect(pdxIdx).toBeGreaterThan(0);
     const slice = res.text.slice(pdxIdx, pdxIdx + 800);
@@ -2120,7 +2024,7 @@ describe('Freestyle Concepts — [PDX] component-flag definition', () => {
 describe('Freestyle Concepts — intro philosophy', () => {
   it('renders the welcoming Movement Basics intro + compositional framing', async () => {
     // The opening Concepts chapter is a welcoming "Movement Basics" intro.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/the language of freestyle footbag/);
     expect(res.text).toMatch(/vocabulary is compositional/);
     expect(res.text).toMatch(/shortest clear name/);
@@ -2131,7 +2035,7 @@ describe('Freestyle Concepts — Symbolic Notation / Compression layer', () => {
   it('§7 Jobs / Operational Notation carries the thesis sentence', async () => {
     // §7 is titled "Jobs / Operational Notation" and carries the
     // thesis sentence.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="section-notation"');
     expect(res.text).toMatch(
       /The language evolves by compressing recurring compositional structures\s+into shorter readable symbolic forms\./,
@@ -2141,7 +2045,7 @@ describe('Freestyle Concepts — Symbolic Notation / Compression layer', () => {
   it('§7 cross-links to the §9 symbolic-compression flow', async () => {
     // The worked compression-flow lives in §9 (Symbolic Composition).
     // Anchor #symbolic-compression-flow preserved.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="#symbolic-compression-flow"');
   });
 });
@@ -2152,7 +2056,7 @@ describe('Freestyle Concepts — Structural compression subsection', () => {
     // Vocabulary Relationships subsection of §composition (Symbolic
     // Composition). Anchor #symbolic-compression-flow is preserved on
     // that h4 for inbound deep-links.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     expect(flowIdx).toBeGreaterThan(0);
@@ -2165,7 +2069,7 @@ describe('Freestyle Concepts — Structural compression subsection', () => {
     // same-side torque → spinning quantum same-side osis. The deepest
     // reading is where the "compositional transformations" wow-moment
     // lands pedagogically.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
@@ -2184,7 +2088,7 @@ describe('Freestyle Concepts — Structural compression subsection', () => {
   });
 
   it('links to the ADD Accounting & Analysis page for deeper explanation', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
@@ -2194,7 +2098,7 @@ describe('Freestyle Concepts — Structural compression subsection', () => {
   it('frames the wow-moment as "oh, these are compositional transformations"', async () => {
     // Replaces the prior "Three names. One trick." framing. The new
     // prose explicitly names the pedagogical pivot.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
@@ -2205,7 +2109,7 @@ describe('Freestyle Concepts — Structural compression subsection', () => {
 
 describe('Freestyle Concepts — §9 semantic-vs-operational contrast', () => {
   it('renders the layer-contrast table inside §9 with semantic + operational rows', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const sec9Idx = res.text.indexOf('id="operational-notation"');
     expect(sec9Idx).toBeGreaterThan(0);
     const after = res.text.slice(sec9Idx, sec9Idx + 2500);
@@ -2220,7 +2124,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
   it('renders the Execution mechanics subsection heading and anchor (no source attribution)', async () => {
     // V5 editorial sweep: repetitive PassBack attribution removed; the
     // execution-mechanics anchor + heading are preserved.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="execution-mechanics"');
     expect(res.text).toMatch(/id="execution-mechanics"[^>]*>\s*Execution mechanics/);
     // The per-entry "PassBack glossary" attribution spans must be gone.
@@ -2231,7 +2135,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
     // V5: alpine / symposium-mech / symple / muted live in §6 under
     // "Execution mechanics"; dex-window / hippy-leggy live in §3
     // (Dexterities); phases-sides lives in §4 (Timing Layers).
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="term-alpine"');
     expect(res.text).toContain('id="term-symposium-mech"');
     expect(res.text).toContain('id="term-symple"');
@@ -2244,7 +2148,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
   it('§3 "the" entry carries the PassBack pronunciation disambiguation + missed-component definition', async () => {
     // "the" ("thuh", not "thee") is a real footbag term per the PassBack
     // glossary, not a typo: a component attempted but completely missed.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const idx = res.text.indexOf('id="term-the"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 400);
@@ -2253,7 +2157,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
   });
 
   it('§3 Motion style includes the full-vs-half dex fullness entry', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="term-full-half-dex"');
     const idx = res.text.indexOf('id="term-full-half-dex"');
     const slice = res.text.slice(idx, idx + 400);
@@ -2265,7 +2169,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
     // Reconciled to the PassBack glossary: pulled and slurry are synonyms
     // (bag dragged through an uptime dex/spin before the intended component);
     // froggy is specifically a pulled spin.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const pulled = res.text.slice(res.text.indexOf('id="term-pulled"'), res.text.indexOf('id="term-pulled"') + 400);
     expect(pulled).toMatch(/dragged through an uptime dex/);
     const froggy = res.text.slice(res.text.indexOf('id="term-froggy"'), res.text.indexOf('id="term-froggy"') + 400);
@@ -2273,7 +2177,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
   });
 
   it('§3 carries the new PassBack dex/duck-quality terms', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     for (const id of [
       'term-dexless', 'term-ducking', 'term-weaving',
       'term-diving', 'term-zulu', 'term-crowny',
@@ -2283,14 +2187,14 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
   });
 
   it('§4 Timing carries the PassBack "attack" term', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="term-attack"');
     const idx = res.text.indexOf('id="term-attack"');
     expect(res.text.slice(idx, idx + 400)).toMatch(/how quickly/i);
   });
 
   it('Symposium-mechanic micro-entry carries the single-leg-jump definition', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const idx = res.text.indexOf('id="term-symposium-mech"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 600);
@@ -2299,7 +2203,7 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
 
   it('Execution mechanics subsection sits inside §6, above §7', async () => {
     // execution-mechanics is a §6 subsection (modifiers/operators).
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const sec6Idx     = res.text.indexOf('id="section-modifiers"');
     const execIdx     = res.text.indexOf('id="execution-mechanics"');
     const sec7Idx     = res.text.indexOf('id="section-notation"');
@@ -2315,7 +2219,7 @@ describe('Freestyle Concepts — §11 Family & Topology Concepts (connective pan
     // live in §11 (Family & Topology Concepts). The
     // id="connective-panels" anchor is preserved for inbound links
     // (anchor-preservation forever-rule).
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const panelIdx = res.text.indexOf('id="connective-panels"');
     expect(panelIdx).toBeGreaterThan(0);
     const slice = res.text.slice(panelIdx, panelIdx + 2000);
@@ -2344,7 +2248,7 @@ describe('Freestyle Concepts — compression-flow visual continuity (compact for
     // The compression flow renders as a one-row equivalence, not the
     // retired three .core-trick-object cards. This test
     // asserts the cascade is gone; the current contract is covered above.
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
@@ -2354,24 +2258,24 @@ describe('Freestyle Concepts — compression-flow visual continuity (compact for
   });
 
   it('thesis sentence in §8 still renders with the .glossary-thesis class', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-thesis"');
   });
 });
 
 describe('Freestyle dictionary — Dex view two-line row styling', () => {
   it('dict-trick-row-title elements render on the dex-count view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/class="dict-trick-row-title"/);
   });
 
   it('dict-trick-row-add (line-2 ADD slot) elements render on the dex-count view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/class="dict-trick-row-add"/);
   });
 
   it('the dex-count view renders the dict-trick-row wrapper (migrated off the shared card)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/class="dict-trick-row[^"]*"/);
     expect(res.text).not.toContain('dict-card-stack');
   });
@@ -2382,7 +2286,7 @@ describe('Freestyle dictionary — Dex view two-line row styling', () => {
 
 describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict cards', () => {
   it('legacy "aliases:" row is retired across the dictionary surface', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
     expect(res.text).not.toMatch(/<span class="dict-card-aliases-label">/);
   });
@@ -2390,11 +2294,11 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
   it('renders ≡ readings sourced from the curator chain registry', async () => {
     // A reading is structural content and reads on the trick's own page, in
     // its Equivalent readings section; no browse row carries one.
-    const page = await request(createApp()).get('/freestyle/tricks/torque');
-    expect(page.status).toBe(200);
-    expect(page.text).toMatch(/class="content-section equivalent-readings"/);
+    const trickPage = await page('/freestyle/tricks/torque');
+    expect(trickPage.status).toBe(200);
+    expect(trickPage.text).toMatch(/class="content-section equivalent-readings"/);
 
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.text).not.toMatch(/class="dict-trick-row-interpretation"/);
     expect(res.text).not.toMatch(/class="core-trick-equiv-sigil"/);
   });
@@ -2405,14 +2309,14 @@ describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blend
     // Tokenized rendering wraps each operator in its own span; match each word
     // independently allowing intervening markup. The reading reads on the
     // trick's page, where its structural content belongs.
-    const res = await request(createApp()).get('/freestyle/tricks/torque');
+    const res = await page('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
     expect(readings).toMatch(/quantum[\s\S]*?osis/i);
   });
 
   it('renders blender as ≡ whirling osis', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/blender');
+    const res = await page('/freestyle/tricks/blender');
     expect(res.status).toBe(200);
     const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
     expect(readings).toMatch(/whirling[\s\S]*?osis/i);
@@ -2421,7 +2325,7 @@ describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blend
   it('holds drifter\'s decomposition: no miraging reading rendered', async () => {
     // "miraging clipper" is legacy mirage-family shorthand held for curator
     // review; drifter renders no ≡ reading rather than teach the nickname.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const idx = res.text.indexOf('data-trick-slug="drifter"');
     expect(idx).toBeGreaterThan(-1);
     const next = res.text.indexOf('data-trick-slug=', idx + 1);
@@ -2432,17 +2336,17 @@ describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blend
 
 describe('Freestyle dictionary — S3: alias-governance allow-list filtering', () => {
   it('filters out orthographic-only alias rows (legover ≡ leg-over hidden)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('leg over');
   });
 
   it('filters out alias rows suppressed pending doctrine resolution (osis ≡ frigidosis hidden)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('frigidosis');
   });
 
   it('filters out different-trick alias rows (swirl ≡ reverse swirl hidden)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     // 'reverse swirl' as an alias of swirl should NOT appear as an ≡ reading.
     // (If reverse-swirl exists as its own canonical row, that's a different
     // surface; this assertion only checks the alias-row pathway.)
@@ -2453,7 +2357,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     // Atoms (first-class) carry their curator JOB chain on line 2 of the
     // two-line row (dict-trick-row-notation-value), sourced from firstClassChainValue,
     // including the (midtime) marker. No shared-card op-notation chip.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     const atwIdx = res.text.indexOf('data-trick-slug="around_the_world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);

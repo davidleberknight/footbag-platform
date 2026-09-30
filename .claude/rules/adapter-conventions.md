@@ -1,6 +1,9 @@
 ---
 paths:
   - "src/adapters/**"
+  - "tests/unit/env-config.test.ts"
+  - "tests/**/*[Aa]dapter*.test.ts"
+  - "tests/smoke/**"
 ---
 
 # Adapter conventions
@@ -27,7 +30,11 @@ Tests inject a double or reset the singleton through the adapter's test hooks (`
 
 ## Tests required
 
-Every new adapter, and any change to an adapter's contract, lands with the three parity tests in `.claude/rules/testing.md` (boot-time config, interface parity, staging smoke).
+Adapters are the only seam between dev and staging: dev runs the `local`/`stub` implementations against in-process fakes, staging the `kms`/`live` implementations against real AWS (the full set is listed in `docs/TESTING.md`). Every new adapter, and any change to an adapter's contract, lands with three tests. They describe a permanent contract, not a one-shot check for the change that introduced them.
+
+1. **Boot-time config** (`tests/unit/env-config.test.ts`). `src/config/env.ts` fails fast at module load, with a specific error message, when a required deployed-mode variable is absent. Add a case per new required variable.
+2. **Interface parity** (`tests/integration/adapter-parity.test.ts`). Both implementations satisfy the TypeScript interface and produce observable outputs of identical structure. An injected fake client stands in for the AWS SDK call path; never mock the SDK package itself.
+3. **Staging smoke** (`tests/smoke/`). Reaches real staging AWS through the assumed-role chain, gated behind `RUN_STAGING_SMOKE=1` and excluded from `npm test`. Required only where the live probe is side-effect-free: an adapter whose live call would write to object storage, charge a card, or otherwise mutate a deployed system carries the first two tests only, and its live path is verified by operator tooling instead (the exempt adapters and their reasons are listed in `docs/TESTING.md`). It asserts that the staging runtime identity is reachable and the adapter's AWS calls succeed; a failure means staging wiring is broken or incomplete.
 
 ## Mechanically enforced
 

@@ -3,8 +3,7 @@
  *
  * Freestyle content reaches the runtime through the database and the compiled
  * content modules only. The pipeline input, build-output, report, and research
- * scratch trees exist at authoring time and retire from the production path at
- * cutover, so no application source file may name them: a runtime disk read
+ * scratch trees exist at authoring time before cutover and are deleted after it, so no application source file may name them: a runtime disk read
  * from any of them would silently couple request handling to files that are
  * absent from the deployed container. This suite pins that src/ carries zero
  * references to those paths, comments included, so a regression surfaces as a

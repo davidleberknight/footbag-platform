@@ -17,7 +17,7 @@
  * the suppression is the route-out, not the singleton filter.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -30,6 +30,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3531');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const trick = (
   slug: string,
@@ -91,7 +92,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function familyView(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+  const res = await page('/freestyle/tricks?view=family');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -178,7 +179,7 @@ describe('Family skeleton — old ?family= filter URLs stay usable (data untouch
     ['clipper_stall', 'clip_stall_one'],           // route-out surface label
     ['pixie', 'big_pixie'],                        // route-out ecosystem label
   ])('?family=%s returns 200 and still lists its rows', async (family, sampleSlug) => {
-    const res = await request(await createApp()).get(`/freestyle/tricks?family=${family}`);
+    const res = await page(`/freestyle/tricks?family=${family}`);
     expect(res.status).toBe(200);
     expect(res.text, `?family=${family} should list ${sampleSlug}`).toContain(`data-trick-slug="${sampleSlug}"`);
   });

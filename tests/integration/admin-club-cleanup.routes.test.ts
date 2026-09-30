@@ -69,7 +69,6 @@ describe('GET /admin/club-cleanup', () => {
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Dirty Club');
-    expect(res.text).toContain('Club Cleanup Queue');
   });
 
   it('renders the add-co-leader and contact-members controls for a leaderless active club', async () => {

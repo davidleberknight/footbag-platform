@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -69,7 +70,7 @@ function seedItem(taskType = 'member_link_help_request'): string {
   return seedItemFor(MEMBER_ID, taskType);
 }
 
-function ask(queueItemId: string, over: Record<string, string> = {}): request.Test {
+function ask(queueItemId: string, over: Record<string, string> = {}): Test {
   return request(createApp())
     .post(`/admin/work-queue/${queueItemId}/ask-member`)
     .set('Cookie', adminCookie())
@@ -373,6 +374,7 @@ describe('the member reads and answers', () => {
       .set('Cookie', memberCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Please check your date of birth');
+    expect(res.text).not.toContain('Nothing is waiting for you');
   });
 
   it('is not reachable by another member', async () => {
@@ -393,6 +395,7 @@ describe('the member reads and answers', () => {
       .get(`/members/${MEMBER_SLUG}/questions`)
       .set('Cookie', memberCookie());
     expect(res.text).toContain('Nothing is waiting for you');
+    expect(res.text).not.toContain('Your answer has been sent');
   });
 
   it('points the member at the question from their own profile', async () => {
@@ -582,7 +585,7 @@ describe('the member reads and answers', () => {
       .send({ dateAnswer: 'confirm' });
     // The confirmation rides a flash cookie across the redirect, so the
     // follow-up request has to carry it the way a browser would.
-    const flash = ((post.headers['set-cookie'] as string[] | undefined) ?? [])
+    const flash = (post.get('Set-Cookie') ?? [])
       .find((c) => c.startsWith('footbag_flash='))!.split(';')[0];
     const res = await request(createApp())
       .get(`/members/${MEMBER_SLUG}/questions`)
@@ -594,7 +597,7 @@ describe('the member reads and answers', () => {
     const itemId = seedItem();
     await ask(itemId);
     const messageId = messageRow()!.id as string;
-    const send = (): request.Test => request(createApp())
+    const send = (): Test => request(createApp())
       .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
       .set('Cookie', memberCookie())
       .type('form')

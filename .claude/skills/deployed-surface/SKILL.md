@@ -1,8 +1,15 @@
+---
+name: deployed-surface
+description: How to derive what the running app actually deploys and classify every user story as complete, partial, story-less runtime feature, designed-not-deployed, future, documented-deferred, or ambiguous. Use before calling anything missing, choosing review or test scope, or filing a "gap" tracker issue.
+user-invocable: false
+---
+
 # Deployed-surface enumeration
 
 Single home for two things the review workflows share: how to determine what the running application
-actually deploys, and the one taxonomy for classifying every user story by deployment status. The two
-review skills cite this file by name instead of each restating it, because a restated copy drifts.
+actually deploys, and the one taxonomy for classifying every user story by deployment status. Four skills
+cite this file by its repo path instead of each restating it, because a restated copy drifts: `bug-hunt`,
+`freestyle-bug-hunt`, `write-tests`, and `tracker-ops`.
 
 ## Derive the deployed surface fresh every run
 

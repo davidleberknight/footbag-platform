@@ -21,13 +21,14 @@
  *      filter, and 'X ADD · M tricks' on a tier page.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4068');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -49,7 +50,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(url: string): Promise<string> {
-  const res = await request(createApp()).get(url);
+  const res = await getPage(url);
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -67,7 +68,7 @@ describe('GET /freestyle/tricks/:add — canonical per-tier view', () => {
   });
 
   it('404s for a tier with no documented tricks', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/9');
+    const res = await getPage('/freestyle/tricks/9');
     expect(res.status).toBe(404);
   });
 

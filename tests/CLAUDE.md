@@ -1,29 +1,47 @@
 # tests/ -- Testing conventions
 
-Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.md`; the mandate,
-the edge-case lists and the anti-patterns live in `.claude/rules/testing.md`. This file is the
-operational conventions layer: tooling, factories, layout.
+The binding rules (mandate, edge cases, anti-patterns) are in `.claude/rules/testing.md`; the
+procedure is the `write-tests` skill; strategy and rationale are in `docs/TESTING.md`. This file is
+the layout: layers, fixtures, isolation, naming.
 
 ## Layers
 
 - **Unit** (`tests/unit/`): exported pure functions. No DB, no HTTP.
 - **Integration** (`tests/integration/`): real HTTP routes through Supertest against a real SQLite
-  file. No mocks and no mocked DB; tests run against real code paths.
-- **Smoke** (`tests/smoke/`): live-AWS adapter probes against staging, run by an operator or
-  dev-tester (`npm run test:smoke`, or `./run_all_tests.sh --with-smoke`).
-- **Browser** (`tests/e2e/`): Playwright against a local throwaway stack.
-- **Dev** (`tests/dev/`): the development-only persona crawl.
+  file, services, and operator scripts driven through their test seams. No mocked DB.
+- **Smoke** (`tests/smoke/`): read-only live probes of staging wiring (`npm run test:smoke`, or the
+  `--staging` rows of `./run_all_tests.sh` through the dev-tester role).
+- **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`).
+- **Deployed browser check** (`tests/e2e/deployed/`): anonymous, submit-nothing page loads against
+  staging or production (`npm run test:deployed -- <staging|production>`).
+- **Dev** (`tests/dev/`): the real-claim crawl, which claims one real migrated record on a local dev
+  stack and walks the surfaces that render it (`npm run test:persona-crawl`). It needs the
+  authoritative local member load.
 
-`npm test` is unit plus integration, and the other three tiers are excluded from it. Vitest runs
-four of the five: smoke and dev gate on their own environment variable (`RUN_STAGING_SMOKE`,
-`RUN_PERSONA_CRAWL`). Browser is Playwright, not vitest, and gates on being a separate runner
-(`npm run test:e2e`) rather than on a variable.
+`npm test` is unit plus integration. Smoke and dev gate on their own environment variable
+(`RUN_STAGING_SMOKE`, `RUN_PERSONA_CRAWL`); the two browser layers are separate Playwright configs.
 
 ## Test data: factories only
 
 All test data comes from the factory helpers in `tests/fixtures/factories.ts` (native factories plus
 the `src/testkit/personaRowBuilders.ts` re-exports). Each factory takes optional overrides and
 returns the inserted id. Read the export list there; any inventory kept here would go stale.
+
+`tests/fixtures/freestyleDictionarySnapshot.json` has no regeneration command. Do not infer a query
+and refresh it; its refresh belongs to the freestyle-dictionary maintainer.
+
+## Shared fixtures by purpose
+
+Reach for these before writing a helper of your own; each file's header says when to use it.
+
+- One response per page for a read-only suite: `cachedGet.ts`.
+- A read path whose statement count must not grow with the rows (N+1): `queryCount.ts`.
+- Every deployed route, for a cross-cutting sweep: `routeTable.ts`.
+- Dates relative to now, for anything SQLite's clock compares: `clock.ts`.
+- A route refusing a cross-origin state-changing request: `expectCsrfReject.ts`.
+- The security flags on an issued session cookie: `assertSecureSessionCookie.ts`.
+- A ledger table refusing update and delete: `assertAppendOnly.ts`.
+- The row an action added, without trusting order: `rowPinning.ts`.
 
 ## Database isolation
 
@@ -34,14 +52,6 @@ the WAL sidecars afterwards; new integration tests use them rather than their ow
 
 ## Naming
 
-A route or controller suite is `{domain}.routes.test.ts` and a service suite is
-`{domain}.service.test.ts`. Other integration suites use `{domain}.{aspect}.test.ts`, naming the
-contract they verify.
-
-## Fixtures that cannot be regenerated
-
-`tests/fixtures/freestyleDictionarySnapshot.json` is a point-in-time dump with no recorded
-provenance and no regeneration command, read by nine suites, and it has drifted from the built
-database. Do not infer the query and refresh it: that was tried, and the inferred version fails the
-suites. The refresh belongs to the freestyle-dictionary maintainer, and the evidence sits on the
-tracker card that owns stale generated-data fixtures.
+A route or controller suite is `{domain}.routes.test.ts`, a service suite is
+`{domain}.service.test.ts`, and an operator-script suite is `<script>.script.test.ts`. Other
+integration suites use `{domain}.{aspect}.test.ts`, naming the contract they verify.

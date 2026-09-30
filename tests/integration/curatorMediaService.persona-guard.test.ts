@@ -85,7 +85,7 @@ const GUARD = /test persona/i;
 describe('/curated guardrail with sidecar writes on', () => {
   it('refuses a persona admin on a curated photo upload', async () => {
     await expect(
-      svc().uploadPhoto({ adminMemberId: PERSONA_ADMIN, photoBuffer: Buffer.from('x'), caption: null, tags: [] }),
+      svc().uploadPhoto({ adminMemberId: PERSONA_ADMIN, photoBuffer: Buffer.from('x'), sourceFilename: 'persona-guard.jpg', caption: null, tags: [] }),
     ).rejects.toThrow(GUARD);
   });
 

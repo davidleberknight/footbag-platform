@@ -36,6 +36,11 @@ const INLINE_HANDLER_RE = /\son[a-z]+=["']/i;
 const INLINE_STYLE_RE = /\sstyle=["']/i;
 
 describe('CSP template scan — no inline event handlers or inline styles', () => {
+  // A scan that finds no templates passes both checks having read nothing.
+  it('finds the templates it scans', () => {
+    expect(TEMPLATE_FILES.length, `no .hbs files found under ${VIEWS_DIR}`).toBeGreaterThan(50);
+  });
+
   it('no .hbs template carries an inline on*= attribute', () => {
     const offenders: Array<{ file: string; line: number; text: string }> = [];
     for (const file of TEMPLATE_FILES) {

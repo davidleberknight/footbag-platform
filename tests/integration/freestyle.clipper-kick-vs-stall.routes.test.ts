@@ -12,7 +12,7 @@
  *   - the two routes and their aliases resolve to distinct records
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -26,6 +26,7 @@ import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/fac
 const { dbPath } = setTestEnv('3390');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -63,14 +64,14 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Clipper (kick) page describes a kick', () => {
   it('renders the kick reading and action', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    const res = await page('/freestyle/tricks/clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/cross-body inside-foot kick/);
     expect(res.text).toMatch(/strikes the footbag with the kicking leg/);
   });
 
   it('carries no stall-specific instructional wording', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    const res = await page('/freestyle/tricks/clipper');
     expect(res.text).not.toMatch(/cushion the bag/i);
     expect(res.text).not.toMatch(/settles? the bag/i);
     expect(res.text).not.toMatch(/a flat (inside|catching) surface/i);
@@ -79,14 +80,14 @@ describe('Clipper (kick) page describes a kick', () => {
   });
 
   it('does not bleed the clipper stall delay content onto the kick page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    const res = await page('/freestyle/tricks/clipper');
     expect(res.text).not.toMatch(/sole turned inward/i);
   });
 });
 
 describe('Clipper stall page remains the delay', () => {
   it('still describes the across-body delay', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/clipper_stall');
+    const res = await page('/freestyle/tricks/clipper_stall');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/sole turned inward/i);
     expect(res.text).not.toMatch(/cross-body inside-foot kick/);
@@ -95,9 +96,8 @@ describe('Clipper stall page remains the delay', () => {
 
 describe('Clipper kick and clipper stall are distinct records and routes', () => {
   it('resolves both routes to their own record', async () => {
-    const app = await createApp();
-    const kick = await request(app).get('/freestyle/tricks/clipper');
-    const stall = await request(app).get('/freestyle/tricks/clipper_stall');
+    const kick = await page('/freestyle/tricks/clipper');
+    const stall = await page('/freestyle/tricks/clipper_stall');
     expect(kick.status).toBe(200);
     expect(stall.status).toBe(200);
     // Distinct ADD values surface on their respective pages.

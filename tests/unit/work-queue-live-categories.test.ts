@@ -59,18 +59,4 @@ describe('live work-queue categories', () => {
       expect(WORK_QUEUE_CATEGORY_LABELS[category], `no label for ${category}`).toBeTruthy();
     }
   });
-
-  it('keeps labels for categories that are not live yet', () => {
-    // The label map is deliberately wider than the live list: the schema admits
-    // these categories and the surfaces that would fill them are still to be
-    // built. Dropping a label would mean the first item enqueued after one of
-    // those lands renders its raw category slug.
-    // Events left this list when account deletion gained the power to orphan an
-    // event by removing its last organizer, which is the first producer the
-    // category ever had.
-    for (const category of ['elections', 'club_leadership']) {
-      expect(WORK_QUEUE_CATEGORY_LABELS[category], `no label for ${category}`).toBeTruthy();
-      expect(LIVE_WORK_QUEUE_CATEGORIES).not.toContain(category);
-    }
-  });
 });

@@ -122,7 +122,9 @@ describe('POST /admin/curator/upload with a file over the per-file ceiling', () 
         .post('/admin/curator/upload')
         .set('Cookie', adminCookie())
         .field('mediaType', 'video')
-        .attach('mediaFile', body, 'huge.mp4');
+        // superagent's types admit only file streams; form-data streams any
+        // Readable, and this body must stay open to prove the mid-arrival refusal.
+        .attach('mediaFile', body as unknown as fs.ReadStream, 'huge.mp4');
       expect(res.status).toBe(422);
       expect(res.text).toContain(`maximum allowed size of ${CAP_LABEL}`);
     } finally {

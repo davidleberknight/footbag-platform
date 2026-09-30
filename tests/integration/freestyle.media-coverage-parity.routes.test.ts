@@ -25,7 +25,7 @@
  * pinned separately below.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -39,6 +39,7 @@ import {
 
 const { dbPath } = setTestEnv('3791');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Single-token slugs: the browse row scoping below matches on the slug, and a
 // slug that is a prefix of another would make those matches ambiguous.
@@ -172,58 +173,50 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('trick media coverage agrees between the dictionary browse rows and the trick detail page', () => {
   it('links a trick whose only clip is a member upload, on both surfaces', async () => {
-    const app = createApp();
-
-    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     expect(browse.status).toBe(200);
     const row = browseRow(browse.text, MEMBER_ONLY);
     expect(row).toContain('hashtag--media');
     expect(row).toContain(galleryHref(MEMBER_ONLY));
 
-    const detail = await request(app).get(`/freestyle/tricks/${MEMBER_ONLY}`);
+    const detail = await page(`/freestyle/tricks/${MEMBER_ONLY}`);
     expect(detail.status).toBe(200);
     expect(detail.text).toContain(galleryHref(MEMBER_ONLY));
     expect(detail.text).toContain('See All Videos for');
   });
 
   it('renders a plain token when the only clip has an unavailable embed, on both surfaces', async () => {
-    const app = createApp();
-
-    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, UNAVAILABLE);
     expect(row).not.toContain('hashtag--media');
     expect(row).not.toContain(galleryHref(UNAVAILABLE));
     expect(row).toContain('<span class="hashtag"');
 
-    const detail = await request(app).get(`/freestyle/tricks/${UNAVAILABLE}`);
+    const detail = await page(`/freestyle/tricks/${UNAVAILABLE}`);
     expect(detail.status).toBe(200);
     expect(detail.text).not.toContain(galleryHref(UNAVAILABLE));
     expect(detail.text).not.toContain('See All Videos for');
   });
 
   it('links a trick whose clip comes from the competition-records source, on both surfaces', async () => {
-    const app = createApp();
-
-    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, RECORD_SOURCE);
     expect(row).toContain('hashtag--media');
     expect(row).toContain(galleryHref(RECORD_SOURCE));
 
-    const detail = await request(app).get(`/freestyle/tricks/${RECORD_SOURCE}`);
+    const detail = await page(`/freestyle/tricks/${RECORD_SOURCE}`);
     expect(detail.status).toBe(200);
     expect(detail.text).toContain(galleryHref(RECORD_SOURCE));
     expect(detail.text).toContain('See All Videos for');
   });
 
   it('links nothing for a trick with no footage at all, on both surfaces', async () => {
-    const app = createApp();
-
-    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, NO_MEDIA);
     expect(row).toContain('data-media-coverage="none"');
     expect(row).not.toContain(galleryHref(NO_MEDIA));
 
-    const detail = await request(app).get(`/freestyle/tricks/${NO_MEDIA}`);
+    const detail = await page(`/freestyle/tricks/${NO_MEDIA}`);
     expect(detail.status).toBe(200);
     expect(detail.text).not.toContain(galleryHref(NO_MEDIA));
   });
@@ -231,9 +224,7 @@ describe('trick media coverage agrees between the dictionary browse rows and the
 
 describe('a trick covered only through an alias slug links to a gallery holding its clip', () => {
   it('reports coverage on both surfaces and links on the tag the clip carries', async () => {
-    const app = createApp();
-
-    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, ALIAS_ONLY);
     expect(row).toContain('hashtag--media');
     // The link is the alias tag, because that is the tag the gallery can
@@ -241,7 +232,7 @@ describe('a trick covered only through an alias slug links to a gallery holding 
     expect(row).toContain(galleryHref(FOLDED_ALIAS));
     expect(row).not.toContain(galleryHref(ALIAS_ONLY));
 
-    const detail = await request(app).get(`/freestyle/tricks/${ALIAS_ONLY}`);
+    const detail = await page(`/freestyle/tricks/${ALIAS_ONLY}`);
     expect(detail.status).toBe(200);
     expect(detail.text).toContain('See All Videos for');
     expect(detail.text).toContain(galleryHref(FOLDED_ALIAS));
@@ -249,28 +240,26 @@ describe('a trick covered only through an alias slug links to a gallery holding 
   });
 
   it('renders the clip in the gallery both controls link to, rather than the empty state', async () => {
-    const gallery = await request(createApp()).get(`/media/browse?context=${FOLDED_ALIAS}`);
+    const gallery = await page(`/media/browse?context=${FOLDED_ALIAS}`);
     expect(gallery.status).toBe(200);
     expect(gallery.text).toContain('aliasonlyvid1');
     expect(gallery.text).not.toContain('No media');
   });
 
   it('keeps the canonical slug as the link for a trick whose own tag carries the clip', async () => {
-    const browse = await request(createApp()).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     expect(browseRow(browse.text, CURATED)).toContain(galleryHref(CURATED));
   });
 });
 
 describe('a tag whose display form differs from its normalized form cannot split the two surfaces', () => {
   it('agrees on coverage when the curator typed the tag with different capitalisation', async () => {
-    const app = createApp();
-
-    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, MIXED_CASE);
     expect(row).toContain('hashtag--media');
     expect(row).toContain(galleryHref(MIXED_CASE));
 
-    const detail = await request(app).get(`/freestyle/tricks/${MIXED_CASE}`);
+    const detail = await page(`/freestyle/tricks/${MIXED_CASE}`);
     expect(detail.status).toBe(200);
     expect(detail.text).toContain('See All Videos for');
     expect(detail.text).toContain(galleryHref(MIXED_CASE));
@@ -279,20 +268,20 @@ describe('a tag whose display form differs from its normalized form cannot split
 
 describe('the media-coverage tier vocabulary survives the unified existence check', () => {
   it('classifies a curated tutorial clip as tutorial coverage and links it', async () => {
-    const browse = await request(createApp()).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, CURATED);
     expect(row).toContain('data-media-coverage="tutorial"');
     expect(row).toContain(galleryHref(CURATED));
   });
 
   it('classifies a source-less member upload as demo coverage, never tutorial', async () => {
-    const browse = await request(createApp()).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, MEMBER_ONLY);
     expect(row).toContain('data-media-coverage="demo"');
   });
 
   it('keeps a record-row-only trick on the record lane, with no gallery link', async () => {
-    const browse = await request(createApp()).get('/freestyle/tricks?view=add');
+    const browse = await page('/freestyle/tricks?view=add');
     const row = browseRow(browse.text, RECORD_ONLY);
     expect(row).toContain('data-media-coverage="record"');
     expect(row).not.toContain('hashtag--media');

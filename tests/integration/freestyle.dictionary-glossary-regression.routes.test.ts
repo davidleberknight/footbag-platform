@@ -32,6 +32,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -49,6 +50,7 @@ import {
 const { dbPath } = setTestEnv('3175');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 const TS = '2026-05-23T00:00:00.000Z';
 
@@ -190,6 +192,22 @@ beforeAll(async () => {
     is_active:            1,
   });
 
+  // Item 6 — illusion, a curator-locked rev(0) entry, so its detail page
+  // renders. Seeded here rather than inside its case, so every page this file
+  // reads through the shared cache sees the same rows.
+  insertFreestyleTrick(db, {
+    slug:                 'illusion',
+    canonical_name:       'illusion',
+    adds:                 '2',
+    base_trick:           'illusion',
+    trick_family:         'illusion',
+    category:             'body',
+    notation:             'ILLUSION',
+    operational_notation: '[set] > illusion',
+    review_status:        'expert_reviewed',
+    is_active:            1,
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -199,8 +217,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // ── Item 1 — dictionary landing browse-tab strip ─────────────────────────
 describe('Item 1: dictionary landing browse strip — no Observed Tricks tab', () => {
   it('omits the Observed Tricks anchor from the .trick-view-toggle strip', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Extract just the trick-view-toggle nav element so we don't get
     // a false positive from anchors elsewhere on the page.
@@ -217,23 +234,21 @@ describe('Item 1: dictionary landing browse strip — no Observed Tricks tab', (
 // ── Item 3 — Freestyle Media section reachable from both entry points ──
 describe('Item 3: Freestyle Media section reachable from landing and media hub', () => {
   it('freestyle landing links the consolidated Freestyle Media section', async () => {
-    const app = await createApp();
-    const land = await request(app).get('/freestyle');
+    const land = await page('/freestyle');
     expect(land.status).toBe(200);
     // The landing's Media section links the shared section page rather than
     // re-listing each per-source gallery inline.
     expect(land.text).toContain('href="/freestyle/media"');
-    const section = await request(app).get('/freestyle/media');
+    const section = await page('/freestyle/media');
     expect(section.status).toBe(200);
   });
 
   it('media hub Freestyle card opens the same Freestyle Media section', async () => {
-    const app = await createApp();
-    const hub = await request(app).get('/media');
+    const hub = await page('/media');
     expect(hub.status).toBe(200);
     // One Freestyle card on the hub opens the same shared section the landing links.
     expect(hub.text).toContain('href="/freestyle/media"');
-    const section = await request(app).get('/freestyle/media');
+    const section = await page('/freestyle/media');
     expect(section.status).toBe(200);
   });
 });
@@ -241,16 +256,14 @@ describe('Item 3: Freestyle Media section reachable from landing and media hub',
 // ── Item 4 — Freestyle Concepts Jobs notation section ────────────────────
 describe('Item 4: Freestyle Concepts has Jobs notation section with archive reference', () => {
   it('renders an h3 with id=jobs-notation', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/id="jobs-notation"/);
     expect(res.text).toContain('Jobs notation');
   });
 
   it('cites Ben Job\'s article without leaking an internal repo path', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     expect(res.text).not.toContain('exploration/fborg/JobsNotation.txt');
     expect(res.text).toContain('Source: Ben Job');
     expect(res.text).toContain('href="/freestyle/notation-article"');
@@ -260,8 +273,7 @@ describe('Item 4: Freestyle Concepts has Jobs notation section with archive refe
 // ── Items 5 + 6 + 8 — cloud_kick page contract ───────────────────────────
 describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
   it('renders the ADD breakdown as UNS(1) (no "unusual surface" long form)', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/cloud_kick');
+    const res = await page('/freestyle/tricks/cloud_kick');
     expect(res.status).toBe(200);
     // The `= 1 ADD` terminator is not rendered in trick-detail
     // breakdowns; the hero ADD chip carries the total.
@@ -271,8 +283,7 @@ describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
   });
 
   it('does not duplicate the operational formula in a compound-description slot', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/cloud_kick');
+    const res = await page('/freestyle/tricks/cloud_kick');
     // The operational notation "[set] > cloud kick" should render at
     // most once on an atomic trick — the Execution notation section is
     // its single home; no second copy renders in a description slot.
@@ -286,8 +297,7 @@ describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
     // The operational JOB form now reads in the Execution notation
     // section; it renders above the ADD derivation section so the page
     // reads Movement notation -> Execution notation -> ADD.
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/cloud_kick');
+    const res = await page('/freestyle/tricks/cloud_kick');
     const execIdx = res.text.indexOf('operational-notation-display');
     const addIdx = res.text.indexOf('trick-add-analysis');
     expect(execIdx).toBeGreaterThan(0);
@@ -298,37 +308,11 @@ describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
 
 // ── Item 6 — ALT row ordering on a rev(0) entry ──────────────────────────
 describe('Item 6: ALT row appears after ADD on rev(0) entries', () => {
-  // illusion is one of the five curator-locked rev(0) entries.
-  // The test data set does not insert an illusion row; we rely on the
-  // production seed data + the resolved-formulas + REVERSE_PAIR_TRANSFORMS
-  // content modules. The trick is also a core atom (CORE_TRICK_SPEC).
-  // Without a DB row, the route returns 404 and the test would skip; we
-  // therefore insert a minimal illusion row up front.
+  // illusion is one of the five curator-locked rev(0) entries, seeded in
+  // beforeAll; the ALT row comes from the resolved-formulas and
+  // REVERSE_PAIR_TRANSFORMS content modules.
   it('rev(0) appears in the ALT row, never in the ADD row', async () => {
-    const app = await createApp();
-    // illusion isn't seeded in beforeAll; rev-whirl isn't either. Seed
-    // illusion inline so the route renders.
-    const db = new BetterSqlite3(dbPath);
-    try {
-      const exists = db.prepare(`SELECT 1 FROM freestyle_tricks WHERE slug = ?`).get('illusion');
-      if (!exists) {
-        insertFreestyleTrick(db, {
-          slug:                 'illusion',
-          canonical_name:       'illusion',
-          adds:                 '2',
-          base_trick:           'illusion',
-          trick_family:         'illusion',
-          category:             'body',
-          notation:             'ILLUSION',
-          operational_notation: '[set] > illusion',
-          review_status:        'expert_reviewed',
-          is_active:            1,
-        });
-      }
-    } finally {
-      db.close();
-    }
-    const res = await request(app).get('/freestyle/tricks/illusion');
+    const res = await page('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     const addIdx = res.text.indexOf('<dt>Difficulty</dt>');
     const altIdx = res.text.indexOf('<dt>ALT</dt>');
@@ -342,8 +326,7 @@ describe('Item 6: ALT row appears after ADD on rev(0) entries', () => {
 // ── Item 7 — rake JOB notation ───────────────────────────────────────────
 describe('Item 7: rake has curator-locked JOB notation', () => {
   it('renders SET > SWING TOE [DEL] on the rake detail page', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/rake');
+    const res = await page('/freestyle/tricks/rake');
     expect(res.status).toBe(200);
     // The resolved-formulas operationalNotation override flows through
     // shapeOperationalNotationDisplay → tokenized inline; assert the
@@ -375,8 +358,7 @@ describe('Item 8: Freestyle Concepts explains the UNS abbreviation', () => {
 // ── Item 9 — DATW + DLO formulas ─────────────────────────────────────────
 describe('Item 9: double_around_the_world + double_leg_over formula rows', () => {
   it('double_around_the_world renders JOB + ADD formulas from the resolved-formulas override', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/double_around_the_world');
+    const res = await page('/freestyle/tricks/double_around_the_world');
     expect(res.status).toBe(200);
     // Tokens render as separate spans with attribute markup between;
     // assert each token in order with permissive gaps. This is the
@@ -388,8 +370,7 @@ describe('Item 9: double_around_the_world + double_leg_over formula rows', () =>
   });
 
   it('double_leg_over renders JOB + ADD formulas from the resolved-formulas override', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/double_leg_over');
+    const res = await page('/freestyle/tricks/double_leg_over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/>SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</);
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
@@ -399,8 +380,7 @@ describe('Item 9: double_around_the_world + double_leg_over formula rows', () =>
 // ── Item 10 — flying_clipper BOD accounting ──────────────────────────────
 describe('Item 10: flying_clipper ADD accounting uses BOD(1)', () => {
   it('renders BOD(1) + clipper(1) on the flying_clipper detail page (terminator stripped)', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks/flying_clipper');
+    const res = await page('/freestyle/tricks/flying_clipper');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/BOD\(1\)\s*\+\s*clipper\(1\)/);
     // The old flying(+1) form must not appear in user-facing displays.

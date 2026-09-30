@@ -37,7 +37,7 @@
  * JOB and ADD rows in its first-class summary are populated.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -50,6 +50,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3157');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -250,7 +251,7 @@ afterAll(() => cleanupTestDb(dbPath));
 // and everything structural reads on the page itself. These helpers fetch that
 // page, which is where the assertions below verify the curator data arrives.
 async function pageFor(slug: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  const res = await page(`/freestyle/tricks/${slug}`);
   expect(res.status, `${slug} detail page must render`).toBe(200);
   return res.text;
 }
@@ -297,8 +298,7 @@ describe('First-class rendering parity — osis golden', () => {
 
 describe('First-class rendering parity — tautological-chain suppression', () => {
   it('paradox-mirage no longer renders a tautological ≡ chain reading', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const card = cardFor('paradox_mirage', res.text);
     // The chain reading "paradox mirage" must NOT appear inside the
     // dict-trick-row-interpretation (chain row). It may legitimately appear
@@ -309,15 +309,13 @@ describe('First-class rendering parity — tautological-chain suppression', () =
   });
 
   it('symposium-mirage no longer renders a tautological ≡ chain reading', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const card = cardFor('symposium_mirage', res.text);
     expect(card).not.toMatch(/data-token-slug="symposium"[\s\S]+data-token-slug="mirage"/);
   });
 
   it('atomic-butterfly no longer renders a tautological ≡ chain reading', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const card = cardFor('atomic_butterfly', res.text);
     expect(card).not.toMatch(/data-token-slug="atomic"[\s\S]+data-token-slug="butterfly"/);
   });
@@ -359,8 +357,7 @@ describe('First-class rendering parity — honest incomplete-state', () => {
 
 describe('First-class rendering parity — no fake formulas, no pending pill', () => {
   it('none of the first-class slugs render the pendingDecomposition pill', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     for (const slug of ['osis', 'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk']) {
       const card = cardFor(slug, res.text);
       expect(card).not.toContain('class="dict-trick-row-pending"');
@@ -476,8 +473,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
   // summary class. A slug that appears in either tier renders
   // dict-trick-row-notation; a slug not in any tier does not.
   it('every Tier 1 + Tier 2 cohort member renders a first-class summary row', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const cohort = [
       // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe_stall', 'clipper_stall', 'mirage', 'whirl', 'butterfly',
@@ -542,8 +538,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
   it('a non-cohort compound (e.g. plain "tap") does NOT render the first-class summary row', async () => {
     // Seed a control row to verify the negative case. Use a slug
     // outside both tiers.
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     // mirage is Tier 1; we just confirmed it renders. Now confirm that
     // a sample non-cohort slug (osis IS in cohort; use butterfly's
     // immediate non-cohort sibling). For this DB, seed a row that

@@ -185,7 +185,7 @@ stated ADD or component that disagrees with the columns), which is a high-severi
 
 ### §F10 Curated-media pipeline and the trick-tag invariant
 
-The intake pipeline is fixed: snippet candidates → promotion script → sidecars → seeder →
+Before go-live, the intake pipeline is fixed: snippet candidates → promotion script → sidecars → seeder →
 media items + tags → tag-driven galleries. Invariants: every trick-media sidecar carries
 the canonical trick slug tag plus the freestyle and trick tags; every trick-shaped tag
 resolves to an ACTIVE or PENDING dictionary slug (alias-only matches fail); no fake slugs;
@@ -217,8 +217,11 @@ exploratory status label and non-override footer.
 
 ### §F13 Generated-content drift
 
-The `src/content/freestyle*.ts` modules are generated artifacts: the generator, the
-committed module, and the consuming service must agree. A service that re-derives or
+Four `src/content/freestyle*.ts` modules are generated (the observational universe,
+tracked names, embedded coverage and the family histogram); the rest are hand-written.
+Generated TypeScript is being removed before cutover, its content moving into the
+database, and after that any generated file under `src/` is itself a finding. Until
+then, the generator, the committed module, and the consuming service must agree. A service that re-derives or
 overrides a generated field at request time (instead of the generator emitting it) is
 drift; a module regenerated stale (source data changed, module not rebuilt) is drift.
 Check the tracked-work list first — a known generator/service deviation may already be

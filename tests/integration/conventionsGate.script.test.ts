@@ -568,6 +568,108 @@ describe('the convention gate: rules about tests/', () => {
   });
 });
 
+describe('the convention gate: assertions that cannot fail', () => {
+  // Each form is assembled from pieces: written out, it would be the violation
+  // itself, and the gate scans this directory.
+  const VACUOUS_FORMS: Record<string, string> = {
+    'a case that only restates a status': `${["it('returns", " 200'"].join('')}, async () => {});\n`,
+    'an assertion of a constant': `it('x', () => { ${['expect(', 'true)'].join('')}.toBe(true); });\n`,
+    'an early return on a broken page': `it('x', async () => { ${['if (res.status !== 200) ', 'return;'].join('')} });\n`,
+    'an assertion that runs only when the page agrees': `it('x', async () => { ${['if (res.text', '.includes('].join('')}'a')) {} });\n`,
+    'a committed focus': `${['it', '.only('].join('')}'x', () => {});\n`,
+    'a mocked password hasher': `${["vi.mock('", "argon2')"].join('')};\n`,
+    'an expected-error pattern that accepts any error': `${['expectLoggedError(/boom|', 'error/i)'].join('')};\n`,
+  };
+
+  // Advisory: each form is reported and the gate still passes, because a test
+  // that cannot fail harms no user and only a real, serious problem blocks.
+  for (const [form, body] of Object.entries(VACUOUS_FORMS)) {
+    it(`warns on ${form} without failing the gate`, () => {
+      const res = inFixtureRepo({ 'tests/unit/thing.test.ts': body });
+      expect(res.exitCode, res.stderr).toBe(0);
+      expect(res.stderr).toContain('WARNING: an assertion that may not be able to fail');
+    });
+  }
+
+  it('accepts a case that asserts status and body together', () => {
+    const res = inFixtureRepo({
+      'tests/unit/thing.test.ts':
+        "it('renders the list', async () => {\n  expect(res.status).toBe(200);\n  expect(res.text).toContain('x');\n});\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('WARNING');
+    expectCheckRan(res, 'tests/ carry no vacuous assertion forms');
+  });
+
+  const SKIP_IF = ['describe', '.skipIf('].join('');
+
+  it('warns on a tool-gated skip that nothing fails on the runner, without failing the gate', () => {
+    const res = inFixtureRepo({
+      'tests/unit/thing.test.ts': `${SKIP_IF}!hasFfmpeg)('x', () => {});\n`,
+      'tests/integration/other.test.ts': '',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).toContain('WARNING: a skipIf/runIf suite should probe through requireToolInCI');
+  });
+
+  it('accepts a tool-gated skip that probes through the CI-failing helper', () => {
+    const res = inFixtureRepo({
+      'tests/unit/thing.test.ts':
+        `import { requireToolInCI } from '../fixtures/${'toolAvailability'}';\n`
+        + `${SKIP_IF}!requireToolInCI('ffmpeg'))('x', () => {});\n`,
+      'tests/integration/other.test.ts': '',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('WARNING');
+    expectCheckRan(res, 'tool-gated skips in tests/ fail on the runner');
+  });
+
+  const CACHED_IMPORT = `import { cachedGet } from '../fixtures/${'cachedGet'}';\n`;
+
+  it('warns on a shared-page suite that inserts rows inside a case, without failing the gate', () => {
+    const res = inFixtureRepo({
+      'tests/integration/thing.test.ts':
+        `${CACHED_IMPORT}it('x', async () => {\n  ${'insert'}Member(db, {});\n});\n`,
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).toContain('WARNING: a cachedGet suite writes inside a case');
+  });
+
+  // Defect caught: a per-case hook writes between cached reads and escapes the
+  // check because it is not itself a case.
+  it('warns on a shared-page suite that writes in a per-case hook', () => {
+    const res = inFixtureRepo({
+      'tests/integration/thing.test.ts':
+        `${CACHED_IMPORT}beforeEach(() => {\n  ${'insert'}Member(db, {});\n});\n`
+        + "it('x', async () => {\n  expect(1).toBe(1);\n});\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).toContain('WARNING: a cachedGet suite writes inside a case');
+  });
+
+  it('accepts a shared-page suite that seeds only before its cases', () => {
+    const res = inFixtureRepo({
+      'tests/integration/thing.test.ts':
+        `${CACHED_IMPORT}beforeAll(() => {\n  ${'insert'}Member(db, {});\n});\n`
+        + "it('x', async () => {\n  expect(1).toBe(1);\n});\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('WARNING');
+    expectCheckRan(res, 'cachedGet suites write nothing inside a case');
+  });
+
+  it('accepts a shared-page suite that says why it writes after its cached reads', () => {
+    const res = inFixtureRepo({
+      'tests/integration/thing.test.ts':
+        `${CACHED_IMPORT}// ${'cachedGet-writes'}: the last case seeds and reads fresh.\n`
+        + `it('x', async () => {\n  ${'insert'}Member(db, {});\n});\n`,
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('WARNING');
+    expectCheckRan(res, 'cachedGet suites write nothing inside a case');
+  });
+});
+
 describe('the convention gate: retired onboarding scripts and flags', () => {
   // Spelled in pieces: written whole, these would be the violations themselves,
   // and the gate scans this directory.
@@ -821,5 +923,115 @@ describe('the convention gate: a violation is attributed to the rule that found 
       .filter(({ line }) => !line.includes('${name}'));
 
     expect(handWritten.map(({ n, line }) => `${n}: ${line.trim()}`)).toEqual([]);
+  });
+});
+
+describe('the convention gate: where the local runner may reach', () => {
+  const ISOLATION_RULE = 'the local runner isolates AWS credentials';
+  const STAGING_RULE = 'the local runner reaches staging only from its staging gates';
+
+  /** The credential sources the isolation library must neutralise, named once each. */
+  const ISOLATION_LIB = [
+    'aws_isolated_run() {',
+    '  env AWS_PROFILE=x AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \\',
+    '    AWS_ACCESS_KEY_ID= AWS_SECRET_ACCESS_KEY= AWS_SESSION_TOKEN= AWS_EC2_METADATA_DISABLED=true "$@"',
+    '}',
+    '',
+  ].join('\n');
+
+  /**
+   * A runner that keeps every staging contact inside its staging preflight and
+   * staging gates, and every other gate offline. `edit` plants one violation.
+   */
+  function runner(edit: (body: string) => string = (b) => b): Record<string, string> {
+    const body = [
+      '#!/usr/bin/env bash',
+      'source scripts/lib/aws-isolation.sh',
+      'if (( FULL == 1 )); then',
+      '  PENTEST=1',
+      '  WITH_PERSONA_CRAWL=1',
+      'fi',
+      'full_preflight() {',
+      '  command -v docker >/dev/null || echo "docker missing"',
+      '}',
+      'staging_preflight() {',
+      '  aws sts get-caller-identity --profile footbag-staging-runtime',
+      '  bash scripts/realdata-staging.sh probe',
+      '  ssh -G footbag-staging >/dev/null',
+      '}',
+      'gate_persona_crawl() {',
+      '  # a comment may say ssh and terraform/staging without reaching either',
+      '  npm run test:persona-crawl',
+      '}',
+      'gate_terraform() {',
+      '  export TF_DATA_DIR=/tmp/x',
+      '  aws_isolated_run terraform validate',
+      '}',
+      'gate_staging_aws_smoke() {',
+      '  env SMOKE_TARGET_ENV=staging npm run test:smoke',
+      '  aws sts get-caller-identity --profile footbag-staging-runtime',
+      '}',
+      'gate_staging_realdata_invariants() {',
+      '  bash scripts/realdata-staging.sh invariants',
+      '}',
+      '',
+    ].join('\n');
+    return { 'run_all_tests.sh': edit(body), 'scripts/lib/aws-isolation.sh': ISOLATION_LIB };
+  }
+
+  /** Asserts the edit landed, so a case cannot pass by planting nothing. */
+  const plant = (needle: string, replacement: string) => (body: string): string => {
+    expect(body, `fixture anchor not found: ${needle}`).toContain(needle);
+    return body.replace(needle, replacement);
+  };
+
+  it('accepts staging contact inside the staging preflight and gates, and live AWS in a staging gate', () => {
+    const res = inFixtureRepo(runner());
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, ISOLATION_RULE);
+    expectCheckRan(res, STAGING_RULE);
+  });
+
+  // Defect caught: a local gate starts reading staging's dataset or site, and a
+  // run the rules call local contacts a deployed host.
+  it('refuses a staging token in a gate that is not a staging gate', () => {
+    for (const token of ['bash scripts/realdata-staging.sh probe', 'cf="$(staging_cf_domain)"', 'ssh footbag-staging true', 'ls terraform/staging']) {
+      const res = inFixtureRepo(runner(plant('  npm run test:persona-crawl', `  ${token}\n  npm run test:persona-crawl`)));
+      expect(res.exitCode, token).toBe(1);
+      expect(res.stderr, token).toContain('reaches staging outside the staging preflight and the gate_staging_ gates');
+    }
+  });
+
+  it('refuses a staging token in the local preflight', () => {
+    const res = inFixtureRepo(runner(plant('  command -v docker', '  aws sts get-caller-identity --profile footbag-staging-runtime\n  command -v docker')));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('reaches staging outside the staging preflight and the gate_staging_ gates');
+  });
+
+  // Defect caught: the thorough local run quietly turns a staging leg back on.
+  it('refuses a --full block that turns on a staging flag', () => {
+    for (const flag of ['WITH_SMOKE=1', 'STAGING=1']) {
+      const res = inFixtureRepo(runner(plant('  PENTEST=1', `  PENTEST=1\n  ${flag}`)));
+      expect(res.exitCode, flag).toBe(1);
+      expect(res.stderr, flag).toContain('the --full block turns on a staging leg');
+    }
+  });
+
+  // Defect caught: a runner row points at the production account or site, where
+  // no local or staging check may ever reach.
+  it('refuses a production target anywhere in the runner, a staging gate included', () => {
+    for (const target of ['SMOKE_TARGET_ENV=production', 'bash scripts/test-deployed.sh production', 'ls terraform/production']) {
+      const res = inFixtureRepo(runner(plant('  bash scripts/realdata-staging.sh invariants', `  ${target}`)));
+      expect(res.exitCode, target).toBe(1);
+      expect(res.stderr, target).toContain('names a production target');
+    }
+  });
+
+  // Defect caught: the retired single exemption lets a gate outside the staging
+  // set reach AWS unisolated under its old name.
+  it('holds a gate outside the gate_staging_ set to the offline rule, whatever its name', () => {
+    const res = inFixtureRepo(runner(plant('gate_staging_aws_smoke() {', 'gate_smoke() {')));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('gate_smoke invokes aws or terraform outside aws_isolated_run');
   });
 });

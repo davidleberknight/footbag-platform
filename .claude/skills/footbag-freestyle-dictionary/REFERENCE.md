@@ -22,12 +22,12 @@ active rows or normalizing future ones:
 
 ### Write surfaces for active descriptions
 
-Descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
+Before cutover, descriptions are authored in two CSVs, both loaded into `freestyle_tricks.description`:
 
 - `freestyle/inputs/base_dictionary/tricks.csv` — canonical baseline, loaded by `freestyle/loaders/17_load_trick_dictionary.py`. Holds most active tricks. Rows with commas must be CSV-quoted.
 - `freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv` — Red Husted overlays, loaded by `freestyle/loaders/19_load_red_additions.py`. Holds body primitives, set primitives, and a handful of compounds.
 
-**Never write descriptions directly to `database/footbag.db`**: `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
+**Never write descriptions directly to `database/footbag.db`**: `scripts/reset-local-db.sh` wipes them on next reload. Before cutover, edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable. After cutover, descriptions are edited only in the admin trick editor.
 
 ---
 
@@ -60,7 +60,7 @@ There is no `is_primary` flag and no write-time promotion step. A trick's primar
 
 ### Reset-compatibility (HOLD / STAGED / SAFE)
 
-Before tagging a curated sidecar to a trick slug, classify the target against a fresh-reset load: **SAFE** (active after reset — tag it), **STAGED** (pending after reset, `is_active=0` — tag it, but it surfaces no primary until active), **HOLD** (does not exist after reset — do NOT tag; first add the canonical row so it loads via 17/19). Note `21_load_footbag_org_pending_tricks.py` runs on a fresh reset (via `freestyle/run_freestyle.sh`, which `reset-local-db.sh` invokes), so its pending rows reload as `is_active=0` (STAGED) rather than vanishing.
+Before tagging a curated sidecar to a trick slug (a pre-go-live step), classify the target against a fresh-reset load: **SAFE** (active after reset — tag it), **STAGED** (pending after reset, `is_active=0` — tag it, but it surfaces no primary until active), **HOLD** (does not exist after reset — do NOT tag; first add the canonical row so it loads via 17/19). Note `21_load_footbag_org_pending_tricks.py` runs on a fresh reset (via `freestyle/run_freestyle.sh`, which `reset-local-db.sh` invokes), so its pending rows reload as `is_active=0` (STAGED) rather than vanishing.
 
 ### Coverage dashboard
 

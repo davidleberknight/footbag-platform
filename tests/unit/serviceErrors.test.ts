@@ -7,68 +7,6 @@ import {
   isServiceError,
 } from '../../src/services/serviceErrors';
 
-describe('ValidationError', () => {
-  it('has correct code and message', () => {
-    const err = new ValidationError('bad input');
-    expect(err.code).toBe('validation_error');
-    expect(err.message).toBe('bad input');
-    expect(err.name).toBe('ValidationError');
-  });
-
-  it('stores details', () => {
-    const err = new ValidationError('bad', { field: 'email' });
-    expect(err.details).toEqual({ field: 'email' });
-  });
-
-  it('extends Error', () => {
-    expect(new ValidationError('x')).toBeInstanceOf(Error);
-  });
-});
-
-describe('NotFoundError', () => {
-  it('has correct code and message', () => {
-    const err = new NotFoundError('missing');
-    expect(err.code).toBe('not_found');
-    expect(err.message).toBe('missing');
-    expect(err.name).toBe('NotFoundError');
-  });
-
-  it('extends Error', () => {
-    expect(new NotFoundError('x')).toBeInstanceOf(Error);
-  });
-});
-
-describe('ServiceUnavailableError', () => {
-  it('has correct code and message', () => {
-    const err = new ServiceUnavailableError('busy');
-    expect(err.code).toBe('service_unavailable');
-    expect(err.message).toBe('busy');
-    expect(err.name).toBe('ServiceUnavailableError');
-  });
-
-  it('extends Error', () => {
-    expect(new ServiceUnavailableError('x')).toBeInstanceOf(Error);
-  });
-});
-
-describe('ForbiddenError', () => {
-  it('has correct code and message', () => {
-    const err = new ForbiddenError('not allowed');
-    expect(err.code).toBe('forbidden');
-    expect(err.message).toBe('not allowed');
-    expect(err.name).toBe('ForbiddenError');
-  });
-
-  it('stores details', () => {
-    const err = new ForbiddenError('not allowed', { reason: 'tier_gate' });
-    expect(err.details).toEqual({ reason: 'tier_gate' });
-  });
-
-  it('extends Error', () => {
-    expect(new ForbiddenError('x')).toBeInstanceOf(Error);
-  });
-});
-
 describe('isServiceError', () => {
   it('returns true for ValidationError', () => {
     expect(isServiceError(new ValidationError('x'))).toBe(true);

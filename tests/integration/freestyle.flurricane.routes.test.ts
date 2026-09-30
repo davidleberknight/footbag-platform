@@ -12,7 +12,7 @@
  * FB.org alias "Gyro Flurry" preserved.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -26,6 +26,7 @@ import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormul
 const { dbPath } = setTestEnv('3173');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -60,7 +61,7 @@ describe('RESOLVED_ADD_FORMULAS — flurricane entry', () => {
 
 describe('flurricane detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/flurricane renders 5 ADD + (back) pre-state + SPIN [BOD] + 3 dex tokens', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/flurricane');
+    const res = await page('/freestyle/tricks/flurricane');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
     expect(res.text).toContain('operational-notation-display');
@@ -75,13 +76,13 @@ describe('flurricane detail page — first-class JOB + ADD', () => {
   });
 
   it('flurricane detail page surfaces "gyro flurry" as alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/flurricane');
+    const res = await page('/freestyle/tricks/flurricane');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/gyro flurry/i);
   });
 
   it('flurricane browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="flurricane"');
     expect(idx).toBeGreaterThan(-1);

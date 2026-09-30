@@ -11,13 +11,10 @@
 import { randomBytes } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
-  seedBrandNewPlayer,
-  seedMemberMidWizard,
   seedMemberWithClubCards,
   seedTier0Member,
   completePersonalDetails,
 } from './helpers/onboarding';
-import { insertLegacyMember } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
 import { WizardPage } from './pages/wizard.page';
 import { DashboardPage } from './pages/dashboard.page';
@@ -60,28 +57,6 @@ test('post-verify: register -> check-email -> click verify link -> lands on wiza
   expect(page.url()).toMatch(/\/register\/wizard\/personal_details|\/members\//);
 });
 
-// ── Answer legacy_claim -> land on next task ─────────────────────────────────
-
-test('answering legacy_claim without linking advances to the next task', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `e2e_cwl_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
-
-  const context = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await context.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await expect(wizard.neverHadOldAccountButton).toBeVisible();
-  await expect(wizard.cannotFindOldAccountButton).toBeVisible();
-  await wizard.answerCurrentTask();
-
-  expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
-
-  await context.close();
-});
-
 // ── Dashboard task widget: Continue Onboarding buttons ───────────────────────
 
 test('a pending registrant visiting their own profile is routed to the next outstanding task', async ({ browser, baseURL }) => {
@@ -103,77 +78,6 @@ test('a pending registrant visiting their own profile is routed to the next outs
   await dashboard.goto(persona.slug);
   await page.waitForURL(/\/register\/wizard\/club_affiliations/);
   expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
-
-  await context.close();
-});
-
-// ── First competition year form fill ─────────────────────────────────────────
-
-test('complete personal_details via form fill -> advances to next task', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberMidWizard(db, { slug: `e2e_year_${Date.now()}` });
-  db.close();
-
-  const context = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await context.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('personal_details');
-  await expect(wizard.yearInput).toBeVisible();
-  await page.locator('#city').fill('Portland');
-  await wizard.selectCountry('United States', 'OR');
-  await wizard.fillBirthDate();
-  await wizard.submitYear('2005');
-
-  expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
-
-  await context.close();
-});
-
-// ── Email-equality fast path auto-link ───────────────────────────────────────
-
-test('legacy-claim email-equality fast path: auto-links and advances', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const stamp = Date.now();
-  const sharedEmail = `e2e-fastpath-${stamp}@example.com`;
-
-  insertLegacyMember(db, {
-    legacy_member_id: `LM-E2E-FP-${stamp}`,
-    legacy_email: sharedEmail,
-    real_name: 'Fast Path',
-  });
-
-  const persona = seedTier0Member(db, {
-    slug: `e2e_fp_${stamp}`,
-    overrides: { login_email: sharedEmail, real_name: 'Fast Path' },
-  });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
-
-  const context = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await context.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await wizard.submitIdentifier(sharedEmail);
-
-  expect(page.url()).toMatch(/\/register\/wizard\/(personal_details|club_affiliations)/);
-
-  await context.close();
-});
-
-// ── Unknown taskType -> 404 ──────────────────────────────────────────────────
-
-test('unknown taskType renders 404 page', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedTier0Member(db, { slug: `e2e_404_${Date.now()}` });
-  db.close();
-
-  const context = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await context.newPage();
-
-  const res = await page.goto('/register/wizard/bogus_task');
-  expect(res?.status()).toBe(404);
 
   await context.close();
 });

@@ -19,7 +19,7 @@
  *   - A non-anchor trick (paradox-mirage) does NOT render the callout
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -36,6 +36,7 @@ import {
 const { dbPath } = setTestEnv('3166');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -117,7 +118,7 @@ describe('family-anchor callout on flagship trick-detail pages', () => {
     { slug: 'mirage',    family: 'mirage',    invariant: 'hippy in dex &gt; op toe' },
     { slug: 'osis',      family: 'osis',      invariant: 'spin &gt; ss clipper' },
   ])('$slug page renders the family-anchor callout with the family invariant', async ({ slug, family, invariant }) => {
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="trick-family-anchor-callout"/);
     expect(res.text).toMatch(/family-anchor trick/i);
@@ -134,7 +135,7 @@ describe('family-anchor callout on flagship trick-detail pages', () => {
     { slug: 'mirage',    name: 'mirage' },
     { slug: 'osis',      name: 'osis' },
   ])('$slug callout names "Conserved terminal mechanic" as the labeled invariant', async ({ slug }) => {
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.text).toMatch(/Conserved terminal mechanic/i);
   });
 });
@@ -143,7 +144,7 @@ describe('flagship anchors — universal notation card renders', () => {
   it.each(['whirl', 'butterfly', 'mirage', 'osis'])(
     '%s page renders the universal notation card (Execution notation + ADD derivation)',
     async (slug) => {
-      const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
       // Execution notation section: the operational chain renders as op-tokens.
       expect(res.text).toMatch(/operational-notation-display"[^>]*aria-label="Execution notation"/);
       expect(res.text).toMatch(/<h2>Execution notation<\/h2>/);
@@ -160,14 +161,14 @@ describe('flagship anchors — universal notation card renders', () => {
     { slug: 'mirage',    breakdown: 'dex(1) + stall(1)' },
     { slug: 'osis',      breakdown: 'spin(1) + xbod(1) + stall(1)' },
   ])('$slug ADD breakdown surfaces the curator-published flag decomposition', async ({ slug, breakdown }) => {
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const res = await page(`/freestyle/tricks/${slug}`);
     expect(res.text).toContain(breakdown);
   });
 });
 
 describe('non-anchor tricks do NOT render the family-anchor callout', () => {
   it('paradox-mirage page does NOT render the callout (compound, not an anchor)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-family-anchor-callout"/);
     // The page's existing family chip + family lineage still render,
@@ -180,19 +181,19 @@ describe('base-family paragraph appears on the family-anchor page only', () => {
   // The generic base-family prose (FAMILY_NOTES) belongs on the base trick's own
   // page, not repeated on every derivative About section.
   it('the mirage base page renders the base-family paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('The mirage is the foundational 2-ADD dex base');
   });
 
   it('a mirage derivative does NOT repeat the base-family paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('The mirage is the foundational 2-ADD dex base');
   });
 
   it('a whirl derivative does NOT repeat the whirl base-family paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_whirl');
+    const res = await page('/freestyle/tricks/paradox_whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('The whirl is the central rotational base');
   });
@@ -202,7 +203,7 @@ describe('no curator-internal language leakage', () => {
   it.each(['whirl', 'butterfly', 'mirage', 'osis'])(
     '%s callout does not expose pt##/Slice/Wave/Sprint labels',
     async (slug) => {
-      const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await page(`/freestyle/tricks/${slug}`);
       const startIdx = res.text.indexOf('trick-family-anchor-callout');
       expect(startIdx).toBeGreaterThan(0);
       // Find the end of the callout block.
@@ -226,7 +227,7 @@ describe('compact structural-fact block', () => {
   };
 
   it('a derivative surfaces family base, movement system, neighborhood, and modifier with links', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     const block = blockOf(res.text);
     expect(block).not.toBe('');
@@ -247,7 +248,7 @@ describe('compact structural-fact block', () => {
   });
 
   it('the family base row is suppressed on the base trick page (no self-reference)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     const block = blockOf(res.text);
     // mirage is its own family base, so the block (if present) carries no
@@ -256,7 +257,7 @@ describe('compact structural-fact block', () => {
   });
 
   it('a folk-named compound with no DB modifier link recovers its modifiers from the operator', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/atom_smasher');
+    const res = await page('/freestyle/tricks/atom_smasher');
     expect(res.status).toBe(200);
     const block = blockOf(res.text);
     expect(block).not.toBe('');

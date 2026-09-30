@@ -24,13 +24,14 @@
  *      the reader as an alternative name for itself.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4071');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -101,7 +102,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function page(url: string): Promise<string> {
-  const res = await request(createApp()).get(url);
+  const res = await getPage(url);
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -162,12 +163,12 @@ describe('Compounds spell the mirror out while keeping their abbreviated slugs',
   });
 
   it('keeps the abbreviated slug as the canonical URL', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/stepping_rev_whirl');
+    const res = await getPage('/freestyle/tricks/stepping_rev_whirl');
     expect(res.status).toBe(200);
   });
 
   it('still redirects the full-form spelling to the abbreviated slug', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/stepping_reverse_whirl');
+    const res = await getPage('/freestyle/tricks/stepping_reverse_whirl');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/tricks/stepping_rev_whirl');
   });
@@ -184,37 +185,37 @@ describe('Compounds spell the mirror out while keeping their abbreviated slugs',
 
 describe('Stable URLs and alias resolution survive the rename', () => {
   it('keeps /freestyle/tricks/rev_whirl as the canonical URL', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/rev_whirl');
+    const res = await getPage('/freestyle/tricks/rev_whirl');
     expect(res.status).toBe(200);
   });
 
   it('resolves the folk name whip to the canonical trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whip');
+    const res = await getPage('/freestyle/tricks/whip');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/tricks/rev_whirl');
   });
 
   it('resolves the structural spelling reverse_whirl to the canonical trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/reverse_whirl');
+    const res = await getPage('/freestyle/tricks/reverse_whirl');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/tricks/rev_whirl');
   });
 
   it('resolves reverse_around_the_world to orbit', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/reverse_around_the_world');
+    const res = await getPage('/freestyle/tricks/reverse_around_the_world');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/tricks/orbit');
   });
 
   it('resolves reverse_mirage to illusion', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/reverse_mirage');
+    const res = await getPage('/freestyle/tricks/reverse_mirage');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/tricks/illusion');
   });
 
   it('keeps the three canonical slugs reachable', async () => {
     for (const slug of ['orbit', 'illusion', 'rev_whirl']) {
-      const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+      const res = await getPage(`/freestyle/tricks/${slug}`);
       expect(res.status, slug).toBe(200);
     }
   });

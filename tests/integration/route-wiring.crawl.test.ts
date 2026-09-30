@@ -523,19 +523,27 @@ function extractControls(html: string): LabelledControl[] {
 const LABELS_ALLOWED_MULTIPLE_DESTINATIONS = new Set(['Switch']);
 
 describe('button-destination integrity (every rendered template)', () => {
-  it.each(ALL_TEMPLATES)('%s: each button label leads to exactly one destination', (file) => {
-    const html = fs.readFileSync(path.join(VIEWS_DIR, file), 'utf8');
-    const byLabel = new Map<string, Set<string>>();
-    for (const c of extractControls(html)) {
-      if (!byLabel.has(c.label)) byLabel.set(c.label, new Set());
-      byLabel.get(c.label)!.add(c.destination);
+  // One code path over every template, so one case that names each offending
+  // file rather than one case per template.
+  it('each button label in every template leads to exactly one destination', () => {
+    expect(ALL_TEMPLATES.length, 'no templates found to check').toBeGreaterThan(50);
+    const offenders: string[] = [];
+    for (const file of ALL_TEMPLATES) {
+      const html = fs.readFileSync(path.join(VIEWS_DIR, file), 'utf8');
+      const byLabel = new Map<string, Set<string>>();
+      for (const c of extractControls(html)) {
+        if (!byLabel.has(c.label)) byLabel.set(c.label, new Set());
+        byLabel.get(c.label)!.add(c.destination);
+      }
+      for (const [label, dests] of byLabel) {
+        if (dests.size > 1 && !LABELS_ALLOWED_MULTIPLE_DESTINATIONS.has(label)) {
+          offenders.push(`${file}: "${label}" -> {${[...dests].join(' , ')}}`);
+        }
+      }
     }
-    const liars = [...byLabel.entries()]
-      .filter(([label, dests]) => dests.size > 1 && !LABELS_ALLOWED_MULTIPLE_DESTINATIONS.has(label))
-      .map(([label, dests]) => `"${label}" -> {${[...dests].join(' , ')}}`);
     expect(
-      liars,
-      `${file}: a button label must promise one destination; these lead to several:\n  ${liars.join('\n  ')}`,
+      offenders,
+      `a button label must promise one destination; these lead to several:\n  ${offenders.join('\n  ')}`,
     ).toEqual([]);
   });
 });

@@ -79,7 +79,6 @@ describe('the outbox drain on a dark production host', () => {
     const svc = createCommunicationService(stub);
     const enqueued = await svc.enqueue({
       audience: { kind: 'member', memberId: RECIPIENT_ID },
-      recipientEmail: 'held@example.com',
       subject: 'Verify your email',
       bodyText: 'the link a member is waiting for',
     });

@@ -14,7 +14,7 @@
  *   - Browse cards remain unaffected (this is detail-page only).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -27,6 +27,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3176');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -87,7 +88,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('"Compressed from" surface — allowlisted famous compressions', () => {
   it('smear detail page renders "Compressed from: pixie mirage"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/smear');
+    const res = await page('/freestyle/tricks/smear');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="trick-compressed-from"');
     expect(res.text).toMatch(/<span class="trick-compressed-from-label">Compressed from:<\/span>/);
@@ -95,35 +96,35 @@ describe('"Compressed from" surface — allowlisted famous compressions', () => 
   });
 
   it('ripwalk detail page renders "Compressed from: stepping butterfly"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripwalk');
+    const res = await page('/freestyle/tricks/ripwalk');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-compressed-from-label">Compressed from:<\/span>/);
     expect(res.text).toMatch(/<em class="trick-compressed-from-reading">stepping butterfly<\/em>/);
   });
 
   it('atom_smasher detail page renders "Compressed from: atomic mirage"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom_smasher');
+    const res = await page('/freestyle/tricks/atom_smasher');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-compressed-from-label">Compressed from:<\/span>/);
     expect(res.text).toMatch(/<em class="trick-compressed-from-reading">atomic mirage<\/em>/);
   });
 
   it('eggbeater detail page renders "Compressed from: atomic legover"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/eggbeater');
+    const res = await page('/freestyle/tricks/eggbeater');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-compressed-from-label">Compressed from:<\/span>/);
     expect(res.text).toMatch(/<em class="trick-compressed-from-reading">atomic legover<\/em>/);
   });
 
   it('mobius detail page renders "Compressed reading: gyro torque" (different label per curator spec)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-compressed-from-label">Compressed reading:<\/span>/);
     expect(res.text).toMatch(/<em class="trick-compressed-from-reading">gyro torque<\/em>/);
   });
 
   it('the surface renders as a single one-line <p> (visually subordinate, not a section)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/smear');
+    const res = await page('/freestyle/tricks/smear');
     // Single <p> element, no <section>/<h2>/<dl> machinery
     expect(res.text).toMatch(/<p class="trick-compressed-from">[\s\S]{0,200}<\/p>/);
     // Must NOT introduce a section heading or larger block
@@ -133,7 +134,7 @@ describe('"Compressed from" surface — allowlisted famous compressions', () => 
 
 describe('"Compressed from" surface — suppression rules', () => {
   it('non-allowlisted slug WITH symbolic-equivalence chain does NOT render the line (vortex ≡ gyro drifter)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/vortex');
+    const res = await page('/freestyle/tricks/vortex');
     expect(res.status).toBe(200);
     // vortex has a chain entry (gyro drifter) but is NOT in the
     // FAMOUS_COMPRESSION_SLUGS allowlist; the line MUST NOT render.
@@ -142,7 +143,7 @@ describe('"Compressed from" surface — suppression rules', () => {
   });
 
   it('plain non-allowlisted compound does NOT render the line (pixie_legover control)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/pixie_legover');
+    const res = await page('/freestyle/tricks/pixie_legover');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="trick-compressed-from"');
   });
@@ -150,7 +151,7 @@ describe('"Compressed from" surface — suppression rules', () => {
 
 describe('"Compressed from" surface — does not affect browse cards', () => {
   it('browse card for smear does NOT carry the "Compressed from" line (detail-page only)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Locate the smear card
     const idx = res.text.indexOf('data-trick-slug="smear"');

@@ -17,7 +17,7 @@
  *   - Section headers still group by ADD.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -34,6 +34,7 @@ import {
 const { dbPath } = setTestEnv('3522');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -87,14 +88,14 @@ function cardWindow(text: string, slug: string): string {
 
 describe('ADD view — uniform row contract', () => {
   it('200 + section headers still group by ADD', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="content-section trick-add-group/);
     expect(res.text).toMatch(/id="add-\d+"/);
   });
 
   it('every example trick uses the same .dict-trick-row wrapper', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
       expect(w, `${slug} missing .dict-trick-row`).toMatch(/class="dict-trick-row/);
@@ -104,12 +105,12 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('NO green ADD chip (.dict-card-add) appears anywhere in the ADD view', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
   });
 
   it('every row carries its difficulty value as a number, not a derivation', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
       expect(w, `${slug} missing its difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
@@ -117,7 +118,7 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('no row states how far along our own authoring has got', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
       expect(w, `${slug} must not carry a status badge`).not.toMatch(/dict-trick-row-status/);
@@ -127,7 +128,7 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('the operator-by-operator breakdown does not reach a browse row', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     // ducking-guay and ducking-mirage both have a derivable breakdown from the
     // ducking modifier-link. It belongs on the trick detail page, in words; a
     // reader scanning the dictionary wants the value, not the arithmetic.
@@ -136,7 +137,7 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('ducking-guay and ducking-mirage render with identical row structure', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const guay = cardWindow(res.text, 'ducking-guay');
     const mirage = cardWindow(res.text, 'ducking-mirage');
     for (const marker of ['class="dict-trick-row', 'class="dict-trick-row-identity"', 'class="dict-trick-row-notation"']) {
@@ -146,7 +147,7 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('movement notation appears only inside the notation column, never loose', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {

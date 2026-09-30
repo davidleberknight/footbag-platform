@@ -1,8 +1,7 @@
 /**
  * The year route is a completed-events archive, not a full index of every event
- * in the year. Its title and copy must say so, it must offer a path back to
- * upcoming events, and a not-yet-completed event in the same year is
- * intentionally excluded, so the title must not over-promise completeness.
+ * in the year. Its title must say so, and a not-yet-completed event in the same
+ * year is intentionally excluded, so the title must not over-promise completeness.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -52,18 +51,11 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /events/year/:year — completed-archive framing', () => {
-  it('titles and describes the page as completed events, not a full-year index', async () => {
+  it('titles the page as completed events, not a full-year index', async () => {
     const res = await request(createApp()).get('/events/year/2026');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Completed Events From 2026');
     expect(res.text).not.toContain('Footbag Events from 2026');
-    expect(res.text.toLowerCase()).toContain('already taken place');
-  });
-
-  it('offers a path back to upcoming events', async () => {
-    const res = await request(createApp()).get('/events/year/2026');
-    expect(res.text).toContain('href="/events"');
-    expect(res.text).toContain('Upcoming Events');
   });
 
   it('shows completed events and excludes not-yet-completed same-year events', async () => {

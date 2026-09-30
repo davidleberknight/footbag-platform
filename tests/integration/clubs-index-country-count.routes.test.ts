@@ -18,7 +18,7 @@
  * visitor who clicked through would find nothing there.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertClub, insertTag } from '../fixtures/factories';
@@ -26,6 +26,7 @@ import { insertClub, insertTag } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3241');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 /** Countries with a listed club, and one with none, so the two can differ. */
 const LISTED = ['USA', 'Canada', 'Poland'] as const;
@@ -62,7 +63,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('the clubs landing page states its country coverage', () => {
   it('counts the distinct countries whose clubs the directory lists', async () => {
-    const res = await request(createApp()).get('/clubs');
+    const res = await page('/clubs');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`${LISTED.length} countries`);
   });
@@ -70,12 +71,12 @@ describe('the clubs landing page states its country coverage', () => {
   it('counts a country once however many clubs it holds', async () => {
     // Two of the four listed clubs share a country, so a number tracking clubs
     // rather than countries would read four.
-    const res = await request(createApp()).get('/clubs');
+    const res = await page('/clubs');
     expect(res.text).not.toContain('4 countries');
   });
 
   it('does not count a country the directory would show as empty', async () => {
-    const res = await request(createApp()).get('/clubs');
+    const res = await page('/clubs');
     expect(res.text).not.toContain('4 countries');
     expect(res.text).not.toContain('Count Club Hidden');
   });
@@ -84,10 +85,10 @@ describe('the clubs landing page states its country coverage', () => {
     // A club total counts every recorded row whether or not anyone has confirmed
     // the club exists, so as a headline it claims something the platform cannot
     // know. Removing it is what makes the remaining number trustworthy.
-    const index = await request(createApp()).get('/clubs');
+    const index = await page('/clubs');
     expect(index.text).not.toMatch(/\d+ clubs/);
 
-    const country = await request(createApp()).get('/clubs/usa');
+    const country = await page('/clubs/usa');
     expect(country.status).toBe(200);
     expect(country.text).not.toMatch(/\d+ clubs/);
   });
@@ -95,7 +96,7 @@ describe('the clubs landing page states its country coverage', () => {
   it('still lists every country it counts', async () => {
     // The count and the list are the same set; a number larger than the list
     // would be the mismatch this pins against.
-    const res = await request(createApp()).get('/clubs');
+    const res = await page('/clubs');
     for (const country of LISTED) {
       expect(res.text, country).toContain(country);
     }

@@ -2,8 +2,9 @@
  * symbolicGrammarService.ts
  *
  * Observational symbolic-grammar layer (Layer 3). Backed by the symbolic_*
- * database tables, loaded from the committed symbolic-grammar CSVs by
- * freestyle/loaders/26_load_symbolic_grammar.py.
+ * database tables. Before go-live they are loaded from the committed
+ * symbolic-grammar CSVs by freestyle/loaders/26_load_symbolic_grammar.py;
+ * after cutover the tables are the authority and no CSV is read.
  *
  * This service NEVER touches canonical ontology tables. It is parallel to
  * canonical IFPA family-based relating (which lives in `freestyleRelatedTricks.ts`)

@@ -68,10 +68,6 @@ afterAll(() => {
 });
 
 describe('GET /dev/personas (staging boot)', () => {
-  it('boots under FOOTBAG_ENV=staging', () => {
-    expect(createApp()).toBeTypeOf('function');
-  });
-
   // A backed persona is switchable unless its own state blocks login. The switch
   // route's session lookup excludes unverified, deceased, and soft-deleted rows,
   // so those render "Not switchable" rather than a Switch link that would 404.

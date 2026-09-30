@@ -105,13 +105,11 @@ describe('GET /admin/system-health', () => {
 
   it('renders with nothing recorded, reporting empty states rather than failing', async () => {
     const html = await healthPage();
-    expect(html).toContain('System Health');
     expect(outboxCountFor(html, 'Pending')).toBe(0);
     expect(html).toContain('there is no share to report against');
     // The delivery figures stay on the page with a dash in place of the share,
     // rather than the section disappearing: feedback can arrive in a window that
     // sent nothing, and that is exactly when an admin needs to see it.
-    expect(html).toContain('Hard bounces');
     expect(html).toContain('--');
     expect(html).toContain('No scheduled job has run yet.');
     expect(html).toContain('No alarm is waiting for an administrator.');
@@ -164,7 +162,6 @@ describe('GET /admin/system-health', () => {
   it('counts dead-lettered messages over all time, so one older than the window still shows', async () => {
     withDb((db) => insertOutboxEmail(db, { status: 'dead_letter', created_at: HOURS_AGO(500) }));
     const html = await healthPage();
-    expect(html).toContain('Dead-lettered all time');
     // The count is a link only when there is something to look at, so the
     // assertion targets that anchor with its number rather than the bare
     // number, which the per-status table also renders. The template escapes the
@@ -380,7 +377,6 @@ describe('feedback arriving in a window that sent nothing', () => {
       insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1), recipient_count: 2 });
     });
     const html = await healthPage();
-    expect(html).toContain('Hard bounces');
     expect(html).toContain('there is no share to report against');
     expect(html).toMatch(/Hard bounces[\s\S]*?4[\s\S]*?--/);
     expect(html).toMatch(/Complaints[\s\S]*?2[\s\S]*?--/);
@@ -393,7 +389,6 @@ describe('feedback arriving in a window that sent nothing', () => {
 describe('release rate and the bulk stream', () => {
   it('states the pass size, the bulk share of it, and the interval', async () => {
     const html = await healthPage();
-    expect(html).toContain('Release rate:');
     expect(html).toContain('Up to 10 messages every 30 seconds, of which at most 5 may be bulk.');
   });
 

@@ -22,7 +22,10 @@ function allHbs(dir: string): string[] {
 describe('static-asset helper conformance', () => {
   it('no template hardcodes a /css/* /js/* /img/* or /fonts/* URL (must use the asset helper)', () => {
     const offenders: string[] = [];
-    for (const file of allHbs(VIEWS)) {
+    const templates = allHbs(VIEWS);
+    // A scan that finds no templates passes having read nothing.
+    expect(templates.length, `no .hbs files found under ${VIEWS}`).toBeGreaterThan(50);
+    for (const file of templates) {
       const txt = fs.readFileSync(file, 'utf8');
       if (/(?:href|src)="\/(?:css|js|img|fonts)\//.test(txt)) {
         offenders.push(path.relative(process.cwd(), file));

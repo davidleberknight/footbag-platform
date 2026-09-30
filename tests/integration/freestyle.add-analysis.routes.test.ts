@@ -12,7 +12,7 @@
  *   - Wording lexicon: no "{source} is wrong" framing
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -26,6 +26,7 @@ import { FREESTYLE_ADD_ANALYSIS_CONTENT } from '../../src/content/freestyleAddAn
 const { dbPath } = setTestEnv('3110');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Names this suite requires to render as plain text (no trick page); every
 // other content-referenced slug is seeded active so its link resolves.
@@ -62,25 +63,21 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/add-analysis — route + page structure', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.status).toBe(200);
-  });
-
   it('renders the page title + intro', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('ADD Analysis');
     expect(res.text).toMatch(/How freestyle players describe trick difficulty/);
   });
 
   it('renders the philosophy paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/structural reading for every accepted trick/);
     expect(res.text).toMatch(/movement language explainable/);
   });
 
   it('renders all 4 section anchors in canonical order', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const sections = [
       'id="how-add-is-built"',
       'id="worked-examples"',
@@ -96,7 +93,7 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   });
 
   it('exposes anchor ids for the 4 main sections (deep-link contract)', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('id="how-add-is-built"');
     expect(res.text).toContain('id="worked-examples"');
     expect(res.text).toContain('id="discrepancies"');
@@ -104,7 +101,7 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   });
 
   it('renders the editorial-truth rule + incompleteness callouts', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/editorial-truth rule/i);
     expect(res.text).toMatch(/stated value is the official one/);
     expect(res.text).toMatch(/Honest incompleteness/i);
@@ -112,13 +109,13 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   });
 
   it('states the bracket-count rule that ties notation to the published ADD', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/bracket-count rule/i);
     expect(res.text).toMatch(/number of scoring brackets equals its published ADD/);
   });
 
   it('enumerates the X-Dex triggers and receivers', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/The X-Dex/);
     // the settled triggering sets and the receiving bases, so a reader can predict
     // where the extra point applies rather than memorising worked examples
@@ -128,7 +125,7 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   });
 
   it('explains stalls, including the multiple-stall jump class', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/A stall is a controlled catch/);
     // The bracket abbreviates the older word for the same catch, so the page
     // accounts for the mismatch between what it says and what it writes.
@@ -137,7 +134,7 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   });
 
   it('explains composite operators as the sum of their parts', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/Composite operators/);
     expect(res.text).toMatch(/Surging is spinning plus stepping/);
   });
@@ -152,7 +149,7 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
     // taxonomy — mirroring the operator-board grouping on the
     // /freestyle/tricks?view=movement-system surface and the Freestyle
     // Concepts modifier reference chapter.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const components = [
       // 5 atomic-flag primitives
       'Stall',
@@ -174,7 +171,7 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
 
 describe('GET /freestyle/add-analysis — worked examples', () => {
   it('renders foundational atoms first, then compounds, with explicit ADD ordering', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // The 17 worked examples cover every 1-3 ADD foundational atom
     // plus the 4-5 ADD compound flagships. Order is ascending ADD,
     // with foundational atoms grouped by ADD value then compounds.
@@ -230,7 +227,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
   });
 
   it('worked examples link to the trick-detail page when slug is known', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // The xbody-primitive entry has trickSlug: null — it is an
     // illustration of the accounting primitive, not a canonical-trick
     // claim, so no 'clipper' link renders.
@@ -257,7 +254,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
   });
 
   it('worked examples carry their ADD label', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/Toe-stall<\/a>[\s\S]{0,200}1 ADD/);
     expect(res.text).toMatch(/Mirage<\/a>[\s\S]{0,200}2 ADD/);
     expect(res.text).toMatch(/Whirl<\/a>[\s\S]{0,200}3 ADD/);
@@ -273,7 +270,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
     // Note: Handlebars HTML-escapes `=` to `&#x3D;` in the rendered
     // <code> block. Assert against the encoded form (what users see in
     // page source); the visible rendered character is still `=`.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const derivations = [
       'stall(1) &#x3D; 1 ADD',
       'xbody(1) &#x3D; 1 ADD',
@@ -294,7 +291,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
   });
 
   it('component-classes table introduces xbody and spin-flag primitives', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('Cross-body traversal (xbody)');
     expect(res.text).toContain('Spin flag');
   });
@@ -302,7 +299,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
 
 describe('GET /freestyle/add-analysis', () => {
   it('a dedicated callout disambiguates spin flag vs spinning operator vs rotational character', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('add-analysis-callout--spin');
     expect(res.text).toMatch(/spin flag is a rotational/i);
     expect(res.text).toMatch(/spinning operator is a body modifier/i);
@@ -311,13 +308,13 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('operator-axis rows are labeled as a pedagogical organizing convention, not an official grouping', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // The four-axis grouping must be flagged as pedagogical, not official.
     expect(res.text).toMatch(/pedagogical axis, not an official grouping/i);
   });
 
   it('Mirage worked-example no longer describes mirage as "rotational"', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const sliceStart = res.text.indexOf('>Mirage</a>');
     const sliceEnd = res.text.indexOf('>Legover</a>');
     expect(sliceStart).toBeGreaterThan(0);
@@ -327,7 +324,7 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('xbody-primitive entry replaces the prior Clipper(kick) framing', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('Cross-body traversal (xbody primitive)');
     // The accounting-primitive framing prose must be present.
     expect(res.text).toMatch(/accounting primitive illustrated via clipper motion/i);
@@ -338,7 +335,7 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('Around the World worked-example surfaces its operational chain and reads as dex + stall', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const start = res.text.indexOf('Around the World');
     expect(start).toBeGreaterThan(0);
     const region = res.text.slice(start, start + 900);
@@ -349,7 +346,7 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('Whirl / Butterfly / Osis worked examples carry their operational chains', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // From ATOMIC_FLAG_DECOMPOSITIONS — surfacing chains on this page
     // gives parity with the trick-detail first-class Notation summary.
     expect(res.text).toMatch(/leggy in dex &gt; ss clipper/);
@@ -358,7 +355,7 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('blurry reads as scored per trick, never a fixed universal weight', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // blurry is folk shorthand governed by each trick's notation, not a flat value
     expect(res.text).toMatch(/blurry is scored per trick/i);
     // the stale fixed +1-stepping-only claim must not reappear
@@ -368,7 +365,7 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('Furious surfaces as the two-dex Set/Uptime modifier with weight 2; barraging is a legacy name for it', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/furious \+2/i);
     expect(res.text).toMatch(/two-dex.*set/i);
     // barraging is retired as a scored operator; it survives only as a legacy name for the Furious set
@@ -376,13 +373,13 @@ describe('GET /freestyle/add-analysis', () => {
   });
 
   it('Philosophy paragraph elevates stopping-depth equivalence as foundational', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/multiple valid structural readings at different stopping depths/i);
     expect(res.text).toMatch(/stopping-depth equivalence is a foundational property/i);
   });
 
   it('Section 3 intro reframes compression cases as the movement structure working as intended, not real disagreements', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const startIdx = res.text.indexOf('id="discrepancies"');
     const endIdx = res.text.indexOf('class="add-analysis-discrepancy-cases"', startIdx);
     const region = res.text.slice(startIdx, endIdx);
@@ -395,7 +392,7 @@ describe('GET /freestyle/add-analysis', () => {
     // Scope: §1 component-class table. A separate page-wide test guards
     // against provenance jargon ("pt##" / ruling citations) anywhere on
     // the page.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const sectionStart = res.text.indexOf('id="how-add-is-built"');
     const sectionEnd = res.text.indexOf('id="worked-examples"');
     const region = res.text.slice(sectionStart, sectionEnd);
@@ -408,7 +405,7 @@ describe('GET /freestyle/add-analysis', () => {
 
 describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
   it('renders all 10 case anchor ids (DC-01..DC-10)', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     for (let i = 1; i <= 10; i++) {
       const id = `id="case-DC-${String(i).padStart(2, '0')}"`;
       expect(res.text, `Missing case anchor: ${id}`).toContain(id);
@@ -416,7 +413,7 @@ describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
   });
 
   it('renders each case trick name', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const cases = [
       'Hurl',
       'Barfry',
@@ -435,7 +432,7 @@ describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
   });
 
   it('renders IFPA status lines carrying the substantive note but no individual / date / ruling-number attribution', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('settled (X-dex carry from a toe)');
     expect(res.text).toContain('settled (Baroque named ruling)');
     // The public status lines never name an individual, carry a date, or cite a ruling number.
@@ -445,7 +442,7 @@ describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
   });
 
   it('renders the 2 edge-case brief mentions', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('Sumo');
     expect(res.text).toContain('Genesis');
     // Sumo's mention is now notation-authoritative; Genesis keeps the retired
@@ -457,14 +454,14 @@ describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
 
 describe('GET /freestyle/add-analysis — interpretation notes + cross-links', () => {
   it('renders the 3 disagreement patterns in §4', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/Positional vs additive/);
     expect(res.text).toMatch(/Compression vs expansion/);
     expect(res.text).toMatch(/Historical evolution/);
   });
 
   it('renders the cross-links inventory', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('href="/freestyle/tricks"');
     // Both Freestyle Concepts cross-links must target anchors that exist on
     // the Concepts page: the notation section and the ADD Accounting heading.
@@ -476,20 +473,20 @@ describe('GET /freestyle/add-analysis — interpretation notes + cross-links', (
 
 describe('ADD Analysis discoverability — inbound links', () => {
   it('freestyle landing surfaces an ADD analysis link in the History & ADD System card', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
   it('freestyle tricks index source-note links to ADD analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const note = res.text.match(/class="source-note"[\s\S]{0,500}/)?.[0] ?? '';
     expect(note).toContain('href="/freestyle/add-analysis"');
   });
 
   it('Freestyle Concepts ADD Accounting compact-equivalence block links to ADD analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/concepts');
+    const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
@@ -498,7 +495,7 @@ describe('ADD Analysis discoverability — inbound links', () => {
   });
 
   it('freestyle history difficulty section links to ADD analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
@@ -515,13 +512,13 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
   // cases (§3).
 
   it('renders the §2b section heading + anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('id="resolved-formulas"');
     expect(res.text).toMatch(/Common formula patterns/);
   });
 
   it('renders the framing prose', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toMatch(/Mechanically-derivable compound formulas/);
     expect(res.text).toMatch(/settled scoring rule/i);
   });
@@ -530,7 +527,7 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
     // rev-up is not canonical (is_active=0): it is structurally
     // distinct from rev-whirl but lacks an authored structural
     // decomposition, so the public table carries no row for it.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const expectedSlugs = [
       // pure +1 stacks (15 rows)
       'paradox_mirage', 'symposium_mirage',
@@ -552,7 +549,7 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
   });
 
   it('renders the +1-stack derivations', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // Handlebars HTML-escapes `=` to `&#x3D;` in <code> blocks
     const eq = '(?:=|&#x3D;)';
     expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
@@ -562,7 +559,7 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
   });
 
   it('renders derivations across the expanded pattern set', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const eq = '(?:=|&#x3D;)';
     // pt-ruled: eggbeater = atomic legover
     expect(res.text).toMatch(new RegExp(`atomic\\(\\+1\\)\\s*\\+\\s*legover\\(2\\)\\s*${eq}\\s*3 ADD`));
@@ -583,7 +580,7 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
     // distinct from rev-whirl without an authored decomposition, so
     // RESOLVED_ADD_FORMULAS carries no entry for it and the table
     // publishes 2 folk-name resolutions.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const eq = '(?:=|&#x3D;)';
     expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
     expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
@@ -594,7 +591,7 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
   });
 
   it('resolved-formulas section sits between worked examples (§2) and discrepancies (§3)', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const workedExamplesIdx = res.text.indexOf('id="worked-examples"');
     const resolvedFormulasIdx = res.text.indexOf('id="resolved-formulas"');
     const discrepanciesIdx = res.text.indexOf('id="discrepancies"');
@@ -604,7 +601,7 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
   });
 
   it('resolved-formulas section stays within the lexicon — no forbidden phrases', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const sectionMatch = res.text.match(/id="resolved-formulas"[\s\S]*?<\/section>/);
     expect(sectionMatch).not.toBeNull();
     const section = sectionMatch![0].toLowerCase();
@@ -621,13 +618,13 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
   // (the outside source counts dexes; IFPA counts ADD) rather than a true conflict.
 
   it('renders the §3c framing heading + anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('id="passback-add-framing"');
     expect(res.text).toMatch(/External-source ADD framings/);
   });
 
   it('renders the outside-source-vs-IFPA counting framing prose', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('class="passback-add-framing-prose"');
     expect(res.text).toMatch(/dex_count/);
     expect(res.text).toMatch(/canonical ADD/);
@@ -635,7 +632,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
   });
 
   it('renders a <details> disclosure with the 68 disagreement rows', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('class="passback-add-disagreement-details"');
     expect(res.text).toContain('class="passback-add-disagreement-table"');
     // Spot-check representative rows by IFPA trick name
@@ -646,7 +643,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
   });
 
   it('every disagreement row carries an outside-source dex_count value, and IFPA names link only when resolvable', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // Pull the table region
     const tableMatch = res.text.match(/<table class="passback-add-disagreement-table">[\s\S]*?<\/table>/);
     expect(tableMatch).not.toBeNull();
@@ -667,7 +664,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
     // Belt-and-suspenders: re-asserts the lexicon test against the new
     // subsection specifically, so future curator edits don't silently
     // introduce "is wrong" / "incorrect" framing here.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     const sectionMatch = res.text.match(/id="passback-add-framing"[\s\S]*?<\/section>/);
     expect(sectionMatch).not.toBeNull();
     const section = sectionMatch![0].toLowerCase();
@@ -679,7 +676,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
 
 describe('GET /freestyle/add-analysis — wording lexicon discipline', () => {
   it('never uses "is wrong" / "incorrect" framing on external sources', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     // Hard never-ship phrases: external sources are never framed as wrong
     const forbidden = [
       'is wrong',
@@ -701,7 +698,7 @@ describe('GET /freestyle/add-analysis — wording lexicon discipline', () => {
 
 describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
   it('renders the Osis-family compositional ladder', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('id="osis-branch"');
     expect(res.text).toMatch(/Reading a branch: the Osis family/);
     // The three operator steps, in order.
@@ -718,7 +715,7 @@ describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
     // audit notes saturated with code symbols, file names, and ruling labels). The
     // clean ADD math stays in the Breakdown column. The page must now carry no such
     // internal jargon anywhere.
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).not.toMatch(/TBD pending Wave 2/);
     expect(res.text).not.toMatch(/prior paradox-implication retired/);
     expect(res.text).not.toMatch(/prior paradox-atomic reading retired/);
@@ -736,7 +733,7 @@ describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
   });
 
   it('renames internal-sounding section titles', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('Common formula patterns');
     expect(res.text).not.toContain('Settled compound formula reference');
     expect(res.text).toContain('>Edge cases</h3>');
@@ -746,12 +743,12 @@ describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
 
 describe('GET /freestyle/add-analysis — PassBack disagreement links gate on trick resolvability', () => {
   it('links a disagreement row whose IFPA slug resolves to a trick page', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('href="/freestyle/tricks/butterfly"');
   });
 
   it('renders IFPA names with no canonical trick page as plain text, never a dead link', async () => {
-    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const res = await page('/freestyle/add-analysis');
     for (const slug of ['foot_stall', 'paradox_osis', 'paradox_legover', 'symposium_osis']) {
       expect(res.text, `dead link for ${slug}`).not.toContain(`href="/freestyle/tricks/${slug}"`);
     }

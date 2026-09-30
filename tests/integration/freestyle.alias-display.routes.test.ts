@@ -9,7 +9,7 @@
  * surfaces. Common display aliases keep displaying, searching, and redirecting.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -25,6 +25,7 @@ import {
 const { dbPath } = setTestEnv('3997');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -71,42 +72,42 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('freestyle alias display gate + active-target rule', () => {
   it('displays a display=1 alias but hides a display=0 alias in "Also called"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/legover');
+    const res = await page('/freestyle/tricks/legover');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Leggy McShow');       // alias_display=1 shows
     expect(res.text).not.toContain('LGVR-HIDDEN');     // alias_display=0 hidden
   });
 
   it('resolves a display=0 alias in search when the target is active', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=LGVR-HIDDEN');
+    const res = await page('/freestyle/search?q=LGVR-HIDDEN');
     expect(res.status).toBe(200);
     expect(res.text).toContain('legover');             // the hidden alias still finds its trick
   });
 
   it('does not surface an inactive target in search', async () => {
-    const res = await request(await createApp()).get('/freestyle/search?q=Old Suppressed Name');
+    const res = await page('/freestyle/search?q=Old Suppressed Name');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('old_inactive');    // inactive target never surfaces
   });
 
   it('301-redirects a display=0 alias to its active canonical trick', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/lgvrtech');
+    const res = await page('/freestyle/tricks/lgvrtech');
     expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/freestyle/tricks/legover');
   });
 
   it('does not public-redirect an alias whose target is inactive (404, never a 301 to a non-public page)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/oldsuppressed');
+    const res = await page('/freestyle/tricks/oldsuppressed');
     expect(res.status).toBe(404);
     expect(res.headers.location).toBeUndefined();
   });
 
   it('preserves the existing common alias: displays, searches, and redirects', async () => {
-    const detail = await request(await createApp()).get('/freestyle/tricks/legover');
+    const detail = await page('/freestyle/tricks/legover');
     expect(detail.text).toContain('Leggy McShow');
-    const search = await request(await createApp()).get('/freestyle/search?q=Leggy McShow');
+    const search = await page('/freestyle/search?q=Leggy McShow');
     expect(search.text).toContain('legover');
-    const redirect = await request(await createApp()).get('/freestyle/tricks/leggymcshow');
+    const redirect = await page('/freestyle/tricks/leggymcshow');
     expect(redirect.status).toBe(301);
     expect(redirect.headers.location).toBe('/freestyle/tricks/legover');
   });

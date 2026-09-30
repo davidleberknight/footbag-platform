@@ -18,6 +18,7 @@ import {
   insertOnboardingTask,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import type { OnboardingTaskType } from '../fixtures/factories';
 import { expectCsrfReject } from '../fixtures/expectCsrfReject';
 
 const { dbPath } = setTestEnv('3212');
@@ -220,25 +221,29 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
 // ── No PII/contact fields in wizard responses ────────────────────────────────
 
 describe('no PII leakage: wizard pages do not expose real member email addresses', () => {
-  const wizardPages = [
-    '/register/wizard/legacy_claim',
-    '/register/wizard/club_affiliations',
+  // Each page is reachable only once the steps before it are done, so each
+  // member starts with those prerequisites met; otherwise the wizard redirects
+  // and there is no body to check.
+  const wizardPages: Array<{ route: string; completedBefore: OnboardingTaskType[] }> = [
+    { route: '/register/wizard/legacy_claim', completedBefore: ['personal_details'] },
+    { route: '/register/wizard/club_affiliations', completedBefore: ['personal_details', 'legacy_claim'] },
   ];
 
-  for (const route of wizardPages) {
+  for (const { route, completedBefore } of wizardPages) {
     it(`GET ${route} does not contain the member's login email in the response body`, async () => {
       const stamp = Date.now();
       const loginEmail = `pii-leakcheck-${stamp}@example.com`;
       const memberId = insertMember(db, {
         slug: `pii_${stamp}_${route.split('/').pop()}`,
         login_email: loginEmail,
+        onboarding: 'none',
       });
+      for (const task of completedBefore) insertOnboardingTask(db, memberId, task, 'completed');
       const res = await request(createApp())
         .get(route)
         .set('Cookie', cookieFor(memberId));
 
-      if (res.status !== 200) return;
-
+      expect(res.status, `${route} must render for a member at this step`).toBe(200);
       expect(res.text).not.toContain(loginEmail);
     });
   }

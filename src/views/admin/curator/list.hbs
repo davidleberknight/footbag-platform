@@ -13,14 +13,22 @@
 
   {{#if content.savedWasEdit}}
     <div class="form-success-banner" role="status">
-      Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
-      run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
+      {{#if content.sidecarWritesEnabled}}
+        Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
+        run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
+      {{else}}
+        Saved.
+      {{/if}}
     </div>
   {{/if}}
   {{#if content.savedWasDelete}}
     <div class="form-success-banner" role="status">
-      Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
-      run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
+      {{#if content.sidecarWritesEnabled}}
+        Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
+        run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
+      {{else}}
+        Deleted.
+      {{/if}}
     </div>
   {{/if}}
 

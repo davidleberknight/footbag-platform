@@ -549,7 +549,7 @@ run_db_load_canonical() {
         --seed-dir "event_results/seed/mvfp_full"
     # Freestyle records are built by the self-contained freestyle pipeline
     # (freestyle/run_freestyle.sh), which lives outside legacy_data/ so it
-    # survives the cutover freeze. The legacy pipeline no longer builds them.
+    # stays independent of the legacy_data/ freeze. The legacy pipeline no longer builds them.
     echo "───────────────────────────────────────────────────────────────────────"
     echo ""
 }
@@ -630,7 +630,7 @@ run_v0_backbone() {
         --seed-dir "event_results/seed/mvfp_full"
     # Freestyle records are built by the self-contained freestyle pipeline
     # (freestyle/run_freestyle.sh), which lives outside legacy_data/ so it
-    # survives the cutover freeze. The legacy pipeline no longer builds them.
+    # stays independent of the legacy_data/ freeze. The legacy pipeline no longer builds them.
     echo ""
 
     echo "╔══════════════════════════════════════════════════════╗"

@@ -115,7 +115,7 @@ describe('GET /admin/mailing-lists', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Shown List');
     expect(res.text).toContain('/admin/mailing-lists/shown-list');
-    expect(res.text).toContain('Create a Mailing List');
+    expect(res.text).not.toContain('<span class="badge">Archived</span>');
   });
 
   it('shows an archived list as archived', async () => {
@@ -124,7 +124,7 @@ describe('GET /admin/mailing-lists', () => {
     const res = await request(createApp()).get('/admin/mailing-lists').set('Cookie', adminCookie());
 
     expect(res.text).toContain('Old List');
-    expect(res.text).toMatch(/Archived/);
+    expect(res.text).toContain('<span class="badge">Archived</span>');
   });
 });
 

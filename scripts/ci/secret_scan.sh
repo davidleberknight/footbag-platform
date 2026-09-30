@@ -77,13 +77,19 @@ native_version=""
 if command -v gitleaks >/dev/null 2>&1; then
   native_version="$(gitleaks version 2>/dev/null | tr -d 'v[:space:]')"
 fi
+# Docker counts only when its daemon answers: an installed client with no running
+# daemon cannot run the pinned container, so it is the same as no Docker here.
+docker_ok=0
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  docker_ok=1
+fi
 
 if [ -n "$native_version" ] && [ "$native_version" = "$PINNED_VERSION" ]; then
   echo "  gitleaks ${PINNED_VERSION} (native), matching the runner" >&2
   # shellcheck disable=SC2086
   gitleaks $native_args
   rc=$?
-elif command -v docker >/dev/null 2>&1; then
+elif [ "$docker_ok" -eq 1 ]; then
   # An installed binary at the wrong version is worse than none: it answers
   # confidently with a different rule set. Say which one was skipped and why,
   # rather than quietly preferring the container.
@@ -100,21 +106,21 @@ elif command -v docker >/dev/null 2>&1; then
   # shellcheck disable=SC2086
   docker run --rm -v "$PWD:/repo" -w /repo "zricethezav/gitleaks:v${PINNED_VERSION}@${IMAGE_DIGEST}" $docker_args
   rc=$?
-elif [ -n "$native_version" ]; then
-  echo "ERROR: gitleaks ${native_version} is installed but the runner uses ${PINNED_VERSION}," >&2
-  echo "       and docker is not available to supply the pinned build. A scan at a" >&2
-  echo "       different version is not the scan the push gate runs." >&2
-  echo "       Install gitleaks ${PINNED_VERSION}, or start docker." >&2
-  exit 1
 else
   # On the runner the scanner is always present, so its absence there is a broken
   # job rather than a machine without the tool, and must fail rather than skip.
   if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
-    echo "ERROR: neither gitleaks nor docker is available, and the secret scan cannot be skipped here." >&2
+    echo "ERROR: neither gitleaks ${PINNED_VERSION} nor a running docker is available, and the secret scan cannot be skipped here." >&2
     exit 1
   fi
-  echo "  WARNING: secret scan SKIPPED — neither gitleaks nor docker is installed." >&2
-  echo "  Install gitleaks, or start docker, to run the same scan the push gate runs." >&2
+  # On a workstation a scan at a different version is not the scan the push gate
+  # runs, so it is not run; continuous integration runs the real one on every push.
+  if [ -n "$native_version" ]; then
+    echo "  WARNING: secret scan SKIPPED — gitleaks ${native_version} is installed, the runner uses ${PINNED_VERSION}, and docker is not running." >&2
+  else
+    echo "  WARNING: secret scan SKIPPED — neither gitleaks ${PINNED_VERSION} nor a running docker is available." >&2
+  fi
+  echo "  Install gitleaks ${PINNED_VERSION}, or start docker, to run the same scan the push gate runs." >&2
   [ "$skip_ok" -eq 1 ] && exit 0
   exit 77
 fi

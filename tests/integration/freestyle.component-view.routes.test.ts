@@ -20,7 +20,7 @@
  *   - View toggle in the page header marks "By component" active
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -37,6 +37,7 @@ import {
 const { dbPath } = setTestEnv('3096');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -99,16 +100,16 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
   // renders above the view body to redirect new traffic.
 
   it('returns 200 (bookmarks keep resolving post-soft-retirement)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.status).toBe(200);
   });
 
   it('view-toggle row no longer surfaces a "By component" entry (soft retirement)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).not.toMatch(/class="trick-view-toggle-active">By component</);
     // The toggle row also no longer carries a link to the view from
     // OTHER active views.
-    const tricksDefault = await request(createApp()).get('/freestyle/tricks?view=add');
+    const tricksDefault = await page('/freestyle/tricks?view=add');
     // The component-view URL must not appear as a toggle-row anchor;
     // it may still appear in `?view=component#component-*` deep-link
     // contexts elsewhere on the page (trick-detail membership panels).
@@ -119,7 +120,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
   });
 
   it('renders the retirement notice on the view body', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toContain('class="component-view-retirement-notice"');
     expect(res.text).toMatch(/This view is being retired/);
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
@@ -129,7 +130,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     // The modifier browse is its own view. The component view stays soft-
     // retired; the canonical /freestyle/tricks?view=component URL still
     // renders with the retirement notice.
-    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
+    const res = await page('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
     // The component view's markers must NOT appear on the modifier URL.
     expect(res.text).not.toContain('class="component-view-note"');
@@ -145,7 +146,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
 
 describe('component view — axes + axis-jump nav', () => {
   it('renders the axis-jump nav with Body modifiers, Dex relationships, and Set modifiers', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toContain('aria-label="Component axes"');
     expect(res.text).toMatch(/<a href="#axis-body">Body modifiers<\/a>/);
     expect(res.text).toMatch(/<a href="#axis-entry-topology">Dex relationships<\/a>/);
@@ -153,14 +154,14 @@ describe('component view — axes + axis-jump nav', () => {
   });
 
   it('renders the three axis sections with stable anchor IDs', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toContain('id="axis-body"');
     expect(res.text).toContain('id="axis-entry-topology"');
     expect(res.text).toContain('id="axis-set"');
   });
 
   it('Body modifiers axis renders before Set modifiers axis', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const bodyIdx = res.text.indexOf('id="axis-body"');
     const setIdx  = res.text.indexOf('id="axis-set"');
     expect(bodyIdx).toBeGreaterThan(-1);
@@ -168,13 +169,13 @@ describe('component view — axes + axis-jump nav', () => {
   });
 
   it('does NOT render topology or movement-archetype axes (deferred to a later slice)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).not.toContain('id="axis-topology"');
     expect(res.text).not.toContain('id="axis-archetype"');
   });
 
   it('renders an explanatory note about intentional duplication', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toContain('class="component-view-note"');
     expect(res.text).toMatch(/Compounds appear in every component group they belong to/);
     expect(res.text).toMatch(/duplication is intentional/);
@@ -187,7 +188,7 @@ describe('component view — axes + axis-jump nav', () => {
 
 describe('component view — group ordering', () => {
   it('Body modifier groups appear in priority order: symposium, spinning, ducking', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const symposiumIdx = res.text.indexOf('id="component-symposium"');
     const spinningIdx  = res.text.indexOf('id="component-spinning"');
     const duckingIdx   = res.text.indexOf('id="component-ducking"');
@@ -200,7 +201,7 @@ describe('component view — group ordering', () => {
   });
 
   it('paradox renders in its own Dex relationships axis, after the body axis, not within it', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toContain('Dex relationships');
     const entryAxisIdx = res.text.indexOf('id="axis-entry-topology"');
     const paradoxIdx   = res.text.indexOf('id="component-paradox"');
@@ -213,7 +214,7 @@ describe('component view — group ordering', () => {
   });
 
   it('Set modifier groups appear in priority order: pixie, atomic, stepping', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const pixieIdx    = res.text.indexOf('id="component-pixie"');
     const atomicIdx   = res.text.indexOf('id="component-atomic"');
     const steppingIdx = res.text.indexOf('id="component-stepping"');
@@ -231,14 +232,14 @@ describe('component view — group ordering', () => {
 
 describe('component view — empty groups hidden', () => {
   it('hides body-modifier groups with zero member tricks (diving, weaving, gyro)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).not.toContain('id="component-diving"');
     expect(res.text).not.toContain('id="component-weaving"');
     expect(res.text).not.toContain('id="component-gyro"');
   });
 
   it('hides set-modifier groups with zero member tricks (nuclear, fairy, furious, quantum)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).not.toContain('id="component-quantum"');
     expect(res.text).not.toContain('id="component-nuclear"');
     expect(res.text).not.toContain('id="component-fairy"');
@@ -252,7 +253,7 @@ describe('component view — empty groups hidden', () => {
 
 describe('component view — group rendering', () => {
   it('group heading carries a one-line body-mechanics definition when authored', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     // Paradox has a curator-authored definition; verify it renders inside the paradox group.
     const paradoxStart = res.text.indexOf('id="component-paradox"');
     expect(paradoxStart).toBeGreaterThan(-1);
@@ -263,12 +264,12 @@ describe('component view — group rendering', () => {
   });
 
   it('group heading wraps the component name in a self-anchored link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toMatch(/<h3><a href="\/freestyle\/tricks\?view=component#component-paradox">paradox<\/a><\/h3>/);
   });
 
   it('group renders the shared dictionary-trick-row partial', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const paradoxStart = res.text.indexOf('id="component-paradox"');
     const nextGroupStart = res.text.indexOf('id="component-', paradoxStart + 1);
     const paradoxBlock = res.text.slice(paradoxStart, nextGroupStart > paradoxStart ? nextGroupStart : paradoxStart + 2500);
@@ -283,13 +284,13 @@ describe('component view — group rendering', () => {
   it('group heading uses the site section-heading system, not a bespoke one', async () => {
     // Every other browse view draws a sub-group heading this way. A heading
     // system of this view's own is the same defect as a row system of its own.
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     expect(res.text).toMatch(/<section class="trick-component-group" id="component-paradox">\s*<div class="section-heading">/);
     expect(res.text).not.toContain('component-group-heading');
   });
 
   it('cards within a group sort ADD ascending then trick name (paradox-mirage 3 before paradox-whirl 4 before paradox-blender 5)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const paradoxStart = res.text.indexOf('id="component-paradox"');
     const nextGroupStart = res.text.indexOf('id="component-', paradoxStart + 1);
     const paradoxBlock = res.text.slice(paradoxStart, nextGroupStart > paradoxStart ? nextGroupStart : paradoxStart + 2500);
@@ -308,7 +309,7 @@ describe('component view — group rendering', () => {
 
 describe('component view — intentional duplication', () => {
   it('montage (4 body-modifier links: spinning + ducking + paradox + symposium) appears in all four groups', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const expectMontageIn = (componentSlug: string) => {
       const groupStart = res.text.indexOf(`id="component-${componentSlug}"`);
       expect(groupStart, `montage's ${componentSlug} group must exist`).toBeGreaterThan(-1);
@@ -323,7 +324,7 @@ describe('component view — intentional duplication', () => {
   });
 
   it('phoenix (ducking + pixie) appears in both ducking AND pixie groups', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    const res = await page('/freestyle/tricks?view=component');
     const expectIn = (componentSlug: string) => {
       const groupStart = res.text.indexOf(`id="component-${componentSlug}"`);
       expect(groupStart).toBeGreaterThan(-1);

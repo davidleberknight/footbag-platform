@@ -552,15 +552,32 @@ expect "$H" 'find . -delete' defer
 
 H=guard-full-suite-vitest.sh
 
-# A full-suite vitest run (no tests/ path, no --exclude) must ask so the operator
-# takes the standard `npm test` path; targeted and excluded runs, and npm scripts,
-# defer.
+# A whole-tree vitest run collects the Playwright specs under tests/e2e, so it must
+# ask; a run naming a path below tests/, or one excluding tests/e2e, defers, as do
+# the npm scripts. A bare tests/ target is the whole tree, and an exclude that
+# leaves tests/e2e in removes nothing that matters, so both still ask.
 expect "$H" 'npx vitest run' ask
 expect "$H" 'vitest run' ask
 expect "$H" 'node_modules/.bin/vitest run' ask
 expect "$H" 'LOG_LEVEL=info npx vitest run -t "a name"' ask
+expect "$H" 'npx vitest run tests/' ask
+expect "$H" 'npx vitest run ./tests/' ask
+expect "$H" 'npx vitest run tests' ask
+expect "$H" "npx vitest run --exclude 'tests/smoke/**'" ask
+expect "$H" 'npx vitest run --exclude=tests/dev/**' ask
+# A name filter is not a target, and an exclude of something inside or merely
+# beginning with tests/e2e still leaves the specs collected.
+expect "$H" 'npx vitest run -t tests/x' ask
+expect "$H" 'npx vitest run --testNamePattern=tests/x' ask
+expect "$H" "npx vitest run --exclude 'tests/e2e/helpers/**'" ask
+expect "$H" "npx vitest run --exclude 'tests/e2e-old/**'" ask
+expect "$H" 'npx vitest run -t "a name" tests/unit/x.test.ts' defer
+expect "$H" 'npx vitest run --exclude tests/e2e' defer
 expect "$H" 'npx vitest run tests/integration/x.test.ts' defer
-expect "$H" "npx vitest run --exclude 'tests/smoke/**'" defer
+expect "$H" 'npx vitest run ./tests/unit/' defer
+expect "$H" "npx vitest run tests/integration/x.test.ts --exclude 'tests/smoke/**'" defer
+expect "$H" "npx vitest run --exclude 'tests/e2e/**'" defer
+expect "$H" "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'" defer
 expect "$H" 'npm test' defer
 expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer

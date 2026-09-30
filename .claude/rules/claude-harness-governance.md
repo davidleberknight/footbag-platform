@@ -1,7 +1,7 @@
 ---
 paths:
   - ".claude/**"
-  - "CLAUDE.md"
+  - "**/CLAUDE.md"
   - "PROJECT_SUMMARY_CONCISE.md"
   - "docs/CLAUDE_CODE_GUIDE.md"
 ---
@@ -29,7 +29,7 @@ The authority order and the read order live only in root `CLAUDE.md`. Rules, ski
 ## Permission safety (`settings.json`)
 
 - Precedence is deny > ask > allow. Keep the committed `settings.json` pretty-printed and reviewable.
-- No broad wildcard allow on a destructive or network command head; the only automatic allows on state-changing commands are a short, reviewed list of development conveniences (mkdir, kill/pkill for dev-server lifecycle, npm test / npm run build, git fetch). Claude Code checks each part of a compound command against the rules, but a rule sees only the command prefix — a mutating flag later in the arguments (`find … -delete`, `curl -X POST`) is invisible to it, which is what the guard hooks are for. Route network reads through domain-scoped `WebFetch(domain:…)` allows, not `curl` and not `WebFetch(domain:*)` (that means all domains). Automatic approval of `sqlite3` requires a read-only open (the `-readonly` flag or the `file:...?mode=ro` URI spelling) and runs through the read-only approver hook, which also refuses the shell-exec and file-write dot-command escapes, rather than a static SQLite allow.
+- No broad wildcard allow on a destructive or network command head; the only automatic allows on state-changing commands are a short, reviewed list of development conveniences (mkdir, kill/pkill for dev-server lifecycle, npm test / npm run build and the local test tiers, git fetch, the reviewed repo check scripts such as `assert_claude_harness.sh` and `assert_conventions.sh`) and the four private-tracker issue writes (edit, comment, close, reopen), each an exact prefix carrying the tracker repo flag. Claude Code checks each part of a compound command against the rules, but a rule sees only the command prefix — a mutating flag later in the arguments (`find … -delete`, `curl -X POST`) is invisible to it, which is what the guard hooks are for. Route network reads through domain-scoped `WebFetch(domain:…)` allows, not `curl` and not `WebFetch(domain:*)` (that means all domains). Automatic approval of `sqlite3` requires a read-only open (the `-readonly` flag or the `file:...?mode=ro` URI spelling) and runs through the read-only approver hook, which also refuses the shell-exec and file-write dot-command escapes, rather than a static SQLite allow.
 - Prefer the read-only auto-approve hook plus narrow, exact allows over blanket interpreter allows (`Bash(python*)`, `Bash(node*)`, `Bash(npx*)` are effectively `Bash(*)`).
 - A new destructive command is guarded by a `permissions.ask`/`deny` entry, not only a hook — project permissions inherit into subagents and are the version-proof floor; `settings.json` hooks now fire inside a subagent too, but the permission rule is the guarantee that does not depend on the client version (see Subagent safety below). Reserve hooks for guards that a static rule cannot express (a positional `find -delete`, a `curl -X POST` flag anywhere in the args).
 
@@ -42,8 +42,9 @@ When a custom agent gains or loses `Bash`, keep its frontmatter `hooks:` block i
 ## Skill authoring (`.claude/skills/**`)
 
 - A specific description (what it does and when to use it), kept short — it loads into every session's context; an explicit trigger and an explicit stop condition.
-- `allowed-tools` only restricts what a skill may use; it never widens permissions or bypasses prompts. A skill that needs more permission gets a reviewed `settings.json` entry, never a frontmatter grant.
+- Skills in this repo never set `allowed-tools`: the field grants the listed tools without a prompt for the turn the skill runs in, and restricts nothing. A skill that needs more permission gets a reviewed `settings.json` entry instead.
 - `disable-model-invocation: true` for any explicit-only or side-effect-heavy skill, so it never auto-fires and its description leaves always-loaded context.
+- `user-invocable: false` for a skill that is background method rather than a command (`deployed-surface`): Claude still sees its description, and it offers no slash command.
 - Keep `SKILL.md` under ~500 lines; move long reference material into plain supporting files in the skill's folder (these are reference files, not skills — no frontmatter, no command).
 - Link the authority order; never restate it. No dated implementation status in a skill body — that belongs in the maintainers' private tracker.
 

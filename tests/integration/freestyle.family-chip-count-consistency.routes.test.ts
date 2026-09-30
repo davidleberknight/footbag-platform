@@ -6,7 +6,7 @@
  * they can never disagree.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
@@ -14,6 +14,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3528');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -46,13 +47,13 @@ function sectionRows(html: string): number {
 
 describe('GET /freestyle/tricks — family section count counts every rendered member', () => {
   it('folds the sub-label row into the mirage section (three members)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(sectionCount(res.text)).toBe(3);
   });
 
   it('the count equals the number of rows the section actually renders', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family');
     expect(sectionCount(res.text)).toBe(sectionRows(res.text));
   });
 });

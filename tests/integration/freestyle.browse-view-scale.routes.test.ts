@@ -11,7 +11,7 @@
  * roll into broader family hierarchies") pending the family-hierarchy audit.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +28,7 @@ import {
 const { dbPath } = setTestEnv('3527');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -76,7 +77,7 @@ function countOccurrences(html: string, needle: string): number {
 
 describe('Browse-view scale intros — present + clarifying clause per view', () => {
   it('Family view states a cautious family-groupings scale', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=family')).text;
+    const html = (await page('/freestyle/tricks?view=family')).text;
     const scale = scaleSentence(html);
     expect(scale).toMatch(/family groupings organize tricks by structural anchor/);
     expect(scale).toMatch(/may later roll into broader family hierarchies/);
@@ -84,14 +85,14 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
   });
 
   it('Dex view states a dex-bucket + canonical-row scale', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=dex-count')).text;
+    const html = (await page('/freestyle/tricks?view=dex-count')).text;
     const scale = scaleSentence(html);
     expect(scale).toMatch(/dex buckets? ·/);
     expect(scale).toMatch(/canonical trick rows? represented/);
   });
 
   it('Movement System view states an axes scale + multi-axis clarification', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=movement-system')).text;
+    const html = (await page('/freestyle/tricks?view=movement-system')).text;
     const scale = scaleSentence(html);
     expect(scale).toMatch(/systems \/ axes ·|system \/ axis ·/);
     expect(scale).toMatch(/trick-row memberships shown/);
@@ -99,7 +100,7 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
   });
 
   it('By Modifier view states a modifiers scale + multi-modifier clarification', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=modifier')).text;
+    const html = (await page('/freestyle/tricks?view=modifier')).text;
     const scale = scaleSentence(html);
     expect(scale).toMatch(/modifiers? ·/);
     expect(scale).toMatch(/trick-row memberships shown/);
@@ -107,7 +108,7 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
   });
 
   it('Neighborhoods view states a neighborhoods scale + exploratory caveat', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=topology')).text;
+    const html = (await page('/freestyle/tricks?view=topology')).text;
     const scale = scaleSentence(html);
     expect(scale).toMatch(/neighborhoods? ·/);
     expect(scale).toMatch(/trick-row memberships shown/);
@@ -127,7 +128,7 @@ describe('Browse-view scale intros — counts match the rendered sections (not h
 
   for (const [view, label, sectionMarker] of CASES) {
     it(`${view}: scale grouping count equals the number of rendered ${label} sections`, async () => {
-      const html = (await request(await createApp()).get(`/freestyle/tricks?view=${view}`)).text;
+      const html = (await page(`/freestyle/tricks?view=${view}`)).text;
       const statedGroupings = leadingInt(scaleSentence(html));
       const renderedSections = countOccurrences(html, sectionMarker);
       expect(renderedSections, `${view} renders ${label} sections`).toBeGreaterThan(0);
@@ -136,7 +137,7 @@ describe('Browse-view scale intros — counts match the rendered sections (not h
   }
 
   it('family: stated memberships equals the number of rendered family rows', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=family')).text;
+    const html = (await page('/freestyle/tricks?view=family')).text;
     const scale = scaleSentence(html);
     const memberships = parseInt(scale.match(/(\d[\d,]*) trick-row memberships/)![1].replace(/,/g, ''), 10);
     const renderedRows = countOccurrences(html, 'data-trick-slug="');

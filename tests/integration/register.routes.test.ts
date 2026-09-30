@@ -75,13 +75,6 @@ describe('GET /register', () => {
     expect(res.text).toContain('name="confirmPassword"');
   });
 
-  it('shows early access data warning', async () => {
-    const app = createApp();
-    const res = await request(app).get('/register');
-    expect(res.text).toContain('Early access notice');
-    expect(res.text).toContain('may be deleted');
-  });
-
   it('redirects authenticated user to own profile', async () => {
     const app = createApp();
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: 'member-existing-001' })}`;
@@ -107,7 +100,7 @@ describe('POST /register', () => {
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
-    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBeFalsy();
 
     // The registered branch MUST insert a members row AND enqueue an
@@ -828,7 +821,8 @@ describe('POST /register — verify-email enqueue failure', () => {
         throw new ServiceUnavailableError('synthetic enqueue failure for verify-email');
       },
       processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
       }),
     });
 

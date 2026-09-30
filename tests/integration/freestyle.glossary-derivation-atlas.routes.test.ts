@@ -9,7 +9,7 @@
  * the Runs & Sequences chapter.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -21,6 +21,7 @@ import {
 const { dbPath } = setTestEnv('3156');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -31,7 +32,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function concepts(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/concepts');
+  const res = await page('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -90,8 +91,7 @@ describe('GET /freestyle/concepts — decomposition table', () => {
 
 describe('GET /freestyle/derivation-pilot — retired', () => {
   it('returns 404 (route removed; content now lives in Freestyle Concepts)', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/derivation-pilot');
+    const res = await page('/freestyle/derivation-pilot');
     expect(res.status).toBe(404);
   });
 });

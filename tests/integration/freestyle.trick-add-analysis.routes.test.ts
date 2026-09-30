@@ -18,7 +18,7 @@
  *     freestyle.dictionary-trick-card.routes.test.ts).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -31,6 +31,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3140');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -87,13 +88,13 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
     // somewhere on the page rather than which container holds it.
     // The trailing `= 3 ADD` is stripped on trick-detail surfaces
     // (the hero ADD chip is the authoritative total).
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
   });
 
   it('renders the curator-published derivation verbatim inside a <code> element', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     // Either the ADD-block dl OR the Notation Summary derivation slot
     // carries the derivation; assert presence within a <code> tag.
     expect(res.text).toMatch(
@@ -102,14 +103,14 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
   });
 
   it('ADD block renders expand-by-default (no <details> collapse remaining)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     // The collapsed <details> pattern must not render.
     expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
     expect(res.text).not.toMatch(/Click to expand/);
   });
 
   it('does NOT render curator-internal provenance on the public page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
+    const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.text).not.toContain('canonical inventory');
     expect(res.text).not.toContain('+1 body modifier');
   });
@@ -117,14 +118,14 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
 
 describe('Trick-detail Tier-4 ADD block — silent suppression', () => {
   it('omits the ADD-analysis block entirely on mirage (core atom, no resolved formula)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-add-analysis-fields"/);
     expect(res.text).not.toMatch(/class="trick-add-analysis-derivation"/);
   });
 
   it('omits the ADD-analysis block entirely on whirl (core atom, no resolved formula)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-add-analysis-fields"/);
   });
@@ -135,7 +136,7 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
     // /freestyle/tricks is the By ADD ladder of registry cards; the
     // trick-detail Tier-4 executable-accounting disclosure renders only
     // on trick-detail pages, never on the browse ladder.
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-add-analysis-fields"/);
   });
@@ -148,7 +149,7 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
     // patterns on the general non-first-class cohort. We strip the
     // first-class card regions before sweeping for leakage.
     const FIRST_CLASS_PILOT_SLUGS = ['osis', 'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk'];
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     let sweep = res.text;
     for (const slug of FIRST_CLASS_PILOT_SLUGS) {

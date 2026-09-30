@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -21,6 +22,7 @@ import {
 
 const { dbPath } = setTestEnv('3782');
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -58,26 +60,26 @@ const FURIOUS = '/freestyle/sets/furious';
 
 describe('Barraging retirement — redirect to the Furious set', () => {
   it('permanently redirects the old modifier route to the Furious set page', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/barraging');
+    const res = await page('/freestyle/modifier/barraging');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe(FURIOUS);
   });
 
   it('permanently redirects the old trick route to the Furious set page', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/barraging');
+    const res = await page('/freestyle/tricks/barraging');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe(FURIOUS);
   });
 
   it('redirects in exactly one hop: the destination returns 200, not another redirect', async () => {
-    const first = await request(await createApp()).get('/freestyle/modifier/barraging');
+    const first = await page('/freestyle/modifier/barraging');
     expect(first.status).toBe(301);
-    const dest = await request(await createApp()).get(first.headers['location']!);
+    const dest = await page(first.headers['location']!);
     expect(dest.status).toBe(200);
   });
 
   it('the Furious set page renders as the +2 set', async () => {
-    const res = await request(await createApp()).get(FURIOUS);
+    const res = await page(FURIOUS);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Furious/);
     // The Furious set page describes the two-dex set as worth +2.
@@ -87,13 +89,13 @@ describe('Barraging retirement — redirect to the Furious set', () => {
 
 describe('Barraging retirement — no standalone identity or stale copy', () => {
   it('no standalone barraging trick page renders (the route redirects instead)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/barraging');
+    const res = await page('/freestyle/tricks/barraging');
     // A redirect, never a 200 trick-detail render.
     expect(res.status).toBe(301);
   });
 
   it('the operators page shows no "Decomposes as: high stepping" and no +1 barraging rule', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Decomposes as: high stepping');
     expect(res.text).not.toMatch(/[Bb]arraging[\s\S]{0,40}\+1/);
@@ -104,7 +106,7 @@ describe('Barraging retirement — no standalone identity or stale copy', () => 
   // no single canonical set, keeps its glossary redirect; consistency means each
   // retired nickname reaches its own correct canonical home.)
   it('permanently redirects the old set route to the Furious set page, not the glossary', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/barraging');
+    const res = await page('/freestyle/sets/barraging');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe(FURIOUS);
     expect(res.headers['location']).not.toMatch(/glossary/);
@@ -112,10 +114,10 @@ describe('Barraging retirement — no standalone identity or stale copy', () => 
 
   it('every resolvable barraging route reaches Furious in one hop and none reaches the glossary', async () => {
     for (const route of ['/freestyle/modifier/barraging', '/freestyle/tricks/barraging', '/freestyle/sets/barraging']) {
-      const res = await request(await createApp()).get(route);
+      const res = await page(route);
       expect(res.status, `${route} status`).toBe(301);
       expect(res.headers['location'], `${route} target`).toBe(FURIOUS);
-      const dest = await request(await createApp()).get(res.headers['location']!);
+      const dest = await page(res.headers['location']!);
       expect(dest.status, `${route} destination one-hop 200`).toBe(200);
     }
   });
@@ -123,7 +125,7 @@ describe('Barraging retirement — no standalone identity or stale copy', () => 
   // The operators sub-route was never a route family, so it stays a 404; no route
   // family is invented for it.
   it('the operators sub-route for barraging is not exposed', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators/barraging');
+    const res = await page('/freestyle/operators/barraging');
     expect(res.status).toBe(404);
   });
 });

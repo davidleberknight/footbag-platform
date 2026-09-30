@@ -9,7 +9,7 @@
  * verbatim presence so future drift is caught before shipping.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -18,10 +18,12 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
+import type { FreestyleTrickOverrides } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3207');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -40,7 +42,7 @@ beforeAll(async () => {
     { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world', category: 'dex',  notation: '[set] > dex > toe', is_active: 1 },
     { slug: 'orbit',            canonical_name: 'orbit',            adds: '2', base_trick: 'orbit',            trick_family: 'orbit',            category: 'dex',  notation: '[set] > dex > toe', is_active: 1 },
     { slug: 'pickup',           canonical_name: 'pickup',           adds: '2', base_trick: 'pickup',           trick_family: 'pickup',           category: 'dex',  notation: '[set] > op in dex > ss toe', is_active: 1 },
-  ]) {
+  ] satisfies FreestyleTrickOverrides[]) {
     insertFreestyleTrick(db, seed);
   }
 
@@ -52,7 +54,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Movement intuition — flagship pages render the section', () => {
   it('mirage renders the section with prose', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/<h2>Movement intuition<\/h2>/);
@@ -61,55 +63,55 @@ describe('Movement intuition — flagship pages render the section', () => {
   });
 
   it('whirl renders the section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirl');
+    const res = await page('/freestyle/tricks/whirl');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/circle the footbag from the front up and over the footbag/);
   });
 
   it('butterfly renders the section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/butterfly');
+    const res = await page('/freestyle/tricks/butterfly');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/A leg over straight to a clipper stall/);
   });
 
   it('osis renders the section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/osis');
+    const res = await page('/freestyle/tricks/osis');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/Spin into a clipper stall/);
   });
 
   it('illusion renders the section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/illusion');
+    const res = await page('/freestyle/tricks/illusion');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/a reverse miraging motion/);
   });
 
   it('clipper_stall renders the how-to intuition (foundation destination)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/clipper_stall');
+    const res = await page('/freestyle/tricks/clipper_stall');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/catching leg tucked behind the support leg/);
   });
 
   it('around_the_world renders the how-to intuition', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/around_the_world');
+    const res = await page('/freestyle/tricks/around_the_world');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/circle one leg all the way around the bag/);
   });
 
   it('orbit renders the how-to intuition, anchored to around-the-world', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/orbit');
+    const res = await page('/freestyle/tricks/orbit');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/the reverse direction from an around-the-world/);
   });
 
   it('pickup renders the how-to intuition (scoop from below)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/pickup');
+    const res = await page('/freestyle/tricks/pickup');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/scooping it up from below/);
   });
 
   it('mobius renders the physical prose', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mobius');
+    const res = await page('/freestyle/tricks/mobius');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/spin into a right-leg mirage/);
     // The verbose "structural reading is gyro torque" restatement is no longer
@@ -121,7 +123,7 @@ describe('Movement intuition — flagship pages render the section', () => {
 
 describe('Movement intuition — non-flagship pages omit the section', () => {
   it('whirling (a first-class set) redirects from the trick route to its set page, so the intuition section never renders', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirling');
+    const res = await page('/freestyle/tricks/whirling');
     expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/sets/whirling');
   });
@@ -129,7 +131,7 @@ describe('Movement intuition — non-flagship pages omit the section', () => {
 
 describe('Movement intuition — ordering invariant', () => {
   it('notation section renders BEFORE the intuition section on flagship pages', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const res = await page('/freestyle/tricks/mirage');
     const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
     const notationIdx  = res.text.indexOf('class="content-section notation-display"');
     expect(intuitionIdx).toBeGreaterThan(0);

@@ -141,8 +141,9 @@ describe('concurrent legacy-claim requests', () => {
       expect(['race-m1', 'race-m2']).toContain(winner);
       const loser = winner === 'race-m1' ? 'race-m2' : 'race-m1';
 
-      expect(claimAuditCount(d, winner)).toBe(1);
-      expect(currentTier(d, winner)).toBe('tier2');
+      // The containment check above has already ruled out a null winner.
+      expect(claimAuditCount(d, winner!)).toBe(1);
+      expect(currentTier(d, winner!)).toBe('tier2');
       const winnerRow = d.prepare('SELECT legacy_member_id FROM members WHERE id = ?')
         .get(winner) as { legacy_member_id: string | null };
       expect(winnerRow.legacy_member_id).toBe('LM-race-token');

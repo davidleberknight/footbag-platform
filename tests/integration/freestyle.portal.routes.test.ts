@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import BetterSqlite3 from 'better-sqlite3';
@@ -28,6 +29,12 @@ const { dbPath } = setTestEnv('3111');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+// Shared only for pages no test seeds between requests. The landing is
+// re-seeded with a demo video partway through, so the requests from that point
+// on fetch it fresh.
+// cachedGet-writes: the demo-video case seeds after the cached reads and
+// fetches /freestyle fresh.
+const page = cachedGet(() => createApp());
 
 const PERSON_A = 'person-portal-001';
 const PERSON_B = 'person-portal-002';
@@ -137,56 +144,44 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/competition', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
-    expect(res.status).toBe(200);
-  });
-
   it('shows page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Freestyle Competition');
   });
 
   it('shows top singles competitor (Vera — 2 golds)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Vera Champion');
     expect(res.text).toContain(`/history/${PERSON_A}`);
   });
 
   it('shows silver medalist (Tom — 1 silver)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Tom Runner');
     expect(res.text).toContain(`/history/${PERSON_B}`);
   });
 
   it('shows the Documented Competitors section, honestly framed', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Documented Competitors');
     expect(res.text).toContain('not a definitive all-time ranking');
   });
 
   it('shows Events by Era section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Events by Era');
     // Both test events are in the 2010s
     expect(res.text).toContain('2010s');
   });
 
   it('shows recent events section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Test Freestyle Open');
   });
 
   it('links recent events to their canonical event page, not a fragment', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     // The stored hashtag form carries a leading '#'; the public event route keys
     // on the bare form. Interpolating the tag raw produced '/events/#event_...',
     // a dead in-page fragment instead of a link to the event page.
@@ -195,56 +190,48 @@ describe('GET /freestyle/competition', () => {
   });
 
   it('does NOT count doubles discipline in singles competition table', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     // Vera has 2 singles golds; the doubles win should not inflate this
     // We verify by checking that the data note mentions "singles only"
     expect(res.text).toContain('Freestyle singles only');
   });
 
   it('shows source data note', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('documented event results');
   });
 
   it('shows the Competition Formats section with beginner descriptions', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Competition Formats');
     expect(res.text).toContain('Routines');
     expect(res.text).toContain('Sick 3');
   });
 
   it('shows Competition Milestones with golds and podiums buckets', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Competition Milestones');
     expect(res.text).toContain('Most Documented Golds');
     expect(res.text).toContain('Most Documented Podiums');
   });
 
   it('shows Most Successful Nations by medalist nationality', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Most Successful Nations');
   });
 
   it('shows the Freestyle Around the World geographic section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('Freestyle Around the World');
   });
 
   it('contains breadcrumb back to /freestyle', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('/freestyle');
   });
 
   it('lede links unfamiliar terms to the glossary', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/competition');
+    const res = await page('/freestyle/competition');
     expect(res.text).toContain('href="/freestyle/glossary"');
   });
 });
@@ -252,15 +239,8 @@ describe('GET /freestyle/competition', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/history', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
-    expect(res.status).toBe(200);
-  });
-
   it('shows the page heading and browser title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     // The displayed h1 is the narrative headline; the browser <title> keeps the
     // stable "Freestyle History" label for search and bookmarks.
     expect(res.text).toContain('How Freestyle Became a Language');
@@ -268,16 +248,15 @@ describe('GET /freestyle/history', () => {
   });
 
   it('opens with the thesis and the language framing', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('class="history-thesis"');
     expect(res.text).toMatch(/expanded the shared vocabulary/);
     expect(res.text).toMatch(/Freestyle footbag is a language/);
   });
 
   it('renders the narrative sections with their anchors', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('id="origins"');
     expect(res.text).toContain('id="vocabulary"');
     expect(res.text).toContain('id="structure"');
@@ -288,22 +267,19 @@ describe('GET /freestyle/history', () => {
   });
 
   it('names the founders as historical record', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('Marshall');
     expect(res.text).toContain('Stalberger');
   });
 
   it('presents Klouda as evidence of an internationalized field', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('Klouda');
     expect(res.text).toMatch(/Czech Republic/);
   });
 
   it('integrates the recognition institutions with links', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('Hall of Fame');
     expect(res.text).toContain('Big Add Posse');
     expect(res.text).toContain('href="/hof"');
@@ -311,24 +287,21 @@ describe('GET /freestyle/history', () => {
   });
 
   it('contains cross-links to competition, insights, and the dictionary', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('/freestyle/competition');
     expect(res.text).toContain('/freestyle/insights');
     expect(res.text).toContain('/freestyle/tricks');
   });
 
   it('grounds the notation section in Ben Job\'s structural proposal', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('Ben Job');
     expect(res.text).toContain('By the Way, Not the Name');
     expect(res.text).toContain('href="/freestyle/notation-article"');
   });
 
   it('points the reader onward to the learning path', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/history');
+    const res = await page('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/learn"');
   });
 });
@@ -343,25 +316,21 @@ describe('GET /freestyle/history', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle — two-band landing', () => {
-  it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.status).toBe(200);
-  });
-
   it('renders the hero with a movement-first title + subtitle', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('<h1>Freestyle Footbag</h1>');
     expect(res.text).toContain('Learn the movements, watch videos, and explore the vocabulary.');
   });
 
   it('shows the mascot image', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('/img/freestyle-mascot.svg');
     expect(res.text).toContain('Freestyle footbag mascot icon');
   });
 
   it('opens with the "What is Freestyle Footbag?" intro lede', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
     expect(res.text).toContain('freestyle-portal-lede-paragraph');
     expect(res.text).toContain('What is Freestyle Footbag?');
@@ -369,7 +338,7 @@ describe('GET /freestyle — two-band landing', () => {
 
   // ── Banner 1 — The Language of Freestyle ────────────────────────────────
   it('renders Banner 1 (The Language of Freestyle) and retires Start Here', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('>The Language of Freestyle<');
     // The retired card was headed "Start Here". Anchored on a heading rather
     // than the bare string, because the beginner on-ramp is a button reading
@@ -390,7 +359,7 @@ describe('GET /freestyle — two-band landing', () => {
 
   // ── Banner 2 — Analysis & Competition ───────────────────────────────────
   it('renders Banner 2 (Analysis & Competition), retires Go Deeper, renames Insights to Freestyle Patterns', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Analysis &amp; Competition');
     expect(res.text).not.toContain('>Go Deeper<');
     expect(res.text).toContain('Freestyle Patterns');
@@ -408,13 +377,13 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   it('records are framed as "Trick Records", never "World Records"', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Trick Records');
     expect(res.text).not.toContain('World Records');
   });
 
   it('orders sections: lede → vocabulary → Featured → Media → History → analysis', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     const ledeIdx     = res.text.indexOf('freestyle-portal-lede');
     const languageIdx = res.text.indexOf('>The Language of Freestyle<');
     const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
@@ -431,7 +400,7 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   it('carries the By the Numbers link inside the analysis group', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     const analysisIdx = res.text.indexOf('Analysis &amp; Competition');
     const numbersIdx  = res.text.indexOf('href="/freestyle/by-the-numbers"');
     expect(analysisIdx).toBeGreaterThan(0);
@@ -440,7 +409,7 @@ describe('GET /freestyle — two-band landing', () => {
 
   // ── Featured videos showcase ────────────────────────────────────────────
   it('renders the Featured videos showcase with the curated demonstrations', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('>Featured Videos<');
     for (const name of ['Circle', 'Sick 3', 'Shred 30']) {
       expect(res.text).toContain(name);
@@ -452,14 +421,14 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   it('Featured format cards use one-line captions, not paragraph prose', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Turn-based show-off format.');
     expect(res.text).toContain('Thirty-second technical scoring.');
     expect(res.text).not.toContain('Routine is a timed event in which');
   });
 
   it('shows no hashtag chips on the featured cards', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     const start = res.text.indexOf('freestyle-featured-grid');
     const strip = res.text.slice(start, res.text.indexOf('</section>', start));
     expect(start).toBeGreaterThan(-1);
@@ -469,7 +438,7 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   it('lazy-loads the featured competition-format videos via the video-facade partial', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     // No eager YouTube iframe on initial load — the facade swaps it in on click.
     expect(res.text).not.toMatch(/<iframe[^>]+src=["']https:\/\/www\.youtube(-nocookie)?\.com\/embed\//);
     for (const videoId of ['aMr5e5wlgeE', 'h6F0aPIpC1o', 'wb75xzvAs68']) {
@@ -482,7 +451,7 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   it('F3 — curated demonstrations render in the Featured strip', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('1998 World Footbag Championships');
     expect(res.text).toContain('Samantha Conlon and Carol Wedemeyer');
     expect(res.text).toContain('Footbag 2026: San Marino');
@@ -493,7 +462,7 @@ describe('GET /freestyle — two-band landing', () => {
 
   // ── Demo video ──────────────────────────────────────────────────────────
   it('omits the curator demo-video native player when no FH media is seeded', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).not.toMatch(/<video[^>]*\bautoplay\b[^>]*\bloop\b[^>]*\bmuted\b/);
     expect(res.text).not.toContain('/media-store/');
   });
@@ -569,61 +538,48 @@ describe('GET /freestyle — two-band landing', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/partnerships', () => {
-  it('returns 200', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
-    expect(res.status).toBe(200);
-  });
-
   it('shows the page title', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('Freestyle Partnerships');
   });
 
   it('shows partnership with both partner names', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
+    expect(res.status).toBe(200);
     // Vera + Tom have 2 doubles appearances → should appear
     expect(res.text).toContain('Vera Champion');
     expect(res.text).toContain('Tom Runner');
   });
 
   it('links partner names to history pages', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toContain(`/history/${PERSON_A}`);
     expect(res.text).toContain(`/history/${PERSON_B}`);
   });
 
   it('shows appearances count', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('Appearances');
   });
 
   it('shows data note', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('Freestyle doubles and team routines only');
   });
 
   it('shows All Partnerships section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('All Partnerships');
   });
 
   it('renders a breadcrumb back to /freestyle in the hero', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toMatch(/class="breadcrumb"/);
     expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
   });
 
   it('opens with a lede that links unfamiliar terms to the glossary', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/partnerships');
+    const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('Doubles freestyle pairs two players');
     expect(res.text).toContain('href="/freestyle/glossary"');
   });

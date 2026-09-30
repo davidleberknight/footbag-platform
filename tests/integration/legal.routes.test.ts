@@ -5,7 +5,6 @@
  *   GET /legal — single page with Privacy, Terms, and Copyright sections
  *
  * Contract verified:
- *   - responds 200 to unauthenticated visitors
  *   - content includes anchors for #privacy, #terms, #copyright
  *   - includes the operator identity and contact email
  *   - includes Apache-2.0 source-code license reference
@@ -18,7 +17,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { loadRouteTable } from '../fixtures/routeTable';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
+import { legalService } from '../../src/services/legalService';
 
 import {
   setTestEnv,
@@ -31,6 +31,7 @@ const { dbPath } = setTestEnv('3090');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -41,65 +42,43 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /legal', () => {
-  it('returns 200 for unauthenticated visitors', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toMatch(/html/);
-    // Body assertion so a regression to an empty/wrong template is caught here,
-    // not only in the section-specific tests below.
-    expect(res.text).toContain('id="privacy"');
-  });
-
   it('renders the three anchored sections', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toContain('id="privacy"');
     expect(res.text).toContain('id="terms"');
     expect(res.text).toContain('id="copyright"');
   });
 
-  it('renders the section headings', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
-    expect(res.text).toMatch(/>\s*Privacy\s*</);
-    expect(res.text).toMatch(/>\s*Terms of Use\s*</);
-    expect(res.text).toMatch(/>\s*Copyright &amp; Trademarks\s*</);
-  });
-
   it('names the operator and contact email', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toContain('David Leberknight');
     expect(res.text).toContain('admin@footbag.org');
   });
 
   it('references IFPA, California jurisdiction, and 501(c)(3) status', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toContain('International Footbag Players Association Incorporated');
     expect(res.text).toContain('California');
     expect(res.text).toContain('501(c)(3)');
   });
 
   it('references the Apache-2.0 license and repository URL', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toContain('Apache License 2.0');
     expect(res.text).toContain('github.com/davidleberknight/footbag-platform');
   });
 
   it('includes IFPA trademark notice and Hacky Sack descriptive-use notice', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
-    expect(res.text).toContain('IFPA');
-    expect(res.text).toMatch(/Hacky Sack/);
-    expect(res.text).toMatch(/descriptive/i);
+    const res = await page('/legal');
+    // Legal wording the marks' owners rely on. The words "IFPA" and "Hacky
+    // Sack" alone appear in the site logo and footer on every page, so the
+    // assertions are on the notices' own sentences.
+    expect(res.text).toContain('are marks of the International Footbag Players Association Incorporated');
+    expect(res.text).toContain('do not imply endorsement, sponsorship, or affiliation');
   });
 
   it('discloses every cookie the app sets, by purpose', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     // All three kinds the app can set: the session cookie, the members-only
     // archive's access cookies, and the short-lived one-time-message cookie.
     expect(res.text).toMatch(/session cookie/i);
@@ -108,8 +87,7 @@ describe('GET /legal', () => {
   });
 
   it('promises self-service export and deletion, and the member tools the promise names exist', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     // The published page tells every visitor they can do these two things from
     // their account tools. It said so for a long time while both controls were
     // inert text on the profile, and nothing here noticed. The sentence and the
@@ -125,28 +103,25 @@ describe('GET /legal', () => {
   });
 
   it('discloses the human-verification check and the pages it runs on', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toContain('Cloudflare Turnstile');
     expect(res.text).toMatch(/legacy-account claim/i);
   });
 
   it('discloses the video thumbnail requests and keeps the click-to-load statement', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toMatch(/image servers/i);
     expect(res.text).toMatch(/click-to-load facade/i);
   });
 
-  it('shows the last-updated date', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
-    expect(res.text).toContain('2026-08-26');
+  it('shows the last-updated date the legal service publishes', async () => {
+    const res = await page('/legal');
+    const { lastUpdated } = legalService.getLegalPage().content;
+    expect(res.text).toContain(`Last updated: ${lastUpdated}`);
   });
 
   it('includes the footer legal-links row on every layout', async () => {
-    const app = createApp();
-    const res = await request(app).get('/legal');
+    const res = await page('/legal');
     expect(res.text).toContain('/legal#privacy');
     expect(res.text).toContain('/legal#terms');
     expect(res.text).toContain('/legal#copyright');

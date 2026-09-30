@@ -13,7 +13,7 @@
  * line + up to 3 quick-relation tags + a "View details →" link.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -30,6 +30,7 @@ import {
 const { dbPath } = setTestEnv('3159');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 // Priority sets that must render their own set page. Furious is the confirmed
 // two-dex uptime set page under current doctrine; Barraging and Miraging are not
@@ -61,20 +62,20 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/sets — route + envelope', () => {
   it('returns 200 and renders the Set Encyclopedia page', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="wrapper sets-encyclopedia"');
     expect(res.text).toContain('Set Encyclopedia');
   });
 
   it('serves the page itself rather than redirecting into the trick dictionary', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.status).not.toBe(301);
   });
 
   it('explains why this surface is an encyclopedia rather than a dictionary', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('Why an encyclopedia instead of a dictionary?');
     expect(res.text).toContain('explores the movement systems that');
   });
@@ -84,7 +85,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
   it.each(PRIORITY_SETS.map(slug => [slug] as const))(
     '%s renders a card with name, hashtag, formula, compact movement, provenance, and detail link',
     async (slug) => {
-      const res = await request(await createApp()).get('/freestyle/sets');
+      const res = await page('/freestyle/sets');
       // Card present
       expect(res.text).toContain(`id="enc-set-${slug}"`);
       // Detail link points at the per-set detail page (not in-page anchor)
@@ -95,7 +96,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
   );
 
   it('every set row carries a status pill, the SET notation line, and one descriptor', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     // One row per set: count by detail-link, then confirm each required slot
     // appears the same number of times. The rows reuse the trick-dictionary
     // notation contract (.dict-trick-row-notation) for the SET formula line.
@@ -110,7 +111,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
   });
 
   it('status pills use beginner-safe labels and never expose internal source names', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toMatch(/sets-encyclopedia-card-status--(platform-tracked|community-cited|under-review)/);
     // Internal source-name provenance phrasing is gone from the cards.
     expect(res.text).not.toContain('Holden aligned');
@@ -121,7 +122,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
     // The Encyclopedia index stays light: the verbose fields belong on the
     // per-set detail page. Specifically, the citation footer and the
     // equivalence-readings list do not appear here.
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).not.toContain('set-card-citation');
     expect(res.text).not.toContain('set-card-equivalences');
     expect(res.text).not.toContain('sets-alt-surfaces-cross-link');
@@ -130,7 +131,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
 
 describe('GET /freestyle/sets — cross-navigation', () => {
   it('renders the three cross-nav links disambiguating from sibling surfaces', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('class="sets-encyclopedia-cross-nav"');
     // `=` is HTML-escaped to `&#x3D;` in Handlebars output. Match the
     // path without the `=` to keep the regex stable.
@@ -143,7 +144,7 @@ describe('GET /freestyle/sets — cross-navigation', () => {
   });
 
   it('each cross-nav link carries the disambiguating question phrasing', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('which tricks use this set?');
     expect(res.text).toContain('how do sets relate as families?');
     expect(res.text).toContain('what transformations act on tricks?');
@@ -152,7 +153,7 @@ describe('GET /freestyle/sets — cross-navigation', () => {
 
 describe('GET /freestyle/sets — subtype grouping', () => {
   it('groups cards by the 6 canonical subtypes', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('id="set-subtype-true-core"');
     expect(res.text).toContain('id="set-subtype-composite-derived"');
     expect(res.text).toContain('id="set-subtype-rotational"');
@@ -162,7 +163,7 @@ describe('GET /freestyle/sets — subtype grouping', () => {
   });
 
   it('renders "True core sets" / "Composite / derived sets" subtype labels', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('True core sets');
     expect(res.text).toContain('Composite / derived sets');
   });
@@ -172,7 +173,7 @@ describe('GET /freestyle/sets — detail-page link resolution', () => {
   it.each(PRIORITY_SETS.map(slug => [slug] as const))(
     'detail link for %s resolves (route exists; not a 404 or 301)',
     async (slug) => {
-      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const res = await page(`/freestyle/sets/${slug}`);
       // Resolves to the existing set-detail page (200), not a 404.
       // Note: this verifies the *route resolves*; the detail page's own
       // rendering contract lives in freestyle.set-detail.routes.test.ts.
@@ -183,7 +184,7 @@ describe('GET /freestyle/sets — detail-page link resolution', () => {
 
 describe('GET /freestyle/sets — distinct from sibling surfaces', () => {
   it('renders compact trick-dictionary-style rows, not the retired verbose set cards', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     // The index mirrors the trick-dictionary row contract (shared structure)
     // while carrying the encyclopedia's own status pill + role chip.
     expect(res.text).toContain('dict-trick-row-stack');
@@ -198,18 +199,18 @@ describe('GET /freestyle/sets — distinct from sibling surfaces', () => {
 
 describe('Cross-link presence on sibling pages', () => {
   it('freestyle landing renders a "Set Encyclopedia" card linking to /freestyle/sets', async () => {
-    const res = await request(await createApp()).get('/freestyle');
+    const res = await page('/freestyle');
     expect(res.text).toContain('Set Encyclopedia');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 
   it('operators page links to the Set Encyclopedia', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 
   it('glossary links to the Set Encyclopedia', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+    const res = await page('/freestyle/glossary');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 });
@@ -220,7 +221,7 @@ describe('Cross-link presence on sibling pages', () => {
 
 describe('GET /freestyle/sets — S1 role chip on every card', () => {
   it('every card carries a role-chip class', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const detailLinkMatches = res.text.match(/sets-encyclopedia-card-detail-link/g) ?? [];
     const roleChipMatches   = res.text.match(/sets-encyclopedia-card-role-chip\b/g) ?? [];
     expect(detailLinkMatches.length).toBeGreaterThan(0);
@@ -230,7 +231,7 @@ describe('GET /freestyle/sets — S1 role chip on every card', () => {
   });
 
   it('true-core TOE-prefix sets carry the +1 entry role', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     for (const slug of ['pixie', 'fairy', 'atomic', 'quantum']) {
       // Card present + role chip variant + role label visible
       expect(res.text).toContain(`id="enc-set-${slug}"`);
@@ -240,7 +241,7 @@ describe('GET /freestyle/sets — S1 role chip on every card', () => {
   });
 
   it('true-core CLIP-prefix sets carry the CLIP entry role', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     for (const slug of ['stepping', 'bubba', 'slapping', 'tapping']) {
       expect(res.text).toContain(`id="enc-set-${slug}"`);
     }
@@ -249,7 +250,7 @@ describe('GET /freestyle/sets — S1 role chip on every card', () => {
   });
 
   it('composite-derived / rotational / uns / rooted subtypes each carry their distinct role chip', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('sets-encyclopedia-card-role-chip--composite');
     expect(res.text).toContain('sets-encyclopedia-card-role-chip--rotational');
     expect(res.text).toContain('sets-encyclopedia-card-role-chip--uns-entry');
@@ -264,7 +265,7 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
   it.each(FLAGSHIP_SLUGS.map(slug => [slug] as const))(
     '%s carries the flagship-marker chip with a title tooltip',
     async (slug) => {
-      const res = await request(await createApp()).get('/freestyle/sets');
+      const res = await page('/freestyle/sets');
       // Locate the card and assert the flagship span is present inside it.
       const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
       expect(cardIdx).toBeGreaterThan(0);
@@ -276,7 +277,7 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
   it.each(NON_FLAGSHIP_SLUGS.map(slug => [slug] as const))(
     '%s does NOT carry the flagship-marker chip',
     async (slug) => {
-      const res = await request(await createApp()).get('/freestyle/sets');
+      const res = await page('/freestyle/sets');
       const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
       expect(cardIdx).toBeGreaterThan(0);
       const cardSlice = res.text.slice(cardIdx, cardIdx + 1500);
@@ -285,7 +286,7 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
   );
 
   it('the flagship cohort is exactly 5 cards (matches FLAGSHIP_SET_TOOLTIPS in the service; miraging removed)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const flagshipMatches = res.text.match(/sets-encyclopedia-card-flagship/g) ?? [];
     expect(flagshipMatches.length).toBe(5);
   });
@@ -293,7 +294,7 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
 
 describe('GET /freestyle/sets — index prose reduced (Derived / Common in moved to detail pages)', () => {
   it('does not render the Derived or Common-in lines on the index rows', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     // These relational previews now live on the set detail pages; the index
     // rows carry at most one short descriptor (the compact movement line).
     expect(res.text).not.toContain('class="sets-encyclopedia-card-common-in"');
@@ -309,14 +310,14 @@ describe('GET /freestyle/sets — index prose reduced (Derived / Common in moved
 
 describe('GET /freestyle/sets — S4 mini-TOC pill row', () => {
   it('renders the mini-TOC nav with one anchor per rendered subtype', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('class="glossary-mini-toc"');
     expect(res.text).toContain('aria-label="In this encyclopedia"');
     expect(res.text).toContain('>In this encyclopedia:</span>');
   });
 
   it('mini-TOC anchors target each of the 6 subtype sections', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const tocStart = res.text.indexOf('class="glossary-mini-toc"');
     const tocEnd = res.text.indexOf('</nav>', tocStart);
     expect(tocStart).toBeGreaterThan(0);
@@ -330,7 +331,7 @@ describe('GET /freestyle/sets — S4 mini-TOC pill row', () => {
   });
 
   it('mini-TOC anchors carry human-readable subtype labels', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const tocStart = res.text.indexOf('class="glossary-mini-toc"');
     const tocEnd = res.text.indexOf('</nav>', tocStart);
     const tocSlice = res.text.slice(tocStart, tocEnd);
@@ -342,14 +343,14 @@ describe('GET /freestyle/sets — S4 mini-TOC pill row', () => {
 
 describe('GET /freestyle/sets — S4 per-subtype Read-next footers', () => {
   it('renders 5 Read-next footers (one per subtype except the last)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const footerMatches = res.text.match(/class="glossary-section-next"/g) ?? [];
     // 6 rendered subtypes → 5 forward-pointing footers (last suppresses).
     expect(footerMatches.length).toBe(5);
   });
 
   it('true-core footer points forward to composite-derived with a lowercased tagline', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const sectionStart = res.text.indexOf('id="set-subtype-true-core"');
     const sectionEnd   = res.text.indexOf('id="set-subtype-composite-derived"');
     expect(sectionStart).toBeGreaterThan(0);
@@ -363,7 +364,7 @@ describe('GET /freestyle/sets — S4 per-subtype Read-next footers', () => {
   });
 
   it('the last rendered subtype (rooted-antisymposium) does NOT render a Read-next footer', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     const sectionStart = res.text.indexOf('id="set-subtype-rooted-antisymposium"');
     expect(sectionStart).toBeGreaterThan(0);
     // Slice from this section's opening to the wrapper close — there
@@ -379,7 +380,7 @@ describe('GET /freestyle/sets — S4 per-subtype Read-next footers', () => {
 // index or the sitemap.
 describe('GET /freestyle/sets — set-taxonomy doctrine (furious in, miraging/barraging out)', () => {
   it('renders a Furious set card and no Miraging or Barraging card', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
+    const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="enc-set-furious"');
     expect(res.text).not.toContain('id="enc-set-miraging"');

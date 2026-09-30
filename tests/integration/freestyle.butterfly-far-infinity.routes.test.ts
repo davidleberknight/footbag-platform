@@ -20,6 +20,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -33,6 +34,7 @@ import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/frees
 const { dbPath } = setTestEnv('3618');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -71,7 +73,7 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
   });
 
   it('butterfly surfaces Infinity as a clipper-set naming note, not as a plain alias', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
+    const res = await page('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
     // The naming note explains the folk name to a visitor who searched "infinity".
     expect(res.text).toContain('Naming &amp; interpretation');
@@ -85,7 +87,7 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
   });
 
   it('the public butterfly page presents the far/opposite-side form, not a side-either marker', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
+    const res = await page('/freestyle/tricks/butterfly');
     // The notation renders as role tokens. Public Butterfly defaults to the
     // far/opposite-side version, so the page shows opposite-side (OP) tokens and
     // never the side-either "SAME/OP OUT" notation marker. (The bare string
@@ -98,7 +100,7 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
   });
 
   it('butterfly_same_side remains a distinct page and renders its same-side form', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly_same_side');
+    const res = await page('/freestyle/tricks/butterfly_same_side');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Butterfly Same Side');
     // The same-side variant renders a SAME side token, distinguishing it from
@@ -109,7 +111,7 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
 
 describe('GET /freestyle/families/butterfly — glossary/family card reconciled to far default', () => {
   it('the butterfly family card presents the far/opposite-side formula and framing, not SAME/OP', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/butterfly');
+    const res = await page('/freestyle/families/butterfly');
     expect(res.status).toBe(200);
     // Reconciled canonical formula: opposite-side out-dex, no side-either marker.
     expect(res.text).toContain('OP OUT [DEX]');
@@ -131,7 +133,7 @@ describe('freestyle glossary family cards — butterfly base reconciled, compoun
     expect(butterfly).toBeDefined();
     expect(butterfly!.canonicalFormula).toBe('SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]');
     expect(butterfly!.canonicalFormula).not.toContain('SAME/OP');
-    expect(butterfly!.teaching.notationIntro).not.toContain('SAME/OP');
+    expect(butterfly!.teaching!.notationIntro).not.toContain('SAME/OP');
   });
 
   it('the butterfly-family compound cards keep their existing notation (migration held)', () => {
@@ -145,7 +147,7 @@ describe('freestyle glossary family cards — butterfly base reconciled, compoun
 
 describe('GET /freestyle/tricks — browse no longer lists a separate Far Butterfly card', () => {
   it('the dictionary index has no far_butterfly card link', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('href="/freestyle/tricks/far_butterfly"');
     // Butterfly and Butterfly Same Side remain present.

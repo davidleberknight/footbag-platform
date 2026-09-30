@@ -23,7 +23,7 @@
  *     page still resolves to the rich page; an unknown slug 404s.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -35,6 +35,7 @@ import {
 const { dbPath } = setTestEnv('3097');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -73,7 +74,7 @@ function rowSlice(html: string, slug: string): string {
 
 describe('GET /freestyle/operators — compact modifier index', () => {
   it('groups established operators by structural role in separate sections', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Established operators by structural role');
     expect(res.text).toContain('Entry and side relationship');
@@ -91,7 +92,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('renders provisional vocabulary in a section separate from the established operators', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     const establishedIdx = res.text.indexOf('Established operators by structural role');
     const provisionalIdx = res.text.indexOf('Provisional and historical vocabulary');
     const sympleIdx = res.text.indexOf('id="operator-symple"');
@@ -101,7 +102,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('places Tapping under Set and preparatory operators, not the body axes', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     const tappingIdx  = res.text.indexOf('id="operator-tapping"');
     const setPrepIdx  = res.text.indexOf('Set and preparatory operators');
     const noPlantIdx  = res.text.indexOf('No-plant and suspension');
@@ -111,12 +112,12 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('points sets at the Set Encyclopedia instead of listing them here', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toContain('href="/freestyle/sets"');
   });
 
   it('gives every relationship/body modifier a row with click-throughs', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     for (const slug of ['paradox', 'spinning', 'symposium', 'ducking']) {
       expect(res.text, `row ${slug}`).toContain(`id="operator-${slug}"`);
     }
@@ -127,7 +128,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('presents Symple and symp as unresolved historical vocabulary, not settled doctrine', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     // The page must not assert the old settled explanation while the open
     // question is whether Symple is a distinct operator and whether symp is only
     // an abbreviation of the fully defined Symposium operator.
@@ -141,7 +142,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('does not list set primitives as operator rows', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     // weaving and zulu are platform-canonical ducking launch sets, not operators,
     // so they belong only in the Set Encyclopedia and never get an operator row.
     for (const slug of ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'barraging', 'blurry', 'stepping', 'whirling', 'weaving', 'zulu']) {
@@ -152,12 +153,12 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('shows the flat ADD weight from the table for each modifier', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(rowSlice(res.text, 'paradox')).toContain('+1');
   });
 
   it('does not render a set notation line on a relationship modifier', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     // paradox and spinning are relationships/body actions, not sets.
     expect(rowSlice(res.text, 'paradox')).not.toContain('dict-trick-row-notation');
     expect(rowSlice(res.text, 'spinning')).not.toContain('dict-trick-row-notation');
@@ -166,14 +167,14 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   });
 
   it('uses honest status pills from the data', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     // paradox + spinning have authored teaching pages.
     expect(rowSlice(res.text, 'paradox')).toContain('operator-status-pill--teaching');
     expect(rowSlice(res.text, 'spinning')).toContain('operator-status-pill--teaching');
   });
 
   it('keeps a How operators combine section and a separate notation-components box', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toContain('id="how-operators-combine"');
     expect(res.text).toContain('id="alpine"');
     expect(res.text).toContain('id="notation-components"');
@@ -183,7 +184,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     // The operator authority holds that Furious is the canonical two-dex uptime
     // set and barraging is only a legacy name for it. The decomposition summary
     // must match that and must not present barraging as an active set of its own.
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toMatch(/Furious is the canonical two-dex/i);
     expect(res.text).toMatch(/barraging is a legacy name for it/i);
     expect(res.text).not.toMatch(/barraging as a two-dex set/i);
@@ -193,7 +194,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
   // to the full teaching page; the long tail explanation is removed so the same
   // definition is never printed twice on the page.
   it('gives Paradox one directory summary linking to its page, without a duplicate long explanation', async () => {
-    const res = await request(await createApp()).get('/freestyle/operators');
+    const res = await page('/freestyle/operators');
     expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).toContain('href="/freestyle/modifier/paradox"');
     expect(res.text).toMatch(/side relationship between the support leg and that dexterity/);
@@ -215,7 +216,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
 
 describe('GET /freestyle/modifier/:slug — universal detail resolution', () => {
   it('known modifier without a teaching page resolves to a data-driven stub', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/miraging');
+    const res = await page('/freestyle/modifier/miraging');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Common tricks');
     // Common tricks come from the modifier links.
@@ -226,7 +227,7 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
   });
 
   it('modifier with an authored teaching page still resolves to the rich page', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/spinning');
+    const res = await page('/freestyle/modifier/spinning');
     expect(res.status).toBe(200);
     // The rich concept-first teaching page, not the stub.
     expect(res.text).toContain('<h2>What it is</h2>');
@@ -235,17 +236,17 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
 
   it('an operator links back to its base atom (reverse of the atom->operator cross-link)', async () => {
     // Teaching page: spinning -> spin.
-    const teaching = await request(await createApp()).get('/freestyle/modifier/spinning');
+    const teaching = await page('/freestyle/modifier/spinning');
     expect(teaching.text).toContain('Base trick:');
     expect(teaching.text).toContain('href="/freestyle/tricks/spin"');
     // Stub page: miraging -> mirage (whirling/swirling are now route-migrated sets).
-    const stub = await request(await createApp()).get('/freestyle/modifier/miraging');
+    const stub = await page('/freestyle/modifier/miraging');
     expect(stub.status).toBe(200);
     expect(stub.text).toContain('href="/freestyle/tricks/mirage"');
   });
 
   it('unknown modifier slug returns 404', async () => {
-    const res = await request(await createApp()).get('/freestyle/modifier/not-a-real-modifier');
+    const res = await page('/freestyle/modifier/not-a-real-modifier');
     expect(res.status).toBe(404);
   });
 
@@ -255,7 +256,7 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
     // reference's decomposition and worked examples. (atomic / quantum / nuclear
     // now have Set Encyclopedia teaching pages, so their modifier routes redirect
     // to the set page instead of rendering this stub.)
-    const res = await request(await createApp()).get('/freestyle/modifier/miraging');
+    const res = await page('/freestyle/modifier/miraging');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Decomposition');
     // Worked example from the operator reference (the '=' renders HTML-escaped).

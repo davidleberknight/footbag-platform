@@ -64,7 +64,10 @@ MAGIC = {
     # Encrypted containers. Whatever is inside is unreviewable by construction,
     # which is the same property the rule is about, arrived at deliberately.
     b'age-encryption.org/v1': 'age container',
-    b'-----BEGIN PGP': 'PGP message',
+    # The armoured encrypted message only. An armoured public key or signature
+    # is plain text a reviewer and a secret scanner can read, and a committed
+    # vendor signing key is exactly that.
+    b'-----BEGIN PGP MESSAGE': 'PGP message',
 }
 
 # Two container shapes the prefix table cannot express.

@@ -16,7 +16,7 @@
  * either default state is free to choose at design time.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -28,6 +28,7 @@ import {
 const { dbPath } = setTestEnv('3571');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -38,7 +39,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 async function concepts(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/concepts');
+  const res = await page('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -78,7 +79,7 @@ describe('Freestyle Concepts — flat chapter architecture (reference-manual tab
     expect(firstChapterAt).toBeGreaterThan(-1);
     expect(html.indexOf('<details class="dict-tile" id="chapter-movement-basics">')).toBe(firstChapterAt);
 
-    const res = await request(await createApp()).get('/freestyle/tricks');
+    const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<details class="dict-tile" id="reading-the-dictionary">');
     expect(res.text).toContain('id="section-reading-the-dictionary"');

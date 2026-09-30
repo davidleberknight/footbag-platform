@@ -8,11 +8,30 @@ on:
     branches:
       - main
 
+# A newer push to the same branch supersedes the run already going. On main
+# every run gets a group of its own (the run id), so no run there is cancelled
+# or left queued behind another, and each commit gets its own verdict.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 # Least privilege: every job reads the repo and nothing else. A job that one
 # day needs more (e.g. PR comments) takes a job-level override rather than
 # widening the whole workflow.
 permissions:
   contents: read
+
+# The command-line tools the jobs install, recorded once; each version is a
+# prefix the installed one must start with. Each job that installs one checks it
+# against this: a missing tool fails the job, a different version is a warning
+# annotation only, because the runner image moves on its own schedule.
+# scripts/lib/tool-report.sh reads the same lines and prints a notice on a
+# workstation.
+env:
+  TOOL_FFMPEG_VERSION: "6.1"
+  TOOL_SQLITE3_VERSION: "3.45"
+  TOOL_JQ_VERSION: "1.7"
+  TOOL_AGE_VERSION: "1.1"
 
 # Third-party actions are pinned to commit SHAs (tag comments are for humans):
 # a force-pushed tag must not be able to swap the code CI executes.
@@ -24,6 +43,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -37,12 +58,19 @@ jobs:
       - name: Type-check
         run: npm run build
 
+      - name: Type-check the tests
+        # npm run build type-checks src/ only, so a changed signature would
+        # leave a test calling production code in a shape the types forbid.
+        run: npm run typecheck:tests
+
   lint:
     name: Lint
     runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -62,6 +90,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -72,8 +102,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit dependencies (moderate+)
-        run: npm run audit
+      - name: Audit dependencies (moderate+, report-only)
+        # An advisory is published upstream on its own schedule and can land on a
+        # commit that changed nothing; patching is the maintainer's call on the
+        # operational cadence. So a finding is a warning annotation, never a red build.
+        run: npm run audit || echo "::warning title=Dependency audit::advisories found or registry unreachable; see this step's log"
 
   # Reviews only the dependencies a PR adds or changes (the whole-tree audit
   # above covers everything already installed). PR-event only: the action
@@ -86,9 +119,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Review changed dependencies
+      - name: Review changed dependencies (report-only)
+        # Advisories, including on a dependency this change adds, are reported and
+        # never block: patching is the maintainer's call on the operational cadence.
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          warn-only: true
 
   secret-scan:
     name: Secret scan
@@ -100,6 +139,7 @@ jobs:
           # Full history so gitleaks scans every commit in the push, not just
           # the checkout snapshot.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Run gitleaks
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
@@ -123,6 +163,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run convention gate
         run: bash scripts/ci/assert_conventions.sh
@@ -144,6 +186,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run harness self-check
         run: bash scripts/ci/assert_claude_harness.sh
@@ -157,6 +201,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -168,7 +214,10 @@ jobs:
         # The overlay-geometry cases derive their expected frame from the media,
         # and the transcode parity cases encode a real clip. Without these the
         # suites skip those cases and report green having executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3
+
+      - name: Check tool versions against the recorded pins
+        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3
 
       - name: Install dependencies
         run: npm ci
@@ -182,6 +231,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -202,13 +253,15 @@ jobs:
         # BeautifulSoup.
         run: python3 -m pip install --require-hashes -r legacy_data/requirements.txt
 
-      - name: Install ffmpeg + sqlite3 + age
+      - name: Install ffmpeg + sqlite3 + jq + age
         # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip. The sealed-delivery
-        # case seals a file with age and opens it with the key it was sealed to.
-        # Without these the suites skip those cases and report green having
-        # executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3 age
+        # and the transcode parity cases encode a real clip; the sealed-delivery
+        # case seals a file with age and opens it. Without these the suites skip
+        # those cases and report green having executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3 jq age
+
+      - name: Check tool versions against the recorded pins
+        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3 age jq
 
       - name: Install dependencies
         run: npm ci
@@ -222,6 +275,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -230,8 +285,8 @@ jobs:
           cache: 'npm'
 
       - name: Set up Python
-        # The coverage run is the whole unit + integration suite, which includes
-        # the test that drives the legacy club extractors as real subprocesses.
+        # The suite includes the test that drives the legacy club extractors as
+        # real subprocesses, which parse the mirror HTML with BeautifulSoup.
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: '.python-version'
@@ -241,19 +296,34 @@ jobs:
       - name: Install Python pipeline dependencies
         run: python3 -m pip install --require-hashes -r legacy_data/requirements.txt
 
-      - name: Install ffmpeg + sqlite3 + age
+      - name: Install ffmpeg + sqlite3 + jq + age
         # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip. The sealed-delivery
-        # case seals a file with age and opens it with the key it was sealed to.
-        # Without these the suites skip those cases and report green having
-        # executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3 age
+        # and the transcode parity cases encode a real clip; the sealed-delivery
+        # case seals a file with age and opens it. Without these the suites skip
+        # those cases and report green having executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3 jq age
+
+      - name: Check tool versions against the recorded pins
+        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3 age jq
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run the suite with coverage and enforce the thresholds
-        run: npm run test:coverage
+        run: npm run test:coverage -- --coverage.reporter=text --coverage.reporter=json-summary
+
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: |
+          summary=tests/coverage/coverage-summary.json
+          [ -f "$summary" ] || exit 0
+          {
+            echo "### Coverage"
+            echo ""
+            echo "| Metric | Covered |"
+            echo "|---|---|"
+            jq -r '.total | to_entries[] | select(.key|IN("statements","branches","functions","lines")) | "| \(.key) | \(.value.pct)% |"' "$summary"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   db-load-smoke:
     name: DB load smoke (loader regression gate)
@@ -261,11 +331,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install sqlite3 CLI + ffmpeg
         # ffmpeg: required by scripts/seed_curator_media.py to
         # transcode the demo-loop sources through the curator pipeline (DD §6.8).
-        run: sudo apt-get update && sudo apt-get install -y sqlite3 ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3 ffmpeg
+
+      - name: Check tool versions against the recorded pins
+        run: source scripts/lib/tool-report.sh && tool_report_require sqlite3 ffmpeg
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -303,6 +378,8 @@ jobs:
     # this job is red.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -329,6 +406,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -351,6 +430,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -360,7 +441,10 @@ jobs:
 
       - name: Install sqlite3 CLI
         # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
-        run: sudo apt-get update && sudo apt-get install -y sqlite3
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3
+
+      - name: Check tool versions against the recorded pins
+        run: source scripts/lib/tool-report.sh && tool_report_require sqlite3
 
       - name: Install dependencies
         run: npm ci
@@ -371,12 +455,15 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
-      - name: Upload Playwright trace on failure
-        if: failure()
+      - name: Upload the Playwright results
+        # Kept for any run that finished, not only a failed one, so a flaky pass
+        # can be inspected too.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: playwright-trace
+          name: playwright-results
           path: tests/test-results/
+          retention-days: 7
           if-no-files-found: ignore
 
   security-probes:
@@ -385,6 +472,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -394,14 +483,17 @@ jobs:
 
       - name: Install sqlite3 CLI
         # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
-        run: sudo apt-get update && sudo apt-get install -y sqlite3
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3
+
+      - name: Check tool versions against the recorded pins
+        run: source scripts/lib/tool-report.sh && tool_report_require sqlite3
 
       - name: Install dependencies
         run: npm ci
 
       - name: Boot the local stack, seed personas, and run the security probes
         run: |
-          bash scripts/e2e/start-stack.sh &
+          bash scripts/e2e/start-stack.sh > stack.log 2>&1 &
           STACK_PID=$!
           trap 'kill -TERM "${STACK_PID}" 2>/dev/null || true' EXIT
           for _ in $(seq 1 60); do
@@ -414,6 +506,15 @@ jobs:
             http://127.0.0.1:3000/dev/personas/refresh >/dev/null
           BASE_URL=http://127.0.0.1:3000 SMOKE_ENV=development \
             bash scripts/smoke-security.sh
+
+      - name: Upload the stack log on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-probes-stack-log
+          path: stack.log
+          retention-days: 7
+          if-no-files-found: ignore
 
   codeql:
     name: CodeQL static analysis
@@ -429,6 +530,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
@@ -493,6 +596,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1

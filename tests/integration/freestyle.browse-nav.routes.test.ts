@@ -20,7 +20,7 @@
  * never collapse onto one view.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import { cachedGet } from '../fixtures/cachedGet';
 
 import {
   setTestEnv,
@@ -33,6 +33,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3526');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -86,7 +87,7 @@ function navLabels(nav: string): string[] {
 }
 
 async function fetchNav(view: string): Promise<string> {
-  const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+  const res = await page(`/freestyle/tricks?view=${view}`);
   expect(res.status).toBe(200);
   return navBlock(res.text);
 }
