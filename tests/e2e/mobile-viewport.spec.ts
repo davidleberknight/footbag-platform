@@ -16,7 +16,7 @@
  * and row-action controls present in the DOM and unreachable on a phone.
  */
 import { test, expect } from '@playwright/test';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 import { seedTier1Member } from '../fixtures/personas';
 import {
   insertPersonaNamedGallery,
@@ -35,6 +35,20 @@ test('freestyle public pages render at phone width without horizontal overflow',
     trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
     review_status: 'curated', is_active: 1,
   });
+  // A dictionary row at the real data's widest: the longest canonical name is
+  // 47 characters, the longest movement notation 132, and the longest slug, which
+  // is also the hashtag and has no break point, 47
+  // (surging_ducking_paradox_symposium_whirling_rake). A displayed nickname
+  // rides on the same line as the name. A short row fits a phone in any layout,
+  // so the row check below would pass without testing anything.
+  const longSlug = `e2e_surging_ducking_paradox_symposium_${String(Date.now() % 1e9).padStart(9, '0')}`;
+  insertFreestyleTrick(db, {
+    slug: longSlug, canonical_name: `e2e mobile stepping paradox blurry whirling ${Date.now() % 1000}`.slice(0, 47), adds: '9',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    operational_notation: 'SET > STEPPING [BOD] > PARADOX [BOD] > BLURRY [BOD] > SPIN [BOD] > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL] > OP TOE',
+  });
+  insertFreestyleTrickAlias(db, `${longSlug}_nick`, longSlug, 'the extraordinarily long community nickname', { alias_type: 'common', alias_display: 1 });
   db.close();
 
   const context = await browser.newContext({ viewport: PHONE, baseURL: baseURL! });
@@ -60,8 +74,27 @@ test('freestyle public pages render at phone width without horizontal overflow',
     // of tolerance absorbs rounding.
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     if (scrollWidth > PHONE.width + 1) {
-      overflows.push(`${mobilePath}: scrollWidth ${scrollWidth} > ${PHONE.width}`);
+      // Name the innermost elements past the edge, so a failure says what to fix.
+      const culprits = await page.evaluate((width) => [...document.querySelectorAll('body *')]
+        .filter((el) => el.getBoundingClientRect().right > width + 1
+          && ![...el.children].some((c) => c.getBoundingClientRect().right > width + 1))
+        .slice(0, 3)
+        .map((el) => `${el.tagName.toLowerCase()} in .${el.closest('[class]')?.className ?? ''} "${(el.textContent ?? '').trim().slice(0, 40)}" (${Math.round(el.getBoundingClientRect().right)}px)`), PHONE.width);
+      overflows.push(`${mobilePath}: scrollWidth ${scrollWidth} > ${PHONE.width}: ${culprits.join(', ')}`);
     }
+  }
+
+  // The seeded row itself must fit the screen, so the check cannot pass on a
+  // page where the row was clipped by an ancestor rather than laid out to fit.
+  await page.goto('/freestyle/tricks');
+  const row = page.locator(`article.dict-trick-row[data-trick-slug="${longSlug}"]`);
+  await expect(row, 'the seeded long row must be listed').toHaveCount(1);
+  const rowRight = await row.evaluate((el) => Math.max(
+    el.getBoundingClientRect().right,
+    ...[...el.querySelectorAll('*')].map((c) => c.getBoundingClientRect().right),
+  ));
+  if (rowRight > PHONE.width + 1) {
+    overflows.push(`/freestyle/tricks: the seeded row reaches ${Math.round(rowRight)}px > ${PHONE.width}`);
   }
   await context.close();
   expect(overflows.join('\n'), `horizontal document overflow at phone width:\n${overflows.join('\n')}`).toBe('');
@@ -117,7 +150,7 @@ test('member payment history and gallery editor render at phone width with their
   // The control furthest from the left edge on each page is reachable by
   // scrolling its own container, not the document.
   await page.goto(`/members/${slug}/payments`);
-  await expect(page.getByRole('button', { name: /Cancel Recurring Donation/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Cancel Recurring Donation/i })).toBeVisible();
 
   await context.close();
   expect(overflows.join('\n'), `horizontal document overflow at phone width:\n${overflows.join('\n')}`).toBe('');

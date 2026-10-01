@@ -81,7 +81,7 @@ Symbolic-surface design has firm constraints that hold across every public templ
 - **No token soup.** Tokens render only on surfaces that explicitly carry symbolic-decomposition content (trick cards, glossary composition section, compression flow). Other surfaces stay prose.
 - **No AST / parser visuals.** No tree views, no parser-style decomposition trees, no interactive symbolic editors on public pages.
 - **No interaction-heavy symbolic UI.** Token hover affordances are restrained (underline-on-hover, no popovers, no rich tooltips). No drag, no expand-on-click, no animation.
-- **No visual overload.** The 4-color budget (core-family green / modifier olive / side-positional neutral / unknown inherit) holds. Do not introduce additional role colors without curator approval.
+- **No visual overload.** The 4-color budget (core-family green / modifier olive / side-positional neutral / unknown inherit) holds. It is a taxonomy legend for notation tokens only, not a licence for callout, card, or section colours, which follow the three role colours of the site standard (`.claude/rules/view-layer.md`). Do not introduce additional role colors without curator approval.
 - **Replace, don't add.** When refining a symbolic surface, prefer replacing an existing element over stacking a new one.
 - **Chips localized to symbolic surfaces only.** ADD chips, formula chips, glyph chips render on dictionary / glossary symbolic surfaces. Do not propagate them to event pages, records, member surfaces, or competition tables.
 
@@ -197,9 +197,9 @@ The trick detail page ships the family ladder plus the Related Tricks and Relate
 
 These surfaces have **different semantics**; do not collapse them:
 
-- **Trick name** = display text only, never a link.
+- **Trick name** = a link to the trick detail page `/freestyle/tricks/<slug>`.
 - **Hashtag** = media-gallery link. `#<slug>` links to `/media/browse?context=<slug>` when the trick has at least one media item, and renders as a plain non-clickable token otherwise; a clickable hashtag is the sole signal that media exists.
-- **Detail** = a distinct link beside the name that opens `/freestyle/tricks/<slug>`. Name, hashtag, and Detail are three explicit controls; a click's destination is never guessed.
+- **Detail** = a distinct link beside the name that opens the same page as the name. Name, hashtag, Detail, and Media are four explicit controls (view-layer rule, "Hashtag and dictionary-filter links"); a click's destination is never guessed.
 - **Family navigation** = a separate `family-badge` linking to `/freestyle/tricks?family={trick_family}`.
 
 Forbidden: hashtags must NOT trigger family filtering; slug-prefix matching is NOT used for filtering (narrow on `trick_family` only); family selection must NOT be derived from a hashtag.

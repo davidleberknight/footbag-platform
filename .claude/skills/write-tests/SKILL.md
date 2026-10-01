@@ -99,7 +99,7 @@ How often, per the rule's demonstrated-failure requirement: once per test for a 
 
 **Reviewer.** Run a fresh read-only reviewer subagent when the change touches auth and session, payments, member privacy, identity claim or erasure, or adds more than five test cases. Give it the test diff and the code under test, and this brief: "Report only tests that would still pass with the code they guard broken, each with the one-line code change that proves it. Do not comment on style or ask for more tests." Fix what it reports.
 
-**Run.** `npm run build` plus the suites the change reaches and the suites that import what it changed, named explicitly (`npx vitest run tests/...`); `npm run typecheck:tests` when a test signature changed; `npm run test:coverage` when a coverage question is open. The runner is the human-run gate, not this step.
+**Run.** `npm run build` plus the suites the change reaches and the suites that import what it changed, named explicitly (`npx vitest run tests/...`); `npm run typecheck:tests` when a `src/` signature a test calls changed; `npm run test:coverage` when a coverage question is open. The runner is the gate, not this step; it and any other long run go through the long-runs rule in `.claude/rules/testing.md` (approval first, then a background job).
 
 **Report.** Which tests were added or changed, the defect each catches, how failure was demonstrated, the reviewer's findings if it ran, and the result of every run, with full error output for any failure.
 

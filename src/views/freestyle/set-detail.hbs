@@ -25,7 +25,7 @@
     {{/if}}
     <p class="hero-eyebrow">{{content.subtypeLabel}}</p>
     <h1>{{content.displayName}}</h1>
-    <p class="hero-hashtag" aria-label="Tag identity">{{content.hashtag}}</p>
+    <p class="hero-hashtag">{{content.hashtag}}</p>
   </div>
 </div>
 
@@ -77,7 +77,7 @@
         <div class="step-header">
           <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
           {{#if isPilot}}<a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="step-name">{{canonicalName}}</span>{{/if}}
-          {{#if adds}}<span class="step-adds" aria-label="ADD {{adds}}">{{adds}} ADD</span>{{/if}}
+          {{#if adds}}<span class="step-adds">{{adds}} ADD</span>{{/if}}
           <span class="step-modifier">{{addedLabel}}</span>
         </div>
         <p class="step-rationale">{{rationale}}</p>
@@ -193,7 +193,7 @@
         <a href="{{href}}">{{displayName}}</a>
         <span class="set-detail-trick-add">({{addsLabel}})</span>
         {{#if operationalNotation}}<code class="set-detail-trick-notation">{{operationalNotation}}</code>{{/if}}
-        {{#if mediaHref}}<a class="set-detail-trick-media" href="{{mediaHref}}" aria-label="Media for {{displayName}}">&#9654; media</a>{{/if}}
+        {{#if mediaHref}}<a class="tag-chip tag-chip--sm" href="{{mediaHref}}" aria-label="Media for {{displayName}}">media</a>{{/if}}
       </li>
       {{/each}}
     </ul>
@@ -241,7 +241,7 @@
   </nav>
   {{/if}}
 
-  <footer class="set-detail-provenance" aria-label="Source provenance">
+  <footer class="set-detail-provenance">
     <span class="set-card-source set-card-source--{{content.source}}">{{content.sourceLabel}}</span>
     {{#if content.auditStatusLabel}}<span class="set-card-audit set-card-audit--{{content.auditStatus}}">{{content.auditStatusLabel}}</span>{{/if}}
     <p class="set-detail-citation">{{content.sourceCitation}}</p>

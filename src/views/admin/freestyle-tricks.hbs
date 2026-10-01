@@ -1,24 +1,33 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="text-muted">Browse the freestyle trick dictionary. {{content.totalCount}} row(s) shown.</p>
+    <p class="hero-subtitle">Browse the freestyle trick dictionary. {{content.totalCount}} row(s) shown.</p>
   </div>
 </div>
 
 <div class="wrapper">
   <section>
-    <form method="GET" action="/admin/freestyle/tricks" class="freestyle-admin-filter">
-      <input type="text" name="q" placeholder="Search name or slug" value="{{content.filters.query}}" />
-      <select name="active" aria-label="Filter by active state">
-        {{#each content.filters.activeOptions}}
-          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
-        {{/each}}
-      </select>
-      <select name="reviewStatus" aria-label="Filter by review status">
-        {{#each content.filters.reviewStatusOptions}}
-          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
-        {{/each}}
-      </select>
+    <form method="GET" action="/admin/freestyle/tricks" class="filter-bar">
+      <label>
+        Search
+        <input type="text" name="q" placeholder="Search name or slug" value="{{content.filters.query}}" />
+      </label>
+      <label>
+        Active
+        <select name="active">
+          {{#each content.filters.activeOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Review status
+        <select name="reviewStatus">
+          {{#each content.filters.reviewStatusOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </label>
       <button type="submit" class="btn btn-outline btn-sm">Search</button>
       {{#if content.filters.isFiltered}}
         <a href="/admin/freestyle/tricks" class="btn btn-outline btn-sm">Clear</a>
@@ -26,7 +35,8 @@
     </form>
 
     {{#if content.hasRows}}
-      <table class="freestyle-admin-table mt-2">
+      <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Freestyle tricks">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -52,8 +62,9 @@
           {{/each}}
         </tbody>
       </table>
+      </div>
     {{else}}
-      <p class="text-muted mt-2">No freestyle tricks match your search.</p>
+      <div class="empty-state"><p>No freestyle tricks match your search.</p></div>
     {{/if}}
   </section>
 </div>

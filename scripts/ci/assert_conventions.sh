@@ -2011,6 +2011,20 @@ if [ -n "$size_bad$token_bad" ]; then
 fi
 fi
 
+# Rule: running prose takes one reading measure, 55ch (about 70 characters of
+# body text). Reason: a section that widens its own cap is how prose drifted to
+# 85, 95 and 127 characters per line; one value, checked here, keeps it closed.
+# A narrower cap is allowed.
+if check "prose measure is at most 55ch" src/public/css/style.css; then
+measure_bad=$(grep -nE 'max-width: *[0-9.]+ch' src/public/css/style.css \
+  | grep -vE 'max-width: *([1-4]?[0-9]|5[0-5])(\.[0-9]+)?ch' || true)
+if [ -n "$measure_bad" ]; then
+  printf '%s\n' "$measure_bad" >&2
+  echo "  FAIL: a ch reading-measure cap is wider than 55ch" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: a public control never carries a decorative arrow in its label.
 # Reason: colour, resting underline, and wording carry the link affordance; an
 # appended arrow is decoration every author must remember to type and every

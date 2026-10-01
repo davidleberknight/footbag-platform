@@ -127,14 +127,14 @@ done
 # The same assertion for the fast pre-commit gate.
 #
 # The check above binds the workflow to the full runner. It does not bind the
-# workflow to `npm run test:pre-pr`, which is the gate the rules and the
+# workflow to `npm run test:quick`, which is the gate the rules and the
 # onboarding guide actually tell an author to run before committing, and which
 # for a long time was build, lint, conventions and vitest. A secret-scan failure
 # therefore could not be seen locally by anyone following the documented loop,
 # and was first visible as a red push. That is the same drift this file was
 # written to stop, one entry point over.
 #
-# The fast loop has one home: test:pre-pr is exactly the runner's --quick mode,
+# The fast loop has one home: test:quick is exactly the runner's --quick mode,
 # and the runner declares the gates that mode schedules in QUICK_GATES (its own
 # suite proves the mode schedules exactly that list). So a job here is either
 # carried by a gate on that list or carries the reason it cannot be. The bar for
@@ -146,14 +146,14 @@ done
 PACKAGE_JSON="${REPO_ROOT}/package.json"
 [[ -f "$PACKAGE_JSON" ]] || { echo "  FAIL: missing $PACKAGE_JSON" >&2; exit 1; }
 
-PRE_PR="$(jq -r '.scripts["test:pre-pr"] // empty' "$PACKAGE_JSON")"
-if [[ -z "$PRE_PR" ]]; then
-  echo "  FAIL: package.json declares no test:pre-pr script, which the rules name as the pre-commit gate." >&2
+QUICK_SCRIPT="$(jq -r '.scripts["test:quick"] // empty' "$PACKAGE_JSON")"
+if [[ -z "$QUICK_SCRIPT" ]]; then
+  echo "  FAIL: package.json declares no test:quick script, which the rules name as the pre-commit gate." >&2
   exit 1
 fi
-if [[ "$PRE_PR" != "./run_all_tests.sh --quick" ]]; then
-  echo "  FAIL: test:pre-pr must be exactly ./run_all_tests.sh --quick, so the fast loop's gate list" >&2
-  echo "        has one home; it is '${PRE_PR}'." >&2
+if [[ "$QUICK_SCRIPT" != "./run_all_tests.sh --quick" ]]; then
+  echo "  FAIL: test:quick must be exactly ./run_all_tests.sh --quick, so the fast loop's gate list" >&2
+  echo "        has one home; it is '${QUICK_SCRIPT}'." >&2
   violations=$((violations + 1))
 fi
 
@@ -167,7 +167,7 @@ else
 fi
 
 # Workflow job -> the quick-mode gate that speaks for it.
-declare -A PRE_PR_COVERED_BY=(
+declare -A QUICK_COVERED_BY=(
   [typecheck]="build"
   [lint]="lint"
   [conventions]="conventions"
@@ -189,10 +189,10 @@ declare -A PRE_PR_COVERED_BY=(
 )
 
 for job in "${JOBS[@]}"; do
-  mapping="${PRE_PR_COVERED_BY[$job]:-}"
+  mapping="${QUICK_COVERED_BY[$job]:-}"
   if [[ -z "$mapping" ]]; then
-    echo "  FAIL: workflow job '${job}' is not reachable from test:pre-pr and is not listed as one that cannot be." >&2
-    echo "        Add it to the test:pre-pr script in package.json, or record why the fast loop cannot carry it." >&2
+    echo "  FAIL: workflow job '${job}' is not reachable from test:quick and is not listed as one that cannot be." >&2
+    echo "        Add its gate to QUICK_GATES in ${RUNNER}, or record why the fast loop cannot carry it." >&2
     violations=$((violations + 1))
     continue
   fi
@@ -203,9 +203,9 @@ for job in "${JOBS[@]}"; do
   fi
 done
 
-for job in "${!PRE_PR_COVERED_BY[@]}"; do
+for job in "${!QUICK_COVERED_BY[@]}"; do
   if ! grep -qx "$job" <<<"$JOBS_LIST"; then
-    echo "  FAIL: '${job}' is mapped in the pre-PR table but is no longer a job in ${WORKFLOW}." >&2
+    echo "  FAIL: '${job}' is mapped in the quick-mode table but is no longer a job in ${WORKFLOW}." >&2
     violations=$((violations + 1))
   fi
 done
@@ -339,7 +339,7 @@ fi
 declare -A CI_ONLY_COMMANDS=()
 
 WORKFLOW_CODE="$(sed -n '/^jobs:/,$p' "$WORKFLOW" | sed 's/#.*//')"
-LOCAL_CODE="$(sed 's/#.*//' "$RUNNER"; sed 's/#.*//' "$CLEAN_ROOM"; printf '%s\n' "$PRE_PR")"
+LOCAL_CODE="$(sed 's/#.*//' "$RUNNER"; sed 's/#.*//' "$CLEAN_ROOM"; printf '%s\n' "$QUICK_SCRIPT")"
 
 INVOKED="$(grep -oE 'npm run [a-z0-9:-]+|scripts/[A-Za-z0-9_/.-]+\.(sh|py)' <<<"$WORKFLOW_CODE" | sort -u || true)"
 
@@ -358,7 +358,7 @@ while IFS= read -r cmd; do
   fi
   if ! grep -qF "$cmd" <<<"$LOCAL_CODE"; then
     echo "  FAIL: the workflow runs '${cmd}', which neither ${RUNNER}, the clean room, nor" >&2
-    echo "        test:pre-pr runs. A push would exercise it and no local run would." >&2
+    echo "        test:quick runs. A push would exercise it and no local run would." >&2
     echo "        Add it to a local gate, or record it as one a workstation cannot run." >&2
     violations=$((violations + 1))
   fi

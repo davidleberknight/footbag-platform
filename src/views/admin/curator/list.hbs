@@ -55,15 +55,15 @@
         <thead>
           <tr>
             <th>Thumbnail</th>
-            <th>
-              <a href="{{content.sortLinks.type}}">Type</a>{{#if content.sortIndicator.type}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            <th{{#if content.sortIndicator.type}} aria-sort="ascending"{{/if}}>
+              <a href="{{content.sortLinks.type}}">Type</a>{{#if content.sortIndicator.type}} <span class="sort-indicator" aria-hidden="true">▲</span>{{/if}}
             </th>
-            <th>
-              <a href="{{content.sortLinks.caption}}">Caption</a>{{#if content.sortIndicator.caption}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            <th{{#if content.sortIndicator.caption}} aria-sort="ascending"{{/if}}>
+              <a href="{{content.sortLinks.caption}}">Caption</a>{{#if content.sortIndicator.caption}} <span class="sort-indicator" aria-hidden="true">▲</span>{{/if}}
             </th>
             <th>Tags</th>
-            <th>
-              <a href="{{content.sortLinks.date}}">Uploaded</a>{{#if content.sortIndicator.dateDesc}} <span class="sort-indicator" aria-label="sorted descending">▼</span>{{/if}}{{#if content.sortIndicator.dateAsc}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            <th{{#if content.sortIndicator.dateDesc}} aria-sort="descending"{{/if}}{{#if content.sortIndicator.dateAsc}} aria-sort="ascending"{{/if}}>
+              <a href="{{content.sortLinks.date}}">Uploaded</a>{{#if content.sortIndicator.dateDesc}} <span class="sort-indicator" aria-hidden="true">▼</span>{{/if}}{{#if content.sortIndicator.dateAsc}} <span class="sort-indicator" aria-hidden="true">▲</span>{{/if}}
             </th>
             <th>Actions</th>
           </tr>

@@ -48,7 +48,9 @@ describe('Technique Notes disclosure', () => {
     // a single disclosure, collapsed by default (no open attribute)
     expect(res.text).toContain('class="trick-technique-collapsible"');
     expect(res.text).toMatch(/<details class="trick-technique-collapsible"(?![^>]*\bopen\b)/);
-    expect(res.text).toContain('<summary>Technique Notes</summary>');
+    // the disclosure's title is the section's h2, so its h3 parts never sit
+    // under whichever unrelated h2 came before them
+    expect(res.text).toContain('<summary><h2>Technique Notes</h2></summary>');
 
     // the three parts are sub-blocks, not standalone full-width sections
     expect(res.text).toContain('>Execution</h3>');
@@ -69,6 +71,6 @@ describe('Technique Notes disclosure', () => {
     const res = await request(createApp()).get('/freestyle/tricks/dyno');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('trick-technique-collapsible');
-    expect(res.text).not.toContain('<summary>Technique Notes</summary>');
+    expect(res.text).not.toContain('>Technique Notes</h2>');
   });
 });

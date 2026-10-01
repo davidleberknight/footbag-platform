@@ -27,7 +27,8 @@
         <p class="text-muted fs-sm">{{blockerId}} &middot; {{count}} waiting on notation</p>
       </div>
 
-      <table class="freestyle-admin-table mt-2">
+      <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Notation backlog">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -84,14 +85,17 @@
           {{/each}}
         </tbody>
       </table>
+      </div>
     </section>
     {{/each}}
   {{else}}
     <section class="content-section">
-      <p class="form-notice">
-        No ruling is waiting on a movement notation. A name reaches this queue when
-        its identity and difficulty are settled and its movement is not.
-      </p>
+      <div class="empty-state">
+        <p>
+          No ruling is waiting on a movement notation. A name reaches this queue when
+          its identity and difficulty are settled and its movement is not.
+        </p>
+      </div>
     </section>
   {{/if}}
 

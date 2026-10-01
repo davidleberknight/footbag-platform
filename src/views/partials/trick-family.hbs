@@ -29,7 +29,7 @@
   {{#if content.additionalFamilies.length}}
   <p class="trick-also-family">
     Also a member of:
-    {{#each content.additionalFamilies}}<a class="trick-also-family-chip{{#if isMinorLineage}} trick-also-family-chip--minor{{/if}}" href="/freestyle/tricks?family={{slug}}">{{label}}{{#if isMinorLineage}} <span class="trick-family-minor-tag">&middot; minor lineage</span>{{/if}}</a>{{#unless @last}} {{/unless}}{{/each}}
+    {{#each content.additionalFamilies}}<a class="trick-also-family-chip{{#if isMinorLineage}} trick-also-family-chip--minor{{/if}}" href="{{{href}}}">{{label}}{{#if isMinorLineage}} <span class="trick-family-minor-tag">&middot; minor lineage</span>{{/if}}</a>{{#unless @last}} {{/unless}}{{/each}}
   </p>
   {{/if}}
   <div class="family-lineage">
@@ -45,7 +45,7 @@
           {{else}}
             <a href="{{detailHref}}">{{canonicalName}}</a>
           {{/if}}
-          {{#if hasRecords}}<span class="record-indicator" title="Has trick records">&#9733;</span>{{/if}}
+          {{#if hasRecords}}<span class="record-indicator" title="Has trick records" aria-hidden="true">&#9733;</span><span class="visually-hidden">Has trick records</span>{{/if}}
         </span>
         {{/each}}
       </div>

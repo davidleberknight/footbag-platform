@@ -144,6 +144,12 @@ test('admin surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, as
       { path: '/admin/clubs/leadership', name: 'club leadership' },
       { path: '/admin/freestyle/tricks', name: 'freestyle tricks admin' },
       { path: '/admin/freestyle/records', name: 'freestyle records admin' },
+      { path: `/admin/freestyle/tricks/a11y_trick_${suffix}/edit`, name: 'freestyle trick edit' },
+      { path: '/admin/freestyle/records/new', name: 'freestyle record new' },
+      { path: '/admin/freestyle/sources', name: 'freestyle sources admin' },
+      { path: '/admin/freestyle/tips', name: 'freestyle tips admin' },
+      { path: '/admin/freestyle/notation-backlog', name: 'freestyle notation backlog' },
+      { path: '/admin/freestyle/notation-drafts', name: 'freestyle notation drafts' },
       { path: '/admin/curator/upload', name: 'curator upload' },
     ]);
   } finally {

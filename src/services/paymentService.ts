@@ -491,6 +491,15 @@ export interface RecurringDonationRow {
   isCancelPending: boolean;
 }
 
+/** The confirm step before a member stops a recurring donation. */
+export interface RecurringCancelConfirmContent {
+  amountDisplay: string;
+  startedDate: string;
+  noteDisplay: string;
+  cancelHref: string;
+  backHref: string;
+}
+
 export interface PaymentHistoryContent {
   memberKey: string;
   rows: PaymentHistoryRow[];
@@ -3620,6 +3629,36 @@ function getPaymentHistoryPage(
   };
 }
 
+/**
+ * The confirm page shown before a member cancels one of their own recurring
+ * donations. Cancelling stops money, so the history page's control opens this
+ * page and only its button posts. Returns null when the subscription is not the
+ * member's, is unknown, or can no longer be cancelled (already ended or already
+ * ending), so the controller answers 404 the same way in each case.
+ */
+function getRecurringCancelConfirmPage(
+  memberId: string,
+  memberKey: string,
+  stripeSubscriptionId: string,
+): PageViewModel<RecurringCancelConfirmContent> | null {
+  const sub = listRecurringDonationsForMember(memberId)
+    .find((s) => s.stripe_subscription_id === stripeSubscriptionId);
+  if (!sub) return null;
+  const row = shapeRecurringRow(sub, memberKey);
+  if (!row.showCancel) return null;
+  return {
+    seo:  { title: 'Cancel Recurring Donation', noindex: true },
+    page: { sectionKey: 'members', pageKey: 'member_recurring_cancel_confirm', title: 'Cancel Recurring Donation' },
+    content: {
+      amountDisplay: row.amountDisplay,
+      startedDate: row.startedDate,
+      noteDisplay: row.noteDisplay,
+      cancelHref: row.cancelHref,
+      backHref: `/members/${memberKey}/payments`,
+    },
+  };
+}
+
 function getDonatePage(
   memberId: string,
   opts: { returnTo?: unknown; formError?: string | null } = {},
@@ -4019,6 +4058,7 @@ export const paymentService = {
   getPaymentCancelPage,
   releaseAbandonedCheckout,
   getPaymentHistoryPage,
+  getRecurringCancelConfirmPage,
   getDonationSuccessPage,
   getSubscriptionCheckoutPage,
   getDonatePage,

@@ -122,7 +122,7 @@ describe('Family view — two-line row contract', () => {
     for (const slug of ALL_MEMBERS) {
       const row = rowFor(res.text, slug);
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation-value"/);
-      expect(row, `${slug} missing difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+      expect(row, `${slug} missing difficulty value`).toMatch(/class="dict-trick-row-add">\(\d+\)</);
     }
   });
 

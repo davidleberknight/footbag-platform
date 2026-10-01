@@ -86,6 +86,30 @@ describe('Browse-shell row-contract stability guard — every browse view uses t
       expect(res.text, `${label} must render dict-trick-row articles`).toMatch(/<article class="dict-trick-row/);
     });
 
+    // The rows are a list, so a screen reader announces how many tricks it holds:
+    // every stack is a list, and every row is one of its items.
+    it(`${label} (?view=${view}) renders the stack as a list with one item per row`, async () => {
+      const res = await page(`/freestyle/tricks?view=${view}`);
+      expect(res.text, `${label} stack must be a list`).toMatch(/<ul class="dict-trick-row-stack" role="list">/);
+      expect(res.text, `${label} stack must not be a div`).not.toMatch(/<div class="dict-trick-row-stack"/);
+      const rows = (res.text.match(/<article class="dict-trick-row[ "]/g) ?? []).length;
+      const items = (res.text.match(/<li><article class="dict-trick-row[ "]/g) ?? []).length;
+      expect(rows, `${label} must render rows`).toBeGreaterThan(0);
+      expect(items, `${label} every row must sit in a list item`).toBe(rows);
+    });
+
+    // A screen reader takes a row's names from its visible text. An aria-label
+    // on a plain span is ignored or read inconsistently, and one on the hashtag
+    // link replaces the hashtag a sighted reader sees with a phrase every row
+    // repeats, so a listener hears "Media for this trick" three hundred times.
+    it(`${label} (?view=${view}) names every row element by its visible text, with no aria-label`, async () => {
+      const res = await page(`/freestyle/tricks?view=${view}`);
+      const rows = res.text.match(/<article class="dict-trick-row[\s\S]*?<\/article>/g) ?? [];
+      expect(rows.length, `${label} must render at least one row`).toBeGreaterThan(0);
+      const labelled = rows.filter((row) => row.includes('aria-label='));
+      expect(labelled, `${label} rows carrying an aria-label:\n${labelled.join('\n')}`).toEqual([]);
+    });
+
     it(`${label} (?view=${view}) does NOT render the legacy shared dictionary-trick-card`, async () => {
       const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.text, `${label} must NOT use dict-card-stack`).not.toContain('dict-card-stack');
@@ -137,7 +161,7 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
 
     it(`${label} (?view=${view}) renders the hashtag as a plain token when the trick has no media`, async () => {
       const res = await page(`/freestyle/tricks?view=${view}`);
-      expect(res.text, `${label} must render a plain hashtag token`).toMatch(/<span class="hashtag" aria-label="Tag identity">/);
+      expect(res.text, `${label} must render a plain hashtag token`).toMatch(/<span class="hashtag">#/);
       expect(res.text, `${label} must not link a hashtag for a trick with no media`).not.toMatch(/hashtag--media/);
     });
   }
@@ -148,11 +172,11 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
 // row may omit rather than which partial drew it.
 describe('Alias slot uniformity — every browse view surfaces a trick\'s folk names', () => {
   for (const [view, label] of BROWSE_VIEWS) {
-    it(`${label} (?view=${view}) renders the "Also called" slot`, async () => {
+    it(`${label} (?view=${view}) renders the nickname slot`, async () => {
       const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       expect(res.text, `${label} must list the aliased trick`).toContain('data-trick-slug="ducking-whirl"');
-      expect(res.text, `${label} must render the alias slot`).toContain('Also called');
+      expect(res.text, `${label} must render the alias slot`).toContain('class="dict-trick-row-nicknames"');
       expect(res.text, `${label} must render the alias text`).toContain('duck whirl');
     });
   }

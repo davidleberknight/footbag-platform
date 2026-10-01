@@ -89,7 +89,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
       // Card present
       expect(res.text).toContain(`id="enc-set-${slug}"`);
       // Detail link points at the per-set detail page (not in-page anchor)
-      expect(res.text).toMatch(new RegExp(`<a class="sets-encyclopedia-card-detail-link" href="/freestyle/sets/${slug}">View details</a>`));
+      expect(res.text).toMatch(new RegExp(`<a class="action-link" href="/freestyle/sets/${slug}">View details</a>`));
       // Hashtag follows the set ontology role-prefix pattern (#set_<slug>)
       expect(res.text).toContain(`#set_${slug}`);
     },
@@ -100,8 +100,8 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
     // One row per set: count by detail-link, then confirm each required slot
     // appears the same number of times. The rows reuse the trick-dictionary
     // notation contract (.dict-trick-row-notation) for the SET formula line.
-    const detailLinkMatches = res.text.match(/sets-encyclopedia-card-detail-link/g) ?? [];
-    const movementMatches   = res.text.match(/sets-encyclopedia-card-movement/g) ?? [];
+    const detailLinkMatches = res.text.match(/href="\/freestyle\/sets\/[^"]+">View details<\/a>/g) ?? [];
+    const movementMatches  = res.text.match(/sets-encyclopedia-card-movement/g) ?? [];
     const statusMatches     = res.text.match(/sets-encyclopedia-card-status /g) ?? [];
     const notationMatches   = res.text.match(/dict-trick-row-notation/g) ?? [];
     expect(detailLinkMatches.length).toBeGreaterThan(0);
@@ -222,8 +222,8 @@ describe('Cross-link presence on sibling pages', () => {
 describe('GET /freestyle/sets — S1 role chip on every card', () => {
   it('every card carries a role-chip class', async () => {
     const res = await page('/freestyle/sets');
-    const detailLinkMatches = res.text.match(/sets-encyclopedia-card-detail-link/g) ?? [];
-    const roleChipMatches   = res.text.match(/sets-encyclopedia-card-role-chip\b/g) ?? [];
+    const detailLinkMatches = res.text.match(/href="\/freestyle\/sets\/[^"]+">View details<\/a>/g) ?? [];
+    const roleChipMatches  = res.text.match(/sets-encyclopedia-card-role-chip\b/g) ?? [];
     expect(detailLinkMatches.length).toBeGreaterThan(0);
     // One role chip per card (the base class appears once per chip;
     // the role-variant class is a second occurrence on the same element).
@@ -270,7 +270,10 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
       const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
       expect(cardIdx).toBeGreaterThan(0);
       const cardSlice = res.text.slice(cardIdx, cardIdx + 1500);
-      expect(cardSlice).toMatch(/<span class="sets-encyclopedia-card-flagship" title="Flagship set: [^"]+">/);
+      expect(cardSlice).toMatch(/<span class="sets-encyclopedia-card-flagship" title="Flagship set: [^"]+" aria-hidden="true">/);
+      // The star's meaning is spoken, not left to a tooltip a keyboard, touch
+      // screen or screen reader never reaches.
+      expect(cardSlice).toMatch(/<span class="visually-hidden">Flagship set: [^<]+<\/span>/);
     },
   );
 

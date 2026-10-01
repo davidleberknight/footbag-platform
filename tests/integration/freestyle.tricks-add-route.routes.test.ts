@@ -96,9 +96,9 @@ describe('GET /freestyle/tricks/:add — canonical per-tier view', () => {
 
   it('keeps the landing orientation tiles off the tier page', async () => {
     const html = await page('/freestyle/tricks/5');
-    expect(html).not.toContain('aria-label="About the dictionary"');
+    expect(html).not.toContain('class="dict-onboarding-links"');
     const landing = await page('/freestyle/tricks');
-    expect(landing).toContain('aria-label="About the dictionary"');
+    expect(landing).toContain('class="dict-onboarding-links"');
   });
 });
 

@@ -354,7 +354,7 @@ describe('/freestyle/tricks?view=modifier — card formatting standardization', 
     const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="spinning-paradox-mirage"[\s\S]*?<\/article>/);
     expect(m).not.toBeNull();
     expect(m![0]).toMatch(/class="dict-trick-row-notation-value"/);
-    expect(m![0]).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+    expect(m![0]).toMatch(/class="dict-trick-row-add">\(\d+\)</);
   });
 
   it('cluster and subsection counts render, and the cluster count dedupes across its modifiers', async () => {

@@ -309,6 +309,9 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('emailVisibility');
     expect(res.text).not.toContain('name="displayName"');
+    // The name and profile URL can be changed by an admin, so the page must not
+    // tell the member they are permanent.
+    expect(res.text).not.toContain('are permanent');
   });
 
   it('a member with no gender set sees the gender control default to undisclosed', async () => {

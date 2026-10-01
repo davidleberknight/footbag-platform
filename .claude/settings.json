@@ -14,6 +14,7 @@
       "Bash(npm run test:coverage*)",
       "Bash(npm run test:strong-hash*)",
       "Bash(npm run build*)",
+      "Bash(npm run typecheck:tests)",
       "Bash(npx tsc -p tsconfig.json --noEmit)",
       "Bash(npx vitest run:*)",
       "Bash(node --version*)",

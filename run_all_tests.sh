@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run_all_tests.sh — canonical local test runner.
 #
-# Two local modes and one additive switch:
+# Two local modes, --staging, and the add-on and skip flags listed under Usage:
 #
 #   ./run_all_tests.sh (or --full)  The thorough local gate, run before a push and
 #       before a staging deploy: every CI gate that is safe on a workstation (the
@@ -16,7 +16,7 @@
 #       and needs no AWS identity. A GREEN run writes the pass receipt the
 #       production release gate reads. The report-only checks, the dependency
 #       audit (--audit) and the ZAP scan (--zap), run before a production deploy.
-#   --quick  The fast pre-commit loop, and exactly what `npm run test:pre-pr`
+#   --quick  The fast pre-commit loop, and exactly what `npm run test:quick`
 #       runs: build and test type-check, lint, conventions, harness,
 #       generated-content, secret scan, and the unit and integration tiers.
 #   --staging  Adds four read-only checks against staging to either mode, and
@@ -74,7 +74,7 @@
 #
 # Usage:
 #   ./run_all_tests.sh                    # the thorough local gate (same as --full)
-#   ./run_all_tests.sh --quick            # the fast pre-commit loop (npm run test:pre-pr)
+#   ./run_all_tests.sh --quick            # the fast pre-commit loop (npm run test:quick)
 #   scripts/as-dev-tester.sh --account <you> ./run_all_tests.sh --staging
 #                                         # --full plus the read-only staging checks
 #   ./run_all_tests.sh --plan             # print what a mode would run, and exit
@@ -157,7 +157,7 @@ Modes:
                 lint, conventions, generated-content and the unit and
                 integration tiers run in the clean room. A GREEN run writes a
                 pass receipt the production release gate reads.
-  --quick       The fast pre-commit loop, and exactly what npm run test:pre-pr
+  --quick       The fast pre-commit loop, and exactly what npm run test:quick
                 runs: build and test type-check, lint, conventions, harness,
                 generated-content, the secret scan (passing when no scanner is
                 installed), and the unit and integration tiers. Ends with success
@@ -294,7 +294,7 @@ mode_label() {
 # reported, not held against the run.
 PUSH_GATE_EQUIVALENTS="build lint conventions harness generated-content secret-scan unit integration e2e terraform security-probes clean-room"
 
-# The fast pre-commit loop, and its one home: `npm run test:pre-pr` is
+# The fast pre-commit loop, and its one home: `npm run test:quick` is
 # `./run_all_tests.sh --quick`, and check_ci_parity.sh binds this list to the
 # workflow jobs the fast loop claims to carry.
 QUICK_GATES="build lint conventions harness generated-content secret-scan unit integration"

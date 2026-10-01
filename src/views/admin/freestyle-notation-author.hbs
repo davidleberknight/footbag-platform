@@ -52,55 +52,57 @@
       <h2>The Movement</h2>
     </div>
 
-    <form method="POST" action="{{content.saveHref}}" class="freestyle-edit-form">
-      <p>
-        <label for="notation">Movement notation</label><br>
-        <textarea id="notation" name="notation" rows="3" maxlength="500">{{content.fields.notation}}</textarea>
-      </p>
-      {{! Information, not a verdict: the difficulty this count has to match is
-          asserted when the canonical trick is created, so there is nothing yet to
-          check it against. }}
-      <p class="text-muted fs-sm">{{content.bracketCountLine}} The difficulty it must match is set when the trick is published.</p>
+    <form method="POST" action="{{content.saveHref}}" class="form-block">
+      <div class="form-field">
+        <label for="notation">Movement notation</label>
+        <textarea id="notation" name="notation" rows="3" maxlength="500" aria-describedby="notation-hint">{{content.fields.notation}}</textarea>
+        {{! Information, not a verdict: the difficulty this count has to match is
+            asserted when the canonical trick is created, so there is nothing yet to
+            check it against. }}
+        <small class="form-hint" id="notation-hint">{{content.bracketCountLine}} The difficulty it must match is set when the trick is published.</small>
+      </div>
 
-      <p>
-        <label for="evidenceBasis">Where did the notation come from?</label><br>
-        <select id="evidenceBasis" name="evidenceBasis">
+      <div class="form-field">
+        <label for="evidenceBasis">Where did the notation come from?</label>
+        <select id="evidenceBasis" name="evidenceBasis" aria-describedby="evidenceBasis-hint">
           <option value="">Choose one</option>
           {{#each content.basisOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-      </p>
-      <ul class="text-muted fs-sm">
-        {{#each content.basisHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
-      </ul>
+        <ul class="form-hint" id="evidenceBasis-hint">
+          {{#each content.basisHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
+        </ul>
+      </div>
 
-      <p>
-        <label for="derivationMethod">How was it produced?</label><br>
-        <select id="derivationMethod" name="derivationMethod">
+      <div class="form-field">
+        <label for="derivationMethod">How was it produced?</label>
+        <select id="derivationMethod" name="derivationMethod" aria-describedby="derivationMethod-hint">
           <option value="">Choose one</option>
           {{#each content.methodOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-      </p>
-      <ul class="text-muted fs-sm">
-        {{#each content.methodHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
-      </ul>
+        <ul class="form-hint" id="derivationMethod-hint">
+          {{#each content.methodHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
+        </ul>
+      </div>
 
-      <p>
-        <label for="conventionId">Which convention, if it was derived under one?</label><br>
-        <select id="conventionId" name="conventionId">
+      <div class="form-field">
+        <label for="conventionId">Which convention, if it was derived under one?</label>
+        <select id="conventionId" name="conventionId" aria-describedby="conventionId-hint">
           <option value="">None &mdash; it was not derived under a convention</option>
           {{#each content.conventionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-      </p>
-      <ul class="text-muted fs-sm">
-        {{#each content.conventionSummaries}}<li><strong>{{title}}</strong> &mdash; {{summary}}</li>{{/each}}
-      </ul>
+        <ul class="form-hint" id="conventionId-hint">
+          {{#each content.conventionSummaries}}<li><strong>{{title}}</strong> &mdash; {{summary}}</li>{{/each}}
+        </ul>
+      </div>
 
-      <p>
-        <label for="provenanceNote">Provenance note</label><br>
+      <div class="form-field">
+        <label for="provenanceNote">Provenance note</label>
         <textarea id="provenanceNote" name="provenanceNote" rows="3" maxlength="4000">{{content.fields.provenanceNote}}</textarea>
-      </p>
+      </div>
 
-      <p><button type="submit" class="btn btn-primary btn-sm">Save Notation</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save Notation</button>
+      </div>
     </form>
 
     {{#if content.isAuthored}}

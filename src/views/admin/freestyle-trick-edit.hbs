@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{content.fields.canonicalName}}</h1>
-    <p class="text-muted">Editing freestyle trick <code>{{content.slug}}</code>.</p>
+    <p class="hero-subtitle">Editing freestyle trick <code>{{content.slug}}</code>.</p>
   </div>
 </div>
 
@@ -16,35 +16,83 @@
     </div>
     {{/if}}
 
-    <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="freestyle-edit-form">
+    <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Canonical name</label><br><input type="text" name="canonicalName" value="{{content.fields.canonicalName}}" /></p>
-        <p><label>ADD</label><br><input type="text" name="adds" value="{{content.fields.adds}}" /></p>
-        <p><label>Movement notation</label><br><textarea name="movementNotation" rows="2">{{content.fields.movementNotation}}</textarea></p>
-        <p><label>Execution notation</label><br><textarea name="executionNotation" rows="2">{{content.fields.executionNotation}}</textarea></p>
-        <p><label>Trick family</label><br><input type="text" name="family" value="{{content.fields.family}}" /></p>
-        <p><label>Base trick</label><br><input type="text" name="baseTrick" value="{{content.fields.baseTrick}}" /></p>
-        <p><label>Category</label><br>
-          <select name="category">
+        <div class="form-field">
+          <label for="trick-canonicalName">Canonical name</label>
+          <input type="text" id="trick-canonicalName" name="canonicalName" value="{{content.fields.canonicalName}}" />
+        </div>
+        <div class="form-field">
+          <label for="trick-adds">ADD</label>
+          <input type="text" id="trick-adds" name="adds" value="{{content.fields.adds}}" />
+        </div>
+        <div class="form-field">
+          <label for="trick-movementNotation">Movement notation</label>
+          <textarea id="trick-movementNotation" name="movementNotation" rows="2">{{content.fields.movementNotation}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-executionNotation">Execution notation</label>
+          <textarea id="trick-executionNotation" name="executionNotation" rows="2">{{content.fields.executionNotation}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-family">Trick family</label>
+          <input type="text" id="trick-family" name="family" value="{{content.fields.family}}" />
+        </div>
+        <div class="form-field">
+          <label for="trick-baseTrick">Base trick</label>
+          <input type="text" id="trick-baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}" />
+        </div>
+        <div class="form-field">
+          <label for="trick-category">Category</label>
+          <select id="trick-category" name="category">
             {{#each content.categoryOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label><input type="checkbox" name="isActive" {{#if content.fields.isActive}}checked{{/if}} /> Active</label></p>
-        <p><label>Sort position</label><br><input type="text" name="sortOrder" value="{{content.fields.sortOrder}}" /></p>
-        <p><label>Review status</label><br>
-          <select name="reviewStatus">
+        </div>
+        <div class="form-field">
+          <label><input type="checkbox" name="isActive" {{#if content.fields.isActive}}checked{{/if}} /> Active</label>
+        </div>
+        <div class="form-field">
+          <label for="trick-sortOrder">Sort position</label>
+          <input type="text" id="trick-sortOrder" name="sortOrder" value="{{content.fields.sortOrder}}" />
+        </div>
+        <div class="form-field">
+          <label for="trick-reviewStatus">Review status</label>
+          <select id="trick-reviewStatus" name="reviewStatus">
             {{#each content.reviewStatusOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>Description</label><br><textarea name="description" rows="3">{{content.fields.description}}</textarea></p>
-        <p><label>Short description</label><br><textarea name="shortDescription" rows="2">{{content.fields.shortDescription}}</textarea></p>
-        <p><label>Execution summary</label><br><textarea name="executionSummary" rows="3">{{content.fields.executionSummary}}</textarea></p>
-        <p><label>Learning notes</label><br><textarea name="learningNotes" rows="3">{{content.fields.learningNotes}}</textarea></p>
-        <p><label>Prerequisite notes</label><br><textarea name="prerequisiteNotes" rows="2">{{content.fields.prerequisiteNotes}}</textarea></p>
-        <p><label>Pronunciation</label><br><input type="text" name="pronunciation" value="{{content.fields.pronunciation}}" /></p>
-        <p><label>Execution-notation source</label><br><textarea name="operationalNotationSource" rows="2">{{content.fields.operationalNotationSource}}</textarea></p>
+        </div>
+        <div class="form-field">
+          <label for="trick-description">Description</label>
+          <textarea id="trick-description" name="description" rows="3">{{content.fields.description}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-shortDescription">Short description</label>
+          <textarea id="trick-shortDescription" name="shortDescription" rows="2">{{content.fields.shortDescription}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-executionSummary">Execution summary</label>
+          <textarea id="trick-executionSummary" name="executionSummary" rows="3">{{content.fields.executionSummary}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-learningNotes">Learning notes</label>
+          <textarea id="trick-learningNotes" name="learningNotes" rows="3">{{content.fields.learningNotes}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-prerequisiteNotes">Prerequisite notes</label>
+          <textarea id="trick-prerequisiteNotes" name="prerequisiteNotes" rows="2">{{content.fields.prerequisiteNotes}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="trick-pronunciation">Pronunciation</label>
+          <input type="text" id="trick-pronunciation" name="pronunciation" value="{{content.fields.pronunciation}}" />
+        </div>
+        <div class="form-field">
+          <label for="trick-operationalNotationSource">Execution-notation source</label>
+          <textarea id="trick-operationalNotationSource" name="operationalNotationSource" rows="2">{{content.fields.operationalNotationSource}}</textarea>
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
     </form>
 
     <h2 class="section-heading">Aliases</h2>
@@ -58,33 +106,40 @@
       {{#each content.aliases}}
       <li>
         <code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.displayLabel}}</span>
-        <form method="POST" action="{{this.updateHref}}" class="inline-form">
-          <select name="aliasType">
-            {{#each this.typeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
-          </select>
-          <label><input type="checkbox" name="aliasDisplay" {{#if this.isDisplayed}}checked{{/if}} /> Show beside the trick name</label>
+        <form method="POST" action="{{this.updateHref}}" class="form-block">
+          <div class="form-field">
+            <label for="alias-{{this.slug}}-type" class="visually-hidden">Type</label>
+            <select id="alias-{{this.slug}}-type" name="aliasType">
+              {{#each this.typeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+            </select>
+          </div>
+          <div class="form-field">
+            <label><input type="checkbox" name="aliasDisplay" {{#if this.isDisplayed}}checked{{/if}} /> Show beside the trick name</label>
+          </div>
           {{! The reason is required only when the two disagree, but the field is
               always rendered: revealing it with script would make the rule
               invisible without JavaScript, and the page must work without it. }}
-          <label class="freestyle-edit-reason">
-            {{#if this.divergesFromClass}}Why this differs from the class (required){{else}}Why, if you set this against the class{{/if}}
-            <textarea name="divergenceReason" rows="2" maxlength="500">{{this.divergenceReason}}</textarea>
-          </label>
+          <div class="form-field">
+            <label for="alias-{{this.slug}}-reason">{{#if this.divergesFromClass}}Why this differs from the class (required){{else}}Why, if you set this against the class{{/if}}</label>
+            <textarea id="alias-{{this.slug}}-reason" name="divergenceReason" rows="2" maxlength="500">{{this.divergenceReason}}</textarea>
+          </div>
           {{! Provenance is a separate fact from the publication judgement above:
               where the alias came from, not whether a reader should see it. The
               two shared one field until an edit to either erased the other. }}
-          <label class="freestyle-edit-reason">
-            Where this alias comes from
-            <select name="sourceId">
+          <div class="form-field">
+            <label for="alias-{{this.slug}}-source">Where this alias comes from</label>
+            <select id="alias-{{this.slug}}-source" name="sourceId">
               {{#each this.sourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
             </select>
-          </label>
-          <label class="freestyle-edit-reason">
-            What that source says it is
-            <textarea name="provenanceNote" rows="2" maxlength="500">{{this.provenanceNote}}</textarea>
-          </label>
+          </div>
+          <div class="form-field">
+            <label for="alias-{{this.slug}}-provenance">What that source says it is</label>
+            <textarea id="alias-{{this.slug}}-provenance" name="provenanceNote" rows="2" maxlength="500">{{this.provenanceNote}}</textarea>
+          </div>
           {{#unless this.isCuratorOwned}}<p class="text-muted">{{this.ownerLabel}}</p>{{/unless}}
-          <button type="submit" class="btn btn-outline btn-sm">Save Alias</button>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-outline btn-sm">Save Alias</button>
+          </div>
         </form>
         <form method="POST" action="{{this.deleteHref}}" class="inline-form">
           <button type="submit" class="btn btn-outline btn-sm">Remove</button>
@@ -92,28 +147,36 @@
       </li>
       {{/each}}
     </ul>
-    {{else}}<p class="text-muted">No aliases.</p>{{/if}}
+    {{else}}<div class="empty-state"><p>No aliases.</p></div>{{/if}}
 
-    <form method="POST" action="{{content.addAliasHref}}" class="freestyle-edit-form">
+    <form method="POST" action="{{content.addAliasHref}}" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Add alias</label><br><input type="text" name="aliasText" value="{{content.aliasFormText}}" placeholder="Alias name" /></p>
-        <p><label>Type</label><br>
-          <select name="aliasType">
+        <div class="form-field">
+          <label for="add-alias-text">Add alias</label>
+          <input type="text" id="add-alias-text" name="aliasText" value="{{content.aliasFormText}}" placeholder="Alias name" />
+        </div>
+        <div class="form-field">
+          <label for="add-alias-type">Type</label>
+          <select id="add-alias-type" name="aliasType">
             {{#each content.aliasTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
+        </div>
         {{! A new alias is maintained here whatever source it cites, so the source
             is asked for on its own terms rather than standing in for ownership. }}
-        <p><label>Where it comes from</label><br>
-          <select name="sourceId">
+        <div class="form-field">
+          <label for="add-alias-source">Where it comes from</label>
+          <select id="add-alias-source" name="sourceId">
             {{#each content.aliasSourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>What that source says it is</label><br>
-          <textarea name="provenanceNote" rows="2" maxlength="500"></textarea>
-        </p>
+        </div>
+        <div class="form-field">
+          <label for="add-alias-provenance">What that source says it is</label>
+          <textarea id="add-alias-provenance" name="provenanceNote" rows="2" maxlength="500"></textarea>
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary btn-sm">Add Alias</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Add Alias</button>
+      </div>
     </form>
 
     <h2 class="section-heading">Sources</h2>
@@ -133,21 +196,30 @@
       </li>
       {{/each}}
     </ul>
-    {{else}}<p class="text-muted">No sources.</p>{{/if}}
+    {{else}}<div class="empty-state"><p>No sources.</p></div>{{/if}}
 
     {{#if content.hasUnlinkedSources}}
-    <form method="POST" action="{{content.attachSourceHref}}" class="freestyle-edit-form">
+    <form method="POST" action="{{content.attachSourceHref}}" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Attach source</label><br>
-          <select name="sourceId">
+        <div class="form-field">
+          <label for="attach-source-id">Attach source</label>
+          <select id="attach-source-id" name="sourceId">
             <option value="">Choose a source</option>
             {{#each content.sourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>External URL (optional)</label><br><input type="text" name="externalUrl" value="{{content.sourceFormExternalUrl}}" /></p>
-        <p><label>Asserted ADD (optional)</label><br><input type="text" name="assertedAdds" value="{{content.sourceFormAssertedAdds}}" /></p>
+        </div>
+        <div class="form-field">
+          <label for="attach-source-url">External URL (optional)</label>
+          <input type="text" id="attach-source-url" name="externalUrl" value="{{content.sourceFormExternalUrl}}" />
+        </div>
+        <div class="form-field">
+          <label for="attach-source-adds">Asserted ADD (optional)</label>
+          <input type="text" id="attach-source-adds" name="assertedAdds" value="{{content.sourceFormAssertedAdds}}" />
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary btn-sm">Attach Source</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Attach Source</button>
+      </div>
     </form>
     {{else}}<p class="text-muted">All registry sources are linked.</p>{{/if}}
 
@@ -168,19 +240,25 @@
       </li>
       {{/each}}
     </ul>
-    {{else}}<p class="text-muted">No modifier links.</p>{{/if}}
+    {{else}}<div class="empty-state"><p>No modifier links.</p></div>{{/if}}
 
-    <form method="POST" action="{{content.attachModifierHref}}" class="freestyle-edit-form">
+    <form method="POST" action="{{content.attachModifierHref}}" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Attach modifier</label><br>
-          <select name="modifierSlug">
+        <div class="form-field">
+          <label for="attach-modifier-slug">Attach modifier</label>
+          <select id="attach-modifier-slug" name="modifierSlug">
             <option value="">Choose a modifier</option>
             {{#each content.modifierOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>Apply order</label><br><input type="text" name="applyOrder" value="{{content.modifierFormApplyOrder}}" placeholder="1" /></p>
+        </div>
+        <div class="form-field">
+          <label for="attach-modifier-order">Apply order</label>
+          <input type="text" id="attach-modifier-order" name="applyOrder" value="{{content.modifierFormApplyOrder}}" placeholder="1" />
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary btn-sm">Attach Modifier</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Attach Modifier</button>
+      </div>
     </form>
 
     <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to Freestyle Content</a></p>

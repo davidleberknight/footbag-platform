@@ -194,8 +194,8 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
       // carry the difficulty value on the row itself, never a green chip, so
       // the value is readable in the seven views that do not group by it.
       expect(add.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRow!).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
-      expect(famRow!).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
+      expect(addRow!).toContain(`class="dict-trick-row-add">(${pilot.adds})<`);
+      expect(famRow!).toContain(`class="dict-trick-row-add">(${pilot.adds})<`);
       expect(addRow!).not.toMatch(/class="dict-card-add[ "]/);
       expect(famRow!).not.toMatch(/class="dict-card-add[ "]/);
     }

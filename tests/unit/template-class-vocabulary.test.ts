@@ -24,6 +24,7 @@ import * as path from 'node:path';
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const VIEWS_DIR = path.join(REPO_ROOT, 'src', 'views');
 const STYLESHEET = path.join(REPO_ROOT, 'src', 'public', 'css', 'style.css');
+const BASELINE = path.join(REPO_ROOT, 'tests', 'unit', 'template-class-baseline.txt');
 
 function walkHbs(dir: string): string[] {
   const out: string[] = [];
@@ -86,6 +87,39 @@ describe('template class vocabulary', () => {
       }
     }
 
+    expect(violations, violations.join('\n')).toEqual([]);
+  });
+
+  // A class minted for one page passes the check above as soon as it is
+  // defined, which is how a section grows a parallel design language. The
+  // baseline makes every new class a reviewed change, and fails on an entry no
+  // template uses, so the per-section vocabulary can only shrink.
+  it('every literal class token is in the committed baseline, and every baseline entry is used', () => {
+    const baseline = new Set(
+      readFileSync(BASELINE, 'utf8')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '' && !line.startsWith('#')),
+    );
+    expect(baseline.size, `no entries parsed from ${relPath(BASELINE)}`).toBeGreaterThan(50);
+
+    const used = new Set<string>();
+    const unlisted: string[] = [];
+    for (const file of walkHbs(VIEWS_DIR)) {
+      for (const tok of new Set(literalClassTokens(readFileSync(file, 'utf8')))) {
+        used.add(tok);
+        if (!baseline.has(tok)) {
+          unlisted.push(
+            `${relPath(file)}: class "${tok}" is new; use an existing class, or add it to the shared standard and to ${relPath(BASELINE)} in the same reviewed change`,
+          );
+        }
+      }
+    }
+    const stale = [...baseline]
+      .filter((tok) => !used.has(tok))
+      .map((tok) => `${relPath(BASELINE)}: "${tok}" is no longer used by any template; delete the entry`);
+
+    const violations = [...unlisted, ...stale];
     expect(violations, violations.join('\n')).toEqual([]);
   });
 });

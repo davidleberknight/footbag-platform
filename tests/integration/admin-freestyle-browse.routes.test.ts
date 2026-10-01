@@ -71,6 +71,14 @@ describe('GET /admin/freestyle/tricks — admin gate', () => {
 describe('GET /admin/freestyle/tricks — listing, search, filters', () => {
   const admin = () => cookieFor(ADMIN_ID, 'admin');
 
+  // The dictionary table is wider than a phone; the page body clips sideways
+  // overflow, so without a keyboard-reachable scroll box its right-hand columns
+  // could not be reached at all.
+  it('puts the dictionary table in a labelled, focusable scroll box', async () => {
+    const res = await get('/admin/freestyle/tricks', admin());
+    expect(res.text).toMatch(/<div class="records-table-wrap[^"]*" tabindex="0" role="region" aria-label="Freestyle tricks">\s*<table class="data-table">/);
+  });
+
   it('lists every row, including inactive and pending rows the public dictionary hides', async () => {
     const res = await get('/admin/freestyle/tricks', admin());
     expect(res.text).toContain('Solo Whirl');

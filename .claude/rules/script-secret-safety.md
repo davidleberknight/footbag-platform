@@ -59,7 +59,7 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 ## Enforcement
 
-`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, a bare `cat` forwarding the whole credential file into the remote shell, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard.
+`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:quick` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, a bare `cat` forwarding the whole credential file into the remote shell, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard.
 
 Two of those forms are narrower than they look, and the difference is what keeps the gate usable.
 `-S` is refused only where it sits in `sudo`'s own run of flags, because that is the only place it

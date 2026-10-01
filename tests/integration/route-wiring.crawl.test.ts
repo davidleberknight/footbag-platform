@@ -45,7 +45,6 @@ import {
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { committedFiles } from '../fixtures/committedFiles';
 
 const { dbPath } = setTestEnv('3171');
 // Mount the /dev persona harness so its catalog page and switch links are
@@ -471,13 +470,13 @@ describe('route wiring crawl', () => {
 // template so states the crawl never reaches (wizard candidate cards) are covered
 // too.
 const VIEWS_DIR = path.join(process.cwd(), 'src', 'views');
-// Committed templates, not a working-tree glob: the claim is about every
-// template this application ships, and a glob also collects an editor's swap
-// file or a partial someone is part-way through writing, then fails the build
-// on markup that is not in the repository.
-const ALL_TEMPLATES = committedFiles('src/views/**/*.hbs').map((rel) =>
-  path.relative(path.join('src', 'views'), rel),
-);
+// The templates on disk, which are the ones the application under test
+// renders: a template deleted or added in the working tree is checked as it
+// stands, not as the last commit left it. Only .hbs files are read, so an
+// editor's swap file is never collected.
+const ALL_TEMPLATES = (fs.readdirSync(VIEWS_DIR, { recursive: true }) as string[])
+  .filter((rel) => rel.endsWith('.hbs'))
+  .map((rel) => rel.split(path.sep).join('/'));
 
 function normalizeDestination(raw: string): string {
   return raw

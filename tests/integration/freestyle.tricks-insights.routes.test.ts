@@ -499,7 +499,7 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     // anchor (a launch set would deep-link into its ?view=set section instead).
     expect(res.text).toContain('href="/freestyle/tricks?view=modifier#modifier-spinning"');
     // Link surface shows the modifier name and a count chip.
-    expect(res.text).toMatch(/related-modifier-group-link[^>]*>spinning <span class="related-modifier-group-count">\(1\)<\/span>/);
+    expect(res.text).toMatch(/<a href="[^"]*">spinning <span class="related-modifier-group-count">\(1\)<\/span>/);
   });
 
   it('does NOT render the Related set/modifier groups block when no family is active', async () => {

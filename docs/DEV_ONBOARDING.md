@@ -381,7 +381,7 @@ The suite is split:
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`. A few files drive committed command-line scripts as subprocesses under the legacy pipeline Python environment.
 - `npm run test:smoke -- --target staging`; staging AWS smoke tests under `tests/smoke/`; run only when verifying staging AWS wiring, and only with staging access (§3).
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
-- `npm run test:pre-pr`; the fast pre-commit loop, exactly `./run_all_tests.sh --quick`; build + test type-check + lint + conventions check + harness self-check + generated-content + secret scan + unit + integration. The bare `./run_all_tests.sh` is the push and PR gate.
+- `npm run test:quick`; the fast pre-commit loop, exactly `./run_all_tests.sh --quick`; build + test type-check + lint + conventions check + harness self-check + generated-content + secret scan + unit + integration. The bare `./run_all_tests.sh` is the push and PR gate.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
@@ -390,10 +390,10 @@ The suite includes a migration-testing cluster under `tests/integration/` that e
 
 #### The full local suite (`run_all_tests.sh`)
 
-`npm test` is the inner loop. `./run_all_tests.sh --quick` is the commit loop, and the bare `./run_all_tests.sh` is the push and PR gate:
+`npm test` is the whole unit and integration run, and a focused `npx vitest run <file>` is the inner loop. `./run_all_tests.sh --quick` is the commit loop, and the bare `./run_all_tests.sh` is the push and PR gate:
 
 ```bash
-./run_all_tests.sh --quick    # before a commit (what npm run test:pre-pr runs)
+./run_all_tests.sh --quick    # before a commit (what npm run test:quick runs)
 ./run_all_tests.sh            # before a push or PR: the complete local suite (--full is a synonym)
 ./run_all_tests.sh --plan     # print the rows a run would schedule, and run nothing
 ./run_all_tests.sh --skip-py  # the full run minus the pre-go-live Python gates; ends INCOMPLETE, no pass receipt

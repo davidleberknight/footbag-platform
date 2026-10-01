@@ -217,8 +217,8 @@ describe('ADD view and Family view — shared two-line row contract', () => {
       // Difficulty value on the row in both views; the green shared-card chip
       // never appears. ADD view groups by ADD bucket (id="add-N").
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
-      expect(familyRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
+      expect(addRegion![0]).toContain(`class="dict-trick-row-add">(${pilot.adds})<`);
+      expect(familyRegion![0]).toContain(`class="dict-trick-row-add">(${pilot.adds})<`);
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
       expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 

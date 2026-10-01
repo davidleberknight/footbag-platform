@@ -16,7 +16,8 @@
 
   {{#if content.hasRows}}
   <section class="content-section">
-    <table class="freestyle-admin-table">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Authored drafts">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Name</th>
@@ -54,13 +55,16 @@
         {{/each}}
       </tbody>
     </table>
+    </div>
   </section>
   {{else}}
   <section class="content-section">
-    <p class="form-notice">
-      No movement has been authored yet. A ruling appears here once its notation is
-      written, and leaves when its canonical trick is published.
-    </p>
+    <div class="empty-state">
+      <p>
+        No movement has been authored yet. A ruling appears here once its notation is
+        written, and leaves when its canonical trick is published.
+      </p>
+    </div>
   </section>
   {{/if}}
 

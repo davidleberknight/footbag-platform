@@ -610,6 +610,21 @@ export const adminFreestyleController = {
     }
   },
 
+  // The confirm page before a delete: a deletion cannot be undone, so the final
+  // button sits behind a page that names the row. An unknown id is a 404.
+  consecutiveDeleteConfirm(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = consecutiveKicksCurationService.getDeleteConfirmPage(String(req.params.id));
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('admin/consecutive-record-delete-confirm', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // Hard-delete one consecutive-kicks row by its stable id. Success redirects to
   // the browse; an unknown id is a 404.
   consecutiveDelete(req: Request, res: Response, next: NextFunction): void {

@@ -126,6 +126,11 @@ describe('Browse-shell nav — consistency across the four views', () => {
       // Exactly one active item per view.
       const activeCount = (nav.match(/trick-view-toggle-active/g) ?? []).length;
       expect(activeCount, `${view} has exactly one active nav item`).toBe(1);
+      // A screen reader hears which view is current only through aria-current,
+      // carried by the same single active item.
+      expect(nav, `${view} active item is announced as current`)
+        .toMatch(/<span[^>]*aria-current="page"[^>]*class="trick-view-toggle-active"/);
+      expect((nav.match(/aria-current="page"/g) ?? []).length, `${view} has exactly one current item`).toBe(1);
     }
   });
 

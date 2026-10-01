@@ -17,7 +17,8 @@
  * exactly that when the case below was first written against the older checker.
  *
  * The gate's own run against this repository, in the convention gate and so in
- * the pre-PR script and the push gate, is what keeps these fixtures honest.
+ * the commit gate (test:quick) and the push gate, is what keeps these fixtures
+ * honest.
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -198,12 +199,12 @@ describe("the runner's own list of gates that stand for a push-gate job", () => 
 describe('the fast pre-commit loop', () => {
   // Defect caught: the pre-commit script goes back to carrying its own copy of
   // the gate list, which then drifts from the runner's quick mode.
-  it('refuses a test:pre-pr that does not run the runner’s quick mode', () => {
+  it('refuses a test:quick that does not run the runner’s quick mode', () => {
     const res = inFixtureRepo({
-      'package.json': replaceOnce('"test:pre-pr": "./run_all_tests.sh --quick"', '"test:pre-pr": "npm run build && npm test"'),
+      'package.json': replaceOnce('"test:quick": "./run_all_tests.sh --quick"', '"test:quick": "npm run build && npm test"'),
     });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain('test:pre-pr must be exactly ./run_all_tests.sh --quick');
+    expect(res.stderr).toContain('test:quick must be exactly ./run_all_tests.sh --quick');
   });
 
   // Defect caught: the quick mode drops a gate a workflow job relies on, and a

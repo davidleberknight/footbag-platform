@@ -407,6 +407,34 @@ export const paymentController = {
   },
 
   /**
+   * GET /members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel
+   * Owner-only confirm page before a recurring donation is cancelled. Another
+   * member's path, an unknown subscription, and one no longer cancellable all
+   * answer 404 alike.
+   */
+  getCancelRecurringDonation(req: Request, res: Response, next: NextFunction): void {
+    const memberKey = req.params.memberKey;
+    if (!req.user || req.user.slug !== memberKey) {
+      renderNotFound(res);
+      return;
+    }
+    try {
+      const vm = paymentService.getRecurringCancelConfirmPage(
+        req.user.userId,
+        memberKey,
+        req.params.stripeSubscriptionId,
+      );
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('members/recurring-donation-cancel-confirm', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'cancel recurring donation confirm controller');
+    }
+  },
+
+  /**
    * POST /members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel
    * Owner-only cancellation of a member's own recurring donation.
    */

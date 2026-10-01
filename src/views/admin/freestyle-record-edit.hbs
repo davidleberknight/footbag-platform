@@ -2,10 +2,10 @@
   <div>
     {{#if content.isNew}}
     <h1>New Record</h1>
-    <p class="text-muted">Add a freestyle world-record row.</p>
+    <p class="hero-subtitle">Add a freestyle world-record row.</p>
     {{else}}
     <h1>Edit Record</h1>
-    <p class="text-muted">Editing freestyle record <code>{{content.id}}</code>. Holder: {{content.holderName}}.</p>
+    <p class="hero-subtitle">Editing freestyle record <code>{{content.id}}</code>. Holder: {{content.holderName}}.</p>
     {{/if}}
   </div>
 </div>
@@ -21,38 +21,82 @@
     </div>
     {{/if}}
 
-    <form method="POST" action="{{content.formAction}}" class="freestyle-edit-form">
+    <form method="POST" action="{{content.formAction}}" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Record type</label><br>
-          <select name="recordType">
+        <div class="form-field">
+          <label for="record-recordType">Record type</label>
+          <select id="record-recordType" name="recordType">
             {{#each content.recordTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>Linked historical-person id (optional)</label><br><input type="text" name="personId" value="{{content.fields.personId}}" /></p>
-        <p><label>Display name (used when no person is linked)</label><br><input type="text" name="displayName" value="{{content.fields.displayName}}" /></p>
-        <p><label>Trick name</label><br><input type="text" name="trickName" value="{{content.fields.trickName}}" /></p>
-        <p><label>Structured sort name</label><br><input type="text" name="sortName" value="{{content.fields.sortName}}" /></p>
-        <p><label>Adds count</label><br><input type="text" name="addsCount" value="{{content.fields.addsCount}}" /></p>
-        <p><label>Value</label><br><input type="text" name="valueNumeric" value="{{content.fields.valueNumeric}}" /></p>
-        <p><label>Value text (optional)</label><br><input type="text" name="valueText" value="{{content.fields.valueText}}" /></p>
-        <p><label>Achieved date (YYYY-MM-DD)</label><br><input type="text" name="achievedDate" value="{{content.fields.achievedDate}}" /></p>
-        <p><label>Date precision</label><br>
-          <select name="datePrecision">
+        </div>
+        <div class="form-field">
+          <label for="record-personId">Linked historical-person id (optional)</label>
+          <input type="text" id="record-personId" name="personId" value="{{content.fields.personId}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-displayName">Display name (used when no person is linked)</label>
+          <input type="text" id="record-displayName" name="displayName" value="{{content.fields.displayName}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-trickName">Trick name</label>
+          <input type="text" id="record-trickName" name="trickName" value="{{content.fields.trickName}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-sortName">Structured sort name</label>
+          <input type="text" id="record-sortName" name="sortName" value="{{content.fields.sortName}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-addsCount">Adds count</label>
+          <input type="text" id="record-addsCount" name="addsCount" value="{{content.fields.addsCount}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-valueNumeric">Value</label>
+          <input type="text" id="record-valueNumeric" name="valueNumeric" value="{{content.fields.valueNumeric}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-valueText">Value text (optional)</label>
+          <input type="text" id="record-valueText" name="valueText" value="{{content.fields.valueText}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-achievedDate">Achieved date (YYYY-MM-DD)</label>
+          <input type="text" id="record-achievedDate" name="achievedDate" value="{{content.fields.achievedDate}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-datePrecision">Date precision</label>
+          <select id="record-datePrecision" name="datePrecision">
             {{#each content.datePrecisionOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>Source</label><br><input type="text" name="source" value="{{content.fields.source}}" /></p>
-        <p><label>Confidence</label><br>
-          <select name="confidence">
+        </div>
+        <div class="form-field">
+          <label for="record-source">Source</label>
+          <input type="text" id="record-source" name="source" value="{{content.fields.source}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-confidence">Confidence</label>
+          <select id="record-confidence" name="confidence">
             {{#each content.confidenceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label>Video URL</label><br><input type="text" name="videoUrl" value="{{content.fields.videoUrl}}" /></p>
-        <p><label>Video timecode</label><br><input type="text" name="videoTimecode" value="{{content.fields.videoTimecode}}" /></p>
-        <p><label>Notes</label><br><textarea name="notes" rows="2">{{content.fields.notes}}</textarea></p>
-        <p><label>Superseded by (record id of the newer record, optional)</label><br><input type="text" name="supersededBy" value="{{content.fields.supersededBy}}" /></p>
+        </div>
+        <div class="form-field">
+          <label for="record-videoUrl">Video URL</label>
+          <input type="text" id="record-videoUrl" name="videoUrl" value="{{content.fields.videoUrl}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-videoTimecode">Video timecode</label>
+          <input type="text" id="record-videoTimecode" name="videoTimecode" value="{{content.fields.videoTimecode}}" />
+        </div>
+        <div class="form-field">
+          <label for="record-notes">Notes</label>
+          <textarea id="record-notes" name="notes" rows="2">{{content.fields.notes}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="record-supersededBy">Superseded by (record id of the newer record, optional)</label>
+          <input type="text" id="record-supersededBy" name="supersededBy" value="{{content.fields.supersededBy}}" />
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
     </form>
 
     <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to Records</a></p>

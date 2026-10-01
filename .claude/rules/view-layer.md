@@ -2,6 +2,9 @@
 paths:
   - "src/views/**"
   - "src/public/**"
+  - "src/services/freestyle*.ts"
+  - "src/services/symbolic*.ts"
+  - "src/content/**"
 ---
 
 # View-layer standard
@@ -47,7 +50,8 @@ discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt 
 
 Compose every public page from one small set: site frame (header / main / footer), page hero
 (eyebrow / title / subtitle / notice), content section, compact disclosure card grid, event card,
-discipline tag, result section, year navigation, metadata / summary rows, queue row, grouped link
+discipline tag, result section, year navigation, metadata / summary rows, data table (`.data-table`,
+the one table treatment), queue row, grouped link
 index, prominent action link,
 empty state, and notice / coming-soon block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
@@ -55,6 +59,11 @@ added to the standard first, then applied across the relevant pages, never inven
 
 The site frame opens with a skip link, hidden until focused, that moves keyboard focus past the
 header navigation to the main element; it is the only public control that is invisible at rest.
+
+A symbol whose meaning a sighted reader takes from its look (a record star, a flagship mark) carries
+`aria-hidden="true"` and is followed by its spoken form in `.visually-hidden` text. A `title`
+tooltip is never the only carrier of meaning, because neither a keyboard, a touch screen, nor a
+screen reader reliably reaches it.
 
 A **queue row** (`.admin-queue-row`) is one line naming a queue, its count as a badge, and an
 optional second line carrying an age or a split of that count, linking to the queue it counts. It is
@@ -64,9 +73,11 @@ under group headings, carrying no counts and no descriptions, for the navigation
 whose destinations a reader learns the position of. Both are used on the administrator's home page.
 
 The page hero carries only its own parts (eyebrow, title, subtitle, notice). Primary navigation, back
-links, and item pagers belong in the page body, never in the hero. Never render the same action's
-label twice on one page (for example a "Back to results" link in both the hero and the pager); one
-control reads cleaner. Keep visible spacing between the hero and the first content block, and between
+links, and item pagers belong in the page body, never in the hero. Breadcrumbs sit in the hero, above
+the eyebrow, and only on a page two or more levels below its section's landing page; a shallower page
+relies on its back link. Never render the same action's label twice on one page (for example a "Back
+to results" link in both the hero and the pager); one control reads cleaner. A page serving distinct
+audiences in side-by-side panels may repeat an action once per panel. Keep visible spacing between the hero and the first content block, and between
 stacked sections, so adjacent blocks never butt together with a zero gap.
 
 ## Action hierarchy
@@ -77,10 +88,10 @@ class.
 
 | Tier | What it is | Class |
 |---|---|---|
-| Primary action | The one thing the page most wants the visitor to do | `.btn .btn-primary` |
+| Primary action | The main action of a page, or of each self-contained panel on it when a page serves distinct audiences side by side (the login page's log-in form and its two join panels) | `.btn .btn-primary` |
 | Secondary action | A real action, subordinate to the primary one | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
 | Inline action | A state-changing control that reads as text because it sits in a table row, a list item, or a sentence | `.btn-link`; `.btn-link-danger` for a destructive one |
-| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer | `.action-link` |
+| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer, the page's back link | `.action-link` |
 | Prose link | An ordinary link inside running text | bare `<a>` |
 | Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token |
 | Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
@@ -103,6 +114,12 @@ carry a visible focus ring: a control drawn as text has nothing else to show the
 is, and a change of underline is not a focus indicator. Which of the two a destructive control takes
 is decided by where it sits, not by which page it is on: inline in a row or a list, `.btn .btn-outline
 .btn-sm` when it stands alone.
+
+An action that permanently loses data or stops money (cancelling a recurring donation, removing a
+record row) goes through a server-rendered confirm page that states the consequence in body colour
+under a `.notice notice-warn` caution and ends in the final button, the pattern of the club
+leave-confirm page. A browser confirm dialog is never the only guard, because the page must work
+without JavaScript. A typed reason is asked for only where the audit trail needs one.
 
 Three constraints bind every tier. No control appends a decorative arrow to its label, in template
 text or through a pseudo-element; colour, underline, and wording carry the affordance, and glyphs
@@ -180,6 +197,10 @@ discipline, not the enumeration.
   ours). New classes are added to `style.css`.
 - The vocabulary is shared (required across all public pages) plus per-section (required only within
   that section); both groups live in `style.css`.
+- A new class, shared or per-section, enters only through a reviewed change that adds it to
+  `tests/unit/template-class-baseline.txt`; the default answer is an existing primitive.
+  `tests/unit/template-class-vocabulary.test.ts` fails on a template class missing from the
+  baseline and on a baseline entry no template uses any more, so per-section vocabulary only shrinks.
 - Buttons: `.btn-primary`, `.btn-outline`, and `.btn-inverse` (white fill, teal text, for CTAs on
   dark gradient panels) are the only button variants. Secondary content uses the card pattern
   (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`. Which of
@@ -231,6 +252,13 @@ compact rhythm through `.section-compact` or a section body class; `.profile-sec
 profile's label system. A page picks the one that fits its content and uses nothing else, and a new page
 does not introduce a fourth.
 
+Grey is for metadata only: dates, counts, bylines, form hints, captions, and source notes, at the
+`0.9rem` step. Running prose, section intros, instructions, errors, and the consequences text on a
+confirm page take the body colour, and `--text-subtle` never colours text (DESIGN_DECISIONS
+"Bounded Type-Size Ramp"). One prose measure, about 70 characters per line (`55ch` in the body
+font), serves every page; no section widens it, and `scripts/ci/assert_conventions.sh` fails any
+`ch` cap wider than `55ch`.
+
 Font sizes come from the bounded ramp, and running prose carries a reading-measure cap; a section
 heading always outranks the body text beneath it in both size and colour (DESIGN_DECISIONS
 "Bounded Type-Size Ramp" and "Reading Measure"). Disclosure controls keep the browser's native
@@ -238,6 +266,16 @@ marker: no surface suppresses it or draws a substitute caret, per the same link-
 rule. Enclosing chrome is reserved for notices, cards, empty states, and
 technical-notation panels, and a callout accent bar takes one of three role colours, per the
 callout and box policy.
+
+Content fits a phone without a horizontal scroll. A table is designed to fit 390px: it carries only
+the columns a reader needs, and a table whose rows carry controls stacks each row into a block at
+phone width so its controls stay reachable. A column that is often empty is a sign the table carries
+more than it should. A horizontally scrolling box is allowed only for fixed-width preformatted text
+(ASCII notation and diagrams) and dense admin data; it is keyboard-focusable (`tabindex="0"`) and
+labelled, and the page body itself never scrolls sideways.
+
+A section heading is an `h2` inside a `.section-heading` wrapper (`<div class="section-heading"><h2>
+…</h2></div>`); a sub-heading within a section is a plain `h3`, never a second `.section-heading`.
 
 Within a page, section headings
 are one size, one case, one weight, one color; content cards are one padding, one radius, one elevation;

@@ -32,7 +32,7 @@
     "test:deployed": "bash scripts/test-deployed.sh",
     "test:pentest:heavy": "bash scripts/pentest/run-heavy.sh",
     "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**' --coverage",
-    "test:pre-pr": "./run_all_tests.sh --quick",
+    "test:quick": "./run_all_tests.sh --quick",
     "test:all": "npm run build && npm run typecheck:tests && npm run lint && bash scripts/ci/assert_conventions.sh && npm test && npm run test:e2e",
     "prepare": "test ! -f scripts/install-git-hooks.sh || bash scripts/install-git-hooks.sh"
   },

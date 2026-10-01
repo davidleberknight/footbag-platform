@@ -196,7 +196,7 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
     // The row carries the difficulty value, never a green chip.
-    expect(window).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+    expect(window).toMatch(/class="dict-trick-row-add">\(\d+\)</);
     expect(window).not.toMatch(/class="dict-card-add[ "]/);
     expect(window).toMatch(/class="hashtag"[^>]*>#spinning_paradox_mirage</);
     // The arithmetic behind that value reads on the trick's own page.
@@ -263,7 +263,7 @@ describe('/freestyle/tricks — nicknames beside the name, separate from ≡ rea
   it('renders folk nicknames beside the mobius name', async () => {
     const res = await getPage('/freestyle/tricks?view=add');
     const row = mobiusRow(res.text);
-    expect(row).toContain('aria-label="Also called"');
+    expect(row).toContain('class="dict-trick-row-nicknames"');
     expect(row).toContain('möbius');
     expect(row).toContain('toe mobius');
   });
@@ -273,7 +273,7 @@ describe('/freestyle/tricks — nicknames beside the name, separate from ≡ rea
     const row = mobiusRow(res.text);
     // mobius's ≡ reading IS "gyro torque"; the identical alias must not repeat
     // as a nickname beside the name.
-    const nicknames = row.match(/aria-label="Also called">([\s\S]*?)<\/span>/)?.[1] ?? '';
+    const nicknames = row.match(/class="dict-trick-row-nicknames">([\s\S]*?)<\/span>/)?.[1] ?? '';
     expect(nicknames).toContain('möbius');
     expect(nicknames).not.toContain('gyro torque');
   });

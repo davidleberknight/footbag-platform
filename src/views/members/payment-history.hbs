@@ -40,9 +40,7 @@
               <td>{{this.reference}}</td>
               <td>
                 {{#if this.showCancel}}
-                  <form method="POST" action="{{this.cancelHref}}">
-                    <button type="submit" class="btn btn-outline btn-sm">Cancel Recurring Donation</button>
-                  </form>
+                  <a href="{{this.cancelHref}}" class="btn btn-outline btn-sm">Cancel Recurring Donation</a>
                 {{/if}}
                 {{#if this.isCancelPending}}
                   <span class="text-muted fs-sm">Cancellation requested</span>

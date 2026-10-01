@@ -175,7 +175,7 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     const res = await page('/freestyle/learn');
     const introIdx    = res.text.indexOf('class="learn-intro"');
     const boardIdx    = res.text.indexOf('class="operator-board');
-    const firstSecIdx = res.text.indexOf('class="learn-section"');
+    const firstSecIdx = res.text.indexOf('class="learn-entries"');
     expect(introIdx).toBeGreaterThan(0);
     expect(firstSecIdx).toBeGreaterThan(introIdx);
     expect(boardIdx).toBeGreaterThan(firstSecIdx);

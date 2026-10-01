@@ -69,6 +69,8 @@ beforeAll(async () => {
   insertConsecutiveKicksRecord(db, { id: 'ck_other', sort_order: 999, section: 'Highest Official Scores', subsection: 'Singles 20K+', division: 'Open Singles', player_1: 'Other Player', score: 20000 });
   // The row the delete test removes.
   insertConsecutiveKicksRecord(db, { id: 'ck_del', sort_order: 888, section: 'Milestone Firsts', subsection: 'Firsts', division: 'Open Singles', player_1: 'Delete Player', score: 15000 });
+  // The row the confirm-step tests show; never deleted.
+  insertConsecutiveKicksRecord(db, { id: 'ck_confirm', sort_order: 777, section: 'Milestone Firsts', subsection: 'Firsts', division: 'Women Singles', player_1: 'Confirm Player', score: 12000 });
 
   createApp = await importApp();
 });
@@ -265,6 +267,44 @@ describe('consecutive-kicks records — add new', () => {
     const persona = await post('/admin/freestyle/consecutive-records', cookieFor(PERSONA_ADMIN_ID, 'admin'), bodyFor('262', { player1: 'Persona New' }));
     expect(persona.status).toBe(403);
     expect(db.prepare(`SELECT COUNT(*) AS n FROM consecutive_kicks_records WHERE sort_order IN (260,261,262)`).get()).toEqual({ n: 0 });
+  });
+});
+
+// A deletion cannot be undone, so the edit page's Delete control opens a confirm
+// page naming the row, and only the confirm page's button posts.
+describe('GET /admin/freestyle/consecutive-records/:id/delete — confirm step', () => {
+  it('links Delete Record on the edit page to the confirm page, not straight to a delete', async () => {
+    const res = await get('/admin/freestyle/consecutive-records/ck_confirm/edit', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<a href="/admin/freestyle/consecutive-records/ck_confirm/delete" class="btn btn-outline btn-sm">Delete Record</a>');
+    expect(res.text).not.toMatch(/<form[^>]*action="\/admin\/freestyle\/consecutive-records\/ck_confirm\/delete"/);
+  });
+
+  it('names the row, warns that deletion is final, and posts only from its own button', async () => {
+    const res = await get('/admin/freestyle/consecutive-records/ck_confirm/delete', admin());
+    expect(res.status).toBe(200);
+    // The admin reads a consequence before the final button, not an empty box.
+    expect(res.text).toMatch(/<p class="notice notice-warn" role="alert">[^<]{20,}<\/p>/);
+    // The row named is the seeded one: its players, division and score.
+    expect(res.text).toContain('Confirm Player');
+    expect(res.text).toContain('Women Singles');
+    expect(res.text).toContain('<dd>12000</dd>');
+    expect(res.text).toMatch(/<form method="POST" action="\/admin\/freestyle\/consecutive-records\/ck_confirm\/delete"[^>]*>\s*<button type="submit" class="btn btn-outline">Delete Record<\/button>/);
+    expect(res.text).toContain('href="/admin/freestyle/consecutive-records/ck_confirm/edit"');
+    // Opening the confirm page deletes nothing.
+    expect(ckExists('ck_confirm')).toBe(true);
+  });
+
+  it('returns 404 for an unknown id', async () => {
+    const res = await get('/admin/freestyle/consecutive-records/nope_missing/delete', admin());
+    expect(res.status).toBe(404);
+  });
+
+  it('refuses the confirm page to a non-admin (403) and an unauthenticated visitor (302)', async () => {
+    const member = await get('/admin/freestyle/consecutive-records/ck_confirm/delete', cookieFor(MEMBER_ID, 'member'));
+    expect(member.status).toBe(403);
+    const anon = await get('/admin/freestyle/consecutive-records/ck_confirm/delete');
+    expect(anon.status).toBe(302);
   });
 });
 

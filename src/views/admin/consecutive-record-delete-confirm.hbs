@@ -1,0 +1,27 @@
+{{! Confirm step before a consecutive-kicks row is deleted; the delete itself is the POST below }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p class="notice notice-warn" role="alert">Deleting this record removes it from the published consecutive-kicks records. This cannot be undone.</p>
+
+    <dl class="trick-structural-facts-list">
+      {{#each content.summary}}
+      <dt>{{label}}</dt>
+      <dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+
+    <div class="form-actions">
+      <form method="POST" action="{{content.deleteHref}}" class="inline-form">
+        <button type="submit" class="btn btn-outline">Delete Record</button>
+      </form>
+      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+    </div>
+  </section>
+</div>

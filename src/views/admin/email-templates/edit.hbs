@@ -22,23 +22,34 @@
     <p class="text-muted">This template has no merge fields; the message is fixed text.</p>
     {{/if}}
 
-    <form method="POST" action="{{content.formAction}}">
+    <form method="POST" action="{{content.formAction}}" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Subject</label><br><input type="text" name="subjectTemplate" value="{{content.fields.subjectTemplate}}" size="80" /></p>
-        <p><label>Body</label><br><textarea name="bodyTemplate" rows="14" cols="80">{{content.fields.bodyTemplate}}</textarea></p>
-        <p><label>Classification</label><br>
-          <select name="piiClassification">
+        <div class="form-field">
+          <label for="template-subject">Subject</label>
+          <input type="text" id="template-subject" name="subjectTemplate" value="{{content.fields.subjectTemplate}}" />
+        </div>
+        <div class="form-field">
+          <label for="template-body">Body</label>
+          <textarea id="template-body" name="bodyTemplate" rows="14">{{content.fields.bodyTemplate}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="template-classification">Classification</label>
+          <select id="template-classification" name="piiClassification">
             {{#each content.classificationOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
-        </p>
-        <p><label><input type="checkbox" name="isEnabled" value="1" {{#if content.fields.isEnabled}}checked{{/if}} /> Enabled</label></p>
-        {{#if content.isRestricted}}
-        <p class="text-muted">This template carries a one-time credential link. Disabling it stops the platform from sending it at all, which breaks the account flow that depends on it.</p>
-        {{else}}
-        <p class="text-muted fs-sm">Disabling suppresses this email type entirely; the triggering action still completes.</p>
-        {{/if}}
+        </div>
+        <div class="form-field">
+          <label><input type="checkbox" name="isEnabled" value="1" {{#if content.fields.isEnabled}}checked{{/if}} /> Enabled</label>
+          {{#if content.isRestricted}}
+          <p class="form-field-warning">This template carries a one-time credential link. Disabling it stops the platform from sending it at all, which breaks the account flow that depends on it.</p>
+          {{else}}
+          <small class="form-hint">Disabling suppresses this email type entirely; the triggering action still completes.</small>
+          {{/if}}
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary">Save</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
     </form>
 
     <p><a href="{{content.backHref}}" class="btn btn-outline">Back to Templates</a></p>

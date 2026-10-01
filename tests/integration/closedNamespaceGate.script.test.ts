@@ -27,7 +27,7 @@
  * What that leaves uncovered, stated because it read the other way here until it
  * was checked: an ordinary suite run does NOT exercise the real tree. The
  * conventions suite runs the gate inside fixture repositories too, so the only
- * things that run it against this repository are the pre-PR gate and CI. A
+ * things that run it against this repository are the runner's gates and CI. A
  * delegation committed alongside a change that is only ever run through the
  * default suite is caught at the pull request, not at the keyboard.
  */

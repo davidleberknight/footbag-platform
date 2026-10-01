@@ -39,7 +39,7 @@
     <p class="text-muted">Source key: PB is PassBack, FM is FootbagMoves, SG is Stanford shorthand.</p>
 
     {{! ── Overview tiles (four sections + the open-question figure) ── }}
-    <div class="observed-stats" aria-label="Emerging Vocabulary overview">
+    <div class="observed-stats">
       {{#each content.stats}}
       <div class="observed-stat">
         <span class="observed-stat-value">{{value}}</span>
@@ -50,7 +50,7 @@
     </div>
     <p class="observed-stats-note fw-600">{{content.statsNote}}</p>
     {{#if content.sources.length}}
-    <p class="observed-source-strip" aria-label="Sources represented on this page">
+    <p class="observed-source-strip">
       Sources:
       {{#each content.sources}}
         {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{badge}}">{{label}}</span>

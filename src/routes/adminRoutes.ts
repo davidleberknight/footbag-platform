@@ -240,6 +240,7 @@ adminRouter.get('/freestyle/consecutive-records/new',         adminFreestyleCont
 adminRouter.post('/freestyle/consecutive-records',            adminFreestyleController.consecutiveCreate);
 adminRouter.get('/freestyle/consecutive-records/:id/edit',    adminFreestyleController.consecutiveEdit);
 adminRouter.post('/freestyle/consecutive-records/:id/edit',   adminFreestyleController.consecutiveUpdate);
+adminRouter.get('/freestyle/consecutive-records/:id/delete',  adminFreestyleController.consecutiveDeleteConfirm);
 adminRouter.post('/freestyle/consecutive-records/:id/delete', adminFreestyleController.consecutiveDelete);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);

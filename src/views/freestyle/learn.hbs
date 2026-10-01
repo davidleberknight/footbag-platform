@@ -28,7 +28,7 @@
       <div class="section-heading">
         <h2>{{content.foundationalPath.heading}}</h2>
       </div>
-      <p class="learn-section-intro">{{content.foundationalPath.intro}}</p>
+      <p class="section-intro">{{content.foundationalPath.intro}}</p>
       <ol class="learn-path-steps">
         {{#each content.foundationalPath.steps}}
         <li class="learn-path-step">
@@ -43,9 +43,9 @@
     </section>
 
     {{#each content.sections}}
-    <section class="learn-section">
-      <h2 class="learn-section-heading">{{heading}}</h2>
-      <p class="learn-section-intro">{{introBlurb}}</p>
+    <section class="content-section">
+      <div class="section-heading"><h2>{{heading}}</h2></div>
+      <p class="section-intro">{{introBlurb}}</p>
       <ul class="learn-entries">
         {{#each entries}}
         <li class="learn-entry{{#unless isShipped}} learn-entry-planned{{/unless}}">

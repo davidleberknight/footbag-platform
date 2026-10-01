@@ -34,7 +34,7 @@
     <div data-trick-search-results>
       {{#if content.hasQuery}}
         {{#if content.tooShort}}
-          <p class="text-muted">Please enter at least 2 characters.</p>
+          <p>Please enter at least 2 characters.</p>
         {{else}}
           {{#if content.hasFamilyResults}}
             <div class="search-box-card-results-head">
@@ -55,7 +55,7 @@
               <span class="section-count">{{content.resultCount}}{{#if content.hasMore}}+{{/if}}</span>
             </div>
             {{#if content.hasMore}}
-              <p class="text-muted">Showing the first {{content.resultCount}}. Refine your search to narrow it.</p>
+              <p>Showing the first {{content.resultCount}}. Refine your search to narrow it.</p>
             {{/if}}
             <div class="search-box-results">
               {{#each content.results}}
@@ -68,8 +68,10 @@
             </div>
           {{/if}}
           {{#if content.hasNoResults}}
-            <p class="text-muted">No tricks or family pages found matching "{{content.query}}".</p>
-            <p class="text-muted">Try browsing instead: <a href="/freestyle/tricks">the trick dictionary</a>, <a href="/freestyle/learn">Learn freestyle</a>, or the <a href="/freestyle/glossary">glossary</a>.</p>
+            <div class="empty-state">
+              <p>No tricks or family pages found matching "{{content.query}}".</p>
+              <p>Try browsing instead: <a href="/freestyle/tricks">the trick dictionary</a>, <a href="/freestyle/learn">Learn freestyle</a>, or the <a href="/freestyle/glossary">glossary</a>.</p>
+            </div>
           {{/if}}
         {{/if}}
       {{/if}}

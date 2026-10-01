@@ -134,7 +134,7 @@
             <h4 class="glossary-core-atom-name">
               <a href="{{detailHref}}">{{displayName}}</a>
             </h4>
-            <span class="glossary-core-atom-adds" aria-label="{{adds}}">{{adds}}</span>
+            <span class="glossary-core-atom-adds">{{adds}}</span>
           </header>
           <p class="glossary-core-atom-lead">{{line}}</p>
           <details class="glossary-core-atom-collapsible">
@@ -1052,7 +1052,7 @@
     <h3 class="section-heading">{{tierLabel}}</h3>
     {{#each subGroups}}
     <p class="glossary-family-subgroup-label">{{label}}</p>
-    <div class="glossary-family-card-grid" aria-label="{{../tierLabel}}: {{label}}">
+    <div class="glossary-family-card-grid">
       {{#each cards}}
       {{> glossary-family-card}}
       {{/each}}
@@ -1083,7 +1083,7 @@
         <span class="glossary-family-card-observational-title">Family-tree visualizations (4 pilot families)</span>
         <span class="glossary-layer-badge glossary-layer-badge--advanced">advanced</span>
       </summary>
-      <div class="glossary-family-trees" aria-label="Family-tree examples">
+      <div class="glossary-family-trees">
         {{#each content.familyTrees}}
         <div class="glossary-family-tree" id="family-tree-{{anchorSlug}}">
           <p class="glossary-family-tree-anchor">
@@ -1313,7 +1313,7 @@
         concrete glyphs rather than prose. Data sourced from
         content.operatorBoard.tiers; tier colors match the shared
         operator-board partial's tier palette. }}
-    <div class="glossary-glyph-quickref" aria-label="Operator glyph quick reference">
+    <div class="glossary-glyph-quickref">
       {{#each content.operatorBoard.tiers}}
       <div class="glossary-glyph-quickref-tier glossary-glyph-quickref-tier--{{key}}">
         <span class="glossary-glyph-quickref-tier-label">{{title}}</span>
@@ -1332,7 +1332,7 @@
     {{! Notation in practice — three compact symbol-first examples.
         Static content; opens §7 with concrete tokenized formulas before
         the prose explainer. }}
-    <div class="glossary-notation-in-practice" aria-label="Notation in practice: three compact examples">
+    <div class="glossary-notation-in-practice">
       <p class="glossary-notation-row">
         <span class="glossary-notation-label">single base anchor</span>
         <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-core-family">whirl</span></code>
@@ -1362,7 +1362,7 @@
         visible-token, demonstrate how operators stacked on bases produce
         the named tricks that appear in the dictionary. }}
     <p>Notation makes composition visible. Operator + base &rarr; named compound:</p>
-    <div class="glossary-notation-mappings" aria-label="Operator → named compound mappings">
+    <div class="glossary-notation-mappings">
       <p class="glossary-notation-row">
         <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-set">pixie</span> + <span class="notation-token notation-core-family">butterfly</span></code>
         <span class="glossary-notation-shorthand">&rarr; <strong><a href="/freestyle/tricks/dimwalk">DIMWALK</a></strong></span>

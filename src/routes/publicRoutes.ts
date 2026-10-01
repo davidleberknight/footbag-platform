@@ -223,6 +223,8 @@ publicRouter.post('/members/:memberKey/purchase-tier', requireMember, memberCont
 // organizer announcement above.
 publicRouter.post('/members/:memberKey/vouch', requireMember, requireTier2Plus(), memberVouchController.postVouch);
 publicRouter.get('/members/:memberKey/payments',       requireMember, paymentController.getPaymentHistory);
+publicRouter.get('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
+  requireMember, paymentController.getCancelRecurringDonation);
 publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
   requireMember, paymentController.postCancelRecurringDonation);
 // The member's own mailing choices. The signed-in member is who the write acts

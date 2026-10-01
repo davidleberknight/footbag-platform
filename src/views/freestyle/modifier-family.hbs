@@ -42,47 +42,47 @@
           changes / JOB notation / Where it appears / Progression / Representative
           examples / Common confusions / Related concepts / Execution notes).
           Teaches the concept before the execution. ── --}}
-    <section class="modifier-section" aria-label="What it is">
-      <h2>What it is</h2>
+    <section class="content-section" aria-label="What it is">
+      <div class="section-heading"><h2>What it is</h2></div>
       <p>{{content.definition}}</p>
     </section>
 
-    <section class="modifier-section" aria-label="Why it exists">
-      <h2>Why it exists</h2>
+    <section class="content-section" aria-label="Why it exists">
+      <div class="section-heading"><h2>Why it exists</h2></div>
       <p>{{content.whyItExists}}</p>
     </section>
 
-    <section class="modifier-section" aria-label="How it changes the base trick">
-      <h2>How it changes the base trick</h2>
+    <section class="content-section" aria-label="How it changes the base trick">
+      <div class="section-heading"><h2>How it changes the base trick</h2></div>
       <p>{{content.howItChangesBase}}</p>
     </section>
 
-    <section class="modifier-section" aria-label="JOB notation">
-      <h2>JOB notation</h2>
+    <section class="content-section" aria-label="JOB notation">
+      <div class="section-heading"><h2>JOB notation</h2></div>
       <p>{{content.jobNotation}}</p>
     </section>
 
-    <section class="modifier-section" aria-label="Where it appears">
-      <h2>Where it appears</h2>
+    <section class="content-section" aria-label="Where it appears">
+      <div class="section-heading"><h2>Where it appears</h2></div>
       <p>{{content.whereItAppears}}</p>
     </section>
 
     {{#if content.howItComposes}}
-    <section class="modifier-section" aria-label="How it composes">
-      <h2>How it composes</h2>
+    <section class="content-section" aria-label="How it composes">
+      <div class="section-heading"><h2>How it composes</h2></div>
       <p>{{content.howItComposes}}</p>
     </section>
     {{/if}}
 
-    <section class="modifier-section symbolic-walking-progression" aria-label="Progression {{content.progression.anchorBaseLabel}}">
-      <h2>Progression {{content.progression.anchorBaseLabel}}</h2>
+    <section class="content-section symbolic-walking-progression" aria-label="Progression {{content.progression.anchorBaseLabel}}">
+      <div class="section-heading"><h2>Progression {{content.progression.anchorBaseLabel}}</h2></div>
       <ol class="progression-chain" role="list">
         {{#each content.progression.steps}}
         <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="modifier-step-{{stepNumber}}-{{slug}}">
           <div class="step-header">
             <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
             {{#if isPilot}}<a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="step-name">{{canonicalName}}</span>{{/if}}
-            {{#if adds}}<span class="step-adds" aria-label="ADD {{adds}}">{{adds}} ADD</span>{{/if}}
+            {{#if adds}}<span class="step-adds">{{adds}} ADD</span>{{/if}}
             <span class="step-modifier">{{modifierAdded}}</span>
           </div>
           <p class="step-rationale">{{rationale}}</p>
@@ -91,8 +91,8 @@
       </ol>
     </section>
 
-    <section class="modifier-section" aria-label="Representative examples">
-      <h2>Representative examples</h2>
+    <section class="content-section" aria-label="Representative examples">
+      <div class="section-heading"><h2>Representative examples</h2></div>
       <p>{{content.crossBase.framingLine}}</p>
       <ul class="cross-base-list">
         {{#each content.crossBase.examples}}
@@ -106,8 +106,8 @@
       </ul>
     </section>
 
-    <section class="modifier-section" aria-label="Common confusions">
-      <h2>Common confusions</h2>
+    <section class="content-section" aria-label="Common confusions">
+      <div class="section-heading"><h2>Common confusions</h2></div>
       {{#each content.confusions}}
       <div class="confusion-card">
         <h3>{{heading}}</h3>
@@ -116,8 +116,8 @@
       {{/each}}
     </section>
 
-    <section class="modifier-section" aria-label="Related concepts">
-      <h2>Related concepts</h2>
+    <section class="content-section" aria-label="Related concepts">
+      <div class="section-heading"><h2>Related concepts</h2></div>
       <ul class="related-modifiers-list">
         {{#each content.relatedModifiers}}
         <li><span class="related-name">{{name}}</span>: {{prose}}</li>
@@ -127,8 +127,8 @@
     </section>
 
     {{#if content.executionNotes}}
-    <section class="modifier-section" aria-label="Execution notes">
-      <h2>Execution notes</h2>
+    <section class="content-section" aria-label="Execution notes">
+      <div class="section-heading"><h2>Execution notes</h2></div>
       <p>{{content.executionNotes}}</p>
     </section>
     {{/if}}

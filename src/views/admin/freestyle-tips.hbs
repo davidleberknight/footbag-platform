@@ -1,20 +1,29 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="text-muted">Moderate the imported community trick tips: edit the advice, hide or restore a tip, or remap it to a trick. Hidden and unresolved tips are shown here but never on the public pages. {{content.totalCount}} tip(s) shown.</p>
+    <p class="hero-subtitle">Moderate the imported community trick tips: edit the advice, hide or restore a tip, or remap it to a trick. Hidden and unresolved tips are shown here but never on the public pages. {{content.totalCount}} tip(s) shown.</p>
   </div>
 </div>
 
 <div class="wrapper">
   <section>
-    <form method="GET" action="/admin/freestyle/tips" class="freestyle-admin-filter">
-      <input type="text" name="q" placeholder="Search tip text or slug" value="{{content.query}}" />
-      <select name="status" aria-label="Filter by status">
-        {{#each content.statusOptions}}
-          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
-        {{/each}}
-      </select>
-      <input type="text" name="trick" placeholder="Trick slug" value="{{content.trickSlug}}" />
+    <form method="GET" action="/admin/freestyle/tips" class="filter-bar">
+      <label>
+        Search
+        <input type="text" name="q" placeholder="Search tip text or slug" value="{{content.query}}" />
+      </label>
+      <label>
+        Status
+        <select name="status">
+          {{#each content.statusOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Trick
+        <input type="text" name="trick" placeholder="Trick slug" value="{{content.trickSlug}}" />
+      </label>
       <button type="submit" class="btn btn-outline btn-sm">Search</button>
       {{#if content.isFiltered}}
         <a href="/admin/freestyle/tips" class="btn btn-outline btn-sm">Clear</a>
@@ -28,7 +37,8 @@
     {{/if}}
 
     {{#if content.hasRows}}
-      <table class="freestyle-admin-table mt-2">
+      <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Community tips">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Status</th>
@@ -50,7 +60,7 @@
                 {{/if}}
               </td>
               <td>
-                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/order" class="freestyle-edit-form">
+                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/order">
                   <input type="hidden" name="q" value="{{@root.content.query}}" />
                   <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
                   <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
@@ -59,11 +69,11 @@
                 </form>
               </td>
               <td>
-                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/edit" class="freestyle-edit-form">
+                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/edit">
                   <input type="hidden" name="q" value="{{@root.content.query}}" />
                   <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
                   <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
-                  <p><textarea name="tipText" rows="3">{{this.tipText}}</textarea></p>
+                  <p><textarea name="tipText" rows="3" aria-label="Tip text">{{this.tipText}}</textarea></p>
                   <p><button type="submit" class="btn btn-primary btn-sm">Save Text</button></p>
                 </form>
               </td>
@@ -84,11 +94,11 @@
                     <button type="submit" class="btn btn-outline btn-sm">Restore</button>
                   </form>
                 {{/if}}
-                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/remap" class="freestyle-edit-form mt-2">
+                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/remap" class="mt-2">
                   <input type="hidden" name="q" value="{{@root.content.query}}" />
                   <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
                   <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
-                  <p><input type="text" name="targetSlug" placeholder="Active trick slug" /></p>
+                  <p><input type="text" name="targetSlug" placeholder="Active trick slug" aria-label="Target trick slug" /></p>
                   <p><button type="submit" class="btn btn-outline btn-sm">Remap to Trick</button></p>
                 </form>
               </td>
@@ -96,8 +106,9 @@
           {{/each}}
         </tbody>
       </table>
+      </div>
     {{else}}
-      <p class="text-muted mt-2">No tips match.</p>
+      <div class="empty-state"><p>No tips match.</p></div>
     {{/if}}
   </section>
 </div>

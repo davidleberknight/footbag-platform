@@ -46,8 +46,8 @@ const page = cachedGet(() => createApp());
 /** The trick every alias in this file hangs off. */
 const HOST = 'whirl';
 
-/** The public alternate-name slot, on the browse row and on the detail page. */
-const ALSO_CALLED = 'Also called';
+/** The public alternate-name slot on the browse row. */
+const ALSO_CALLED = 'class="dict-trick-row-nicknames"';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

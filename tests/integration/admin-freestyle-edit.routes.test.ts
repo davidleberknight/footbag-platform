@@ -449,6 +449,17 @@ describe('GET /admin/freestyle/tricks/:slug/edit — admin gate', () => {
     expect(res.status).toBe(200);
   });
 
+  // A label points at its field by id; one whose target is missing is inert for
+  // a pointer and silent for a screen reader. Every label on the editor must
+  // name a field that is on the page.
+  it('ties every label on the editor to a field on the page', async () => {
+    const res = await get('/admin/freestyle/tricks/blurry_whirl/edit', admin());
+    const targets = [...res.text.matchAll(/<label[^>]*\bfor="([^"]+)"/g)].map(m => m[1]);
+    expect(targets.length).toBeGreaterThan(10);
+    const missing = targets.filter(id => !res.text.includes(`id="${id}"`));
+    expect(missing).toEqual([]);
+  });
+
   it('redirects an unauthenticated visitor to login', async () => {
     const res = await get('/admin/freestyle/tricks/blurry_whirl/edit');
     expect(res.status).toBe(302);

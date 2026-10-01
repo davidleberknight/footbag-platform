@@ -37,9 +37,7 @@ describe('Pronunciation fact chip', () => {
   it('renders a compact pronunciation chip in the fact ribbon when present', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/guay');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('trick-hero-meta-chip-pronunciation');
-    expect(res.text).toContain('gwhy');
-    expect(res.text).toContain('aria-label="Pronunciation: gwhy"');
+    expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-pronunciation">gwhy</);
     // it is a chip in the ribbon, not a standalone section/heading
     expect(res.text).not.toMatch(/<h2[^>]*>\s*Pronunciation/i);
   });

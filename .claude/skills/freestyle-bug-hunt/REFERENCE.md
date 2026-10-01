@@ -242,9 +242,9 @@ taxonomy while the reversible-governance doctrine holds; frozen readings stay fr
 Public dictionary content is public: depth is controlled by interaction (simple vs
 deep-dive), never by role. Decomposition is pedagogy and stays visible even in the simple
 mode. Enum-to-display mapping happens at ONE site in the service layer; templates branch on
-field presence, never on enum values. The hashtag, the trick name, and the trick-detail
-link are three distinct controls: the name is never a link, and a hashtag links to a
-gallery only when media exists.
+field presence, never on enum values. The trick name, the hashtag, the Detail link, and the
+Media link are four distinct controls: the name and Detail both open the trick-detail page,
+and the hashtag and Media open the gallery, only when media exists.
 
 ### §F16 Freestyle QC-gate coverage (a testing gap is a bug)
 

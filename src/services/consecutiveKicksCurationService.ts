@@ -92,6 +92,14 @@ export interface ConsecutiveEditContent {
   hasErrors: boolean;
 }
 
+/** The confirm step before a row is deleted: what will go, and the two ways out. */
+export interface ConsecutiveDeleteConfirmContent {
+  id: string;
+  summary: { label: string; value: string }[];
+  deleteHref: string;
+  cancelHref: string;
+}
+
 /** The editable fields submitted by the edit form. */
 export interface ConsecutiveScalarInput {
   sortOrder?: string;
@@ -229,6 +237,33 @@ export const consecutiveKicksCurationService = {
         fieldErrors,
         errorList,
         hasErrors: errorList.length > 0,
+      },
+    };
+  },
+
+  // The confirm page shown before a row is deleted. A deletion cannot be undone, so
+  // the admin sees which row it is before the final button. Returns null when the
+  // id has no row (the controller maps null to 404).
+  getDeleteConfirmPage(id: string): PageViewModel<ConsecutiveDeleteConfirmContent> | null {
+    const row = consecutiveKicksRecords.getForCurationById.get(id) as ConsecutiveCurationDbRow | undefined;
+    if (!row) return null;
+
+    const players = [row.player_1, row.player_2].filter((p): p is string => !!p).join(' and ');
+    const summary = [
+      { label: 'Division', value: row.division },
+      { label: 'Year',     value: row.year ?? '' },
+      { label: 'Players',  value: players },
+      { label: 'Score',    value: numOrEmpty(row.score) },
+    ].filter(f => f.value !== '');
+
+    return {
+      seo:  { title: 'Consecutive Kicks Records' },
+      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_delete', title: 'Delete Consecutive-kicks Record' },
+      content: {
+        id: row.id,
+        summary,
+        deleteHref: `/admin/freestyle/consecutive-records/${row.id}/delete`,
+        cancelHref: `/admin/freestyle/consecutive-records/${row.id}/edit`,
       },
     };
   },

@@ -1149,7 +1149,7 @@ Person hashtags reuse the member slug. Records have no separate hashtag namespac
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. a tag gallery link carrying an alias) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
-A trick hashtag and the trick detail page are separate read-side destinations. The plain-English trick name (e.g. *Double Leg Over*) is display text only and is never a link. Clickable controls sit beside it: the hashtag (`#double_leg_over`) opens the trick's media gallery when the trick has at least one media item and renders as a plain non-clickable token otherwise; a distinct "Detail" link opens the detail page at `/freestyle/tricks/double_leg_over`; and a "Media" link opens the same gallery as the hashtag, rendered only when the trick has media. Media presence therefore carries two agreeing signals, a live hashtag and a present Media control, rather than resting on the hashtag alone. This keeps the gallery path and the detail path as explicit controls that never collapse onto the name or onto one ambiguous control.
+A trick hashtag and the trick detail page are separate read-side destinations. The plain-English trick name (e.g. *Double Leg Over*) links to the trick detail page. Further controls sit beside it: the hashtag (`#double_leg_over`) opens the trick's media gallery when the trick has at least one media item and renders as a plain non-clickable token otherwise; a distinct "Detail" link opens the same detail page at `/freestyle/tricks/double_leg_over`; and a "Media" link opens the same gallery as the hashtag, rendered only when the trick has media. Media presence therefore carries two agreeing signals, a live hashtag and a present Media control, rather than resting on the hashtag alone. This keeps the gallery path and the detail path as explicit controls that never collapse onto one ambiguous control.
 
 Rationale:
 
@@ -2698,6 +2698,8 @@ Above the text scale sit two display sizes reserved for figures and icon glyphs 
 
 Nothing renders below `0.9rem`. Text subordinate to that is made subordinate by colour and weight, not by shrinking further. The compact content-section variant differs from an ordinary section in vertical rhythm only; both take the same `1.5rem` section heading.
 
+Muted grey (`--text-muted`) marks only metadata, form hints, captions, and source or provenance notes, at the `0.9rem` step, on white or near-white surfaces where it holds at least 4.5:1 contrast. Everything a reader reads to understand, decide, or act stays in the body colour: running prose, section intros, instructions, errors, warnings, form labels, and the consequences text on a confirm or destructive-action page. The paler `--text-subtle` is not a text colour; it serves borders and icons only.
+
 Rationale:
 
 - A component that picks its own size produces a page where nothing outranks anything. The stylesheet had drifted to sixty distinct font sizes, twenty of them inside a tenth of a rem of a neighbour, and one trick detail page rendered its section headings smaller and lighter than the prose beneath them.
@@ -2712,11 +2714,15 @@ Rationale:
 
 - A closed set is checkable by a machine. A designer's intent is not.
 
+- Grey body text is harder to read, trusted less, and close to unreadable on a phone in sunlight. Text at these sizes needs 4.5:1 contrast (WCAG 1.4.3); `--text-muted` meets it on white and `--text-subtle` does not.
+
 Requirements:
 
 - Every `font-size` in the stylesheet is one of the five text steps, one of their two `em` forms, or one of the two display sizes. A new intermediate value is a design question, not a local choice.
 
 - A section heading always outranks the body text under it in both size and colour.
+
+- No running prose, section intro, or instruction renders in a muted colour.
 
 - Sizes carried in custom properties obey the scale like any other declaration; a token is a name for a step, not an exemption from it.
 
@@ -2732,7 +2738,7 @@ Impact:
 
 Decision:
 
-Running prose is capped at a comfortable reading measure of roughly 70 characters. The cap is applied per component through `max-width`, in `ch` units for text and in pixels where a component caps a mixed column; the page container itself stays full width so grids, tables, and media are unaffected.
+Running prose is capped at a comfortable reading measure of about 70 characters per line, and one value, `55ch`, serves every prose element on the site. The cap is applied per component through `max-width`, in `ch` units for text and in pixels where a component caps a mixed column; the page container itself stays full width so grids, tables, and media are unaffected.
 
 Rationale:
 
@@ -2740,11 +2746,15 @@ Rationale:
 
 - Capping the component rather than the container keeps wide content (ladders, grids, tables, galleries) at full width, where its own structure carries the eye.
 
+- A `ch` is the width of the digit zero, wider than an average letter: in the site's body font a `70ch` line holds about 90 characters of running text, past the 45 to 75 a reader takes in comfortably and the 80 that accessibility guidance (WCAG 1.4.8) sets as a ceiling. `55ch` lands at about 70.
+
 Requirements:
 
 - Every element carrying running prose has a measure cap, whether from its own rule or an ancestor prose rule.
 
 - A component that mixes prose with wide content caps the prose, not the component.
+
+- No section or page widens the prose cap with an override of its own.
 
 Trade-offs:
 

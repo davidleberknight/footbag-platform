@@ -4,7 +4,7 @@
  * Contract: the runner has two local modes and one additive switch. The bare
  * command and --full are the same thorough run, and it reaches no deployed
  * environment at all: no staging row, no staging or production target. --quick is
- * exactly the fast pre-commit loop, and `npm run test:pre-pr` is that mode, so the
+ * exactly the fast pre-commit loop, and `npm run test:quick` is that mode, so the
  * list has one home. --staging adds exactly four read-only rows, every one of them
  * pointed at staging, whatever the operator's shell exports.
  *
@@ -82,13 +82,13 @@ describe('the default run and --full', () => {
 describe('--quick', () => {
   // Defect caught: the fast loop and the pre-commit script drift apart, so a
   // secret or a harness break that one of them catches the other lets through.
-  it('schedules exactly the fast pre-commit set, which is what npm run test:pre-pr runs', () => {
+  it('schedules exactly the fast pre-commit set, which is what npm run test:quick runs', () => {
     const quick = plan(['--quick']);
     expect(quick.status, quick.out).toBe(0);
     expect(quick.rows.map((r) => r.name)).toEqual(QUICK_ROWS);
     for (const row of quick.rows) expect(row.target, row.name).toBe('local');
     const scripts = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')).scripts as Record<string, string>;
-    expect(scripts['test:pre-pr']).toBe('./run_all_tests.sh --quick');
+    expect(scripts['test:quick']).toBe('./run_all_tests.sh --quick');
   });
 });
 

@@ -27,7 +27,7 @@
 <div class="wrapper sets-encyclopedia">
 
   <header class="sets-encyclopedia-head">
-    <p class="detail-muted">
+    <p class="section-intro">
       Why an encyclopedia instead of a dictionary? The trick dictionary defines
       individual tricks. The Set Encyclopedia explores the movement systems that
       tricks are built from, and how those systems relate to one another.
@@ -69,13 +69,13 @@
     {{! Compact rows that mirror the trick-dictionary row contract (reusing the
         dict-trick-row structure + the SET notation slot). Long prose (Derived,
         Common in, full explanation) lives on the set detail page. }}
-    <div class="dict-trick-row-stack">
+    <ul class="dict-trick-row-stack" role="list">
       {{#each cards}}
-      <article class="dict-trick-row" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
+      <li><article class="dict-trick-row" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
         <div class="dict-trick-row-head">
           <a class="dict-trick-row-title" href="{{detailHref}}">{{displayName}}</a>
-          {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}">&#9733;</span>{{/if}}
-          <span class="hashtag" aria-label="Tag identity">{{hashtag}}</span>
+          {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}" aria-hidden="true">&#9733;</span><span class="visually-hidden">{{flagshipTitle}}</span>{{/if}}
+          <span class="hashtag">{{hashtag}}</span>
           <span class="sets-encyclopedia-card-status sets-encyclopedia-card-status--{{statusPill.key}}">{{statusPill.label}}</span>
           <span class="sets-encyclopedia-card-role-chip sets-encyclopedia-card-role-chip--{{roleKey}}">{{roleLabel}}</span>
         </div>
@@ -84,12 +84,12 @@
             <span class="dict-trick-row-label">SET</span>
             {{#if formula}}<code class="dict-trick-row-job-value">{{formula}}</code>{{else}}<span class="dict-trick-row-job-value dict-trick-row-pending-value">notation pending</span>{{/if}}
           </span>
-          <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details</a>
+          <a class="action-link" href="{{detailHref}}">View details</a>
         </div>
         <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
-      </article>
+      </article></li>
       {{/each}}
-    </div>
+    </ul>
     {{#if nextSubtypeAnchor}}
     {{! Read-next footer — forward pointer to the next rendered
         subtype. Suppresses on the last section. Reuses the shared

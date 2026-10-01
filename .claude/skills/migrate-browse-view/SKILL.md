@@ -106,17 +106,17 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
 {{#each content.{viewModel}}}
 <section class="content-section trick-{view}-group" id="{{anchorId}}">
   <div class="section-heading">
-    <h2><a href="/freestyle/tricks?view={view}#{{anchorId}}">{{label}}</a></h2>
+    <h2><a href="{{{href}}}">{{label}}</a></h2>
     <span class="section-count">{{cards.length}}</span>
   </div>
   {{#if bodyDefinition}}
-  <p class="{view}-group-definition">{{bodyDefinition}}</p>
+  <p class="section-intro">{{bodyDefinition}}</p>
   {{/if}}
-  <div class="dict-trick-row-stack">
+  <ul class="dict-trick-row-stack" role="list">
     {{#each cards}}
       {{> dictionary-trick-row}}
     {{/each}}
-  </div>
+  </ul>
 </section>
 {{/each}}
 {{/if}}
@@ -127,9 +127,10 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
 - **One heading system.** A group heading is the site `.section-heading` with an `<h2>` (or `<h3>`
   for a sub-group) and a `.section-count` chip. Never a per-view heading class: a view with its own
   heading treatment fails uniformity exactly as a view with its own row would.
-- **Static URL prefixes only.** Write a `?view=` href as a static prefix with slug-only
-  interpolation: `href="/freestyle/tricks?view={view}#{view}-{{slug}}"`. Handlebars escapes `=` to
-  `&#x3D;` when the whole URL is interpolated through one mustache, and tests asserting the URL fail.
+- **Service-provided hrefs only.** Every `?view=`, `?family=`, and anchor link comes from the
+  service as an `href` field on the group; a template never assembles one (view-layer rule,
+  "Hashtag and dictionary-filter links"). Render a query-string href with triple braces,
+  `{{{href}}}`, so Handlebars does not escape `=` to `&#x3D;`.
 - **Section ID format `{view}-{slug}`.** Anchor IDs are public API. Never rename one without
   updating every cross-link in the same change.
 - **Heading wraps the label in a self-anchored link**, so a reader can copy a deep link to a group.
@@ -203,7 +204,8 @@ If moving off legacy markup, find the old assertions for that view, most likely 
 - The view's own suite, the shared row-contract guard, and the cross-view rendering suite, named
   explicitly.
 - The importers of the row partial and the row view-model, named explicitly, since both are shared; the
-  runner is the human-run gate.
+  runner is the gate, run only with approval as a background job (the long-runs rule in
+  `.claude/rules/testing.md`).
 - Every new assertion demonstrated red before it goes green.
 - A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
   view at desktop and at 480px, confirming row rhythm, heading weight, count-chip treatment and the
@@ -233,7 +235,7 @@ The change MUST NOT:
 - URL: `/freestyle/tricks?view={key}`
 - Anchor ID: `{key}-{slug}` for groups; `axis-{name}` for sub-axes
 - Group wrapper class: `.trick-{key}-group`
-- Group-internal classes: `.{key}-group-{element}` (for example `-definition`)
+- Group-internal elements use shared classes (`.section-intro` for a definition line); a view adds no class of its own beyond the group wrapper
 
 ## Observational vs canonical view check
 
@@ -247,7 +249,7 @@ Before adding a new view, decide its layer:
   official grouping, and a closing footer cross-referencing the canonical view.
 
 The shipped footer convention is `<p class="symbolic-layer-footer">`. No observational view ships
-today, so the first one defines its status-label class in `style.css`. The `symbolic-layer-badge`
+today; the first one renders its status label with the shared `.notice` primitive and adds no class. The `symbolic-layer-badge`
 chip belongs to the trick-detail and glossary surfaces, not to a browse view.
 
 ## Cross-references

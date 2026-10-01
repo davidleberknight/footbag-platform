@@ -389,7 +389,7 @@ const SET_PARITY_ORDER = [
   'aria-label="Related systems"',
   'aria-label="Example tricks"',
   'aria-label="Cross-references"',
-  'aria-label="Source provenance"',
+  'class="set-detail-provenance"',
 ];
 
 function presentSectionsInOrder(text: string): { present: string[]; ascending: boolean } {

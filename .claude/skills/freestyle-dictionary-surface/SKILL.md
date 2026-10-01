@@ -1,9 +1,17 @@
 ---
 name: freestyle-dictionary-surface
-description: Use when building or changing public-facing freestyle dictionary surfaces — the trick list and trick-detail pages (/freestyle/tricks, /freestyle/tricks/:slug), family pages, alias rendering, decomposition/related-trick/record/media display, and per-section disclosure controls. Covers user-facing rendering and pedagogical authoring of dictionary content.
+description: Use when building or changing any freestyle page or freestyle admin editor — the trick list and trick-detail pages (/freestyle/tricks, /freestyle/tricks/:slug), family, set, modifier, operator, glossary, concepts, records and learning pages, the /admin/freestyle/* editors, alias rendering, decomposition/related-trick/record/media display, and per-section disclosure controls. Covers user-facing rendering and pedagogical authoring of dictionary content.
+paths:
+  - "src/views/freestyle/**"
+  - "src/views/admin/freestyle-*"
+  - "src/views/partials/{dictionary,trick,freestyle,symbolic,family,set,glossary,observed,equivalence,operator,core-tricks}-*"
 ---
 
 # Skill: freestyle-dictionary-surface
+
+## Visual standard first
+
+Before any template or CSS edit, read `.claude/rules/view-layer.md` and follow the `add-public-page` skill. This skill governs what dictionary content a page shows and how it is explained; it defines no visual treatment, and no freestyle page invents its own classes, colours, tables, cards, or section styles.
 
 ## When to use
 
@@ -16,7 +24,7 @@ Invoke this skill when work touches:
 - Alias rendering decisions across any user-facing surface
 - Pedagogical authoring (family intros, trick descriptions)
 - Media tier ordering on dictionary surfaces
-- Cross-cutting browse views (by ADD, by modifier, by set, by surface)
+- Cross-cutting browse views (by ADD, by family, by set, by modifier)
 
 If the work is purely ontology / data-layer (canonical naming decisions, alias additions, modifier table edits, dictionary CSV changes), this skill is **adjacent** but not authoritative: fall through to `footbag-freestyle-dictionary` and the doctrine of record in `freestyle/doctrine/`.
 
@@ -160,7 +168,7 @@ Some structural aliases are also superseded names (Toe Blur → Quantum Mirage p
 - If active community usage is current, classify as Structural
 - If the alias is fading from use AND replaced by a new canonical, classify as Historical
 
-Curator override via `alias_kind` (when added) is the tiebreaker.
+The curator's alias type, set in the trick editor, is the tiebreaker.
 
 ### Disclosure model
 

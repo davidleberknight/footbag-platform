@@ -1526,8 +1526,9 @@ export interface FreestyleTrickContent {
   familyHeadingLabel: string;
   // Hero family chip — parent-resolved family; null when the trick's family is
   // a route-out (foundational surface / ecosystem / alt-surface / multi-bag).
-  // The template builds the href from `slug` so the `?family=` stays literal.
-  familyChip: { label: string; slug: string; isMinorLineage: boolean } | null;
+  // `href` is the encoded family filter; the template renders it unescaped so
+  // the query string survives.
+  familyChip: { label: string; slug: string; isMinorLineage: boolean; href: string } | null;
   // Same family-member set as `familyMembers`, regrouped
   // by ADD value for tier-grouped rendering. Numeric tiers sort ascending;
   // non-numeric/null tier renders last as "Modifiers".
@@ -1592,7 +1593,7 @@ export interface FreestyleTrickContent {
   // of a branch family (branch->root containment) plus any curator
   // dual-memberships. The template builds the `?family=` href from `slug`
   // (single-variable URL). Empty for root-family and route-out tricks.
-  additionalFamilies: { label: string; slug: string; isMinorLineage: boolean }[];
+  additionalFamilies: { label: string; slug: string; isMinorLineage: boolean; href: string }[];
   // Observational symbolic-grammar topology panel (Layer 3). Null when:
   //   - slug is not in the flagship allow-list (8 flagship slugs)
   //   - slug has no topology-axis group membership in the staging CSVs
@@ -2952,6 +2953,7 @@ export interface FreestyleModifierGroup {
 export interface FreestyleSetViewGroup {
   slug: string;          // set modifier slug; drives the `set-{slug}` anchor
   label: string;         // display-cased set name (e.g. "Pixie")
+  href: string;          // self-anchored deep link to this group
   cards: DictionaryTrickCard[];
   trickCount: number;
 }
@@ -3114,6 +3116,7 @@ export interface DictionaryLandingOnboarding {
 export interface ModifierClusterGroup {
   slug:       string;               // modifier slug; drives the `modifier-{slug}` anchor
   name:       string;               // modifier display name
+  href:       string;               // self-anchored deep link to this group
   cards:      DictionaryTrickCard[];
   trickCount: number;
 }
@@ -3146,6 +3149,7 @@ export interface FreestyleMinorLineage {
 export interface FreestyleFamilyGroup {
   familySlug: string;
   familyName: string;         // capitalized family name (e.g. "Whirl")
+  familyHref: string;         // /freestyle/tricks?family={familySlug}
   // Pre-shaped family-anchor link. Points at the family page when the family has
   // one, otherwise at the anchor trick's detail page, or null when neither
   // resolves.
@@ -6163,6 +6167,7 @@ function buildFamilyGroup(
   return {
     familySlug,
     familyName,
+    familyHref: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}`,
     familyAnchorHref,
     members,
     cards,
@@ -7327,7 +7332,7 @@ export const freestyleService = {
         const familyIsMinorLineage = (fam: string): boolean =>
           familyTier(fam) === 'minor-lineage';
 
-        const additionalFamilies: { label: string; slug: string; isMinorLineage: boolean }[] = (() => {
+        const additionalFamilies: { label: string; slug: string; isMinorLineage: boolean; href: string }[] = (() => {
           if (!effectiveFamilySlug) return [];
           const extras = new Set<string>([
             ...familyWithAncestors(effectiveFamilySlug),
@@ -7338,7 +7343,7 @@ export const freestyleService = {
             const label = PUBLIC_FAMILY_LABEL.get(fam)
               ?? resolveFamilyDisplayName(fam)
               ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/[-_]/g, ' '));
-            return { label: `${label} family`, slug: fam, isMinorLineage: familyIsMinorLineage(fam) };
+            return { label: `${label} family`, slug: fam, isMinorLineage: familyIsMinorLineage(fam), href: `/freestyle/tricks?family=${encodeURIComponent(fam)}` };
           });
         })();
 
@@ -7485,7 +7490,7 @@ export const freestyleService = {
           hasFamilyMembers: familyMembers.length > 1,
           familyHeadingLabel: isOfficialFamilyParent(slug) ? 'Family' : 'Related',
           familyChip:       familySlug
-            ? { label: `${familyName} family`, slug: familySlug, isMinorLineage: familyIsMinorLineage(familySlug) }
+            ? { label: `${familyName} family`, slug: familySlug, isMinorLineage: familyIsMinorLineage(familySlug), href: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}` }
             : null,
           familyTiers:      buildFamilyTiers(familyMembers),
           additionalFamilies,
@@ -8669,7 +8674,7 @@ export const freestyleService = {
         slug:  g.familySlug,
         name:  g.familyName,
         count: g.cards.length,
-        href:  `/freestyle/tricks?family=${g.familySlug}`,
+        href:  `/freestyle/tricks?family=${encodeURIComponent(g.familySlug)}`,
       }));
     // Family-view jump index: anchor chips for the first-class family sections,
     // split into root vs derived-branch (branchParentName != null) so a reader
@@ -8725,6 +8730,7 @@ export const freestyleService = {
         const groups: ModifierClusterGroup[] = inCluster.map(g => ({
           slug:       g.modifierSlug,
           name:       g.modifierName,
+          href:       `/freestyle/tricks?view=modifier#modifier-${encodeURIComponent(g.modifierSlug)}`,
           cards:      [...g.cards].sort(byAddThenName),
           trickCount: g.trickCount,
         }));
@@ -8788,6 +8794,7 @@ export const freestyleService = {
       .map(g => ({
         slug:       g.modifierSlug,
         label:      g.modifierName.charAt(0).toUpperCase() + g.modifierName.slice(1),
+        href:       `/freestyle/tricks?view=set#set-${encodeURIComponent(g.modifierSlug)}`,
         cards:      [...g.cards].sort(byAddThenName),
         trickCount: g.trickCount,
       }));

@@ -71,7 +71,7 @@
   {{!-- Curator derivatives note: a concise line pointing at major higher-ADD
        derivatives, placed right after the build chain. --}}
   {{#if content.aboutDerivatives}}
-  <p class="text-muted" data-about-derivatives>{{content.aboutDerivatives}}</p>
+  <p data-about-derivatives>{{content.aboutDerivatives}}</p>
   {{/if}}
 
   {{!-- Parent-delta line for tricks with no physical intuition prose: it would
@@ -79,7 +79,7 @@
        beside the build path. Tricks with prose render the delta in Movement
        intuition instead. --}}
   {{#if content.intuitionDelta}}{{#unless content.intuition}}
-  <p class="text-muted" data-intuition-delta>{{content.intuitionDelta}}</p>
+  <p data-intuition-delta>{{content.intuitionDelta}}</p>
   {{/unless}}{{/if}}
 
   {{#if content.dictEntry.familyNote}}
@@ -91,7 +91,7 @@
   {{!-- Base-atom -> operator cross-link: e.g. the spin atom points at Spinning
        tricks, so the relationship is explicit rather than inferred. --}}
   {{#if content.relatedOperator}}
-  <p class="text-muted">See also: <a href="{{content.relatedOperator.href}}">{{content.relatedOperator.label}}</a></p>
+  <p>See also: <a href="{{content.relatedOperator.href}}">{{content.relatedOperator.label}}</a></p>
   {{/if}}
 
 </section>

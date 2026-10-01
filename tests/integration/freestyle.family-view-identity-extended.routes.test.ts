@@ -260,8 +260,8 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
 
       // Difficulty value on the row in both views; green chip never on a row.
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
-      expect(familyRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
+      expect(addRegion![0]).toContain(`class="dict-trick-row-add">(${pilot.adds})<`);
+      expect(familyRegion![0]).toContain(`class="dict-trick-row-add">(${pilot.adds})<`);
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
       expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 

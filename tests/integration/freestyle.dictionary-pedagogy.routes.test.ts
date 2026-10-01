@@ -186,8 +186,9 @@ describe('Dictionary browse — family-anchor sub-label', () => {
     const startIdx = res.text.indexOf('id="family-whirl"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/class="trick-family-anchor-link"[^>]*href="\/freestyle\/families\/whirl"/);
-    expect(region).not.toMatch(/class="trick-family-anchor-link"[^>]*href="\/freestyle\/tricks\/whirl"/);
+    const sublabel = region.match(/class="trick-family-anchor-sublabel">[\s\S]*?<\/p>/)?.[0] ?? '';
+    expect(sublabel).toMatch(/<a href="\/freestyle\/families\/whirl"/);
+    expect(sublabel).not.toMatch(/<a href="\/freestyle\/tricks\/whirl"/);
   });
 
   it('sub-label uses the family display name (not the slug) for the link text', async () => {
@@ -198,7 +199,8 @@ describe('Dictionary browse — family-anchor sub-label', () => {
     // Link text should be the display name ("Butterfly") rendered by
     // the template via {{familyName}} — case-insensitive match because
     // the service may title-case differently from the slug.
-    expect(region).toMatch(/class="trick-family-anchor-link"[^>]*>\s*[Bb]utterfly\s*</);
+    const sublabel = region.match(/class="trick-family-anchor-sublabel">[\s\S]*?<\/p>/)?.[0] ?? '';
+    expect(sublabel).toMatch(/<a href="[^"]*">\s*[Bb]utterfly\s*</);
   });
 
   it('sub-label does NOT appear on non-family views', async () => {

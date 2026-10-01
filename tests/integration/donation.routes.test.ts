@@ -370,6 +370,81 @@ describe('the recurring donation checkout and confirmation pages', () => {
   });
 });
 
+// Cancelling stops money, so the history page's control opens a confirm page and
+// only that page's button posts. The confirm page is as owner-scoped as the
+// action it guards, and answers every refusal with the same 404.
+describe('GET /members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel (confirm step)', () => {
+  it('links the history page control to the confirm page instead of posting the cancel', async () => {
+    const stripeSubscriptionId = await liveSubscriptionFor(OTHER);
+    const res = await plainRequest(createApp())
+      .get(`/members/${OTHER_SLUG}/payments`)
+      .set('Cookie', cookie(OTHER));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`<a href="/members/${OTHER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel" class="btn btn-outline btn-sm">Cancel Recurring Donation</a>`);
+    expect(res.text).not.toMatch(new RegExp(`<form[^>]*action="/members/${OTHER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel"`));
+  });
+
+  it('shows the owner the donation and the consequence, and posts only from its own button', async () => {
+    const stripeSubscriptionId = await liveSubscriptionFor(OTHER);
+    const path = `/members/${OTHER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`;
+    const res = await plainRequest(createApp()).get(path).set('Cookie', cookie(OTHER));
+    expect(res.status).toBe(200);
+    // The member reads a consequence before the final button, not an empty box.
+    expect(res.text).toMatch(/<p class="notice notice-warn" role="alert">[^<]{20,}<\/p>/);
+    // The donation named is the one the history page lists, amount for amount.
+    const historyRow = await plainRequest(createApp())
+      .get(`/members/${OTHER_SLUG}/payments`)
+      .set('Cookie', cookie(OTHER));
+    const amount = historyRow.text.match(/<td>([^<]+) each year<\/td>/)?.[1] ?? '';
+    expect(amount).not.toBe('');
+    expect(res.text).toContain(`${amount} each year`);
+    expect(res.text).toMatch(new RegExp(`<form method="POST" action="${path}"[^>]*>\\s*<button type="submit" class="btn btn-outline">Cancel Recurring Donation</button>`));
+    expect(res.text).toContain(`href="/members/${OTHER_SLUG}/payments"`);
+    // Opening the confirm page cancels nothing: the history still offers the control.
+    const history = await plainRequest(createApp())
+      .get(`/members/${OTHER_SLUG}/payments`)
+      .set('Cookie', cookie(OTHER));
+    expect(history.text).toContain(`${path}" class="btn btn-outline btn-sm"`);
+  });
+
+  it('404s another member, another member path, an unknown id, and a donation already ending', async () => {
+    const stripeSubscriptionId = await liveSubscriptionFor(OWNER);
+    const asOther = await plainRequest(createApp())
+      .get(`/members/${OWNER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+      .set('Cookie', cookie(OTHER));
+    expect(asOther.status).toBe(404);
+    const otherPath = await plainRequest(createApp())
+      .get(`/members/${OTHER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+      .set('Cookie', cookie(OTHER));
+    expect(otherPath.status).toBe(404);
+    // The owner, aiming at their own subscription through someone else's path:
+    // the path names the member being acted on, so it must be the signed-in one.
+    const ownerOnOtherPath = await plainRequest(createApp())
+      .get(`/members/${OTHER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+      .set('Cookie', cookie(OWNER));
+    expect(ownerOnOtherPath.status).toBe(404);
+    const unknown = await plainRequest(createApp())
+      .get(`/members/${OWNER_SLUG}/recurring-donations/sub_nope/cancel`)
+      .set('Cookie', cookie(OWNER));
+    expect(unknown.status).toBe(404);
+
+    await request(createApp())
+      .post(`/members/${OWNER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+      .set('Cookie', cookie(OWNER));
+    const ending = await plainRequest(createApp())
+      .get(`/members/${OWNER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+      .set('Cookie', cookie(OWNER));
+    expect(ending.status).toBe(404);
+  });
+
+  it('redirects an unauthenticated visitor to login', async () => {
+    const res = await plainRequest(createApp())
+      .get(`/members/${OWNER_SLUG}/recurring-donations/sub_any/cancel`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/login/);
+  });
+});
+
 describe('GET /members/:memberKey/payments with recurring donations', () => {
   it('shows the donation with a cancel control while it is live', async () => {
     const stripeSubscriptionId = await liveSubscriptionFor(OTHER);

@@ -61,7 +61,8 @@ variable "domain_name" {
   description = <<-EOT
     Primary domain name for this environment.
     DEFERRED: not used in test deployment mode (CloudFront default URL).
-    Set to e.g. "staging.footbag.org" when attaching a real domain.
+    Staging attaches no custom domain and serves on its CloudFront name;
+    this variable stays empty and exists for parity with production.
   EOT
   type        = string
   default     = ""
@@ -165,7 +166,7 @@ variable "lightsail_origin_dns" {
       lightsail_origin_dns = "<static_ip>.nip.io"
       e.g. lightsail_origin_dns = "203.0.113.20.nip.io"   (203.0.113.x is a placeholder per RFC 5737; substitute your real static IP)
     For production: use a real DNS A record pointing to the static IP,
-    e.g. origin.staging.footbag.org. Do not use nip.io in production.
+    the origin name under the platform domain. Do not use nip.io in production.
     Set this value and enable_cloudfront = true for the second apply pass.
     Leave as empty string for the first apply pass (set enable_cloudfront = false).
   EOT

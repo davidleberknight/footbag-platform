@@ -2,10 +2,10 @@
   <div>
     {{#if content.isNew}}
     <h1>New Consecutive-kicks Record</h1>
-    <p class="text-muted">Add a consecutive-kicks record.</p>
+    <p class="hero-subtitle">Add a consecutive-kicks record.</p>
     {{else}}
     <h1>Edit Consecutive-kicks Record</h1>
-    <p class="text-muted">Editing record <code>{{content.id}}</code>.</p>
+    <p class="hero-subtitle">Editing record <code>{{content.id}}</code>.</p>
     {{/if}}
   </div>
 </div>
@@ -21,29 +21,68 @@
     </div>
     {{/if}}
 
-    <form method="POST" action="{{content.formAction}}" class="freestyle-edit-form">
+    <form method="POST" action="{{content.formAction}}" class="form-block">
       <fieldset class="form-fieldset">
-        <p><label>Display position</label><br><input type="text" name="sortOrder" value="{{content.fields.sortOrder}}" /></p>
-        <p><label>Section</label><br><input type="text" name="section" value="{{content.fields.section}}" /></p>
-        <p><label>Subsection</label><br><input type="text" name="subsection" value="{{content.fields.subsection}}" /></p>
-        <p><label>Division</label><br><input type="text" name="division" value="{{content.fields.division}}" /></p>
-        <p><label>Year</label><br><input type="text" name="year" value="{{content.fields.year}}" /></p>
-        <p><label>Rank</label><br><input type="text" name="rank" value="{{content.fields.rank}}" /></p>
-        <p><label>Player 1</label><br><input type="text" name="player1" value="{{content.fields.player1}}" /></p>
-        <p><label>Player 2</label><br><input type="text" name="player2" value="{{content.fields.player2}}" /></p>
-        <p><label>Score</label><br><input type="text" name="score" value="{{content.fields.score}}" /></p>
-        <p><label>Note</label><br><textarea name="note" rows="2">{{content.fields.note}}</textarea></p>
-        <p><label>Event date</label><br><input type="text" name="eventDate" value="{{content.fields.eventDate}}" /></p>
-        <p><label>Event name</label><br><input type="text" name="eventName" value="{{content.fields.eventName}}" /></p>
-        <p><label>Location</label><br><input type="text" name="location" value="{{content.fields.location}}" /></p>
+        <div class="form-field">
+          <label for="consecutive-sortOrder">Display position</label>
+          <input type="text" id="consecutive-sortOrder" name="sortOrder" value="{{content.fields.sortOrder}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-section">Section</label>
+          <input type="text" id="consecutive-section" name="section" value="{{content.fields.section}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-subsection">Subsection</label>
+          <input type="text" id="consecutive-subsection" name="subsection" value="{{content.fields.subsection}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-division">Division</label>
+          <input type="text" id="consecutive-division" name="division" value="{{content.fields.division}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-year">Year</label>
+          <input type="text" id="consecutive-year" name="year" value="{{content.fields.year}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-rank">Rank</label>
+          <input type="text" id="consecutive-rank" name="rank" value="{{content.fields.rank}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-player1">Player 1</label>
+          <input type="text" id="consecutive-player1" name="player1" value="{{content.fields.player1}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-player2">Player 2</label>
+          <input type="text" id="consecutive-player2" name="player2" value="{{content.fields.player2}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-score">Score</label>
+          <input type="text" id="consecutive-score" name="score" value="{{content.fields.score}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-note">Note</label>
+          <textarea id="consecutive-note" name="note" rows="2">{{content.fields.note}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="consecutive-eventDate">Event date</label>
+          <input type="text" id="consecutive-eventDate" name="eventDate" value="{{content.fields.eventDate}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-eventName">Event name</label>
+          <input type="text" id="consecutive-eventName" name="eventName" value="{{content.fields.eventName}}" />
+        </div>
+        <div class="form-field">
+          <label for="consecutive-location">Location</label>
+          <input type="text" id="consecutive-location" name="location" value="{{content.fields.location}}" />
+        </div>
       </fieldset>
-      <p><button type="submit" class="btn btn-primary btn-sm">Save</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
     </form>
 
     {{#unless content.isNew}}
-    <form method="POST" action="{{content.deleteHref}}" class="inline-form">
-      <button type="submit" class="btn btn-outline btn-sm">Delete Record</button>
-    </form>
+    <p><a href="{{content.deleteHref}}" class="btn btn-outline btn-sm">Delete Record</a></p>
     {{/unless}}
 
     <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to Consecutive-kicks Records</a></p>

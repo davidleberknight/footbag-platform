@@ -113,7 +113,7 @@ describe('ADD view — uniform row contract', () => {
     const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
-      expect(w, `${slug} missing its difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+      expect(w, `${slug} missing its difficulty value`).toMatch(/class="dict-trick-row-add">\(\d+\)</);
     }
   });
 

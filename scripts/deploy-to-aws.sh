@@ -38,7 +38,7 @@ confirmation and takes the host password at the terminal. The leaf scripts refus
 a production target when no terminal is attached, so there is no direct form.
 
 Default (no flags): code-only — ship code + images, run the post-deploy smoke
-check (not `npm test`, which is the local pre-PR gate — see ALWAYS-ON); the
+check (not `npm test`, which is the local unit and integration run — see ALWAYS-ON); the
 staging DB and S3 media are left untouched. A DB rebuild + staging replace is
 opt-in via --from-csv or --soup-to-nuts, and the media sync rides with it: a
 rebuild reseeds curated media and mints new storage keys, so the bytes ship too

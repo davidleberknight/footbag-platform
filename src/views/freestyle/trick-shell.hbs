@@ -38,9 +38,9 @@
   {{!-- Taxonomy ribbon: family, ADD, and pronunciation. Sits under the
        plain-words opening, not above it. The identity hashtag renders in the
        hero (trick-hero partial), matching the club-detail hero. --}}
-  <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
+  <p class="trick-hero-meta-ribbon">
     {{#if content.familyChip}}
-    <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
+    <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="{{{content.familyChip.href}}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
     {{/if}}
     {{#if content.dictEntry}}
       {{#if content.dictEntry.isModifier}}
@@ -52,7 +52,7 @@
       {{/if}}
     {{/if}}
     {{#if content.pronunciation}}
-    <span class="trick-hero-meta-chip trick-hero-meta-chip-pronunciation" aria-label="Pronunciation: {{content.pronunciation}}">{{content.pronunciation}}</span>
+    <span class="trick-hero-meta-chip trick-hero-meta-chip-pronunciation">{{content.pronunciation}}</span>
     {{/if}}
   </p>
 
@@ -92,7 +92,7 @@
   {{#if content.ux2Pilot.hasTechniqueNotes}}
   <section id="technique-notes" class="content-section" aria-label="Technique Notes">
     <details class="trick-technique-collapsible">
-      <summary>Technique Notes</summary>
+      <summary><h2>Technique Notes</h2></summary>
       {{#if content.ux2Pilot.executionParagraphs.length}}
       <div class="trick-technique-part">
         <h3 class="trick-technique-heading">Execution</h3>

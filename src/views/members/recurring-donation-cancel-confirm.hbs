@@ -1,0 +1,31 @@
+{{! Confirm step before a member cancels their own recurring donation; the cancel itself is the POST below }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p class="notice notice-warn" role="alert">Cancelling stops this recurring donation. You will not be charged again, and the period you have already given still counts.</p>
+
+    <dl class="trick-structural-facts-list">
+      <dt>Amount</dt>
+      <dd>{{content.amountDisplay}} each year</dd>
+      <dt>Started</dt>
+      <dd>{{content.startedDate}}</dd>
+      {{#if content.noteDisplay}}
+      <dt>Note</dt>
+      <dd>{{content.noteDisplay}}</dd>
+      {{/if}}
+    </dl>
+
+    <div class="form-actions">
+      <form method="POST" action="{{content.cancelHref}}" class="inline-form">
+        <button type="submit" class="btn btn-outline">Cancel Recurring Donation</button>
+      </form>
+      <a href="{{content.backHref}}" class="btn btn-outline">Keep My Donation</a>
+    </div>
+  </section>
+</div>

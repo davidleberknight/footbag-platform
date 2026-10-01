@@ -212,9 +212,9 @@ describe('dictionary trick row — required slots', () => {
 
   it('renders the #slug tag-identity chip on every row', async () => {
     const res = await page('/freestyle/tricks?view=add');
-    expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#ripwalk</span>');
-    expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#mobius</span>');
-    expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#montage</span>');
+    expect(res.text).toContain('<span class="hashtag">#ripwalk</span>');
+    expect(res.text).toContain('<span class="hashtag">#mobius</span>');
+    expect(res.text).toContain('<span class="hashtag">#montage</span>');
   });
 
   it('renders the difficulty value on every row, in parentheses beside the notation', async () => {
@@ -224,7 +224,7 @@ describe('dictionary trick row — required slots', () => {
     // the row carries the compact form on every view alike.
     for (const value of ['(1)', '(2)', '(4)', '(5)', '(7)']) {
       expect(res.text, `the row must carry the ${value} difficulty value`)
-        .toMatch(new RegExp(`<span class="dict-trick-row-add" aria-label="Difficulty value">\\${value[0]}${value.slice(1, -1)}\\)</span>`));
+        .toMatch(new RegExp(`<span class="dict-trick-row-add">\\${value[0]}${value.slice(1, -1)}\\)</span>`));
     }
   });
 

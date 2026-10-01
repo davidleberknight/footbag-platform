@@ -47,7 +47,7 @@
       harden family-hierarchy language here, the family taxonomy framing is
       curator-owned. Deep links land on the <details> id; the inner section
       keeps its own id so both anchor forms resolve. }}
-  <div class="dict-tile-grid" aria-label="Reading the Dictionary">
+  <div class="dict-tile-grid">
   <details class="dict-tile" id="reading-the-dictionary">
     <summary class="dict-tile-summary">
       <h2 class="dict-tile-title">Reading the Dictionary</h2>
@@ -219,7 +219,7 @@
   {{#if (eq content.activeView "add")}}
   {{#unless content.activeFamily}}
   {{#unless content.isAddTierView}}
-  <div class="dict-tile-grid" aria-label="About the dictionary">
+  <div class="dict-tile-grid">
     <details class="dict-tile">
       <summary class="dict-tile-summary">
         <span class="dict-tile-title">{{content.landingTiles.start.title}}</span>
@@ -290,7 +290,7 @@
   <nav class="related-modifier-groups" aria-label="Related set or modifier groups">
     <span class="related-modifier-groups-label">Related set/modifier groups:</span>
     {{#each content.relatedModifierGroups}}
-      <a class="related-modifier-group-link" href="{{{href}}}">{{modifierName}} <span class="related-modifier-group-count">({{count}})</span></a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
+      <a href="{{{href}}}">{{modifierName}} <span class="related-modifier-group-count">({{count}})</span></a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -308,25 +308,25 @@
   <nav class="trick-view-toggle" aria-label="Browse the dictionary">
     <span class="dict-nav-label">{{content.navSection.viewLabel}}</span>
     {{#if (eq content.activeView "add")}}
-      <span title="{{content.navSection.viewTitles.add}}" class="trick-view-toggle-active">By ADD</span>
+      <span title="{{content.navSection.viewTitles.add}}" aria-current="page" class="trick-view-toggle-active">By ADD</span>
     {{else}}
       <a title="{{content.navSection.viewTitles.add}}" href="/freestyle/tricks?view=add">By ADD</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "family")}}
-      <span title="{{content.navSection.viewTitles.family}}" class="trick-view-toggle-active">By family</span>
+      <span title="{{content.navSection.viewTitles.family}}" aria-current="page" class="trick-view-toggle-active">By family</span>
     {{else}}
       <a title="{{content.navSection.viewTitles.family}}" href="/freestyle/tricks?view=family">By family</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "set")}}
-      <span title="{{content.navSection.viewTitles.set}}" class="trick-view-toggle-active">By set</span>
+      <span title="{{content.navSection.viewTitles.set}}" aria-current="page" class="trick-view-toggle-active">By set</span>
     {{else}}
       <a title="{{content.navSection.viewTitles.set}}" href="/freestyle/tricks?view=set">By set</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "modifier")}}
-      <span title="{{content.navSection.viewTitles.modifier}}" class="trick-view-toggle-active">By modifier</span>
+      <span title="{{content.navSection.viewTitles.modifier}}" aria-current="page" class="trick-view-toggle-active">By modifier</span>
     {{else}}
       <a title="{{content.navSection.viewTitles.modifier}}" href="/freestyle/tricks?view=modifier">By modifier</a>
     {{/if}}
@@ -346,9 +346,9 @@
     {{#if (eq content.addSort "alpha")}}
       <a href="{{{content.addSortToggle.familyHref}}}">By family</a>
       <span class="trick-view-toggle-sep">·</span>
-      <span class="trick-view-toggle-active">Alphabetical</span>
+      <span aria-current="true" class="trick-view-toggle-active">Alphabetical</span>
     {{else}}
-      <span class="trick-view-toggle-active">By family</span>
+      <span aria-current="true" class="trick-view-toggle-active">By family</span>
       <span class="trick-view-toggle-sep">·</span>
       <a href="{{{content.addSortToggle.alphaHref}}}">Alphabetical</a>
     {{/if}}
@@ -377,11 +377,11 @@
     </div>
     {{#if (eq @root.content.addSort "alpha")}}
     {{! Alphabetical: flat A-Z across the whole tier, by canonical name. }}
-    <div class="dict-trick-row-stack">
+    <ul class="dict-trick-row-stack" role="list">
       {{#each cards}}
         {{> dictionary-trick-row}}
       {{/each}}
-    </div>
+    </ul>
     {{else}}
     {{! By family: nearest-anchor family bands in public-family order; the
         "Other / standalone tricks" band trails, alphabetized. Family parents
@@ -389,11 +389,11 @@
     {{#each lineageBands}}
     <div class="trick-add-lineage">
       <h3 class="add-lineage-header">{{rootLabel}}</h3>
-      <div class="dict-trick-row-stack">
+      <ul class="dict-trick-row-stack" role="list">
         {{#each cards}}
           {{> dictionary-trick-row}}
         {{/each}}
-      </div>
+      </ul>
     </div>
     {{/each}}
     {{/if}}
@@ -436,21 +436,21 @@
     {{#each groups}}
     <section class="trick-modifier-group" id="modifier-{{slug}}">
       <div class="section-heading">
-        <h3><a href="/freestyle/tricks?view=modifier#modifier-{{slug}}">{{name}}</a></h3>
+        <h3><a href="{{{href}}}">{{name}}</a></h3>
         <span class="section-count">{{trickCount}}</span>
       </div>
-      <div class="dict-trick-row-stack">
+      <ul class="dict-trick-row-stack" role="list">
         {{#each cards}}
           {{> dictionary-trick-row}}
         {{/each}}
-      </div>
+      </ul>
     </section>
     {{/each}}
   </section>
   {{/each}}
   {{else}}
   <section class="content-section">
-    <p class="detail-muted"><em>No tricks are listed by modifier yet.</em></p>
+    <div class="empty-state"><p>No tricks are listed by modifier yet.</p></div>
   </section>
   {{/if}}
 
@@ -499,19 +499,19 @@
   {{#each content.setViewGroups}}
   <section class="content-section trick-set-group" id="set-{{slug}}">
     <div class="section-heading">
-      <h2><a href="/freestyle/tricks?view=set#set-{{slug}}">{{label}}</a></h2>
+      <h2><a href="{{{href}}}">{{label}}</a></h2>
       <span class="section-count">{{trickCount}}</span>
     </div>
-    <div class="dict-trick-row-stack">
+    <ul class="dict-trick-row-stack" role="list">
       {{#each cards}}
         {{> dictionary-trick-row}}
       {{/each}}
-    </div>
+    </ul>
   </section>
   {{/each}}
   {{else}}
   <section class="content-section">
-    <p class="detail-muted"><em>No tricks are listed by set yet.</em></p>
+    <div class="empty-state"><p>No tricks are listed by set yet.</p></div>
   </section>
   {{/if}}
   {{/if}}
@@ -557,7 +557,7 @@
   {{#each content.familyGroups}}
   <section class="content-section trick-family-group" id="family-{{familySlug}}">
     <div class="section-heading">
-      <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
+      <h2><a href="{{{familyHref}}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
     {{#if branchParentName}}
@@ -568,7 +568,7 @@
         glossary's "family-anchor trick" vocabulary to the dictionary
         surface. The name links to the family page when one exists (the
         primary explanation of the family), otherwise to the anchor trick. }}
-    <p class="trick-family-anchor-sublabel"><span class="trick-family-anchor-label">Family-anchor:</span> {{#if familyAnchorHref}}<a class="trick-family-anchor-link" href="{{familyAnchorHref}}">{{familyName}}</a>{{else}}<span class="trick-family-anchor-link">{{familyName}}</span>{{/if}}</p>
+    <p class="trick-family-anchor-sublabel"><span class="trick-family-anchor-label">Family-anchor:</span> {{#if familyAnchorHref}}<a href="{{familyAnchorHref}}">{{familyName}}</a>{{else}}{{familyName}}{{/if}}</p>
     {{! Family-level shared-terminal-structure invariant. Curator-authored per
         family slug; rendered between the heading and the card stack.
         Source: src/content/freestyleFamilyInvariants.ts. }}
@@ -584,11 +584,11 @@
     {{#each rungGroups}}
     <div class="trick-family-rung">
       {{#if ../showRungLabels}}<h3 class="family-rung-header">{{label}}</h3>{{/if}}
-      <div class="dict-trick-row-stack">
+      <ul class="dict-trick-row-stack" role="list">
         {{#each cards}}
           {{> dictionary-trick-row}}
         {{/each}}
-      </div>
+      </ul>
     </div>
     {{/each}}
   </section>
@@ -603,7 +603,7 @@
     <p class="trick-minor-lineage-intro">Additional curated lineages appear in the family view but do not have their own standalone family pages. Their placement is an editorial classification rather than a threshold based on the number of tricks.</p>
     <ul class="trick-minor-lineage-list">
       {{#each content.minorLineages}}
-      <li><a href="/freestyle/tricks?family={{slug}}">{{name}}</a> <span class="trick-minor-lineage-count">{{count}}</span></li>
+      <li><a href="{{{href}}}">{{name}}</a> <span class="trick-minor-lineage-count">{{count}}</span></li>
       {{/each}}
     </ul>
   </section>

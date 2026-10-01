@@ -304,7 +304,7 @@ describe('First-class trick pilot — uniform browse row', () => {
       const region = regionFor(slug);
       expect(region, `${slug} missing identity column`).toContain('class="dict-trick-row-identity"');
       expect(region, `${slug} missing notation column`).toContain('class="dict-trick-row-notation"');
-      expect(region, `${slug} missing difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+      expect(region, `${slug} missing difficulty value`).toMatch(/class="dict-trick-row-add">\(\d+\)</);
       expect(region, `${slug} carries a first-class marker`).not.toMatch(/first-class/i);
     }
   });

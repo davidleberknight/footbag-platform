@@ -56,82 +56,84 @@
       <h2>The Canonical Trick</h2>
     </div>
 
-    <form method="POST" action="{{content.publishHref}}" class="freestyle-edit-form">
-      <p>
-        <label for="canonicalName">Canonical name</label><br>
+    <form method="POST" action="{{content.publishHref}}" class="form-block">
+      <div class="form-field">
+        <label for="canonicalName">Canonical name</label>
         <input type="text" id="canonicalName" name="canonicalName" maxlength="200"
-               value="{{content.fields.canonicalName}}">
-      </p>
-      <p class="text-muted fs-sm">The slug is folded from this name, and nothing may already hold it.</p>
+               value="{{content.fields.canonicalName}}" aria-describedby="canonicalName-hint">
+        <small class="form-hint" id="canonicalName-hint">The slug is folded from this name, and nothing may already hold it.</small>
+      </div>
 
-      <p>
-        <label for="adds">Difficulty (ADD)</label><br>
-        <input type="text" id="adds" name="adds" inputmode="numeric" value="{{content.fields.adds}}">
-      </p>
-      <p class="text-muted fs-sm">Must equal the notation's scoring-bracket count above.</p>
+      <div class="form-field">
+        <label for="adds">Difficulty (ADD)</label>
+        <input type="text" id="adds" name="adds" inputmode="numeric" value="{{content.fields.adds}}" aria-describedby="adds-hint">
+        <small class="form-hint" id="adds-hint">Must equal the notation's scoring-bracket count above.</small>
+      </div>
 
-      <p>
-        <label for="baseTrick">Base trick slug</label><br>
-        <input type="text" id="baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}">
-      </p>
-      <p class="text-muted fs-sm">The trick this is built on. Its family becomes this trick's family.</p>
+      <div class="form-field">
+        <label for="baseTrick">Base trick slug</label>
+        <input type="text" id="baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}" aria-describedby="baseTrick-hint">
+        <small class="form-hint" id="baseTrick-hint">The trick this is built on. Its family becomes this trick's family.</small>
+      </div>
 
-      <p>
-        <label for="familyOverride">Family override</label><br>
-        <input type="text" id="familyOverride" name="familyOverride" value="{{content.fields.familyOverride}}">
-      </p>
-      <p class="text-muted fs-sm">Leave empty unless the base's own family is not the family this trick belongs to.</p>
+      <div class="form-field">
+        <label for="familyOverride">Family override</label>
+        <input type="text" id="familyOverride" name="familyOverride" value="{{content.fields.familyOverride}}" aria-describedby="familyOverride-hint">
+        <small class="form-hint" id="familyOverride-hint">Leave empty unless the base's own family is not the family this trick belongs to.</small>
+      </div>
 
-      <p>
-        <label for="category">Category</label><br>
+      <div class="form-field">
+        <label for="category">Category</label>
         <select id="category" name="category">
           {{#each content.categoryOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-      </p>
+      </div>
 
-      <p>
-        <label for="description">Description</label><br>
+      <div class="form-field">
+        <label for="description">Description</label>
         <textarea id="description" name="description" rows="4" maxlength="4000">{{content.fields.description}}</textarea>
-      </p>
+      </div>
 
-      <p>
-        <label for="aliases">Aliases</label><br>
-        <input type="text" id="aliases" name="aliases" value="{{content.fields.aliases}}">
-      </p>
-      <p class="text-muted fs-sm">Separate several with a vertical bar. Each is added as a displayed community nickname.</p>
+      <div class="form-field">
+        <label for="aliases">Aliases</label>
+        <input type="text" id="aliases" name="aliases" value="{{content.fields.aliases}}" aria-describedby="aliases-hint">
+        <small class="form-hint" id="aliases-hint">Separate several with a vertical bar. Each is added as a displayed community nickname.</small>
+      </div>
 
-      <p>
-        <label for="sourceId">Source</label><br>
+      <div class="form-field">
+        <label for="sourceId">Source</label>
         <select id="sourceId" name="sourceId">
           <option value="">None</option>
           {{#each content.sourceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-      </p>
-      {{#if content.sourceRequired}}
-      <p class="text-muted fs-sm">The notation rests on a source, so this trick must link to the source it rests on.</p>
-      {{/if}}
+        {{#if content.sourceRequired}}
+        <small class="form-hint">The notation rests on a source, so this trick must link to the source it rests on.</small>
+        {{/if}}
+      </div>
 
-      <p>
-        <label for="sourceUrl">Source URL</label><br>
+      <div class="form-field">
+        <label for="sourceUrl">Source URL</label>
         <input type="url" id="sourceUrl" name="sourceUrl" maxlength="500" value="{{content.fields.sourceUrl}}">
-      </p>
+      </div>
 
-      <p>
-        <label for="sourceAssertedNotation">Notation the source itself wrote</label><br>
+      <div class="form-field">
+        <label for="sourceAssertedNotation">Notation the source itself wrote</label>
         <input type="text" id="sourceAssertedNotation" name="sourceAssertedNotation"
                value="{{content.fields.sourceAssertedNotation}}">
-      </p>
-      {{#if content.assertedNotationRequired}}
-      <p class="text-muted fs-sm">Required: the notation was taken from a source that wrote one, so record what it wrote.</p>
-      {{/if}}
+        {{#if content.assertedNotationRequired}}
+        <small class="form-hint">Required: the notation was taken from a source that wrote one, so record what it wrote.</small>
+        {{/if}}
+      </div>
 
-      <p>
-        <label for="modifierLinks">Modifier slugs</label><br>
-        <input type="text" id="modifierLinks" name="modifierLinks" value="{{content.fields.modifierLinks}}">
-      </p>
-      <p class="text-muted fs-sm">Separate several with a vertical bar, in the order they apply.</p>
+      <div class="form-field">
+        <label for="modifierLinks">Modifier slugs</label>
+        <input type="text" id="modifierLinks" name="modifierLinks" value="{{content.fields.modifierLinks}}" aria-describedby="modifierLinks-hint">
+        <small class="form-hint" id="modifierLinks-hint">Separate several with a vertical bar, in the order they apply.</small>
+      </div>
 
-      <p><button type="submit" class="btn btn-primary btn-sm">Publish Trick</button></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Publish Trick</button>
+      </div>
     </form>
   </section>
   {{/if}}

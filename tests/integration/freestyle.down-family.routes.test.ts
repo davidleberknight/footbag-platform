@@ -228,7 +228,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
     const section = res.text.slice(bIdx, nextSection === -1 ? undefined : nextSection);
     // barfly has both a trick row and a family page; the anchor routes to the
     // family page (the primary explanation), never bypassing it to the trick.
-    const anchor = section.match(/class="trick-family-anchor-link"[^>]*href="([^"]*)"/);
+    const anchor = section.match(/class="trick-family-anchor-sublabel">[\s\S]*?<a href="([^"]*)"/);
     expect(anchor?.[1]).toBe('/freestyle/families/barfly');
   });
 

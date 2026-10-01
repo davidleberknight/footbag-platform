@@ -18,7 +18,7 @@
   <ol class="equivalent-readings-list">
     {{#each content.semanticNotation.readings}}
     <li class="equivalent-reading equivalent-reading-depth-{{depthIndex}}">
-      {{#each tokens}}{{#if (eq kind "link")}}<a class="equivalent-reading-token equivalent-reading-token-link" href="{{href}}">{{text}}</a>{{else}}<span class="equivalent-reading-token">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
+      {{#each tokens}}{{#if (eq kind "link")}}<a class="equivalent-reading-token" href="{{href}}">{{text}}</a>{{else}}<span class="equivalent-reading-token">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
     </li>
     {{/each}}
   </ol>

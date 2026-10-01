@@ -24,7 +24,7 @@ Middleware also populates `res.locals.isAuthenticated`, `res.locals.isMember`, `
 
 - **No business rules / no computed values / no direct DB access.** If a template needs data it does not have, the fix is in the service, not the template.
 - **No branching on raw domain codes.** `{{#if (eq member.role 'admin')}}` is forbidden; the service supplies `isAdmin`. `{{#if (eq teamType 'doubles')}}Doubles{{else}}...{{/if}}` is forbidden; the service supplies `teamTypeLabel`.
-- **No URL construction with two or more variables.** `href="/freestyle/tricks?family={{family}}"` is acceptable (single variable). `href="/members/{{slug}}/section-{{section}}/{{id}}"` is forbidden; services provide pre-shaped `*Href` view-model fields.
+- **No URL construction with two or more variables.** `href="/clubs/{{slug}}"` is acceptable (single variable). A dictionary filter, view, or hashtag link that carries a value (a family, a set, a slug) is never assembled in a template; the service provides it as an `*Href` field (view-layer rule, "Hashtag and dictionary-filter links"). `href="/members/{{slug}}/section-{{section}}/{{id}}"` is forbidden; services provide pre-shaped `*Href` view-model fields.
 - **No inline `style="..."`, `<style>`, `<script>` blocks.** CSP enforces `script-src 'self'` and `style-src 'self'`. All CSS lives in `src/public/css/style.css`. All client behavior lives in `src/public/js/*.js` loaded via `<script src="..." defer>`. The single permitted exception is non-executable JSON data islands: `<script type="application/json" id="...">{{{ jsonViewModel }}}</script>`, parsed by an external script. The CI gate at `scripts/ci/assert_conventions.sh` enforces this at merge time; CSP catches it at runtime as defense in depth.
 - **No inline event handlers** (`onclick=`, `onchange=`, `onsubmit=`, etc.). Attach handlers from external JS via `addEventListener` on a class or `data-*` selector.
 - **No nested `<form>` elements.** HTML closes the outer form at the first `</form>`, silently orphaning every later control and the submit button, so the form submits nothing in the browser. When independent actions must interleave with a form's fields, give the form an `id` and associate controls with `form="id"`; never wrap one `<form>` inside another. The CI gate at `scripts/ci/assert_conventions.sh` enforces this at merge time.
@@ -49,9 +49,13 @@ Class names live in `src/public/css/style.css`. Every class used in a template m
 
 - Site frame: `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`.
 - Hero: `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`.
-- Sections / cards / badges / buttons: `.section-heading`, `.card`, `.card-title`, `.card-meta`, `.badge`, `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`.
+- Sections: `.content-section`, `.section-heading`, `.section-intro`; `.profile-section` on member profile pages only.
+- Cards / badges / tables / empty states: `.card`, `.card-static`, `.card-title`, `.card-meta`, `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`.
+- Actions: `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.btn-link`, `.btn-link-danger`, `.action-link`, `.tag-chip`.
+- Forms: `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`.
+- Messages and notices: the `outcome-notice` partial for an action's result; `.notice notice-warn` for a caution on a confirm page.
 - Spacing utilities (1 unit = 4px): `.mt-1` through `.mt-10`, `.mb-2` through `.mb-8`.
-- Text utilities: `.text-muted`, `.text-secondary`, `.text-center`, `.fs-sm`, `.fw-600`.
+- Text utilities: `.text-muted` (metadata, hints and captions only, never prose), `.text-center`, `.fs-sm`, `.fw-600`.
 
 Per-section vocabularies (clubs, members, events, freestyle, etc.) live in `src/public/css/style.css`, the source of truth for class definitions; `.claude/rules/view-layer.md` covers the vocabulary structure.
 

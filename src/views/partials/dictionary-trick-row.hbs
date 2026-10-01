@@ -23,7 +23,7 @@
       than as loose words trailing the name. It sits beside the identity as
       reference material and never displaces it.
     - the value rides here, compact, rather than beside the name: only the ADD
-      view groups by difficulty, so the other seven views need it on the row,
+      view groups by difficulty, so the other three views need it on the row,
       but spelling it out per row restates the group heading 24 times in the
       one view that already says it.
 
@@ -44,7 +44,7 @@
 
   Consumes: DictionaryTrickCard view-model.
 --}}
-<article class="dict-trick-row{{#if isExternalOnly}} dict-trick-row--external-placeholder{{/if}}"
+<li><article class="dict-trick-row{{#if isExternalOnly}} dict-trick-row--external-placeholder{{/if}}"
          data-trick-slug="{{slug}}"
          data-media-coverage="{{mediaCoverage}}">
   <div class="dict-trick-row-identity">
@@ -54,12 +54,12 @@
       <a class="dict-trick-row-title" href="{{href}}">{{displayName}}</a>
     {{/if}}
     {{#if commonAliases.length}}
-      <span class="dict-trick-row-nicknames" aria-label="Also called">{{#each commonAliases}}&ldquo;{{this}}&rdquo;{{#unless @last}} {{/unless}}{{/each}}</span>
+      <span class="dict-trick-row-nicknames">{{#each commonAliases}}&ldquo;{{this}}&rdquo;{{#unless @last}} {{/unless}}{{/each}}</span>
     {{/if}}
     {{#if hashtagHref}}
-      <a class="hashtag hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
+      <a class="hashtag hashtag--media" href="{{hashtagHref}}">{{hashtag}}</a>
     {{else}}
-      <span class="hashtag" aria-label="Tag identity">{{hashtag}}</span>
+      <span class="hashtag">{{hashtag}}</span>
     {{/if}}
     {{#unless isExternalOnly}}
       <a class="tag-chip tag-chip--sm" href="{{href}}">Detail</a>
@@ -71,7 +71,7 @@
   </div>
 
   <div class="dict-trick-row-notation">
-    <span class="dict-trick-row-add" aria-label="Difficulty value">{{#if adds}}({{adds}}){{else}}(?){{/if}}</span>
+    <span class="dict-trick-row-add">{{#if adds}}({{adds}}){{else}}(?){{/if}}</span>
     {{#if operationalNotation}}
       <code class="dict-trick-row-notation-value">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
     {{else if firstClassChainValue}}
@@ -84,4 +84,4 @@
   {{#if placeholderNote}}
   <p class="dict-trick-row-placeholder-note">{{placeholderNote}}</p>
   {{/if}}
-</article>
+</article></li>
