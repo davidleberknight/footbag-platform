@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 
 const SCRIPT = join(process.cwd(), 'scripts/authorize-operator-key.sh');
@@ -80,6 +81,7 @@ beforeAll(() => {
     SSH_STUB,
     [
       '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
       '# `ssh -G <alias>` prints the effective configuration, one keyword per',
       '# line. The guard reads the last `hostname` line, so an address that is',
       '# not the alias itself is what makes the alias count as resolved.',

@@ -861,6 +861,9 @@ export interface RecurringDonationSubscriptionOverrides {
   cancel_requested_at?: string | null;
   canceled_at?: string | null;
   failure_count?: number;
+  /** The provider event that last moved the row; it must name a stripe_events
+   *  row, so seed one with insertStripeEvent first. */
+  last_stripe_event_id?: string | null;
   last_stripe_event_created?: string | null;
   /** The mode the provider confirmed the subscription in. Defaults to live,
    *  matching the payment factory; pass 0 for a rehearsal row and null for one
@@ -882,8 +885,8 @@ export function insertRecurringDonationSubscription(
       status, amount_cents, currency, billing_interval,
       started_at, status_updated_at,
       is_cancel_at_period_end, cancel_requested_at, canceled_at,
-      donation_note, failure_count, last_stripe_event_created, provider_livemode
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      donation_note, failure_count, last_stripe_event_id, last_stripe_event_created, provider_livemode
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, o.created_at ?? startedAt, startedAt,
     o.member_id,
@@ -904,6 +907,7 @@ export function insertRecurringDonationSubscription(
     o.canceled_at ?? (status === 'canceled' ? startedAt : null),
     o.donation_note ?? null,
     o.failure_count ?? 0,
+    o.last_stripe_event_id ?? null,
     o.last_stripe_event_created ?? null,
     'provider_livemode' in o ? o.provider_livemode ?? null : 1,
   );

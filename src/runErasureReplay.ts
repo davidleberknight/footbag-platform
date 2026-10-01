@@ -33,16 +33,24 @@ export async function runErasureReplay(): Promise<number> {
 
   const result = await operationsPlatformService.runPiiPurgeScan();
 
+  // Every branch of the scan counts. An aged payment still carrying the
+  // member's link, or an aged outbox copy still holding their address, is
+  // personal data the restore brought back just as an account is.
   const errors = [
     ...result.deleted.errors,
     ...result.deceased.errors,
+    ...result.payments.errors,
+    ...result.outboxCopies.errors,
   ];
 
   process.stdout.write(
     `erasure-replay: accounts purged=${result.deleted.purged} ` +
       `(eligible=${result.deleted.eligible}, honors preserved=${result.deleted.honorsPreserved}), ` +
       `deceased scrubbed=${result.deceased.scrubbed} ` +
-      `(eligible=${result.deceased.eligible})\n`,
+      `(eligible=${result.deceased.eligible}), ` +
+      `payments anonymised=${result.payments.anonymized} ` +
+      `(eligible=${result.payments.eligible}, failed=${result.payments.errors.length}), ` +
+      `outbox copies failed=${result.outboxCopies.errors.length}\n`,
   );
 
   if (errors.length > 0) {

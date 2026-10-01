@@ -28,9 +28,6 @@
 #
 #   < ~/AWS/HOST_OPERATOR.txt bash scripts/diagnose-cwagent.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/diagnose-cwagent.sh --target production
-#
-# Override the SSH alias:
-#   DEPLOY_TARGET=footbag-production ...
 
 set -euo pipefail
 
@@ -45,9 +42,6 @@ Reads the sudo password from stdin (line 1). Read-only.
 
 Which file holds that password follows the account the alias connects as; a run
 started without the redirect names the one it needs.
-
-Override the SSH target:
-  DEPLOY_TARGET=footbag-production ...
 EOF
 }
 
@@ -68,7 +62,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 require_target "$TARGET" staging production || exit 2
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REMOTE="${DEPLOY_TARGET:-footbag-${TARGET}}"
+REMOTE="footbag-${TARGET}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/diagnose-cwagent-remote.sh"
 
 # The shared guard rather than a gate of this script's own. It reads the account
@@ -89,6 +83,7 @@ source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
 
 require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+require_host_is "$REMOTE" "$TARGET" || exit 1
 
 echo "==> Diagnosing the CloudWatch agent on $REMOTE"
 # Exactly ONE line of the operator's stdin reaches the host, not the whole file,

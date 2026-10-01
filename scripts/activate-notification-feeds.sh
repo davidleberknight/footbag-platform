@@ -257,7 +257,7 @@ if (( DRY_RUN )); then
     echo "     waiting on a queue goes with it."
   fi
   echo "  3. scripts/set-host-env.sh --target $TARGET (writes the queue URLs onto the host)"
-  echo "  4. DEPLOY_TARGET=$SSH_ALIAS ./deploy_to_aws.sh   (code-only; never --all-data)"
+  echo "  4. ./deploy_to_aws.sh --target $TARGET   (code-only; never --all-data)"
   echo "  5. scripts/verify-host-env.sh --target $TARGET, and read back the live subscriptions"
   echo ""
   if [[ "$STATE" == "on" ]]; then
@@ -345,7 +345,7 @@ if (( SYNTHETIC )); then
   echo "Would next run:"
   echo "  terraform -chdir=$TF_DIR plan -out=<temp>, then apply that plan"
   echo "  scripts/set-host-env.sh --target $TARGET"
-  echo "  DEPLOY_TARGET=$SSH_ALIAS $DEPLOY_CMD ${DEPLOY_ARGS[*]}"
+  echo "  $DEPLOY_CMD --target $TARGET ${DEPLOY_ARGS[*]}"
   echo "  scripts/verify-host-env.sh --target $TARGET"
   exit 0
 fi
@@ -460,7 +460,7 @@ if (( FROM_STEP <= 4 )); then
   fi
   echo "  Running a CODE-ONLY deploy. Expect 15-25 seconds of degraded service."
   echo ""
-  if ! DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" "${DEPLOY_ARGS[@]}"; then
+  if ! "$DEPLOY_CMD" --target "$TARGET" "${DEPLOY_ARGS[@]}"; then
     echo "ERROR: the deploy failed. The queues exist and are collecting but the" >&2
     echo "       host is not polling them yet. Resume with --from-step 4." >&2
     exit 1

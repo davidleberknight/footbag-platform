@@ -109,7 +109,7 @@ describe('provision-turnstile-key.sh — where it will and will not write', () =
     // The parameter is declared in production's Terraform only. Creating it in
     // staging would put a live vendor secret outside every apply and every
     // inventory, where nothing reads it and nothing knows it exists.
-    const r = run(['--env', 'staging', 'store']);
+    const r = run(['--target', 'staging', 'store']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/staging holds no Turnstile secret, by design/);
     expect(r.stderr).toMatch(/stub captcha adapter/);
@@ -117,7 +117,7 @@ describe('provision-turnstile-key.sh — where it will and will not write', () =
   });
 
   it('refuses an unknown environment', () => {
-    const r = run(['--env', 'sandbox', 'status']);
+    const r = run(['--target', 'sandbox', 'status']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/must be 'production'/);
   });
@@ -125,23 +125,23 @@ describe('provision-turnstile-key.sh — where it will and will not write', () =
   it('refuses without an environment, and offers no default', () => {
     const r = run(['status']);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/--env is required/);
+    expect(r.stderr).toMatch(/--target is required/);
   });
 
   it('refuses without an action', () => {
-    const r = run(['--env', 'production']);
+    const r = run(['--target', 'production']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/name an action/);
   });
 
   it('refuses an unknown argument rather than ignoring it', () => {
-    const r = run(['--env', 'production', '--nope']);
+    const r = run(['--target', 'production', '--nope']);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain("unknown argument '--nope'");
   });
 
   it('announces the stub, so a stubbed run is never mistaken for a real one', () => {
-    const r = run(['--env', 'production', 'status'], 'a-real-value');
+    const r = run(['--target', 'production', 'status'], 'a-real-value');
     expect(r.stderr).toMatch(/SYNTHETIC:.*proves nothing about the estate/);
   });
 });
@@ -149,7 +149,7 @@ describe('provision-turnstile-key.sh — where it will and will not write', () =
 describe('provision-turnstile-key.sh — status', () => {
   it('reports a set value without printing it', () => {
     const secret = 'the-actual-turnstile-secret';
-    const r = run(['--env', 'production', 'status'], secret);
+    const r = run(['--target', 'production', 'status'], secret);
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/state:\s+set/);
     expect(r.stdout).not.toContain(secret);
@@ -159,7 +159,7 @@ describe('provision-turnstile-key.sh — status', () => {
   it('separates a placeholder from a real value, and fails on it', () => {
     // The parameter existing and being readable is not the same as it holding
     // anything. Production refuses to boot on the placeholder.
-    const r = run(['--env', 'production', 'status'], 'TODO-set-me');
+    const r = run(['--target', 'production', 'status'], 'TODO-set-me');
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/state:\s+placeholder/);
     expect(r.stdout).toMatch(/refuse to boot/);
@@ -168,7 +168,7 @@ describe('provision-turnstile-key.sh — status', () => {
   it('separates absent from placeholder, and names the real cause', () => {
     // Absent means Terraform has not been applied, since Terraform declares it.
     // Telling the operator to store a value would send them the wrong way.
-    const r = run(['--env', 'production', 'status'], null);
+    const r = run(['--target', 'production', 'status'], null);
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/state:\s+absent/);
     expect(r.stdout).toMatch(/has not been applied/);
@@ -179,7 +179,7 @@ describe('provision-turnstile-key.sh — status', () => {
     // operator that Terraform had not been applied and to apply it. A
     // deactivated key therefore produced an instruction to run a production
     // apply, which is the wrong move made on the wrong evidence.
-    const r = run(['--env', 'production', 'status'], '__DENIED__');
+    const r = run(['--target', 'production', 'status'], '__DENIED__');
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not be read, which is not the same as it/);
     expect(r.stderr).toMatch(/AccessDenied/);
@@ -189,7 +189,7 @@ describe('provision-turnstile-key.sh — status', () => {
 
   it('does not claim a stored value is the current one', () => {
     // Nothing here can know what the vendor dashboard shows today.
-    const r = run(['--env', 'production', 'status'], 'a-real-value');
+    const r = run(['--target', 'production', 'status'], 'a-real-value');
     expect(r.stdout).toMatch(/says nothing about whether it is the/);
   });
 });

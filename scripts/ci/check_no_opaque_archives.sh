@@ -68,6 +68,10 @@ MAGIC = {
     # is plain text a reviewer and a secret scanner can read, and a committed
     # vendor signing key is exactly that.
     b'-----BEGIN PGP MESSAGE': 'PGP message',
+    # An armoured private key is readable text, but nothing that reads text
+    # here refuses it everywhere: the secret scanner exempts whole data
+    # directories. A committed private key is never legitimate.
+    b'-----BEGIN PGP PRIVATE KEY BLOCK': 'PGP private key',
 }
 
 # Two container shapes the prefix table cannot express.
@@ -84,6 +88,42 @@ TAR_MARKERS = (b'ustar\x00', b'ustar ')
 # trust packet. The armoured form is text and sits in the table above.
 PGP_PACKET_TAGS = (b'\x85', b'\x99', b'\xa6')
 
+# A binary secret-key export (`gpg --export-secret-keys`) starts with a secret-key
+# packet, tag 5. Its first byte alone also begins ordinary binaries, so a match
+# needs the whole packet header to parse: a definite length, then a key version
+# of 4, 5 or 6, a four-byte creation time, and a public-key algorithm OpenPGP
+# defines. A secret subkey (tag 7) never comes first, so it is not looked for.
+PGP_KEY_VERSIONS = (4, 5, 6)
+PGP_PUBKEY_ALGOS = (1, 2, 3, 16, 17, 18, 19, 20, 22, 25, 26, 27, 28)
+
+
+def pgp_secret_key(head):
+    """True when head begins with a parseable OpenPGP secret-key packet."""
+    if len(head) < 8:
+        return False
+    first = head[0]
+    if first in (0x94, 0x95, 0x96):
+        # Old format: tag 5 with a one, two or four byte length.
+        size = {0x94: 1, 0x95: 2, 0x96: 4}[first]
+        length = int.from_bytes(head[1:1 + size], 'big')
+        body = 1 + size
+    elif first == 0xC5:
+        # New format: tag 5, then a one, two or five byte length.
+        octet = head[1]
+        if octet < 192:
+            length, body = octet, 2
+        elif octet < 224:
+            length, body = ((octet - 192) << 8) + head[2] + 192, 3
+        elif octet == 255:
+            length, body = int.from_bytes(head[2:6], 'big'), 6
+        else:
+            return False
+    else:
+        return False
+    if length < 10 or len(head) < body + 6:
+        return False
+    return head[body] in PGP_KEY_VERSIONS and head[body + 5] in PGP_PUBKEY_ALGOS
+
 
 def container_kind(head):
     """The kind of opaque container this file is, or None for ordinary content."""
@@ -94,6 +134,8 @@ def container_kind(head):
         return 'tar archive'
     if head[:1] in PGP_PACKET_TAGS:
         return 'PGP message'
+    if pgp_secret_key(head):
+        return 'PGP secret key'
     return None
 
 archives, states = [], []

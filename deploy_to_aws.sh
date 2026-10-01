@@ -46,6 +46,49 @@ for arg in "$@"; do
 done
 
 # -----------------------------------------------------------------------------
+# Which environment. --target names it, as on every operator command, and is
+# staging when omitted: that is the deploy run every day, a forgotten flag lands
+# on the environment whose data is disposable, and production is protected by
+# the typed confirmation below rather than by the absence of a default.
+#
+# DEPLOY_TARGET is this script's hand-off to the scripts it runs, set here and
+# nowhere else. One already exported in the shell is refused rather than
+# honoured, because a value left behind by an earlier session would otherwise
+# choose the environment with nothing on the command line saying so. --target
+# is taken out of the arguments before they are handed on, so the scripts below
+# see only the options that are theirs.
+# -----------------------------------------------------------------------------
+if [[ -n "${DEPLOY_TARGET:-}" ]]; then
+  echo "ERROR: DEPLOY_TARGET is set in this shell ('${DEPLOY_TARGET}'). Name the environment" >&2
+  echo "       with --target staging or --target production instead; this script sets" >&2
+  echo "       DEPLOY_TARGET itself. Run 'unset DEPLOY_TARGET' and re-run." >&2
+  exit 1
+fi
+TARGET="staging"
+PASSTHROUGH_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target)
+      TARGET="${2:-}"
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      ;;
+    # The joined spelling too: left in the arguments it would pass through
+    # unread while the run went to the default environment.
+    --target=*) TARGET="${1#--target=}"; shift ;;
+    *) PASSTHROUGH_ARGS+=("$1"); shift ;;
+  esac
+done
+set -- "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"
+case "$TARGET" in
+  staging|production) ;;
+  *)
+    echo "ERROR: --target must be 'staging' or 'production' (got '${TARGET}')." >&2
+    exit 2
+    ;;
+esac
+DEPLOY_TARGET="footbag-${TARGET}"
+
+# -----------------------------------------------------------------------------
 # Mode classification (drives mode-aware preflight skips below).
 # -----------------------------------------------------------------------------
 # Short combined flags (e.g. -rW) expand into their parts so the case below
@@ -99,21 +142,6 @@ if (( HAS_MODE == 0 )); then
     MODE_CODE_ONLY=1
   fi
 fi
-
-# DEPLOY_TARGET allowlist. Only two values are accepted: footbag-staging and
-# footbag-production. Any other value (typo, alias confusion, copy-paste
-# error like 'footbag-prod' or 'footbag-live') is refused at the entry
-# point so a misconfigured operator alias cannot route the deploy to an
-# unintended host. The corresponding SSH alias must exist in ~/.ssh/config;
-# the alias-resolve preflight below will catch missing aliases.
-case "${DEPLOY_TARGET:-footbag-staging}" in
-  footbag-staging|footbag-production) ;;
-  *)
-    echo "ERROR: DEPLOY_TARGET must be 'footbag-staging' or 'footbag-production' (got '${DEPLOY_TARGET:-}')." >&2
-    echo "Recommendation: set DEPLOY_TARGET=footbag-staging or DEPLOY_TARGET=footbag-production explicitly." >&2
-    exit 1
-    ;;
-esac
 
 # The maintainers' private checkout is a prerequisite for deploying, not an
 # optional convenience. It carries the recorded human decisions the member intake
@@ -314,8 +342,8 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   echo "" >&2
 fi
 
-# CUTOVER-REMOVE: --seed-test-personas is allowlisted to a single explicit
-# deploy target: DEPLOY_TARGET=footbag-staging. Any other target is refused
+# CUTOVER-REMOVE: --seed-test-personas is allowlisted to a single deploy
+# target: --target staging. Any other target is refused
 # before the SSH connection. The persona catalog is code (canonicalPersonas.ts),
 # so this flag carries a signal only; there is no .local JSON payload to
 # pre-validate. Defense in depth: the testkit import guard still throws when
@@ -323,8 +351,8 @@ fi
 if (( SEED_TEST_PERSONAS == 1 )); then
   _persona_target="${DEPLOY_TARGET:-footbag-staging}"
   if [[ "$_persona_target" != "footbag-staging" ]]; then
-    echo "ERROR: --seed-test-personas is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_persona_target')." >&2
-    echo "Recommendation: persona seeding must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to seed staging." >&2
+    echo "ERROR: --seed-test-personas is allowlisted to --target staging only (got '--target ${TARGET}')." >&2
+    echo "Recommendation: persona seeding must never reach production or any other environment. Remove the flag, or deploy with --target staging if you intended to seed staging." >&2
     exit 1
   fi
 fi
@@ -336,8 +364,8 @@ fi
 if (( REFRESH_TEST_PERSONAS == 1 )); then
   _persona_target="${DEPLOY_TARGET:-footbag-staging}"
   if [[ "$_persona_target" != "footbag-staging" ]]; then
-    echo "ERROR: --refresh-test-personas is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_persona_target')." >&2
-    echo "Recommendation: the persona rebuild deletes persona-owned rows and must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to rebuild the staging personas." >&2
+    echo "ERROR: --refresh-test-personas is allowlisted to --target staging only (got '--target ${TARGET}')." >&2
+    echo "Recommendation: the persona rebuild deletes persona-owned rows and must never reach production or any other environment. Remove the flag, or deploy with --target staging if you intended to rebuild the staging personas." >&2
     exit 1
   fi
 fi

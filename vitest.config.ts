@@ -100,14 +100,15 @@ export default defineConfig({
     // is the safety net for worker timeouts / OOM / SIGKILL / WAL-races
     // that leave per-test cleanup unrun. See tests/global-setup.ts.
     globalSetup: './tests/global-setup.ts',
-    // Smoke (tests/smoke/) and e2e (tests/e2e/) are filtered out by the
-    // `--exclude` flags on the `npm test` and `npm run test:coverage`
-    // scripts in package.json. Putting them in the global config exclude
-    // here would also block `npm run test:smoke` (which invokes vitest
-    // with `tests/smoke/` as a positional filter), since config-level
-    // exclude wins over the positional filter. Vitest's default `exclude`
-    // is replaced when you set this field, so the standard defaults are
-    // preserved below.
+    // Smoke (tests/smoke/) is filtered out by the `--exclude` flags on the
+    // `npm test` and `npm run test:coverage` scripts in package.json rather
+    // than here, because a config-level exclude wins over a positional filter
+    // and would also block `npm run test:smoke`, which passes `tests/smoke/` as
+    // one. The browser specs under tests/e2e/ are Playwright's and never run
+    // under vitest, so they are excluded here: otherwise any name filter that
+    // happens to match one, `npx vitest run deploy` for instance, loads it and
+    // fails. Vitest's default `exclude` is replaced when you set this field, so
+    // the standard defaults are preserved below.
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
@@ -117,6 +118,7 @@ export default defineConfig({
       // the tree; running their stale test files (e.g. fixtures that point at
       // since-moved paths) produces spurious failures in the main run.
       '**/.claude/worktrees/**',
+      'tests/e2e/**',
     ],
     coverage: {
       provider: 'v8',

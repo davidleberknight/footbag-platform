@@ -21,7 +21,7 @@
  *   - ParameterNotFound on origin_verify_secret: terraform apply has not run
  *     for this environment, or the SSM resource was deleted out-of-band.
  *
- * Run with: npm run test:smoke (gated behind RUN_STAGING_SMOKE=1).
+ * Run with: npm run test:smoke -- --target staging (gated behind RUN_STAGING_SMOKE=1).
  * Excluded from the default `npm test` suite via the test:smoke script's scope.
  */
 import { describe, it, expect } from 'vitest';

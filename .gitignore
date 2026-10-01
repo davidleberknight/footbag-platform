@@ -72,6 +72,10 @@ htmlcov/
 *.pfx
 *.crt
 *.cer
+*.gpg
+*.pgp
+*.kbx
+secring*
 secrets/
 .secrets/
 .ssh/

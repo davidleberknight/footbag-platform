@@ -102,6 +102,8 @@ fi
 
 require_ssh_alias "$SSH_ALIAS" || exit 1
 require_host_ssh_opts || exit 1
+HOST_SSH_BIN="$SSH_BIN"
+require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 for f in "$REMOTE_HALF" "$GATES_SCRIPT" "$RI_SCRIPT"; do
   [[ -r "$f" ]] || { echo "ERROR: missing script: $f" >&2; exit 1; }
 done

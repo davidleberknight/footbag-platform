@@ -110,6 +110,25 @@ def test_refuses_a_marked_database(tmp_path):
     assert "no bypass" in result.stderr
 
 
+@pytest.mark.parametrize("stored", ['"1"', ' "1" ', '"1 "'])
+def test_refuses_a_marker_stored_as_a_json_string(tmp_path, stored):
+    # value_json holds JSON, so the marker can arrive as the string "1" as
+    # readily as the number 1, with whitespace outside or inside the quotes.
+    # Reading the quoted form as pre-cutover would let a destructive rebuild
+    # run against the live database.
+    db = tmp_path / "quoted.db"
+    make_db(db, marker_rows=[(stored, "2026-01-01T00:00:00.000Z")])
+    result = run_guard(db)
+    assert result.returncode != 0, f"allowed marker {stored!r}"
+    assert "post-cutover" in result.stderr
+
+
+def test_a_quoted_zero_marker_is_still_pre_cutover(tmp_path):
+    db = tmp_path / "quoted-zero.db"
+    make_db(db, marker_rows=[('"0"', "2026-01-01T00:00:00.000Z")])
+    assert run_guard(db).returncode == 0
+
+
 def test_refuses_via_the_python_entry_too(tmp_path):
     db = tmp_path / "marked.db"
     make_db(db, marker_rows=[("1", "2026-01-01T00:00:00.000Z")])

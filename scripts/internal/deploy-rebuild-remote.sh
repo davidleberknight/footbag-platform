@@ -355,25 +355,21 @@ if [[ "$ACTUAL_IMAGE_IMAGE_LAYERS" != "$EXPECTED_IMAGE_IMAGE_LAYERS" ]]; then
   exit 1
 fi
 
-# Reconcile FOOTBAG_ENV passed by the workstation against /srv/footbag/env.
-# Workstation derives the value from the SSH alias; this is the canonical
-# source. If the env file lacks the line, append it. If it has a different
-# value, fail (catches a wrong DEPLOY_TARGET pointed at the wrong host;
-# preserves operator-set values from never silently overwriting).
+# The host's own record of which environment it is, checked again here on the
+# host. The workstation asked the same question before shipping anything; this
+# is the same rule where the change lands. A host with no record is refused
+# rather than stamped with whatever the workstation sent: stamping is how a
+# first deploy to the other environment's host would record the wrong answer
+# and pass every later check. The record is written by the first bring-up step.
 : "${FOOTBAG_ENV:?must be set by deploy-rebuild.sh via cat-pipe}"
 EXISTING_FOOTBAG_ENV=$(awk -F= '$1=="FOOTBAG_ENV" {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1)
 if [[ -z "$EXISTING_FOOTBAG_ENV" ]]; then
-  echo "    Adding FOOTBAG_ENV=$FOOTBAG_ENV to $ENV_PATH ..."
-  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
-  chmod 600 "$env_tmp"
-  chown root:root "$env_tmp"
-  cp "$ENV_PATH" "$env_tmp"
-  ensure_final_newline "$env_tmp"
-  printf 'FOOTBAG_ENV=%s\n' "$FOOTBAG_ENV" >> "$env_tmp"
-  mv "$env_tmp" "$ENV_PATH"
+  echo "ERROR: $ENV_PATH records no FOOTBAG_ENV, so this host cannot confirm it is '$FOOTBAG_ENV'." >&2
+  echo "       Record it first: bash scripts/set-host-env.sh --target $FOOTBAG_ENV" >&2
+  exit 1
 elif [[ "$EXISTING_FOOTBAG_ENV" != "$FOOTBAG_ENV" ]]; then
   echo "ERROR: $ENV_PATH has FOOTBAG_ENV='$EXISTING_FOOTBAG_ENV' but workstation expects '$FOOTBAG_ENV'." >&2
-  echo "       Likely a wrong DEPLOY_TARGET. Reconcile manually before deploying." >&2
+  echo "       This is the other environment's host. Nothing was changed." >&2
   exit 1
 fi
 
@@ -1515,7 +1511,7 @@ systemctl status footbag.service --no-pager -l
 # overridden here: the container reads it from /srv/footbag/env per host;
 # the testkit import guard throws when FOOTBAG_ENV='production'. The
 # deploy_to_aws.sh wrapper also allowlists --seed-test-personas to
-# DEPLOY_TARGET=footbag-staging only.
+# --target staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
   echo "    Running persona-catalog seed..."
   if ! compose_cmd exec -T web node dist/testkit/personaSeedRunner.js </dev/null; then

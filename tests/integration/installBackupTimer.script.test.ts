@@ -78,15 +78,17 @@ describe('install-backup-timer.sh — dry-run command plan', () => {
     expect(result.stdout).toMatch(/enable_backup_alarm = true in terraform\/staging\/terraform\.tfvars/);
   });
 
-  it('defaults the ssh alias from the target and honors --ssh-alias', () => {
+  it('reaches the target\'s own alias, and takes no other', () => {
+    // Defect caught: a run labelled one environment installing on the other's
+    // host, because a separate flag chose the host and nothing compared the two.
     const prod = runScript(['--target', 'production', '--dry-run']);
     expect(prod.exitCode).toBe(0);
     expect(prod.stdout).toMatch(/ssh alias: footbag-production/);
     expect(prod.stdout).toMatch(/terraform\/production\/terraform\.tfvars/);
 
-    const custom = runScript(['--target', 'staging', '--ssh-alias', 'my-host', '--dry-run']);
-    expect(custom.exitCode).toBe(0);
-    expect(custom.stdout).toMatch(/ssh alias: my-host/);
+    const overridden = runScript(['--target', 'staging', '--ssh-alias', 'footbag-production', '--dry-run']);
+    expect(overridden.exitCode).toBe(2);
+    expect(overridden.stderr).toMatch(/unknown argument '--ssh-alias'/);
   });
 });
 

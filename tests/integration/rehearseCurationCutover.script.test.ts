@@ -22,6 +22,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = 'scripts/rehearse-curation-cutover.sh';
@@ -55,6 +56,7 @@ function writeSshStub(probes: string[]): void {
     sshStub,
     [
       '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
       'for a in "$@"; do',
       // The account line matters as much as the hostname: it is what selects
       // the credential file, so leaving it to the developer's own ~/.ssh/config
@@ -368,7 +370,7 @@ describe('rehearse-curation-cutover.sh leg one: the code-only deploy', () => {
     const res = runFull([healthyProbe(), healthyProbe(), MARKED, healthyProbe()]);
     expect(res.status).toBe(0);
     const invocations = readLines(argvLog);
-    expect(invocations[0]).toBe('-k --no-refresh-personas');
+    expect(invocations[0]).toBe('--target staging -k --no-refresh-personas');
   });
 
   it('tolerates the audit total rising, which background writes do on their own', () => {
@@ -428,7 +430,7 @@ describe('rehearse-curation-cutover.sh leg two: the refused deploy', () => {
     const actions = readLines(actionLog);
     expect(actions).toContain('marker-set');
     expect(actions[actions.length - 1]).toBe('marker-reverse');
-    expect(readLines(argvLog)[1]).toBe('-r');
+    expect(readLines(argvLog)[1]).toBe('--target staging -r');
     expect(res.stdout).toContain('rehearsal evidence');
   });
 
@@ -458,7 +460,7 @@ describe('rehearse-curation-cutover.sh leg two: the refused deploy', () => {
     const res = runFull([healthyProbe(), healthyProbe(), healthyProbe(), healthyProbe()]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('did not land in both halves');
-    expect(readLines(argvLog)).toEqual(['-k --no-refresh-personas']);
+    expect(readLines(argvLog)).toEqual(['--target staging -k --no-refresh-personas']);
   });
 });
 

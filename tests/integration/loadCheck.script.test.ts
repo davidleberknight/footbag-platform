@@ -23,12 +23,13 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
+import { hostIdentityAnswer, hostUrlForAlias } from '../fixtures/hostIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/load-check.sh');
 
@@ -106,9 +107,36 @@ interface RunOptions {
   driverExit?: number;
 }
 
+/**
+ * The staging host's stand-in. It answers the alias lookup and the question of
+ * which environment it is, and logs every call so a case can show the host was
+ * or was not reached.
+ */
+function hostStub(): string {
+  const binDir = join(stubDir, 'host-bin');
+  mkdirSync(binDir, { recursive: true });
+  writeFileSync(join(binDir, 'ssh'), [
+    '#!/usr/bin/env bash',
+    `echo "$*" >> "${callsLog('ssh')}"`,
+    hostIdentityAnswer(),
+    'for a in "$@"; do',
+    '  if [ "$a" = "-G" ]; then printf "hostname 203.0.113.10\\nuser footbag\\n"; exit 0; fi',
+    'done',
+    'exit 1',
+  ].join('\n'));
+  chmodSync(join(binDir, 'ssh'), 0o755);
+  writeFileSync(join(stubDir, 'pin'), '[203.0.113.10]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+  return binDir;
+}
+
 function run(args: string[], options: RunOptions = {}) {
   // The run settles and proves its identity before it reads the address.
-  const env: NodeJS.ProcessEnv = { ...process.env, ...awsIdentityStubEnv(stubDir) };
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...awsIdentityStubEnv(stubDir),
+    PATH: `${hostStub()}:${process.env.PATH ?? ''}`,
+    FOOTBAG_KNOWN_HOSTS: join(stubDir, 'pin'),
+  };
   if (options.terraform === true) env.FOOTBAG_LOADCHECK_TERRAFORM_BIN = terraformStub();
   if (options.curl === true) env.FOOTBAG_LOADCHECK_CURL_BIN = curlStub();
   if (options.driverExit !== undefined) env.FOOTBAG_LOADCHECK_DRIVER = driverStub(options.driverExit);
@@ -116,6 +144,7 @@ function run(args: string[], options: RunOptions = {}) {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
+    input: 'fixture-sudo-password\n',
     env,
     ...SPAWN_GUARD,
   });
@@ -183,6 +212,7 @@ describe('load-check.sh — the production refusal', () => {
 
   it('refuses production before resolving an address, minting a session, or sending traffic', () => {
     run(['--target', 'production'], { terraform: true, curl: true, driverExit: 0 });
+    expect(readCalls('ssh')).toEqual([]);
     expect(readCalls('terraform')).toEqual([]);
     expect(readCalls('curl')).toEqual([]);
     expect(readCalls('driver')).toEqual([]);
@@ -227,11 +257,17 @@ describe('load-check.sh — preflight', () => {
     expect(readCalls('driver')).toHaveLength(1);
   });
 
-  it('reads the address from terraform rather than carrying one', () => {
+  // Defect caught: traffic aimed at an address other than the one the staging
+  // host says it serves, whether typed, exported or read from somewhere else.
+  it('loads the address the confirmed staging host records, and takes no other', () => {
     run(['--target', 'staging', '--preflight-only'], { terraform: true, curl: true, driverExit: 0 });
-    const calls = readCalls('terraform').join('\n');
-    expect(calls).toMatch(/cloudfront_domain/);
-    expect(readCalls('driver')[0]).toMatch(/https:\/\/d1234abcdef8\.cloudfront\.net/);
+    expect(readCalls('ssh').some((c) => c.includes('footbag-host-identity'))).toBe(true);
+    expect(readCalls('terraform').join('\n')).not.toMatch(/cloudfront_domain/);
+    expect(readCalls('driver')[0]).toContain(hostUrlForAlias('footbag-staging'));
+
+    const overridden = run(['--target', 'staging', '--base-url', 'https://production.example.invalid']);
+    expect(overridden.status).toBe(2);
+    expect(overridden.stderr).toMatch(/unknown argument '--base-url'/);
   });
 });
 

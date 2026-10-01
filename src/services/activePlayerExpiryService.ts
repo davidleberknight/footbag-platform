@@ -38,6 +38,12 @@
  * explicit 'unsubscribed'/'bounced'/'complained'/'suppressed' blocks send)
  * and skips members whose login_email is null or whose email_status is not
  * 'ok'.
+ *
+ * Deceased members: the platform sends nothing to a member it has marked
+ * deceased, so neither a reminder nor the ending notice reaches them. They
+ * remain candidates, because the expire ledger row is written from the same
+ * loop and Active Player status is derived from that ledger; dropping them
+ * from the query would leave them an Active Player indefinitely.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -74,6 +80,7 @@ export interface RunDailyPassResult {
   skipped_email_suppressed:  number;
   skipped_already_sent:      number;
   skipped_missing_email:     number;
+  skipped_deceased:          number;
 }
 
 export interface RunOpts {
@@ -189,6 +196,13 @@ function enqueueNotice(
   nowIso: string,
   result: RunDailyPassResult,
 ): void {
+  // The platform sends nothing to a member it has marked deceased. Checked
+  // here rather than in the candidate query, because the expiry branch still
+  // has to write their ledger row.
+  if (c.is_deceased === 1) {
+    result.skipped_deceased += 1;
+    return;
+  }
   // Re-confirm tier. The candidate snapshot used tier_status='tier0'; an
   // in-flight upgrade between the query and now must suppress the send.
   const tier = getTierStatus(c.member_id);
@@ -257,6 +271,7 @@ export function runDailyPass(opts: RunOpts = {}): RunDailyPassResult {
     skipped_email_suppressed: 0,
     skipped_already_sent:     0,
     skipped_missing_email:    0,
+    skipped_deceased:         0,
   };
 
   const candidates = activePlayerExpiry.listCandidates.all(upperBoundIso) as

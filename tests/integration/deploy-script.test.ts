@@ -208,9 +208,8 @@ describe('deploy_to_aws.sh wrapper', () => {
       const tmpRoot = scaffoldWrapperRoot();
       let r;
       try {
-        r = run('bash', ['deploy_to_aws.sh', '-k'], {
+        r = run('bash', ['deploy_to_aws.sh', '-k', '--target', 'staging'], {
           cwd: tmpRoot,
-          env: { DEPLOY_TARGET: 'footbag-staging' },
         });
       } finally {
         fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -230,9 +229,8 @@ describe('deploy_to_aws.sh wrapper', () => {
       // refuses with a clear "no TTY available" recommendation.
       const tmpRoot = scaffoldWrapperRoot();
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '--from-csv'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '--target', 'production'], {
           cwd: tmpRoot,
-          env: { DEPLOY_TARGET: 'footbag-production' },
         });
         expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -253,9 +251,8 @@ describe('deploy_to_aws.sh wrapper', () => {
       // no TTY, so the gate refuses before any host contact.
       const tmpRoot = scaffoldWrapperRoot();
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--all-data', '--target', 'production'], {
           cwd: tmpRoot,
-          env: { DEPLOY_TARGET: 'footbag-production' },
         });
         expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -285,10 +282,9 @@ describe('deploy_to_aws.sh wrapper', () => {
       // running the suite, which is not a safety property at all.
       const tmpRoot = scaffoldWrapperRoot();
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '-n'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '-n', '--target', 'production'], {
           cwd: tmpRoot,
           env: {
-            DEPLOY_TARGET: 'footbag-production',
             FOOTBAG_PROD_DB_REPLACE_ACK: '1',
           },
         });
@@ -320,10 +316,9 @@ describe('deploy_to_aws.sh wrapper', () => {
       // rather than of the code.
       const tmpRoot = scaffoldWrapperRoot();
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '-kny'], {
+        const r = run('bash', ['deploy_to_aws.sh', '-kny', '--target', 'production'], {
           cwd: tmpRoot,
           env: {
-            DEPLOY_TARGET: 'footbag-production',
             // A code-only deploy compares the deployed schema against
             // database/schema.sql, and reads the deployed one by opening a
             // real SSH session to the target. A test must never contact a
@@ -361,9 +356,8 @@ describe('deploy_to_aws.sh wrapper', () => {
     // refuses rather than quietly producing the lesser build.
     const tmpRoot = scaffoldWrapperRoot(false);
     try {
-      const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+      const r = run('bash', ['deploy_to_aws.sh', '--all-data', '--target', 'production'], {
         cwd: tmpRoot,
-        env: { DEPLOY_TARGET: 'footbag-production' },
       });
       expect(r.status).toBe(1);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -384,9 +378,8 @@ describe('deploy_to_aws.sh wrapper', () => {
     // reaches the gate it is supposed to reach.
     const tmpRoot = scaffoldWrapperRoot();
     try {
-      const r = run('bash', ['deploy_to_aws.sh', '--all-data'], {
+      const r = run('bash', ['deploy_to_aws.sh', '--all-data', '--target', 'production'], {
         cwd: tmpRoot,
-        env: { DEPLOY_TARGET: 'footbag-production' },
       });
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(combined).not.toMatch(/footbag_private_repo/);
@@ -396,22 +389,52 @@ describe('deploy_to_aws.sh wrapper', () => {
     }
   });
 
-  it.skipIf(!HAS_DOCKER)(
-    '-k with non-allowlisted DEPLOY_TARGET exits 1 at the allowlist gate',
-    () => {
-      // DEPLOY_TARGET is allowlisted to exactly 'footbag-staging' or
-      // 'footbag-production'. Any other value is refused at the entry-point
-      // allowlist check, before the SSH-alias resolve preflight ever runs, so
-      // substring patterns and typos cannot sneak through.
-      const r = run('bash', ['deploy_to_aws.sh', '-k'], {
-        env: { DEPLOY_TARGET: 'this-alias-definitely-does-not-exist-zzz' },
-      });
-      expect(r.status).toBe(1);
+  // Defect caught: a typo or near-miss environment name routing a deploy
+  // somewhere nobody named. Refused before any preflight or host contact.
+  it('refuses a --target that is not staging or production', () => {
+    for (const bad of ['prod', 'footbag-production', 'live']) {
+      const r = run('bash', ['deploy_to_aws.sh', '-k', '--target', bad]);
+      expect(r.status, bad).toBe(2);
+      expect((r.stderr ?? '') + (r.stdout ?? '')).toMatch(/--target must be 'staging' or 'production'/);
+    }
+  });
+
+  // Defect caught: `--target=production` passing through unread while the run
+  // goes to the staging default, the environment the operator did not name.
+  it('reads the joined --target=production spelling as production', () => {
+    const tmpRoot = scaffoldWrapperRoot();
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--all-data', '--target=production'], { cwd: tmpRoot });
+      expect((r.stderr ?? '') + (r.stdout ?? '')).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  // Defect caught: a DEPLOY_TARGET left exported by an earlier session choosing
+  // the environment with nothing on the command line saying so.
+  it('refuses a DEPLOY_TARGET inherited from the shell rather than honouring it', () => {
+    const r = run('bash', ['deploy_to_aws.sh', '-k'], {
+      env: { DEPLOY_TARGET: 'footbag-production' },
+    });
+    expect(r.status).toBe(1);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/DEPLOY_TARGET is set in this shell/);
+    expect(combined).not.toMatch(/PRODUCTION DEPLOY/);
+  });
+
+  // Defect caught: a bare deploy reaching production. Omitting --target is the
+  // everyday staging deploy, so it must never trip the production gate.
+  it('treats an omitted --target as staging, which never reaches the production gate', () => {
+    const tmpRoot = scaffoldWrapperRoot();
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--all-data'], { cwd: tmpRoot });
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
-      expect(combined).toMatch(/DEPLOY_TARGET must be 'footbag-staging' or 'footbag-production'/);
-      expect(combined).toMatch(/Recommendation:/);
-    },
-  );
+      expect(combined).not.toMatch(/PRODUCTION/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 // ── deploy-local-data.sh member-intake dispatch ──────────────────────────────
@@ -879,17 +902,23 @@ describe('the remote halves never append onto an unterminated last line', () => 
     expect(content).toMatch(/^ensure_final_newline\(\) \{$/m);
   });
 
-  it.each(HALVES)('%s calls it on every copy-then-append seed', (relPath) => {
-    const lines = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8').split('\n');
-    const copySites = lines
-      .map((line, i) => ({ line, i }))
-      .filter(({ line }) => /^\s*cp "\$ENV_PATH" "\$env_tmp"$/.test(line));
-    expect(copySites.length, 'the seeds this guards still exist').toBeGreaterThan(0);
-    for (const { i } of copySites) {
-      expect(lines[i + 1], `line ${i + 2} of ${relPath}`).toMatch(
-        /^\s*ensure_final_newline "\$env_tmp"$/,
-      );
+  it('calls it on every copy-then-append seed in either half', () => {
+    // The guard against a vacuous pass is across the pair: a half may carry no
+    // such seed at all, but if neither did this would assert nothing.
+    let seeds = 0;
+    for (const relPath of HALVES) {
+      const lines = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8').split('\n');
+      const copySites = lines
+        .map((line, i) => ({ line, i }))
+        .filter(({ line }) => /^\s*cp "\$ENV_PATH" "\$env_tmp"$/.test(line));
+      seeds += copySites.length;
+      for (const { i } of copySites) {
+        expect(lines[i + 1], `line ${i + 2} of ${relPath}`).toMatch(
+          /^\s*ensure_final_newline "\$env_tmp"$/,
+        );
+      }
     }
+    expect(seeds, 'the seeds this guards still exist').toBeGreaterThan(0);
   });
 
   it.each(HALVES)('%s calls it before every direct append to the live env file', (relPath) => {

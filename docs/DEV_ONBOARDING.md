@@ -219,7 +219,7 @@ cp .env.example .env
 
 Anything the file sets wins over a default, because the loader only falls back when a variable is unset.
 
-Nothing requires the file, deploying included. The post-deploy smoke check resolves the address it probes from terraform output, and a production deploy verifies the staging smoke gate the same way before it proceeds, so the unpublished staging address needs no copy on the workstation.
+Nothing requires the file, deploying included. The post-deploy smoke check probes the address the deployed host records it serves, and a production deploy asks the staging host for its address the same way before verifying staging, so no site address needs a copy on the workstation.
 
 A local `.env` looks like:
 
@@ -379,7 +379,7 @@ The suite is split:
 - `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke, e2e, and dev-only crawls via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'`.
 - `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`. A few files drive committed command-line scripts as subprocesses under the legacy pipeline Python environment.
-- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when verifying staging AWS wiring, and only with staging access (§3).
+- `npm run test:smoke -- --target staging`; staging AWS smoke tests under `tests/smoke/`; run only when verifying staging AWS wiring, and only with staging access (§3).
 - `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
 - `npm run test:pre-pr`; the fast pre-commit loop, exactly `./run_all_tests.sh --quick`; build + test type-check + lint + conventions check + harness self-check + generated-content + secret scan + unit + integration. The bare `./run_all_tests.sh` is the push and PR gate.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
@@ -529,7 +529,7 @@ To exercise the live Google Safe Browsing v4 API end-to-end locally:
    a project, enable the "Safe Browsing API" under APIs & Services → Library,
    then APIs & Services → Credentials → Create Credentials → API key. Free
    tier: 10,000 lookups/day.
-2. Write the key into AWS Systems Manager Parameter Store as a SecureString at `/footbag/<environment>/secrets/safe_browsing_api_key`, with `scripts/provision-url-screening-key.sh --env <environment> store`, which prompts for the value so it never reaches a process argument list or your shell history. There is deliberately no workstation file for this: a credential on a laptop sits outside every rotation the project runs, so the key lives in one store and the adapter reads it from there.
+2. Write the key into AWS Systems Manager Parameter Store as a SecureString at `/footbag/<environment>/secrets/safe_browsing_api_key`, with `scripts/provision-url-screening-key.sh --target <environment> store`, which prompts for the value so it never reaches a process argument list or your shell history. There is deliberately no workstation file for this: a credential on a laptop sits outside every rotation the project runs, so the key lives in one store and the adapter reads it from there.
 3. In your local `.env`: `SAFE_BROWSING_ADAPTER=live` (uncomment the line
    that ships in `.env.example`), plus `SECRETS_ADAPTER=live`. This step needs
    a configured AWS profile; without one, leave the default stub in place.

@@ -186,6 +186,7 @@ describe('set-host-env.sh rewrite contract', () => {
 
   it('is a no-op when every value already reads as intended', () => {
     const contents = [
+      'FOOTBAG_ENV=staging',
       'TRUST_PROXY=2',
       'BACKUP_S3_BUCKET=b',
       `ALARM_TOPIC_ARN=${SYNTHETIC_ARNS.ALARM_TOPIC_ARN_VALUE}`,
@@ -196,6 +197,31 @@ describe('set-host-env.sh rewrite contract', () => {
       const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain('Nothing to write');
+      expect(readFileSync(path, 'utf-8')).toBe(contents);
+    });
+  });
+
+  it('records which environment the host is when it records none yet', () => {
+    // Defect caught: a new host left with no record, which every later script
+    // refuses, or one recorded as something other than the target it was set
+    // up as. This is the step that writes the record the others read.
+    withEnvFile('TRUST_PROXY=2\n', (path) => {
+      const r = run(['--target', 'production', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+      expect(r.exitCode).toBe(0);
+      const lines = readFileSync(path, 'utf-8').trim().split('\n');
+      expect(lines.filter((l) => l.startsWith('FOOTBAG_ENV='))).toEqual(['FOOTBAG_ENV=production']);
+    });
+  });
+
+  it('refuses a host that records the other environment, and changes nothing', () => {
+    // Defect caught: rewriting the other environment's host under this label,
+    // which would make it this environment by record and every later guard
+    // would then agree with the mistake.
+    const contents = 'FOOTBAG_ENV=production\nTRUST_PROXY=2\n';
+    withEnvFile(contents, (path) => {
+      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+      expect(r.exitCode).toBe(1);
+      expect(r.stderr).toMatch(/records FOOTBAG_ENV=production, but this run is --target staging/);
       expect(readFileSync(path, 'utf-8')).toBe(contents);
     });
   });

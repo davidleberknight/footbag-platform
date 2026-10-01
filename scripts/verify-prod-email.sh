@@ -7,7 +7,8 @@
 # A real --inbox can be any address: with production access on the account, SES
 # does not require the recipient to be a verified identity.
 #
-# With --host-alias, additionally runs the outbox leg (validation gate G10):
+# With --outbox, additionally runs the outbox leg (validation gate G10) on the
+# production host, footbag-production, which confirms it is production first:
 # the outbox send-path smoke executes inside the web container on the host,
 # enqueueing through the application path and watching the worker drain the
 # row to live SES, which the two direct `aws ses send-email` legs above cannot
@@ -21,7 +22,7 @@
 # A run started without the redirect names the one it needs.
 #
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
-#       --profile <p> --confirm-production --host-alias <alias> --inbox <addr>
+#       --profile <p> --confirm-production --outbox --inbox <addr>
 #
 # This sends REAL email via the production SES identity. It refuses to run
 # without an explicit production profile and an explicit confirmation flag.
@@ -41,11 +42,14 @@ INBOX=""
 PROFILE=""
 CONFIRMED=0
 BOUNCE_PROBE=0
-HOST_ALIAS=""
+OUTBOX=0
 OUTBOX_TIMEOUT_SECONDS=""
+# This script validates production and nothing else, so its host is production's
+# own alias rather than an argument a run could point somewhere else.
+HOST_ALIAS="footbag-production"
 
 usage() {
-  echo "Usage: $0 --profile <aws-profile> --confirm-production [--sender <address>] [--inbox <address>] [--bounce-probe] [--host-alias <ssh-alias> [--outbox-timeout-seconds <n>]]" >&2
+  echo "Usage: $0 --profile <aws-profile> --confirm-production [--sender <address>] [--inbox <address>] [--bounce-probe] [--outbox [--outbox-timeout-seconds <n>]]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -55,7 +59,7 @@ while [[ $# -gt 0 ]]; do
     --inbox) INBOX="$2"; shift 2 ;;
     --confirm-production) CONFIRMED=1; shift ;;
     --bounce-probe) BOUNCE_PROBE=1; shift ;;
-    --host-alias) HOST_ALIAS="$2"; shift 2 ;;
+    --outbox) OUTBOX=1; shift ;;
     --outbox-timeout-seconds) OUTBOX_TIMEOUT_SECONDS="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
@@ -71,12 +75,13 @@ fi
 
 # The outbox leg opens a privileged remote session, so its credential is read
 # from stdin before anything else runs: a failure here should cost nothing.
-if [[ -n "$HOST_ALIAS" ]]; then
+if (( OUTBOX )); then
   # shellcheck source=lib/host-env-remote.sh
   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
-  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --confirm-production --host-alias <alias>" \
+  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --confirm-production --outbox" \
     "$HOST_ALIAS" production || exit 2
   require_ssh_alias "$HOST_ALIAS" || exit 2
+  require_host_is "$HOST_ALIAS" production || exit 2
 fi
 
 # Confirm the profile resolves to a production identity before sending anything.
@@ -194,7 +199,7 @@ if [[ -n "$INBOX" ]]; then
   echo "  MessageId: $(send_one "$INBOX")"
 fi
 
-if [[ -n "$HOST_ALIAS" ]]; then
+if (( OUTBOX )); then
   # Outbox leg (validation gate G10): enqueue through the application path on
   # the host and watch the worker drain the row to live SES. The recipient is
   # the operator inbox when one was supplied, else the success simulator,

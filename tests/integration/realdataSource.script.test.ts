@@ -24,6 +24,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { createTestDb } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertLegacyMember } from '../fixtures/factories';
@@ -70,6 +71,9 @@ function writeExecutable(file: string, lines: string[]): void {
 function recordingStub(name: string, body: string[] = ['exit 0']): void {
   writeExecutable(path.join(binDir, name), [
     '#!/usr/bin/env bash',
+    // Answered before the call is logged, so the log keeps recording only the
+    // work the run does on the host it confirmed.
+    ...(name === 'ssh' ? [hostIdentityAnswer()] : []),
     `printf '%s %s\\n' ${JSON.stringify(name)} "$*" >> ${JSON.stringify(callLog)}`,
     ...body,
   ]);

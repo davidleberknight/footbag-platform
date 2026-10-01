@@ -34,15 +34,15 @@
 # committed line in docker/env/production.env, and the deploy owns it.
 #
 # Usage:
-#   bash scripts/provision-turnstile-key.sh --env production status
-#   bash scripts/provision-turnstile-key.sh --env production store
+#   bash scripts/provision-turnstile-key.sh --target production status
+#   bash scripts/provision-turnstile-key.sh --target production store
 #
 # Actions:
 #   status   report absent / placeholder / set, printing no value. Read-only.
 #   store    prompt for the secret, write it, and prove the write.
 #
 # Flags:
-#   --env production   required, and production is the only accepted value.
+#   --target production   required, and production is the only accepted value.
 #   --profile <p>      AWS profile; else the identity this run settles and proves.
 #
 # Test seam (CI only; operators never set this): VENDOR_SECRET_AWS_BIN replaces
@@ -77,9 +77,9 @@ AWS_PROFILE_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --env)
+    --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
@@ -94,7 +94,7 @@ done
 case "$TARGET_ENV" in
   production) ;;
   '')
-    echo "ERROR: --env is required, and there is no default." >&2
+    echo "ERROR: --target is required, and there is no default." >&2
     exit 2
     ;;
   staging)
@@ -111,7 +111,7 @@ case "$TARGET_ENV" in
     exit 2
     ;;
   *)
-    echo "ERROR: --env must be 'production' (got '${TARGET_ENV}')." >&2
+    echo "ERROR: --target must be 'production' (got '${TARGET_ENV}')." >&2
     exit 2
     ;;
 esac
@@ -172,7 +172,7 @@ case "$ACTION" in
         echo ""
         echo "The parameter exists and still holds the value Terraform seeded."
         echo "Production will refuse to boot: the captcha adapter rejects it."
-        echo "  next: $0 --env ${TARGET_ENV} store"
+        echo "  next: $0 --target ${TARGET_ENV} store"
         exit 1
         ;;
       set)

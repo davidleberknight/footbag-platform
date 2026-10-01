@@ -344,10 +344,9 @@ describe.runIf(TOOLS_PRESENT)('a targeted run points each leg at the environment
   });
 
   it('points the smoke suite at the named environment', () => {
-    // The smoke runner reads its values from terraform output and defaults to
-    // staging, so an unsteered run certifies staging under the target's heading.
-    // Its AWS calls are reads and its only send goes to the mailbox simulator.
-    expect(SOURCE).toMatch(/run_step "SMOKE" env SMOKE_TARGET_ENV="\$\{TARGET\}" npm run test:smoke/);
+    // Defect caught: a run against one environment certifying another under its
+    // heading. The smoke runner takes the environment only as --target.
+    expect(SOURCE).toMatch(/run_step "SMOKE" env -u SMOKE_TARGET_ENV npm run test:smoke -- --target "\$\{TARGET\}"/);
   });
 
   it('never points the browser suite at the named environment', () => {

@@ -425,10 +425,11 @@ elif [ -n "$egress_hits" ]; then
 fi
 
 # The other half: a script that hands off to a deploy asks the question at all.
-# The shape is the assignment-prefixed invocation both callers use, which is what
-# distinguishes running a deploy from printing an instruction about one.
+# The shape is the invocation both callers use, the deploy command in command
+# position handed --target, which is what distinguishes running a deploy from
+# printing an instruction about one.
 egress_caller_status=0
-egress_callers="$(grep -rlE '^[[:space:]]*(if[[:space:]]+!?[[:space:]]*)?DEPLOY_TARGET="' scripts --include='*.sh')" || egress_caller_status=$?
+egress_callers="$(grep -rlE '^[[:space:]]*(if[[:space:]]+!?[[:space:]]*)?"\$\{?DEPLOY_CMD\}?"[[:space:]]+--target' scripts --include='*.sh')" || egress_caller_status=$?
 if [ "$egress_caller_status" -gt 1 ]; then
   echo "  FAIL: the deploy-caller scan of scripts/ exited ${egress_caller_status}, so it found nothing for a reason other than there being nothing." >&2
   violations=$((violations + 1))
@@ -1130,7 +1131,7 @@ elif grep -qE '(^|[^A-Za-z0-9_])(STAGING|WITH_SMOKE|WITH_STAGING[A-Z_]*)=' <<<"$
   echo "  FAIL: the --full block turns on a staging leg; the local run reaches no deployed environment, and staging is --staging's alone" >&2
   violations=$((violations + 1))
 fi
-_prod_hits="$(sed 's/#.*//' run_all_tests.sh | grep -nE 'SMOKE_TARGET_ENV=production|SMOKE_ENV=production|test-deployed\.sh production|terraform/production|footbag-production' || true)"
+_prod_hits="$(sed 's/#.*//' run_all_tests.sh | grep -nE 'SMOKE_TARGET_ENV=production|SMOKE_ENV=production|test:smoke -- --target production|test-deployed\.sh (--target )?production|terraform/production|footbag-production' || true)"
 if [[ -n "$_prod_hits" ]]; then
   echo "  FAIL: run_all_tests.sh names a production target; no runner mode may reach production:" >&2
   printf '    run_all_tests.sh:%s\n' "$_prod_hits" >&2
@@ -1666,9 +1667,11 @@ delegate "no child of the DNS zone is delegated away" check_closed_namespace.sh
 delegate "config seed / Configurable Parameters parity" check_config_seed_parity.sh
 delegate "every CI job and invoked command has a local gate or a recorded reason" check_ci_parity.sh
 
-# Rule: no concrete CloudFront distribution hostname in any tracked file. The
-# staging environment is protected by its address staying unpublished, so a
-# real distribution hostname in a committed file defeats that control.
+# Rule: no concrete CloudFront distribution hostname in any tracked file.
+# Production's distribution name and the archive's stay unpublished until they
+# are meant to be reached, so a real hostname in a committed file publishes one
+# early. Staging's preview host is published in the README on purpose and is
+# exempted below by name.
 # Generic wildcard references like "*.cloudfront.net" are fine: the character
 # before the first dot is not alphanumeric, so the pattern skips them.
 # No target guard: this reads the tracked tree through git, which exists

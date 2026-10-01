@@ -74,7 +74,7 @@
 #   bash scripts/as-dev-tester.sh --account jane_doe \
 #     bash scripts/terraform-apply.sh --target staging
 #   bash scripts/as-dev-tester.sh --account jane_doe ./deploy_to_aws.sh
-#   bash scripts/as-dev-tester.sh --account jane_doe npm run test:smoke
+#   bash scripts/as-dev-tester.sh --account jane_doe npm run test:smoke -- --target staging
 #
 # Flags:
 #   --account <name>  Required. Your named account, for example jane_doe. The

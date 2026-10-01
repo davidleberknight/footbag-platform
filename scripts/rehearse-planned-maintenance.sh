@@ -57,14 +57,13 @@
 #
 # Usage:
 #   scripts/rehearse-planned-maintenance.sh --target production
-#   scripts/rehearse-planned-maintenance.sh --target production --domain <host>
 #   scripts/rehearse-planned-maintenance.sh --target staging     # refuses, by design
+#
+# It verifies against the target's own distribution domain from terraform
+# output, which is the right answer before the custom domain is live and after.
 #
 # Flags:
 #   --target <env>   Required, no default. Only "production" runs.
-#   --domain <host>  Hostname to verify against. Defaults to the distribution
-#                    domain from terraform output, which is the right answer
-#                    before the custom domain is live and after it.
 #   --tfvars <path>  Synthetic mode: rewrite a local file, run the injected apply
 #                    command, and never touch a real environment. The test path.
 #   --yes            Accept the confirmations without a terminal. Refused in a
@@ -114,10 +113,6 @@ while [[ $# -gt 0 ]]; do
     --target)
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
-      ;;
-    --domain)
-      DOMAIN="${2:-}"
-      shift 2 || { echo "ERROR: --domain requires an argument" >&2; exit 2; }
       ;;
     --tfvars)
       TFVARS_OVERRIDE="${2:-}"
@@ -250,15 +245,18 @@ ORIGINAL_TFVARS="$(cat "$TFVARS_PATH")"
 
 # ── Where to verify ──────────────────────────────────────────────────────────
 
-if [[ -z "$DOMAIN" && "$SYNTHETIC" -eq 0 ]]; then
+# The target's own distribution, and no address typed beside it: a rehearsal
+# that switched one environment's flag and verified against another address
+# would report a window it never observed.
+if [[ "$SYNTHETIC" -eq 0 ]]; then
   # The read below discards its own stderr, so a dead credential would arrive
   # here as an empty domain and be reported as an uninitialised tree. A
-  # synthetic run, and a run given its domain, reach no account.
+  # synthetic run reaches no account.
   aws_profile_ensure || exit 1
   DOMAIN="$(terraform -chdir="$TF_DIR" output -raw cloudfront_domain 2>/dev/null || true)"
   if [[ -z "$DOMAIN" || "$DOMAIN" == "null" ]]; then
     echo "ERROR: could not read the distribution domain from terraform output." >&2
-    echo "       Pass it with --domain, or initialise the tree first." >&2
+    echo "       Initialise the tree first." >&2
     exit 1
   fi
 fi

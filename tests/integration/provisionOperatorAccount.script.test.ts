@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 
 const SCRIPT = join(process.cwd(), 'scripts/provision-operator-account.sh');
@@ -48,6 +49,7 @@ function sshStub(existingAccount: boolean): string {
     path,
     [
       '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
       'for a in "$@"; do',
       '  case "$a" in',
       "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",
@@ -343,26 +345,13 @@ describe('provision-operator-account.sh — invocation guards', () => {
     expect(result.stdout).not.toMatch(/SSH OK/);
   });
 
-  it('honours DEPLOY_TARGET when naming the alias it could not resolve', () => {
-    // The alias is not always derived from --target, so a refusal that named
-    // the derived one would send the operator to fix a stanza they were not
-    // using.
-    const result = spawnSync('bash', [SCRIPT, ...sealed()], {
-      cwd: process.cwd(),
-      encoding: 'utf-8',
-      input: 'fixture-sudo-password\n',
-      env: {
-        ...process.env,
-        ...NO_AWS_CREDENTIALS,
-        DEPLOY_TARGET: 'some-other-host',
-        FOOTBAG_PROVISION_SSH: sshStub(false),
-        FOOTBAG_KNOWN_HOSTS: PIN,
-        OPACC_SEALED_OUT: outFile(),
-      },
-      ...SPAWN_GUARD,
-    });
-    expect(result.status).toBe(1);
-    expect(result.stderr ?? '').toMatch(/SSH alias 'some-other-host' is not configured/);
+  it('reaches the target\'s own host whatever DEPLOY_TARGET the shell carries', () => {
+    // Defect caught: a value left exported in the operator's shell steering an
+    // account change onto a host other than the one --target names. The host
+    // is the target's alias and nothing else names one.
+    const result = runScript(sealed(), { env: { DEPLOY_TARGET: 'some-other-host' } });
+    expect(result.stdout).toMatch(/Target host: footbag-staging/);
+    expect(`${result.stdout}${result.stderr}`).not.toContain('some-other-host');
   });
 
   it('names the staging credential file, the one environment it runs against', () => {
@@ -596,6 +585,7 @@ describe('provision-operator-account.sh — the sudo password reaches the host',
       stub,
       [
         '#!/usr/bin/env bash',
+        hostIdentityAnswer(),
         'for a in "$@"; do',
         '  case "$a" in',
         "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",
@@ -1180,6 +1170,7 @@ describe('provision-operator-account.sh — --sealed', () => {
       stub,
       [
         '#!/usr/bin/env bash',
+        hostIdentityAnswer(),
         'for a in "$@"; do',
         '  case "$a" in',
         "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",

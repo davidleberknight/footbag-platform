@@ -543,8 +543,10 @@ interface MailingListRow {
  *   obvious case, so filtering here would make the address audience useless.
  * - `member` excludes purged and deceased accounts only. It checks neither
  *   `email_verified_at` nor `email_status`, for the same reason.
- * - `list` and `event` apply the full set, because a broadcast has no business
- *   reaching an unverified or bouncing mailbox.
+ * - `list` and `event` apply the full set (verified, deliverable, and not
+ *   deceased), because a broadcast has no business reaching an unverified or
+ *   bouncing mailbox, and the platform sends nothing to a member it has marked
+ *   deceased.
  *
  * Suppression is enforced separately, at insert time, for every non-strict
  * send, so a hard-bounced address is dropped whichever audience named it. What
@@ -972,12 +974,27 @@ export function createCommunicationService(
             configurationSet: configurationSetFor(row),
             headers: unsubscribeHeadersFor(row),
           });
-          outbox.markSent.run(
-            new Date().toISOString(),
-            new Date().toISOString(),
-            sendResult.messageId,
-            row.id,
-          );
+          // Recording the send is kept apart from the send itself. The provider
+          // has accepted the message by now, so a failure here must not reach
+          // the retry handling below, which would queue a delivered message to
+          // go out again. The row stays in 'sending', and the stale-lease
+          // reaper parks it for an administrator once the lease lapses.
+          try {
+            outbox.markSent.run(
+              new Date().toISOString(),
+              new Date().toISOString(),
+              sendResult.messageId,
+              row.id,
+            );
+          } catch (recordErr) {
+            logger.error('outbox send succeeded but recording it failed; left for the stale-lease reaper', {
+              outboxId: row.id,
+              memberId: row.recipient_member_id ?? null,
+              providerMessageId: sendResult.messageId,
+              errorClass: recordErr instanceof Error ? recordErr.constructor.name : 'Unknown',
+            });
+            continue;
+          }
           result.sent += 1;
           logger.info('outbox sent', {
             outboxId: row.id,

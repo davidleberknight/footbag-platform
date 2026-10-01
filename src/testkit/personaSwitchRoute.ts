@@ -1,5 +1,6 @@
 /**
- * GET /dev/switch?as=<slug> — issue a real session cookie for a seeded persona.
+ * GET /dev/switch?as=<slug> — issue a real session cookie for any active,
+ * email-verified, non-deceased member with that slug, seeded or not.
  *
  * Development and staging only: the /dev mount is registered behind a
  * config.footbagEnv check (development or staging) and stripped from the

@@ -16,7 +16,7 @@
  * secret works and the token was bad" from "the secret is wrong", a
  * distinction the adapter's boolean result deliberately discards.
  *
- * Run with: SMOKE_TARGET_ENV=production npm run test:smoke (gated behind
+ * Run with: npm run test:smoke -- --target production (gated behind
  * RUN_STAGING_SMOKE=1). Requires TURNSTILE_SECRET_KEY in the environment,
  * sourced by scripts/test-smoke.sh from the SSM SecureString
  * /footbag/production/secrets/turnstile_secret_key. A staging-targeted run
@@ -76,7 +76,7 @@ describe.skipIf(!RUN)('Cloudflare Turnstile live API: siteverify', () => {
         '(3) printf %s "<key>" > /tmp/ts-key && chmod 600 /tmp/ts-key. ' +
         '(4) AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter --name /footbag/staging/secrets/turnstile_secret_key --value file:///tmp/ts-key --type SecureString --key-id alias/footbag-staging --overwrite. ' +
         '(5) shred -u /tmp/ts-key. ' +
-        '(6) re-run npm run test:smoke.',
+        '(6) re-run npm run test:smoke -- --target production.',
     ).toBe(true);
     const isPlaceholder = !!secret && secret.startsWith('TODO-');
     expect(

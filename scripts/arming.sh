@@ -482,6 +482,8 @@ read_host_armed_value() {
   IFS= read -r pass < "$ARMING_CRED_FILE" || true
   [[ -n "$pass" ]] || { echo "(not read: credential file has no first line)"; return 0; }
   require_ssh_alias "$alias" >/dev/null 2>&1 || { echo "(not read: no ssh alias)"; return 0; }
+  SUDO_PASS="$pass" require_host_is "$alias" "$TARGET" >/dev/null 2>&1 \
+    || { echo "(not read: the host did not confirm it is $TARGET)"; return 0; }
 
   env_local="$(mktemp "${TMPDIR:-/tmp}/footbag-arming-env.XXXXXX")"
   chmod 600 "$env_local"
@@ -515,6 +517,11 @@ read_host_ses_values() {
   fi
 
   require_ssh_alias "$alias" || return 0
+  if ! require_host_is "$alias" "$TARGET"; then
+    echo "  Host env file NOT read: the host did not confirm it is $TARGET, so the two"
+    echo "  values below marked (host) have to be confirmed by hand."
+    return 0
+  fi
 
   env_local="$(mktemp "${TMPDIR:-/tmp}/footbag-arming-env.XXXXXX")"
   chmod 600 "$env_local"
@@ -616,7 +623,7 @@ if (( DRY_RUN )); then
   echo "  2. Rewrite $TFVAR_NAME = \"$STATE\" in $TFVARS_PATH (diff shown, confirmed)"
   echo "  3. terraform -chdir=$TF_DIR apply (publishes SSM app/$SSM_SUFFIX)"
   echo "  4. Re-check this workstation's egress address, then:"
-  echo "     DEPLOY_TARGET=$SSH_ALIAS ./deploy_to_aws.sh   (code-only; never --all-data)"
+  echo "     ./deploy_to_aws.sh --target $TARGET   (code-only; never --all-data)"
   echo "  5. Verify with scripts/bringup-status.sh and report what to expect"
   if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then
     echo ""
@@ -941,7 +948,7 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "screening-key" ]]; then
     echo "Aborted: nothing has been changed. Arming now would break every URL-bearing" >&2
     echo "form on $TARGET." >&2
     echo "Store the key first:" >&2
-    echo "  scripts/provision-url-screening-key.sh --env $TARGET store" >&2
+    echo "  scripts/provision-url-screening-key.sh --target $TARGET store" >&2
     echo "then re-run this. If the parameter reads unreadable, fix the profile's KMS" >&2
     echo "access rather than arming past it: this check is the only thing standing" >&2
     echo "between a missing key and a site that refuses every link." >&2
@@ -1035,14 +1042,14 @@ if (( SYNTHETIC )); then
   echo "-- synthetic mode: stopping before terraform and deploy --"
   echo "Would next run:"
   echo "  terraform -chdir=$TF_DIR apply"
-  echo "  DEPLOY_TARGET=$SSH_ALIAS $DEPLOY_CMD ${DEPLOY_ARGS[*]}"
+  echo "  $DEPLOY_CMD --target $TARGET ${DEPLOY_ARGS[*]}"
   # Test seam. With an injected deploy command, run that one command so its
   # argument list is observable, then stop. Nothing else in the real sequence
   # runs: no terraform, no SSH, no host probe, and not the egress lookup either.
   # The flags carried here are a safety property, so a test that cannot execute
   # this line can only ever assert the sentence above it.
   if [[ -n "${ARMING_DEPLOY_CMD:-}" ]]; then
-    DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" "${DEPLOY_ARGS[@]}"
+    "$DEPLOY_CMD" --target "$TARGET" "${DEPLOY_ARGS[@]}"
   fi
   exit 0
 fi
@@ -1125,7 +1132,7 @@ if (( FROM_STEP <= 4 )); then
   # as a data-replacing one. With -k the same drift routes to a prompt that
   # defaults to no and aborts. Arming must never be able to become a database
   # replace, whatever is answered here.
-  if ! DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" "${DEPLOY_ARGS[@]}"; then
+  if ! "$DEPLOY_CMD" --target "$TARGET" "${DEPLOY_ARGS[@]}"; then
     # Read it rather than assert it. This message used to state that SSM
     # already declared the new value, which the script had never checked: on a
     # --from-step 4 resume the apply may never have run, and the operator was

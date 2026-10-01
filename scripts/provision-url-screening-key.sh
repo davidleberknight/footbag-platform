@@ -24,7 +24,7 @@
 # The script refuses a file that is a symlink, is not a regular file, or whose
 # mode is not 600 or 400.
 #
-# One key currently serves both environments, so `--env both` is the ordinary
+# One key currently serves both environments, so `--target both` is the ordinary
 # way to store: writing one and forgetting the other is the failure this exists
 # to prevent. Each environment encrypts under its own KMS key even when the
 # plaintext is the same.
@@ -39,8 +39,8 @@
 # Usage:
 #   scripts/provision-url-screening-key.sh status
 #   scripts/provision-url-screening-key.sh --profile <p> status
-#   scripts/provision-url-screening-key.sh --env both store
-#   scripts/provision-url-screening-key.sh --env production store
+#   scripts/provision-url-screening-key.sh --target both store
+#   scripts/provision-url-screening-key.sh --target production store
 #
 # store with no --key-file prompts for the key with input hidden, writes its own
 # restricted file, and shreds it afterwards. That is the ordinary way to run it:
@@ -48,7 +48,7 @@
 # history. Pass --key-file only when there is no terminal to prompt on.
 #
 # Flags:
-#   --env staging|production|both   Environment(s) to act on. Default: both.
+#   --target staging|production|both   Environment(s) to act on. Default: both.
 #   --key-file <path>               File holding the key, no trailing newline.
 #                                   Optional; prompts when omitted.
 #   --profile <p>                   AWS profile; else the identity this run
@@ -76,9 +76,9 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --env)
+    --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
     --key-file)
       KEY_FILE="${2:-}"
@@ -118,7 +118,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 # Validated by the shared check, then mapped. `both` is an accepted value here
 # because one key currently serves both environments, which makes it the
 # ordinary case rather than a shortcut.
-REQUIRE_TARGET_FLAG="--env"
 require_target "$TARGET_ENV" staging production both || exit 2
 
 case "$TARGET_ENV" in
@@ -332,7 +331,7 @@ do_store() {
     exit 1
   fi
 
-  # Every destination is checked before any of them is written, so --env both
+  # Every destination is checked before any of them is written, so --target both
   # cannot write one environment and then discover the other is unreachable.
   for env in "${ENVS[@]}"; do
     param="$(param_for "$env")"

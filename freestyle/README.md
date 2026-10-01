@@ -69,7 +69,7 @@ refresh.
 
 ## Loader catalog (execution order)
 
-Run in this order by `run_freestyle.sh`. QC 22 is a hard gate; 24 and 25 are
+Run in this order by `run_freestyle.sh`. QC 22 and 25 are hard gates; 24 is
 advisory. Rerun safety varies by what a loader owns: the trick, alias and
 adjudication loaders reconcile against what is already there, while loaders whose
 data is wholly derived from a committed file still replace their own rows.
@@ -93,7 +93,7 @@ data is wholly derived from a committed file still replace their own rows.
 | 15 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
 | 16 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
 | 17 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
-| 18 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; advisory |
+| 18 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
 
 ## Artifacts: committed vs generated vs gitignored
 

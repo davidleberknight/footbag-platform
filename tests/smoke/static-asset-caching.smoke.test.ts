@@ -18,13 +18,13 @@
  *     entry. The managed CachingOptimized policy strips the query string; this
  *     probe catches a regression back to it.
  *
- * Run with: npm run test:smoke (which uses scripts/test-smoke.sh to read
- * STAGING_CLOUDFRONT_DOMAIN from terraform output and gate behind
- * RUN_STAGING_SMOKE=1).
+ * Run with: npm run test:smoke -- --target staging (scripts/test-smoke.sh asks
+ * the environment's host for the address it records it serves, SMOKE_SITE_URL,
+ * and gates behind RUN_STAGING_SMOKE=1).
  *
  * Failure modes (each has a distinct cause):
- *   - STAGING_CLOUDFRONT_DOMAIN empty: the staging distribution is disabled or
- *     not yet applied. Operator: terraform -chdir=terraform/staging apply.
+ *   - SMOKE_SITE_URL empty: the host could not be asked, or records no address.
+ *     Operator: bash scripts/set-host-env.sh --target staging.
  *   - Stylesheet font url() carries no `?v=`: the app shipping the rewritten
  *     stylesheet is not deployed. Operator: ./deploy_to_aws.sh.
  *   - Versioned font/image lacks the immutable Cache-Control: the origin static
@@ -40,8 +40,8 @@ import { describe, it, expect } from 'vitest';
 import { randomBytes } from 'crypto';
 
 const RUN = process.env.RUN_STAGING_SMOKE === '1';
-const domain = process.env.STAGING_CLOUDFRONT_DOMAIN ?? '';
-const base = `https://${domain}`;
+const base = (process.env.SMOKE_SITE_URL ?? '').replace(/\/$/, '');
+const domain = base;
 
 const freshToken = (): string => randomBytes(8).toString('hex');
 /** Per-request bound. Every case below is a real round trip to the edge. */
@@ -50,12 +50,13 @@ const get = (url: string): Promise<Response> =>
   fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 
 describe.skipIf(!RUN)('static-asset cache-busting reaches the staging CloudFront edge', () => {
-  it('STAGING_CLOUDFRONT_DOMAIN is configured (non-empty)', () => {
+  it('SMOKE_SITE_URL is configured (non-empty)', () => {
     expect(
       domain.length > 0,
-      'STAGING_CLOUDFRONT_DOMAIN is empty in the test runner. The staging ' +
-        'CloudFront distribution is disabled or not yet applied. Operator: ' +
-        'terraform -chdir=terraform/staging apply, then re-run npm run test:smoke.',
+      'SMOKE_SITE_URL is empty in the test runner: the host could not be asked ' +
+        'for the address it serves, or records none. Operator: bash ' +
+        'scripts/set-host-env.sh --target staging, then re-run ' +
+        'npm run test:smoke -- --target staging.',
     ).toBe(true);
   });
 

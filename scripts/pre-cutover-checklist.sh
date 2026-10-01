@@ -35,7 +35,6 @@
 # first and the second-to-last in the sequence, and a rehearsal that stops at
 # gate one teaches an operator to read past the summary it exists to produce.
 #   FOOTBAG_PRECUTOVER_EMAIL_PROFILE     AWS profile for the live outbox smoke (step 8a)
-#   FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS  deploy ssh alias for the outbox smoke
 #   FOOTBAG_PRECUTOVER_EMAIL_CREDFILE    operator credential file (sudo password line 1)
 #   FOOTBAG_PRECUTOVER_EMAIL_INBOX       optional real inbox for the outbox smoke
 #
@@ -176,9 +175,12 @@ else
     "${SSH_ALIAS}" "${TARGET}" || exit 1
   require_ssh_alias "${SSH_ALIAS}" || exit 1
   require_host_ssh_opts || exit 1
+  require_host_is "${SSH_ALIAS}" "${TARGET}" || exit 1
   [[ -r "${REMOTE_HALF}" ]] || { echo "missing remote half: ${REMOTE_HALF}" >&2; exit 1; }
 
-  DR_BUCKET="${FOOTBAG_DR_BUCKET:-footbag-${TARGET}-db-snapshots-dr}"
+  # Derived from the target and from nothing else, so the snapshot lands in the
+  # disaster-recovery bucket of the environment the host just confirmed it is.
+  DR_BUCKET="footbag-${TARGET}-db-snapshots-dr"
   remote_snapshot() {
     {
       printf '%s\n' "${SUDO_PASS}"
@@ -236,14 +238,15 @@ run_step "G11" bash scripts/validate-name-variants.sh
 # through the integration suite.
 if [[ "${SKIP_TESTS}" -eq 0 ]]; then
   run_step "CLAIM-SAFETY" npm run test:integration
-  # The smoke suite reads its environment-specific values from terraform output, so
-  # a run that does not name the target certifies staging under the target's
-  # heading. Its AWS calls are reads and its only send goes to Amazon's mailbox
-  # simulator, so pointing it at the named environment is safe.
+  # The smoke suite is told the environment on its command line, so a run against
+  # a target certifies that target and never staging under its heading. Its AWS
+  # calls are reads and its only send goes to Amazon's mailbox simulator, so
+  # pointing it at the named environment is safe. A run with no target is the
+  # local rehearsal, and names staging, the environment it has always smoked.
   if [[ -n "${TARGET}" ]]; then
-    run_step "SMOKE" env SMOKE_TARGET_ENV="${TARGET}" npm run test:smoke
+    run_step "SMOKE" env -u SMOKE_TARGET_ENV npm run test:smoke -- --target "${TARGET}"
   else
-    run_step "SMOKE" npm run test:smoke
+    run_step "SMOKE" env -u SMOKE_TARGET_ENV npm run test:smoke -- --target staging
   fi
   # The browser suite is the opposite case and must not follow the target. It
   # drives onboarding, password reset and admin write flows against whatever it is
@@ -307,16 +310,14 @@ fi
 #     otherwise it reports SKIP so a dry run stays hermetic. The inbox is
 #     optional (the smoke defaults to the SES success simulator).
 if [[ "${MOCK_AWS}" -eq 0 && -n "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE:-}" \
-      && -n "${FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS:-}" \
       && -n "${FOOTBAG_PRECUTOVER_EMAIL_CREDFILE:-}" ]]; then
   run_step "G10-OUTBOX" bash -c \
-    'bash scripts/verify-prod-email.sh --profile "$1" --confirm-production --host-alias "$2" ${3:+--inbox "$3"} < "$4"' _ \
+    'bash scripts/verify-prod-email.sh --profile "$1" --confirm-production --outbox ${2:+--inbox "$2"} < "$3"' _ \
     "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
-    "${FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS}" \
     "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
     "${FOOTBAG_PRECUTOVER_EMAIL_CREDFILE}"
 else
-  results+=("GATE: G10-OUTBOX SKIP: set FOOTBAG_PRECUTOVER_EMAIL_PROFILE, FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS and FOOTBAG_PRECUTOVER_EMAIL_CREDFILE (optionally FOOTBAG_PRECUTOVER_EMAIL_INBOX) to run the live outbox smoke")
+  results+=("GATE: G10-OUTBOX SKIP: set FOOTBAG_PRECUTOVER_EMAIL_PROFILE and FOOTBAG_PRECUTOVER_EMAIL_CREDFILE (optionally FOOTBAG_PRECUTOVER_EMAIL_INBOX) to run the live outbox smoke")
 fi
 
 # 9. Internal QC subsystem must be absent from the production image

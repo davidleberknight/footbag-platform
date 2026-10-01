@@ -8,13 +8,15 @@
  * exits non-zero with a line naming the failure when an account could not be
  * re-erased, so the operator restoring the database knows to act by hand.
  *
- * Cases run in file order: the success cases see a clean database, and the
- * failure case seeds its own failing row last.
+ * Cases run in file order: the success cases see a clean database, the payment
+ * and outbox failure cases each arm a fault that is disarmed before the next
+ * case, and the account failure case seeds its own permanently failing row last.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertPayment, insertOutboxEmail } from '../fixtures/factories';
+import { armWriteFault } from '../fixtures/faultInjection';
 import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('4231');
@@ -86,6 +88,59 @@ describe('runErasureReplay', () => {
     }
     expect(code).toBe(0);
     expect(out.lines()).toMatch(/accounts purged=0\b/);
+  });
+
+  // Defect caught: a payment past its retention window keeps the member-linking
+  // fields the scan failed to strip, and the replay still reports success, so
+  // the restored site takes traffic with that link back.
+  it('exits non-zero and names the failure when an aged payment cannot be anonymised', async () => {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      insertMember(db, { id: 'erase-payer', slug: 'erase_payer' });
+      insertPayment(db, { member_id: 'erase-payer', created_at: '2000-01-01T00:00:00.000Z' });
+    } finally {
+      db.close();
+    }
+    expectLoggedError('audit: payment.compliance_anonymize_failed');
+    expectLoggedError('erasure replay: some rows could not be re-applied');
+    const fault = armWriteFault(dbPath, { table: 'payments', op: 'UPDATE' });
+    const out = captureStdout();
+    let code: number;
+    try {
+      code = await replay.runErasureReplay();
+    } finally {
+      out.restore();
+      fault.disarm();
+    }
+    expect(code).toBe(1);
+    expect(out.lines()).toContain('erasure-replay: FAILED for 1 row(s)');
+    expect(out.lines()).toMatch(/payments anonymised=0 \(eligible=1, failed=1\)/);
+  });
+
+  // Defect caught: per-recipient outbox copies past retention, each holding a
+  // recipient address, survive a failed cleanup while the replay reports
+  // success. Runs after the payment case, whose row the fault no longer blocks.
+  it('exits non-zero and names the failure when aged outbox copies cannot be deleted', async () => {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      insertOutboxEmail(db, { status: 'sent', sent_at: '2000-01-01T00:00:00.000Z' });
+    } finally {
+      db.close();
+    }
+    expectLoggedError('audit: email.outbox_retention_cleanup_failed');
+    expectLoggedError('erasure replay: some rows could not be re-applied');
+    const fault = armWriteFault(dbPath, { table: 'outbox_emails', op: 'DELETE' });
+    const out = captureStdout();
+    let code: number;
+    try {
+      code = await replay.runErasureReplay();
+    } finally {
+      out.restore();
+      fault.disarm();
+    }
+    expect(code).toBe(1);
+    expect(out.lines()).toContain('erasure-replay: FAILED for 1 row(s)');
+    expect(out.lines()).toMatch(/outbox copies failed=1\b/);
   });
 
   // Defect caught: an erasure that failed to re-apply is reported as success,

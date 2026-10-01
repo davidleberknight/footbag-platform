@@ -719,6 +719,14 @@ if [[ -f "$CRED_FILE" ]] && command -v ssh >/dev/null 2>&1 && require_pinned_kno
             -o "ControlPath=none" "$ALIAS" \
             'sudo -k -S -p "" true' >/dev/null 2>&1; then
       ok "connected as the alias account and sudo accepted the password"
+      # The alias reaching A host is not the alias reaching THIS environment's
+      # host: a stanza pointing at the other one's address passes every check
+      # above, and every later run would then act there under this label.
+      if SUDO_PASS="$_probe_pass" require_host_is "$ALIAS" "$TARGET" >/dev/null 2>&1; then
+        ok "${ALIAS} reaches the host that records itself as ${TARGET}"
+      else
+        todo "${ALIAS} reaches a host that does not record itself as ${TARGET}. Check its HostName in ~/.ssh/config against the address Terraform gives for ${TARGET}; if that is right, the host's own record is missing, which bash scripts/set-host-env.sh --target ${TARGET} writes."
+      fi
     else
       todo "could not connect to ${ALIAS} and run sudo. Either your SSH key is passphrase-protected and no agent is holding it, the host is unreachable, the key is not accepted, the pinned host key does not match, or the password in $(basename "$CRED_FILE") is wrong. Check the passphrase case first, because it is the one that looks like a rejected key: run 'ssh-add -l' and, if it says the agent has no identities, run 'ssh-add' and try again. Otherwise run 'bash scripts/install-known-hosts.sh --target ${TARGET} --check'; if the pin is current, the password is the next thing to check."
     fi

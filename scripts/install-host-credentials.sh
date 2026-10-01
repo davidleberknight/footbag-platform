@@ -82,7 +82,6 @@ set -euo pipefail
 # sends both at the other one. A forgotten flag would do that silently, because
 # every step after it succeeds against the wrong host just as readily.
 TARGET=""
-SSH_ALIAS=""
 KEYS_FILE=""
 KEEP_KEYS="no"
 ACTION="install"
@@ -105,7 +104,6 @@ Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/install-host-credentials.sh --targ
   --delete <key-id>               delete a predecessor that is already inactive.
                                   Reaches no host and takes no password.
   --profile <p>                   AWS profile for the IAM calls
-  --ssh-alias <name>              override the default footbag-<target> alias
   --keep-keys                     do not destroy the keys file after installing
                                   (for installing one key onto several hosts)
   <keys-file>                     optional. JSON from `aws iam create-access-key`
@@ -125,10 +123,6 @@ while [[ $# -gt 0 ]]; do
     --target)
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
-      ;;
-    --ssh-alias)
-      SSH_ALIAS="${2:-}"
-      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
       ;;
     --keep-keys)
       KEEP_KEYS="yes"; shift
@@ -179,7 +173,7 @@ if ! require_target "$TARGET" staging production; then
   exit 2
 fi
 
-[[ -n "$SSH_ALIAS" ]] || SSH_ALIAS="footbag-$TARGET"
+SSH_ALIAS="footbag-$TARGET"
 
 if [[ "$ACTION" != "install" && -z "$OLD_KEY" ]]; then
   echo "ERROR: --${ACTION} needs the id of the key to ${ACTION}." >&2
@@ -237,6 +231,19 @@ source "${SCRIPT_DIR}/lib/iam-access-key.sh"
   AWS_IDENTITY_BIN="${IAM_KEY_AWS_BIN}"
 }
 
+# The host confirms it is the target before anything is minted or retired. A key
+# minted for one environment's user and installed on the other's host succeeds
+# at every step, and a retirement proven against the wrong host takes the right
+# one off its credential. Called after the checks that need nothing but this
+# workstation, so a bad keys file is still refused without reaching any host.
+# Exactly one line is read from stdin, the sudo password, and it serves every
+# connection below.
+confirm_host() {
+  IFS= read -r SUDO_PASS
+  require_ssh_alias "$SSH_ALIAS" || exit 1
+  require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
+}
+
 # ── Retirement, which reaches no host ────────────────────────────────────────
 #
 # Before this existed, the runbook ended with three hand-typed steps and a
@@ -263,7 +270,7 @@ if [[ "$ACTION" != "install" ]]; then
   case "$ACTION" in
     retire)
       echo "==> Proving ${TARGET}'s HOST resolves its chain, before retiring ${OLD_KEY}"
-      IFS= read -r SUDO_PASS
+      confirm_host
       if ! {
         printf '%s\n' "$SUDO_PASS"
         printf 'RUNTIME_PROFILE=%q\n' "footbag-${TARGET}-runtime"
@@ -284,7 +291,7 @@ case "$run" in
     ;;
 esac
 PROOF
-      } | "$SSH_BIN" "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
+      } | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
         echo "" >&2
         echo "ERROR: ${TARGET}'s host does not resolve its credential chain, so" >&2
         echo "       the replacement has not been shown to be in service there." >&2
@@ -352,7 +359,9 @@ if [[ -n "$KEYS_FILE" ]]; then
     echo "ERROR: $KEYS_FILE does not contain .AccessKey.AccessKeyId / .SecretAccessKey" >&2
     exit 1
   fi
+  confirm_host
 else
+  confirm_host
   IAM_KEY_VAULT_NOTES="Long-lived IAM access key for the ${TARGET} source-profile user, the
 identity a Lightsail host authenticates as before assuming its runtime
 role. Installed at /root/.aws/credentials on that host, root-owned,
@@ -390,12 +399,11 @@ ACCOUNT_ID=$(aws sts get-caller-identity "${IAM_KEY_AWS_ARGS[@]+"${IAM_KEY_AWS_A
 [[ -n "$ACCOUNT_ID" ]] || { echo "ERROR: could not resolve the AWS account id locally" >&2; exit 1; }
 
 echo "== writing credential files via cat-pipe =="
-# Exactly ONE line is read from stdin, not the whole file. sudo consumes the
-# password line and leaves the rest for bash, so forwarding every line the
-# operator credential file holds runs each of them as a root shell command on
-# the host. printf emits shell-quoted assignments so the remote bash binds them
-# before running the body.
-IFS= read -r SUDO_PASS
+# The password is the one line read from stdin before the host was confirmed,
+# not the whole file. sudo consumes the password line and leaves the rest for
+# bash, so forwarding every line the operator credential file holds runs each of
+# them as a root shell command on the host. printf emits shell-quoted
+# assignments so the remote bash binds them before running the body.
 {
   printf '%s\n' "$SUDO_PASS"
   printf 'AKID=%q\n' "$AKID"

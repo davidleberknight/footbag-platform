@@ -27,6 +27,7 @@ import { gzipSync } from 'node:zlib';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/restore-db-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/restore-db.sh');
@@ -501,6 +502,137 @@ describe('the operator-facing restore script', () => {
     const res = runOperator(['--target', 'staging', '--to-local', join(workDir, 'out.db')]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('mutually exclusive');
+  });
+
+  // Defect caught: a staging snapshot, holding test accounts and rehearsal
+  // data, is restored over the production database, whether named by stream or
+  // by bucket. The refusal must land before any network step, and on no other
+  // direction.
+  it('refuses a staging snapshot onto production, by stream or by bucket, before touching the network', () => {
+    const stubDir = join(workDir, 'recording-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const marker = join(workDir, 'network-calls.log');
+    for (const tool of ['aws', 'ssh']) {
+      writeFileSync(join(stubDir, tool), [
+        '#!/usr/bin/env bash',
+        `echo "${tool} $*" >> "${marker}"`,
+        'exit 1',
+      ].join('\n'));
+      chmodSync(join(stubDir, tool), 0o755);
+    }
+    const env = { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` };
+    const refusal = 'a staging snapshot never restores onto production';
+
+    // The refused pair runs for real, not as a dry run, with the identity seams
+    // pointed at the recording stub too: a refusal placed after the identity
+    // lookup or the snapshot listing would leave a line in the marker.
+    const real = spawnSync('setsid', [
+      'bash', OPERATOR_SCRIPT, '--target', 'production', '--source', 'staging',
+    ], {
+      encoding: 'utf8',
+      input: '',
+      env: { ...env, AWS_PROFILE_BIN: join(stubDir, 'aws'), AWS_IDENTITY_BIN: join(stubDir, 'aws') },
+      ...SPAWN_GUARD,
+    });
+    expect(real.status).toBe(1);
+    expect(real.stderr).toContain(refusal);
+    expect(existsSync(marker), 'the refusal reached AWS or the host first').toBe(false);
+
+    // The bucket names the object store outright, so a staging bucket handed to
+    // a production restore reads a staging snapshot even when the stream says
+    // production. Refused for real too, before the network.
+    const viaBucket = spawnSync('setsid', [
+      'bash', OPERATOR_SCRIPT, '--target', 'production', '--source', 'production',
+      '--bucket', 'footbag-staging-snapshots',
+    ], {
+      encoding: 'utf8',
+      input: '',
+      env: { ...env, AWS_PROFILE_BIN: join(stubDir, 'aws'), AWS_IDENTITY_BIN: join(stubDir, 'aws') },
+      ...SPAWN_GUARD,
+    });
+    expect(viaBucket.status).toBe(1);
+    expect(viaBucket.stderr).toContain(refusal);
+    expect(existsSync(marker), 'the bucket refusal reached AWS or the host first').toBe(false);
+
+    // The cutover rollback reads production's DR bucket, and a drill may read a
+    // production bucket onto staging; neither is the refused direction.
+    for (const [target, bucket] of [
+      ['production', 'footbag-production-db-snapshots-dr'],
+      ['staging', 'footbag-production-db-snapshots'],
+    ] as const) {
+      const res = runOperator(['--target', target, '--source', 'production', '--bucket', bucket, '--dry-run'], env);
+      expect(res.stderr, `--target ${target} --bucket ${bucket}`).not.toContain(refusal);
+    }
+
+    for (const target of ['staging', 'production']) {
+      for (const source of ['staging', 'production']) {
+        const res = runOperator(['--target', target, '--source', source, '--dry-run'], env);
+        const pair = `--target ${target} --source ${source}`;
+        if (target === 'production' && source === 'staging') {
+          expect(res.status, pair).toBe(1);
+          expect(res.stderr, pair).toContain(refusal);
+        } else {
+          expect(res.stderr, pair).not.toContain(refusal);
+        }
+      }
+    }
+    // A drill reads either stream into a local file; the direction rule is
+    // about a host, so a local destination is never refused by it.
+    for (const source of ['staging', 'production']) {
+      const res = runOperator(['--to-local', join(workDir, `drill-${source}.db`), '--source', source, '--dry-run'], env);
+      expect(res.stderr, `--to-local --source ${source}`).not.toContain(refusal);
+    }
+  });
+
+  it('takes no host other than the target\'s own', () => {
+    // Defect caught: `--target staging --ssh-alias footbag-production` replaced
+    // the production database with a staging snapshot and skipped the
+    // production confirmation, because the host was chosen separately from
+    // the label every guard read.
+    const res = runOperator(['--target', 'staging', '--ssh-alias', 'footbag-production', '--dry-run']);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/unknown argument '--ssh-alias'/);
+  });
+
+  it('refuses a host that records another environment before reading or changing anything on it', () => {
+    // Defect caught: a host reached under the wrong label, by an ssh config
+    // pointing the alias at the other environment's address. The host is asked
+    // which environment it is, and that one question is all it is sent.
+    const stubDir = join(workDir, 'mislabelled-host-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const calls = join(workDir, 'mislabelled-host-calls.log');
+    writeFileSync(join(stubDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> "${calls}"`,
+      hostIdentityAnswer('production'),
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then printf "hostname 203.0.113.10\\nuser footbag\\n"; exit 0; fi',
+      'done',
+      'cat > /dev/null',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(join(stubDir, 'ssh'), 0o755);
+    const pin = join(workDir, 'mislabelled-pin');
+    writeFileSync(pin, '[203.0.113.10]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+
+    const res = spawnSync('setsid', [
+      'bash', OPERATOR_SCRIPT, '--target', 'staging', '--snapshot', 'routine/2026/09/01/footbag-x.db.gz',
+    ], {
+      encoding: 'utf8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(workDir),
+        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: pin,
+      },
+      ...SPAWN_GUARD,
+    });
+    expect(res.status, res.stderr).toBe(1);
+    expect(res.stderr).toMatch(/records FOOTBAG_ENV=production, but this run is --target staging/);
+    const sessions = readFileSync(calls, 'utf8').split('\n').filter((l) => l.includes('sudo'));
+    expect(sessions, 'only the identity question reached the host').toHaveLength(1);
+    expect(sessions[0]).toContain('footbag-host-identity');
   });
 
   it('refuses a snapshot stream that is not one of the two environments', () => {

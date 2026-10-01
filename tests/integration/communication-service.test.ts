@@ -7,6 +7,7 @@ import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertSystemConfig, insertMailingListSubscription } from '../fixtures/factories';
+import { armWriteFault } from '../fixtures/faultInjection';
 
 const { dbPath } = setTestEnv('3066');
 
@@ -463,6 +464,43 @@ describe('processSendQueue', () => {
     const row = readRow(id!);
     expect(row.status).toBe('manual_review');
     expect(row.last_error).toBe('stale_sending_reaped');
+  });
+
+  // Defect caught: when recording a successful send fails, the message is
+  // treated as unsent and re-queued, so the member receives it twice.
+  it('a failure recording a successful send never re-queues the delivered message', async () => {
+    expectLoggedError('outbox send succeeded but recording it failed');
+    expectLoggedError('outbox stale sending rows parked for manual review');
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = callOne(svc, {
+      recipientEmail: 'recorded@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
+    });
+    const fault = armWriteFault(dbPath, {
+      table: 'outbox_emails', op: 'UPDATE', when: "NEW.status = 'sent'",
+      message: 'injected mark-sent failure',
+    });
+    let first;
+    try {
+      first = await svc.processSendQueue();
+    } finally {
+      fault.disarm();
+    }
+    // An unrecorded send is not reported as sent, retried, or failed.
+    expect(first).toMatchObject({ claimed: 1, sent: 0, failed: 0, deadLettered: 0 });
+    expect(stub.sentMessages).toHaveLength(1);
+    expect(readRow(id).status).toBe('sending');
+
+    // A later drain inside the lease leaves it alone; once the lease lapses the
+    // reaper parks it for an administrator rather than sending it again.
+    await svc.processSendQueue();
+    expect(stub.sentMessages).toHaveLength(1);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`UPDATE outbox_emails SET last_attempt_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`).run(id);
+    db.close();
+    await svc.processSendQueue();
+    expect(stub.sentMessages).toHaveLength(1);
+    expect(readRow(id).status).toBe('manual_review');
   });
 
   it('does not reap a sending row inside its lease (an in-flight attempt keeps its claim)', async () => {

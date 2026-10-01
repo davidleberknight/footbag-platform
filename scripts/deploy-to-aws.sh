@@ -117,7 +117,7 @@ MODIFIERS
                                on the host (personaRefreshCli.js --apply). The
                                seed step names any persona it could not seed and
                                fails the deploy. Allowlisted to
-                               DEPLOY_TARGET=footbag-staging only. CUTOVER-REMOVE.
+                               --target staging only. CUTOVER-REMOVE.
   --refresh-test-personas      ON BY DEFAULT for a code-only staging deploy;
                                this flag only states it explicitly. After the
                                deploy completes, rebuilds every persona on the
@@ -135,12 +135,15 @@ MODIFIERS
                                rebuild or -r (both ship a database whose catalog
                                is already current), alongside
                                --seed-test-personas, and for any target but
-                               footbag-staging. Named explicitly, those same
+                               staging. Named explicitly, those same
                                conditions are errors rather than skips.
                                CUTOVER-REMOVE.
   --no-refresh-personas        Opt out of the default persona refresh, keeping
                                whatever persona state the target already holds.
                                CUTOVER-REMOVE.
+  --target staging|production  The environment to deploy to (default: staging).
+                               Read by deploy_to_aws.sh; a DEPLOY_TARGET already
+                               set in the shell is refused.
   -n, --dry-run                Print planned actions; run nothing.
   -h, --help                   Show this message.
 
@@ -162,11 +165,8 @@ staging.
 
 ENV OVERRIDES
 ─────────────────────────────────────────────────────────────────────
-  DEPLOY_TARGET=<alias>            SSH alias (default: footbag-staging).
   SKIP_SMOKE=yes                   Skip post-deploy smoke check (staging only;
                                    production refuses it).
-  SMOKE_BASE_URL=<url>             Override smoke target (default: the
-                                   environment's public CloudFront URL).
   CURATOR_SEED=no                  Skip the curator seed step (rare; used
                                    when sidecars are known broken and the
                                    operator wants the existing DB curator
@@ -349,7 +349,7 @@ fi
 # default is re-checked here — the same defense-in-depth the seed's implicit
 # enable already carries.
 if [[ "${DEPLOY_TARGET:-footbag-staging}" != "footbag-staging" ]]; then
-  refresh_off "is allowlisted to DEPLOY_TARGET=footbag-staging only."
+  refresh_off "is allowlisted to --target staging only."
 fi
 # The --no-* opt-outs only make sense in the mode that turns the axis on by
 # default. --no-media rides any database rebuild, since the media sync follows

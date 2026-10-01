@@ -32,7 +32,6 @@
 #
 #   < ~/AWS/HOST_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-backup-timer.sh --target production
-#   < ~/AWS/HOST_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging --ssh-alias my-host
 #   scripts/install-backup-timer.sh --target staging --dry-run
 #
 # After the first two scheduled runs emit the BackupAgeMinutes metric, set
@@ -42,8 +41,7 @@
 # breaching).
 set -euo pipefail
 
-TARGET="staging"
-SSH_ALIAS=""
+TARGET=""
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -51,10 +49,6 @@ while [[ $# -gt 0 ]]; do
     --target)
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
-      ;;
-    --ssh-alias)
-      SSH_ALIAS="${2:-}"
-      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
       ;;
     --dry-run)
       DRY_RUN=1
@@ -82,9 +76,7 @@ source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
 require_target "$TARGET" staging production || exit 2
 
-if [[ -z "$SSH_ALIAS" ]]; then
-  SSH_ALIAS="footbag-$TARGET"
-fi
+SSH_ALIAS="footbag-$TARGET"
 
 UNIT_SERVICE="ops/systemd/footbag-backup.service"
 UNIT_TIMER="ops/systemd/footbag-backup.timer"
@@ -123,6 +115,7 @@ require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" \
 # Below the --dry-run exit, whose contract is a hermetic command plan with no
 # host contact and no local ssh-config requirement.
 require_ssh_alias "$SSH_ALIAS" || exit 1
+require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
 

@@ -7,18 +7,18 @@
  * endpoint accepts the request shape, and the response wire format matches
  * what `LiveSafeBrowsingAdapter` parses.
  *
- * Run with: npm run test:smoke (gated behind RUN_STAGING_SMOKE=1).
+ * Run with: npm run test:smoke -- --target staging (gated behind RUN_STAGING_SMOKE=1).
  * Requires SAFE_BROWSING_API_KEY in the environment, sourced by
  * scripts/test-smoke.sh from the SSM SecureString
  * /footbag/<target>/secrets/safe_browsing_api_key. The runner resolves the
- * target from SMOKE_TARGET_ENV, so this suite runs against production as well:
- * SMOKE_TARGET_ENV=production npm run test:smoke -- safe-browsing exercises the
+ * target from its --target, so this suite runs against production as well:
+ * npm run test:smoke -- --target production safe-browsing exercises the
  * production key rather than staging's.
  *
  * Failure modes:
  *   - apiKey empty: SSM parameter does not exist. Operator: terraform apply
  *     (creates the SecureString shell), then
- *     scripts/provision-url-screening-key.sh --env both store.
+ *     scripts/provision-url-screening-key.sh --target both store.
  *   - apiKey starts with "TODO-": SSM parameter still has the bootstrap
  *     placeholder. Operator: the same store command.
  *   - HTTP 400 PERMISSION_DENIED: API key is invalid or revoked.
@@ -52,14 +52,14 @@ describe.skipIf(!RUN)('Safe Browsing live API: threatMatches:find', () => {
       present,
       'SAFE_BROWSING_API_KEY is empty in the test runner. Operator runbook: ' +
         '(1) terraform -chdir=terraform/staging apply — creates the SSM SecureString shell. ' +
-        '(2) scripts/provision-url-screening-key.sh --env both store — prompts for the key, ' +
+        '(2) scripts/provision-url-screening-key.sh --target both store — prompts for the key, ' +
         'writes it to both environments, and shreds its own temporary copy. ' +
-        '(3) re-run npm run test:smoke.',
+        '(3) re-run npm run test:smoke -- --target staging.',
     ).toBe(true);
     const isPlaceholder = !!apiKey && apiKey.startsWith('TODO-');
     expect(
       isPlaceholder,
-      `SAFE_BROWSING_API_KEY still has the bootstrap placeholder ("${apiKey}"). Operator: scripts/provision-url-screening-key.sh --env both store`,
+      `SAFE_BROWSING_API_KEY still has the bootstrap placeholder ("${apiKey}"). Operator: scripts/provision-url-screening-key.sh --target both store`,
     ).toBe(false);
   });
 

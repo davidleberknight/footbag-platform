@@ -168,7 +168,9 @@ read_db_marker() {
     echo "unreadable"
     return
   fi
-  value="${value//\"/}"
+  # Quotes and padding stripped, as the deploy guard does, so a value the guard
+  # reads as present is never reported here as reversed.
+  value="${value//[[:space:]\"]/}"
   if [[ "$value" == "1" ]]; then echo "complete"; else echo "reversed"; fi
 }
 

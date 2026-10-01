@@ -17,7 +17,7 @@
  *   - Signature verify failure: the stored value is not a valid RSA private
  *     key PEM (a truncated or hand-pasted store).
  *
- * Run with: npm run test:smoke (gated behind RUN_STAGING_SMOKE=1).
+ * Run with: npm run test:smoke -- --target staging (gated behind RUN_STAGING_SMOKE=1).
  */
 import { describe, it, expect } from 'vitest';
 import * as crypto from 'node:crypto';

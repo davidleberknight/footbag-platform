@@ -72,7 +72,7 @@ source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 REMOTE_HALF="${SCRIPT_DIR}/internal/runtime-pause-remote.sh"
 DB_FILE_DEFAULT="/srv/footbag/db/footbag.db"
 
-TARGET="production"
+TARGET=""
 ACTION=""
 REASON=""
 ACTOR=""
@@ -118,6 +118,7 @@ ALIAS="footbag-${TARGET}"
 require_ssh_alias "$ALIAS" || exit 1
 require_operator_stdin "scripts/bulk-send-pause.sh --target ${TARGET} ${ACTION}" \
   "$ALIAS" "$TARGET" || exit 1
+require_host_is "$ALIAS" "$TARGET" || exit 1
 
 if [[ "$ACTION" != "status" ]]; then
   verb="pause"; [[ "$ACTION" == "resume" ]] && verb="resume"

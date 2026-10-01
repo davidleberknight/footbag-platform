@@ -54,7 +54,6 @@ WARNING:
   Production media wipes are an out-of-band operator procedure.
 
 Env-var overrides (set by the orchestrator; document for direct invocation):
-  DEPLOY_TARGET=footbag-staging
   SKIP_TESTS=yes
   SKIP_DB_REBUILD=yes
   SKIP_SMOKE=yes
@@ -175,6 +174,18 @@ case "$REMOTE" in
     ;;
 esac
 
+# The host confirms it is that environment before anything is built or shipped,
+# which matters most here: this run replaces the host's database. The remote
+# half checks the same record again on the host, but only after the release and
+# the images have crossed. The shared library resets SUDO_PASS when sourced, so
+# the line already read is carried across it.
+_deploy_sudo_pass="$SUDO_PASS"
+# shellcheck source=lib/host-env-remote.sh
+source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+SUDO_PASS="$_deploy_sudo_pass"
+unset _deploy_sudo_pass
+require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
+
 # The second half of the production gate, the first being the terminal check above.
 #
 # The ack stays beside that check rather than being replaced by it, because the two
@@ -284,16 +295,13 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # release gate refuses SKIP_SMOKE=yes on production, so this always runs.
 # Mirrors deploy-code.sh.
 if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
-  tf_output_read "$REPO_ROOT/terraform/staging" cloudfront_domain || true
-  staging_domain="$TF_OUTPUT_VALUE"
-  STAGING_BASE_URL=""
-  [[ -n "$staging_domain" ]] && STAGING_BASE_URL="https://$staging_domain"
-  if [[ -z "$STAGING_BASE_URL" ]]; then
+  # Staging's address is the one the staging host records. Mirrors deploy-code.sh.
+  if ! host_address_for staging; then
     echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
-    echo "       and the staging address could not be read." >&2
-    tf_output_explain "terraform/staging" cloudfront_domain
+    echo "       and the staging address could not be read from the staging host." >&2
     exit 1
   fi
+  STAGING_BASE_URL="$HOST_ADDRESS"
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
   if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
@@ -627,51 +635,33 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
-# Smoke runs against the public CloudFront URL. No environment URL is committed
-# to the repo: the staging address is deliberately unpublished, and that is what
-# shields the real-data staging environment. It is read from the environment's
-# own Terraform output instead of from a file, so it cannot go stale and no
-# operator has to keep a copy. SMOKE_BASE_URL remains the per-run override.
-# Mirrors deploy-code.sh.
-if [[ -z "${SMOKE_BASE_URL:-}" ]]; then
-  case "$FOOTBAG_ENV" in
-    staging | production)
-      tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" cloudfront_domain || true
-      smoke_domain="$TF_OUTPUT_VALUE"
-      [[ -n "$smoke_domain" ]] && SMOKE_BASE_URL="https://$smoke_domain"
-      ;;
-  esac
-fi
-SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
+# Smoke runs against the address the host records it serves (its
+# PUBLIC_BASE_URL), read when the host confirmed it was this environment,
+# before anything shipped. Mirrors deploy-code.sh.
+smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "${SKIP_SMOKE:-no}" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
-elif [[ -z "$SMOKE_BASE_URL" ]]; then
-  # A staging or production deploy must never complete with smoke silently
-  # skipped; SKIP_SMOKE=yes is a staging-only override, refused on production
-  # by the release gate. Mirrors deploy-code.sh.
-  if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
-    echo "ERROR: no public base URL for $FOOTBAG_ENV, so the deploy cannot be" >&2
-    echo "       smoke-checked and will not report itself as done." >&2
-    tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_domain
-    echo "" >&2
-    echo "       Or export SMOKE_BASE_URL (on staging, SKIP_SMOKE=yes skips it deliberately)." >&2
-    exit 1
-  fi
-  echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
+elif [[ -z "$smoke_url" ]]; then
+  # A deploy must never complete with smoke silently skipped; SKIP_SMOKE=yes is
+  # a staging-only override, refused on production by the release gate.
+  echo "ERROR: $REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be" >&2
+  echo "       smoke-checked and will not report itself as done." >&2
+  echo "       Record it with: bash scripts/set-host-env.sh --target $FOOTBAG_ENV" >&2
+  exit 1
 else
-  echo "==> Running smoke check against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
-    echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
+  echo "==> Running smoke check against $smoke_url ..."
+  if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
+    echo "ERROR: post-deploy smoke check failed against $smoke_url" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
   fi
   # Blocking security probes (auth gates, anti-enumeration equivalence, the
   # dev-harness environment contract). Same fail-hard stance as the route
   # smoke above. Mirrors deploy-code.sh.
-  echo "==> Running security smoke probes against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
-    echo "ERROR: security smoke probes failed against $SMOKE_BASE_URL" >&2
+  echo "==> Running security smoke probes against $smoke_url ..."
+  if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
+    echo "ERROR: security smoke probes failed against $smoke_url" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
   fi
@@ -757,4 +747,4 @@ echo "Deploy complete."
 # stderr, for the reason given at the target banner above.
 echo "Origin: http://$HOST_IP" >&2
 echo "WARNING: live DB was replaced from scratch."
-echo "Next: the read-only browser check, npm run test:deployed -- ${FOOTBAG_ENV}"
+echo "Next: the read-only browser check, npm run test:deployed -- --target ${FOOTBAG_ENV}"

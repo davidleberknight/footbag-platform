@@ -27,7 +27,6 @@
 # sensitive, the contents are, so these are pasteable as written:
 #   < ~/AWS/HOST_OPERATOR.txt bash scripts/verify-host-env.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-host-env.sh --target production
-#   < ~/AWS/HOST_OPERATOR.txt bash scripts/verify-host-env.sh --target staging --ssh-alias my-staging-host
 #
 # Why it exists: the operator-managed /srv/footbag/env file has no automatic
 # terraform reconciliation, so most deployed-host configuration drift reduces
@@ -56,7 +55,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 # No default target. A verification that silently reports on the environment the
 # operator did not name is worse than one that refuses.
 TARGET=""
-SSH_ALIAS=""
 HOST_ENV_PATH="/srv/footbag/env"
 ENV_FILE_OVERRIDE=""
 
@@ -65,10 +63,6 @@ while [[ $# -gt 0 ]]; do
     --target)
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
-      ;;
-    --ssh-alias)
-      SSH_ALIAS="${2:-}"
-      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
       ;;
     --env-file)
       # Synthetic-input mode for tests. Skips both `terraform output` and ssh;
@@ -94,9 +88,7 @@ done
 
 require_target "$TARGET" staging production || exit 2
 
-if [[ -z "$SSH_ALIAS" ]]; then
-  SSH_ALIAS="footbag-$TARGET"
-fi
+SSH_ALIAS="footbag-$TARGET"
 
 if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
   # Anchored to this script's own checkout, the way the container-sizing file below
@@ -183,6 +175,7 @@ else
   require_operator_stdin "scripts/verify-host-env.sh --target $TARGET" \
     "$SSH_ALIAS" "$TARGET" || exit 1
   require_ssh_alias "$SSH_ALIAS" || exit 1
+  require_host_is "$SSH_ALIAS" "$TARGET" "$HOST_ENV_PATH" || exit 1
 
   umask 077
   ENV_LOCAL="$(mktemp /tmp/footbag-env-verify.XXXXXX)"

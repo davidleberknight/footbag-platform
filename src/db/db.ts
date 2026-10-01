@@ -9292,6 +9292,7 @@ export interface ActivePlayerExpiryCandidateRow {
   expires_at:   string;
   login_email:  string | null;
   email_status: string;
+  is_deceased:  number;
 }
 
 // SES feedback loop: bounce and complaint notifications mark the member's
@@ -9317,11 +9318,14 @@ export const activePlayerExpiry = {
   // latest AP grant still carries a non-null expires_at and whose expiry is
   // not beyond the worker's forward window. Members with an expire/end
   // latest row drop out via the view (active_player_expires_at = NULL).
+  // Deceased members stay in the set, because the same pass writes their
+  // expire ledger row; the service suppresses their mail instead.
   get listCandidates() { return db.prepare(`
     SELECT v.member_id,
            v.active_player_expires_at AS expires_at,
            m.login_email,
-           m.email_status
+           m.email_status,
+           m.is_deceased
     FROM member_membership_status_current v
     JOIN members_active m ON m.id = v.member_id
     WHERE v.tier_status = 'tier0'
@@ -9381,8 +9385,9 @@ export const mailingListSubscriptions = {
   // itself is active, the member's email is verified, and the address is
   // deliverable (email_status='ok'): enqueueing to an SES-bounced/complained
   // address only produces repeated rejections, dead-letter rows, and alarm
-  // noise. Every audience resolver applies the same three filters, so no
-  // audience can reach a mailbox another one would have skipped.
+  // noise. A member marked deceased is never mailed. Every audience resolver
+  // applies the same filters, so no audience can reach a mailbox another one
+  // would have skipped.
   get listActiveSubscribersBySlug() { return db.prepare(`
     SELECT
       s.member_id,
@@ -9396,14 +9401,16 @@ export const mailingListSubscriptions = {
       AND ml.status = 'active'
       AND m.email_verified_at IS NOT NULL
       AND m.email_status = 'ok'
+      AND m.is_deceased = 0
   `); },
 
   // The event-participant audience: the members holding a confirmed
-  // registration for one event, with the same verified-and-deliverable filters
-  // the subscription resolver applies, so no audience reaches a mailbox another
-  // one would have skipped. Pending and canceled registrations are not
-  // participants. An event send is keyed to its event rather than to a list,
-  // which is the same shape the broadcast archive already requires of it.
+  // registration for one event, with the same verified, deliverable and
+  // not-deceased filters the subscription resolver applies, so no audience
+  // reaches a mailbox another one would have skipped. Pending and canceled
+  // registrations are not participants. An event send is keyed to its event
+  // rather than to a list, which is the same shape the broadcast archive
+  // already requires of it.
   get listConfirmedParticipantRecipients() { return db.prepare(`
     SELECT
       r.member_id,
@@ -9414,6 +9421,7 @@ export const mailingListSubscriptions = {
       AND r.status = 'confirmed'
       AND m.email_verified_at IS NOT NULL
       AND m.email_status = 'ok'
+      AND m.is_deceased = 0
   `); },
 
   // SES bounce/complaint feedback flips the subscriber's mailing-list rows so
@@ -10878,6 +10886,22 @@ export const memberExport = {
     WHERE b.voter_member_id = ?
     ORDER BY b.cast_at, v.id
   `); },
+
+  // The member's recurring gifts as the export shows them. Column-listed so no
+  // payment-provider identifier (customer, subscription, checkout session,
+  // provider event) can reach the document, which a SELECT * would carry. The
+  // member-facing history read stays as it is, because the cancel action needs
+  // the subscription identifier. Unconfirmed checkouts are not gifts the member
+  // made, matching that read.
+  get recurringDonations() { return db.prepare(`
+    SELECT
+      id, status, amount_cents, currency, billing_interval, started_at,
+      status_updated_at, is_cancel_at_period_end, cancel_requested_at,
+      canceled_at, donation_note
+    FROM recurring_donation_subscriptions
+    WHERE member_id = ? AND status <> 'incomplete'
+    ORDER BY started_at DESC
+  `); },
 };
 
 // Member fields the payment flows read and write: the honor flags that supply a
@@ -11013,6 +11037,19 @@ export const payments = {
     WHERE created_at >= ? AND created_at < ?
       AND member_id IS NOT NULL
     ORDER BY created_at
+  `); },
+
+  // One payment by its provider intent, with the same columns and the same
+  // anonymised-row exclusion as the windowed read above. The refund pass needs
+  // it because a refund can land inside the window against a payment made
+  // before it, and the windowed read would never see that payment.
+  get findForReconciliationByIntentId() { return db.prepare(`
+    SELECT id, member_id, payment_type, amount_cents, currency, status,
+           stripe_payment_intent_id, stripe_subscription_id, stripe_invoice_id,
+           recurring_subscription_id, created_at, provider_livemode
+    FROM payments
+    WHERE stripe_payment_intent_id = ?
+      AND member_id IS NOT NULL
   `); },
 
   // One-time donation. Distinct from insertPayment because a donation carries the

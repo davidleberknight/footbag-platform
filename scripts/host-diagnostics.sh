@@ -116,6 +116,7 @@ if [[ -z "$SUDO_PASS" ]]; then
   echo "ERROR: the first line of ${CRED_FILE} is empty; expected the host sudo password." >&2
   exit 1
 fi
+require_host_is "$ALIAS" "$TARGET" || exit 1
 
 # Nothing is uploaded, and that is the point: the body is streamed into one root
 # shell, which is the wire pattern every privileged step in this tree uses. There

@@ -63,7 +63,15 @@ def db_is_post_cutover(db_path: str) -> bool:
         return False
     finally:
         con.close()
-    return row is not None and str(row[0]).strip() == "1"
+    if row is None:
+        return False
+    # value_json holds JSON, so the marker may be stored as the number 1 or as
+    # the string "1". Both mean post-cutover; reading the quoted form as
+    # pre-cutover would let a destructive rebuild run against the live database.
+    value = str(row[0]).strip()
+    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+        value = value[1:-1].strip()
+    return value == "1"
 
 
 def assert_db_pre_cutover(db_path: str, script_name: str) -> None:

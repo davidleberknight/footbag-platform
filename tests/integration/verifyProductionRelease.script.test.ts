@@ -6,8 +6,8 @@
  * CI aggregate check on it succeeded, a GREEN ./run_all_tests.sh --full receipt
  * owned by this account covers exactly this tree, staging runs the same commit
  * shipped from a clean tree, and a GREEN ./run_all_tests.sh --staging receipt
- * owned by this account covers the commit staging runs; SKIP_SMOKE, SKIP_TESTS,
- * SMOKE_BASE_URL and the schema-drift and lock-holder escape hatches are refused,
+ * owned by this account covers the commit staging runs; SKIP_SMOKE, SKIP_TESTS
+ * and the schema-drift and lock-holder escape hatches are refused,
  * and so are the test seams on a deploy. Every failing rule is named, and a
  * question that cannot be answered refuses.
  *
@@ -125,7 +125,7 @@ function fixture(): Fixture {
     FOOTBAG_STAGING_RECEIPT: stagingReceipt,
     FOOTBAG_KNOWN_HOSTS: pin,
   };
-  for (const k of ['SKIP_SMOKE', 'SKIP_TESTS', 'SMOKE_BASE_URL', ...ESCAPE_HATCHES]) delete env[k];
+  for (const k of ['SKIP_SMOKE', 'SKIP_TESTS', ...ESCAPE_HATCHES]) delete env[k];
 
   const writeReceipt = (overrides: Record<string, string> = {}): void => {
     const tree = sh(work, 'bash', ['-c', 'source scripts/lib/source-tree-state.sh && source_tree_state .']);
@@ -347,11 +347,10 @@ describe('the production release gate', () => {
     expectRefused(f, 'is not GREEN');
   });
 
-  it('refuses SKIP_SMOKE, SKIP_TESTS and SMOKE_BASE_URL', () => {
+  it('refuses SKIP_SMOKE and SKIP_TESTS', () => {
     const f = fixture();
     expectRefused(f, 'SKIP_SMOKE=yes', { SKIP_SMOKE: 'yes' });
     expectRefused(f, 'SKIP_TESTS=yes', { SKIP_TESTS: 'yes' });
-    expectRefused(f, 'SMOKE_BASE_URL is set', { SMOKE_BASE_URL: 'https://staging.example.test' });
   });
 
   it('refuses when staging runs a different commit', () => {

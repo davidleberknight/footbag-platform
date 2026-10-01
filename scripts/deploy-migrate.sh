@@ -64,10 +64,10 @@
 #
 # A run started without the redirect names the one it needs.
 #
-#   DEPLOY_TARGET=footbag-staging \
-#     < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-migrate.sh --migration change.sql
-#   DEPLOY_TARGET=footbag-production \
-#     < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/deploy-migrate.sh --migration change.sql
+#   < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-migrate.sh \
+#       --target staging --migration change.sql
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/deploy-migrate.sh \
+#       --target production --migration change.sql
 #
 # The production form asks every time and has no unattended form. It requires a
 # terminal, and --yes is refused there rather than honoured: this is the one
@@ -75,22 +75,22 @@
 # confirmation establishes is that a person is present, which no flag can say.
 # The redirect supplies the password; it does not supply the person.
 #
-# DEPLOY_TARGET is required and has no default: see the refusal below for why.
+# --target is required and has no default: see the refusal below for why.
 # ============================================================================
 
 set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: DEPLOY_TARGET=<footbag-staging|footbag-production> \
-         < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-migrate.sh --migration <file.sql> [options]
+Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-migrate.sh \
+         --target <staging|production> --migration <file.sql> [options]
          (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt)
 
 A production migrate asks every time and has no unattended form. It needs a
 terminal, and --yes is refused rather than honoured there. The redirect supplies
 the password, not the person.
 
-  DEPLOY_TARGET       Required, no default. Which host to migrate. Unset is
+  --target <env>      Required, no default. Which host to migrate. Omitted is
                       refused rather than sent to staging, where a migration is
                       skipped and the deploy reports success having done nothing.
   --migration <file>  Required. SQL applied to the live database in one transaction.
@@ -100,24 +100,37 @@ the password, not the person.
                       every time.
   -h, --help          This message.
 
-Every other option and environment variable behaves exactly as in
-scripts/deploy-code.sh, which this reuses.
+Every environment variable behaves exactly as in scripts/deploy-code.sh, which
+this reuses.
 USAGE
   exit "${1:-0}"
 }
 
 MIGRATION_FILE=""
 ASSUME_YES="no"
-PASSTHROUGH=()
+TARGET=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --migration) MIGRATION_FILE="${2:-}"; shift 2 ;;
+    --target)    TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
+    --migration) MIGRATION_FILE="${2:-}"; shift 2 || { echo "ERROR: --migration requires an argument" >&2; exit 2; } ;;
     --yes)       ASSUME_YES="yes"; shift ;;
     -h|--help)   usage 0 ;;
-    *)           PASSTHROUGH+=("$1"); shift ;;
+    # Refused here rather than handed on: the code deploy this reuses takes no
+    # options of its own, so an unknown one would be refused there, after the
+    # SQL had already been shown for confirmation.
+    *)           echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
   esac
 done
+
+# DEPLOY_TARGET is the hand-off to the code deploy this reuses, set below from
+# --target and nowhere else. One already exported in the shell is refused, so a
+# value left behind by an earlier session cannot choose the host to migrate.
+if [[ -n "${DEPLOY_TARGET:-}" ]]; then
+  echo "ERROR: DEPLOY_TARGET is set in this shell ('${DEPLOY_TARGET}'). Name the host with" >&2
+  echo "       --target instead; this script sets DEPLOY_TARGET itself." >&2
+  exit 1
+fi
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -169,10 +182,11 @@ fi
 # does not say which host it means is refused rather than sent somewhere safe.
 # Staging is still accepted, because a staging host restored from a production
 # snapshot is where a migration is rehearsed before it reaches production.
-case "${DEPLOY_TARGET:-}" in
-  footbag-staging|footbag-production) ;;
-  *) die "set DEPLOY_TARGET to 'footbag-staging' or 'footbag-production' explicitly (got '${DEPLOY_TARGET:-}'); this deploy does not default" ;;
+case "$TARGET" in
+  staging|production) ;;
+  *) die "name the host with --target staging or --target production (got '${TARGET}'); this deploy does not default" ;;
 esac
+export DEPLOY_TARGET="footbag-${TARGET}"
 
 # Shown rather than summarised. This is the one deploy step that can destroy
 # data no rebuild can recreate, and an operator who has not read the statements
@@ -217,4 +231,4 @@ fi
 # The shared deploy reads the sudo password from its own stdin, so this hands
 # its stdin straight through rather than consuming it here.
 export MIGRATION_SQL MIGRATION_NAME MIGRATION_CHECKSUM
-exec bash "${SCRIPT_DIR}/deploy-code.sh" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
+exec bash "${SCRIPT_DIR}/deploy-code.sh"

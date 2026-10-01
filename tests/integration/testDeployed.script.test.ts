@@ -40,18 +40,26 @@ describe('test-deployed.sh', () => {
   // Defect caught: a typo or a missing argument sends the browser check at an
   // environment nobody named.
   it('refuses a target that is not staging or production', () => {
-    for (const bad of [[], ['prod'], ['development']]) {
+    for (const bad of [[], ['--target', 'prod'], ['--target', 'development']]) {
       const res = run(bad);
       expect(res.status, bad.join(' ')).toBe(2);
-      expect(res.stderr).toContain('name the environment: staging or production');
+      expect(res.stderr).toMatch(/--target (is required|must be) .*'staging' or 'production'/);
     }
+  });
+
+  // Defect caught: an environment named without the flag every other operator
+  // command uses, which is how a second convention for naming one comes back.
+  it('takes the environment only as --target', () => {
+    const res = run(['staging']);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("unknown argument 'staging'");
   });
 
   // Defect caught: the production run registers the persona leg, or runs the
   // local suite, whose specs write to a database.
   it('runs the deployed config with the address and the target name', () => {
     for (const target of ['staging', 'production']) {
-      const res = run([target]);
+      const res = run(['--target', target]);
       expect(res.status, res.stderr).toBe(0);
       const call = readFileSync(RECORD, 'utf8');
       expect(call).toContain('args=test -c tests/playwright.deployed.config.ts');

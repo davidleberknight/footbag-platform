@@ -60,20 +60,20 @@ describe('publish-archive.sh refuses before it can publish the wrong thing', () 
     // Naming the environment is the publish, so there is nothing safe to assume.
     const res = run([]);
     expect(res.status).toBe(2);
-    expect(res.stderr).toContain("--env must be 'staging' or 'production'");
+    expect(res.stderr).toContain("--target must be 'staging' or 'production'");
   });
 
   it('refuses an environment it does not know', () => {
-    const res = run(['--env', 'prod']);
+    const res = run(['--target', 'prod']);
     expect(res.status).toBe(2);
-    expect(res.stderr).toContain("--env must be 'staging' or 'production'");
+    expect(res.stderr).toContain("--target must be 'staging' or 'production'");
   });
 
   it('refuses an unreadable signing key before it syncs anything', () => {
     // The key signs the edge proof at the very end of the run. Discovered there,
     // an unreadable one would fail a publish whose bucket is already written and
     // whose cache is already cleared, so the check belongs ahead of the sync.
-    const res = run(['--env', 'staging', '--signing-key', path.join(keyDir, 'absent.pem')]);
+    const res = run(['--target', 'staging', '--signing-key', path.join(keyDir, 'absent.pem')]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('signing key not readable');
   });
@@ -83,7 +83,7 @@ describe('publish-archive.sh refuses before it can publish the wrong thing', () 
     // would ship the crawl manifests, and sitemap.txt carries the crawling
     // workstation's filesystem paths.
     const res = run([
-      '--env', 'staging',
+      '--target', 'staging',
       '--signing-key', stubKey,
       '--mirror-root', '/nonexistent/tree',
     ]);

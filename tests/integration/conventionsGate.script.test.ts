@@ -269,7 +269,7 @@ describe('the convention gate: rules about src/', () => {
     // workstation still reaches the host is the one control that decides whether
     // the deploy can start at all.
     const res = inFixtureRepo({
-      'scripts/ship-thing.sh': '  DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" -k\n',
+      'scripts/ship-thing.sh': '  "$DEPLOY_CMD" --target "$TARGET" -k\n',
     });
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toContain('without asking whether this workstation can still reach');
@@ -281,19 +281,19 @@ describe('the convention gate: rules about src/', () => {
       'scripts/ship-thing.sh':
         'source "${REPO_ROOT}/scripts/lib/egress-allowlist.sh"\n' +
         '  egress_allowlist_check "$TARGET" "$SSH_ALIAS"\n' +
-        '  DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" -k\n',
+        '  "$DEPLOY_CMD" --target "$TARGET" -k\n',
     });
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, 'the firewall check before a deploy is live, and is actually called');
   });
 
   it('does not read an instruction about a deploy as running one', () => {
-    // The pattern is the assignment-prefixed invocation. A script that prints the
-    // command for an operator to run later is not the one that has to have asked,
-    // and flagging it would push the next author to satisfy the rule with a call
-    // that runs nowhere near a deploy.
+    // The pattern is the deploy command in command position. A script that
+    // prints the command for an operator to run later is not the one that has to
+    // have asked, and flagging it would push the next author to satisfy the rule
+    // with a call that runs nowhere near a deploy.
     const res = inFixtureRepo({
-      'scripts/tell-thing.sh': 'echo "  DEPLOY_TARGET=$SSH_ALIAS ./deploy_to_aws.sh"\n',
+      'scripts/tell-thing.sh': 'echo "  \\"$DEPLOY_CMD\\" --target $TARGET -k"\n',
     });
     expect(res.exitCode, res.stderr).toBe(0);
   });
@@ -968,7 +968,7 @@ describe('the convention gate: where the local runner may reach', () => {
       '  aws_isolated_run terraform validate',
       '}',
       'gate_staging_aws_smoke() {',
-      '  env SMOKE_TARGET_ENV=staging npm run test:smoke',
+      '  npm run test:smoke -- --target staging',
       '  aws sts get-caller-identity --profile footbag-staging-runtime',
       '}',
       'gate_staging_realdata_invariants() {',
@@ -1020,7 +1020,7 @@ describe('the convention gate: where the local runner may reach', () => {
   // Defect caught: a runner row points at the production account or site, where
   // no local or staging check may ever reach.
   it('refuses a production target anywhere in the runner, a staging gate included', () => {
-    for (const target of ['SMOKE_TARGET_ENV=production', 'bash scripts/test-deployed.sh production', 'ls terraform/production']) {
+    for (const target of ['npm run test:smoke -- --target production', 'bash scripts/test-deployed.sh --target production', 'ls terraform/production']) {
       const res = inFixtureRepo(runner(plant('  bash scripts/realdata-staging.sh invariants', `  ${target}`)));
       expect(res.exitCode, target).toBe(1);
       expect(res.stderr, target).toContain('names a production target');

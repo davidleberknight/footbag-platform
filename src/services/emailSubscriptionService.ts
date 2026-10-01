@@ -97,8 +97,8 @@ const STATE_LABELS: Record<string, string> = {
 const STATE_EXPLANATIONS: Record<string, string> = {
   subscribed: 'You receive messages sent to this list.',
   unsubscribed: 'You are not receiving these, and will not until you turn them back on.',
-  bounced: 'Mail to your address came back undelivered, so this list is paused. Turning it on again resumes it once your address is working.',
-  complained: 'A message from this list was reported as spam, so it is paused. Turn it on again if that was not what you meant.',
+  bounced: 'Mail to your address came back undelivered, so this list is paused. Turning it on again will not resume delivery while your address is marked as undeliverable.',
+  complained: 'A message from this list was reported as spam, so it is paused. Turning it on again will not resume delivery while your address is marked as having reported spam.',
   suppressed: 'An administrator set this one aside for your address. Contact us if you would like it restored.',
   none: 'You are not receiving these.',
 };

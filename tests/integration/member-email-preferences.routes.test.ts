@@ -183,6 +183,18 @@ describe('what the screen offers', () => {
     const res = await request(createApp()).get(PREFS).set('Cookie', memberCookie());
     expect(res.text).toMatch(/Paused, mail bounced/);
     expect(res.text).toContain('Turn This On');
+    // Re-subscribing flips only the list row; the address mark still blocks delivery, so a page
+    // promising that turning it on resumes mail would mislead the member whose mail is failing.
+    expect(res.text).toContain('Turning it on again will not resume delivery while your address is marked as undeliverable.');
+  });
+
+  it('tells a member whose address reported spam that turning the list on will not resume delivery', async () => {
+    withDb((db) => insertMailingListSubscription(db, {
+      member_id: MEMBER_ID, list_slug: 'newsletter', status: 'complained',
+    }));
+
+    const res = await request(createApp()).get(PREFS).set('Cookie', memberCookie());
+    expect(res.text).toContain('Turning it on again will not resume delivery while your address is marked as having reported spam.');
   });
 
   it('shows a list an administrator set aside as locked, with no control', async () => {

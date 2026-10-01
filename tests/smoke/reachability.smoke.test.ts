@@ -35,7 +35,7 @@
  *     running, which is the serious one — it is what stops a submitted link
  *     from being used to probe the host's own private network.
  *
- * Run with: npm run test:smoke (gated behind RUN_STAGING_SMOKE=1).
+ * Run with: npm run test:smoke -- --target staging (gated behind RUN_STAGING_SMOKE=1).
  * Excluded from the default `npm test` suite via the test:smoke script's scope.
  */
 import { describe, it, expect } from 'vitest';

@@ -3494,6 +3494,8 @@ The platform uses two distinct Stripe payment models:
 
 Payment recurrence is derived from Stripe subscription linkage, not duplicated on individual payment rows. payments identifies recurring-donation charges via recurring_subscription_id and joins to the subscription tables for current subscription lifecycle state. The schema intentionally does not duplicate subscription recurrence fields (for example recurrence type/active/start state) on each payment row to avoid drift between payment records and subscription state.  
 
+- The platform offers no refunds. A membership, donation or event registration once paid is kept: no member or administrator surface issues a refund, and no member-facing text promises one. A refund issued at the provider anyway, from the Stripe Dashboard, is recorded so the books stay true; the platform never initiates one.
+
 - Money moving outside a payment's own lifecycle is recorded rather than applied. Card disputes through every stage the provider reports (charge.dispute.created, charge.dispute.updated, charge.dispute.closed, charge.dispute.funds_withdrawn, charge.dispute.funds_reinstated) and rejected payouts to the organization bank account (payout.failed) are decided provider-side: dispute evidence is submitted and ruled on at Stripe, and a rejected payout is repaired in the account details. Each writes an audit entry carrying every identifier needed to find the case at the provider and leaves the local payment at the status it earned; every stage other than an evidence update also raises an administrator work-queue item, so money leaving the account and money coming back are both put in front of someone. The audit entry and the work item are written in the same transaction as the event's idempotency claim, so a failure between them cannot leave a claimed event with no record. Recording them is what makes them visible: a disputed charge's payment intent still reads succeeded, so the nightly reconciliation pass compares clean and a chargeback would otherwise pass unseen.
 
 - The webhook endpoint subscribes to exactly the event types the dispatcher handles, and that set is declared in the payment service beside the handlers themselves, so the subscription and the handling cannot drift apart. Operator procedure reads the set from there rather than from prose. An endpoint missing a subscribed type fails silently: nothing errors and the event simply never arrives.
@@ -4563,7 +4565,9 @@ Requirements:
 
 - `FOOTBAG_ENV` accepts only the canonical short forms; `src/config/env.ts` rejects anything else at boot, including the prefixed forms.
 
-- `DEPLOY_TARGET` accepts only the prefixed forms `footbag-staging` and `footbag-production`. Entry-point scripts (`deploy_to_aws.sh`, `scripts/deploy-rebuild.sh`, `scripts/deploy-code.sh`, `scripts/deploy-migrate.sh`) hard-refuse any other value before the SSH connection, and the migrating deploy additionally refuses an unset value rather than defaulting to staging, including the unprefixed short forms and near-miss substrings (`footbag-prod`, `footbag-prd`, `footbag-live`). The other entry points default to staging when the variable is unset, deliberately: the allowlist means a typo cannot route a deploy somewhere unintended, and a forgotten variable sends the run to the environment whose data is disposable. Production is protected by the typed confirmation every production deploy requires rather than by the absence of a default.
+- `--target` accepts only `staging` and `production`, and it is the one way an operator names an environment. Every environment-specific resource a run touches (the host, buckets, parameter paths, Terraform directory, credential file) derives from it and is never named by a separate flag or variable. Every script refuses a missing value except `deploy_to_aws.sh`, which defaults to staging deliberately: it is the deploy run every day, a forgotten flag lands on the environment whose data is disposable, and production is protected by the typed confirmation every production deploy requires. `DEPLOY_TARGET` (`footbag-staging` or `footbag-production`) is internal: the deploy entry points set it for their worker scripts and refuse one inherited from the shell.
+
+- Before a script changes or reports on a host, the host confirms its own environment: its recorded `FOOTBAG_ENV` must be present and equal to the target, or the run refuses with nothing changed. The first bring-up step records it. The host's recorded `PUBLIC_BASE_URL` is the address the post-deploy checks use.
 
 - Terraform composes the prefix exactly once per module: `local.prefix = "footbag-${var.environment}"`. AWS resource names use `${local.prefix}` (or interpolate `var.environment` via `local.prefix`); they never hand-write `"footbag-production"` as a literal.
 
@@ -4589,7 +4593,7 @@ Impact:
 
 - Operators who maintain SSH config across multiple projects can keep all alias names project-prefixed without conflict.
 
-- Defense-in-depth allowlists at each deploy entry point catch operator typos (`footbag-prod`, `footbag-prd`) before any destructive action. The allowlist is the canonical enforcement mechanism for SSH alias and `DEPLOY_TARGET` shape.
+- The shared target check enforces `--target`, and the host's recorded environment confirms the host a run reached.
 
 ## 7.8 Security Patching
 
@@ -4637,7 +4641,7 @@ Requirements:
 - One sourced library holds the rules. A standalone check runs them on request, and the production deploy entry point and each script it hands off to run them before touching a host, so a script reached some other way is held to the same rules.
 - The gate refuses a working tree that is not clean; an origin other than the canonical repository; a HEAD that is not the canonical main; a commit whose CI aggregate check is not green on every run; a missing local pass receipt for that exact tree; a staging host running a different commit or one deployed from a dirty tree; and a missing staging pass receipt for the commit staging runs.
 - Each receipt is readable only by its owner and records the runner that wrote it; a receipt from a different runner, or owned by another account, does not count.
-- A production deploy refuses `SKIP_SMOKE`, `SKIP_TESTS`, `SMOKE_BASE_URL`, `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`, and refuses the gate's own test seams.
+- A production deploy refuses `SKIP_SMOKE`, `SKIP_TESTS`, `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`, and refuses the gate's own test seams.
 - A question the gate cannot answer, such as an unreadable CI status or an unreachable staging host, is a refusal.
 - No test writes to a deployed environment. The staging checks are read-only, and the check after a production deploy is an operator-run browser pass that signs in as nobody and submits nothing.
 - The OWASP ZAP scan of the local stack runs before a production deploy, not in every local run: it is report-only and slow, and the blocking security probes that run every time cover the same ground. It is an operator step the gate does not enforce, and a scan stopped at its time limit reports NOT RUN, which is not a clean scan. The dependency audit is the same kind of check, report-only and read from the live registry, so it too runs before a production deploy rather than in every local run; CI reports it on every push.

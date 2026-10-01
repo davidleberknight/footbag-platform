@@ -119,6 +119,7 @@ ALIAS="footbag-${TARGET}"
 require_ssh_alias "$ALIAS" || exit 1
 require_operator_stdin "scripts/reconcile-host-config.sh --target ${TARGET} --${ACTION}" \
   "$ALIAS" "$TARGET" || exit 1
+require_host_is "$ALIAS" "$TARGET" || exit 1
 
 if [[ "$ACTION" == "apply" ]]; then
   echo ""

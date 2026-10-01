@@ -35,9 +35,6 @@
 # through deploy_to_aws.sh, which asks for the typed word and takes the host
 # password at the terminal in the same gate.
 #
-# Override the SSH config alias:
-#   DEPLOY_TARGET=footbag-staging ...
-#
 # Skip the post-deploy direct-IP smoke check (required when nginx X-Origin-Verify
 # enforcement is active, since direct-to-origin curls return 444):
 #   SKIP_SMOKE=yes ...
@@ -65,24 +62,19 @@ production target when no terminal is attached.
 
 Reads sudo password from stdin (line 1).
 
-Override the SSH target:
-  DEPLOY_TARGET=footbag-staging ...
-
 Skip post-deploy direct-IP smoke check (staging only; production refuses it):
   SKIP_SMOKE=yes ...
 EOF
 }
 
 # Arguments are refused rather than ignored. This script took none and parsed
-# none, so `--help` ran a full deploy to whatever DEPLOY_TARGET happened to hold,
-# and deploy-migrate.sh forwards unknown options here while telling the operator
-# they "behave exactly as in scripts/deploy-code.sh".
+# none, so `--help` ran a full deploy to whatever DEPLOY_TARGET happened to hold.
 if [[ $# -gt 0 ]]; then
   case "$1" in
     --help|-h) usage; exit 0 ;;
     *)
-      echo "ERROR: unknown argument '$1'. This script takes none; it is configured" >&2
-      echo "       through DEPLOY_TARGET and SKIP_SMOKE." >&2
+      echo "ERROR: unknown argument '$1'. This script takes none; deploy_to_aws.sh" >&2
+      echo "       runs it with the environment named by its own --target." >&2
       usage >&2
       exit 2
       ;;
@@ -193,9 +185,7 @@ SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInt
 # canonical alias names; substring patterns (e.g. *prod*) silently accept
 # aliases like footbag-prod or footbag-prd that are NOT the canonical names.
 # The deploy_to_aws.sh wrapper allowlists DEPLOY_TARGET to the same two
-# values. The remote-half writes this value into /srv/footbag/env if absent
-# and fails fast if a different value is already present (catches a wrong
-# DEPLOY_TARGET pointed at the wrong host).
+# values.
 case "$REMOTE" in
   footbag-production) FOOTBAG_ENV="production" ;;
   footbag-staging)    FOOTBAG_ENV="staging"    ;;
@@ -205,6 +195,18 @@ case "$REMOTE" in
     exit 1
     ;;
 esac
+
+# The host confirms it is that environment before anything is built or shipped.
+# The remote half checks the same record again on the host, but only after the
+# release and the images have crossed, which is late for a deploy pointed at the
+# other environment's host. The shared library resets SUDO_PASS when sourced,
+# so the line already read is carried across it.
+_deploy_sudo_pass="$SUDO_PASS"
+# shellcheck source=lib/host-env-remote.sh
+source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
+SUDO_PASS="$_deploy_sudo_pass"
+unset _deploy_sudo_pass
+require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 
 # One deploy, one person. This run ships to the host as whoever the alias
 # connects as, and makes its AWS calls as whoever the profile resolves to, and
@@ -244,16 +246,14 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # a failure aborts before anything on the production host is touched. The
 # release gate above refuses SKIP_SMOKE=yes on production, so this always runs.
 if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
-  tf_output_read "$REPO_ROOT/terraform/staging" cloudfront_domain || true
-  staging_domain="$TF_OUTPUT_VALUE"
-  STAGING_BASE_URL=""
-  [[ -n "$staging_domain" ]] && STAGING_BASE_URL="https://$staging_domain"
-  if [[ -z "$STAGING_BASE_URL" ]]; then
+  # Staging's address is the one the staging host records, asked of it with the
+  # staging credential once it confirms it is staging.
+  if ! host_address_for staging; then
     echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
-    echo "       and the staging address could not be read." >&2
-    tf_output_explain "terraform/staging" cloudfront_domain
+    echo "       and the staging address could not be read from the staging host." >&2
     exit 1
   fi
+  STAGING_BASE_URL="$HOST_ADDRESS"
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
   if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
@@ -548,51 +548,37 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
 # Smoke runs against the public CloudFront URL, not the direct Lightsail
 # origin. The origin is fenced by X-Origin-Verify (returns 444 to anything
 # not coming through CloudFront), so direct-IP smoke would always fail under
-# the current production-like wiring. No environment URL is committed to the
-# repo: the staging address is deliberately unpublished, and that is what
-# shields the real-data staging environment. It is read from the environment's
-# own Terraform output instead of from a file, so it cannot go stale and no
-# operator has to keep a copy. SMOKE_BASE_URL remains the per-run override.
-if [[ -z "${SMOKE_BASE_URL:-}" ]]; then
-  case "$FOOTBAG_ENV" in
-    staging | production)
-      tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" cloudfront_domain || true
-      smoke_domain="$TF_OUTPUT_VALUE"
-      [[ -n "$smoke_domain" ]] && SMOKE_BASE_URL="https://$smoke_domain"
-      ;;
-  esac
-fi
-SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
+# the current production-like wiring. The address is the one the host records
+# it serves (its PUBLIC_BASE_URL), read when the host confirmed it was this
+# environment, before anything shipped. That record is the host's own and
+# follows it through the cutover, needs no Terraform read and so no private
+# checkout, and cannot be pointed at another environment's site by a value
+# typed or exported here.
+smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "$SKIP_SMOKE" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
-elif [[ -z "$SMOKE_BASE_URL" ]]; then
-  # A staging or production deploy must never complete with smoke silently
-  # skipped: a deploy that "succeeds" unverified is false confidence.
-  # SKIP_SMOKE=yes is a staging-only override; the release gate refuses it on
-  # production.
-  if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
-    echo "ERROR: no public base URL for $FOOTBAG_ENV, so the deploy cannot be" >&2
-    echo "       smoke-checked and will not report itself as done." >&2
-    tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_domain
-    echo "" >&2
-    echo "       Or export SMOKE_BASE_URL (on staging, SKIP_SMOKE=yes skips it deliberately)." >&2
-    exit 1
-  fi
-  echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"
+elif [[ -z "$smoke_url" ]]; then
+  # A deploy must never complete with smoke silently skipped: a deploy that
+  # "succeeds" unverified is false confidence. SKIP_SMOKE=yes is a staging-only
+  # override; the release gate refuses it on production.
+  echo "ERROR: $REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be" >&2
+  echo "       smoke-checked and will not report itself as done." >&2
+  echo "       Record it with: bash scripts/set-host-env.sh --target $FOOTBAG_ENV" >&2
+  exit 1
 else
-  echo "==> Running smoke check against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
-    echo "ERROR: post-deploy smoke check failed against $SMOKE_BASE_URL" >&2
+  echo "==> Running smoke check against $smoke_url ..."
+  if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
+    echo "ERROR: post-deploy smoke check failed against $smoke_url" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
   fi
   # Blocking security probes (auth gates, anti-enumeration equivalence, the
   # dev-harness environment contract). Same fail-hard stance as the route
   # smoke above.
-  echo "==> Running security smoke probes against $SMOKE_BASE_URL ..."
-  if ! BASE_URL="$SMOKE_BASE_URL" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
-    echo "ERROR: security smoke probes failed against $SMOKE_BASE_URL" >&2
+  echo "==> Running security smoke probes against $smoke_url ..."
+  if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
+    echo "ERROR: security smoke probes failed against $smoke_url" >&2
     echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
     exit 1
   fi
@@ -604,4 +590,4 @@ echo "Deploy complete."
 echo "Origin: http://$HOST_IP" >&2
 # The one check a curl smoke cannot make: pages loading in a real browser with
 # nothing refused by the content security policy and no script errors.
-echo "Next: the read-only browser check, npm run test:deployed -- ${FOOTBAG_ENV}"
+echo "Next: the read-only browser check, npm run test:deployed -- --target ${FOOTBAG_ENV}"

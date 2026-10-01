@@ -114,7 +114,7 @@ function run(args: string[], opts: { failFrom?: number; pageStatus?: string } = 
 /** The full synthetic cycle, which every refusal test is a deviation from. */
 function runCycle(opts: { failFrom?: number; pageStatus?: string } = {}) {
   return run(
-    ['--target', 'production', '--tfvars', tfvarsPath, '--domain', 'example.invalid', '--yes'],
+    ['--target', 'production', '--tfvars', tfvarsPath, '--yes'],
     opts,
   );
 }
@@ -182,7 +182,7 @@ describe('rehearse-planned-maintenance.sh: preconditions', () => {
     const res = run([
       '--target', 'production',
       '--tfvars', path.join(workDir, 'nope.tfvars'),
-      '--domain', 'example.invalid', '--yes',
+      '--yes',
     ]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('private operations checkout');

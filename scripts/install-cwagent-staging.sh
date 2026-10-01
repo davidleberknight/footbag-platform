@@ -68,9 +68,6 @@
 #                    library refuses this while the key is still active.
 #   --profile <p>    AWS profile for the IAM calls; else the identity this run
 #                    settles and proves.
-#
-# Override the SSH alias:
-#   DEPLOY_TARGET=footbag-staging ...
 
 set -euo pipefail
 
@@ -97,9 +94,6 @@ retire and delete runs reach no host and take no password.
   --retire <id>  deactivate the predecessor, once the metrics check passes
   --delete <id>  delete a predecessor that is already inactive
   --profile <p>  AWS profile for the IAM calls; else the identity this run proves
-
-Override the SSH target:
-  DEPLOY_TARGET=footbag-staging ...
 EOF
 }
 
@@ -136,7 +130,7 @@ if [[ "$ACTION" != "install" && "$ROTATE" == "1" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REMOTE="${DEPLOY_TARGET:-footbag-staging}"
+REMOTE="footbag-staging"
 
 # Only the install carries a credential to a host. Demanding the redirect on the
 # retire runs would make the operator point a password file at a command that
@@ -262,10 +256,12 @@ fi
 require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
-# Reachability is proved before a credential exists, so an unreachable host
-# costs nothing more than a wasted trip.
+# Reachability, and that the host is staging, are proved before a credential
+# exists, so an unreachable or wrong host costs nothing more than a wasted trip.
+# The sudo password is the one line read from stdin, here, for both connections.
 echo "==> Deploy target: $REMOTE"
-ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
+IFS= read -r SUDO_PASS
+require_host_is "$REMOTE" staging || exit 1
 
 trap iam_key_cleanup EXIT INT TERM
 iam_key_provision "$PUBLISHER_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
@@ -282,8 +278,8 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
 # the remote-half. Combined stream -> ssh stdin -> remote sudo -S consumes the
 # password line -> bash inherits the rest, runs the assignments, then the body.
 # Argv stays clean of secrets on every hop. This host keeps the remote-half's
-# default namespace, which production deliberately overrides.
-IFS= read -r SUDO_PASS
+# default namespace, which production deliberately overrides. The password is
+# the one line read before the host was confirmed.
 {
   printf '%s\n' "$SUDO_PASS"
   printf 'CWAGENT_AKID=%q\n' "$IAM_KEY_AKID"

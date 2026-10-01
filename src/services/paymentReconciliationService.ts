@@ -55,7 +55,10 @@
  *     compared over a bounded window so the pass does not re-walk the whole
  *     ledger nightly. The window reaches back to the last successful run when
  *     that is older than the configured span, so an outage longer than the span
- *     does not leave a period that no later run ever examines again.
+ *     does not leave a period that no later run ever examines again. Refunds
+ *     are windowed by when they were issued, so a refund in the window whose
+ *     payment was made before it looks that one payment up directly, under the
+ *     same filters the windowed read applies.
  *   - Every raised issue also enters the admin work queue in the `payments`
  *     category, so a discrepancy reaches the dashboard rather than waiting for
  *     someone to open the reconciliation page.
@@ -582,7 +585,12 @@ export const paymentReconciliationService = {
       ),
       ...compareSubscriptions(localSubscriptions, providerSubscriptions),
       ...compareInvoices(localPayments, providerInvoices, mirroredSubscriptionIds, graceCutoff),
-      ...compareRefunds(localPayments, providerRefunds, graceCutoff),
+      ...compareRefunds(localPayments, providerRefunds, graceCutoff, (intentId) => {
+        const row = paymentsDb.findForReconciliationByIntentId.get(intentId) as
+          | LocalPaymentRow
+          | undefined;
+        return row && comparable(row.provider_livemode) ? row : undefined;
+      }),
       ...flagDuplicateCharges(localPayments),
       ...flagUnresolvedCheckouts(staleIncomplete),
     ];
@@ -2279,11 +2287,20 @@ function flagUnresolvedCheckouts(stale: LocalSubscriptionRow[]): IssueDraft[] {
  * administrator instead, and reporting it here would raise a discrepancy on
  * every partial refund the platform handled correctly. Only a refunded total
  * that has reached the whole charge should have left the row `refunded`.
+ *
+ * Refunds are listed by when they were issued, payments by when they were made,
+ * so a refund inside the window can belong to a payment made before it. Such a
+ * payment is looked up on its own through `findOutsideWindow`, which applies the
+ * same anonymised-row and provider-mode filters the windowed read does, so a
+ * refund of an old payment whose event was lost is still reported. The limit:
+ * partial refunds are summed only within the window, so two partials either
+ * side of its edge that together return the whole charge are not reported.
  */
 function compareRefunds(
   local: LocalPaymentRow[],
   refunds: StripeRefundSummary[],
   graceCutoff: string,
+  findOutsideWindow: (intentId: string) => LocalPaymentRow | undefined,
 ): IssueDraft[] {
   const drafts: IssueDraft[] = [];
   const localByIntentId = new Map(
@@ -2310,9 +2327,11 @@ function compareRefunds(
   }
 
   for (const [intentId, returned] of returnedByIntent) {
-    const payment = localByIntentId.get(intentId);
-    // A refund against a payment this platform has no row for is the payments
-    // pass's finding, not this one's: raising it here would report one gap twice.
+    const payment = localByIntentId.get(intentId) ?? findOutsideWindow(intentId);
+    // A refund against a payment this platform has no row for at all is the
+    // payments pass's finding, not this one's: raising it here would report one
+    // gap twice. A row of the other provider mode, or one already anonymised,
+    // is set aside exactly as the windowed read sets it aside.
     if (!payment) continue;
     if (payment.status === 'refunded') continue;
     if (returned.cents < payment.amount_cents) continue;

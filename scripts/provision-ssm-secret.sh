@@ -27,17 +27,17 @@
 # placeholder is first provisioning and needs no confirmation, because there is
 # nothing to lose.
 #
-# One environment per run, and no `--env both`. Each environment's value is
+# One environment per run, and no `--target both`. Each environment's value is
 # independent and must differ, so a mode that wrote one value to both would be
 # wrong for every secret this script handles. Rotating two environments is two
 # runs, deliberately.
 #
 # Usage:
-#   scripts/provision-ssm-secret.sh --env staging --secret session_secret status
-#   scripts/provision-ssm-secret.sh --env production --secret session_secret store
+#   scripts/provision-ssm-secret.sh --target staging --secret session_secret status
+#   scripts/provision-ssm-secret.sh --target production --secret session_secret store
 #
 # Flags:
-#   --env staging|production        Required. The environment to act on.
+#   --target staging|production        Required. The environment to act on.
 #   --secret <name>                 Required. One of the supported names below.
 #   --profile <p>                   AWS profile; else the identity this run
 #                                   settles and proves.
@@ -57,9 +57,9 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --env)
+    --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
     --secret)
       SECRET_NAME="${2:-}"
@@ -92,10 +92,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 # shellcheck source=lib/aws-profile.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 
-# This script spells it --env rather than --target, so the shared refusal is
-# told which flag to name. Telling an operator to fix a flag their script does
-# not have is worse than the duplication the shared check replaces.
-REQUIRE_TARGET_FLAG="--env"
 require_target "$TARGET_ENV" staging production || exit 2
 
 # An allowlist rather than a free-form parameter name, and the safety property is
@@ -184,7 +180,7 @@ do_status() {
       echo "  value:     set (${state#set:} characters); value not shown" ;;
   esac
   if [[ "$state" != set:* ]]; then
-    echo "  next:      $0 --env ${TARGET_ENV} --secret ${SECRET_NAME} store"
+    echo "  next:      $0 --target ${TARGET_ENV} --secret ${SECRET_NAME} store"
   fi
 }
 
@@ -274,7 +270,7 @@ do_store() {
   echo "is not in state."
   echo ""
   echo "A running host still holds the previous value. Deploy to pick this one up:"
-  echo "  DEPLOY_TARGET=footbag-${TARGET_ENV} ./deploy_to_aws.sh"
+  echo "  ./deploy_to_aws.sh --target ${TARGET_ENV}"
 }
 
 case "$ACTION" in

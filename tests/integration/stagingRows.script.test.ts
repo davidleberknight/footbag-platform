@@ -37,7 +37,7 @@ function extract(): string {
   const line = (prefix: string) => RUNNER_TEXT.split('\n').find((l) => l.startsWith(prefix)) ?? '';
   return [
     line('STAGING_SMOKE_TARGET_ENV='), line('STAGING_ROUTE_SMOKE_ENV='), line('STAGING_BROWSER_TARGET='),
-    line('declare -A STAGING_BLOCKERS='), line('STAGING_CF='), line('STAGING_DEPLOYED_COMMIT='), line('STAGING_DEPLOYED_DIRTY='),
+    line('declare -A STAGING_BLOCKERS='), line('STAGING_URL='), line('STAGING_DEPLOYED_COMMIT='), line('STAGING_DEPLOYED_DIRTY='),
     ...['realdata_probe_value', 'staging_block', 'staging_blocked', 'staging_preflight',
       'gate_staging_aws_smoke', 'gate_staging_route_smoke', 'gate_staging_browser'].map(fn),
   ].join('\n');
@@ -48,7 +48,8 @@ interface World {
   arn?: string | null;
   runtimeProfileAnswers?: boolean;
   terraformInitialised?: boolean;
-  cloudfront?: string;
+  /** The address the staging host records it serves; empty means it answers none. */
+  siteUrl?: string;
   siteAnswers?: boolean;
   probe?: string | null;
   deployedCommit?: string;
@@ -58,7 +59,7 @@ const GOOD: Required<World> = {
   arn: 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/tester',
   runtimeProfileAnswers: true,
   terraformInitialised: true,
-  cloudfront: 'staging-cf.example.invalid',
+  siteUrl: 'https://staging-site.example.invalid',
   siteAnswers: true,
   probe: 'RDI_MEMBERS=25000\nRDI_AUTHORITATIVE=24000\nRDI_CLAIMABLE=140',
   deployedCommit: 'abc1234',
@@ -87,13 +88,13 @@ function drive(body: string, w: World = {}, env: Record<string, string> = {}) {
   exe(join(bin, 'curl'), ['#!/usr/bin/env bash', `echo "curl $*" >> ${JSON.stringify(log)}`, `exit ${world.siteAnswers ? 0 : 7}`]);
   exe(join(bin, 'npm'), [
     '#!/usr/bin/env bash',
-    `echo "npm $* SMOKE_TARGET_ENV=\${SMOKE_TARGET_ENV-unset} SMOKE_BASE_URL=\${SMOKE_BASE_URL-unset}" >> ${JSON.stringify(log)}`,
+    `echo "npm $* SMOKE_TARGET_ENV=\${SMOKE_TARGET_ENV-unset}" >> ${JSON.stringify(log)}`,
   ]);
   if (world.terraformInitialised) mkdirSync(join(work, 'terraform', 'staging', '.terraform'), { recursive: true });
-  exe(join(work, 'scripts', 'lib', 'terraform-output.sh'), [
-    world.cloudfront
-      ? `tf_output_read() { TF_OUTPUT_VALUE=${JSON.stringify(world.cloudfront)}; return 0; }`
-      : 'tf_output_read() { TF_OUTPUT_VALUE=""; return 1; }',
+  exe(join(work, 'scripts', 'lib', 'host-env-remote.sh'), [
+    world.siteUrl
+      ? `host_address_for() { HOST_ADDRESS=${JSON.stringify(world.siteUrl)}; return 0; }`
+      : 'host_address_for() { HOST_ADDRESS=""; return 1; }',
   ]);
   exe(join(work, 'scripts', 'realdata-staging.sh'), world.probe === null
     ? ['#!/usr/bin/env bash', 'exit 1']
@@ -103,7 +104,7 @@ function drive(body: string, w: World = {}, env: Record<string, string> = {}) {
   ]);
   exe(join(work, 'scripts', 'smoke-local.sh'), [
     '#!/usr/bin/env bash',
-    `echo "smoke-local SMOKE_ENV=\${SMOKE_ENV-unset} BASE_URL=\${BASE_URL-unset} SMOKE_BASE_URL=\${SMOKE_BASE_URL-unset}" >> ${JSON.stringify(log)}`,
+    `echo "smoke-local SMOKE_ENV=\${SMOKE_ENV-unset} BASE_URL=\${BASE_URL-unset}" >> ${JSON.stringify(log)}`,
   ]);
   exe(join(work, 'scripts', 'test-deployed.sh'), [
     '#!/usr/bin/env bash',
@@ -135,17 +136,17 @@ describe('the staging rows, whatever the shell exports', () => {
   // operator's shell sends a staging row at production.
   it('point every row at staging and drop every inherited address', () => {
     const r = drive(
-      'STAGING_CF=staging-cf.example.invalid\ngate_staging_aws_smoke\ngate_staging_route_smoke\ngate_staging_browser',
+      'STAGING_URL=https://staging-site.example.invalid\ngate_staging_aws_smoke\ngate_staging_route_smoke\ngate_staging_browser',
       {},
       {
         SMOKE_TARGET_ENV: 'production', SMOKE_ENV: 'production',
-        SMOKE_BASE_URL: 'https://production.example.invalid', DEPLOYED_BASE_URL: 'https://production.example.invalid',
+        DEPLOYED_BASE_URL: 'https://production.example.invalid',
       },
     );
     expect(r.status, r.out).toBe(0);
-    expect(r.calls).toMatch(/^npm run test:smoke SMOKE_TARGET_ENV=staging SMOKE_BASE_URL=unset$/m);
-    expect(r.calls).toMatch(/^smoke-local SMOKE_ENV=staging BASE_URL=https:\/\/staging-cf\.example\.invalid SMOKE_BASE_URL=unset$/m);
-    expect(r.calls).toMatch(/^test-deployed staging DEPLOYED_BASE_URL=unset$/m);
+    expect(r.calls).toMatch(/^npm run test:smoke -- --target staging SMOKE_TARGET_ENV=unset$/m);
+    expect(r.calls).toMatch(/^smoke-local SMOKE_ENV=staging BASE_URL=https:\/\/staging-site\.example\.invalid$/m);
+    expect(r.calls).toMatch(/^test-deployed --target staging DEPLOYED_BASE_URL=unset$/m);
     expect(r.calls).not.toContain('production');
   });
 
@@ -163,9 +164,9 @@ describe('the --staging preflight', () => {
   // Defect caught: a fully wired machine has a row blocked, or the staging site's
   // address is not handed to the rows that need it.
   it('blocks nothing when every need is present, and records the site and commit', () => {
-    const r = drive(`${BLOCKED}\necho "CF=$STAGING_CF COMMIT=$STAGING_DEPLOYED_COMMIT"`);
-    expect(blockedRows(r.out.split('CF=')[0]), r.out).toEqual([]);
-    expect(r.out).toContain('CF=staging-cf.example.invalid COMMIT=abc1234');
+    const r = drive(`${BLOCKED}\necho "SITE=$STAGING_URL COMMIT=$STAGING_DEPLOYED_COMMIT"`);
+    expect(blockedRows(r.out.split('SITE=')[0]), r.out).toEqual([]);
+    expect(r.out).toContain('SITE=https://staging-site.example.invalid COMMIT=abc1234');
   });
 
   // Each case: a missing need blocks exactly the rows that depend on it.
@@ -173,8 +174,8 @@ describe('the --staging preflight', () => {
     ['no AWS CLI', { arn: null }, ROWS],
     ['a shell that is not the dev-tester role', { arn: 'arn:aws:iam::000000000000:user/operator' }, ROWS],
     ['a staging runtime identity that does not answer', { runtimeProfileAnswers: false }, ['staging-aws-smoke']],
-    ['an uninitialised staging terraform', { terraformInitialised: false }, ['staging-aws-smoke', 'staging-browser', 'staging-route-smoke']],
-    ['an unreadable site address', { cloudfront: '' }, ['staging-browser', 'staging-route-smoke']],
+    ['an uninitialised staging terraform', { terraformInitialised: false }, ['staging-aws-smoke']],
+    ['a site address the staging host cannot give', { siteUrl: '' }, ['staging-browser', 'staging-route-smoke']],
     ['a site that fails its readiness check', { siteAnswers: false }, ['staging-browser', 'staging-route-smoke']],
     ['an unreachable staging database', { probe: null }, ['staging-realdata-invariants']],
     ['a staging database without the authoritative load', { probe: 'RDI_MEMBERS=12\nRDI_AUTHORITATIVE=0\nRDI_CLAIMABLE=0' }, ['staging-realdata-invariants']],

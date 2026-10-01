@@ -78,7 +78,7 @@ describe.skipIf(!RUN)(
     let result: VerifyResult;
 
     beforeAll(() => {
-      const stdout = execFileSync('scripts/verify-test-personas.sh', [], {
+      const stdout = execFileSync('scripts/verify-test-personas.sh', ['--target', 'staging'], {
         stdio: ['ignore', 'pipe', 'inherit'],
         encoding: 'utf8',
         ...SPAWN_GUARD,

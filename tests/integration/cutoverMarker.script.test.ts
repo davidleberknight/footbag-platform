@@ -254,6 +254,14 @@ describe('cutover marker writer', () => {
     expect(r.stdout).toMatch(/the two disagree/);
   });
 
+  it('reports a marker padded with whitespace as complete, never as reversed', () => {
+    // "reversed" is the state in which the database-replacing deploy is armed.
+    makeDb(' "1" \n');
+    const r = run(['--status']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/post_cutover: *complete/);
+  });
+
   it('writes nothing on a dry run', () => {
     makeDb(null);
     const r = run(['--set', 'complete', '--dry-run']);

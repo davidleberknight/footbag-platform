@@ -13,7 +13,7 @@
  * POST, is aborted before it leaves: a violation is still caught, through the
  * page's own listener, and the host's log is left alone.
  *
- * Run through `npm run test:deployed -- <staging|production>`.
+ * Run through `npm run test:deployed -- --target <staging|production>`.
  */
 import { test, expect, type Page } from '@playwright/test';
 

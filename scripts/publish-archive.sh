@@ -69,11 +69,11 @@
 # roles are read-only on SSM and have no archive-bucket write access).
 #
 # Usage:
-#   scripts/publish-archive.sh --env staging              # publish, then verify the edge
-#   scripts/publish-archive.sh --env staging --dry-run    # rehearse, change nothing
+#   scripts/publish-archive.sh --target staging              # publish, then verify the edge
+#   scripts/publish-archive.sh --target staging --dry-run    # rehearse, change nothing
 #
 # Flags:
-#   --env staging|production   Target environment (required).
+#   --target staging|production   Target environment (required).
 #   --dry-run                  Print what a publish would change and exit 0.
 #
 # Escape hatches, each correct by default and rarely passed:
@@ -103,7 +103,7 @@ DRY_RUN=0
 AWS_PROFILE_ARG=""
 MIRROR_ROOT="${REPO_ROOT}/legacy_data/legacy_mirror/mirror_footbag_org"
 EXCLUSION_LIST="${SCRIPT_DIR}/archive-publish-exclusions.txt"
-# Resolved after --env is parsed, because the default carries the environment:
+# Resolved after --target is parsed, because the default carries the environment:
 # each environment signs with its own keypair, and a default fixed here would
 # hand the edge proof whichever key happened to be provisioned first. A
 # production publish signed with staging's key fails its own proof, after the
@@ -119,9 +119,9 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --env)
+    --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
     --dry-run) DRY_RUN=1; shift ;;
     --profile)
@@ -142,7 +142,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
-  echo "ERROR: --env must be 'staging' or 'production'" >&2
+  echo "ERROR: --target must be 'staging' or 'production'" >&2
   exit 2
 fi
 
@@ -637,7 +637,7 @@ echo "Invalidation created: ${INVALIDATION_ID} (distribution ${DIST_ID})"
 # Delegate to the edge-proof script rather than carrying a second copy of the
 # cookie-signing logic: one implementation of the signing means a change to
 # the policy shape cannot leave the two disagreeing.
-EDGE_ARGS=(--env "$TARGET_ENV" --signing-key "$SIGNING_KEY")
+EDGE_ARGS=(--target "$TARGET_ENV" --signing-key "$SIGNING_KEY")
 [[ -n "$AWS_PROFILE_ARG" ]] && EDGE_ARGS+=(--profile "$AWS_PROFILE_ARG")
 if ! bash "${SCRIPT_DIR}/verify-archive-edge.sh" "${EDGE_ARGS[@]}"; then
   echo "ERROR: edge verification failed after publish. If the invalidation just" >&2

@@ -41,11 +41,11 @@
 # a 0600 header file rather than the command line.
 #
 # Usage:
-#   scripts/verify-archive-edge.sh --env staging --profile <p>
-#   scripts/verify-archive-edge.sh --env staging --profile <p> --check-logs
+#   scripts/verify-archive-edge.sh --target staging --profile <p>
+#   scripts/verify-archive-edge.sh --target staging --profile <p> --check-logs
 #
 # Flags:
-#   --env staging|production   Target environment (required).
+#   --target staging|production   Target environment (required).
 #   --profile <p>              AWS profile; else the identity this run settles
 #                              and proves.
 #   --signing-key <pem>        Private key (default the environment's own,
@@ -62,7 +62,7 @@ source "${SCRIPT_DIR}/lib/aws-profile.sh"
 
 TARGET_ENV=""
 AWS_PROFILE_ARG=""
-# Resolved after --env is parsed, because the default carries the environment:
+# Resolved after --target is parsed, because the default carries the environment:
 # each environment signs with its own keypair, so a default fixed at assignment
 # time would sign this proof with whichever key happened to be provisioned first.
 SIGNING_KEY=""
@@ -77,9 +77,9 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --env)
+    --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
-  echo "ERROR: --env must be 'staging' or 'production'" >&2
+  echo "ERROR: --target must be 'staging' or 'production'" >&2
   exit 2
 fi
 

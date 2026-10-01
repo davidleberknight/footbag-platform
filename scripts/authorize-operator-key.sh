@@ -96,9 +96,6 @@
 #                                  a key written with a different comment is
 #                                  still found.
 #   --yes                          accept the typed confirmation in advance
-#
-# Override the SSH alias:
-#   DEPLOY_TARGET=footbag-staging ...
 
 set -euo pipefail
 
@@ -234,7 +231,7 @@ KEY_FINGERPRINT="$(printf '%s\n' "$KEY_INFO" | awk '{print $2}')"
 KEY_LINE="$(grep -m1 '^[[:space:]]*[^#[:space:]]' "$KEY_SOURCE")"
 
 # ── The connection ───────────────────────────────────────────────────────────
-REMOTE="${DEPLOY_TARGET:-footbag-${TARGET}}"
+REMOTE="footbag-${TARGET}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/authorize-operator-key-remote.sh"
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing ${REMOTE_HALF}" >&2; exit 1; }
 
@@ -246,6 +243,8 @@ require_host_ssh_opts || exit 1
 SSH_BIN="${FOOTBAG_AUTHKEY_SSH:-ssh}"
 [[ -n "${FOOTBAG_AUTHKEY_SSH:-}" ]] && \
   echo "NOTICE: ssh is stubbed via FOOTBAG_AUTHKEY_SSH; this run proves nothing about the host." >&2
+HOST_SSH_BIN="$SSH_BIN"
+require_host_is "$REMOTE" "$TARGET" || exit 1
 
 MODE="add"
 [[ "$REMOVE" -eq 1 ]] && MODE="remove"

@@ -46,9 +46,10 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
 - **Read inputs from `freestyle/inputs/`.** When adding a loader input, put the
   file under `freestyle/inputs/` and reference it via `SCRIPT_DIR.parent` (the
   `freestyle/` root), not `legacy_data/`.
-- **Shared helpers live in `scripts/`.** `_trick_canonicalization.py` and
-  `_trick_tag_invariant.py` are shared with the curator-media seeder; the QC
-  loaders import them via `REPO_ROOT/scripts`. Do not duplicate them here.
+- **Shared helpers live in `scripts/`.** `_trick_canonicalization.py` is shared
+  with the curator-media seeder, and `_trick_tag_invariant.py` with the media QC
+  loaders and the media-acquisition scripts; the QC loaders import both via
+  `REPO_ROOT/scripts`. Do not duplicate them here.
 
 ## Run / verify
 
@@ -64,8 +65,9 @@ publication and resolution state, curator-created canonical tricks and their ali
 and modifier links. No committed file brings those back. Use a reset deliberately, never as a way
 to refresh.
 
-The trick-dictionary QC (`22_*`) is a hard gate; the media-coverage QC (`24_*`,
-`25_*`) is advisory (it audits the curated media layer, not the table rebuild).
+The trick-dictionary QC (`22_*`) and the media tag-invariant QC (`25_*`) are hard
+gates; the media-coverage QC (`24_*`) is advisory (it audits the curated media
+layer, not the table rebuild).
 
 ## Never
 

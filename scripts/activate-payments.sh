@@ -114,8 +114,7 @@ set -euo pipefail
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
-TARGET="staging"
-SSH_ALIAS=""
+TARGET=""
 AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
 # The digest the host's copy carried when this run read it, which the install
@@ -155,23 +154,21 @@ print_endpoint_requirements() {
 # prompted for, and never writes it to a file or an argument list: curl takes it
 # from a mode-0600 config file that is shredded on every exit path.
 #
-# Everything it sends is derived rather than restated. The URL comes from the
-# environment's own terraform output, so it cannot name a host that does not
-# exist; the version and the event list come from this script's constants, so
-# the endpoint and the dispatcher cannot drift apart.
+# Everything it sends is derived rather than restated. The URL is the target's
+# own distribution name from its terraform output: the webhook is registered
+# against that name and stays there, as scripts/create-stripe-endpoint.sh
+# records, because the name serves this environment's webhook before the
+# custom domain and after it. The version and the event list come from this
+# script's constants, so the endpoint and the dispatcher cannot drift apart.
 create_endpoint_via_api() {
   command -v jq   >/dev/null || { echo "ERROR: --create-endpoint needs jq." >&2; return 1; }
   command -v curl >/dev/null || { echo "ERROR: --create-endpoint needs curl." >&2; return 1; }
 
   local repo_root; repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  local tf_dir="$repo_root/terraform/$TARGET" domain=""
-  # The read discards its own stderr, so without an identity settled and proved
-  # first a dead credential arrives here as an empty domain and is reported as a
-  # tree that was never applied. terraform takes no --profile of its own.
-  # shellcheck source=lib/aws-profile.sh
-  source "${repo_root}/scripts/lib/aws-profile.sh"
-  aws_profile_ensure || return 1
-  domain="$(terraform -chdir="$tf_dir" output -raw cloudfront_domain 2>/dev/null || true)"
+  local domain=""
+  # The identity was settled and proved before the first prompt, so a dead
+  # credential cannot arrive here disguised as an empty output.
+  domain="$(terraform -chdir="$repo_root/terraform/$TARGET" output -raw cloudfront_domain 2>/dev/null || true)"
   if [[ -z "$domain" ]]; then
     echo "ERROR: could not read cloudfront_domain from the $TARGET terraform output." >&2
     echo "       Create the endpoint in the Dashboard and re-run without --create-endpoint." >&2
@@ -243,10 +240,6 @@ while [[ $# -gt 0 ]]; do
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
-    --ssh-alias)
-      SSH_ALIAS="${2:-}"
-      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
-      ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
       shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
@@ -314,9 +307,7 @@ if [[ "$MODE" == "activate" && "$TARGET" == "staging" && -z "$ENV_FILE_OVERRIDE"
   exit 1
 fi
 
-if [[ -z "$SSH_ALIAS" ]]; then
-  SSH_ALIAS="footbag-$TARGET"
-fi
+SSH_ALIAS="footbag-$TARGET"
 
 SSM_PARAM="/footbag/$TARGET/secrets/stripe_secret_key"
 SSM_WEBHOOK_PARAM="/footbag/$TARGET/secrets/stripe_webhook_secret"
@@ -499,6 +490,13 @@ else
     echo "       /footbag/$TARGET/secrets/stripe_* parameters)" >&2
     exit 2
   fi
+  # The parameter writes run as this profile. It is settled and its ARN proved
+  # here, before the first prompt, so a dead or wrong credential is named now
+  # rather than after the operator has worked through the Stripe Dashboard.
+  export AWS_PROFILE="$AWS_PROFILE_ARG"
+  # shellcheck source=lib/aws-profile.sh
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+  aws_profile_ensure || exit 1
 
   # Take the credential line before the first prompt, not at the first ssh.
   # Checked later, this refuses only after the operator has typed the Stripe
@@ -507,6 +505,12 @@ else
   # the cost is the operator's time and a second trip to the Dashboard.
   require_operator_stdin "scripts/activate-payments.sh --target $TARGET --profile <profile>" \
     "$SSH_ALIAS" "$TARGET" || exit 1
+  # The host confirms it is the target before the first prompt, for the same
+  # reason: the parameter paths follow the label and the env file follows the
+  # host, so a host that is not the target would split one activation across two
+  # environments, and that is discovered only after the operator's work is done.
+  require_ssh_alias "$SSH_ALIAS" || exit 1
+  require_host_is "$SSH_ALIAS" "$TARGET" "$HOST_ENV_PATH" || exit 1
   # Every prompt on this path reads from the terminal, never stdin. Stdin is the
   # credential pipe, so a prompt reading from it would silently take the next
   # line of the operator's credential file as the typed answer: a Stripe key
@@ -634,9 +638,8 @@ trap cleanup_local EXIT INT TERM
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   OLD_LOCAL="$ENV_FILE_OVERRIDE"
 else
-  # The credential line was already taken, before the first prompt.
-  require_ssh_alias "$SSH_ALIAS" || exit 1
-
+  # The credential line was already taken, and the host confirmed, before the
+  # first prompt.
   OLD_LOCAL_OWNED=1
   umask 077
   OLD_LOCAL="$(mktemp /tmp/footbag-env-old.XXXXXX)"

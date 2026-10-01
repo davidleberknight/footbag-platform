@@ -132,9 +132,6 @@
 # The private half of that keypair never leaves its owner's machine and never
 # enters the vault: it identifies them, so sharing it destroys the attribution
 # the named-account model exists to create.
-#
-# Override the SSH alias:
-#   DEPLOY_TARGET=footbag-staging ...
 
 set -euo pipefail
 
@@ -175,9 +172,6 @@ account. scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh run it
                                  off every account on the host. Destructive.
   --inspect                      read the account and change nothing: whether it
                                  exists, whether it is locked, the keys it accepts
-
-Override the SSH target:
-  DEPLOY_TARGET=footbag-staging ...
 EOF
 }
 
@@ -388,7 +382,7 @@ fi  # end of the key section, skipped when offboarding or inspecting
 
 # ── The operator's own credential ────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REMOTE="${DEPLOY_TARGET:-footbag-${TARGET}}"
+REMOTE="footbag-${TARGET}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/provision-operator-account-remote.sh"
 
 # shellcheck source=lib/ssh-known-hosts.sh
@@ -464,10 +458,10 @@ echo "==> Target host: $REMOTE  (${TARGET})"
 echo "==> Account:     $ACCOUNT  for ${OPERATOR}"
 [[ -n "$KEY_FINGERPRINT" ]] && echo "==> Key:         $KEY_FINGERPRINT"
 
-# Reachability is proved before a credential exists, so an unreachable host costs
-# nothing more than a wasted trip. This connection needs no privilege and so
-# consumes none of the credential on stdin.
-"$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
+# Reachability, and that the host is the target, are proved before a credential
+# exists, so an unreachable or wrong host costs nothing more than a wasted trip.
+HOST_SSH_BIN="$SSH_BIN"
+require_host_is "$REMOTE" "$TARGET" || exit 1
 
 # Whether the account is already there decides the mode, and the read is
 # unprivileged, so it happens before the password is consumed. "Already exists"

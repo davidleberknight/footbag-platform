@@ -29,16 +29,34 @@
 # use: never on any process's argv, never echoed, never logged.
 #
 # Usage:
-#   scripts/verify-test-personas.sh                       # defaults to footbag-staging
-#   scripts/verify-test-personas.sh footbag-staging
-#   scripts/verify-test-personas.sh <ssh-alias>
+#   scripts/verify-test-personas.sh --target staging
+#
+# Staging is the only accepted target: the deploy refuses to seed personas
+# anywhere else, so there is nothing to verify on production.
 #
 # Invoked from: tests/smoke/test-personas.smoke.test.ts.
 # Standalone use is also supported: pipe stdout to `jq` to inspect.
 
 set -euo pipefail
 
-SSH_ALIAS="${1:-footbag-staging}"
+TARGET=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target)
+      TARGET="${2:-}"
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      ;;
+    *)
+      echo "ERROR: unknown argument '$1'" >&2
+      exit 2
+      ;;
+  esac
+done
+
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+require_target "$TARGET" staging || exit 2
+SSH_ALIAS="footbag-$TARGET"
 
 # Resolve the credential file exactly as the deploy wrapper does, through the
 # one shared rule: the account the alias connects as picks the pair, the
@@ -46,16 +64,13 @@ SSH_ALIAS="${1:-footbag-staging}"
 # Building the path here from $HOME would be a second copy of the rule, and a
 # second copy is what lets a named operator's run read the shared account's
 # password and fail at sudo on the host.
-_CRED_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/operator-credential.sh"
-# shellcheck source=lib/operator-credential.sh
-source "$_CRED_LIB"
-_CRED_TARGET="staging"
-[[ "$SSH_ALIAS" == "footbag-production" ]] && _CRED_TARGET="production"
-if ! require_operator_credential "$SSH_ALIAS" "$_CRED_TARGET"; then
+if ! require_operator_credential "$SSH_ALIAS" "$TARGET"; then
   echo "This check runs on the operator workstation only; testers cannot (and need not) run it." >&2
   exit 1
 fi
 IFS= read -r SUDO_PASS < "$OPERATOR_CREDENTIAL_FILE"
+require_host_ssh_opts || exit 1
+require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 
 echo "Querying persona-seed state on $SSH_ALIAS." >&2
 
@@ -120,7 +135,7 @@ JS
 )"
 printf 'PERSONA_JSON:%s\n' "$json"
 REMOTE_BASH
-  } | ssh "$SSH_ALIAS" 'sudo -k -S -p "" bash'
+  } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
 )"
 
 # Chrome (anything unmarked) to stderr; the sentinel-marked JSON line to stdout.

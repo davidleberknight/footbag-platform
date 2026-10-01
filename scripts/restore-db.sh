@@ -35,6 +35,10 @@
 #     database that is not the live one. That failure is unrecoverable in the
 #     only way that matters, because the mail has already gone.
 #   - A target the operator did not name. There is no default host.
+#   - A staging snapshot onto production, whether named by --source or by a
+#     --bucket outside footbag-production-*. A staging snapshot holds test
+#     accounts and rehearsal data; production restores only from its own
+#     buckets, the DR bucket among them.
 #
 # Which snapshot it looks for, which is never a guess between the two classes:
 #
@@ -91,7 +95,6 @@ SOURCE_ENV=""
 TO_LOCAL=""
 SNAPSHOT_KEY=""
 BUCKET=""
-SSH_ALIAS=""
 AWS_PROFILE_ARG=""
 DRY_RUN=0
 PRE_FLIP=0
@@ -103,7 +106,6 @@ while [[ $# -gt 0 ]]; do
     --to-local)  TO_LOCAL="${2:-}";   shift 2 || { echo "ERROR: --to-local requires an argument" >&2; exit 2; } ;;
     --snapshot)  SNAPSHOT_KEY="${2:-}"; shift 2 || { echo "ERROR: --snapshot requires an argument" >&2; exit 2; } ;;
     --bucket)    BUCKET="${2:-}";     shift 2 || { echo "ERROR: --bucket requires an argument" >&2; exit 2; } ;;
-    --ssh-alias) SSH_ALIAS="${2:-}";  shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; } ;;
     --profile)   AWS_PROFILE_ARG="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
     --pre-flip)  PRE_FLIP=1; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
@@ -156,6 +158,14 @@ if [[ -n "$TARGET" ]]; then
   esac
 fi
 
+# The direction with no legitimate form, refused before anything else runs so
+# a dry run shows it too and nothing reaches the network. A staging snapshot
+# holds test accounts and rehearsal data; production restores only from its own
+# stream. The reverse direction is the documented drill path and stays allowed.
+if [[ "$TARGET" == "production" && "$SOURCE_ENV" != "production" ]]; then
+  die "a staging snapshot never restores onto production: --target production reads only --source production"
+fi
+
 # Everything a local destination needs before the network is touched. Both of
 # these refuse the run outright, so checking them after the snapshot lookup
 # means listing a bucket for a run that was never going to proceed, and it means
@@ -178,7 +188,19 @@ if [[ -z "$BUCKET" ]]; then
   esac
 fi
 
-[[ -z "$SSH_ALIAS" && -n "$TARGET" ]] && SSH_ALIAS="footbag-$TARGET"
+# The same direction rule, applied to the bucket. `--bucket` names the object
+# store outright, so a production restore given a staging bucket would read a
+# staging snapshot whatever `--source` said. Production restores only from a
+# production bucket; the DR bucket the cutover rollback reads is one of them.
+if [[ "$TARGET" == "production" && "$BUCKET" != footbag-production-* ]]; then
+  die "a staging snapshot never restores onto production: --target production reads only a footbag-production-* bucket (got '${BUCKET}')"
+fi
+
+# The host is the target's own alias and nothing else names one: a label and a
+# host chosen separately can disagree, and a run that believes the label acts
+# on whatever host the other choice reached.
+SSH_ALIAS=""
+[[ -n "$TARGET" ]] && SSH_ALIAS="footbag-$TARGET"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/restore-db-remote.sh"
@@ -328,6 +350,7 @@ source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 require_operator_stdin "scripts/restore-db.sh --target $TARGET" \
   "$SSH_ALIAS" "$TARGET" || exit 1
 require_ssh_alias "$SSH_ALIAS" || exit 1
+require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 [[ -r "$REMOTE_HALF" ]] || die "missing remote half: $REMOTE_HALF"
 
 HOST_ENV_FILE="$(mktemp)"

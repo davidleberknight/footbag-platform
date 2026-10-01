@@ -15,9 +15,9 @@
 #   4. The read-only staging checks have passed against that deploy, as a
 #      dev-tester:
 #        scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging
-#   5. This check passes; then DEPLOY_TARGET=footbag-production bash deploy_to_aws.sh
+#   5. This check passes; then bash deploy_to_aws.sh --target production
 #   6. After the deploy, the read-only browser check against production:
-#        npm run test:deployed -- production
+#        npm run test:deployed -- --target production
 #
 # Read-only: it changes nothing anywhere apart from fetching main into this
 # repository's origin/main. It never prompts, so it runs where no terminal is

@@ -17,14 +17,16 @@
 #
 # It writes nothing on the deployed host: no form, no sign-in, and the browser's
 # own policy-violation report POST is aborted before it is sent. Locally,
-# Playwright keeps its traces under tests/test-results/deployed. It needs no
-# credential beyond the Terraform read that finds the environment's address. The
-# one-time browser install is `npx playwright install chromium`.
+# Playwright keeps its traces under tests/test-results/deployed. The address it
+# loads is the one the environment's host records it serves, asked of the host
+# with the credential file the shared rule selects, after the host confirms it
+# is that environment. The one-time browser install is
+# `npx playwright install chromium`.
 #
 # Usage:
-#   bash scripts/test-deployed.sh staging
-#   bash scripts/test-deployed.sh production
-#   (or npm run test:deployed -- <staging|production>)
+#   bash scripts/test-deployed.sh --target staging
+#   bash scripts/test-deployed.sh --target production
+#   (or npm run test:deployed -- --target <staging|production>)
 #
 # Test seams (announced on stderr): DEPLOYED_BASE_URL supplies the address
 # instead of reading Terraform; FOOTBAG_PLAYWRIGHT_BIN replaces the Playwright
@@ -32,29 +34,33 @@
 
 set -euo pipefail
 
-TARGET="${1:-}"
-case "$TARGET" in
-  staging|production) ;;
-  -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-  *) echo "ERROR: name the environment: staging or production (got '${TARGET}')." >&2; exit 2 ;;
-esac
+TARGET=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target)
+      TARGET="${2:-}"
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      ;;
+    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
+  esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/host-env-remote.sh
+source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+require_target "$TARGET" staging production || exit 2
 cd "$REPO_ROOT"
 
 if [[ -n "${DEPLOYED_BASE_URL:-}" ]]; then
-  echo "TEST SEAM: DEPLOYED_BASE_URL is ${DEPLOYED_BASE_URL}; the environment's address was not read from Terraform." >&2
+  echo "TEST SEAM: DEPLOYED_BASE_URL is ${DEPLOYED_BASE_URL}; the environment's address was not asked of its host." >&2
   BASE_URL="$DEPLOYED_BASE_URL"
 else
-  # shellcheck source=scripts/lib/terraform-output.sh
-  source "${REPO_ROOT}/scripts/lib/terraform-output.sh"
-  if ! tf_output_read "${REPO_ROOT}/terraform/${TARGET}" cloudfront_domain || [[ -z "$TF_OUTPUT_VALUE" ]]; then
-    echo "ERROR: the ${TARGET} address could not be read from Terraform." >&2
-    tf_output_explain "terraform/${TARGET}" cloudfront_domain
-    exit 1
-  fi
-  BASE_URL="https://${TF_OUTPUT_VALUE}"
+  # The address the environment's host records it serves, asked of the host
+  # once it confirms it is that environment.
+  host_address_for "$TARGET" || exit 1
+  BASE_URL="$HOST_ADDRESS"
 fi
 
 PLAYWRIGHT_BIN="${FOOTBAG_PLAYWRIGHT_BIN:-${REPO_ROOT}/node_modules/.bin/playwright}"

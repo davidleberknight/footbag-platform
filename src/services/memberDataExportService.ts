@@ -53,7 +53,6 @@ import {
   memberTier,
   activePlayer,
   payments,
-  recurringDonationSubscriptions,
 } from '../db/db';
 import { config } from '../config/env';
 import { readIntConfig } from './configReader';
@@ -162,7 +161,7 @@ export const memberDataExportService = {
       },
       payments: {
         history:           capped(payments.listByMember.all(memberId) as unknown[], truncated),
-        recurringDonations: capped(recurringDonationSubscriptions.listByMember.all(memberId) as unknown[], truncated),
+        recurringDonations: capped(memberExport.recurringDonations.all(memberId) as unknown[], truncated),
       },
       votesParticipatedIn: capped(memberExport.voteParticipation.all(memberId) as unknown[], truncated),
       declaredAnchors:     capped(declaredAnchors.listByMember.all(memberId) as unknown[], truncated),

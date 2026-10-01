@@ -21,6 +21,9 @@ import {
   insertMemberClubAffiliation,
   completeOnboarding,
   createTestSessionJwt,
+  insertStripeEvent,
+  insertRecurringDonationSubscription,
+  insertPayment,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4185');
@@ -203,13 +206,58 @@ describe('what the document carries', () => {
     expect(doc.exportedAt).toBeTruthy();
   });
 
+  // Defect caught: a section read with SELECT * hands the member's payment
+  // provider identifiers to whoever holds the download link. The member holds
+  // every identifier the provider mints, so no section passes for want of a row.
   it('never carries how the member voted, nor a payment-provider identifier', async () => {
     const slug = 'exp_secrets';
     const id = makeMember(slug);
+    const providerValues = {
+      customer:     'cus-test-export-leak',
+      subscription: 'sub-test-export-leak',
+      checkout:     'cs-test-export-leak',
+      event:        'evt-test-export-leak',
+      intent:       'pi-test-export-leak',
+      paymentCheckout: 'cs-test-export-leak-payment',
+    };
+    withDb((db) => {
+      db.prepare('UPDATE members SET stripe_customer_id = ? WHERE id = ?').run(providerValues.customer, id);
+      insertStripeEvent(db, { event_id: providerValues.event, event_type: 'customer.subscription.updated' });
+      insertRecurringDonationSubscription(db, {
+        member_id: id,
+        stripe_customer_id: providerValues.customer,
+        stripe_subscription_id: providerValues.subscription,
+        checkout_session_id: providerValues.checkout,
+        last_stripe_event_id: providerValues.event,
+        amount_cents: 4321,
+      });
+      // An abandoned checkout is not a gift the member made, and another
+      // member's gift is not theirs: neither belongs in this export.
+      insertRecurringDonationSubscription(db, { member_id: id, status: 'incomplete', amount_cents: 1111 });
+      const other = insertMember(db, { slug: 'exp_secrets_other' });
+      insertRecurringDonationSubscription(db, { member_id: other, amount_cents: 9999 });
+      insertPayment(db, {
+        member_id: id,
+        stripe_payment_intent_id: providerValues.intent,
+        stripe_checkout_session_id: providerValues.paymentCheckout,
+        stripe_customer_id: providerValues.customer,
+      });
+    });
     await requestExport(slug, id);
     const body = (await request(createApp()).get(linkFromQueuedEmail(id))).text;
 
+    // The sections are present, so the absence below is a real exclusion.
+    const doc = JSON.parse(body);
+    expect(doc.payments.recurringDonations.map((r: { amount_cents: number }) => r.amount_cents))
+      .toEqual([4321]);
+    expect(doc.payments.history).toHaveLength(1);
+
+    for (const value of Object.values(providerValues)) {
+      expect(body, `export leaked provider identifier ${value}`).not.toContain(value);
+    }
     for (const forbidden of [
+      'checkout_session_id',
+      'last_stripe_event_id',
       'encrypted_ballot_b64',
       'encrypted_data_key_b64',
       'ballot_nonce_b64',

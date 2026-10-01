@@ -420,6 +420,54 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     expect(issueTypes()).toEqual(['refund_missing_locally']);
   });
 
+  // Defect caught: a refund issued today against a payment made before the
+  // window, whose event was lost, is reported by nobody, because the local
+  // payment is looked up only among payments created inside the window.
+  it('reports a lost full refund of a payment made before the window', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-old-refunded', member_id: MEMBER, created_at: BEFORE_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_old_refunded',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_old_refunded', platformPaymentId: 'pay-old-refunded', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: BEFORE_WINDOW,
+    });
+    adapter.setLedgerRefund({
+      id: 're_old', paymentIntentId: 'pi_old_refunded', amountCents: 5000,
+      currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toEqual(['refund_missing_locally']);
+  });
+
+  // Defect caught: the outside-window lookup skips the filters the windowed
+  // read applies, so a rehearsal-mode payment is judged against the live
+  // ledger, or an anonymised compliance row is reported against nobody.
+  it('stays silent on an old payment of the other provider mode, or one already anonymised', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-old-rehearsal', member_id: MEMBER, created_at: BEFORE_WINDOW, provider_livemode: 0,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_old_rehearsal',
+      });
+      insertPayment(db, {
+        id: 'pay-old-anonymised', member_id: null, created_at: BEFORE_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: 'pi_old_anonymised',
+      });
+    });
+    const adapter = await stub();
+    for (const intent of ['pi_old_rehearsal', 'pi_old_anonymised']) {
+      adapter.setLedgerRefund({
+        id: `re_${intent}`, paymentIntentId: intent, amountCents: 5000,
+        currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+      });
+    }
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.issuesRaised).toBe(0);
+  });
+
   it('stays silent on a partial refund, which deliberately leaves the payment settled', async () => {
     // The row not moving for a partial refund is the documented contract: the
     // status machine is monotonic and refunded is terminal. Reporting it here

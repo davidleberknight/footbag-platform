@@ -104,17 +104,14 @@ Each of these was violated by a script in this repository, and each failure was 
 
 ## The shape
 
-- A `--target` naming the environment, with **no default**. Which environment a run lands on is
-  never inherited from ambient state. Two exceptions, both deliberate and recorded in the design
-  decisions. A script whose subject exists in exactly one environment, such as the live-payments
-  levers, where the environment is a property of the thing rather than a choice the operator is
-  making. And the deploy entry points, which take `DEPLOY_TARGET` from the environment and default it
-  to staging: the wrapper refuses any value that is not one of the two known environments, so a typo
-  cannot route a deploy somewhere unintended, and a forgotten variable sends the run to the
-  environment whose data is disposable. Production is protected by a different mechanism instead,
-  which is the one that matters: every production deploy stops for a typed confirmation read from the
-  terminal, and refuses outright when no terminal is attached, so no scheduled job or agent session
-  can replace what the public is served unattended.
+- A `--target` naming the environment, with **no default**, and nothing else naming one: the host is
+  `footbag-<target>`, buckets, parameter paths and addresses derive from the target, and no flag or
+  variable overrides them. Before changing or reporting anything on a host, call `require_host_is`,
+  which refuses a host whose recorded `FOOTBAG_ENV` is missing or differs. Two exceptions to the
+  no-default rule, both recorded in the design decisions: a script whose subject exists in one
+  environment only, and `deploy_to_aws.sh`, which defaults to staging; production is protected there
+  by the typed confirmation every production deploy requires, refused outright with no terminal
+  attached.
 - The deploy works in `$REPO_ROOT`, never the working directory: it moves there once, as soon as it
   has computed it, ships from there, and reaches every script it hands off to by a path built from
   its own location rather than a relative one. A relative source means a run started from elsewhere ships a

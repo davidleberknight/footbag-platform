@@ -3,13 +3,16 @@
 # Reads environment-specific values from terraform output; hardcodes the
 # stable ones. No operator-side env setup required.
 #
-# Targets staging by default; SMOKE_TARGET_ENV=production points every
-# environment-specific read (terraform dir, AWS profile, SSM path) at the
-# production account instead. The exported variable names stay the same
-# either way because the smoke tests read those exact names.
+# --target names the environment, as on every operator command, with no
+# default: every environment-specific read (terraform dir, AWS profile, SSM
+# path, the site address the host records) follows it. SMOKE_TARGET_ENV is this
+# script's hand-off to the suites, set here from --target; one already exported
+# in the shell is refused rather than honoured.
+#
+#   npm run test:smoke -- --target staging
 #
 # An optional suite name runs one file instead of the directory:
-#   npm run test:smoke -- captcha
+#   npm run test:smoke -- --target production captcha
 # This matters most against a production target, where every suite in the
 # directory reaches the live environment and a narrow wiring check has no
 # reason to exercise the rest. Filters always resolve under tests/smoke/, so a
@@ -25,31 +28,44 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-SUITES=()
-if [[ $# -gt 0 ]]; then
-  for suite_arg in "$@"; do
-    if [[ ! "$suite_arg" =~ ^[A-Za-z0-9._-]+$ ]]; then
-      echo "ERROR: suite filter must be a bare suite name (letters, digits, dot, underscore, hyphen), got '$suite_arg'." >&2
-      echo "       Example: npm run test:smoke -- captcha" >&2
-      exit 1
-    fi
-    if ! compgen -G "tests/smoke/${suite_arg}*.test.ts" >/dev/null; then
-      echo "ERROR: no smoke suite matches 'tests/smoke/${suite_arg}*.test.ts'." >&2
-      echo "       Available:" >&2
-      ls tests/smoke/ >&2
-      exit 1
-    fi
-    SUITES+=("tests/smoke/${suite_arg}")
-  done
-else
-  SUITES=("tests/smoke/")
+if [[ -n "${SMOKE_TARGET_ENV:-}" ]]; then
+  echo "ERROR: SMOKE_TARGET_ENV is set in this shell ('${SMOKE_TARGET_ENV}'). Name the" >&2
+  echo "       environment with --target instead; this script sets it for the suites." >&2
+  exit 1
 fi
 
-SMOKE_TARGET_ENV="${SMOKE_TARGET_ENV:-staging}"
-case "$SMOKE_TARGET_ENV" in
-  staging|production) ;;
-  *) echo "ERROR: SMOKE_TARGET_ENV must be 'staging' or 'production', got '$SMOKE_TARGET_ENV'" >&2; exit 1 ;;
-esac
+TARGET=""
+SUITES=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target)
+      TARGET="${2:-}"
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 1; }
+      ;;
+    *)
+      suite_arg="$1"
+      shift
+      if [[ ! "$suite_arg" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "ERROR: suite filter must be a bare suite name (letters, digits, dot, underscore, hyphen), got '$suite_arg'." >&2
+        echo "       Example: npm run test:smoke -- --target staging captcha" >&2
+        exit 1
+      fi
+      if ! compgen -G "tests/smoke/${suite_arg}*.test.ts" >/dev/null; then
+        echo "ERROR: no smoke suite matches 'tests/smoke/${suite_arg}*.test.ts'." >&2
+        echo "       Available:" >&2
+        ls tests/smoke/ >&2
+        exit 1
+      fi
+      SUITES+=("tests/smoke/${suite_arg}")
+      ;;
+  esac
+done
+[[ ${#SUITES[@]} -gt 0 ]] || SUITES=("tests/smoke/")
+
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+require_target "$TARGET" staging production || exit 1
+SMOKE_TARGET_ENV="$TARGET"
 TF_DIR="terraform/${SMOKE_TARGET_ENV}"
 
 # This suite reaches live AWS through a chained runtime profile. Fail fast with
@@ -97,10 +113,14 @@ MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_n
 # runtime role holds no send permission; real sending is checked on production
 # by scripts/verify-prod-email.sh.
 
-# Tolerate a null/absent value (CloudFront disabled or not yet applied): the
-# static-asset smoke's first test fails with a clear "operator: terraform apply"
-# message rather than the script dying under set -e on `output -raw` of null.
-STAGING_CLOUDFRONT_DOMAIN="$(terraform -chdir="$TF_DIR" output -raw cloudfront_domain 2>/dev/null || true)"
+# The site address is the one the environment's host records it serves, asked of
+# the host once it confirms it is this environment. Tolerated when it cannot be
+# read: the static-asset smoke's first test then fails with a message saying so,
+# rather than the whole runner dying before any suite reports.
+SMOKE_SITE_URL=""
+if host_address_for "$SMOKE_TARGET_ENV"; then
+  SMOKE_SITE_URL="$HOST_ADDRESS"
+fi
 
 # Exported so target-aware tests can gate themselves (the persona-catalog
 # smoke is staging-only and skips under a production target).
@@ -109,7 +129,7 @@ export AWS_PROFILE="footbag-${SMOKE_TARGET_ENV}-runtime"
 export AWS_REGION=us-east-1
 export JWT_KMS_KEY_ID
 export MEDIA_STORAGE_S3_BUCKET
-export STAGING_CLOUDFRONT_DOMAIN
+export SMOKE_SITE_URL
 export RUN_STAGING_SMOKE=1
 
 # Fetch operator-supplied SSM secrets via the assumed-role chain. The

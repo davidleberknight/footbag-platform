@@ -14,7 +14,7 @@ import path from 'node:path';
 const BASE_URL = process.env.DEPLOYED_BASE_URL;
 const TARGET = process.env.DEPLOYED_TARGET;
 if (!BASE_URL || (TARGET !== 'staging' && TARGET !== 'production')) {
-  throw new Error('Run the deployed browser check through: npm run test:deployed -- <staging|production>');
+  throw new Error('Run the deployed browser check through: npm run test:deployed -- --target <staging|production>');
 }
 
 export default defineConfig({

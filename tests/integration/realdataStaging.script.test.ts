@@ -21,6 +21,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { createTestDb } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertLegacyMember } from '../fixtures/factories';
@@ -44,6 +45,7 @@ function writeSshStub(): void {
     sshStub,
     [
       '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
       'for a in "$@"; do',
       '  if [[ "$a" == "-G" ]]; then',
       // An unconfigured alias: ssh -G echoes the alias back as the hostname and

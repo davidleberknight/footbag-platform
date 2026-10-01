@@ -9,11 +9,11 @@ the layout: layers, fixtures, isolation, naming.
 - **Unit** (`tests/unit/`): exported pure functions. No DB, no HTTP.
 - **Integration** (`tests/integration/`): real HTTP routes through Supertest against a real SQLite
   file, services, and operator scripts driven through their test seams. No mocked DB.
-- **Smoke** (`tests/smoke/`): read-only live probes of staging wiring (`npm run test:smoke`, or the
+- **Smoke** (`tests/smoke/`): read-only live probes of staging wiring (`npm run test:smoke -- --target staging`, or the
   `--staging` rows of `./run_all_tests.sh` through the dev-tester role).
 - **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`).
 - **Deployed browser check** (`tests/e2e/deployed/`): anonymous, submit-nothing page loads against
-  staging or production (`npm run test:deployed -- <staging|production>`).
+  staging or production (`npm run test:deployed -- --target <staging|production>`).
 - **Dev** (`tests/dev/`): the real-claim crawl, which claims one real migrated record on a local dev
   stack and walks the surfaces that render it (`npm run test:persona-crawl`). It needs the
   authoritative local member load.

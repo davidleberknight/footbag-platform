@@ -37,10 +37,16 @@
 # stops being read. The production refusal is structural, which is the guard
 # that matters here.
 #
+# The address loaded is the one the staging host records it serves, asked of the
+# host after it confirms it is staging, so a run takes the staging host's sudo
+# password on stdin, the file the shared rule names for the account the alias
+# connects as; a run started without the redirect names it. A re-read of an
+# earlier window reaches no host and takes no password.
+#
 # Usage:
-#   scripts/load-check.sh --target staging
-#   scripts/load-check.sh --target staging --duration 300 --concurrency 3
-#   scripts/load-check.sh --target staging --preflight-only
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/load-check.sh --target staging
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/load-check.sh --target staging --duration 300 --concurrency 3
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/load-check.sh --target staging --preflight-only
 #   scripts/load-check.sh --target staging --read-back-only \
 #       --window-start 2026-09-13T04:00:00Z --window-end 2026-09-13T04:20:00Z
 #
@@ -54,9 +60,6 @@
 #                             to a stress level).
 #   --persona <slug>          Persona to sign in as for the member page
 #                             (default t1_paid, an ordinary paid member).
-#   --base-url <url>          Override the address; otherwise it is read from
-#                             the staging Terraform output, because no
-#                             environment URL is committed to this repository.
 #   --profile <p>             AWS profile; else the identity this run settles
 #                             and proves.
 #   --settle-seconds <n>      Wait before reading CloudWatch back (default 360).
@@ -133,10 +136,6 @@ while [[ $# -gt 0 ]]; do
     --persona)
       PERSONA="${2:-}"
       shift 2 || { echo "ERROR: --persona requires an argument" >&2; exit 2; }
-      ;;
-    --base-url)
-      BASE_URL="${2:-}"
-      shift 2 || { echo "ERROR: --base-url requires an argument" >&2; exit 2; }
       ;;
     --profile)
       PROFILE="${2:-}"
@@ -228,21 +227,24 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# The staging address is deliberately unpublished, and that is part of what
-# shields an environment holding real member data, so it is read from the
-# Terraform output at run time rather than committed here.
-if [[ -z "$BASE_URL" ]]; then
-  domain="$("$TERRAFORM_BIN" -chdir="${REPO_ROOT}/terraform/staging" \
-    output -raw cloudfront_domain 2>/dev/null || true)"
-  if [[ -z "$domain" ]]; then
-    echo "ERROR: could not read cloudfront_domain from terraform/staging." >&2
-    echo "       The private operations checkout supplies the values file this" >&2
-    echo "       reads through; without it, pass --base-url explicitly." >&2
+# The address is the one the staging host records it serves (its
+# PUBLIC_BASE_URL), asked of the host once it has confirmed it is staging, so
+# the traffic lands on the site the host says is its own and on no other. A
+# re-read of an earlier window sends no traffic and needs no address, so it
+# reaches no host.
+if (( READ_BACK_ONLY == 0 )); then
+  # shellcheck source=lib/host-env-remote.sh
+  source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+  require_operator_stdin "scripts/load-check.sh --target staging" footbag-staging staging || exit 1
+  require_ssh_alias footbag-staging || exit 1
+  require_host_is footbag-staging staging || exit 1
+  BASE_URL="${HOST_PUBLIC_BASE_URL%/}"
+  if [[ -z "$BASE_URL" ]]; then
+    echo "ERROR: footbag-staging records no PUBLIC_BASE_URL, so there is no address to load." >&2
+    echo "       Record it with: bash scripts/set-host-env.sh --target staging" >&2
     exit 1
   fi
-  BASE_URL="https://${domain}"
 fi
-BASE_URL="${BASE_URL%/}"
 
 DISTRIBUTION_ID="$("$TERRAFORM_BIN" -chdir="${REPO_ROOT}/terraform/staging" \
   output -raw cloudfront_distribution_id 2>/dev/null || true)"

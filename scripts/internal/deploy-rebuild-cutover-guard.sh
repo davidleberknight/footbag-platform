@@ -132,8 +132,9 @@ else
     echo "         sqlite3 said: ${CUTOVER_GUARD_DB_ERR}" >&2
     CUTOVER_GUARD_DB_VALUE=""
   else
-    # The value is stored as JSON, so it may arrive quoted.
-    CUTOVER_GUARD_DB_VALUE="${CUTOVER_GUARD_DB_VALUE//\"/}"
+    # The value is stored as JSON, so it may arrive quoted, and a hand-edited
+    # row may carry padding. Either read as absent would let this deploy through.
+    CUTOVER_GUARD_DB_VALUE="${CUTOVER_GUARD_DB_VALUE//[[:space:]\"]/}"
     if [[ "$CUTOVER_GUARD_DB_VALUE" == "1" ]]; then
       CUTOVER_GUARD_DB_MARKER="present"
     fi

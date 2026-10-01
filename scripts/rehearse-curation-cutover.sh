@@ -77,7 +77,6 @@ set -euo pipefail
 
 TARGET=""
 TRICK_SLUG=""
-SSH_ALIAS=""
 DRY_RUN=0
 
 # Must match scripts/cutover-marker.sh. A drift there aborts the marker move
@@ -101,10 +100,6 @@ while [[ $# -gt 0 ]]; do
     --trick)
       TRICK_SLUG="${2:-}"
       shift 2 || { echo "ERROR: --trick requires an argument" >&2; exit 2; }
-      ;;
-    --ssh-alias)
-      SSH_ALIAS="${2:-}"
-      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
       ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help)
@@ -142,7 +137,7 @@ if [[ ! "$TRICK_SLUG" =~ ^[a-z0-9_]+$ ]]; then
   exit 2
 fi
 
-SSH_ALIAS="${SSH_ALIAS:-footbag-$TARGET}"
+SSH_ALIAS="footbag-$TARGET"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/rehearse-curation-cutover-remote.sh"
 
@@ -186,6 +181,8 @@ fi
 
 require_ssh_alias "$SSH_ALIAS" || exit 1
 require_host_ssh_opts || exit 1
+HOST_SSH_BIN="$SSH_BIN"
+require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
 
 if [[ "$SSH_BIN" != "ssh" || -n "$DEPLOY_CMD" ]]; then
@@ -196,6 +193,9 @@ DEPLOY_CMD="${DEPLOY_CMD:-bash deploy_to_aws.sh}"
 # call site, so a seam carrying flags cannot reassemble differently in the two
 # places it is used.
 read -ra DEPLOY_ARGV <<< "$DEPLOY_CMD"
+# The deploy is told which environment on its command line, the same one this
+# rehearsal confirmed above; it never takes it from the shell.
+DEPLOY_ARGV+=(--target "$TARGET")
 
 # ── Host actions ────────────────────────────────────────────────────────────
 
@@ -227,8 +227,8 @@ deploy_or_explain() {
   echo "           question and refuses without a terminal; this run has none." >&2
   echo "           Resolve the drift, or set FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 once" >&2
   echo "           you have read what differs." >&2
-  echo "         - the post-deploy smoke could not resolve the environment address" >&2
-  echo "           from Terraform. Set SMOKE_BASE_URL, or initialise that tree." >&2
+  echo "         - the host records no PUBLIC_BASE_URL, so the post-deploy smoke has" >&2
+  echo "           no address. Record it with scripts/set-host-env.sh --target ${TARGET}." >&2
   return 1
 }
 

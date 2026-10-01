@@ -69,6 +69,19 @@ require_host_ssh_opts() {
 HOST_ENV_READ_HALF="${HOST_ENV_LIB_DIR}/../internal/host-env-read-remote.sh"
 HOST_ENV_WRITE_HALF="${HOST_ENV_LIB_DIR}/../internal/host-env-write-remote.sh"
 HOST_LOG_GREP_HALF="${HOST_ENV_LIB_DIR}/../internal/host-log-grep-remote.sh"
+HOST_IDENTITY_HALF="${HOST_ENV_LIB_DIR}/../internal/host-identity-remote.sh"
+
+# The client require_host_is connects with. Assigned here rather than read from
+# the environment, so a value exported in the operator's shell cannot route the
+# check somewhere the run itself does not go. A script that substitutes its own
+# client in tests points this at the same substitute after sourcing, so the
+# check and the run always use one client.
+HOST_SSH_BIN="ssh"
+
+# Set by require_host_is to the address the confirmed host records; declared
+# here so a script reading it is safe under `set -u` on a path that never asked.
+HOST_PUBLIC_BASE_URL=""
+HOST_ADDRESS=""
 
 # Set by require_operator_stdin, read by every function that opens a pipe. One
 # credential line serves any number of ssh invocations, which a single shared
@@ -171,6 +184,127 @@ host_env_fetch() {
 
   if [[ -n "$report_dest" ]]; then
     host_env_decode_section "$stream" REPORT "$report_dest" || return 1
+  fi
+  return 0
+}
+
+# require_host_is <alias> <target> [env-path]
+# Refuses unless the host the alias reaches records itself as <target>. On
+# success HOST_PUBLIC_BASE_URL holds the address the host records it serves
+# (its PUBLIC_BASE_URL), empty when it records none.
+#
+# The label an operator types and the host a connection lands on are two facts,
+# and a run that trusts the first acts on whatever the second turns out to be: a
+# restore labelled staging that reached the production host replaced the
+# production database and skipped the production confirmation, because every
+# guard asked the label. The host's own env file records which environment it
+# is, so the host is asked, before the run changes or reports anything.
+#
+# An unrecorded host is refused, not passed. The first bring-up step records the
+# value, so a host without it is one that step has not reached, and a check that
+# waved it through would protect every host except the newly built one, which is
+# exactly where a wrong address in an operator's ssh config goes unnoticed.
+#
+# Only the one value crosses the wire; the env file's secrets stay on the host.
+# The remote command names the question as the body's first argument, which the
+# body ignores; it is there so the request is recognisable on the command line
+# alone, which is what a test's stand-in for ssh reads to answer it.
+require_host_is() {
+  local alias="$1" target="$2" env_path="${3:-$HOST_ENV_PATH_DEFAULT}" stream recorded
+  if [[ -z "$alias" || -z "$target" ]]; then
+    echo "ERROR: require_host_is needs the ssh alias and the target. This is a defect in" >&2
+    echo "       the calling script." >&2
+    return 1
+  fi
+  [[ -r "$HOST_IDENTITY_HALF" ]] || {
+    echo "ERROR: missing remote half: $HOST_IDENTITY_HALF" >&2
+    return 1
+  }
+  require_host_ssh_opts || return 1
+
+  if ! stream="$(
+        {
+          printf '%s\n' "$SUDO_PASS"
+          printf 'HOST_ENV_PATH=%q\n' "$env_path"
+          cat "$HOST_IDENTITY_HALF"
+        } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash -s footbag-host-identity'
+      )"; then
+    echo "ERROR: could not ask ${alias} which environment it is." >&2
+    echo "       Causes: wrong sudo password on line 1 of the credential file;" >&2
+    echo "       the operator account lacks sudo on the host; ${env_path} absent." >&2
+    return 1
+  fi
+  if ! grep -q '^---FOOTBAG-HOST-ENV---$' <<< "$stream"; then
+    echo "ERROR: ${alias} returned no answer to which environment it is." >&2
+    return 1
+  fi
+  recorded="$(grep -A1 '^---FOOTBAG-HOST-ENV---$' <<< "$stream" | tail -1)"
+  [[ "$recorded" == ---FOOTBAG-* ]] && recorded=""
+  # The address the host says it serves, for the checks that load its pages.
+  # Read here because the host it belongs to is the one this function confirms.
+  HOST_PUBLIC_BASE_URL=""
+  if grep -q '^---FOOTBAG-HOST-URL---$' <<< "$stream"; then
+    HOST_PUBLIC_BASE_URL="$(grep -A1 '^---FOOTBAG-HOST-URL---$' <<< "$stream" | tail -1)"
+    [[ "$HOST_PUBLIC_BASE_URL" == ---FOOTBAG-* ]] && HOST_PUBLIC_BASE_URL=""
+  fi
+
+  if [[ -z "$recorded" ]]; then
+    echo "ERROR: ${alias} records no FOOTBAG_ENV in ${env_path}, so it cannot confirm it is ${target}." >&2
+    echo "       Record it first: bash scripts/set-host-env.sh --target ${target}" >&2
+    return 1
+  fi
+  if [[ "$recorded" != "$target" ]]; then
+    echo "ERROR: ${alias} records FOOTBAG_ENV=${recorded}, but this run is --target ${target}." >&2
+    echo "       Nothing was changed. Check the HostName for ${alias} in ~/.ssh/config." >&2
+    return 1
+  fi
+  echo "    host confirmed: ${alias} records FOOTBAG_ENV=${recorded}" >&2
+  return 0
+}
+
+# host_address_for <target>
+# The address <target>'s host records it serves (its PUBLIC_BASE_URL), asked of
+# that host once it confirms it is <target>. Sets HOST_ADDRESS, without a
+# trailing slash.
+#
+# For a run that needs an environment's address without otherwise acting on its
+# host: a check that loads its pages, a registration that points a vendor at it,
+# or a production deploy verifying staging first. The address is the host's own
+# record because that is what the site actually serves under, and a value taken
+# from anywhere else (a typed flag, an exported variable, another tree's output)
+# can name a site other than the one the label means.
+#
+# The password is read from the credential file the shared rule selects for the
+# account the alias connects as, never from stdin, so it works beside a caller
+# that already holds another host's password there. The caller's SUDO_PASS and
+# HOST_PUBLIC_BASE_URL are left exactly as they were.
+host_address_for() {
+  local target="$1" alias="footbag-${1:-}" pass="" rc=0
+  local saved_pass="$SUDO_PASS" saved_url="$HOST_PUBLIC_BASE_URL"
+  HOST_ADDRESS=""
+  if [[ -z "$target" ]]; then
+    echo "ERROR: host_address_for needs a target. This is a defect in the calling script." >&2
+    return 1
+  fi
+  require_operator_credential "$alias" "$target" || return 1
+  IFS= read -r pass < "$OPERATOR_CREDENTIAL_FILE" || true
+  if [[ -z "$pass" ]]; then
+    echo "ERROR: the first line of ${OPERATOR_CREDENTIAL_DISPLAY} is empty; expected the ${target} host sudo password." >&2
+    return 1
+  fi
+  require_ssh_alias "$alias" || return 1
+  SUDO_PASS="$pass"
+  require_host_is "$alias" "$target" || rc=1
+  # Taken only from a host that confirmed it is the target: a refused host's
+  # address is the other environment's, and must not reach the caller.
+  (( rc == 0 )) && HOST_ADDRESS="${HOST_PUBLIC_BASE_URL%/}"
+  SUDO_PASS="$saved_pass"
+  HOST_PUBLIC_BASE_URL="$saved_url"
+  (( rc == 0 )) || return 1
+  if [[ -z "$HOST_ADDRESS" ]]; then
+    echo "ERROR: ${alias} records no PUBLIC_BASE_URL, so there is no ${target} address to use." >&2
+    echo "       Record it with: bash scripts/set-host-env.sh --target ${target}" >&2
+    return 1
   fi
   return 0
 }
@@ -447,18 +581,13 @@ ASSUME_YES="no"
 #
 # The accepted values are the caller's, so a script whose subject exists in one
 # environment expresses that by naming one. What is shared is the refusal, its
-# wording, and the fact that there is never a default.
-# The flag this script spells it with. Most say --target; the secret
-# provisioners say --env, and telling an operator to fix a flag their script
-# does not have is worse than the duplication this replaces. Callers set it
-# before calling and the default covers the majority.
-REQUIRE_TARGET_FLAG="--target"
-
+# wording, and the fact that there is never a default. Every operator script
+# names the environment with --target, so that is the flag the refusal names.
 require_target() {
   local value="$1"
   shift
   local accepted=("$@") candidate
-  local flag="${REQUIRE_TARGET_FLAG:---target}"
+  local flag="--target"
 
   if [[ "${#accepted[@]}" -eq 0 ]]; then
     echo "ERROR: require_target was called with no accepted values." >&2

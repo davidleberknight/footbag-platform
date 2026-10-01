@@ -12,7 +12,7 @@
  * else, and the staging runtime role holds no send permission; real
  * sending is first exercised on production, by its own go-live check.
  *
- * Run with: npm run test:smoke (which uses scripts/test-smoke.sh to read
+ * Run with: npm run test:smoke -- --target staging (which uses scripts/test-smoke.sh to read
  * JWT_KMS_KEY_ID from terraform output, hardcode AWS_PROFILE/AWS_REGION,
  * and gate behind RUN_STAGING_SMOKE=1).
  *

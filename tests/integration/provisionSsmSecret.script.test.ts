@@ -37,32 +37,32 @@ describe('provision-ssm-secret.sh — argument guards', () => {
     const result = run(['--secret', 'session_secret', 'status']);
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toMatch(/--env is required/);
+    expect(result.stderr).toMatch(/--target is required/);
   });
 
   it('refuses an unknown environment', () => {
-    const result = run(['--env', 'prod', '--secret', 'session_secret', 'status']);
+    const result = run(['--target', 'prod', '--secret', 'session_secret', 'status']);
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toMatch(/--env must be 'staging' or 'production'/);
+    expect(result.stderr).toMatch(/--target must be 'staging' or 'production'/);
   });
 
   it('has no "both" mode, because each environment needs its own distinct value', () => {
-    const result = run(['--env', 'both', '--secret', 'session_secret', 'status']);
+    const result = run(['--target', 'both', '--secret', 'session_secret', 'status']);
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toMatch(/--env must be 'staging' or 'production'/);
+    expect(result.stderr).toMatch(/--target must be 'staging' or 'production'/);
   });
 
   it('refuses without a secret name', () => {
-    const result = run(['--env', 'staging', 'status']);
+    const result = run(['--target', 'staging', 'status']);
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatch(/--secret is required/);
   });
 
   it('refuses an action it was not given', () => {
-    const result = run(['--env', 'staging', '--secret', 'session_secret']);
+    const result = run(['--target', 'staging', '--secret', 'session_secret']);
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatch(/name an action/);
@@ -75,7 +75,7 @@ describe('provision-ssm-secret.sh — the secret allowlist', () => {
   // outside every apply and every inventory, holding a live secret nothing
   // reads. The refusal has to come before any AWS call for that to hold.
   it('refuses a secret name it does not provision, before touching AWS', () => {
-    const result = run(['--env', 'production', '--secret', 'sesion_secret', 'store']);
+    const result = run(['--target', 'production', '--secret', 'sesion_secret', 'store']);
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatch(/is not one this script provisions/);
@@ -83,7 +83,7 @@ describe('provision-ssm-secret.sh — the secret allowlist', () => {
   });
 
   it('names the supported secrets when refusing', () => {
-    const result = run(['--env', 'production', '--secret', 'stripe_secret_key', 'store']);
+    const result = run(['--target', 'production', '--secret', 'stripe_secret_key', 'store']);
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatch(/Supported: session_secret/);
@@ -92,7 +92,7 @@ describe('provision-ssm-secret.sh — the secret allowlist', () => {
 
 describe('provision-ssm-secret.sh — refusals that do not reach AWS', () => {
   it('rejects an unknown flag rather than ignoring it', () => {
-    const result = run(['--env', 'staging', '--secret', 'session_secret', '--force', 'store']);
+    const result = run(['--target', 'staging', '--secret', 'session_secret', '--force', 'store']);
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatch(/unknown argument/);

@@ -238,7 +238,7 @@ Not run here:
   - CodeQL static analysis and the pull-request dependency review: GitHub-hosted,
     with no local form.
   - Anything against production. The browser check after a production deploy is
-    the operator's: npm run test:deployed -- production.
+    the operator's: npm run test:deployed -- --target production.
 USAGE
       exit 0
       ;;
@@ -322,10 +322,10 @@ in_mode() {
 # Where a row points, for --plan. Every row not named here runs on this machine.
 gate_target() {
   case "$1" in
-    staging-aws-smoke)           echo "staging (the staging AWS account, SMOKE_TARGET_ENV=${STAGING_SMOKE_TARGET_ENV})" ;;
+    staging-aws-smoke)           echo "staging (the staging AWS account, test:smoke --target ${STAGING_SMOKE_TARGET_ENV})" ;;
     staging-realdata-invariants) echo "staging (the staging host's database, read-only)" ;;
     staging-route-smoke)         echo "staging (GETs against the staging site, SMOKE_ENV=${STAGING_ROUTE_SMOKE_ENV})" ;;
-    staging-browser)             echo "staging (anonymous pages, test-deployed.sh ${STAGING_BROWSER_TARGET})" ;;
+    staging-browser)             echo "staging (anonymous pages, test-deployed.sh --target ${STAGING_BROWSER_TARGET})" ;;
     clean-room)                  if (( SKIP_PY == 1 )); then echo "local (a throwaway worktree, its Python gates left out by --skip-py)"; else echo "local (a throwaway worktree)"; fi ;;
     *)                           if room_carries "$1"; then echo "local (clean room)"; else echo "local"; fi ;;
   esac
@@ -592,7 +592,7 @@ full_preflight() {
 # comes back from staging is a count, an address or a commit, never a name.
 # -----------------------------------------------------------------------------
 declare -A STAGING_BLOCKERS=()
-STAGING_CF=""
+STAGING_URL=""
 STAGING_DEPLOYED_COMMIT=""
 STAGING_DEPLOYED_DIRTY=""
 
@@ -619,7 +619,7 @@ staging_preflight() {
   local all=(staging-aws-smoke staging-realdata-invariants staging-route-smoke staging-browser)
   local fix_role="run it through the dev-tester switch: scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --staging (onboarding: scripts/accept-dev-tester-onboarding.sh)"
   local fix_wire="the staging alias must connect as your own account (run through scripts/as-dev-tester.sh --account <your-name>), ~/AWS/HOST_OPERATOR.txt must hold your staging sudo password at mode 600, and the alias and its pinned host key come from scripts/accept-dev-tester-onboarding.sh"
-  local arn probe members authoritative claimable cf ssh_bin
+  local arn probe members authoritative claimable site ssh_bin
 
   echo "→ --staging preflight: checking what the staging rows need ..."
   if ! command -v aws >/dev/null 2>&1; then
@@ -637,24 +637,25 @@ staging_preflight() {
   fi
 
   [[ -d terraform/staging/.terraform ]] \
-    || staging_block "terraform/staging is not initialised; the staging smoke and the browser check read its outputs (run terraform init there, as the dev-tester)" \
-         staging-aws-smoke staging-route-smoke staging-browser
+    || staging_block "terraform/staging is not initialised; the staging smoke reads its outputs (run terraform init there, as the dev-tester)" \
+         staging-aws-smoke
 
-  # Staging's CloudFront domain, read through the shared reader in a subshell so
-  # its identity check and temp-file trap stay out of the runner's own shell.
-  cf="$( (
-    # shellcheck source=scripts/lib/terraform-output.sh
-    source scripts/lib/terraform-output.sh
-    tf_output_read terraform/staging cloudfront_domain >/dev/null 2>&1 && printf '%s' "$TF_OUTPUT_VALUE"
+  # Staging's address is the one the staging host records it serves, asked of
+  # the host once it confirms it is staging. In a subshell so the shared
+  # library's assignments stay out of the runner's own shell.
+  site="$( (
+    # shellcheck source=scripts/lib/host-env-remote.sh
+    source scripts/lib/host-env-remote.sh
+    host_address_for staging >/dev/null 2>&1 && printf '%s' "$HOST_ADDRESS"
   ) || true)"
-  if [[ -z "$cf" ]]; then
-    staging_block "the staging site address (terraform/staging output cloudfront_domain) could not be read (run terraform init there, as the dev-tester)" \
+  if [[ -z "$site" ]]; then
+    staging_block "the staging site address could not be read from the staging host; ${fix_wire}" \
       staging-route-smoke staging-browser
-  elif ! curl -fsS -o /dev/null --max-time 15 "https://${cf}/health/ready" 2>/dev/null; then
-    staging_block "the staging site at https://${cf} does not answer its readiness check; deploy staging or wait for it to come up" \
+  elif ! curl -fsS -o /dev/null --max-time 15 "${site}/health/ready" 2>/dev/null; then
+    staging_block "the staging site at ${site} does not answer its readiness check; deploy staging or wait for it to come up" \
       staging-route-smoke staging-browser
   else
-    STAGING_CF="$cf"
+    STAGING_URL="$site"
   fi
 
   # Staging's dataset, which the invariants row reads on the host: counts only.
@@ -1685,8 +1686,8 @@ realdata_invariants_verdict() {
 # parameter reads, a KMS signature).
 gate_staging_aws_smoke() {
   staging_blocked staging-aws-smoke && return 1
-  env -u SMOKE_BASE_URL -u DEPLOYED_BASE_URL \
-    SMOKE_TARGET_ENV="$STAGING_SMOKE_TARGET_ENV" npm run test:smoke
+  env -u DEPLOYED_BASE_URL -u SMOKE_TARGET_ENV \
+    npm run test:smoke -- --target "$STAGING_SMOKE_TARGET_ENV"
 }
 
 # The whole-population invariants, run on the staging host against its live
@@ -1705,8 +1706,8 @@ gate_staging_realdata_invariants() {
 # a production target, which this row never is.
 gate_staging_route_smoke() {
   staging_blocked staging-route-smoke && return 1
-  env -u SMOKE_BASE_URL -u X_ORIGIN_VERIFY_SECRET \
-    BASE_URL="https://${STAGING_CF}" SMOKE_ENV="$STAGING_ROUTE_SMOKE_ENV" \
+  env -u X_ORIGIN_VERIFY_SECRET \
+    BASE_URL="${STAGING_URL}" SMOKE_ENV="$STAGING_ROUTE_SMOKE_ENV" \
     bash scripts/smoke-local.sh
 }
 
@@ -1714,7 +1715,7 @@ gate_staging_route_smoke() {
 # the browser's policy-violation report POST aborted before it is sent.
 gate_staging_browser() {
   staging_blocked staging-browser && return 1
-  env -u DEPLOYED_BASE_URL bash scripts/test-deployed.sh "$STAGING_BROWSER_TARGET"
+  env -u DEPLOYED_BASE_URL bash scripts/test-deployed.sh --target "$STAGING_BROWSER_TARGET"
 }
 
 # Secret scan, matching CI's gitleaks job. The scan itself lives in a script of

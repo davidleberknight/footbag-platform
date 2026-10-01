@@ -150,7 +150,7 @@ missing or malformed file rather than crashing opaquely.
 
 The member load's private inputs degrade by design rather than by accident. A
 machine without them loads anyway and every run says which it had. A production
-load (`DEPLOY_TARGET=footbag-production`) refuses without the rulings, and a
+load (`deploy_to_aws.sh --target production`) refuses without the rulings, and a
 production extract additionally refuses without the board roster, because the
 roster only takes effect where the flag is written into the intermediate CSV.
 Two dead ends refuse before any stage runs rather than failing late from inside

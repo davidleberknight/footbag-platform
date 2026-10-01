@@ -52,8 +52,7 @@ source "${SCRIPT_DIR}/lib/email-template-digest.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
-TARGET="staging"
-SSH_ALIAS=""
+TARGET=""
 AWS_PROFILE_ARG=""
 PROBE_FILE=""
 SKIP_REMOTE=0
@@ -81,10 +80,6 @@ while [[ $# -gt 0 ]]; do
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
-    --ssh-alias)
-      SSH_ALIAS="${2:-}"
-      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
-      ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
       shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
@@ -111,9 +106,7 @@ done
 
 require_target "$TARGET" staging production || exit 2
 
-if [[ -z "$SSH_ALIAS" ]]; then
-  SSH_ALIAS="footbag-$TARGET"
-fi
+SSH_ALIAS="footbag-$TARGET"
 
 # -----------------------------------------------------------------------------
 # Probe results. Everything defaults to unknown; live probes (or the probe
@@ -182,8 +175,11 @@ else
     echo ""
     ENV_RAW=""
     REPORT_RAW=""
+    # A host that does not confirm it is the target reports nothing: its rows
+    # would describe the other environment under this one's name.
     if require_operator_stdin "scripts/bringup-status.sh --target $TARGET" \
          "$SSH_ALIAS" "$TARGET" \
+       && require_host_is "$SSH_ALIAS" "$TARGET" "$HOST_ENV_PATH" \
        && host_env_fetch "$SSH_ALIAS" "$TMP_ENV" "$TMP_REPORT" "$HOST_ENV_PATH"; then
       ENV_RAW="$(cat "$TMP_ENV")"
       REPORT_RAW="$(cat "$TMP_REPORT")"
@@ -204,7 +200,10 @@ else
     # Mode 0644 by design, so this needs no root and no password. It is what
     # the last rebuild deploy recorded, and the rebuild is the only deploy that
     # reseeds email wording.
-    PROVENANCE_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat /srv/footbag/deployed-from" 2>/dev/null </dev/null || true)"
+    PROVENANCE_RAW=""
+    if [[ -n "$ENV_RAW" ]]; then
+      PROVENANCE_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat /srv/footbag/deployed-from" 2>/dev/null </dev/null || true)"
+    fi
     if [[ -n "$PROVENANCE_RAW" ]]; then
       P[DEPLOYED_EMAIL_TEMPLATES]="$(grep -oE 'email_templates=[a-f0-9]+' <<< "$PROVENANCE_RAW" | tail -1 | cut -d= -f2 || true)"
     fi

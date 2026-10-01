@@ -1510,6 +1510,8 @@ function handlePaymentIntentFailed(event: StripeWebhookEvent): WebhookOutcome {
   return { outcome: 'processed' };
 }
 
+// The platform issues no refunds. This records one issued at the provider
+// anyway, from the Stripe Dashboard, so the local books match what Stripe holds.
 function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
   const obj = event.data?.object as
     | { id?: string; payment_intent?: unknown; amount?: unknown; amount_refunded?: unknown; currency?: unknown }

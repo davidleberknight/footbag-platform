@@ -51,7 +51,7 @@ found. Two private inputs live in the maintainers' private checkout under
 `private_data/stage_a_overrides/`, which the runner resolves by canonical path
 rather than from any variable: the recorded account rulings, and the board
 roster of directors sitting at cutover with the paid tier under each seat. A
-production build (`DEPLOY_TARGET=footbag-production`) makes the rulings
+production build (`deploy_to_aws.sh --target production`) makes the rulings
 mandatory, and the roster too at extract, refusing with the symlink named; a
 machine without the checkout loads anyway and says so. `FOOTBAG_CUTOVER_DATE` is
 optional and defaults to the day the run happens. The retired `--final-export`

@@ -121,6 +121,18 @@ describe('destructive-deploy cutover guard', () => {
     expect(r.stderr).toMatch(/post_cutover: present/);
   });
 
+  it('reads a marker padded with whitespace as present, as the Python guard does', () => {
+    // A padded value read as absent would let the database-replacing deploy
+    // through on a live database.
+    const r = runGuard({
+      ENV_PATH: envFile('env-none-db-padded', false),
+      DB_PATH: dbFile('db-padded.db', ' "1" \n'),
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/markers disagree/);
+    expect(r.stderr).toMatch(/post_cutover: present/);
+  });
+
   it('refuses when only the env file carries the marker and the database is readable', () => {
     const r = runGuard({
       ENV_PATH: envFile('env-yes-db-no', true),

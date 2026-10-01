@@ -79,9 +79,9 @@ describe('provision-url-screening-key.sh — invocation', () => {
   });
 
   it('refuses an environment that is not staging, production or both', () => {
-    const result = runScript(['--env', 'prod', 'status']);
+    const result = runScript(['--target', 'prod', 'status']);
     expect(result.exitCode).toBe(2);
-    expect(result.stderr).toMatch(/--env must be 'staging', 'production' or 'both'/);
+    expect(result.stderr).toMatch(/--target must be 'staging', 'production' or 'both'/);
   });
 
   it('defaults to both environments, so one is never keyed and the other forgotten', () => {
@@ -96,7 +96,7 @@ describe('provision-url-screening-key.sh — invocation', () => {
     // and block; the condition under test is the unattended run, where reading a
     // key from stdin would be worse than refusing, because a caller redirecting
     // a credential file in would have its first line consumed as the key.
-    const result = spawnSync('setsid', ['bash', SCRIPT, '--env', 'staging', 'store'], {
+    const result = spawnSync('setsid', ['bash', SCRIPT, '--target', 'staging', 'store'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
       env: { ...process.env, ...NO_AWS_CREDENTIALS, ...IDENTITY_ENV },
@@ -112,7 +112,7 @@ describe('provision-url-screening-key.sh — invocation', () => {
 
 describe('provision-url-screening-key.sh — what it accepts as a key file', () => {
   it('refuses a path that does not exist', () => {
-    const result = runScript(['--env', 'staging', '--key-file', '/nonexistent/sb-key', 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', '/nonexistent/sb-key', 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/is not a regular file/);
   });
@@ -122,7 +122,7 @@ describe('provision-url-screening-key.sh — what it accepts as a key file', () 
     // rather than match, so without this refusal a directory reached AWS.
     const dir = mkdtempSync(join(tmpdir(), 'footbag-test-sb-dir-'));
     mkdirSync(join(dir, 'inner'));
-    const result = runScript(['--env', 'staging', '--key-file', join(dir, 'inner'), 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', join(dir, 'inner'), 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/is not a regular file/);
   });
@@ -131,7 +131,7 @@ describe('provision-url-screening-key.sh — what it accepts as a key file', () 
     const target = keyFile('AIzaSyExampleKeyValue');
     const link = `${target}-link`;
     symlinkSync(target, link);
-    const result = runScript(['--env', 'staging', '--key-file', link, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', link, 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/is a symlink/);
     // The target survives: refusing happens before anything destructive.
@@ -140,7 +140,7 @@ describe('provision-url-screening-key.sh — what it accepts as a key file', () 
 
   it('refuses a key file the rest of the workstation can read', () => {
     const path = keyFile('AIzaSyExampleKeyValue', 0o644);
-    const result = runScript(['--env', 'staging', '--key-file', path, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/has mode 644; expected 600 or 400/);
     // The remedy creates it restricted rather than fixing it afterwards.
@@ -154,7 +154,7 @@ describe('provision-url-screening-key.sh — what it accepts as a key file', () 
     // the AWS call rather than at any local refusal: that is the boundary this
     // suite can safely test up to.
     const path = keyFile('AIzaSyExampleKeyValue', 0o400);
-    const result = runScript(['--env', 'staging', '--key-file', path, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(result.stderr).not.toMatch(/expected 600 or 400/);
     expect(result.stderr).not.toMatch(/is not a regular file/);
     expect(result.stderr).not.toMatch(/contains a newline|contains whitespace|is empty/);
@@ -168,14 +168,14 @@ describe('provision-url-screening-key.sh — what it accepts as a key file', () 
 describe('provision-url-screening-key.sh — key shape checks before any write', () => {
   it('refuses an empty key file', () => {
     const path = keyFile('');
-    const result = runScript(['--env', 'staging', '--key-file', path, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/is empty/);
   });
 
   it('refuses a newline, which would be stored as part of the key', () => {
     const path = keyFile('AIzaSyExampleKeyValue\n');
-    const result = runScript(['--env', 'staging', '--key-file', path, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/contains a newline/);
     // The remedy is named, because the obvious way to write a file adds one,
@@ -186,14 +186,14 @@ describe('provision-url-screening-key.sh — key shape checks before any write',
 
   it('refuses embedded whitespace', () => {
     const path = keyFile('AIzaSy Example Key');
-    const result = runScript(['--env', 'staging', '--key-file', path, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/contains whitespace/);
   });
 
   it("refuses Terraform's placeholder, which is not a key", () => {
     const path = keyFile('TODO-set-via-cli-after-apply');
-    const result = runScript(['--env', 'staging', '--key-file', path, 'store']);
+    const result = runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/holds Terraform's placeholder/);
   });
@@ -202,7 +202,7 @@ describe('provision-url-screening-key.sh — key shape checks before any write',
     // A refused file is still the operator's to correct, and destroying it
     // would make a typo cost them the key.
     const path = keyFile('AIzaSy Example Key');
-    runScript(['--env', 'staging', '--key-file', path, 'store']);
+    runScript(['--target', 'staging', '--key-file', path, 'store']);
     expect(existsSync(path)).toBe(true);
   });
 });
@@ -222,7 +222,7 @@ describe('provision-url-screening-key.sh — documented contract', () => {
   });
 
   it('checks every destination before writing any of them', () => {
-    // Otherwise --env both can write one environment, fail on the second, and
+    // Otherwise --target both can write one environment, fail on the second, and
     // leave the operator with a partial state and a misleading remedy.
     const checkLoop = source.indexOf('Every destination is checked before any of them is written');
     const putAt = source.indexOf('aws ssm put-parameter');

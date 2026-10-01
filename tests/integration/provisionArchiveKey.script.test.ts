@@ -45,7 +45,7 @@ function run(args: string[]) {
 
 describe('provision-archive-signing-key.sh — each environment owns its own keypair', () => {
   it('names the generated keypair after the environment', () => {
-    const result = run(['--env', 'production', '--key-dir', keyDir, 'generate']);
+    const result = run(['--target', 'production', '--key-dir', keyDir, 'generate']);
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(keyDir, 'archive-signing-key-production.pem'))).toBe(true);
@@ -54,8 +54,8 @@ describe('provision-archive-signing-key.sh — each environment owns its own key
   });
 
   it('gives two environments two different keys in one key directory', () => {
-    expect(run(['--env', 'staging', '--key-dir', keyDir, 'generate']).exitCode).toBe(0);
-    expect(run(['--env', 'production', '--key-dir', keyDir, 'generate']).exitCode).toBe(0);
+    expect(run(['--target', 'staging', '--key-dir', keyDir, 'generate']).exitCode).toBe(0);
+    expect(run(['--target', 'production', '--key-dir', keyDir, 'generate']).exitCode).toBe(0);
 
     const staging = readFileSync(join(keyDir, 'archive-signing-key-staging.pub'), 'utf-8');
     const production = readFileSync(join(keyDir, 'archive-signing-key-production.pub'), 'utf-8');
@@ -64,10 +64,10 @@ describe('provision-archive-signing-key.sh — each environment owns its own key
   });
 
   it('emits the tfvars block from this environment’s own public key', () => {
-    run(['--env', 'staging', '--key-dir', keyDir, 'generate']);
-    run(['--env', 'production', '--key-dir', keyDir, 'generate']);
+    run(['--target', 'staging', '--key-dir', keyDir, 'generate']);
+    run(['--target', 'production', '--key-dir', keyDir, 'generate']);
 
-    const result = run(['--env', 'production', '--key-dir', keyDir, 'tfvars']);
+    const result = run(['--target', 'production', '--key-dir', keyDir, 'tfvars']);
     const production = readFileSync(join(keyDir, 'archive-signing-key-production.pub'), 'utf-8');
     const stagingBody = readFileSync(join(keyDir, 'archive-signing-key-staging.pub'), 'utf-8')
       .split('\n')
@@ -93,7 +93,7 @@ describe('provision-archive-signing-key.sh — a key predating the convention', 
   it('refuses to emit tfvars from it rather than passing another environment’s key on', () => {
     writeUnscopedKey();
 
-    const result = run(['--env', 'production', '--key-dir', keyDir, 'tfvars']);
+    const result = run(['--target', 'production', '--key-dir', keyDir, 'tfvars']);
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).not.toContain('archive_signing_public_key');
@@ -104,7 +104,7 @@ describe('provision-archive-signing-key.sh — a key predating the convention', 
   it('refuses to generate over it, and names both ways to resolve it', () => {
     writeUnscopedKey();
 
-    const result = run(['--env', 'production', '--key-dir', keyDir, 'generate']);
+    const result = run(['--target', 'production', '--key-dir', keyDir, 'generate']);
 
     expect(result.exitCode).toBe(1);
     expect(existsSync(join(keyDir, 'archive-signing-key-production.pem'))).toBe(false);
@@ -112,7 +112,7 @@ describe('provision-archive-signing-key.sh — a key predating the convention', 
   });
 
   it('generates normally once no unscoped key is present', () => {
-    const result = run(['--env', 'production', '--key-dir', keyDir, 'generate']);
+    const result = run(['--target', 'production', '--key-dir', keyDir, 'generate']);
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(keyDir, 'archive-signing-key-production.pem'))).toBe(true);

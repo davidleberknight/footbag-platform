@@ -31,12 +31,12 @@
 # is never printed. Only the public half is ever displayed.
 #
 # Usage:
-#   scripts/provision-archive-signing-key.sh --env staging status
-#   scripts/provision-archive-signing-key.sh --env staging --profile <p> all
-#   scripts/provision-archive-signing-key.sh --env production --profile <p> store
+#   scripts/provision-archive-signing-key.sh --target staging status
+#   scripts/provision-archive-signing-key.sh --target staging --profile <p> all
+#   scripts/provision-archive-signing-key.sh --target production --profile <p> store
 #
 # Flags:
-#   --env staging|production   Target environment (required).
+#   --target staging|production   Target environment (required).
 #   --profile <p>              AWS profile; else the identity this workstation's
 #                              tooling supplies and proves for the run.
 #   --key-dir <path>           Operator key directory (default ~/AWS).
@@ -63,9 +63,9 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --env)
+    --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
@@ -83,7 +83,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
-  echo "ERROR: --env must be 'staging' or 'production'" >&2
+  echo "ERROR: --target must be 'staging' or 'production'" >&2
   exit 2
 fi
 if [[ -z "$ACTION" ]]; then

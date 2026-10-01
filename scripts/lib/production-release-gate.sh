@@ -18,8 +18,7 @@
 # built or shipped.
 #
 # WHAT IT REFUSES, each with the reason and what to do:
-#   - SKIP_SMOKE=yes or SKIP_TESTS=yes, which switch off a verification step, and
-#     SMOKE_BASE_URL, which would point the post-deploy check at another host;
+#   - SKIP_SMOKE=yes or SKIP_TESTS=yes, which switch off a verification step;
 #   - FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK or FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT, which
 #     ship code past the schema-drift check, and FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS,
 #     which kills whatever holds the database lock without asking;
@@ -112,8 +111,6 @@ production_release_gate_require() {
     && problems+=("SKIP_SMOKE=yes: a production deploy always verifies staging before and production after; unset it")
   [[ "${SKIP_TESTS:-no}" == "yes" ]] \
     && problems+=("SKIP_TESTS=yes: a production deploy never skips its tests; unset it")
-  [[ -n "${SMOKE_BASE_URL:-}" ]] \
-    && problems+=("SMOKE_BASE_URL is set: on production the post-deploy check always targets production itself; unset it")
   # Refused whatever value they carry: each one switches off a safety step of the
   # deploy, and an unexpected value is no reason to guess it means "off".
   [[ -n "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" ]] \

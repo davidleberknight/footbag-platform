@@ -298,6 +298,7 @@ fi
 echo "== set-host-env: ${TARGET} =="
 echo ""
 echo "Resolved values:"
+echo "  FOOTBAG_ENV=${TARGET}    (the host's record of which environment it is; never changed once set)"
 echo "  TRUST_PROXY=${TRUST_PROXY_VALUE}    expected for ${TARGET}: $(expected_trust_proxy_note "$TARGET")"
 echo "  PUBLIC_BASE_URL=${PUBLIC_URL_VALUE:-<none: not supplied in this mode>}"
 echo "  BACKUP_S3_BUCKET=${BUCKET_VALUE}"
@@ -360,6 +361,22 @@ else
   HOST_ENV_SHA_AT_READ="$HOST_ENV_FETCHED_SHA256"
 fi
 
+# ---- The host's record of which environment it is ---------------------------
+#
+# Every other script that touches a host asks it this first, through
+# require_host_is, and refuses a host with no answer. This is the step that
+# writes the answer, so it cannot ask in the same way: on a new host there is
+# nothing recorded yet. It applies the same rule where the value is written
+# instead. A recorded value naming the other environment is refused, because
+# overwriting it would turn the other environment's host into this one by
+# label; a missing one is recorded as this run's target.
+RECORDED_ENV="$(awk -F= '$1=="FOOTBAG_ENV" {sub(/^[^=]*=/,""); print}' "$OLD_LOCAL" | tail -1)"
+if [[ -n "$RECORDED_ENV" && "$RECORDED_ENV" != "$TARGET" ]]; then
+  echo "ERROR: ${SSH_ALIAS} records FOOTBAG_ENV=${RECORDED_ENV}, but this run is --target ${TARGET}." >&2
+  echo "       Nothing was changed. Check the HostName for ${SSH_ALIAS} in ~/.ssh/config." >&2
+  exit 1
+fi
+
 # ---- Rewrite ----------------------------------------------------------------
 
 # Replace-or-append, collapsing duplicate assignments so the file's last-wins
@@ -368,8 +385,15 @@ fi
 TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" \
 AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" \
 AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" \
-SI_VALUE="${SES_SENDER_VALUE:-}" PU_VALUE="${PUBLIC_URL_VALUE:-}" awk '
-  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0; seen_si = 0; seen_pu = 0 }
+SI_VALUE="${SES_SENDER_VALUE:-}" PU_VALUE="${PUBLIC_URL_VALUE:-}" EV_VALUE="$TARGET" awk '
+  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0; seen_si = 0; seen_pu = 0; seen_ev = 0 }
+  /^FOOTBAG_ENV=/ {
+    # Already checked above to be this target or absent, so writing the target
+    # here only collapses duplicates; it never changes which environment a host
+    # says it is.
+    if (!seen_ev) { print "FOOTBAG_ENV=" ENVIRON["EV_VALUE"]; seen_ev = 1 }
+    next
+  }
   /^PUBLIC_BASE_URL=/ {
     # Left alone when this mode supplied no value, matching the sender identity:
     # a fixture that predates this value keeps whatever it carried rather than
@@ -418,6 +442,7 @@ SI_VALUE="${SES_SENDER_VALUE:-}" PU_VALUE="${PUBLIC_URL_VALUE:-}" awk '
   }
   { print }
   END {
+    if (!seen_ev) print "FOOTBAG_ENV=" ENVIRON["EV_VALUE"]
     if (!seen_tp) print "TRUST_PROXY=" ENVIRON["TP_VALUE"]
     if (!seen_bk) print "BACKUP_S3_BUCKET=" ENVIRON["BK_VALUE"]
     if (!seen_at) print "ALARM_TOPIC_ARN=" ENVIRON["AT_VALUE"]

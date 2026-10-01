@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import {
   mkdtempSync,
@@ -477,6 +478,7 @@ describe('arming.sh — the email switch', () => {
       [
         '#!/usr/bin/env bash',
         'set -euo pipefail',
+        hostIdentityAnswer(),
         'if [[ "${1:-}" == "-G" ]]; then',
         '  echo "hostname 198.51.100.9"',
         // The account the alias connects as, which is what selects the

@@ -63,6 +63,7 @@ interface SeedOpts {
   email_status?: 'ok' | 'bounced' | 'complained' | 'suppressed';
   login_email?: string | null;
   subscribe_status?: 'subscribed' | 'unsubscribed';
+  deceased?: boolean;
 }
 
 function seedMember(opts: SeedOpts = {}): { id: string; slug: string } {
@@ -73,7 +74,7 @@ function seedMember(opts: SeedOpts = {}): { id: string; slug: string } {
     if (opts.tier && opts.tier !== 'tier0') {
       createMemberAtTier(db, { id, slug, tier: opts.tier });
     } else {
-      insertMember(db, { id, slug });
+      insertMember(db, { id, slug, is_deceased: opts.deceased ? 1 : 0 });
     }
     if (opts.expires_at) {
       insertActivePlayerGrant(db, {
@@ -257,6 +258,23 @@ describe('runDailyPass — the day-of ending notice', () => {
     expect(readLatestGrantChangeType(m.id)).toBe('expire');
     expect(readOutboxForMember(m.id)).toBe(0);
   });
+
+  // Defect caught: suppressing mail to a deceased member by dropping them from
+  // the candidate set would also stop their expire row being written, leaving
+  // them an Active Player forever; or the ending notice reaches their family.
+  it('a deceased member is expired on the ledger but not mailed', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: isoDayOffset(now, -1), deceased: true });
+
+    const r = expirySvc.runDailyPass({ now });
+
+    // This is the only deceased member the file seeds, so the pass's count of
+    // them is exact even though the other counters aggregate across cases.
+    expect(r.skipped_deceased).toBe(1);
+    expect(readLatestGrantChangeType(m.id)).toBe('expire');
+    expect(readOutboxForMember(m.id)).toBe(0);
+    expect(readReminderSentCountForMember(m.id)).toBe(0);
+  });
 });
 
 describe('runDailyPass — expiry ledger', () => {
@@ -407,6 +425,7 @@ describe('runDailyPass — return shape (counter contract)', () => {
       skipped_email_suppressed: expect.any(Number),
       skipped_already_sent:     expect.any(Number),
       skipped_missing_email:    expect.any(Number),
+      skipped_deceased:         expect.any(Number),
     });
   });
 });
