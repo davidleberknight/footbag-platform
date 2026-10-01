@@ -207,9 +207,8 @@ describe('Presentation-hierarchy contract — dict-card-header is removed everyw
     for (const url of [
       '/freestyle/tricks',
       '/freestyle/tricks?view=family',
-      '/freestyle/tricks?view=category',
-      '/freestyle/tricks?view=component',
-      '/freestyle/tricks?view=topology',
+      '/freestyle/tricks?view=set',
+      '/freestyle/tricks?view=modifier',
     ]) {
       const res = await page(url);
       expect(res.status).toBe(200);

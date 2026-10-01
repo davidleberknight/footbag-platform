@@ -146,8 +146,7 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
     // operator/modifier contributions: the operator rows are four
     // axis-aligned rows (Set / Entry / Midtime / Positional)
     // labeled as a pedagogical organizing convention — NOT canonical
-    // taxonomy — mirroring the operator-board grouping on the
-    // /freestyle/tricks?view=movement-system surface and the Freestyle
+    // taxonomy — mirroring the operator-board grouping in the Freestyle
     // Concepts modifier reference chapter.
     const res = await page('/freestyle/add-analysis');
     const components = [

@@ -43,7 +43,7 @@ describe('Freestyle Concepts — Reference & History topic (destination card + i
 
     const topicAt   = html.indexOf('id="chapter-reference-history"');
     const sectionAt = html.indexOf('id="section-reference-history"');
-    const firstTail = html.indexOf('id="connective-panels"');
+    const firstTail = html.indexOf('id="inside-clipper-neighborhood"');
     const lastTail  = html.indexOf('id="section-sources"');
     const topicEnd  = html.indexOf('</details>', lastTail);
 
@@ -61,7 +61,6 @@ describe('Freestyle Concepts — Reference & History topic (destination card + i
   it('preserves every tail anchor and their order', async () => {
     const html = await concepts();
     const order = [
-      'connective-panels',
       'inside-clipper-neighborhood',
       'section-advanced-reference',
       'section-media-claim-scope',

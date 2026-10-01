@@ -521,7 +521,7 @@ fi
 # site-frame flash banner, which is the header strip rather than a page message.
 if check "message classes on announcing elements in src/views/**" src/views; then
 message_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"[^>]*role="(status|alert)"' src/views/ \
-  | grep -vE 'class="[^"]*(form-success-banner|form-notice|form-error-banner|notice-warn|form-field-error|form-field-warning|flash-banner|retirement-notice)' \
+  | grep -vE 'class="[^"]*(form-success-banner|form-notice|form-error-banner|notice-warn|form-field-error|form-field-warning|flash-banner)' \
   || true)
 if [ -n "$message_class_hits" ]; then
   echo "$message_class_hits" >&2

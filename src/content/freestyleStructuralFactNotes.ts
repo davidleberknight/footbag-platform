@@ -12,9 +12,6 @@
  * surfing, floating, splicing, warping, backside, shooting) are intentionally
  * absent: their mechanics are not settled, so no note is shown rather than a
  * guessed one.
- *
- * Movement-system and movement-neighborhood notes are NOT here; those reuse the
- * curator-authored axis / topology definitions (first sentence) at the call site.
  */
 export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   // ── Paraphrased from curator feel cards (jargon removed) ──

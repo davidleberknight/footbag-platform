@@ -11,7 +11,7 @@ Use this skill (not general editing) when a task does any of the following:
 
 - Adds a new browse view at `/freestyle/tricks?view={new}`
 - Moves an existing browse view off legacy markup (table, spreadsheet, inline `<li>` rows) onto the shared `<dictionary-trick-row>` partial
-- Renames a view (the historical `?view=sets → ?view=component` is the precedent)
+- Renames a view (a renamed view also needs server-side alias resolution in the service)
 - Adds a new grouping wrapper that consumes existing `DictionaryTrickCard[]` data
 - Changes within-group ordering rules for any browse view
 
@@ -44,10 +44,10 @@ Step 6 → VERIFY and hand off
   contract across every view. Read it before changing a view; it is what will fail if the change
   breaks uniformity.
 - One shipped view whose shape resembles the new work, read in `src/views/freestyle/tricks.hbs`:
-  By modifier for cluster-then-group nesting, By family for banded sub-groups, By component for
-  axis-then-group nesting, Movement System for progressive disclosure.
+  By modifier for cluster-then-group nesting, By family for banded sub-groups, By set for flat
+  per-set sections.
 - The existing group type for the view being changed (`FreestyleTrickAddGroup`,
-  `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`).
+  `FreestyleFamilyGroup`, `FreestyleSetViewGroup`, `FreestyleModifierGroup`).
 
 A new browse view needs curator approval before it joins `allowedViews`. That is a decision for the
 human, not something this skill authorises.
@@ -80,14 +80,12 @@ const buildGroup = (key: string, rows: FreestyleTrickRowWithStatus[]): Freestyle
 
 For a brand-new view, add a `*BrowseView` interface in `freestyleService.ts`, add the view key to
 `FreestyleTricksActiveView` and `allowedViews`, and add the view model to
-`FreestyleTricksIndexContent`. `ComponentBrowseView` is the multi-axis precedent;
-`TopologyBrowseView` is the single-axis observational one.
+`FreestyleTricksIndexContent`.
 
 ### Required invariants (every browse view)
 
 - **Sort within groups: ADD ascending, then trick name alphabetical.** Documented per-view
-  exceptions: the family view puts the family anchor first, then ADD ascending; the component view
-  orders its groups by priority then alphabetically, while rows inside a group keep ADD-then-name.
+  exception: the family view puts the family anchor first, then ADD ascending.
 - **Empty groups hidden** via an `entries.length > 0` filter. A per-view exception needs curator
   approval.
 - **Modifier-stub rows excluded** at the row-filtering step. Modifier rows are foreign-key targets,
@@ -172,7 +170,7 @@ Each view ships a focused integration test at
 3. **Heading system**: the group heading uses `.section-heading`, so a bespoke one cannot creep back
 4. **Within-group ordering**: assert the sort with an example spanning three or more ADD values
 5. **Empty-group hiding**: groups with zero members render no anchor
-6. **Intentional duplication** where a trick can appear in several groups (component, topology)
+6. **Intentional duplication** where a trick can appear in several groups (set, modifier)
 7. **Row contract**: the view renders `dict-trick-row-stack` and at least one `data-trick-slug=`
 
 The cases read one shared response per path, per the repeated-requests anti-pattern in `.claude/rules/testing.md`.
@@ -192,7 +190,7 @@ If moving off legacy markup, find the old assertions for that view, most likely 
 ### Test seeding requirements
 
 - Modifier links: `insertFreestyleTrickModifier` + `insertFreestyleTrickModifierLink`, required when
-  membership depends on links (component, topology, set, modifier, movement-system).
+  membership depends on links (set, modifier).
 - Operational notation: set `operational_notation` on seeded tricks so the row renders role-tagged
   token spans; the stack assertion alone only checks the wrapper.
 - Anchor coverage: seed at least one trick per group you assert renders.
@@ -231,8 +229,7 @@ The change MUST NOT:
 
 ## Naming convention
 
-- View key: lowercase, hyphenated when compound (`add`, `family`, `set`, `category`, `modifier`,
-  `component`, `topology`, `movement-system`, `dex-count`)
+- View key: lowercase, hyphenated when compound (`add`, `family`, `set`, `modifier`)
 - URL: `/freestyle/tricks?view={key}`
 - Anchor ID: `{key}-{slug}` for groups; `axis-{name}` for sub-axes
 - Group wrapper class: `.trick-{key}-group`
@@ -242,16 +239,16 @@ The change MUST NOT:
 
 Before adding a new view, decide its layer:
 
-- **Canonical view** (ADD, family, category, set): groups derived from canonical columns. No framing
+- **Canonical view** (ADD, family, set): groups derived from canonical columns. No framing
   needed beyond an ordinary intro.
-- **Observational view** (component, topology, movement-system, future symbolic axes): groups
+- **Observational view** (future symbolic axes): groups
   derived from observational data such as modifier links or curator-tagged bases. Required: a
   status label at the top of the view stating in plain words that it is exploratory and not an
   official grouping, and a closing footer cross-referencing the canonical view.
 
-The shipped conventions are `<p class="browse-view-status-label">` for the label and
-`<p class="symbolic-layer-footer">` for the footer. The `symbolic-layer-badge` chip belongs to the
-trick-detail and glossary surfaces, not to a browse view.
+The shipped footer convention is `<p class="symbolic-layer-footer">`. No observational view ships
+today, so the first one defines its status-label class in `style.css`. The `symbolic-layer-badge`
+chip belongs to the trick-detail and glossary surfaces, not to a browse view.
 
 ## Cross-references
 

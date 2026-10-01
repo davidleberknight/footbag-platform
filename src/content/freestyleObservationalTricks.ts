@@ -10,7 +10,7 @@
  *
  *   - Observational entries NEVER appear on canonical surfaces
  *     (landing core-tricks grid, ADD analysis, glossary terms,
- *     trick-detail pages, family/movement-system/topology views).
+ *     trick-detail pages, dictionary browse views).
  *   - Observational entries carry a visually distinct "tracked tag"
  *     (#folk-slug, dashed style) for discoverability, NOT a canonical
  *     hashtag chip. The distinct style must never imply official status.

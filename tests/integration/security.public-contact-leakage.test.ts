@@ -40,8 +40,8 @@ const PUBLIC_ROUTES = [
 // Email-shaped strings that legitimately appear on a public page and are NOT
 // member contact fields. These are organizational/archival footbag.org
 // addresses, deliberately published in service-shaped copy:
-//   - footbag@footbag.org  -- 1995 mailing-list address cited in the
-//     Jobs-notation history on /freestyle/glossary (archival, in a <code>).
+//   - footbag@footbag.org  -- 1995 mailing-list address in the header of Ben
+//     Job's message, reproduced verbatim on /freestyle/notation-article.
 //   - announce@footbag.org -- IFPA community-announcements address shown in
 //     member-benefit copy (/members).
 //   - admin@footbag.org    -- IFPA legal/privacy/admin contact shown on /legal.

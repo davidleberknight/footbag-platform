@@ -191,9 +191,7 @@
       often blurred them: whirl, osis, mirage, butterfly, and legover are
       productive lineages defined by their mechanic, while sole, cloud, knee,
       cross-body sole, and the head/neck/shoulder and flying-surface variants are
-      surface groupings, not canonical families. Browse the alternative surfaces
-      together under <a href="/freestyle/tricks?view=movement-system">Movement
-      system</a>.
+      surface groupings, not canonical families.
     </p>
 
     <h3 class="section-heading">Foundational surfaces</h3>
@@ -942,10 +940,7 @@
       grouped together because the community reasons about them together, not
       because there is one airtight mechanic. <strong>illusion / pickup /
       legover</strong> share a leggy-over feel that resists a single boundary;
-      they stay three separate parents (if a leggy super-family is ever
-      recognized, it belongs on the
-      <a href="/freestyle/tricks?view=topology">movement-neighborhood</a> axis,
-      not as a parent-family merge).
+      they stay three separate parents.
       <strong>eclipse / butterfly-swirl</strong> and the <strong>drifter</strong>
       lineage are historical and cultural clusters as much as structural ones.
       The browse is a learning aid; some of its lines are drawn by usage and
@@ -1255,8 +1250,8 @@
       space of tricks they generate is effectively complete.
     </p>
     <p class="text-muted">
-      Source: Ben Job, <em>By the Way, Not the Name</em>, message to
-      <code>footbag@footbag.org</code>, October 31, 1995.
+      Source: Ben Job, <em>By the Way, Not the Name</em>, message to the
+      footbag.org mailing list, October 31, 1995.
     </p>
     <p>
       Pendulum and Rake show how the same elements can name two distinct
@@ -1808,8 +1803,8 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       <p>
         Multi-bag rows currently sit under <code>category=multi-bag</code> and
         ontology status "boundary object" pending a future dedicated
-        multi-bag freestyle module. The single-bag dictionary axes (family,
-        movement system, topology, sets) do not classify multi-bag rows.
+        multi-bag freestyle module. The single-bag dictionary views (ADD,
+        family, set, modifier) do not classify multi-bag rows.
       </p>
     </details>
 
@@ -1834,7 +1829,7 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
         The platform preserves historical ADD doctrine (the published value
         stays canonical) while allowing structural and mechanical relationships
         to be discussed separately on the per-trick detail pages and via the
-        movement-system, family, and topology browse axes. The same pattern
+        family and modifier browse views. The same pattern
         recurs at other ADD layers (1-ADD body kicks vs anatomical stalls;
         3-ADD compounds whose execution difficulty diverges from their flat
         ADD-arithmetic). ADD is one axis of difficulty, not all of it.
@@ -2244,67 +2239,9 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     <p>
       Nothing below is required to understand the system; it is lookup. It
       matters because freestyle's vocabulary carries its own history: folk and
-      historical names, movement-neighborhood lenses, and the source
-      acknowledgements behind the canonical readings.
+      historical names and the source acknowledgements behind the canonical
+      readings.
     </p>
-
-  {{#if content.connectivePanels.length}}
-  <section class="content-section glossary-connective-section" id="connective-panels">
-    <h2 class="section-heading">
-      Family &amp; Topology Concepts
-      <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer: supplementary; does not change canonical classifications">observational</span>
-    </h2>
-    <p class="section-intro">
-      Observational <em>movement neighborhoods</em>: relationship
-      browsing for a selected cohort of high-value terms. Each
-      panel surfaces how a term lives in practice: tricks that use it,
-      related symbolic groups, and (where relevant) operational notation.
-      The canonical entries above remain authoritative.
-    </p>
-    <p class="section-intro detail-muted">
-      <strong>This section is intentionally incomplete.</strong> The
-      panels below are a <em>representative selection</em>, not a
-      comprehensive atlas; the curator will extend coverage as patterns
-      stabilize. They describe shared mechanics across tricks but do not
-      override the canonical family classifications in the trick
-      dictionary.
-    </p>
-    <div class="glossary-connective-grid">
-      {{#each content.connectivePanels}}
-      <div class="glossary-connective-panel" id="{{anchorId}}">
-        <h3>{{displayName}}</h3>
-        <p class="panel-definition">{{shortDefinition}}</p>
-
-        {{#if relatedTricks.length}}
-        <span class="panel-section-label">Used in these tricks</span>
-        <ul class="panel-tricks">
-          {{#each relatedTricks}}
-          <li><a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}}<span class="panel-trick-adds">{{adds}}</span>{{/if}}</li>
-          {{/each}}
-        </ul>
-        {{/if}}
-
-        {{#if relatedSymbolicGroups.length}}
-        <span class="panel-section-label">Related symbolic groups</span>
-        <p class="panel-symbolic-groups">
-          {{#each relatedSymbolicGroups}}<span title="{{axis}} axis">{{displayName}}</span>{{/each}}
-        </p>
-        {{/if}}
-
-        {{#if notationHint}}
-        <span class="panel-section-label">Notation hint</span>
-        <p class="panel-notation-hint">{{{notationHint}}}</p>
-        {{/if}}
-
-        {{#if modifierFamilyHref}}
-        <a class="panel-deep-link glossary-outward-link" href="{{modifierFamilyHref}}">Modifier reference</a>
-        {{/if}}
-      </div>
-      {{/each}}
-    </div>
-    <p class="symbolic-layer-footer symbolic-layer-footer--glossary">Observational symbolic-grammar layer. These panels surface mechanical and educational connections; the canonical glossary sections above are the authoritative reference for terminology.</p>
-  </section>
-  {{/if}}
 
   {{! ── Observational case study — inside-stall stationary-transition neighborhood ──
       Curator-authored embodied-movement comparison (wrap / walk-over / hop-over / eclipse).
@@ -2441,7 +2378,7 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       <dt>Canonical</dt>
       <dd>Community-sanctioned; single-valued; authoritative. Default text style, no badge. Lives in the trick dictionary and in the family cards.</dd>
       <dt>Observational</dt>
-      <dd>Curator-derived movement-neighborhood lens. Supplements canonical without overriding it. Marked with an <em>observational</em> badge; lives in the Family &amp; Topology Concepts section and in expandable panels on family cards.</dd>
+      <dd>Curator-derived movement-neighborhood lens. Supplements canonical without overriding it. Marked with an <em>observational</em> badge; lives in expandable panels on family cards.</dd>
       <dt>Doctrine-sensitive</dt>
       <dd>A reading governed by a published doctrine. The canonical ADD or decomposition holds; the doctrine explains <em>why</em>.</dd>
       <dt>Historical</dt>

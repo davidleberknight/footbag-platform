@@ -122,9 +122,9 @@ describe('GET /freestyle/operators — compact modifier index', () => {
       expect(res.text, `row ${slug}`).toContain(`id="operator-${slug}"`);
     }
     expect(res.text).toContain('href="/freestyle/modifier/paradox"');
-    // The movement-system view groups by axis, not per modifier, so the browse
-    // link lands on the view rather than a dead per-modifier anchor.
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    // A modifier with a section in the modifier view browses straight to it.
+    expect(res.text).toContain('href="/freestyle/tricks?view=modifier#modifier-paradox"');
+    expect(res.text).not.toMatch(/\/freestyle\/tricks\?view=(movement-system|topology)/);
   });
 
   it('presents Symple and symp as unresolved historical vocabulary, not settled doctrine', async () => {

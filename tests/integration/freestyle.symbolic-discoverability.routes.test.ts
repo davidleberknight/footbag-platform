@@ -104,7 +104,9 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/spinning"[^>]*>Spinning/);
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/paradox"[^>]*>Paradox/);
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/ducking"[^>]*>Ducking/);
-    expect(res.text).toContain('href="/freestyle/concepts#connective-panels"');
+    // The Concepts page carries no movement-topology panels, so the learn
+    // index links to none.
+    expect(res.text).not.toContain('href="/freestyle/concepts#connective-panels"');
   });
 
   it('no entries render with the planned status badge (all three modifier pages now ship)', async () => {

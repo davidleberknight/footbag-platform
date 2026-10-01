@@ -6,7 +6,7 @@
  * five card primitives — a single vocabulary per destination type:
  *
  *   - "View full ontology →"      → /freestyle/tricks/{slug} (trick-detail)
- *   - "Browse {Name} tricks →"    → /freestyle/tricks?view=movement-system
+ *   - "Browse {Name} tricks →"    → /freestyle/tricks?view=modifier#modifier-{slug}
  *   - "Modifier reference →"      → /freestyle/modifier/{slug} or operator page
  *   - "View family →"             → /freestyle/tricks?view=family (preserved
  *                                   as-is; not normalized)
@@ -104,11 +104,9 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
 
   it('unified .glossary-outward-link class binds the standardized links', async () => {
     const res = await page('/freestyle/concepts');
-    // At minimum, the atlas panels and family cards carry the class.
-    // The test pins presence; count assertions would be brittle across
-    // future curator additions.
+    // At minimum, the family cards carry the class. The test pins presence;
+    // count assertions would be brittle across future curator additions.
     expect(res.text).toMatch(/class="glossary-outward-link"/);
-    expect(res.text).toMatch(/class="panel-deep-link glossary-outward-link"/);
   });
 });
 

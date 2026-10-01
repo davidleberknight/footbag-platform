@@ -84,7 +84,7 @@ describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () =>
   });
 
   it('browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="quantum_symposium_mirage"');
     expect(idx).toBeGreaterThan(-1);

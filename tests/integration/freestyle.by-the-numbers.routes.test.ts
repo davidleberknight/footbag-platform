@@ -44,14 +44,14 @@ describe('GET /freestyle/by-the-numbers', () => {
     expect(res.text).toContain('Toe Stall');
   });
 
-  it('opens each card on the browse view it counts', async () => {
+  it('opens each card on the browse view it counts, and leaves the dexterity card unlinked', async () => {
     const res = await page('/freestyle/by-the-numbers');
-    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=modifier', 'view=movement-system']) {
-      expect(res.text).toContain(`/freestyle/tricks?${view}`);
+    for (const view of ['view=add', 'view=family', 'view=modifier']) {
+      expect(res.text).toContain(`href="/freestyle/tricks?${view}"`);
     }
-    // The Components card is a strict superset of Entry plus Body, and its only
-    // destination is the soft-retired component view.
-    expect(res.text).not.toContain('view=component');
+    // No dictionary view groups by dex count, so that card is a plain panel.
+    expect(res.text).toMatch(/<div class="by-numbers-card">\s*<span class="by-numbers-eyebrow">How many dexes define tricks\?<\/span>/);
+    expect(res.text).not.toMatch(/view=(dex-count|movement-system|topology|component|category)/);
   });
 
   it('orients first and carries the count as supporting metadata', async () => {

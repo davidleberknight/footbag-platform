@@ -4008,11 +4008,6 @@ a.hashtag--media:hover {
 .trick-view-toggle a:hover { color: var(--primary-dk); }
 .trick-view-toggle-active { font-weight: 600; color: var(--text); }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
-/* "Other views" disclosure inside the view toggle: the specialist browse views
-   sit behind one native-marker summary so the prominent row stays short. */
-.trick-view-toggle-other { margin-top: 6px; }
-.trick-view-toggle-other summary { cursor: pointer; color: var(--primary); }
-.trick-view-toggle-other-row { display: inline-block; padding: 4px 0 0 18px; }
 /* Compact "Why these groups?" rationale disclosures on the family and set
    views: closed by default, native marker, muted short paragraphs. */
 .browse-view-why { margin: 6px 0 14px; font-size: 0.9rem; }
@@ -4334,8 +4329,8 @@ a.hashtag--media:hover {
   letter-spacing: 0.04em;
 }
 
-/* Compact structural-fact block: family base / movement system / movement
-   neighborhood / modifiers as label-led rows, high on the trick page for an
+/* Compact structural-fact block: family base / modifiers as label-led rows,
+   high on the trick page for an
    at-a-glance scan of the trick's structure. */
 .trick-structural-facts {
   padding: 0;
@@ -4554,7 +4549,7 @@ a.hashtag--media:hover {
 .ladder-step-missing-label { font-style: italic; }
 
 /* "Modifiers on this trick" block: one row per modifier link with its
-   browse-cluster label, Movement System axis deep-link, and optional gloss. */
+   browse-cluster label and optional gloss. */
 .trick-modifiers .trick-modifier-list { margin-top: 0.5rem; }
 .trick-modifier-list {
   list-style: none;
@@ -4582,15 +4577,6 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   color: var(--text-muted);
 }
-.trick-modifier-axis {
-  font-size: 0.9rem;
-  background: var(--bg-light);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 0.05em 0.6em;
-  color: var(--secondary);
-}
-.trick-modifier-axis:hover { text-decoration: underline; }
 .trick-modifier-gloss {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;
@@ -6941,7 +6927,6 @@ a.trick-hero-meta-chip--media:hover {
  *   - .symbolic-related-topology (Related Topology panel on trick pages)
  *   - .symbolic-walking-progression (Walking Family Progression page)
  *   - .symbolic-modifier-family (Modifier-family teaching page)
- *   - .glossary-connective-panel (Glossary §13 connective panels)
  *
  * Design goals:
  *   - muted background tint to signal non-canonical attribution
@@ -6955,8 +6940,8 @@ a.trick-hero-meta-chip--media:hover {
 
 /* Shared symbolic-card pattern: muted background + warm-tone left border.
  * Future symbolic surfaces should use this directly in HTML.
- * Existing surfaces (related-topology / progression-step / confusion-card /
- * connective-panel) still ship their own rules with the same declarations;
+ * Existing surfaces (related-topology / progression-step / confusion-card)
+ * still ship their own rules with the same declarations;
  * HTML refactor to `.symbolic-card` is intentionally deferred. */
 .symbolic-card {
   background: var(--parch-50);
@@ -6969,8 +6954,7 @@ a.trick-hero-meta-chip--media:hover {
 .symbolic-adds-chip,
 .symbolic-topology-adds,
 .symbolic-walking-progression .step-adds,
-.symbolic-modifier-family .cross-base-adds,
-.glossary-connective-panel .panel-trick-adds {
+.symbolic-modifier-family .cross-base-adds {
   font-size: 0.9rem;
   color: var(--earth-400);
   background: var(--parch-200);
@@ -7977,114 +7961,12 @@ a.trick-hero-meta-chip--media:hover {
   color: var(--earth-800);
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
- * Glossary connective panels
- *
- * Six small per-term panels rendered as a new section near the bottom of
- * the freestyle glossary. Each panel surfaces a short coach-tone definition
- * plus related tricks + related symbolic groups + a notation hint, and
- * optionally a deep-link to a modifier-family page.
- *
- * Visual rhythm:
- *   - Small cards in a 2-up grid on desktop, single column on mobile
- *   - Inherit the symbolic-layer muted palette
- *   - Related-tricks list uses inline chips, NOT a vertical list
- *   - Subordinate to the canonical glossary sections above
- * ────────────────────────────────────────────────────────────────────── */
-
+/* Intro line of an observational Concepts section. */
 .glossary-connective-section .section-intro {
   font-size: 0.9rem;
   color: var(--earth-500);
   font-style: italic;
   margin-bottom: 18px;
-}
-.glossary-connective-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.glossary-connective-panel {
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  padding: 12px 14px;
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-.glossary-connective-panel h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--earth-800);
-  margin: 0 0 6px 0;
-}
-.glossary-connective-panel .panel-definition {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--earth-700);
-  margin: 0 0 10px 0;
-}
-.glossary-connective-panel .panel-section-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--earth-350);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin: 8px 0 4px 0;
-  display: block;
-}
-.glossary-connective-panel .panel-tricks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin: 0 0 4px 0;
-  padding: 0;
-  list-style: none;
-}
-.glossary-connective-panel .panel-tricks li {
-  font-size: 0.9rem;
-}
-.glossary-connective-panel .panel-trick-adds {
-  color: var(--earth-300);
-  font-size: 0.9rem;
-  margin-left: 3px;
-}
-.glossary-connective-panel .panel-symbolic-groups {
-  font-size: 0.9rem;
-  color: var(--earth-500);
-  margin: 0 0 6px 0;
-}
-.glossary-connective-panel .panel-symbolic-groups span {
-  background: var(--parch-200);
-  color: var(--earth-400);
-  padding: 1px 6px;
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-  margin-right: 4px;
-}
-.glossary-connective-panel .panel-notation-hint {
-  font-size: 0.9rem;
-  line-height: 1.45;
-  color: var(--earth-500);
-  margin: 6px 0 0 0;
-}
-.glossary-connective-panel .panel-notation-hint code {
-  font-size: 0.9rem;
-  background: var(--parch-200);
-  color: var(--earth-600);
-  padding: 0 4px;
-  border-radius: var(--radius-2xs);
-}
-.glossary-connective-panel .panel-deep-link {
-  display: inline-block;
-  margin-top: 8px;
-  font-size: 0.9rem;
-  color: var(--earth-500);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-
-@media (max-width: 768px) {
-  .glossary-connective-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -9305,60 +9187,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   letter-spacing: 0.02em;
 }
 
-/* Component view. Two axes (body modifiers + set modifiers);
- * intentional duplication; axis-jump nav at top; per-group heading with
- * one-line body-mechanics definition above the shared trick-row stack.
- *
- * Soft-retired: the retirement notice sits above the
- * duplication note when the view is reached directly. */
-.component-view-retirement-notice {
-  margin: 16px 0 18px 0;
-  padding: 14px 18px;
-  background: var(--amber-pale);
-  border-left: 4px solid var(--warn-strong);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--earth-750);
-}
-.component-view-retirement-notice p { margin: 0; }
-.component-view-retirement-notice p + p { margin-top: 8px; }
-.component-view-retirement-notice-detail {
-  font-size: 0.9rem;
-  color: var(--earth-550);
-}
-
-/* Category view retirement notice: the view is soft-retired.
- * Mirrors the component-view-retirement-notice shape exactly; only the
- * class name + retirement target differ. */
-.category-view-retirement-notice {
-  margin: 16px 0 18px 0;
-  padding: 14px 18px;
-  background: var(--amber-pale);
-  border-left: 4px solid var(--warn-strong);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--earth-750);
-}
-.category-view-retirement-notice p { margin: 0; }
-.category-view-retirement-notice p + p { margin-top: 8px; }
-.category-view-retirement-notice-detail {
-  font-size: 0.9rem;
-  color: var(--earth-550);
-}
-
-.component-view-note {
-  margin: 8px 0 16px 0;
-  padding: 10px 14px;
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--earth-700);
-  font-style: italic;
-}
 /* ── In-page jump bar ────────────────────────────────────────────
    One horizontal strip of anchor links that moves a reader between the
    sections of a long browse page. Every browse axis uses this one shell:
@@ -9414,85 +9242,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
   color: var(--gray-500);
 }
-.trick-component-axis {
-  margin-top: 32px;
-}
-.trick-component-group {
-  margin: 28px 0 12px 0;
-}
 
 @media (max-width: 480px) {
   .jump-bar { font-size: 0.9rem; }
-}
-
-/* Movement System view.
- * Curator-authored four-axis projection: Set / Uptime · Entry Topologies
- * · Midtime Body · No-Plant & Suspension. Mirrors the Component view's
- * outer structure but renders an axis-level definition under each axis
- * heading and groups by curator-authored modifier order (not priority-
- * by-frequency). The eventual canonical browse path per L4-L6 retirement
- * arc. Source: src/content/freestyleMovementSystems.ts. */
-.movement-system-view-note {
-  margin: 8px 0 16px 0;
-  padding: 10px 14px;
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--earth-700);
-  font-style: italic;
-}
-.trick-movement-axis {
-  margin-top: 36px;
-}
-/* Progressive-disclosure summaries on the Movement System view: the axis name,
-   count, and one-line definition stay visible; the rows expand on demand. */
-.trick-movement-axis-summary { cursor: pointer; }
-.trick-movement-axis-name {
-  display: inline;
-  font-size: 1.25rem;
-  margin: 0;
-}
-.trick-movement-axis-summary .movement-axis-definition {
-  display: block;
-  margin: 4px 0 0;
-}
-.trick-movement-axis[open] > .trick-movement-axis-summary,
-.alt-surfaces[open] > .trick-movement-axis-summary {
-  margin-bottom: 14px;
-}
-.movement-axis-definition {
-  margin: -4px 0 18px 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--earth-600);
-}
-/* Topology view. Observational symbolic-grammar layer.
- * Six pedagogically-grounded educational groups; layer attribution visible. */
-.topology-view-note {
-  margin: 8px 0 24px 0;
-  padding: 12px 14px;
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--earth-700);
-  font-style: italic;
-}
-.trick-topology-group {
-  margin-top: 28px;
-}
-/* One-line definition beneath a browse group's heading. Shared by every view
-   that carries one, so a group definition reads the same wherever it appears. */
-.topology-group-definition,
-.component-group-definition {
-  margin: 0 0 14px 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--earth-500);
-  line-height: 1.55;
 }
 
 /* ── Freestyle landing: The Language of Freestyle Footbag ──────────
@@ -10258,15 +10010,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 1rem;
   line-height: 1.55;
 }
-/* Same role as the scale line above, so the same treatment: this is prose a
-   visitor reads, not a metadata caption. */
-.browse-view-lens-note {
-  max-width: 760px;
-  margin: -0.5rem 0 1.25rem;
-  color: var(--text-muted);
-  font-size: 1rem;
-  line-height: 1.55;
-}
 .dictionary-intro-glossary-link {
   color: var(--primary);
   text-decoration: none;
@@ -10409,16 +10152,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding: 1px 6px;
   border-radius: var(--radius-2xs);
   color: var(--secondary);
-}
-
-/* §6 movement-system-axes list: preview of the 4-axis ontology */
-.glossary-movement-system-axes {
-  margin: 0.6rem 0 0.8rem;
-  padding-left: 1.4rem;
-}
-.glossary-movement-system-axes li {
-  margin-bottom: 0.5rem;
-  line-height: 1.55;
 }
 
 /* §6 body-cluster axis label appended to the heading */
@@ -11297,33 +11030,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Alternative surfaces subsection of the Movement System view. Each group
-   is a short label + note above a stack of the shared dictionary-trick-row,
-   so the rows match every other browse view; only the group framing is
-   bespoke here. */
-.alt-surfaces {
-  margin-top: 24px;
-}
-.alt-surface-group {
-  margin: 18px 0 22px;
-}
-.alt-surface-group-label {
-  font-size: 1rem;
-  margin: 0 0 4px;
-  color: var(--text-primary);
-}
-.alt-surface-group-note {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  margin: 0 0 6px;
-  line-height: 1.4;
-}
-
-/* Four small surface-clarity adds:
+/* Small surface-clarity adds:
    - Observational count strip
-   - Dex-count "Unknown" bucket explainer
    - Family view ordering note
-   - Movement System ↔ Compositional Sets cross-links
+   - Compositional Sets cross-link
 */
 .observed-count-strip {
   margin: 12px 0 18px;
@@ -11333,20 +11043,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .observed-count-strip strong {
   font-weight: 600;
 }
-.dex-count-unknown-note {
-  margin: 4px 0 14px;
-  font-size: 0.9rem;
-  color: var(--text-subtle);
-  line-height: 1.4;
-}
 .family-view-ordering-note {
   margin: 6px 0 18px;
   font-size: 0.9rem;
   color: var(--text-subtle);
-}
-.movement-system-cross-link {
-  margin: 4px 0 16px;
-  font-size: 0.9rem;
 }
 .compositional-sets-cross-link {
   margin: 10px 0 18px;
@@ -11356,7 +11056,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 /* Governance and polish surfaces.
    - Toggle aside for the Operators & Modifiers reference link
    - Modifier browse view (?view=modifier): Core / Secondary cohorts
-   - Browse-view status label (Movement System / Neighborhoods exploratory)
    - Observational lane sections
    - "By modifier" trick-list density
 */
@@ -11365,15 +11064,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
   color: var(--text-subtle);
   font-style: italic;
-}
-.browse-view-status-label {
-  display: inline-block;
-  margin: 4px 0 6px;
-  padding: 2px 8px;
-  font-size: 0.9rem;
-  background: var(--bg-subtle);
-  border-radius: var(--radius-2xs);
-  color: var(--text-secondary);
 }
 .set-subtype-section {
   margin-top: 24px;
@@ -11647,7 +11337,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 500;
 }
 
-/* Operators & Modifiers index: compact modifier rows grouped by movement-system
+/* Operators & Modifiers index: compact modifier rows grouped by structural-role
    axis, reusing the trick-dictionary row shell (.dict-trick-row) with a type
    chip, ADD chip, and status pill in the same visual language as the encyclopedia. */
 .operator-index-axis { margin-top: 1.5rem; }
@@ -11777,9 +11467,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   display: block;
   font-size: 0.9rem;
   color: var(--text-muted);
-}
-.set-detail-equivalent-structural {
-  font-family: var(--font-mono);
 }
 .set-detail-trick-list {
   list-style: none;
@@ -12316,18 +12003,10 @@ a.set-detail-trick-media:hover {
    every group section on the page, so no view behaves differently from its
    neighbours. */
 .trick-add-group,
-.trick-dex-count-group,
 .trick-family-group,
-.trick-category-group,
 .trick-set-group,
 .trick-modifier-cluster-section,
-.trick-modifier-group,
-.trick-topology-group,
-.trick-component-axis,
-.trick-component-group,
-.trick-movement-axis,
-.alt-surfaces,
-.alt-surface-group {
+.trick-modifier-group {
   scroll-margin-top: var(--anchor-offset);
 }
 

@@ -2,22 +2,17 @@
  * Browse-shell top-nav consistency guard.
  *
  * The view-toggle nav (`<nav class="trick-view-toggle">`) is a single shared
- * template block rendered identically on every primary browse view. The
- * prominent row carries only the primary browse axes; the specialist views
- * live behind an "Other views" disclosure that renders open when the active
- * view is inside it. This test pins that consistency so a future change can't
- * reintroduce a per-view nav variant, reorder the items, or promote a
- * specialist view back into the prominent row.
+ * template block rendered identically on every browse view. The dictionary
+ * offers exactly four views, all in one row, with no "Other views" control.
+ * This test pins that consistency so a future change can't reintroduce a
+ * per-view nav variant, reorder the items, or bring a further view back.
  *
  * Canonical structure (one source of truth in tricks.hbs):
- *   Prominent: By ADD · By family · By set · By modifier
- *   Other views (disclosure): By movement system · Movement Neighborhoods ·
- *   By dex count
+ *   By ADD · By family · By set · By modifier
  *
- * Family, Set, and Modifier are the curated first-class browse axes and sit
- * in the prominent row; the disclosure carries the specialist / analytical
- * lenses. "By set" and "By modifier" are distinct views and their labels
- * never collapse onto one view.
+ * "By set" and "By modifier" are distinct views and their labels never
+ * collapse onto one view. A request for any other view value renders the
+ * default By ADD view.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -51,23 +46,17 @@ const VIEWS: Array<[string, string]> = [
   ['add', 'By ADD'],
   ['family', 'By family'],
   ['set', 'By set'],
-  ['movement-system', 'By movement system'],
-  ['topology', 'Movement Neighborhoods'],
-  ['dex-count', 'By dex count'],
   ['modifier', 'By modifier'],
 ];
 
-// The specialist views that live inside the "Other views" disclosure.
-const OTHER_VIEWS = new Set(['movement-system', 'topology', 'dex-count']);
+// View values the dictionary no longer offers; each renders the default view.
+const REMOVED_VIEWS = ['movement-system', 'topology', 'dex-count', 'component', 'category'];
 
 const CANONICAL_ORDER = [
   'By ADD',
   'By family',
   'By set',
   'By modifier',
-  'By movement system',
-  'Movement Neighborhoods',
-  'By dex count',
 ];
 
 function navBlock(html: string): string {
@@ -92,41 +81,39 @@ async function fetchNav(view: string): Promise<string> {
   return navBlock(res.text);
 }
 
-describe('Browse-shell nav — consistency across all six primary views', () => {
-  it('all six views render the same nav labels in the same canonical order', async () => {
+describe('Browse-shell nav — consistency across the four views', () => {
+  it('all four views render the same nav labels in the same canonical order', async () => {
     for (const [view] of VIEWS) {
       const labels = navLabels(await fetchNav(view));
       expect(labels, `${view} nav order`).toEqual(CANONICAL_ORDER);
     }
   });
 
-  it('the specialist views sit inside the "Other views" disclosure', async () => {
+  it('the nav carries no "Other views" control', async () => {
     for (const [view] of VIEWS) {
       const nav = await fetchNav(view);
-      const details = nav.match(/<details class="trick-view-toggle-other"[^>]*>.*?<\/details>/s);
-      expect(details, `${view} nav has the Other views disclosure`).not.toBeNull();
-      expect(details![0]).toContain('<summary>Other views</summary>');
-      // Every specialist label is inside the disclosure, and the two prominent
-      // labels are outside it.
-      const inside = details![0];
-      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count']) {
-        expect(inside, `"${label}" lives inside the disclosure`).toContain(label);
-      }
-      const outside = nav.replace(inside, '');
-      for (const label of ['By ADD', 'By family', 'By set', 'By modifier']) {
-        expect(outside, `"${label}" stays in the prominent row`).toContain(label);
-      }
-      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count']) {
-        expect(outside, `"${label}" does not also render outside the disclosure`).not.toContain(label);
-      }
+      expect(nav, `${view} nav has no disclosure`).not.toContain('<details');
+      expect(nav).not.toContain('Other views');
     }
   });
 
-  it('the disclosure renders open exactly when the active view lives inside it', async () => {
-    for (const [view] of VIEWS) {
+  it('an empty set or modifier view says so in plain words, naming no database table', async () => {
+    // The fixture's one trick carries no modifier link, so both views are empty.
+    const modifier = await page('/freestyle/tricks?view=modifier');
+    expect(modifier.text).toContain('No tricks are listed by modifier yet.');
+    const set = await page('/freestyle/tricks?view=set');
+    expect(set.text).toContain('No tricks are listed by set yet.');
+    for (const html of [modifier.text, set.text]) {
+      expect(html).not.toContain('freestyle_trick_modifier_links');
+    }
+  });
+
+  it('a removed view value renders the default By ADD view', async () => {
+    for (const view of REMOVED_VIEWS) {
       const nav = await fetchNav(view);
-      const isOpen = /<details class="trick-view-toggle-other" open>/.test(nav);
-      expect(isOpen, `${view}: disclosure open state`).toBe(OTHER_VIEWS.has(view));
+      const active = nav.match(/<span[^>]*class="trick-view-toggle-active"[^>]*>([^<]+)<\/span>/);
+      expect(active?.[1].trim(), `?view=${view} falls back to By ADD`).toBe('By ADD');
+      expect(navLabels(nav), `?view=${view} nav order`).toEqual(CANONICAL_ORDER);
     }
   });
 

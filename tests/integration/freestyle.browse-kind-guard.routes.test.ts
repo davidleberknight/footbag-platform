@@ -32,7 +32,7 @@ const { dbPath } = setTestEnv('3527');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const BROWSE_VIEWS = [
-  'add', 'family', 'set', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count',
+  'add', 'family', 'set', 'modifier',
 ];
 
 // Per-view non-vacuousness witness: a genuine compound that must stay
@@ -119,13 +119,5 @@ describe('operator / set / modifier rows are never trick members in browse views
     const res = await request(await createApp()).get('/freestyle/tricks?family=quantum');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('data-trick-slug="quantum"');
-  });
-
-  it('dex-count buckets exclude the set row even though its notation is countable', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.status).toBe(200);
-    // quantum's notation carries one [DEX]; the 1-dex bucket must still not hold it.
-    expect(res.text).not.toContain('data-trick-slug="quantum"');
-    expect(res.text).toContain('data-trick-slug="mirage"');
   });
 });

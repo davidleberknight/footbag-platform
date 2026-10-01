@@ -4,8 +4,8 @@
  * Long-term contract:
  *
  *   freestyle_tricks mixes structural roles: true tricks, modifiers,
- *   set operators, catch surfaces. The five trick-browse surfaces
- *   (ADD / family / category / component / topology) must render
+ *   set operators, catch surfaces. The four trick-browse surfaces
+ *   (ADD / family / set / modifier) must render
  *   ONLY rows whose `resolveTrickKind(slug)` returns 'trick'.
  *
  * Why this matters: rows like `pixie`, `atomic`, `paradox` exist in
@@ -204,16 +204,15 @@ describe('resolveTrickKind() — content module discriminator', () => {
 });
 
 describe('Trick-browse view filter — non-trick kinds excluded', () => {
-  // The five trick-browse views. Each must omit modifier/operator/surface/
+  // The four trick-browse views. Each must omit modifier/operator/surface/
   // pending-review rows. We assert by checking that each filtered slug
   // does NOT appear in the rendered HTML (since the dictionary card carries
   // `data-trick-slug="{slug}"` attribute on every card it renders).
   const views = [
-    { name: 'ADD',       url: '/freestyle/tricks' },
-    { name: 'family',    url: '/freestyle/tricks?view=family' },
-    { name: 'category',  url: '/freestyle/tricks?view=category' },
-    { name: 'component', url: '/freestyle/tricks?view=component' },
-    { name: 'topology',  url: '/freestyle/tricks?view=topology' },
+    { name: 'ADD',      url: '/freestyle/tricks' },
+    { name: 'family',   url: '/freestyle/tricks?view=family' },
+    { name: 'set',      url: '/freestyle/tricks?view=set' },
+    { name: 'modifier', url: '/freestyle/tricks?view=modifier' },
   ];
 
   // One request per view, not one per view and slug: the URL does not depend on

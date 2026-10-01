@@ -417,7 +417,7 @@ const CROSS_LINKS: readonly ComboAnalysisCrossLink[] = [
   {
     href:        '/freestyle/tricks',
     label:       'Trick Dictionary',
-    description: 'Browse individual tricks by ADD, family, movement system, or topology.',
+    description: 'Browse individual tricks by ADD, family, set, or modifier.',
   },
   {
     href:        '/freestyle/concepts',

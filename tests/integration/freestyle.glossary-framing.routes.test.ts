@@ -84,21 +84,19 @@ describe('Trick Dictionary — Reading the Dictionary disclosure', () => {
     expect(html).toMatch(/no separate per-row ADD chip/);
   });
 
-  it('renders a browse-semantics table covering all seven views with links, plus the curation principle', async () => {
+  it('renders a browse-semantics table covering all four views with links, plus the curation principle', async () => {
     const html = await dictionary();
     for (const [label, view] of [
       ['By ADD', 'view=add'],
       ['By family', 'view=family'],
       ['By set', 'view=set'],
       ['By modifier', 'view=modifier'],
-      ['By movement system', 'view=movement-system'],
-      ['Movement Neighborhoods', 'view=topology'],
-      ['By dex count', 'view=dex-count'],
     ]) {
       expect(html, `browse label ${label}`).toContain(label);
       expect(html, `browse link ${view}`).toContain(`/freestyle/tricks?${view}`);
     }
-    expect(html).toMatch(/Same rows, seven lenses/);
+    expect(html).toMatch(/Same rows, four lenses/);
+    expect(html).not.toMatch(/By movement system|Movement Neighborhoods|By dex count/);
     // Curated-browse principle + the two broader reference surfaces.
     expect(html).toMatch(/curated for useful\s+browsing/);
     expect(html).toMatch(/broader modifier and operator\s+vocabulary/);
@@ -106,22 +104,22 @@ describe('Trick Dictionary — Reading the Dictionary disclosure', () => {
     expect(html).toContain('href="/freestyle/operators"');
   });
 
-  it('renders the six-way ontology distinction table, with sets and modifiers as separate kinds', async () => {
+  it('renders the five-way ontology distinction table, with sets and modifiers as separate kinds', async () => {
     const html = await dictionary();
     for (const kind of [
       'Canonical family',
       'Set / set system',
       'Modifier / operator',
       'Alternative surface',
-      'Movement neighborhood',
       'Alias / decomposition reading',
     ]) {
       expect(html, `ontology kind ${kind}`).toContain(kind);
     }
+    expect(html).not.toContain('<td>Movement neighborhood</td>');
     // The introductory object table keeps sets and modifiers as separate
     // kinds; the combined "Modifier ecosystem" framing survives only in the
     // later family-vs-modifier comparison material, never in this table.
-    const kindsStart = html.indexOf('Six kinds of object');
+    const kindsStart = html.indexOf('Five kinds of object');
     const kindsEnd = html.indexOf('Reading a compound name');
     expect(kindsStart).toBeGreaterThan(-1);
     expect(kindsEnd).toBeGreaterThan(kindsStart);
@@ -190,10 +188,10 @@ describe('Freestyle Concepts framing — modifier-ecosystem framing', () => {
 
   it('frames paradox as an entry / dex relationship cross-linked to Dexterities, not a set or body movement', async () => {
     const html = await concepts();
-    // Paradox is the Entry Topologies axis; dex side relationships are owned by
-    // the Dexterities chapter, which Operators cross-links rather than
-    // re-teaching. The modifier-paradox deep-link anchor is preserved.
-    expect(html).toMatch(/Entry Topologies/);
+    // Paradox is a dex relationship; dex side relationships are owned by the
+    // Dexterities chapter, which Operators cross-links rather than re-teaching.
+    // The modifier-paradox deep-link anchor is preserved.
+    expect(html).toMatch(/Paradox is a <strong>dex relationship<\/strong>, not a body movement/);
     expect(html).toContain('href="#section-dexterities"');
     expect(html).toContain('id="modifier-paradox"');
   });
@@ -448,10 +446,10 @@ describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descen
     }
   });
 
-  it('routes a future leggy super-family to the neighborhood axis, not a parent merge', async () => {
+  it('keeps illusion, pickup, and legover as three separate parents', async () => {
     const html = await concepts();
-    expect(html).toMatch(/leggy super-family is ever[\s\S]{0,20}recognized, it belongs on the/);
-    expect(html).toMatch(/movement-neighborhood/);
+    expect(html).toMatch(/they stay three separate parents\./);
+    expect(html).not.toContain('href="/freestyle/tricks?view=topology"');
   });
 
   it('renders the family histogram with the two surface roots leading the families', async () => {

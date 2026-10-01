@@ -181,8 +181,9 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     const nav = res.text.slice(navStart, navEnd);
     expect(nav).toContain('By ADD');
     expect(nav).toContain('By family');
-    expect(nav).toContain('By movement system');
-    expect(nav).toContain('Movement Neighborhoods');
+    expect(nav).toContain('By set');
+    expect(nav).not.toContain('By movement system');
+    expect(nav).not.toContain('Movement Neighborhoods');
     // "Operators & Modifiers" stays out of the toggle row: operators and
     // modifiers are reference vocabulary, not a dictionary grouping axis.
     // The /freestyle/operators reference page is reachable from the aside
@@ -197,19 +198,10 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
   });
 
   it('Operators & Modifiers reference link is reachable from the landing surface', async () => {
-    // Cross-links live in the landing-grid cards: on the default landing
-    // view (?view=add, no family filter) the Operators link is the
-    // By-movement-system card's crossLink. Secondary views keep the
-    // toggle-aside paragraph (rendered only when activeView != 'add') so
-    // the link stays reachable without a return trip.
+    // The Operators reference is linked from the landing surface itself, so a
+    // reader reaches it without first choosing a view.
     const res = await page('/freestyle/tricks');
     expect(res.text).toContain('href="/freestyle/operators"');
-    // The cross-link sits under the By-movement-system card; verify its
-    // proximity to that card's label.
-    const movSysIdx = res.text.indexOf('By movement system');
-    const operatorsIdx = res.text.indexOf('href="/freestyle/operators"');
-    expect(movSysIdx).toBeGreaterThan(0);
-    expect(operatorsIdx).toBeGreaterThan(movSysIdx);
   });
 
   it('groups tricks by ADD value, with the gentlest first', async () => {
@@ -257,12 +249,6 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     expect(html).toContain('2 operators');
   });
 
-  it('By dex-count view renders an in-view jump nav into dex-bucket anchors', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
-    expect(res.text).toContain('aria-label="Jump to dex bucket"');
-    expect(res.text).toMatch(/href="#dex-/);
-  });
-
   it('By ADD groups each bucket into lineage sub-bands with headers', async () => {
     const html = (await page('/freestyle/tricks?sort=family')).text;
     // The By-family ADD-view mode (?sort=family) sub-groups each tier into
@@ -275,27 +261,14 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     expect(html).toContain('data-trick-slug="ducking-paradox-mirage"');
   });
 
-  it('By dex-count sorts entries structurally (ADD ascending) within a bucket', async () => {
-    const html = (await page('/freestyle/tricks?view=dex-count')).text;
-    const at = (slug: string) => html.indexOf(`data-trick-slug="${slug}"`);
-    // The three notated seeds share the 1-dex bucket, ordered by ADD asc:
-    // mirage(2) before whirl(3) before double-spinning-whirl(5).
-    expect(at('mirage')).toBeGreaterThan(-1);
-    expect(at('whirl')).toBeGreaterThan(at('mirage'));
-    expect(at('double-spinning-whirl')).toBeGreaterThan(at('whirl'));
-  });
-
   it('each browse axis explains what it is for, without spending a line of layout', async () => {
     const res = await page('/freestyle/tricks');
-    // The lens questions ride as the title of each View entry. A reader cannot
-    // guess what "By dex count" or "Movement Neighborhoods" mean from the label
-    // alone, so the explanation has to be reachable somewhere.
+    // The lens questions ride as the title of each View entry, so what a view
+    // is for is reachable on hover and focus.
     for (const q of [
       'How layered is the trick?',
       'What core movement pattern does the trick build on?',
-      'Which broad movement style does it belong to?',
-      'Tricks that move alike, even across different families.',
-      'How many dexterity moves does it have?',
+      'Which named set does the trick open with?',
       'Which named moves, sets, or twists does it use?',
     ]) {
       expect(res.text, `lens question: ${q}`).toContain(`title="${q.replace(/\?/g, '?')}"`);
@@ -461,9 +434,9 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
   });
 
   it('a secondary view shows its own state-specific lede', async () => {
-    const res = await page('/freestyle/tricks?view=movement-system');
+    const res = await page('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/four broad movement groupings/i);
+    expect(res.text).toMatch(/Tricks grouped by the modifier they use/);
   });
 
   it('the family filter shows the family header', async () => {

@@ -126,10 +126,6 @@ import {
   type SetEducationContent,
 } from './symbolicSetEducation';
 import {
-  GlossaryConnectivePanel,
-  buildGlossaryConnectivePanels,
-} from './symbolicGlossaryPanels';
-import {
   OperatorReferenceEntry,
   OPERATOR_REFERENCE_ENTRIES,
   getOperatorReferenceEntry,
@@ -175,15 +171,8 @@ import {
   resolveFamilyDisplayName,
   resolveFamilyDualMemberships,
 } from '../content/freestyleFamilyOverrides';
-import {
-  MOVEMENT_SYSTEM_AXES,
-  resolveModifierCompositionGloss,
-  resolveAxisForModifier,
-} from '../content/freestyleMovementSystems';
+import { resolveModifierCompositionGloss } from '../content/freestyleMovementSystems';
 import { resolveModifierBeginnerNote } from '../content/freestyleStructuralFactNotes';
-import {
-  ALTERNATIVE_SURFACES,
-} from '../content/freestyleAlternativeSurfaces';
 import {
   PUBLIC_DISPLAY_FAMILIES,
   resolveDisplayFamily,
@@ -615,7 +604,9 @@ export interface FreestyleByNumbersCard {
   key: string;
   eyebrow: string;       // the question this histogram answers
   title: string;
-  viewKey: string;        // browse-axis value; template builds /freestyle/tricks?view={viewKey}
+  // The dictionary view this histogram counts; null when no view groups the
+  // tricks that way, and the card then renders as a plain panel.
+  href: string | null;
   footnote: string | null;
   bars: FreestyleByNumbersBar[];
 }
@@ -685,9 +676,9 @@ function buildFreestyleByNumbers(
   const histTop = (hist: readonly TopologyHistogramRow[], n: number): FreestyleByNumbersBar[] =>
     hist.slice(0, n).map(h => bar(h.label, h.count));
 
-  // Same resolved-notation source as the dex-count browse view (core-atom
-  // spec, then the published-formula overlay, then the DB column), so the
-  // landing histogram and the view it links into always agree.
+  // Same resolved-notation source as the dictionary rows (core-atom spec,
+  // then the published-formula overlay, then the DB column), so the histogram
+  // counts the notation a reader sees.
   const dexCount = (r: FreestyleTrickRow): string => {
     const op = resolveOperationalNotationRaw(r.slug, r.operational_notation);
     if (!op || !op.trim()) return isDexlessBodyAtom(r) ? '0' : 'Unknown';
@@ -729,21 +720,24 @@ function buildFreestyleByNumbers(
   const unknownDex = dex.get('Unknown') ?? 0;
   const cards: FreestyleByNumbersCard[] = [
     { key: 'difficulty', eyebrow: 'How layered are tricks?', title: 'ADD',
-      viewKey: 'add', footnote: null, bars: ordered(add, ['1', '2', '3', '4', '5', '6', '7', '8']) },
-    // No "Unknown" bar: the dex-count browse view renders only dex-countable
-    // tricks, and the card note carries the derived pending-notation count.
+      href: '/freestyle/tricks?view=add', footnote: null, bars: ordered(add, ['1', '2', '3', '4', '5', '6', '7', '8']) },
+    // No "Unknown" bar: a trick with no notation has no countable dex, and the
+    // page note carries the derived pending-notation count. No dictionary view
+    // groups by dex count, so this card links nowhere.
     { key: 'dexterity', eyebrow: 'How many dexes define tricks?', title: 'Dexterity',
-      viewKey: 'dex-count', footnote: null, bars: ordered(dex, ['0', '1', '2', '3+']) },
+      href: null, footnote: null, bars: ordered(dex, ['0', '1', '2', '3+']) },
     // "Entry elements" by design: this chart counts what a trick begins with
     // as a functional category (catch surfaces, launch sets, and the entry
     // operators paradox and symposium together), deliberately not the
     // set/modifier taxonomy, whose authority stays in operatorReference.
     { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry elements',
-      viewKey: 'modifier', footnote: null, bars: top(entry, 20) },
+      href: '/freestyle/tricks?view=modifier', footnote: null, bars: top(entry, 20) },
     { key: 'terminal', eyebrow: 'How do tricks finish?', title: 'Family endings',
-      viewKey: 'family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
+      href: '/freestyle/tricks?view=family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
+    // The body-movement bars are modifiers, so the modifier view is where
+    // each one's tricks are listed.
     { key: 'body', eyebrow: 'What body movements shape tricks?', title: 'Body movements',
-      viewKey: 'movement-system', footnote: null, bars: top(bodyMods, 10) },
+      href: '/freestyle/tricks?view=modifier', footnote: null, bars: top(bodyMods, 10) },
   ];
 
   // Shared operator/set-system groups: both the body/entry cards above and the
@@ -1173,7 +1167,7 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
     .filter(e => !ownedElsewhere.has(e.slug));
 }
 
-// Operators index: compact rows grouped by movement-system axis. Per-row data is
+// Operators index: compact rows grouped by structural-role axis. Per-row data is
 // composed from the modifier table (name + ADD weight), the canonical-set
 // formulas (set-only notation), the feel cards + operator reference (descriptor),
 // and the teaching-page + doctrine-pending flags (status pill). A row's notation
@@ -1287,17 +1281,19 @@ function publicObservationalUniverse(): ObservationalUniverseRow[] {
   );
 }
 
+// Where a modifier's tricks are listed in the dictionary: a launch set has a
+// section in the set view, a first-class browse modifier has one in the
+// modifier view, and any other modifier has no section, so null.
+function modifierBrowseHref(slug: string): string | null {
+  if (clusterForModifier(slug) === 'set-uptime') return `/freestyle/tricks?view=set#set-${slug}`;
+  if (FIRST_CLASS_BROWSE_MODIFIERS.has(slug)) return `/freestyle/tricks?view=modifier#modifier-${slug}`;
+  return null;
+}
+
 function buildOperatorIndexAxes(
   modifierRows: readonly FreestyleTrickModifierRow[],
 ): OperatorIndexAxisGroup[] {
   const rowBySlug = new Map(modifierRows.map(r => [r.slug, r]));
-  // Operators that have a By-Movement-System section get the in-page anchor;
-  // flying has a movement neighborhood (the topology view) instead; the rest
-  // have neither surface, so they fall back to the dictionary search rather than
-  // a dead #movement-<slug> anchor.
-  const movementSystemSlugs = new Set<string>(
-    MOVEMENT_SYSTEM_AXES.flatMap(a => [...a.modifierSlugs]),
-  );
   return OPERATOR_INDEX_AXES.map(axis => ({
     axisKey:  axis.axisKey,
     axisName: axis.axisName,
@@ -1313,15 +1309,9 @@ function buildOperatorIndexAxes(
         notation:   operatorNotation(slug, row?.modifier_type),
         descriptor: operatorDescriptor(slug),
         status:     operatorStatus(slug),
-        browseHref: movementSystemSlugs.has(slug)
-          // The movement-system view groups by axis, so there is no per-modifier
-          // anchor to deep-link to; land on the view itself.
-          ? '/freestyle/tricks?view=movement-system'
-          : slug === 'flying'
-            // Flying is a movement neighborhood (the topology view), not a
-            // movement-system axis; route its browse there.
-            ? '/freestyle/tricks?view=topology#topology-flying'
-            : `/freestyle/search?q=${encodeURIComponent(slug)}`,
+        // An operator with no dictionary section falls back to the dictionary
+        // search, so the action is never a dead anchor.
+        browseHref: modifierBrowseHref(slug) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
       };
     }),
   }));
@@ -1488,8 +1478,6 @@ export interface FreestyleQuantityLadderView {
 export interface FreestyleTrickModifierMembership {
   name:        string;          // modifier display name (e.g. "Paradox")
   clusterLabel: string;         // "By modifier" browse-cluster label
-  axisName:    string | null;   // Movement System axis name, null when unclassified
-  axisKey:     string | null;   // axis key; the template builds the ?view=movement-system deep-link from it
   gloss:       string | null;   // one-line composition gloss, null when none authored
 }
 
@@ -1596,8 +1584,7 @@ export interface FreestyleTrickContent {
   // member. A ladder member slug absent from the dictionary renders missing.
   quantityLadder: FreestyleQuantityLadderView | null;
   // "Modifiers on this trick" — one row per modifier link, carrying its
-  // browse-cluster label, Movement System axis deep-link (when classified),
-  // and optional composition gloss. Always shaped from the trick's modifier
+  // browse-cluster label and optional composition gloss. Always shaped from the trick's modifier
   // links, independent of the modifier-layering panel's >=3-link gate. Empty
   // when the trick carries no modifier links.
   modifierMemberships: FreestyleTrickModifierMembership[];
@@ -1686,8 +1673,8 @@ export interface FreestyleTrickContent {
   // Fully spelled-out operational chain for named-set-shorthand entries,
   // rendered below the Execution notation tokens. Null when absent.
   executionExpanded: string | null;
-  // Compact structural-fact block (family base / movement system(s) / movement
-  // neighborhood(s) / modifier(s)), rendered right after About. Null when the
+  // Compact structural-fact block (family base / modifier(s)), rendered right
+  // after About. Null when the
   // trick has none of those facts (e.g. a bare family-base atom).
   structuralFacts: TrickStructuralFacts | null;
   // Single-page pilot. Populated only for the flagship
@@ -2666,14 +2653,6 @@ export interface FreestyleTrickIndexRow {
   placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
 }
 
-export interface FreestyleTrickGroup {
-  category: string;
-  label: string;
-  // Shared trick rows, ADD ascending then trick name alphabetical.
-  cards: DictionaryTrickCard[];
-  anchorId: string;   // `category-{slug}`
-}
-
 // ADD-grouped bucket for the beginner/default view. addNumeric is null for
 // the "Unrated / unresolved" bucket; otherwise an integer 0..9.
 export interface FreestyleTrickAddGroup {
@@ -2740,7 +2719,7 @@ export interface DictionaryTrickCard {
   firstClassChainValue:        string | null;
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'set' | 'category' | 'modifier' | 'component' | 'topology' | 'movement-system' | 'dex-count';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'set' | 'modifier';
 
 export type SetSubtypeKey =
   | 'true-core'
@@ -2935,34 +2914,11 @@ export interface SetDetailExampleTrick {
 export interface SetDetailCrossLinks {
   setEncyclopediaHref:                string;
   compositionalHubHref:      string;
-  movementSystemAxisHref:    string;
+  // This set's section in the dictionary's By set view; null when the set has
+  // no section there.
+  setBrowseHref:             string | null;
   operatorReferenceHref?:    string;
   flatReferenceHref:         string;
-}
-
-// Dex-count grouped browse view. Buckets active dictionary tricks by the number of [DEX] tokens
-// in their operational_notation field. Pedagogical axis: "How many dex
-// moves does this trick involve?". A trick without operational notation is not
-// dex-countable and does not render in this view (an unresolved bucket is not
-// canonical browse content); it stays visible in the other browse views with
-// the incomplete badge until its notation is authored.
-// A labelled ADD sub-band within a browse section whose secondary sort is ADD
-// (dex-count, movement-system axis, topology neighborhood). The label makes the
-// otherwise-invisible secondary ordering legible — readers see "3 ADD / 4 ADD"
-// headers instead of an unexplained card sequence.
-export interface FreestyleAddBand {
-  addLabel: string;                  // '2 ADD' / '3 ADD' / '? ADD' (null ADD)
-  cards:    DictionaryTrickCard[];
-}
-
-export interface FreestyleTrickDexCountGroup {
-  dexCount: number;            // 0, 1, 2, or 3 (the 3+ bucket)
-  dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events'
-  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3'. Avoids Handlebars 0-is-falsy footgun in the template.
-  cards: DictionaryTrickCard[];
-  // The same cards, partitioned into ADD-labelled sub-bands (ADD ascending).
-  // The template renders these so the secondary ADD ordering carries a header.
-  addBands: FreestyleAddBand[];
 }
 
 // One row in the ?view=modifier projection. Each set/modifier carries the list
@@ -3012,120 +2968,6 @@ export interface FreestyleRelatedModifierLink {
   href: string;           // /freestyle/tricks?view=modifier#set-{modifierSlug}
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// ComponentBrowseView.
-//
-// Browses tricks grouped by the structural component they share. Current
-// scope: body modifiers + set modifiers only. Topology groups and movement
-// archetypes are deferred to a future slice.
-//
-// A trick may appear in multiple groups (intentional duplication; a single
-// trick can carry multiple modifier links of different types). This is the
-// load-bearing browse path the slice unlocks.
-// ─────────────────────────────────────────────────────────────────────────
-
-export interface ComponentGroup {
-  componentSlug:   string;          // modifier_slug
-  componentName:   string;          // display name (lowercase canonical or display-cased)
-  bodyDefinition:  string | null;   // one-line body-mechanics definition; null when curator hasn't authored one
-  memberCount:     number;          // post-filter trick count
-  anchorId:        string;          // `component-{slug}` for hash-anchor navigation
-  cards:           DictionaryTrickCard[];   // ADD ascending, then name
-}
-
-export interface ComponentAxis {
-  axisKey:    'body' | 'entry-topology' | 'set';
-  axisLabel:  string;
-  anchorId:   string;                // `axis-body` / `axis-entry-topology` / `axis-set`
-  groups:     ComponentGroup[];      // priority-ordered, then alphabetical
-}
-
-export interface ComponentBrowseView {
-  axes:  ComponentAxis[];
-  // Explanatory note rendered above the axes. Static prose — kept short.
-  duplicationNote: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// TopologyBrowseView (topology browse axis).
-//
-// Pedagogically-grounded, high-confidence educational groups. Memberships
-// computed deterministically from existing data (base_trick + modifier_links
-// + a small curator-tagged dex-class map for hippy/leggy).
-//
-// The 6 CSV-defined topology groups in symbolic_topology_groups.csv are NOT
-// surfaced here; those are an advanced taxonomy. This surface
-// deliberately stays a small, learner-friendly set per curator
-// guidance: "small, obvious, educational, high-confidence; avoid hyper-
-// fractal symbolic overfitting."
-// ─────────────────────────────────────────────────────────────────────────
-
-export interface TopologyGroup {
-  topologySlug:   string;          // 'hippy-downtime-dex'
-  topologyName:   string;          // 'Hippy downtime dex'
-  bodyDefinition: string;          // one-line biomechanical definition
-  memberCount:    number;
-  anchorId:       string;          // 'topology-{slug}'
-  cards:          DictionaryTrickCard[];   // ADD ascending then name
-  // The same cards partitioned into ADD-labelled sub-bands (ADD ascending), so
-  // the neighborhood's secondary ADD ordering renders with visible headers.
-  addBands:       FreestyleAddBand[];
-}
-
-export interface TopologyBrowseView {
-  // Observational-layer attribution rendered as a badge near the top.
-  layerSource:        'observational';
-  // Static framing prose — kept short, explicitly observational.
-  observationalNote:  string;
-  groups:             TopologyGroup[];
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// MovementSystemBrowseView (Movement System axis projection).
-//
-// Curator-authored four-axis ontology projecting modifier groups under
-// pedagogical axes (Set/Uptime, Entry Topologies, Midtime Body, No-Plant
-// & Suspension). Axes + memberships are sourced from the content module
-// freestyleMovementSystems.ts; trick memberships are computed by joining
-// the axis modifier slugs against modifier_links (the same data already
-// loaded for the Component view).
-// Reuses shapeDictionaryTrickCard and isTrickRow.
-// ─────────────────────────────────────────────────────────────────────────
-
-export interface MovementSystemAxisView {
-  axisKey:        string;          // matches MovementSystemAxis.axisKey
-  axisName:       string;          // matches MovementSystemAxis.axisName
-  axisDefinition: string;          // matches MovementSystemAxis.axisDefinition
-  anchorId:       string;          // `movement-axis-${axisKey}`
-  // Tricks under the axis, deduped across the axis modifiers, ordered by ADD
-  // ascending then alphabetically. No per-modifier sub-grouping.
-  cards:          DictionaryTrickCard[];
-  // The same cards partitioned into ADD-labelled sub-bands (ADD ascending), so
-  // the axis's secondary ADD ordering renders with visible headers.
-  addBands:       FreestyleAddBand[];
-}
-
-export interface MovementSystemBrowseView {
-  observationalNote: string;
-  axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
-  // Alternative-surfaces subsection rendered beneath the movement-system
-  // axes. Always shaped; renders only when activeView === 'movement-system'.
-  // Tricks use the shared dictionary-trick-row shape, like every browse view.
-  alternativeSurfaces: AlternativeSurfacesView;
-}
-
-export interface AlternativeSurfacesView {
-  intro:  string;
-  groups: AlternativeSurfaceGroupView[];
-}
-
-export interface AlternativeSurfaceGroupView {
-  slug:   string;            // anchor id ('alt-surface-sole-and-heel' etc)
-  label:  string;            // pre-shaped group label
-  note:   string;            // pre-shaped framing line
-  cards:  DictionaryTrickCard[]; // members surviving the canonical-DB existence filter, in the shared browse-row shape
-}
-
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
@@ -3148,13 +2990,8 @@ export interface FreestyleTricksIndexContent {
   // tricks', the family-filtered 'M of N tricks', or a tier page's
   // 'X ADD · M tricks'.
   headerCount: string;
-  // ?view=dex-count grouped view.
-  // Always shaped; UI branch renders only when activeView === 'dex-count'.
-  dexCountGroups: FreestyleTrickDexCountGroup[];
   activeView: FreestyleTricksActiveView;
 
-  // Existing category-grouped view, preserved for ?view=category.
-  groups: FreestyleTrickGroup[];
   familyGroups: FreestyleFamilyGroup[];  // first-class Family Parents, rendered as full sections
   // Minor lineages: conserved-terminal families below the current first-class
   // threshold, shown as a compact band rather than full sections.
@@ -3181,16 +3018,6 @@ export interface FreestyleTricksIndexContent {
   // First-class "By set" view (?view=set): the set / uptime systems only, in
   // the cluster's declared order, each with its trick rows. Empty groups drop.
   setViewGroups: FreestyleSetViewGroup[];
-  // Component view (?view=component). Body + set modifier axes only.
-  componentView: ComponentBrowseView;
-  // Topology view (?view=topology). Six pedagogically-
-  // grounded educational groups computed from existing data (base_trick +
-  // modifier_links + curator-tagged dex-class map). Observational layer.
-  topologyView: TopologyBrowseView;
-  // Four-axis Movement System projection
-  // (Set/Uptime · Entry Topologies · Midtime Body · No-Plant & Suspension).
-  // Always shaped. Source: src/content/freestyleMovementSystems.ts.
-  movementSystemView: MovementSystemBrowseView;
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
@@ -3211,20 +3038,12 @@ export interface FreestyleTricksIndexContent {
   // same group arrays the template renders, so the counts always match the
   // visible sections/cards. Rendered once in the corresponding view's intro.
   familyScale: string | null;
-  dexCountScale: string | null;
-  movementSystemScale: string | null;
   modifierScale: string | null;
-  topologyScale: string | null;
   setScale: string | null;
   // Per-view section intros, service-shaped like familyViewIntro so the copy
-  // standard holds (no hardcoded section copy in the template). The dex-count
-  // and modifier views carried theirs inline before.
-  dexCountIntro: string | null;
+  // standard holds (no hardcoded section copy in the template).
   modifierIntro: string | null;
   setViewIntro: string | null;
-  // Per-view intro for the movement-system view, service-shaped so copy has a
-  // single source of truth (the template appends the cross-links).
-  movementSystemIntro: string | null;
   // Self-orienting header for the family filter (?family=<name>): plain-words
   // orientation naming the family and trick count. Null unless a filter is active.
   familyFilterIntro: string | null;
@@ -3240,25 +3059,17 @@ export interface FreestyleTricksIndexContent {
   // The card gathering the browse-navigation control rows. Each row carries a
   // label naming what it controls: without them "By family" appears in two
   // rows meaning two different things (which view, and how a tier sorts).
-  // viewTitles are the lens questions ("How layered is the trick?"), carried as
-  // the title of each View entry: a reader cannot guess what "By dex count" or
-  // "Movement Neighborhoods" mean from the label alone, and a tooltip explains
-  // it without spending a line of layout on a parallel card grid.
+  // viewTitles are the lens questions, carried as the title of each View
+  // entry, so a tooltip explains a view without spending a line of layout on a
+  // parallel card grid.
   navSection: {
     heading: string;
     viewLabel: string;
     sortLabel: string;
-    // True when the active view is one of the specialist views living inside
-    // the "Other views" disclosure, so the disclosure renders open and the
-    // active entry is visible without a click.
-    otherViewsOpen: boolean;
     viewTitles: {
       add: string;
       family: string;
       set: string;
-      movementSystem: string;
-      topology: string;
-      dexCount: string;
       modifier: string;
     };
   };
@@ -3490,7 +3301,6 @@ export interface FreestyleFamilyDetailContent {
   crossLinks: {
     familyBrowseHref: string;      // /freestyle/tricks?view=family#family-{slug}
     conceptsHref: string;          // /freestyle/concepts#term-{slug}
-    movementSystemsHref: string;
   };
 }
 
@@ -3668,6 +3478,13 @@ export interface ModifierFeelCard {
   example:      string;                   // canonical worked example(s)
   familyHint:   string | null;            // optional observational adjacency
   midtimeBody:  boolean;                  // flag for "midtime body modifiers" sub-cluster
+}
+
+// A feel card as the Concepts page renders it: the card plus where its
+// tricks are listed in the dictionary (null when no view has a section for
+// that modifier, and the card then carries no browse link).
+export interface ModifierFeelCardVM extends ModifierFeelCard {
+  browseHref: string | null;
 }
 
 // Curator-authored. 9 set-cluster cards, rendered top-to-bottom in the
@@ -4143,12 +3960,6 @@ export interface FreestyleConceptsContent {
     gauntlet:     NotationDisplay | null;
   };
   // Connective-tissue panels (observational symbolic-grammar layer) for
-  // 6 high-value terms: paradox / symposium / ducking / spinning / whirl /
-  // pixie. Each panel surfaces related tricks + related symbolic groups +
-  // a notation hint + optional deep-link to a modifier-family page.
-  // Always populated (length=6); panels
-  // may have empty relatedTricks arrays when staging CSVs are missing.
-  connectivePanels: GlossaryConnectivePanel[];
   // §7 abbreviation tables — split into trick-name shorthand and
   // operational-notation tokens. Curator-authored; lives on the service
   // layer so future additions don't require a template surgery pass.
@@ -4166,8 +3977,8 @@ export interface FreestyleConceptsContent {
   // layer so the template renders each cluster without status-field
   // branching: 9 set cards, 4 body cards.
   setModifierFeelCards:   readonly ModifierFeelCard[];
-  entryTopologyFeelCards: readonly ModifierFeelCard[];
-  bodyModifierFeelCards:  readonly ModifierFeelCard[];
+  entryTopologyFeelCards: readonly ModifierFeelCardVM[];
+  bodyModifierFeelCards:  readonly ModifierFeelCardVM[];
   // §5 family cards, grouped primarily by display tier (Family Parents, then
   // Minor Lineages) and within each by lineage position (root lineages, then
   // branches grouped under their parent). Each card preserves its #term-{slug}
@@ -4458,12 +4269,10 @@ export interface OperatorIndexRow {
   notation:    string | null;                // canonical-set formula; set modifiers only
   descriptor:  string | null;                // one short movement line
   status:      { key: string; label: string };
-  // Where "Browse tricks" goes. Operators with a By-Movement-System section get
-  // that in-page anchor; flying is a movement neighborhood, so it goes to the
-  // topology view; the remaining operators without either surface (symple,
-  // muted, tapping, inspinning) fall back to the dictionary search so the action
-  // is never a dead anchor. Rendered with a trusted triple-stache so the query
-  // string's '=' is not HTML-escaped. The View-details href is still built in
+  // Where "Browse tricks" goes: the operator's section in the set or modifier
+  // view when it has one, else the dictionary search, so the action is never a
+  // dead anchor. Rendered with a trusted triple-stache so the query string's
+  // '=' is not HTML-escaped. The View-details href is still built in
   // the template from `slug` (single-variable URL).
   browseHref: string;
 }
@@ -4510,6 +4319,9 @@ export interface ModifierStubContent {
   statusLabel: string;
   commonTricks:     { slug: string; name: string; adds: string }[];
   relatedModifiers: { slug: string; name: string; href: string }[];
+  // Where this modifier's tricks are listed: its dictionary section when it has
+  // one, else the dictionary search.
+  browseHref:       string;
   // Operator -> base-atom cross-link (spinning -> spin), the reverse of the
   // atom's "See also" link, so the relationship is discoverable from either page.
   baseAtom:         { label: string; href: string } | null;
@@ -4549,14 +4361,6 @@ function shapeLeaders(rows: FreestyleLeaderRow[]): FreestyleLeaderViewModel[] {
 // Trick dictionary helpers
 // ---------------------------------------------------------------------------
 
-const CATEGORY_LABELS: Record<string, string> = {
-  dex:      'Dexterity',
-  body:     'Body',
-  set:      'Set',
-  compound: 'Compound',
-  modifier: 'Modifier',
-};
-
 // Editorial notes for major trick families.
 // These are service-layer constants, not DB-backed, and describe structural
 // significance at the family level rather than individual tricks.
@@ -4582,8 +4386,8 @@ const FAMILY_NOTES: Record<string, string> = {
     '(canonically Stepping Paradox Mirage) at 4 ADD.',
   clipper:
     'The clipper is a 1-ADD body kick into clipper position. Its primary compound derivative ' +
-    'is flying-clipper. Stall-based compounds (ducking clipper, spinning clipper) surface via ' +
-    'the Movement System view’s body-modifier axis; drifter anchors its own branch family.',
+    'is flying-clipper. Stall-based compounds (ducking clipper, spinning clipper) are listed ' +
+    'under their modifier in the modifier view; drifter anchors its own branch family.',
   legover:
     'The legover base yields a compact family: eggbeater (atomic legover) and flurry ' +
     '(barraging legover) are the primary 3-ADD entries. The family is notable for producing ' +
@@ -5838,29 +5642,6 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
   return a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' });
 }
 
-// Partition an already-ADD-sorted card list into labelled ADD sub-bands. Used
-// by every browse section whose secondary sort is ADD (dex-count, movement
-// system, topology) so the secondary ordering renders with visible '3 ADD' /
-// '4 ADD' headers instead of an unexplained card run. Input MUST already be
-// sorted by ADD ascending; bands are cut at each ADD change in sequence.
-function bandCardsByAdd(
-  items: { adds: string | null; card: DictionaryTrickCard }[],
-): FreestyleAddBand[] {
-  const bands: FreestyleAddBand[] = [];
-  let current: FreestyleAddBand | null = null;
-  let currentKey: number | null | undefined = undefined;
-  for (const { adds, card } of items) {
-    const n = parseAddNumeric(adds);
-    if (current === null || n !== currentKey) {
-      current = { addLabel: n === null ? '? ADD' : `${n} ADD`, cards: [] };
-      bands.push(current);
-      currentKey = n;
-    }
-    current.cards.push(card);
-  }
-  return bands;
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // DictionaryTrickCard builder. Consumes the raw DB row plus the alias-table
 // data (already loaded by the dictionary builder) and produces the slim
@@ -5916,8 +5697,7 @@ function shapeDictionaryTrickCard(
   // from CoreTrickSpec.operationalNotation (TS content module, the same
   // single source the landing Core Tricks grid reads from).
   // This propagates the curator-authored atom notation to dictionary
-  // browse cards (ADD / family / movement-system / topology / category
-  // views), so atoms like mirage / whirl / butterfly / ATW no longer
+  // browse cards (ADD / family / set / modifier views), so atoms like mirage / whirl / butterfly / ATW no longer
   // render blank or with alias-only readings. Alias-governance entries
   // ('≡ ATW', etc.) are suppressed on browse cards for atoms so the
   // operational notation takes the visible slot; aliases remain
@@ -6708,128 +6488,11 @@ interface ModifierLinkInfo {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Topology grouping primitives (module-scoped so both the dictionary index
-// builder and the trick-detail builder consume the same definitions).
-//
-// Six pedagogically-grounded educational groups.
-// Membership is computed deterministically from base_trick + modifier_links;
-// no schema, no CSV.
-// ─────────────────────────────────────────────────────────────────────────
-
-const HIPPY_BASES = new Set(['mirage', 'butterfly']);
-const LEGGY_BASES = new Set(['legover', 'pickup', 'whirl', 'swirl', 'illusion']);
-const CLIPPER_LANDING_BASES = new Set(['butterfly', 'whirl', 'swirl', 'osis', 'blender']);
-// Airborne body events (the player leaves the ground): the canonical Flying
-// body component as it appears in operational notation. Membership is matched
-// structurally on these body tokens, never by trick name.
-const FLYING_BODY_TOKENS = ['FLYING [BOD]', 'DOUBLE KICK [BOD]', 'DOUBLE KNEE [BOD]'];
-
-interface TopologyGroupDef {
-  slug:        string;
-  name:        string;
-  definition:  string;
-  // Membership predicate. Takes the trick row and a `hasModifierLink`
-  // function (closure over the caller's link data). Returns true when this
-  // group includes the trick.
-  matches(
-    row: { slug: string; base_trick: string | null; operational_notation: string | null },
-    hasModifierLink: (modifierSlug: string) => boolean,
-  ): boolean;
-}
-
-const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
-  {
-    slug:       'hippy-downtime-dex',
-    name:       'Hippy downtime dex',
-    definition: 'Tricks whose downtime dex comes from the hip: the thigh swings broadly around the bag while the chest opens. Anchored on Mirage and Butterfly.',
-    matches:    row => !!(row.base_trick && HIPPY_BASES.has(row.base_trick)),
-  },
-  {
-    slug:       'leggy-dex',
-    name:       'Leggy dex',
-    definition: 'Tricks whose dex comes from the knee: the calf circles the bag while the thigh stays composed. Anchored on Legover, Pickup, Whirl, Swirl, Illusion.',
-    matches:    row => !!(row.base_trick && LEGGY_BASES.has(row.base_trick)),
-  },
-  {
-    slug:       'whirl-swirl-structures',
-    name:       'Whirl / swirl structures',
-    definition: 'Tricks built on the rotational dex pair: Whirl (leggy in to clipper) and Swirl (leggy out with crossbody entry to clipper).',
-    matches:    row => row.base_trick === 'whirl' || row.base_trick === 'swirl',
-  },
-  {
-    slug:       'pixie-uptime-dex',
-    name:       'Pixie uptime dex',
-    definition: 'Tricks with a pixie set treatment in the uptime: compressed pre-base set that compresses the rising-bag window.',
-    matches:    (_row, hasLink) => hasLink('pixie'),
-  },
-  {
-    slug:       'symposium-clipper-structures',
-    name:       'Symposium clipper structures',
-    definition: 'Clipper-landing tricks performed with a symposium discipline: the support leg leaves the ground during the dex.',
-    matches:    (row, hasLink) => hasLink('symposium')
-      && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
-  },
-  {
-    slug:       'ducking-clipper-structures',
-    name:       'Ducking clipper structures',
-    definition: 'Clipper-landing tricks with a ducking head-dip in the midtime: the bag passes around the neck while the rest of the trick continues.',
-    matches:    (row, hasLink) => hasLink('ducking')
-      && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
-  },
-  {
-    slug:       'flying',
-    name:       'Flying',
-    definition: 'Tricks performed airborne: the player leaves the ground for a body event recorded as a flying body token in the notation (a flying clipper, a dragonfly kick, a double kick or double knee).',
-    matches:    row => !!row.operational_notation
-      && FLYING_BODY_TOKENS.some(t => row.operational_notation!.includes(t)),
-  },
-];
-
-// ─────────────────────────────────────────────────────────────────────────
-// Per-trick reverse semantic-membership lookup. Used by the trick-detail
-// page to close the discovery loop between browse views and trick pages.
-//
-// Reuses the same TOPOLOGY_GROUPS predicates the dictionary index uses.
-// No new query; the modifier links are already loaded by the caller.
-// ─────────────────────────────────────────────────────────────────────────
-
-export interface TrickTopologyMembership {
-  topologySlug:       string;
-  topologyName:       string;
-  topologyDefinition: string;
-  href:               string;
-}
-
-export interface TrickSemanticMemberships {
-  topology:  TrickTopologyMembership[];
-}
-
-function computeTrickSymbolicMemberships(
-  row: { slug: string; base_trick: string | null; operational_notation: string | null },
-  modifierLinks: ModifierLinkInfo[],
-): TrickSemanticMemberships {
-  const linkSlugs = new Set(modifierLinks.map(l => l.slug));
-  const hasModifierLink = (modifierSlug: string): boolean => linkSlugs.has(modifierSlug);
-
-  const topology: TrickTopologyMembership[] = TOPOLOGY_GROUPS
-    .filter(def => def.matches(row, hasModifierLink))
-    .map(def => ({
-      topologySlug:       def.slug,
-      topologyName:       def.name,
-      topologyDefinition: def.definition,
-      href:               `/freestyle/tricks?view=topology#topology-${def.slug}`,
-    }));
-
-  return { topology };
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Compact structural-fact block for the trick-detail page: family base,
-// movement system(s), movement neighborhood(s), and modifier(s). Consolidates
-// data already computed elsewhere (resolveDisplayFamily, resolveAxisForModifier,
-// the topology predicates, the trick's modifier links) into one scan-at-a-glance
-// panel rendered high on the page, so a reader grasps the trick's structure
-// without scrolling into the deeper reference sections.
+// Compact structural-fact block for the trick-detail page: family base and
+// modifier(s). Consolidates data already computed elsewhere
+// (resolveDisplayFamily, the trick's modifier links) into one
+// scan-at-a-glance panel rendered high on the page, so a reader grasps the
+// trick's structure without scrolling into the deeper reference sections.
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface TrickStructuralFact {
@@ -6840,19 +6503,8 @@ export interface TrickStructuralFact {
 
 export interface TrickStructuralFacts {
   familyBase:      TrickStructuralFact | null;
-  movementSystems: readonly TrickStructuralFact[];
-  neighborhoods:   readonly TrickStructuralFact[];
   modifiers:       readonly TrickStructuralFact[];
   hasAny:          boolean;
-}
-
-// First sentence of a longer curator definition, for the compact tooltip-style
-// note. Cuts at the first sentence-ending period so the structural-fact rows
-// stay one line each.
-function firstSentence(s: string): string {
-  const trimmed = s.trim();
-  const m = trimmed.match(/^(.*?[.!?])(\s|$)/);
-  return (m ? m[1] : trimmed).trim();
 }
 
 function buildStructuralFacts(
@@ -6868,31 +6520,6 @@ function buildStructuralFacts(
     familyBase = { name: operatorTitleCase(familyRoot), slug: familyRoot, note: null };
   }
 
-  // Movement system(s) — the axes the trick's modifiers belong to, deduped.
-  // Note = the first sentence of the curator axis definition.
-  const seenAxis = new Set<string>();
-  const movementSystems: TrickStructuralFact[] = [];
-  for (const link of modifierLinks) {
-    const axis = resolveAxisForModifier(link.slug);
-    if (axis && !seenAxis.has(axis.axisKey)) {
-      seenAxis.add(axis.axisKey);
-      movementSystems.push({
-        name: axis.axisName,
-        slug: axis.axisKey,
-        note: firstSentence(axis.axisDefinition),
-      });
-    }
-  }
-
-  // Movement neighborhood(s) — topology memberships. Note = the first sentence
-  // of the curator topology definition.
-  const neighborhoods: TrickStructuralFact[] =
-    computeTrickSymbolicMemberships(row, modifierLinks).topology.map(t => ({
-      name: t.topologyName,
-      slug: t.topologySlug,
-      note: firstSentence(t.topologyDefinition),
-    }));
-
   // Modifier(s) — deduped by slug (a modifier can appear at multiple orders).
   // Note = the beginner one-liner when one is known for the operator.
   const seenMod = new Set<string>();
@@ -6907,9 +6534,8 @@ function buildStructuralFacts(
     });
   }
 
-  const hasAny = !!familyBase || movementSystems.length > 0
-    || neighborhoods.length > 0 || modifiers.length > 0;
-  return { familyBase, movementSystems, neighborhoods, modifiers, hasAny };
+  const hasAny = !!familyBase || modifiers.length > 0;
+  return { familyBase, modifiers, hasAny };
 }
 
 // Fallback modifier links for the structural-fact block when a trick has no DB
@@ -7672,9 +7298,8 @@ export const freestyleService = {
         });
 
         // "Modifiers on this trick" rows (one per distinct modifier link):
-        // browse-cluster label + Movement System axis deep-link + optional
-        // composition gloss. Always shaped, independent of the >=3-link
-        // modifier-layering panel below it.
+        // browse-cluster label + optional composition gloss. Always shaped,
+        // independent of the >=3-link modifier-layering panel below it.
         const modifierMemberships: FreestyleTrickModifierMembership[] = (() => {
           const seen = new Set<string>();
           const out: FreestyleTrickModifierMembership[] = [];
@@ -7682,12 +7307,9 @@ export const freestyleService = {
             const ms = link.modifier_slug;
             if (seen.has(ms)) continue;
             seen.add(ms);
-            const axis = resolveAxisForModifier(ms);
             out.push({
               name:         link.modifier_name,
               clusterLabel: clusterLabelForModifier(ms),
-              axisName:     axis ? axis.axisName : null,
-              axisKey:      axis ? axis.axisKey : null,
               gloss:        resolveModifierCompositionGloss(ms),
             });
           }
@@ -7920,8 +7542,7 @@ export const freestyleService = {
           structuralFacts: (() => {
             if (!dictRow) return null;
             // Folk-named compounds with no DB modifier links fall back to the
-            // curator-published operator so the block still shows their modifiers,
-            // movement systems, and neighborhoods.
+            // curator-published operator so the block still shows their modifiers.
             const modsForFacts = currentTrickMods.length > 0
               ? currentTrickMods
               : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows);
@@ -8727,53 +8348,6 @@ export const freestyleService = {
     const isTrickRow = (row: { slug: string }): boolean =>
       resolveTrickKind(row.slug) === 'trick';
 
-    // ---- Category groups (?view=category) -----------------------------
-    //
-    // Each group emits a `cards: DictionaryTrickCard[]`
-    // array alongside the legacy `tricks` shape. Cards sort ADD ascending,
-    // then trick name alphabetical. Empty categories don't render. The
-    // legacy spreadsheet table is retired in the template.
-    const categoryOrder = ['dex', 'body', 'set', 'compound'];
-    const grouped = new Map<string, FreestyleTrickRowWithStatus[]>();
-    for (const row of activeRows) {
-      if (!isTrickRow(row)) continue;
-      const cat = row.category ?? 'other';
-      const bucket = grouped.get(cat) ?? [];
-      bucket.push(row);
-      grouped.set(cat, bucket);
-    }
-
-    const sortCategoryRows = (rows: FreestyleTrickRowWithStatus[]): FreestyleTrickRowWithStatus[] =>
-      rows.slice().sort((a, b) => {
-        const an = parseAddNumeric(a.adds);
-        const bn = parseAddNumeric(b.adds);
-        const ai = an ?? Number.POSITIVE_INFINITY;
-        const bi = bn ?? Number.POSITIVE_INFINITY;
-        if (ai !== bi) return ai - bi;
-        return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
-      });
-
-    const buildCategoryGroup = (cat: string, rows: FreestyleTrickRowWithStatus[]): FreestyleTrickGroup => {
-      const sorted = sortCategoryRows(rows);
-      const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx));
-      return {
-        category: cat,
-        label:    CATEGORY_LABELS[cat] ?? cat,
-        cards,
-        anchorId: `category-${cat}`,
-      };
-    };
-
-    const groups: FreestyleTrickGroup[] = categoryOrder
-      .filter(cat => grouped.has(cat))
-      .map(cat => buildCategoryGroup(cat, grouped.get(cat) ?? []));
-    for (const [cat, rows] of grouped.entries()) {
-      if (!categoryOrder.includes(cat) && cat !== 'modifier') {
-        groups.push(buildCategoryGroup(cat, rows));
-      }
-    }
-
     // ---- Family groups (preserved for ?view=family) -------------------
     //
     // Each group also emits a `cards: DictionaryTrickCard[]`
@@ -8954,83 +8528,15 @@ export const freestyleService = {
     const documentedUniverseTotal = OBSERVATIONAL_UNIVERSE_STATS.universeTotal;
 
     // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'modifier'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
-    // A value outside the allow-list falls through to the default ADD view
-    // rather than erroring. The soft-retired component view keeps resolving
-    // for inbound legacy links.
+    // A value outside the allow-list, including an inbound link to a view the
+    // dictionary no longer offers, falls through to the default ADD view
+    // rather than erroring.
     const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
       ? requestedView
       : 'add';
     const activeView = resolvedView;
-
-    // ---- Dex-count groups (?view=dex-count) ---------------------------
-    // Bucket active dictionary tricks by the number of [DEX] tokens in
-    // their operational_notation. The four-tier ladder (0 / 1 / 2 / 3+)
-    // matches the dex-count distribution observed in the canonical DB:
-    // most named tricks fall in 1- or 2-dex; 3+ is the deep-compound tail.
-    // Dex events are counted from the SAME resolved notation the row renders
-    // (curator core-atom spec, then the published-formula overlay, then the DB
-    // column), so a first-class trick whose chain lives in the overlay is
-    // counted like any other. A trick with no notation from ANY source cannot
-    // be dex-counted, so it does NOT render in this view at all: an unresolved
-    // bucket is not canonical browse content. Those rows are notation-backfill
-    // work; they stay visible in every other browse view carrying the
-    // incomplete badge, and the view intro states how many are pending so the
-    // count is derived, never stale.
-    const countDexEvents = (row: FreestyleTrickRowWithStatus): number | null => {
-      const opNotation = resolveOperationalNotationRaw(row.slug, row.operational_notation);
-      if (!opNotation) return isDexlessBodyAtom(row) ? 0 : null;
-      const matches = opNotation.match(/\[DEX\]/g);
-      return matches ? matches.length : 0;
-    };
-    const dexBuckets = new Map<number, AddBucketEntry[]>();
-    let dexNotationPending = 0;
-    for (const row of allRows) {
-      if (!isTrickRow(row)) continue;
-      if (row.is_active !== 1) continue;
-      const raw = countDexEvents(row);
-      if (raw === null) {
-        dexNotationPending += 1;
-        continue;
-      }
-      // Bucket 3 and 4+ together for the "3+ dex events" label.
-      const bucketKey = raw >= 3 ? 3 : raw;
-      const bucket = dexBuckets.get(bucketKey) ?? [];
-      bucket.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
-      dexBuckets.set(bucketKey, bucket);
-    }
-    const dexCountGroups: FreestyleTrickDexCountGroup[] = [];
-    const buildDexGroup = (
-      dexCount: number,
-      dexLabel: string,
-      entries: AddBucketEntry[],
-    ): FreestyleTrickDexCountGroup => {
-      // Ordering within a dex bucket: ADD ascending, then alphabetical.
-      const sorted = entries.slice().sort((a, b) => {
-        const aa = parseAddNumeric(a.row.adds) ?? Number.POSITIVE_INFINITY;
-        const ba = parseAddNumeric(b.row.adds) ?? Number.POSITIVE_INFINITY;
-        if (aa !== ba) return aa - ba;
-        return byCanonicalNameAlpha(a.indexRow, b.indexRow);
-      });
-      const cards = sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, ctx));
-      return {
-        dexCount,
-        dexLabel,
-        bucketId: `dex-${dexCount}`,
-        cards,
-        addBands: bandCardsByAdd(sorted.map((e, i) => ({ adds: e.row.adds, card: cards[i]! }))),
-      };
-    };
-    const dexNumericKeys = [...dexBuckets.keys()].sort((a, b) => a - b);
-    for (const k of dexNumericKeys) {
-      const label =
-        k === 0 ? '0 dex events' :
-        k === 1 ? '1 dex event' :
-        k === 2 ? '2 dex events' :
-        '3+ dex events';
-      dexCountGroups.push(buildDexGroup(k, label, dexBuckets.get(k) ?? []));
-    }
 
     // Load modifier reference table (still shaped; rendering currently disabled)
     const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
@@ -9116,277 +8622,6 @@ export const freestyleService = {
         trickCount: sorted.length,
       };
     });
-
-    // ---- Component view (?view=component projection) --------------------
-    // Body + set modifier axes only. Within each axis, groups render in priority order
-    // (curator-tagged); remaining groups follow alphabetical. Within each
-    // group, cards sort ADD ascending, then trick name alphabetical.
-    // Empty groups are hidden.
-
-    // Paradox is a dex relationship, not a body movement (D6); it renders in its
-    // own component-view axis below. Its DB modifier_type stays 'body', so this
-    // split is presentation-only and lives here, not in the data.
-    const ENTRY_TOPOLOGY_SLUGS = new Set(['paradox']);
-    const ENTRY_PRIORITY = ['paradox'];
-    const BODY_PRIORITY = ['symposium', 'spinning', 'ducking', 'diving', 'weaving', 'gyro'];
-    const SET_PRIORITY  = ['pixie', 'atomic', 'quantum', 'nuclear', 'fairy', 'furious', 'stepping'];
-
-    // One-line body-mechanics definitions for the priority modifiers. Curator-authored;
-    // a future slice may expand this map to additional modifiers.
-    const COMPONENT_DEFINITIONS: Record<string, string> = {
-      paradox:   'A hip pivot on a single dex: the body changes sides around it without adding another dex or changing the set foot.',
-      symposium: 'A no-plant body discipline: the support leg stays off the ground during the dex.',
-      spinning:  'A full-body 360° rotation carried through the dex moment.',
-      ducking:   'A head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite.',
-      diving:    'A head arc (over and under the bag) with the bag falling to the same side.',
-      weaving:   'A ducking set in which the bag is caught on the same foot that performed the set.',
-      gyro:      'A half-body 180° rotation carried through the dex moment.',
-      whirling:  'A whirl-family launch set: a rotational opening before the base (whirling + osis = blender).',
-      stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
-      pixie:     'A compressed pre-base set; tighter motion than stepping.',
-      atomic:    'A cross-body set (+1). X-Dex, when present, is a separate [XDEX] flag on the following dex.',
-      quantum:   'The compressed form of atomic: a tighter set treatment.',
-      nuclear:   'A +2 set modifier; structurally paradox + illusion.',
-      fairy:     'A pre-base set treatment closely related to pixie.',
-      furious:   'A +2 two-dex set. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator.',
-    };
-
-    const componentSortByAddThenName = (
-      a: { row: FreestyleTrickRow; indexRow: FreestyleTrickIndexRow },
-      b: { row: FreestyleTrickRow; indexRow: FreestyleTrickIndexRow },
-    ): number => {
-      const an = parseAddNumeric(a.row.adds);
-      const bn = parseAddNumeric(b.row.adds);
-      const ai = an ?? Number.POSITIVE_INFINITY;
-      const bi = bn ?? Number.POSITIVE_INFINITY;
-      if (ai !== bi) return ai - bi;
-      return a.row.canonical_name.localeCompare(b.row.canonical_name, undefined, { sensitivity: 'base' });
-    };
-
-    interface ComponentBucket {
-      modifierSlug: string;
-      modifierName: string;
-      modifierType: string;
-      entries:      { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow }[];
-    }
-
-    const componentAccumulator = new Map<string, ComponentBucket>();
-    const allActiveByStatus = new Map<string, FreestyleTrickRowWithStatus>();
-    for (const r of activeRows) allActiveByStatus.set(r.slug, r);
-    for (const lr of linkRows) {
-      const row = allActiveByStatus.get(lr.trick_slug);
-      if (!row) continue;
-      // Only true tricks appear in the
-      // component view. Modifiers / operators / surfaces are routed elsewhere.
-      if (!isTrickRow(row)) continue;
-      // Only body + set axes here.
-      if (lr.modifier_type !== 'body' && lr.modifier_type !== 'set') continue;
-      let bucket = componentAccumulator.get(lr.modifier_slug);
-      if (!bucket) {
-        bucket = {
-          modifierSlug: lr.modifier_slug,
-          modifierName: lr.modifier_name,
-          modifierType: lr.modifier_type,
-          entries:      [],
-        };
-        componentAccumulator.set(lr.modifier_slug, bucket);
-      }
-      if (!bucket.entries.some(e => e.row.slug === row.slug)) {
-        bucket.entries.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
-      }
-    }
-
-    const buildComponentGroup = (bucket: ComponentBucket): ComponentGroup => {
-      const sorted = bucket.entries.slice().sort(componentSortByAddThenName);
-      // Pass the modifier-slug as the group anchor
-      // so the shared component token underlines on browse-density render.
-      return {
-        componentSlug:  bucket.modifierSlug,
-        componentName:  bucket.modifierName,
-        bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
-        memberCount:    sorted.length,
-        anchorId:       `component-${bucket.modifierSlug}`,
-        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, ctx)),
-      };
-    };
-
-    const orderByPriorityThenAlpha = (
-      buckets: ComponentBucket[],
-      priority: string[],
-    ): ComponentGroup[] => {
-      const ordered: ComponentGroup[] = [];
-      const claimed = new Set<string>();
-      for (const slug of priority) {
-        const bucket = buckets.find(b => b.modifierSlug === slug);
-        if (bucket && bucket.entries.length > 0) {
-          ordered.push(buildComponentGroup(bucket));
-          claimed.add(slug);
-        }
-      }
-      const remaining = buckets
-        .filter(b => !claimed.has(b.modifierSlug) && b.entries.length > 0)
-        .sort((a, b) => a.modifierName.localeCompare(b.modifierName, undefined, { sensitivity: 'base' }));
-      for (const bucket of remaining) ordered.push(buildComponentGroup(bucket));
-      return ordered;
-    };
-
-    const allBodyTypeBuckets = [...componentAccumulator.values()].filter(b => b.modifierType === 'body');
-    const entryBuckets = allBodyTypeBuckets.filter(b => ENTRY_TOPOLOGY_SLUGS.has(b.modifierSlug));
-    const bodyBuckets  = allBodyTypeBuckets.filter(b => !ENTRY_TOPOLOGY_SLUGS.has(b.modifierSlug));
-    const setBuckets   = [...componentAccumulator.values()].filter(b => b.modifierType === 'set');
-
-    // ---- Topology view (?view=topology projection) ----------------------
-    // Six pedagogically-grounded educational groups. TOPOLOGY_GROUPS +
-    // HIPPY_BASES / LEGGY_BASES / CLIPPER_LANDING_BASES live at module scope
-    // so the trick-detail page can reuse the same defs.
-
-    const trickHasModifierLinkInAccumulator = (slug: string, modifierSlug: string): boolean => {
-      const bucket = componentAccumulator.get(modifierSlug);
-      if (!bucket) return false;
-      return bucket.entries.some(e => e.row.slug === slug);
-    };
-
-    const buildTopologyGroup = (def: TopologyGroupDef): TopologyGroup => {
-      const matched = activeRows
-        .filter(r => isTrickRow(r)
-                  && def.matches(r, mod => trickHasModifierLinkInAccumulator(r.slug, mod)))
-        .sort((a, b) => {
-          const an = parseAddNumeric(a.adds);
-          const bn = parseAddNumeric(b.adds);
-          const ai = an ?? Number.POSITIVE_INFINITY;
-          const bi = bn ?? Number.POSITIVE_INFINITY;
-          if (ai !== bi) return ai - bi;
-          return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
-        });
-      const indexRows = matched.map(r => shapeTrickIndexRow(r, ctx));
-      const cards = matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx));
-      // Pass the topology-slug as the group anchor.
-      // Template renders dotted-underline emphasis on topology surfaces
-      // (observational, not canonical) via ancestor-class selector.
-      return {
-        topologySlug:   def.slug,
-        topologyName:   def.name,
-        bodyDefinition: def.definition,
-        memberCount:    matched.length,
-        anchorId:       `topology-${def.slug}`,
-        cards,
-        addBands:       bandCardsByAdd(matched.map((r, i) => ({ adds: r.adds, card: cards[i]! }))),
-      };
-    };
-
-    const topologyView: TopologyBrowseView = {
-      layerSource:       'observational',
-      observationalNote:
-        'Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families. Seven neighborhoods are recognized: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, Ducking clipper structures, and Flying. They are a way to explore similarity, not an official family classification. The family view remains the structural reference.',
-      groups: TOPOLOGY_GROUPS
-        .map(buildTopologyGroup)
-        .filter(g => g.memberCount > 0),
-    };
-
-    const componentView: ComponentBrowseView = {
-      duplicationNote:
-        'Compounds appear in every component group they belong to. A trick with paradox AND spinning shows up under both: the duplication is intentional, since each grouping is a separate browse path.',
-      axes: [
-        {
-          axisKey:   'body',
-          axisLabel: 'Body modifiers',
-          anchorId:  'axis-body',
-          groups:    orderByPriorityThenAlpha(bodyBuckets, BODY_PRIORITY),
-        },
-        {
-          axisKey:   'entry-topology',
-          axisLabel: 'Dex relationships',
-          anchorId:  'axis-entry-topology',
-          groups:    orderByPriorityThenAlpha(entryBuckets, ENTRY_PRIORITY),
-        },
-        {
-          axisKey:   'set',
-          axisLabel: 'Set modifiers',
-          anchorId:  'axis-set',
-          groups:    orderByPriorityThenAlpha(setBuckets, SET_PRIORITY),
-        },
-      ],
-    };
-
-    // ---- Movement System view (content-module-driven) ----
-    // Re-buckets the existing componentAccumulator under four curator-authored
-    // pedagogical axes. Axes are walked in declaration order; modifier groups
-    // within an axis follow the order of axis.modifierSlugs (curator-meaningful).
-    // Axes with zero non-empty groups are pruned to avoid empty section
-    // headings.
-
-    // Per-axis flat card list: union the tricks across the axis's modifiers,
-    // dedup by slug, order by ADD ascending then alphabetically. No per-modifier
-    // sub-grouping (the axis itself is the grouping).
-    const buildMovementSystemAxisCards = (
-      modifierSlugs: readonly string[],
-    ): { cards: DictionaryTrickCard[]; addBands: FreestyleAddBand[] } => {
-      const seen = new Set<string>();
-      const entries: { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow }[] = [];
-      for (const slug of modifierSlugs) {
-        const bucket = componentAccumulator.get(slug);
-        if (!bucket) continue;
-        for (const e of bucket.entries) {
-          if (seen.has(e.row.slug)) continue;
-          seen.add(e.row.slug);
-          entries.push(e);
-        }
-      }
-      entries.sort((a, b) => {
-        const aa = parseAddNumeric(a.row.adds) ?? Number.POSITIVE_INFINITY;
-        const ba = parseAddNumeric(b.row.adds) ?? Number.POSITIVE_INFINITY;
-        if (aa !== ba) return aa - ba;
-        return byCanonicalNameAlpha(a.indexRow, b.indexRow);
-      });
-      const cards = entries.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, ctx));
-      return {
-        cards,
-        addBands: bandCardsByAdd(entries.map((e, i) => ({ adds: e.row.adds, card: cards[i]! }))),
-      };
-    };
-
-    // Build the alternative-surfaces subsection (compact educational
-    // clusters; rendered after the 4 axes). Each group's trick list is
-    // filtered to canonical-DB active rows so missing slugs degrade
-    // gracefully (the content module is curator-paced; new alt-surface
-    // canonical rows added later just appear once their row is active).
-    const alternativeSurfaceGroups: AlternativeSurfaceGroupView[] =
-      ALTERNATIVE_SURFACES.groups.map(group => {
-        const rows = group.tricks
-          .map(slug => allActiveTrickRowsBySlug.get(slug))
-          .filter((row): row is FreestyleTrickRowWithStatus => row !== undefined);
-        const cards = rows.map(row => shapeDictionaryTrickCard(row, shapeTrickIndexRow(row, ctx), ctx));
-        return {
-          slug:   `alt-surface-${group.slug}`,
-          label:  group.label,
-          note:   group.note,
-          cards,
-        };
-      }).filter(g => g.cards.length > 0);
-
-    const movementSystemView: MovementSystemBrowseView = {
-      observationalNote:
-        'An exploratory, unofficial lens: four broad groupings describing movement character, ' +
-        'never a canonical classification. Within each grouping, tricks are ordered by ADD, ' +
-        'then alphabetically.',
-      axes: MOVEMENT_SYSTEM_AXES
-        .map(axis => {
-          const { cards, addBands } = buildMovementSystemAxisCards(axis.modifierSlugs);
-          return {
-            axisKey:        axis.axisKey,
-            axisName:       axis.axisName,
-            axisDefinition: axis.axisDefinition,
-            anchorId:       `movement-axis-${axis.axisKey}`,
-            cards,
-            addBands,
-          };
-        })
-        .filter(a => a.cards.length > 0),
-      alternativeSurfaces: {
-        intro:  ALTERNATIVE_SURFACES.intro,
-        groups: alternativeSurfaceGroups,
-      },
-    };
 
     // Cross-link block: when the dictionary is filtered to one family, surface
     // the modifiers used by tricks in that family as deep-links into the sets
@@ -9571,22 +8806,8 @@ export const freestyleService = {
       `${familyMemberships} trick-row ${plural(familyMemberships, 'membership', 'memberships')} shown` +
       (familyMemberships > familyDistinct ? ', and some tricks belong to more than one family.' : '.');
 
-    const dexRows = dexCountGroups.reduce((n, g) => n + g.cards.length, 0);
-    const dexCountScale =
-      `${dexCountGroups.length} dex ${plural(dexCountGroups.length, 'bucket', 'buckets')} · ` +
-      `${dexRows} canonical trick ${plural(dexRows, 'row', 'rows')} represented.`;
-
-    // Per-view section intros (service-shaped; the static cross-link affordances
-    // stay in the template). These were inline template copy before.
-    // The pending-notation sentence is derived from the same pass that built
-    // the buckets, so the count can never go stale; it renders only when
-    // something is actually pending.
-    const dexCountIntro =
-      'Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.' +
-      (dexNotationPending > 0
-        ? ` ${dexNotationPending} canonical ${dexNotationPending === 1 ? 'trick awaits' : 'tricks await'} ` +
-          'notation authoring and cannot be counted yet; they appear in the other browse views with an incomplete badge.'
-        : '');
+    // Per-view section intros, service-shaped; the static cross-link
+    // affordances stay in the template.
     const modifierIntro =
       'Tricks grouped by the modifier they use. Each section answers: which tricks use this '
       + 'modifier? Within each modifier, tricks are ordered by ADD, then alphabetically.';
@@ -9629,14 +8850,6 @@ export const freestyleService = {
       `${setMemberships} trick-row ${plural(setMemberships, 'membership', 'memberships')} shown. ` +
       'A trick that uses more than one set appears under each.';
 
-    const movementMemberships = movementSystemView.axes.reduce(
-      (n, a) => n + a.cards.length, 0);
-    const movementSystemScale =
-      `${movementSystemView.axes.length} ${plural(movementSystemView.axes.length, 'system / axis', 'systems / axes')} · ` +
-      `${movementMemberships} trick-row ${plural(movementMemberships, 'membership', 'memberships')} shown, ` +
-      'plus a separately-grouped Alternative Surfaces layer below the axes. ' +
-      'A compound can appear under more than one axis or modifier.';
-
     // Counts derive from the SAME cluster groups the template renders (the
     // launch sets browse at ?view=set and are not counted here), so the scale
     // always equals the sum of the rendered subsection counts.
@@ -9647,12 +8860,6 @@ export const freestyleService = {
       `${modifierCount} ${plural(modifierCount, 'modifier', 'modifiers')} · ` +
       `${modifierMemberships} trick-row ${plural(modifierMemberships, 'membership', 'memberships')} shown. ` +
       'A trick that uses more than one modifier appears under each.';
-
-    const topologyMemberships = topologyView.groups.reduce((n, g) => n + g.cards.length, 0);
-    const topologyScale =
-      `${topologyView.groups.length} ${plural(topologyView.groups.length, 'neighborhood', 'neighborhoods')} · ` +
-      `${topologyMemberships} trick-row ${plural(topologyMemberships, 'membership', 'memberships')} shown. ` +
-      'Exploratory, pedagogical grouping, not a canonical taxonomy.';
 
     // Family-filter self-orienting header (the hashtag-click ?family=<name>
     // state). Plain words: name the family and its trick count, then say in
@@ -9670,13 +8877,6 @@ export const freestyleService = {
         + 'ending stays the same.'
       : null;
 
-    // Movement-system view intro, service-shaped like the other per-view intros
-    // so the copy lives in one place; the template appends the cross-links.
-    const movementSystemIntro =
-      'By movement system groups tricks into four broad movement groupings, with tricks caught '
-      + 'on an unusual part of the body listed separately as Alternative surfaces. Open a '
-      + 'grouping to browse its tricks.';
-
     return {
       seo: {
         title: addTier != null
@@ -9686,7 +8886,7 @@ export const freestyleService = {
           ? `${addTier}-ADD tricks in the freestyle footbag trick dictionary: ` +
             `${tierCardCount} documented at this difficulty tier.`
           : `The freestyle footbag trick dictionary: ${canonicalCount} named canonical tricks, ` +
-            'browsable by difficulty, family, set, dex count, and movement system.',
+            'browsable by difficulty, family, set, and modifier.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -9713,9 +8913,7 @@ export const freestyleService = {
         addSortToggle,
         headerCount,
         isAddTierView: addTier != null,
-        dexCountGroups,
         activeView,
-        groups,
         familyGroups: familyParentGroups,
         minorLineages,
         familyJumpIndex,
@@ -9725,9 +8923,6 @@ export const freestyleService = {
         modifierOtherGroups,
         modifierWhyDisclosure,
         setViewGroups,
-        componentView,
-        topologyView,
-        movementSystemView,
         modifiers,
         activeFamily,
         relatedModifierGroups,
@@ -9775,15 +8970,11 @@ export const freestyleService = {
           heading:   'Navigate the Trick Dictionary',
           viewLabel: 'View:',
           sortLabel: 'Sort:',
-          otherViewsOpen: (['movement-system', 'topology', 'dex-count'] as FreestyleTricksActiveView[]).includes(activeView),
           viewTitles: {
-            add:            'How layered is the trick?',
-            family:         'What core movement pattern does the trick build on?',
-            set:            'Which named set does the trick open with?',
-            movementSystem: 'Which broad movement style does it belong to?',
-            topology:       'Tricks that move alike, even across different families.',
-            dexCount:       'How many dexterity moves does it have?',
-            modifier:       'Which named moves, sets, or twists does it use?',
+            add:      'How layered is the trick?',
+            family:   'What core movement pattern does the trick build on?',
+            set:      'Which named set does the trick open with?',
+            modifier: 'Which named moves, sets, or twists does it use?',
           },
         },
         backToTopLabel: 'Back to Top',
@@ -9813,21 +9004,16 @@ export const freestyleService = {
           'Members of a family share the same shallow structural skeleton (entry + dex + ' +
           'terminator), even when they carry different modifiers or sit at different ADD ' +
           'values. This is distinct from the ADD view (which clusters by structural difficulty ' +
-          'regardless of family) and the Movement System view (which clusters by the modifier ' +
-          'axes that transform a base). The shared terminal structure under each family ' +
+          'regardless of family) and the modifier view (which groups by the modifiers that ' +
+          'transform a base). The shared terminal structure under each family ' +
           'heading below is the invariant that makes the cohort cohere.',
         familyWhyDisclosure,
         setWhyDisclosure,
         familyScale,
-        dexCountScale,
-        movementSystemScale,
         modifierScale,
-        topologyScale,
         setScale,
-        dexCountIntro,
         modifierIntro,
         setViewIntro,
-        movementSystemIntro,
         familyFilterIntro,
       },
     };
@@ -10254,12 +9440,11 @@ export const freestyleService = {
           paradoxWhirl: paradoxWhirlExample,
           gauntlet:     gauntletExample,
         },
-        connectivePanels: buildGlossaryConnectivePanels(allDictRows),
         abbreviations:   GLOSSARY_ABBREVIATIONS,
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:   SET_MODIFIER_FEEL_CARDS,
-        entryTopologyFeelCards: ENTRY_TOPOLOGY_FEEL_CARDS,
-        bodyModifierFeelCards:  BODY_MODIFIER_FEEL_CARDS,
+        entryTopologyFeelCards: ENTRY_TOPOLOGY_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug) })),
+        bodyModifierFeelCards:  BODY_MODIFIER_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug) })),
         familyCardGroups: buildFamilyCardTierGroups(),
         otherFoundationalAtoms: coreTricks.filter(t => {
           const familySlugs = new Set([
@@ -10649,8 +9834,8 @@ export const freestyleService = {
   },
 
   getOperatorsPage(): PageViewModel<FreestyleOperatorsContent> {
-    // Compact, browseable index of the modifier vocabulary, grouped by the
-    // movement-system axes, in the same row idiom as the trick dictionary and
+    // Compact, browseable index of the modifier vocabulary, grouped by
+    // structural role, in the same row idiom as the trick dictionary and
     // set encyclopedia. The advanced-reference blocks below the index are
     // retained for now (theory split deferred) and render from the shared
     // advanced-reference partial.
@@ -10879,6 +10064,7 @@ export const freestyleService = {
         statusLabel: status.label,
         commonTricks,
         relatedModifiers,
+        browseHref:  modifierBrowseHref(slug) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
         baseAtom:    (() => {
           const atom = baseAtomCrossLinkFor(slug);
           return atom ? { label: `${operatorTitleCase(atom)} (base trick)`, href: `/freestyle/tricks/${atom}` } : null;
@@ -11143,7 +10329,6 @@ export const freestyleService = {
         crossLinks: {
           familyBrowseHref:    `/freestyle/tricks?view=family#family-${slug}`,
           conceptsHref:        `/freestyle/concepts#term-${slug}`,
-          movementSystemsHref: '/freestyle/tricks?view=movement-system',
         },
       },
     };
@@ -11252,7 +10437,7 @@ export const freestyleService = {
     const crossLinks: SetDetailCrossLinks = {
       setEncyclopediaHref:             '/freestyle/sets',
       compositionalHubHref:   `/freestyle/compositional-sets#${compositionalFamilyKey[set.subtype]}`,
-      movementSystemAxisHref: '/freestyle/tricks?view=movement-system#movement-axis-set-uptime',
+      setBrowseHref:          clusterForModifier(set.slug) === 'set-uptime' ? modifierBrowseHref(set.slug) : null,
       operatorReferenceHref,
       flatReferenceHref:      '/freestyle/sets/reference',
     };

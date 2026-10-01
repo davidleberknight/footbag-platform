@@ -15,7 +15,6 @@ import {
   getTier1OperatorDefinition,
   OPERATOR_REFERENCE_ENTRIES,
 } from '../../src/content/freestyleOperatorReference';
-import { MOVEMENT_SYSTEM_AXES } from '../../src/content/freestyleMovementSystems';
 
 const atomic   = getOperatorReferenceEntry('atomic')!;
 const miraging = getOperatorReferenceEntry('miraging')!;
@@ -73,11 +72,6 @@ describe('Valid execution-timing vocabulary is preserved', () => {
 
   it('downtime still describes the motion nuclear folds in', () => {
     expect(nuclear.oneLineMeaning).toMatch(/downtime illusioning dex/i);
-  });
-
-  it('midtime remains a movement-system axis', () => {
-    const keys = MOVEMENT_SYSTEM_AXES.map(a => a.axisKey);
-    expect(keys).toContain('midtime-body');
   });
 });
 

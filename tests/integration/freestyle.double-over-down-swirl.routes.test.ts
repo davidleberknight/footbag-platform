@@ -74,7 +74,7 @@ describe('double-over-down-swirl detail page — first-class JOB + ADD', () => {
   });
 
   it('browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="double_over_down_swirl"');
     expect(idx).toBeGreaterThan(-1);

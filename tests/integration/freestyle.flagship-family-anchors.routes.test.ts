@@ -226,25 +226,21 @@ describe('compact structural-fact block', () => {
     return html.slice(i, html.indexOf('</section>', i));
   };
 
-  it('a derivative surfaces family base, movement system, neighborhood, and modifier with links', async () => {
+  it('a derivative surfaces family base and modifier with links, and nothing else', async () => {
     const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
     const block = blockOf(res.text);
     expect(block).not.toBe('');
     expect(block).toContain('Family base');
     expect(block).toContain('href="/freestyle/tricks/mirage"');
-    expect(block).toContain('Movement system');
-    expect(block).toContain('href="/freestyle/tricks?view=movement-system#movement-axis-entry-topology"');
-    expect(block).toContain('Movement neighborhood');
-    expect(block).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
     expect(block).toContain('Modifier');
     expect(block).toContain('href="/freestyle/modifier/paradox"');
     // Each classification carries a one-line beginner explanation.
     expect(block).toContain('structural-fact-note');
     expect(block).toContain('The hips pivot on a single dexterity');
-    // The neighborhood grouping carries the observational layer badge, matching
-    // the glossary's defined term.
-    expect(block).toContain('>observational<');
+    // No row for a grouping the dictionary no longer offers a view of.
+    expect(block).not.toMatch(/Movement system|Movement neighborhood/);
+    expect(block).not.toContain('>observational<');
   });
 
   it('the family base row is suppressed on the base trick page (no self-reference)', async () => {
@@ -266,7 +262,5 @@ describe('compact structural-fact block', () => {
     expect(block).toContain('Modifier');
     expect(block).toContain('href="/freestyle/modifier/atomic"');
     expect(block).not.toContain('href="/freestyle/modifier/x-dex"');
-    // The recovered modifier also populates the movement-system row.
-    expect(block).toContain('Movement system');
   });
 });

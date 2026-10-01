@@ -91,7 +91,8 @@ describe('Dictionary browse — family-view intro paragraph', () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.text).toMatch(/conserved terminal mechanic/i);
     expect(res.text).toMatch(/ADD view/i);
-    expect(res.text).toMatch(/Movement System view/i);
+    expect(res.text).toMatch(/the modifier view/i);
+    expect(res.text).not.toMatch(/Movement System view/i);
   });
 
   it('familyViewIntro does NOT appear on other views', async () => {
@@ -118,11 +119,11 @@ describe('Dictionary — beginner-first landing lede', () => {
     const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/movement vocabulary/i);
     // The plain-language explanation lives in the orientation tiles, and each
-    // browse axis carries its lens question so a label like "By dex count" is
-    // never left to be guessed at.
+    // browse axis carries its lens question so what a view is for is never
+    // left to be guessed at.
     expect(res.text).toMatch(/difficulty/i);
     expect(res.text).toMatch(/How layered is the trick/);
-    expect(res.text).toMatch(/How many dexterity moves does it have/);
+    expect(res.text).toMatch(/Which named set does the trick open with/);
     // No ontology jargon in the beginner lede.
     expect(res.text).not.toMatch(/orthogonal/i);
   });

@@ -85,26 +85,24 @@ describe('W1 — same-family and shared-modifier relating owned by the Family la
 });
 
 describe('W2/W3 — "Modifiers on this trick" block', () => {
-  it('renders for a one-modifier trick (no three-link gate) with cluster + axis + gloss', async () => {
+  it('renders for a one-modifier trick (no three-link gate) with cluster + gloss', async () => {
     const html = await page('paradox-whirl');
     expect(html).toContain('Modifiers on this trick');
     expect(html).toContain('trick-modifier-name');
     expect(html).toContain('>Paradox<');
     expect(html).toContain('trick-modifier-cluster');
-    // Movement System axis deep-link for a classified modifier.
-    expect(html).toContain('/freestyle/tricks?view=movement-system#movement-axis-entry-topology');
-    expect(html).toContain('Entry Topologies');
     // Composition gloss line present.
     expect(html).toContain('trick-modifier-gloss');
+    // No row links into a dictionary view that no longer exists.
+    expect(html).not.toContain('trick-modifier-axis');
+    expect(html).not.toContain('view=movement-system');
   });
 
-  it('shows the cluster but no axis link or gloss for an unclassified modifier', async () => {
+  it('shows the cluster but no gloss for a modifier with none authored', async () => {
     const html = await page('blurry-mirage');
     expect(html).toContain('Modifiers on this trick');
     expect(html).toContain('>Blurry<');
     expect(html).toContain('trick-modifier-cluster');
-    // blurry has no Movement System axis and no gloss.
-    expect(html).not.toContain('movement-axis-');
     expect(html).not.toContain('trick-modifier-gloss');
   });
 

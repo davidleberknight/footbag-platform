@@ -284,7 +284,7 @@ describe('GET /freestyle/tricks — Reading the Dictionary disclosure', () => {
     const html = await get('/freestyle/tricks');
     expect(html).toContain('The trick row');
     expect(html).toContain('The browse views');
-    expect(html).toContain('Six kinds of object');
+    expect(html).toContain('Five kinds of object');
     expect(html).toContain('Reading a compound name');
     expect(html).toContain('href="/freestyle/concepts#section-notation"');
     expect(html).toContain('href="/freestyle/concepts#section-add-accounting"');
@@ -302,7 +302,7 @@ describe('GET /freestyle/tricks — Reading the Dictionary disclosure', () => {
 
   it('browse behaviour is unchanged: views, deep links, and detail routes still resolve', async () => {
     const app = await createApp();
-    for (const p of ['/freestyle/tricks?view=add', '/freestyle/tricks?view=modifier', '/freestyle/tricks?view=dex-count', '/freestyle/tricks/whirl']) {
+    for (const p of ['/freestyle/tricks?view=add', '/freestyle/tricks?view=modifier', '/freestyle/tricks?view=set', '/freestyle/tricks/whirl']) {
       const res = await request(app).get(p);
       expect(res.status, p).toBe(200);
     }

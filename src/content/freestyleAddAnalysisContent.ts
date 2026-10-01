@@ -186,9 +186,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall, thigh catch, pincher',
   },
   // Operator / modifier contributions, applied on top of a base
-  // trick. Organized below by the four-axis operator-board grouping
-  // used on /freestyle/tricks?view=movement-system and in the
-  // glossary §6 modifier reference. The axis grouping is a
+  // trick. Organized below by a four-axis grouping. The axis grouping is a
   // pedagogical / organizational convention, NOT a canonical
   // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {

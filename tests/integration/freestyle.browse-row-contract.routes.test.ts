@@ -35,13 +35,13 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifiers in the Movement System axes + registered for By Modifier.
+  // A launch set for By set and two body modifiers for By modifier.
   insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_type: 'set', notes: '' });
   insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_type: 'body', notes: '' });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_type: 'body', notes: '' });
 
-  // Base tricks (topology + family anchors) + modifier-linked compounds that
-  // collectively populate every primary browse view.
+  // Base tricks (family anchors) + modifier-linked compounds that collectively
+  // populate every browse view.
   const tricks: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
     { slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage', category: 'dex', notation: 'MIRAGE', operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'whirl', canonical_name: 'whirl', adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'dex', notation: 'WHIRL', operational_notation: 'SET > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
@@ -53,6 +53,9 @@ beforeAll(async () => {
 
   insertFreestyleTrickModifierLink(db, 'pixie-illusion', 'pixie');
   insertFreestyleTrickModifierLink(db, 'ducking-whirl', 'ducking');
+  // A launch-set link as well, so the trick every control assertion names is
+  // also listed in the By set view.
+  insertFreestyleTrickModifierLink(db, 'ducking-whirl', 'pixie', 2);
   insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning');
 
   // A display-eligible folk name on a modifier-linked compound in the larger
@@ -66,19 +69,12 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// Every browse view the dictionary offers, by query value and UI label. The two
-// soft-retired views sit in this list on the same terms as the rest: a view no
-// longer promoted in the toggle still renders rows the same way for anyone
-// arriving on a bookmark or an external link.
+// Every browse view the dictionary offers, by query value and UI label.
 const BROWSE_VIEWS: Array<[string, string]> = [
   ['add', 'By ADD'],
   ['family', 'By family'],
-  ['dex-count', 'By dex count'],
-  ['movement-system', 'Movement System'],
+  ['set', 'By set'],
   ['modifier', 'By Modifier'],
-  ['topology', 'Movement Neighborhoods'],
-  ['category', 'By category'],
-  ['component', 'By component'],
 ];
 
 describe('Browse-shell row-contract stability guard — every browse view uses the two-line dict-trick-row', () => {

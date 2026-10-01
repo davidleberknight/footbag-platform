@@ -1,6 +1,7 @@
 {{! /freestyle/by-the-numbers — histogram cards summarizing how the dictionary
     distributes across difficulty, dexterity, entry, family ending, and body
-    movement. Each card is a gateway into the browse view it counts. }}
+    movement. A card whose histogram a dictionary view groups by is a gateway
+    into that view; the others are plain panels. }}
 
 <div class="hero hero-sm">
   <div>
@@ -21,7 +22,7 @@
   <section>
     <div class="by-numbers-grid">
       {{#each content.cards}}
-      <a class="by-numbers-card" href="/freestyle/tricks?view={{viewKey}}">
+      {{#if href}}<a class="by-numbers-card" href="{{{href}}}">{{else}}<div class="by-numbers-card">{{/if}}
         <span class="by-numbers-eyebrow">{{eyebrow}}</span>
         <span class="by-numbers-title">{{title}}</span>
         <span class="by-numbers-bars">
@@ -34,8 +35,8 @@
           {{/each}}
         </span>
         {{#if footnote}}<span class="by-numbers-footnote">{{footnote}}</span>{{/if}}
-        <span class="by-numbers-cta">Browse</span>
-      </a>
+        {{#if href}}<span class="by-numbers-cta">Browse</span>
+      </a>{{else}}</div>{{/if}}
       {{/each}}
     </div>
     <p class="text-muted fs-sm mt-4">{{content.note}}</p>

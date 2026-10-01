@@ -105,7 +105,7 @@ describe('Paradox-family detail pages — first-class JOB + ADD', () => {
 
 describe('Paradox-family browse rendering — FIRST_CLASS_TIER_2', () => {
   it('both paradox-family browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     for (const slug of ['paradox_da_da_curve', 'paradox_whirling_swirl']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);

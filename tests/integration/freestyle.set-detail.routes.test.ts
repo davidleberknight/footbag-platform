@@ -171,14 +171,14 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toContain('No tricks are linked to this set yet');
   });
 
-  it('renders cross-links to the encyclopedia, compositional hub, and movement-system axis', async () => {
+  it('renders cross-links to the encyclopedia, compositional hub, and the set\'s dictionary section', async () => {
     const res = await page('/freestyle/sets/pixie');
     // The back control lands on the Set Encyclopedia, the canonical set surface.
     expect(res.text).toContain('href="/freestyle/sets">Back to Set Encyclopedia<');
     expect(res.text).toContain('href="/freestyle/compositional-sets#single-dex-primitives"');
-    // Handlebars HTML-encodes `=` in interpolated href values; browsers decode
-    // entities in href values so the link works. Match either form.
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view(?:=|&#x3D;)movement-system#movement-axis-set-uptime"/);
+    // A launch set links to its own section of the dictionary's By set view.
+    expect(res.text).toContain('href="/freestyle/tricks?view=set#set-pixie">Browse This Set in the Dictionary<');
+    expect(res.text).not.toContain('movement-system');
     // The flat Holden reference table link is intentionally not surfaced
     // (no source-person naming on the public related-surfaces list).
     expect(res.text).not.toContain('href="/freestyle/sets/reference"');

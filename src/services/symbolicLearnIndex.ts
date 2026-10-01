@@ -117,19 +117,12 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
 
 const REFERENCE_SECTION: LearnIndexSection = {
   heading:    'Reference surfaces',
-  introBlurb: 'Reference pages for the symbolic vocabulary itself: the Freestyle Concepts connective panels for high-value terms, which carry current platform doctrine, and the historical move-set compilation, which is preserved as source evidence rather than as current classification.',
+  introBlurb: 'Reference pages for the symbolic vocabulary itself: the historical move-set compilation, which is preserved as source evidence rather than as current classification.',
   entries: [
     {
       title:      'Historical Move-Set Reference',
       href:       '/freestyle/sets/reference',
       shortBlurb: 'A historical community compilation of the set-notation language: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest were described in TOE / CLIP / SET grammar. Its classifications are source evidence and may differ from current platform doctrine.',
-      status:     'shipped',
-      isShipped:  true,
-    },
-    {
-      title:      'Freestyle Concepts movement-topology panels',
-      href:       '/freestyle/concepts#connective-panels',
-      shortBlurb: 'Paradox, symposium, ducking, spinning, whirl, pixie: each as a short panel pointing to where the term lives in practice across the dictionary.',
       status:     'shipped',
       isShipped:  true,
     },

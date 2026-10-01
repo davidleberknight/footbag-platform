@@ -2,12 +2,9 @@
  * Trick-detail Movement-system row doctrine.
  *
  * Miraging is descriptive mirage-family language for the inward standalone
- * movement, not a launch set,
- * so a Miraging trick page must NOT render the "Set / Uptime Systems"
- * movement-system row (that row is derived from the set-uptime axis, and
- * miraging was removed from it). The corrected Miraging modifier row still
- * carries the doctrine. A confirmed set (atomic) still renders the row, so the
- * axis edit did not over-remove.
+ * movement, not a launch set, so a Miraging trick page must never present it
+ * as a "Set / Uptime Systems" member. The Miraging modifier row carries the
+ * doctrine. A confirmed set (atomic) still lists as a modifier.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -81,9 +78,12 @@ describe('GET /freestyle/tricks/:slug — Miraging pages drop the stale set-upti
     }
   });
 
-  it('a confirmed-set (atomic) trick still renders the "Set / Uptime Systems" movement-system row', async () => {
+  it('a confirmed-set (atomic) trick lists its set as a modifier and renders no movement-system row', async () => {
+    // Trick pages carry no movement-system row at all, since the dictionary
+    // has no movement-system view; the set still appears as a modifier.
     const { status, text } = await trick('atomic_butterfly');
     expect(status).toBe(200);
-    expect(text).toContain('Set / Uptime Systems');
+    expect(text).toContain('href="/freestyle/modifier/atomic"');
+    expect(text).not.toContain('Set / Uptime Systems');
   });
 });

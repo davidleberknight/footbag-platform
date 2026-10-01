@@ -134,9 +134,9 @@ describe('Browse rows carry no chain tokens on any view', () => {
   // is the trick that would show them.
   it('no browse view renders a chain token', async () => {
     const app = createApp();
-    // The views this fixture places ripwalk in; the component and
-    // movement-system views group by modifier link, which ripwalk has none of.
-    for (const view of ['add', 'family', 'category', 'dex-count']) {
+    // The views this fixture places ripwalk in; the set and modifier views
+    // group by modifier link, which ripwalk has none of.
+    for (const view of ['add', 'family']) {
       const res = await request(app).get(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       const row = res.text.match(/data-trick-slug="ripwalk"[\s\S]*?<\/article>/);
@@ -147,19 +147,18 @@ describe('Browse rows carry no chain tokens on any view', () => {
 });
 
 describe('Freestyle Concepts modifier cards — "See tricks using X" deep-links', () => {
-  it('renders a tricks-link footer on every set-modifier card', async () => {
+  it('links each body and entry modifier card to its section of the modifier view', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
-    // Each modifier card carries the tricks-link paragraph; spot-check the four
-    // most pedagogically central ones. The movement-system view groups by axis,
-    // so there is no per-modifier anchor; every card's browse link lands on the
-    // view itself.
-    for (const slug of ['pixie', 'atomic', 'paradox', 'symposium']) {
+    // Spot-check the most pedagogically central cards: each browse link lands
+    // on that modifier's own section, never on a removed view.
+    for (const slug of ['paradox', 'symposium', 'spinning', 'ducking']) {
       expect(
         res.text,
-        `Concepts modifier card for '${slug}' missing tricks-link footer`,
-      ).toContain('href="/freestyle/tricks?view=movement-system"');
+        `Concepts modifier card for '${slug}' missing its browse link`,
+      ).toContain(`href="/freestyle/tricks?view=modifier#modifier-${slug}"`);
     }
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
   it('renders the tricks-link class wrapper on the footer paragraph', async () => {

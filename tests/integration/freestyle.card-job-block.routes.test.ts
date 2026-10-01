@@ -1,10 +1,10 @@
 /**
  * Card JOB-block + by-set linked-card regression tests.
  *
- * Pins four rendered-surface contracts:
+ * Pins three rendered-surface contracts:
  *
- *   1. Across the SHARED-card browse views (family / movement-system /
- *      sets), the operational-notation row on each card renders inside a
+ *   1. Across the SHARED-card browse views (family / sets), the
+ *      operational-notation row on each card renders inside a
  *      labeled `.dict-card-notation-block` with a leading "JOB" label
  *      span — not as loose body text. The detail-page convention
  *      ("Set notation" labeled section) extends to cards.
@@ -16,10 +16,7 @@
  *      — title is an <a href="/freestyle/tricks/...">, ADD chip present,
  *      operational notation inside the JOB-block. NOT just hashtag text.
  *
- *   3. Movement-system view intro clearly distinguishes it from "By set"
- *      (axes ≠ specific modifiers).
- *
- *   4. Emerging Vocabulary copy says "observational" / "awaiting review",
+ *   3. Emerging Vocabulary copy says "observational" / "awaiting review",
  *      not "more documented names"; Stanford appears as a source chip.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -45,7 +42,7 @@ const getPage = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifier registry (enough to drive ?view=modifier sections + Movement System)
+  // Modifier registry (enough to drive the modifier and set view sections)
   const bodyModifiers = ['paradox', 'spinning', 'ducking'];
   const setModifiers  = ['fairy', 'pixie', 'quantum', 'stepping'];
   for (const slug of bodyModifiers) insertFreestyleTrickModifier(db, { slug, modifier_type: 'body', notes: '' });
@@ -124,17 +121,18 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expectTwoLineJob(res.text, 'quantum_mirage');
   });
 
-  it('By dex-count (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
-    // Dex view uses the two-line dict-trick-row contract.
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+  it('By ADD (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
+    // ADD view uses the two-line dict-trick-row contract.
+    const res = await getPage('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expectTwoLineJob(res.text, 'atomic_illusion');
     expectTwoLineJob(res.text, 'ducking_toe_stall');
   });
 
-  it('By movement system (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
-    // Movement System view uses the two-line dict-trick-row contract.
-    const res = await getPage('/freestyle/tricks?view=movement-system');
+  it('By set (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
+    // Set view uses the two-line dict-trick-row contract; fairy and quantum
+    // are set modifiers, so these rows list on By set rather than By modifier.
+    const res = await getPage('/freestyle/tricks?view=set');
     expect(res.status).toBe(200);
     expectTwoLineJob(res.text, 'fairy_mirage');
     expectTwoLineJob(res.text, 'quantum_mirage');
@@ -159,7 +157,7 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expect(page.text).toMatch(/class="content-section equivalent-readings"/);
     expect(page.text).toMatch(/class="operational-notation-tokens"/);
 
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=add');
     const idx = res.text.indexOf('data-trick-slug="mobius"');
     expect(idx).toBeGreaterThan(-1);
     const window = res.text.substring(idx, idx + 4000);
@@ -167,11 +165,10 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 
   it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear on shared-card views', async () => {
-    // The shared-card JOB-block-wrapper invariant applies to the still-shared
-    // views. Asserted on category (a stable shared-card view, not in the
-    // active two-line migration sequence). Migrated views (ADD / Family / Dex /
-    // Movement System) use dict-trick-row-notation-value — see the *-view-rows tests.
-    const res = await getPage('/freestyle/tricks?view=category');
+    // Any shared-card notation that renders on the default ADD view must sit
+    // inside the JOB-block wrapper; two-line rows use
+    // dict-trick-row-notation-value instead.
+    const res = await getPage('/freestyle/tricks?view=add');
     const re = /<code class="dict-card-notation/g;
     let match: RegExpExecArray | null;
     while ((match = re.exec(res.text)) !== null) {
@@ -225,14 +222,7 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
   });
 });
 
-describe('Movement-system / By-set axis disambiguation', () => {
-  it('Movement System intro names the four broad groupings + cross-links to By set and By modifier', async () => {
-    const res = await getPage('/freestyle/tricks?view=movement-system');
-    expect(res.text).toMatch(/four broad movement groupings/i);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=set"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=modifier"/);
-  });
-
+describe('By-set / By-modifier axis disambiguation', () => {
   it('By modifier intro names "which tricks use this modifier?" + cross-links to By set and the Set Encyclopedia', async () => {
     const res = await getPage('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/which tricks use this modifier/i);
@@ -271,7 +261,7 @@ describe('/freestyle/tricks — nicknames beside the name, separate from ≡ rea
   }
 
   it('renders folk nicknames beside the mobius name', async () => {
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=add');
     const row = mobiusRow(res.text);
     expect(row).toContain('aria-label="Also called"');
     expect(row).toContain('möbius');
@@ -279,7 +269,7 @@ describe('/freestyle/tricks — nicknames beside the name, separate from ≡ rea
   });
 
   it('omits a nickname that duplicates the ≡ reading (gyro torque)', async () => {
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=add');
     const row = mobiusRow(res.text);
     // mobius's ≡ reading IS "gyro torque"; the identical alias must not repeat
     // as a nickname beside the name.

@@ -541,9 +541,9 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).not.toContain('class="glossary-intermediate-operators"');
   });
 
-  it('cross-links the dictionary movement-system view and the set encyclopedia', async () => {
+  it('cross-links the dictionary modifier view and the set encyclopedia', async () => {
     const res = await page('/freestyle/operators');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=modifier#modifier-[a-z_]+"/);
     expect(res.text).toContain('href="/freestyle/sets"');
   });
 });
@@ -754,9 +754,9 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
 });
 
 describe('GET /freestyle/operators — orientation lede', () => {
-  it('orientation lede cross-links to the By Movement System dictionary view', async () => {
+  it('links no dictionary view that no longer exists', async () => {
     const res = await page('/freestyle/operators');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    expect(res.text).not.toMatch(/\/freestyle\/tricks\?view=(movement-system|topology|dex-count|component|category)/);
   });
 });
 
@@ -1451,20 +1451,14 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     expect(res.text).toMatch(/not<\/strong> a synonym for inspin/);
   });
 
-  it('category view renders the soft-retirement notice pointing to canonical replacements', async () => {
-    // The category view is soft-retired: instead of the grammatical-role
-    // explanatory note ("Grouped by grammatical role..."), it renders
-    // a retirement notice that directs the user to Family + Movement
-    // System as canonical replacements. Route still returns 200 for
-    // bookmark continuity.
+  it('a request for the removed category view renders the default ADD view', async () => {
+    // The category view is gone; an inbound link to it still returns 200 and
+    // lands on the default view rather than a retirement notice.
     const res = await page('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="category-view-retirement-notice"');
-    expect(res.text).toMatch(/This view is being retired/);
-    expect(res.text).toContain('href="/freestyle/tricks?view=family"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
-    // Old grammatical-role prose + class are gone.
-    expect(res.text).not.toContain('class="category-view-note');
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
+    expect(res.text).not.toContain('retirement-notice');
+    expect(res.text).not.toMatch(/This view is being retired/);
     expect(res.text).not.toMatch(/Grouped by grammatical role/);
   });
 });
@@ -1686,7 +1680,7 @@ describe('Formula accountability contracts', () => {
     // pill (curator-authored via freestyleUnresolvedCompounds.ts) is the only
     // honest "pending" surface; "core atom" implementation language never
     // leaks to public.
-    const res = await page('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=add');
     for (const slug of ['mirage', 'butterfly']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card not found in dictionary`).toBeGreaterThan(0);
@@ -1738,16 +1732,6 @@ describe('Formula accountability contracts', () => {
     expect(block).toMatch(/CLIP/);
     expect(block).toMatch(/OP IN/);
     expect(block).toMatch(/\[DEX\]/);
-  });
-
-  it('paradox connective panel notation hint carries the canonical formula', async () => {
-    const res = await page('/freestyle/concepts');
-    const panelIdx = res.text.indexOf('id="glossary-panel-paradox"');
-    expect(panelIdx).toBeGreaterThan(0);
-    const nextPanelIdx = res.text.indexOf('id="glossary-panel-', panelIdx + 50);
-    const slice = res.text.slice(panelIdx, nextPanelIdx);
-    expect(slice).toMatch(/Canonical formula/);
-    expect(slice).toMatch(/PDX/);
   });
 
   it('ADD Analysis surfaces paradox notation as the entry-topology case', async () => {
@@ -2051,16 +2035,18 @@ describe('Freestyle Concepts — Symbolic Notation / Compression layer', () => {
 });
 
 describe('Freestyle Concepts — Structural compression subsection', () => {
-  it('renders the symbolic-compression-flow anchor inside §composition (above §connective-panels)', async () => {
-    // The worked compression renders as an h4 inside the
-    // Vocabulary Relationships subsection of §composition (Symbolic
-    // Composition). Anchor #symbolic-compression-flow is preserved on
-    // that h4 for inbound deep-links.
+  it('renders the symbolic-compression-flow anchor inside the composition chapter', async () => {
+    // The worked compression renders as an h4 inside the Vocabulary
+    // Relationships subsection of the Symbolic Composition chapter. Anchor
+    // #symbolic-compression-flow is preserved on that h4 for inbound
+    // deep-links.
     const res = await page('/freestyle/concepts');
+    const compositionIdx = res.text.indexOf('id="section-composition"');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('id="connective-panels"');
-    expect(flowIdx).toBeGreaterThan(0);
-    expect(topologyIdx).toBeGreaterThan(flowIdx);
+    const referenceIdx = res.text.indexOf('id="section-reference-history"');
+    expect(compositionIdx).toBeGreaterThan(0);
+    expect(flowIdx).toBeGreaterThan(compositionIdx);
+    expect(referenceIdx).toBeGreaterThan(flowIdx);
   });
 
   it('renders the four-depth mobius compression ladder', async () => {
@@ -2213,23 +2199,6 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
   });
 });
 
-describe('Freestyle Concepts — §11 Family & Topology Concepts (connective panels)', () => {
-  it('renders the §11 Family & Topology Concepts section with the observational badge', async () => {
-    // The six connective panels
-    // live in §11 (Family & Topology Concepts). The
-    // id="connective-panels" anchor is preserved for inbound links
-    // (anchor-preservation forever-rule).
-    const res = await page('/freestyle/concepts');
-    const panelIdx = res.text.indexOf('id="connective-panels"');
-    expect(panelIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(panelIdx, panelIdx + 2000);
-    expect(slice).toMatch(/Family &amp; Topology Concepts/);
-    expect(slice).toContain('symbolic-layer-badge');
-    expect(slice).toMatch(/observational/);
-    expect(slice).toMatch(/intentionally incomplete|representative selection/i);
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Typography/layout polish for compact symbolic objects. CSS-only refinements
 // plus dictionary unification (CSS-level). Most assertions are structural:
@@ -2263,19 +2232,19 @@ describe('Freestyle Concepts — compression-flow visual continuity (compact for
   });
 });
 
-describe('Freestyle dictionary — Dex view two-line row styling', () => {
-  it('dict-trick-row-title elements render on the dex-count view', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
+describe('Freestyle dictionary — ADD view two-line row styling', () => {
+  it('dict-trick-row-title elements render on the ADD view', async () => {
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/class="dict-trick-row-title"/);
   });
 
-  it('dict-trick-row-add (line-2 ADD slot) elements render on the dex-count view', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
+  it('dict-trick-row-add (line-2 ADD slot) elements render on the ADD view', async () => {
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/class="dict-trick-row-add"/);
   });
 
-  it('the dex-count view renders the dict-trick-row wrapper (migrated off the shared card)', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
+  it('the ADD view renders the dict-trick-row wrapper (not the shared card)', async () => {
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/class="dict-trick-row[^"]*"/);
     expect(res.text).not.toContain('dict-card-stack');
   });
@@ -2298,7 +2267,7 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
     expect(trickPage.status).toBe(200);
     expect(trickPage.text).toMatch(/class="content-section equivalent-readings"/);
 
-    const res = await page('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/class="dict-trick-row-interpretation"/);
     expect(res.text).not.toMatch(/class="core-trick-equiv-sigil"/);
   });
@@ -2357,7 +2326,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     // Atoms (first-class) carry their curator JOB chain on line 2 of the
     // two-line row (dict-trick-row-notation-value), sourced from firstClassChainValue,
     // including the (midtime) marker. No shared-card op-notation chip.
-    const res = await page('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=add');
     const atwIdx = res.text.indexOf('data-trick-slug="around_the_world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);

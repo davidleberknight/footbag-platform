@@ -356,9 +356,9 @@ describe('GET /freestyle/tricks', () => {
 
   it('descriptions are not rendered in any browse view (they live on the trick-detail page)', async () => {
     // Prose descriptions are excluded from every browse card (ADD, family,
-    // component, category). Descriptions live on the trick-detail page; browse
+    // set, modifier). Descriptions live on the trick-detail page; browse
     // cards don't carry them.
-    const res = await page('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('most connected trick');
     expect(res.text).not.toContain('maximum documented base ADD');
     expect(res.text).not.toContain('trick-description');
@@ -400,16 +400,6 @@ describe('GET /freestyle/tricks', () => {
 // ---------------------------------------------------------------------------
 
 describe('public dictionary presentation', () => {
-  it('renders Notation column header and notation text in the category view', async () => {
-    const res = await page('/freestyle/tricks?view=category');
-    expect(res.status).toBe(200);
-    // The category view has no Notation column header. The shared row
-    // renders operational notation via role-tagged token spans in its
-    // notation column, not in a table column.
-    expect(res.text).not.toContain('<th>Notation</th>');
-    expect(res.text).toContain('dict-trick-row-stack');
-  });
-
   it('renders notation inline in the default ADD view (no table header)', async () => {
     const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
@@ -437,8 +427,8 @@ describe('public dictionary presentation', () => {
     expect(res.text).not.toContain('+ADD (rotational)');
   });
 
-  it('category view cards carry data-trick-slug as the per-card identity attribute', async () => {
-    const res = await page('/freestyle/tricks?view=category');
+  it('ADD view cards carry data-trick-slug as the per-card identity attribute', async () => {
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // The shared dictionary-trick-card exposes data-trick-slug on the card root,
     // so a card's identity is readable without parsing its rendered text.
@@ -447,7 +437,7 @@ describe('public dictionary presentation', () => {
   });
 
   it('compound slugs (e.g. spinning-whirl) preserve their slug in data-trick-slug', async () => {
-    const res = await page('/freestyle/tricks?view=category');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toContain('data-trick-slug="spinning-whirl"');
   });
 
@@ -726,11 +716,11 @@ describe('pending row visibility', () => {
     expect(res.text).not.toContain('External source, not yet adjudicated');
   });
 
-  it('category view continues to hide pending tricks (canonical layout only)', async () => {
-    const res = await page('/freestyle/tricks?view=category');
+  it('ADD view hides pending tricks, including pending family members', async () => {
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain('whirl');
-    // Pending rows do not surface in the legacy category table layout.
+    // Pending rows do not surface in the canonical browse.
     expect(res.text).not.toContain('pending zorblax');
     expect(res.text).not.toContain('pending paradox whirl');
   });
@@ -843,11 +833,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('suppresses "Notation pending" placeholder in registry density', async () => {
-    // The pending placeholder is suppressed on the registry-density By ADD
-    // view (clean identifier-only cards for atoms / pending rows).
-    // Browse-density views (family / component / topology) still render
-    // the placeholder for rows with neither tokenized ≡ readings nor
-    // operational notation.
+    // The pending placeholder is suppressed on the By ADD view (clean
+    // identifier-only cards for atoms / pending rows).
     const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
   });
@@ -871,38 +858,30 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('renders the view toggle with the ADD view marked active', async () => {
-    // Component View and Category View are soft-retired: neither toggle
-    // entry renders. Movement System is the canonical modifier-grouped
-    // browse surface; Family + Movement System replace Category. The
-    // ?view=category and ?view=component routes still resolve with
-    // retirement notices for bookmark continuity.
+    // The dictionary offers four views; no toggle entry links to any other.
     const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toContain('class="trick-view-toggle"');
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
-    // Soft-retired toggle entries are gone.
-    expect(res.text).not.toContain('href="/freestyle/tricks?view=category"');
-    expect(res.text).not.toContain('href="/freestyle/tricks?view=component"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=set"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=modifier"');
+    for (const removed of ['movement-system', 'topology', 'dex-count', 'category', 'component']) {
+      expect(res.text).not.toContain(`href="/freestyle/tricks?view=${removed}`);
+    }
   });
 });
 
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/tricks?view=modifier — the modifier-grouped browse', () => {
-  // ?view=modifier is not an alias for the soft-retired ?view=component; it
-  // activates the modifier-grouped browse with its own cluster sections.
+  // ?view=modifier activates the modifier-grouped browse with its own
+  // cluster sections.
 
-  it('returns 200 and renders the modifier browse (not the component alias)', async () => {
+  it('returns 200 and renders the modifier browse', async () => {
     const res = await page('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    // Active-state toggle entry confirms the view took effect (and is not
-    // an alias to the soft-retired component view).
+    // Active-state toggle entry confirms the view took effect.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
-    // Confirm we are NOT showing the soft-retired component view's
-    // retirement notice (i.e. the legacy alias is gone).
-    expect(res.text).not.toContain('class="component-view-retirement-notice"');
     // Cluster sections render conditional on having modifier-linked tricks;
     // this fixture doesn't seed set modifier links, so the cluster headings
     // may be empty. Full cluster rendering is exercised in the dedicated

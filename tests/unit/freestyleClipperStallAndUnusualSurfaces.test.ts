@@ -8,12 +8,11 @@
  * that reconcile with those ADD values.
  *
  * Thigh Catch and Pincher / Squeeze are unusual catching surfaces held as a
- * delay; both appear in the unusual-surface teaching directory.
+ * delay; both are named in the unusual-surface component class.
  */
 import { describe, it, expect } from 'vitest';
 import { countScoringBrackets } from '../../src/lib/freestyleNotation';
 import { FREESTYLE_ADD_ANALYSIS_CONTENT } from '../../src/content/freestyleAddAnalysisContent';
-import { ALTERNATIVE_SURFACES } from '../../src/content/freestyleAlternativeSurfaces';
 
 describe('clipper-stall vs toe-stall ADD in the ADD-analysis content', () => {
   const stallComponent = FREESTYLE_ADD_ANALYSIS_CONTENT.componentClasses.find(c =>
@@ -57,12 +56,5 @@ describe('unusual-surface vocabulary includes thigh and pincher', () => {
     )!;
     expect(unusual.example).toMatch(/thigh/i);
     expect(unusual.example).toMatch(/pincher/i);
-  });
-
-  it('the alternative-surfaces directory lists thigh catch and squeeze together', () => {
-    const group = ALTERNATIVE_SURFACES.groups.find(g => g.slug === 'thigh-and-pincher');
-    expect(group).toBeDefined();
-    expect(group!.tricks).toContain('thigh_catch');
-    expect(group!.tricks).toContain('squeeze');
   });
 });

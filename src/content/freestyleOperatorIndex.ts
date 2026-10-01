@@ -3,15 +3,15 @@
  * =========================
  *
  * Presentation grouping for the /freestyle/operators compact index: which
- * modifiers appear under each movement-system axis, in display order. The page
+ * modifiers appear under each structural-role axis, in display order. The page
  * carries only relationship, body, and no-plant modifiers; set primitives (the
  * set systems like pixie, fairy, atomic, barraging) are first-class objects
  * of the Set Encyclopedia and are intentionally excluded here, so the same
  * concept is never presented as both a set and an operator on two surfaces.
  *
- * This is reversible presentation config. It does NOT change the trick-browse
- * axis membership in `freestyleMovementSystems.ts`, the `trick_family` data, or
- * any taxonomy; it only decides the order and grouping of index rows. Per-row
+ * This is reversible presentation config. It does NOT change the
+ * `trick_family` data or any taxonomy; it only decides the order and grouping
+ * of index rows. Per-row
  * data (name, ADD weight, notation, status) is resolved at render time from the
  * `freestyle_trick_modifiers` table, the feel cards, the operator reference, and
  * the canonical-set formulas.

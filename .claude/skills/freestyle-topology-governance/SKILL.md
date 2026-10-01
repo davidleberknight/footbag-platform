@@ -7,9 +7,9 @@ description: Use when adding, modifying, reviewing, or proposing topology / fami
 
 Use this skill when a task touches:
 
-- topology groupings (`?view=topology`, connective panels, movement archetypes)
+- topology groupings (movement archetypes, the Concepts case studies)
 - family taxonomy (`trick_family`, family-view rendering, multi-family memberships)
-- category taxonomy (`?view=category`, dexterity / body / set / compound buckets)
+- category taxonomy (dexterity / body / set / compound buckets)
 - surface / catch classifications (clipper-as-surface vs clipper-as-family)
 - modifier-vs-set-vs-archetype distinctions
 - descriptive movement-language relationships (movement neighborhoods)

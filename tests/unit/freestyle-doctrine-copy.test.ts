@@ -92,7 +92,6 @@ describe('SAME/OP are component-relative and not synonyms for near/far', () => {
 
 describe('entry-topology surfaces distinguish SAME/OP from near/far', () => {
   const add = read('src/content/freestyleAddAnalysisContent.ts');
-  const ms = read('src/content/freestyleMovementSystems.ts');
 
   it('the ADD-analysis entry line keeps SAME/OP and near/far separate and component-relative', () => {
     const line = lineWith(add, 'Entry and side relationship');
@@ -100,12 +99,6 @@ describe('entry-topology surfaces distinguish SAME/OP from near/far', () => {
     expect(line).toMatch(/most recent side-bearing component/);
     expect(line).toMatch(/separate near\/far/);
     expect(line).not.toMatch(/relative to the plant foot/);
-  });
-
-  it('the movement-systems entry axis keeps SAME/OP and near/far separate and component-relative', () => {
-    expect(ms).toMatch(/SAME\/OP leg relation, read against the/);
-    expect(ms).toMatch(/most recent side-bearing component/);
-    expect(ms).toMatch(/separate near\/far position/);
   });
 });
 

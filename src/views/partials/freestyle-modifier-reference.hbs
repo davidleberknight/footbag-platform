@@ -6,8 +6,8 @@
 
   Required view-model fields on parent `content`:
     - setModifierFeelCards: ModifierFeelCard[]
-    - bodyModifierFeelCards: ModifierFeelCard[]
-    - entryTopologyFeelCards: ModifierFeelCard[]
+    - bodyModifierFeelCards: ModifierFeelCardVM[]
+    - entryTopologyFeelCards: ModifierFeelCardVM[]
     - intermediateOperators: OperatorReferenceEntry[]
     - setModifiers: FreestyleSetModifierEntry[]
 
@@ -49,32 +49,6 @@
   <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
 </p>
 
-{{! Movement-system axes preamble: surfaces the axis ontology before the
-    modifier cards so readers see the system at a glance. }}
-<h3 class="section-heading" id="movement-system-axes">Movement-system axes</h3>
-<p>
-  Modifiers cluster along four educational axes by what timing layer
-  and body system they engage. The
-  <a href="/freestyle/tricks?view=movement-system"><em>By Movement System</em> dictionary view</a>
-  groups tricks by axis; the modifier cards below are listed in
-  cluster-paired form to surface the same structure.
-</p>
-<ol class="glossary-movement-system-axes">
-  <li><strong>Set / Uptime Systems</strong>: launch mechanics. These are set
-    vocabulary, defined in the <a href="#section-timing-sets">Timing &amp; Sets</a>
-    chapter, not here.</li>
-  <li><strong>Entry Topologies</strong>: entry relationship and cross-body framing.<br>
-    <em>paradox</em>; positional vocabulary (op/ss, near/far) lives in &sect;3 and &sect;7.</li>
-  <li><strong>Midtime Body Modifiers</strong>: apex body mechanics around the trick&apos;s peak.<br>
-    <em>spinning, ducking, diving, weaving, zulu, inspinning, gyro, tapping</em>.</li>
-  <li><strong>No-Plant &amp; Suspension</strong>: body-discipline mechanics; the support leg leaves the ground.<br>
-    <em>symposium, symple, muted, flying</em>.</li>
-</ol>
-<p class="detail-muted">
-  The body-modifier cards below surface a selected pedagogical cohort; the full
-  axis breakdown lives on the dictionary&apos;s movement-system browse surface.
-</p>
-
 {{! ── Surface A: Common Advanced Modifiers ─────────────────────────────
     Player-facing pedagogical view. Modifier cards in two clusters
     (set + body). Each card: name + optional glyph + feel + intuition
@@ -113,18 +87,14 @@
       <p class="glossary-modifier-card-intuition">{{intuition}}</p>
       <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
       {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
-      <p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="/freestyle/tricks?view=movement-system">Browse {{name}} tricks</a></p>
+      {{#if browseHref}}<p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="{{{browseHref}}}">Browse {{name}} tricks</a></p>{{/if}}
     </article>
     {{/each}}
   </div>
   <p class="glossary-modifier-cluster-note">
-    Cards above span two movement-system axes:
-    <strong>spinning</strong> and <strong>ducking</strong> are
+    <strong>Spinning</strong> and <strong>ducking</strong> are
     midtime body modifiers (apex timing slot);
     <strong>symposium</strong> is a no-plant / suspension mechanic.
-    The dictionary&apos;s
-    <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
-    view groups all members of each axis together.
   </p>
 </div>
 
@@ -140,7 +110,7 @@
       <p class="glossary-modifier-card-intuition">{{intuition}}</p>
       <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
       {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
-      <p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="/freestyle/tricks?view=movement-system">Browse {{name}} tricks</a></p>
+      {{#if browseHref}}<p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="{{{browseHref}}}">Browse {{name}} tricks</a></p>{{/if}}
     </article>
     {{/each}}
   </div>

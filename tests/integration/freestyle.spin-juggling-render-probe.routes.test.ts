@@ -77,8 +77,8 @@ describe('spin/juggling rendering probe', () => {
     expect(res.text).toContain(`data-trick-slug="${slug}"`);
   });
 
-  it('spin + double-spin also appear in the dex-count browse view', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
+  it('spin + double-spin both appear together in the ADD browse view', async () => {
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.text).toContain('data-trick-slug="spin"');
     expect(res.text).toContain('data-trick-slug="double-spin"');
   });

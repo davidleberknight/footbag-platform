@@ -5,9 +5,6 @@
  *   - The four chain entries (paradox_blender, food_processor,
  *     spender, paradox_drifter) render the curator-authored symbolic
  *     equivalences instead of falling through to operational notation.
- *   - The five new Movement System glosses (spinning, ducking, symposium,
- *     stepping, pixie) render in their respective modifier groups within
- *     the movement-system view.
  *   - Symbolic-first / op-notation-fallback precedence holds — rows with
  *     no chain entry but with operational_notation still render the
  *     operational tokens.
@@ -35,8 +32,7 @@ const getPage = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifiers for the Movement System view (we need every pilot
-  // gloss to have a populated modifier group to render).
+  // Modifiers the fixture tricks link to.
   insertFreestyleTrickModifier(db, { slug: 'paradox',   modifier_name: 'paradox',   modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'spinning',  modifier_name: 'spinning',  modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'ducking',   modifier_name: 'ducking',   modifier_type: 'body' });
@@ -51,7 +47,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'spender',         canonical_name: 'spender',         adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound', operational_notation: '[set] > spinning > paradox > whirling op osis' });
   insertFreestyleTrick(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', operational_notation: 'CLIP >> PARADOX > OP IN [DEX] > SAME CLIP [XBD] [DEL]' });
 
-  // Movement-system-view trick fixtures — one trick per gloss target.
+  // Modifier-linked compounds, so the browse views carry populated rows.
   insertFreestyleTrick(db, { slug: 'paradox_whirl',  canonical_name: 'paradox whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'spinning_whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'ducking_whirl',  canonical_name: 'ducking whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
@@ -109,7 +105,7 @@ describe('branch-family chain additions render symbolically', () => {
     expect(page.status).toBe(200);
     expect(readings(page.text)).toBeTruthy();
 
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(rowFor(res.text, 'paradox_blender')).toMatch(/class="dict-trick-row-notation-value">/);
   });
@@ -134,7 +130,7 @@ describe('branch-family chain additions render symbolically', () => {
     expect(page.status).toBe(200);
     expect(readings(page.text)).not.toMatch(/miraging/);
 
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=add');
     const row = rowFor(res.text, 'paradox_drifter');
     expect(row).not.toMatch(/miraging/);
     expect(row).toMatch(/class="dict-trick-row-notation-value">/);
@@ -142,9 +138,7 @@ describe('branch-family chain additions render symbolically', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 2. Movement System gloss expansion — 5 new modifier groups
-// ─────────────────────────────────────────────────────────────────────────
-// 3. Precedence contract — op-notation still renders when no chain exists
+// 2. Precedence contract — op-notation still renders when no chain exists
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('rendering precedence preserved (no regression)', () => {
@@ -152,7 +146,7 @@ describe('rendering precedence preserved (no regression)', () => {
     // The fixture row is seeded in beforeAll. It carries operational
     // notation but no chain registry entry — verifies the symbolic-first
     // / op-notation-fallback contract still holds for un-chained rows.
-    const res = await getPage('/freestyle/tricks?view=dex-count');
+    const res = await getPage('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="slice_n_fallback_fixture"');
     expect(idx).toBeGreaterThan(-1);

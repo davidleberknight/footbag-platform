@@ -137,7 +137,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
   });
 
   it('eclipse appears in the FIRST_CLASS_TIER_2 cohort (browse card renders JOB + ADD)', async () => {
-    const res = await page('/freestyle/tricks?view=dex-count');
+    const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Locate the eclipse card
     const idx = res.text.indexOf('data-trick-slug="eclipse"');
@@ -220,8 +220,8 @@ describe('Freestyle Concepts ADD Accounting — multi-bag governing rule', () =>
     expect(res.text).toContain('boundary object');
   });
 
-  it('the multi-bag note explicitly notes the single-bag dictionary axes do NOT classify multi-bag rows', async () => {
+  it('the multi-bag note explicitly notes the single-bag dictionary views do NOT classify multi-bag rows', async () => {
     const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/single-bag dictionary axes[\s\S]*do not classify multi-bag rows/);
+    expect(res.text).toMatch(/single-bag dictionary views[\s\S]*do not classify multi-bag rows/);
   });
 });

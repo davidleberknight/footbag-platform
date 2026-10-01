@@ -30,6 +30,17 @@ describe('Jobs notation article page', () => {
     expect(res.text).toContain('read as a formula of surfaces, dexterities, and body positions');
   });
 
+  it('cites the mailing list in words and prints its address only inside the reproduced message', async () => {
+    const article = await page('/freestyle/notation-article');
+    expect(article.text).toContain('message to the\n      footbag.org mailing list, October 31, 1995.');
+    // The verbatim header is the one place the address appears.
+    expect(article.text.split('footbag@footbag.org').length - 1).toBe(1);
+    expect(article.text).toMatch(/<pre class="notation-article-text">[\s\S]*To: footbag@footbag\.org[\s\S]*<\/pre>/);
+    const concepts = await page('/freestyle/concepts');
+    expect(concepts.text).not.toContain('footbag@footbag.org');
+    expect(concepts.text).toMatch(/message to the\s+footbag\.org mailing list, October 31, 1995\./);
+  });
+
   it('reproduces the article without the footbag.org page chrome', async () => {
     const res = await page('/freestyle/notation-article');
     // Site navigation, copyright, and implementation credits surrounding the

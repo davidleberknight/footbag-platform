@@ -84,21 +84,6 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
     expect(scale).toMatch(/trick-row memberships shown/);
   });
 
-  it('Dex view states a dex-bucket + canonical-row scale', async () => {
-    const html = (await page('/freestyle/tricks?view=dex-count')).text;
-    const scale = scaleSentence(html);
-    expect(scale).toMatch(/dex buckets? ·/);
-    expect(scale).toMatch(/canonical trick rows? represented/);
-  });
-
-  it('Movement System view states an axes scale + multi-axis clarification', async () => {
-    const html = (await page('/freestyle/tricks?view=movement-system')).text;
-    const scale = scaleSentence(html);
-    expect(scale).toMatch(/systems \/ axes ·|system \/ axis ·/);
-    expect(scale).toMatch(/trick-row memberships shown/);
-    expect(scale).toMatch(/A compound can appear under more than one axis or modifier\./);
-  });
-
   it('By Modifier view states a modifiers scale + multi-modifier clarification', async () => {
     const html = (await page('/freestyle/tricks?view=modifier')).text;
     const scale = scaleSentence(html);
@@ -106,24 +91,13 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
     expect(scale).toMatch(/trick-row memberships shown/);
     expect(scale).toMatch(/A trick that uses more than one modifier appears under each\./);
   });
-
-  it('Neighborhoods view states a neighborhoods scale + exploratory caveat', async () => {
-    const html = (await page('/freestyle/tricks?view=topology')).text;
-    const scale = scaleSentence(html);
-    expect(scale).toMatch(/neighborhoods? ·/);
-    expect(scale).toMatch(/trick-row memberships shown/);
-    expect(scale).toMatch(/Exploratory, pedagogical grouping, not a canonical taxonomy\./);
-  });
 });
 
 describe('Browse-view scale intros — counts match the rendered sections (not hardcoded)', () => {
   // grouping-count in the scale === number of rendered grouping sections.
   const CASES: Array<[string, string, string]> = [
     ['family', 'family', 'class="content-section trick-family-group'],
-    ['dex-count', 'dex', 'class="content-section trick-dex-count-group'],
-    ['movement-system', 'movement axes', 'class="content-section trick-movement-axis'],
     ['modifier', 'modifiers', 'class="trick-modifier-group"'],
-    ['topology', 'neighborhoods', 'class="content-section trick-topology-group'],
   ];
 
   for (const [view, label, sectionMarker] of CASES) {

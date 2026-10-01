@@ -83,8 +83,8 @@ describe('Browse contract: ALT row never appears on browse surfaces', () => {
   const BROWSE_ROUTES = [
     '/freestyle/tricks?view=add',
     '/freestyle/tricks?view=family',
-    '/freestyle/tricks?view=movement-system',
-    '/freestyle/tricks?view=topology',
+    '/freestyle/tricks?view=set',
+    '/freestyle/tricks?view=modifier',
     '/freestyle/observational',
   ];
 
@@ -107,8 +107,8 @@ describe('Browse contract: scoring notes never appear on browse surfaces', () =>
   const BROWSE_ROUTES = [
     '/freestyle/tricks?view=add',
     '/freestyle/tricks?view=family',
-    '/freestyle/tricks?view=movement-system',
-    '/freestyle/tricks?view=topology',
+    '/freestyle/tricks?view=set',
+    '/freestyle/tricks?view=modifier',
     '/freestyle/observational',
   ];
 

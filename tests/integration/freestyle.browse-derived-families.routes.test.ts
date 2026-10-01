@@ -1,5 +1,5 @@
 /**
- * Integration tests for four freestyle browse behaviors.
+ * Integration tests for three freestyle browse behaviors.
  *
  *   1. Derived-branch families — torque + blender each render as their own
  *      top-level family section (derived branches that resolve to themselves),
@@ -14,15 +14,9 @@
  *      spinning_clipper / reaper / high_plains_drifter no longer
  *      surface under a clipper_stall heading.
  *
- *   3. Paradox modifier-composition gloss — Movement System view
- *      renders the curator-authored italic gloss in the paradox group;
- *      other modifier groups (pixie / atomic / spinning / ducking)
- *      render WITHOUT the gloss.
- *
- *   4. Unresolved-compound pill — cards for curator-flagged folk-
- *      derived slugs (reaper / surreal / montage /
- *      surgery) render the "decomposition under review" pill;
- *      other cards do not.
+ *   3. Unresolved compounds — curator-flagged folk-derived slugs (reaper /
+ *      surreal / montage / surgery) are listed like any other trick, with no
+ *      review state on the row.
  *
  * The fixture covers each behavior plus enough comparison rows to assert both
  * "renders" and "does not render".
@@ -50,7 +44,7 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifiers used by the Movement System view.
+  // Modifiers the fixture tricks link to.
   insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'paradox',  modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'pixie',    modifier_type: 'set'  });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body' });
@@ -86,7 +80,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'smoke',           canonical_name: 'smoke',           adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound' });
 
-  // ── Whirl-family rows used by Movement System view ─────────────────────
+  // ── Whirl-family rows ──────────────────────────────────────────────────
   insertFreestyleTrick(db, { slug: 'whirl',          canonical_name: 'whirl',          adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'base' });
   insertFreestyleTrick(db, { slug: 'paradox_whirl',  canonical_name: 'paradox whirl',  adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'spinning_whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
@@ -103,7 +97,7 @@ beforeAll(async () => {
   // un-glossed-modifier suppression test).
   insertFreestyleTrick(db, { slug: 'atom_smasher', canonical_name: 'atom smasher', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
 
-  // ── Modifier links — enough to populate Movement System pilot groups ──
+  // ── Modifier links ─────────────────────────────────────────────────────
   insertFreestyleTrickModifierLink(db, 'torque',         'paradox',  1);
   insertFreestyleTrickModifierLink(db, 'paradox_torque', 'paradox',  1);
   insertFreestyleTrickModifierLink(db, 'paradox_blender','paradox',  1);
@@ -216,9 +210,7 @@ describe('Clipper-Stall family retirement (Family View)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 3. Paradox modifier-composition gloss (Movement System view)
-// ─────────────────────────────────────────────────────────────────────────
-// 4. Unresolved-compound pill (dictionary trick cards)
+// 3. Unresolved-compound pill (dictionary trick cards)
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('Unresolved compounds stay listed, with no review state on the row', () => {
@@ -242,7 +234,7 @@ describe('Unresolved compounds stay listed, with no review state on the row', ()
   });
 
   it('no row on any browse view announces a decomposition under review', async () => {
-    for (const view of ['add', 'family', 'dex-count', 'movement-system']) {
+    for (const view of ['add', 'family', 'set', 'modifier']) {
       const res = await page(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
       expect(res.text, `${view} view carries a review state`).not.toContain('dict-trick-row-pending');

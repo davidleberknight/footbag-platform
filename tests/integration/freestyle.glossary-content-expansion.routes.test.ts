@@ -156,16 +156,6 @@ describe('Freestyle Concepts §8 — walking-family progression', () => {
   });
 });
 
-describe('Freestyle Concepts §9 — representative-selection framing', () => {
-  it('renders the "representative selection, not comprehensive" framing', async () => {
-    // The framing is deliberate: the section presents itself as "not a
-    // comprehensive topology atlas" and is explicitly marked
-    // "intentionally incomplete".
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/representative selection/i);
-    expect(res.text).toMatch(/not a comprehensive|intentionally incomplete/i);
-  });
-});
 
 describe('Freestyle Concepts §12 — named source families', () => {
   it('renders the source-families list', async () => {
