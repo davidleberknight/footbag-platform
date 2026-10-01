@@ -630,8 +630,7 @@ if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
       echo "It does not hold exactly the key given to this run, so it is not" >&2
       echo "re-issued. A lost or replaced key is offboarded, then re-onboarded under" >&2
       echo "the same name with a fresh pair:" >&2
-      echo "  bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT} \\" >&2
-      echo "    --github-login <their GitHub login, or none>" >&2
+      echo "  bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT}" >&2
       echo "and if it is not ${OPERATOR}'s account at all, stop. Nothing changed." >&2
       exit 1
     fi

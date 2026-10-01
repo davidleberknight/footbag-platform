@@ -249,6 +249,9 @@ function awsStub(): string {
       `    mv "$S/keys.tmp" "$S/keys" ;;`,
       // The simulator answers from the grant that is actually attached, so the
       // offboard proof is a real question rather than a fixed reply.
+      // CloudTrail, answering the queried columns from "trail" as the text
+      // output prints them: time, event name, event source, tab-separated.
+      `  lookup-events) [ -f "$S/trail" ] && cat "$S/trail"; true ;;`,
       `  simulate-principal-policy)`,
       `    if [ -f "$S/simulate" ]; then cat "$S/simulate"`,
       `    elif [ -f "$S/policy" ]; then echo allowed`,
@@ -599,15 +602,16 @@ describe('manage-human-operator.sh — offboarding', () => {
   });
 
   it('names the one command that ends the rest, when run on its own', () => {
-    // Retiring the AWS identity leaves the host account, the allow-list entry
-    // and the repository access. An operator who ran only this and saw it
-    // succeed would have a departed colleague still holding all three.
+    // Retiring the AWS identity leaves the host account and the allow-list
+    // entry. An operator who ran only this and saw it succeed would have a
+    // departed colleague still holding both.
     const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/Still owed/);
     expect(r.stdout).toMatch(/bash scripts\/offboard-dev-tester\.sh --target staging --account test_operator/);
     expect(r.stdout).not.toMatch(/--target <env>/);
-    expect(r.stdout).toMatch(/--github-login/);
+    // The offboarding command it names takes no GitHub flag, and would refuse one.
+    expect(r.stdout).not.toMatch(/--github-login/);
     expect(r.stdout).not.toMatch(/terraform\.tfvars|values file/);
   });
 
@@ -797,6 +801,53 @@ describe('manage-human-operator.sh — verify', () => {
   it('says plainly when the run is against a stub', () => {
     const r = run(['--verify', OPERATOR], READY);
     expect(r.stderr).toMatch(/SYNTHETIC/);
+  });
+});
+
+describe('manage-human-operator.sh — verify reads what was done under the name', () => {
+  const HELD: Account = {
+    role: true,
+    userPath: OPERATOR_PATH,
+    tags: MANAGED_TAGS,
+    keys: [[FAKE_KEY_ID, 'Active']],
+    policy: true,
+  };
+
+  it('reports the count, the newest event and the latest role assumption, asking for this name only', () => {
+    // Rows arrive in page order, not time order, and a pagination line is not
+    // an event; reading the first row as the newest would report a stale deploy.
+    writeFileSync(
+      join(stateDir, 'trail'),
+      [
+        '2026-09-30T10:00:00+00:00\tAssumeRole\tsts.amazonaws.com',
+        '2026-10-01T09:00:05+00:00\tGetParameter\tssm.amazonaws.com',
+        '2026-10-01T09:00:00+00:00\tAssumeRole\tsts.amazonaws.com',
+        'NEXTTOKEN\teyJmaXh0dXJlIjoidG9rZW4ifQ==',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    const r = run(['--verify', OPERATOR], HELD);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/trail:\s+3 event\(s\) as test_operator since/);
+    expect(r.stdout).toMatch(/latest:\s+2026-10-01T09:00:05\+00:00 GetParameter \(ssm\.amazonaws\.com\)/);
+    expect(r.stdout).toMatch(/assumed:\s+2026-10-01T09:00:00\+00:00/);
+    expect(calls().some((c) => c.includes('lookup-events') && c.includes(`AttributeValue=${OPERATOR}`))).toBe(true);
+  });
+
+  it('reports no events as information, since a new identity has done nothing yet', () => {
+    const r = run(['--verify', OPERATOR], HELD);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/trail:\s+no event as test_operator since/);
+  });
+
+  it('counts an unreadable trail as a finding rather than an empty one', () => {
+    writeFileSync(join(stateDir, 'unreadable-lookup-events'), '', 'utf-8');
+    const r = run(['--verify', OPERATOR], HELD);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/CloudTrail could not be read/);
+    expect(r.stdout).not.toMatch(/no event as/);
+    expect(r.stderr).toMatch(/1 finding\(s\)/);
   });
 });
 

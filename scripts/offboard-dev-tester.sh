@@ -3,16 +3,15 @@
 #
 # Offboards one dev-and-tester in one command: their Linux account on the
 # deployed host, their AWS identity and the job-role sessions they already hold,
-# their address on that environment's SSH allow-list, and their collaborator
-# access to both repositories, each proved ended by the step that ends it.
+# and their address on that environment's SSH allow-list, each proved ended by
+# the step that ends it.
 #
 # WHAT IT LEAVES THEM, DELIBERATELY.
 #
-# Offboarding ends the ability to do harm and nothing more. The public
-# repository needs no access to clone, run or fork, and a pull request from a
-# fork needs none either, so an offboarded person keeps exactly what anybody
-# has. Their own machine is not cleaned: every credential on it is dead once
-# this finishes.
+# Offboarding ends their reach into the deployed environment and nothing more.
+# Repository access on GitHub is granted and withdrawn separately, and nothing
+# here reads or changes it. Their own machine is not cleaned: every credential
+# this command retires is dead once it finishes.
 #
 # WHY THIS EXISTS.
 #
@@ -86,32 +85,21 @@
 #   2  the AWS identity, and the job-role sessions already issued to it
 #   3  their address on this environment's SSH allow-list: every entry whose
 #      attribution names their account first, as an add writes it
-#   4  their collaborator access and any pending invitation, on the public
-#      repository and the private operations repository
 # Whatever the step, this workstation is cleaned last, and that detects what is
 # already done.
 #
 # Usage:
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/offboard-dev-tester.sh \
-#       --target staging --account <their_account> \
-#       --github-login <their GitHub login, or none>
+#       --target staging --account <their_account>
 #
 # The redirect carries the shared `footbag` account's sudo password, which the
 # host is always reached as. Step 1 consumes it.
-#
-# The two repositories are read from the remotes of this checkout and of the
-# private operations checkout it links to, or from FOOTBAG_PRIVATE_REPO when that
-# is set. The GitHub CLI acts as whoever it is signed in as, which must be
-# allowed to manage both repositories' collaborators.
 #
 # Flags:
 #   --target staging               the only environment a dev-and-tester is
 #                                  onboarded onto; required rather than defaulted
 #   --account <name>               the dev-and-tester being offboarded
-#   --github-login <login|none>    their GitHub login, required; `none` says in
-#                                  so many words that they hold no repository
-#                                  access, rather than letting an omission say it
-#   --from-step <1-4>              resume a run that stopped part way
+#   --from-step <1-3>              resume a run that stopped part way
 #   --yes                          accept this command's own confirmations, the
 #                                  AWS step's and the allow-list step's in
 #                                  advance;
@@ -128,8 +116,6 @@
 #                         IAM user read
 #   OFFBOARD_SSH_CONFIG   the SSH config file to read and change
 #   OFFBOARD_ADDRESS_CMD  replaces the allow-list child
-#   OFFBOARD_GH_BIN       replaces the GitHub CLI
-#   OFFBOARD_PUBLIC_REPO  the public repository, instead of this checkout's remote
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -154,7 +140,6 @@ source "${REPO_ROOT}/scripts/lib/aws-credentials-file.sh"
 HOST_CMD="${OFFBOARD_HOST_CMD:-${SCRIPT_DIR}/provision-operator-account.sh}"
 AWS_CMD="${OFFBOARD_AWS_CMD:-${SCRIPT_DIR}/manage-human-operator.sh}"
 ADDRESS_CMD="${OFFBOARD_ADDRESS_CMD:-${SCRIPT_DIR}/authorize-operator-address.sh}"
-GH_BIN="${OFFBOARD_GH_BIN:-gh}"
 AWS_BIN="${OFFBOARD_AWS_BIN:-aws}"
 AWS_IDENTITY_BIN="$AWS_BIN"
 SSH_CONFIG="${OFFBOARD_SSH_CONFIG:-${HOME}/.ssh/config}"
@@ -167,14 +152,12 @@ FOOTBAG_OPERATOR_USER="footbag-operator"
 
 TARGET=""
 ACCOUNT=""
-GITHUB_LOGIN=""
 FROM_STEP=1
 
 while (( $# )); do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 || usage 2 ;;
     --account) ACCOUNT="${2:-}"; shift 2 || usage 2 ;;
-    --github-login) GITHUB_LOGIN="${2:-}"; shift 2 || usage 2 ;;
     --from-step) FROM_STEP="${2:-}"; shift 2 || usage 2 ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
@@ -217,22 +200,8 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   echo "       by this command." >&2
   exit 2
 fi
-if [[ ! "$FROM_STEP" =~ ^[1-4]$ ]]; then
-  echo "ERROR: --from-step takes 1 to 4." >&2
-  exit 2
-fi
-if [[ -z "$GITHUB_LOGIN" ]]; then
-  echo "ERROR: --github-login names their GitHub login, so their access to both" >&2
-  echo "       repositories ends with the rest. Give 'none' if they hold none." >&2
-  echo "       An omission is not the same answer: a forgotten flag would leave" >&2
-  echo "       an offboarded person able to push." >&2
-  exit 2
-fi
-# GitHub's own rule for a login: letters, digits and single hyphens, not at
-# either end, at most 39 characters.
-if [[ "$GITHUB_LOGIN" != "none" \
-      && ! "$GITHUB_LOGIN" =~ ^[A-Za-z0-9]([A-Za-z0-9]|-[A-Za-z0-9]){0,38}$ ]]; then
-  echo "ERROR: '${GITHUB_LOGIN}' is not a GitHub login." >&2
+if [[ ! "$FROM_STEP" =~ ^[1-3]$ ]]; then
+  echo "ERROR: --from-step takes 1 to 3." >&2
   exit 2
 fi
 
@@ -274,75 +243,6 @@ if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]] \
   HELD_HERE=1
 fi
 
-# ── The repositories, settled before anything changes ───────────────────────
-
-# github_slug <remote-url>
-# Prints owner/repo for a GitHub remote in any of the forms git writes, or
-# returns 1.
-github_slug() {
-  local slug
-  case "$1" in
-    git@github.com:*) slug="${1#git@github.com:}" ;;
-    ssh://git@github.com/*) slug="${1#ssh://git@github.com/}" ;;
-    https://github.com/*) slug="${1#https://github.com/}" ;;
-    *) return 1 ;;
-  esac
-  slug="${slug%/}"
-  slug="${slug%.git}"
-  [[ "$slug" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
-  printf '%s\n' "$slug"
-}
-
-PUBLIC_REPO=""
-PRIVATE_REPO=""
-if [[ "$GITHUB_LOGIN" != "none" ]]; then
-  if ! command -v "$GH_BIN" >/dev/null 2>&1; then
-    echo "ERROR: the GitHub CLI is not installed, and step 4 removes ${GITHUB_LOGIN} from" >&2
-    echo "       both repositories with it. Install it and sign in as somebody who" >&2
-    echo "       manages both repositories' collaborators, then re-run." >&2
-    echo "       Nothing was changed." >&2
-    exit 1
-  fi
-  [[ "$GH_BIN" != "gh" ]] && echo "==> NOTE: the GitHub CLI is replaced for this run (${GH_BIN})." >&2
-  if [[ -n "${OFFBOARD_PUBLIC_REPO:-}" ]]; then
-    PUBLIC_REPO="$OFFBOARD_PUBLIC_REPO"
-    echo "==> NOTE: the public repository comes from the environment (${PUBLIC_REPO})." >&2
-  else
-    PUBLIC_REPO="$(github_slug "$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)" || true)"
-  fi
-  if [[ -n "${FOOTBAG_PRIVATE_REPO:-}" ]]; then
-    PRIVATE_REPO="$FOOTBAG_PRIVATE_REPO"
-  else
-    PRIVATE_REPO="$(github_slug "$(git -C "${REPO_ROOT}/footbag_private_repo" remote get-url origin 2>/dev/null || true)" || true)"
-  fi
-  if [[ -z "$PUBLIC_REPO" || -z "$PRIVATE_REPO" ]]; then
-    echo "ERROR: could not tell which repositories to remove ${GITHUB_LOGIN} from:" >&2
-    echo "         public:  ${PUBLIC_REPO:-unknown, from this checkout's origin remote}" >&2
-    echo "         private: ${PRIVATE_REPO:-unknown, from FOOTBAG_PRIVATE_REPO or the private checkout's remote}" >&2
-    echo "       Nothing was changed." >&2
-    exit 1
-  fi
-  # Readable by whoever the CLI is signed in as, and the person being offboarded
-  # is not an administrator of either: an owner or admin is not removed by a
-  # collaborator call, and offboarding one is not this command's to do.
-  for slug in "$PUBLIC_REPO" "$PRIVATE_REPO"; do
-    if ! PERMISSION="$("$GH_BIN" api "repos/${slug}/collaborators/${GITHUB_LOGIN}/permission" \
-        --jq .permission 2>&1)"; then
-      echo "ERROR: could not read ${GITHUB_LOGIN}'s access to ${slug}:" >&2
-      printf '%s\n' "$PERMISSION" | sed 's/^/         /' >&2
-      echo "       Sign the GitHub CLI in as somebody who manages its collaborators." >&2
-      echo "       Nothing was changed." >&2
-      exit 1
-    fi
-    if [[ "$PERMISSION" == "admin" ]]; then
-      echo "REFUSING: ${GITHUB_LOGIN} administers ${slug}. An owner or admin is not" >&2
-      echo "          ended by removing a collaborator, and is not offboarded from here." >&2
-      echo "          Nothing was changed." >&2
-      exit 1
-    fi
-  done
-fi
-
 echo ""
 echo "Retiring '${ACCOUNT}' on ${TARGET}:"
 echo "  1. their Linux account on the host: disabled, out of the sudo group, and"
@@ -350,13 +250,8 @@ echo "     their key swept off every account on it"
 echo "  2. their AWS identity: the grant, then every key, then the job-role"
 echo "     sessions they already hold"
 echo "  3. their address on the ${TARGET} SSH allow-list"
-if [[ "$GITHUB_LOGIN" == "none" ]]; then
-  echo "  4. repository access: none named (--github-login none)"
-else
-  echo "  4. ${GITHUB_LOGIN}'s collaborator access to ${PUBLIC_REPO} and ${PRIVATE_REPO}"
-fi
 if (( HELD_HERE )); then
-  echo "  5. this workstation: ${ACCOUNT}'s key pair and its Match block, its filed"
+  echo "  4. this workstation: ${ACCOUNT}'s key pair and its Match block, its filed"
   echo "     sudo password, its AWS credentials and the profiles that chain from it"
 fi
 echo ""
@@ -364,7 +259,7 @@ echo "footbag-operator and the shared ${OPERATOR_SHARED_ACCOUNT} account are unt
 echo ""
 echo "Nothing is asked of ${ACCOUNT} and nothing is deleted: their host account"
 echo "and IAM user are both left inert, because the trail goes on naming them."
-echo "They keep what anybody has: the code to run, and pull requests from a fork."
+echo "Their repository access on GitHub is separate, and is not touched here."
 echo ""
 if ! confirm_from_tty "Type 'APPLY' to retire ${ACCOUNT}: " "APPLY"; then
   echo "Not confirmed; nothing was changed." >&2
@@ -464,78 +359,7 @@ if (( FROM_STEP <= 3 )); then
   fi
 fi
 
-# ── Step 4: the repositories ─────────────────────────────────────────────────
-
-# Collaborator access is write access, and until the public repository's main
-# branch is protected, write access is a push to what gets deployed. A pending
-# invitation goes first, so one cannot be accepted after the removal. Each
-# removal is read back; an answer that is neither "a collaborator" nor "not
-# one" is unknown and fails the run.
-
-# gh_collaborator <owner/repo>: 0 is one, 1 is not, 2 unknown with GH_WHY set.
-gh_collaborator() {
-  local out
-  if out="$("$GH_BIN" api "repos/${1}/collaborators/${GITHUB_LOGIN}" 2>&1)"; then
-    return 0
-  fi
-  [[ "$out" == *"HTTP 404"* ]] && return 1
-  GH_WHY="$out"
-  return 2
-}
-
-if (( FROM_STEP <= 4 )); then
-  echo ""
-  echo "== Step 4: ${ACCOUNT}'s access to the repositories"
-  if [[ "$GITHUB_LOGIN" == "none" ]]; then
-    echo "    none named (--github-login none), so none removed"
-  else
-    login_lower="${GITHUB_LOGIN,,}"
-    for slug in "$PUBLIC_REPO" "$PRIVATE_REPO"; do
-      if ! INVITES="$("$GH_BIN" api --paginate "repos/${slug}/invitations" \
-          --jq ".[] | select((.invitee.login | ascii_downcase) == \"${login_lower}\") | .id" 2>&1)"; then
-        echo "ERROR: could not read ${slug}'s pending invitations:" >&2
-        printf '%s\n' "$INVITES" | sed 's/^/         /' >&2
-        echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
-        exit 1
-      fi
-      while IFS= read -r invite; do
-        [[ -z "$invite" ]] && continue
-        if ! "$GH_BIN" api -X DELETE "repos/${slug}/invitations/${invite}" >/dev/null; then
-          echo "ERROR: could not withdraw ${GITHUB_LOGIN}'s invitation to ${slug}." >&2
-          echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
-          exit 1
-        fi
-        echo "    ${slug}: pending invitation withdrawn"
-      done <<< "$INVITES"
-
-      GH_RC=0
-      gh_collaborator "$slug" || GH_RC=$?
-      if (( GH_RC == 1 )); then
-        echo "    ${slug}: ${GITHUB_LOGIN} is not a collaborator"
-        continue
-      fi
-      if (( GH_RC == 0 )); then
-        if ! "$GH_BIN" api -X DELETE "repos/${slug}/collaborators/${GITHUB_LOGIN}" >/dev/null; then
-          echo "ERROR: could not remove ${GITHUB_LOGIN} from ${slug}." >&2
-          echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
-          exit 1
-        fi
-        GH_RC=0
-        gh_collaborator "$slug" || GH_RC=$?
-        if (( GH_RC == 1 )); then
-          echo "    ${slug}: ${GITHUB_LOGIN} removed, and read back as no collaborator"
-          continue
-        fi
-        (( GH_RC == 0 )) && GH_WHY="still listed as a collaborator after the removal"
-      fi
-      echo "ERROR: ${GITHUB_LOGIN}'s access to ${slug} is not proved ended: ${GH_WHY}" >&2
-      echo "       Resume: bash scripts/offboard-dev-tester.sh ... --from-step 4" >&2
-      exit 1
-    done
-  fi
-fi
-
-# ── Step 5: this workstation ─────────────────────────────────────────────────
+# ── Step 4: this workstation ─────────────────────────────────────────────────
 
 # Last, because the AWS half proves its refusal through the job-role profile
 # that chains from the retired key, so that profile has to outlive it. Each
@@ -543,7 +367,7 @@ fi
 # else, and each says "none here" when it finds nothing, which is also what a
 # re-run says.
 echo ""
-echo "== Step 5: ${ACCOUNT} on this workstation"
+echo "== Step 4: ${ACCOUNT} on this workstation"
 if (( ! HELD_HERE )); then
   echo "  nothing of ${ACCOUNT}'s is on this machine: no key pair, no credentials section"
   echo "  and no Match block"
@@ -637,11 +461,6 @@ echo "Done. On ${TARGET}, ${ACCOUNT} holds no shell, their IAM user is inert wit
 echo "job-role session still working, and no address on the SSH allow-list is"
 echo "attributed to them. Each step proved its own outcome rather than reporting"
 echo "what it ran."
-if [[ "$GITHUB_LOGIN" == "none" ]]; then
-  echo "No GitHub login was named, so no repository access was removed."
-else
-  echo "${GITHUB_LOGIN} is no collaborator on either repository."
-fi
 echo ""
 echo "One thing no step here reaches: a staging runtime session they chained from"
 echo "one of their job-role sessions before now carries no name of theirs to refuse"

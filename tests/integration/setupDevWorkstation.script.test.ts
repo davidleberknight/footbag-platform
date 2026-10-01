@@ -17,7 +17,17 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -463,5 +473,111 @@ describe('setup-dev-workstation.sh — a machine that has everything', () => {
     const r = run(['--check']);
     expect(r.status).toBe(1);
     expect(r.stdout).toContain('playwright: install Chromium with its system libraries');
+  });
+});
+
+describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is onboarded with', () => {
+  const ACCOUNT = 'jane_doe';
+  const namedKey = () => join(home, '.ssh', `id_ed25519_${ACCOUNT}`);
+  const fingerprint = (pub: string) =>
+    (spawnSync('ssh-keygen', ['-l', '-f', pub], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').split(' ')[1];
+
+  /**
+   * A machine with every tool, the pinned AWS CLI, an ssh-keygen that creates
+   * keys without a passphrase (the real one asks on a terminal the suite does
+   * not have), and a downloader that answers the address lookup.
+   */
+  function operatorMachine() {
+    stubCompleteMachine();
+    stub('aws', 'echo "aws-cli/2.34.8 Python/3.13.11 Linux/6 exe/x86_64"');
+    const real = (spawnSync('bash', ['-c', 'command -v ssh-keygen'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
+    stub('ssh-keygen', `if [[ " $* " == *" -t "* ]]; then exec ${real} -N '' "$@"; fi\nexec ${real} "$@"`);
+    file(
+      join(root, 'fetch'),
+      '#!/bin/bash\n[[ "$2" == *checkip* ]] && { echo 203.0.113.7 > "$1"; exit 0; }\necho not-the-pinned-file > "$1"\n',
+      0o755,
+    );
+  }
+
+  function makePair() {
+    mkdirSync(join(home, '.ssh'), { recursive: true });
+    spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', namedKey()], SPAWN_GUARD);
+    return fingerprint(`${namedKey()}.pub`);
+  }
+
+  it('refuses a named key without the operator tools it goes with', () => {
+    const r = run(['--check', '--account', ACCOUNT]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--account goes with --operator');
+  });
+
+  it('refuses a name the onboarding would refuse, so no key is made under the wrong spelling', () => {
+    const r = run(['--check', '--operator', '--account', 'Jane']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('is not a usable account name');
+  });
+
+  it('plans the pair under --check and creates nothing', () => {
+    operatorMachine();
+    const r = run(['--check', '--operator', '--account', ACCOUNT]);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(`ssh key: create ~/.ssh/id_ed25519_${ACCOUNT}`);
+    expect(existsSync(namedKey())).toBe(false);
+  });
+
+  it('creates the pair where the acceptance looks, and prints what the holder needs', () => {
+    operatorMachine();
+    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    expect(r.status, r.stderr).toBe(0);
+    const sha = fingerprint(`${namedKey()}.pub`);
+    expect(sha).toMatch(/^SHA256:/);
+    expect(r.stdout).toContain(`fingerprint:  ${sha}`);
+    expect(r.stdout).toContain(`public key:   ${readFileSync(`${namedKey()}.pub`, 'utf-8').trim()}`);
+    expect(r.stdout).toContain('address:      203.0.113.7/32');
+  });
+
+  it('keeps an existing pair, which an onboarding may already be sealed to', () => {
+    operatorMachine();
+    const sha = makePair();
+    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(fingerprint(`${namedKey()}.pub`)).toBe(sha);
+    expect(r.stdout).toContain(`fingerprint:  ${sha}`);
+  });
+
+  it('replaces only the pair named by fingerprint, once, setting the old one aside', () => {
+    operatorMachine();
+    const old = makePair();
+    const first = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', old]);
+    expect(first.status, first.stderr).toBe(0);
+    const fresh = fingerprint(`${namedKey()}.pub`);
+    expect(fresh).not.toBe(old);
+    const retired = readdirSync(join(home, '.ssh')).filter((f) => f.startsWith(`retired_${ACCOUNT}_`));
+    expect(retired.some((f) => f.endsWith('.pub') && fingerprint(join(home, '.ssh', f)) === old)).toBe(true);
+    // A re-run with the same flag finds a different pair there and keeps it.
+    const second = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', old]);
+    expect(second.status, second.stderr).toBe(0);
+    expect(fingerprint(`${namedKey()}.pub`)).toBe(fresh);
+    expect(second.stdout).toContain('already replaced, so it is kept');
+  });
+
+  it('refuses half a pair before anything is installed', () => {
+    operatorMachine();
+    makePair();
+    rmSync(namedKey());
+    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('only one half of a key pair');
+    expect(existsSync(`${namedKey()}.pub`)).toBe(true);
+    expect(existsSync(namedKey())).toBe(false);
+  });
+
+  it('fails rather than printing a guessed address when it cannot read one', () => {
+    operatorMachine();
+    file(join(root, 'fetch'), '#!/bin/bash\nexit 22\n', 0o755);
+    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('could not read the address this machine connects from');
+    expect(r.stdout).toContain('address:      unknown');
   });
 });

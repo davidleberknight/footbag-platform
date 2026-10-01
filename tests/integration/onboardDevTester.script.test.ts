@@ -45,6 +45,7 @@ let dir: string;
 let home: string;
 let tmp: string;
 let pub: string;
+let pubSha: string;
 let configFile: string;
 let credFile: string;
 
@@ -213,6 +214,13 @@ tag="$(awk '{print $2}' <<<"$key" | base64 -d | openssl dgst -sha256 -binary | h
   );
 }
 
+/** The SHA256 field of a public key's fingerprint, as ssh-keygen prints it. */
+function fingerprintOf(path: string): string {
+  const r = spawnSync('ssh-keygen', ['-l', '-f', path], { encoding: 'utf-8', ...SPAWN_GUARD });
+  expect(r.status).toBe(0);
+  return (r.stdout ?? '').split(' ')[1];
+}
+
 function terraformStub(): string {
   return stub('terraform', `[[ "$*" == *"output -raw lightsail_static_ip"* ]] && { echo 203.0.113.10; exit 0; }; exit 1`);
 }
@@ -229,6 +237,7 @@ beforeEach(() => {
   });
   expect(kg.status).toBe(0);
   pub = `${key}.pub`;
+  pubSha = fingerprintOf(pub);
   configFile = join(dir, 'config');
   credFile = join(dir, 'credentials');
   writeFileSync(configFile, OPERATOR_CONFIG);
@@ -265,6 +274,7 @@ function args(overrides: Partial<Record<string, string>> = {}, extra: string[] =
     '--account': ACCOUNT,
     '--operator': 'James Leberknight',
     '--public-key': pub,
+    '--expect-fingerprint': pubSha,
     '--address': ADDRESS,
     '--location': 'home',
     ...overrides,
@@ -397,6 +407,24 @@ describe('onboard-dev-tester.sh — refused before anything is read or reached',
     const r = runPiped(args({ '--public-key': two }));
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/not exactly one public key/);
+  });
+
+  it('refuses a missing fingerprint, since nothing else proves the key file is theirs', () => {
+    const r = runPiped(args({ '--expect-fingerprint': '' }));
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--expect-fingerprint must be/);
+    expect(calls()).toEqual([]);
+  });
+
+  it('refuses a key whose fingerprint is not the one they posted, before anything is read', () => {
+    // A key swapped in transit would seal the person's access to whoever holds it.
+    const other = join(dir, 'id_ed25519_other');
+    spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', other], { ...SPAWN_GUARD });
+    const r = runPiped(args({ '--expect-fingerprint': fingerprintOf(`${other}.pub`) }));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/not the SHA256:\S+ they posted/);
+    expect(calls()).toEqual([]);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
   });
 
   it('refuses when age is not installed', () => {

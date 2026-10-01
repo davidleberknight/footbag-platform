@@ -98,6 +98,11 @@ function sshStub(): string {
   const sshAdd = join(bin, 'ssh-add');
   writeFileSync(sshAdd, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(join(workDir, 'ssh-add.log'))}\n`, 'utf-8');
   chmodSync(sshAdd, 0o755);
+  // gh, first on the path, logging every call: repository access is managed
+  // separately, so an offboarding that reaches GitHub at all is a defect.
+  const gh = join(bin, 'gh');
+  writeFileSync(gh, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(ghLog)}\n`, 'utf-8');
+  chmodSync(gh, 0o755);
   return bin;
 }
 
@@ -158,23 +163,6 @@ function workstationHeldIt(): void {
 
 type IamUser = 'present' | 'absent' | 'unreadable';
 
-const PUBLIC_REPO = 'example-owner/public-repo';
-const PRIVATE_REPO = 'example-owner/private-repo';
-const LOGIN = 'Jane-Doe';
-
-interface Github {
-  /** Repositories the login is a collaborator on. */
-  collaborator?: string[];
-  /** The permission the API reports per repository, where not the default. */
-  permission?: Record<string, string>;
-  /** Pending invitation ids per repository. */
-  invites?: Record<string, string[]>;
-  /** A removal the API accepts and does not carry out. */
-  removalIgnored?: boolean;
-  /** Every read fails as an unauthenticated CLI does. */
-  unreadable?: boolean;
-}
-
 interface RunOptions {
   args?: string[];
   hostExit?: number;
@@ -189,14 +177,9 @@ interface RunOptions {
   listed?: string[] | 'unreadable';
   /** The allow-list child's exit on a removal. */
   removeExit?: number;
-  github?: Github;
-  /** Replace the GitHub CLI with a name that is not installed. */
-  noGh?: boolean;
 }
 
-const BASE = ['--target', 'staging', '--account', ACCOUNT, '--github-login', LOGIN, '--yes'];
-
-const fileFor = (slug: string) => slug.replace('/', '_');
+const BASE = ['--target', 'staging', '--account', ACCOUNT, '--yes'];
 
 /** The allow-list child: lists what the test says, and records every removal. */
 function addressStub(listed: string[] | 'unreadable', removeExit: number): string {
@@ -218,56 +201,6 @@ function addressStub(listed: string[] | 'unreadable', removeExit: number): strin
   chmodSync(path, 0o755);
   return path;
 }
-
-/**
- * A GitHub CLI answering the calls the run makes, from files, so the read-back
- * after a removal is answered by what the removal did. A collaborator check on
- * somebody who is not one fails the way the real CLI does, naming HTTP 404.
- */
-function ghStub(g: Github): string {
-  const state = join(workDir, 'gh-state');
-  mkdirSync(state, { recursive: true });
-  for (const slug of g.collaborator ?? []) writeFileSync(join(state, `collab-${fileFor(slug)}`), '', 'utf-8');
-  for (const [slug, perm] of Object.entries(g.permission ?? {}))
-    writeFileSync(join(state, `perm-${fileFor(slug)}`), `${perm}\n`, 'utf-8');
-  for (const [slug, ids] of Object.entries(g.invites ?? {}))
-    writeFileSync(join(state, `invites-${fileFor(slug)}`), ids.map((i) => `${i}\n`).join(''), 'utf-8');
-  const path = join(workDir, 'gh-stub.sh');
-  writeFileSync(
-    path,
-    [
-      '#!/usr/bin/env bash',
-      `S=${JSON.stringify(state)}`,
-      `printf '%s\\n' "$*" >> ${JSON.stringify(ghLog)}`,
-      g.unreadable ? 'echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4' : '',
-      'method=GET; path=""',
-      'for a in "$@"; do case "$a" in DELETE) method=DELETE ;; repos/*) path="$a" ;; esac; done',
-      'rest="${path#repos/}"; owner="${rest%%/*}"; rest="${rest#*/}"; repo="${rest%%/*}"; rest="${rest#*/}"',
-      'f="${owner}_${repo}"',
-      'case "$method $rest" in',
-      '  "GET collaborators/"*/permission)',
-      '    if [ -f "$S/perm-$f" ]; then cat "$S/perm-$f"; elif [ -f "$S/collab-$f" ]; then echo write; else echo read; fi ;;',
-      '  "GET collaborators/"*)',
-      '    [ -f "$S/collab-$f" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; } ;;',
-      '  "DELETE collaborators/"*)',
-      g.removalIgnored ? '    : ;;' : '    rm -f "$S/collab-$f" ;;',
-      '  "GET invitations")',
-      '    [ -f "$S/invites-$f" ] && cat "$S/invites-$f"; exit 0 ;;',
-      '  "DELETE invitations/"*)',
-      '    id="${rest#invitations/}"; grep -vx "$id" "$S/invites-$f" > "$S/i.tmp" || true; mv "$S/i.tmp" "$S/invites-$f" ;;',
-      '  *) echo "unexpected gh call: $*" >&2; exit 64 ;;',
-      'esac',
-      'exit 0',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    'utf-8',
-  );
-  chmodSync(path, 0o755);
-  return path;
-}
-
-const collaboratorOn = (slug: string) => existsSync(join(workDir, 'gh-state', `collab-${fileFor(slug)}`));
 
 /**
  * The IAM read answers the way the CLI does. `NoSuchEntity` is the error code
@@ -303,8 +236,6 @@ function run(options: RunOptions = {}) {
     keepConfig = false,
     listed = [],
     removeExit = 0,
-    github = { collaborator: [PUBLIC_REPO, PRIVATE_REPO] },
-    noGh = false,
   } = options;
   if (!keepConfig) writeFileSync(sshConfig, stanza(aliasUser), 'utf-8');
   const stubPath = join(workDir, 'aws-stub.sh');
@@ -347,11 +278,6 @@ function run(options: RunOptions = {}) {
       OFFBOARD_AWS_CMD: childStub('aws-child', awsLog, awsExit),
       OFFBOARD_SSH_CONFIG: sshConfig,
       OFFBOARD_ADDRESS_CMD: addressStub(listed, removeExit),
-      OFFBOARD_GH_BIN: noGh ? join(workDir, 'no-such-gh') : ghStub(github),
-      OFFBOARD_PUBLIC_REPO: PUBLIC_REPO,
-      // Set explicitly, so a developer's own wiring never decides which
-      // repository a test run names.
-      FOOTBAG_PRIVATE_REPO: PRIVATE_REPO,
       HOME: workDir,
     },
     ...SPAWN_GUARD,
@@ -366,7 +292,7 @@ const ghCalls = () => (existsSync(ghLog) ? readFileSync(ghLog, 'utf-8') : '');
 /** Every call that changes something outside this machine. */
 const outwardChanges = () =>
   [hostCalls(), awsCalls(), addressCalls().split('\n').filter((l) => l.includes('--remove')).join('\n'),
-    ghCalls().split('\n').filter((l) => l.includes('DELETE')).join('\n')].join('');
+    ghCalls()].join('');
 
 describe('offboard-dev-tester refuses the wrong caller and the wrong subject', () => {
   it('refuses anything but the directly authenticated footbag-operator', () => {
@@ -390,8 +316,7 @@ describe('offboard-dev-tester refuses the wrong caller and the wrong subject', (
     writeFileSync(awsCred, '[footbag-operator]\naws_access_key_id = placeholder\n', 'utf-8');
     const r = run({
       keepConfig: true,
-      args: ['--target', 'staging', '--account', 'footbag-operator', '--github-login', 'none',
-        '--from-step', '4', '--yes'],
+      args: ['--target', 'staging', '--account', 'footbag-operator', '--from-step', '3', '--yes'],
     });
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/not the shape a named account takes/);
@@ -400,7 +325,7 @@ describe('offboard-dev-tester refuses the wrong caller and the wrong subject', (
   });
 
   it('refuses a name that is not a person\'s account shape', () => {
-    const r = run({ args: ['--target', 'staging', '--account', 'jane', '--github-login', 'none', '--yes'] });
+    const r = run({ args: ['--target', 'staging', '--account', 'jane', '--yes'] });
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/not the shape a named account takes/);
     expect(outwardChanges()).toBe('');
@@ -411,25 +336,22 @@ describe('offboard-dev-tester refuses the wrong caller and the wrong subject', (
     expect(r.status).toBe(2);
   });
 
-  it('takes only the four steps it has', () => {
-    const r = run({ args: [...BASE, '--from-step', '5'] });
+  it('takes only the three steps it has', () => {
+    const r = run({ args: [...BASE, '--from-step', '4'] });
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/takes 1 to 4/);
+    expect(r.stderr).toMatch(/takes 1 to 3/);
   });
+});
 
-  it('requires the GitHub login, or an explicit none, before anything changes', () => {
-    // A forgotten flag would leave an offboarded person able to push, so an omission
-    // is refused rather than read as "they hold no access".
-    const r = run({ args: ['--target', 'staging', '--account', ACCOUNT, '--yes'] });
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/Give 'none' if they hold none/);
-    expect(outwardChanges()).toBe('');
-  });
-
-  it('refuses something that is not a GitHub login', () => {
-    const r = run({ args: ['--target', 'staging', '--account', ACCOUNT, '--github-login', '-jane', '--yes'] });
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/is not a GitHub login/);
+describe('offboard-dev-tester leaves repository access alone', () => {
+  it('completes a full offboarding without ever calling the GitHub CLI', () => {
+    // Repository access is granted and withdrawn separately; an offboarding that
+    // reached GitHub would end access nobody asked it to end.
+    workstationHeldIt();
+    const r = run({ keepConfig: true, listed: ['203.0.113.7/32'] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Done\./);
+    expect(ghCalls()).toBe('');
   });
 });
 
@@ -645,7 +567,7 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     // else owed, leaving their staging account and allow-list entry standing.
     writeFileSync(sshConfig, stanza('footbag').replace('footbag-staging', 'footbag-production'), 'utf-8');
     const r = run({
-      args: ['--target', 'production', '--account', ACCOUNT, '--github-login', LOGIN, '--yes'],
+      args: ['--target', 'production', '--account', ACCOUNT, '--yes'],
       listed: ['203.0.113.7/32'],
       keepConfig: true,
     });
@@ -653,69 +575,6 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     expect(r.stderr).toMatch(/never onboarded onto production/);
     expect(r.stdout).not.toMatch(/Nothing else is owed/);
     expect(outwardChanges()).toBe('');
-  });
-});
-
-describe('offboard-dev-tester ends their access to the repositories', () => {
-  it('removes them from both repositories and reads each back as gone', () => {
-    const r = run();
-    expect(r.status, r.stderr).toBe(0);
-    expect(collaboratorOn(PUBLIC_REPO)).toBe(false);
-    expect(collaboratorOn(PRIVATE_REPO)).toBe(false);
-    expect(r.stdout).toMatch(/example-owner\/public-repo: Jane-Doe removed, and read back as no collaborator/);
-    expect(r.stdout).toMatch(/example-owner\/private-repo: Jane-Doe removed, and read back as no collaborator/);
-    expect(r.stdout).toMatch(/Jane-Doe is no collaborator on either repository/);
-  });
-
-  it('withdraws a pending invitation, so it cannot be accepted after the removal', () => {
-    const r = run({ github: { collaborator: [], invites: { [PRIVATE_REPO]: ['4242'] } } });
-    expect(r.status, r.stderr).toBe(0);
-    expect(ghCalls()).toContain(`api -X DELETE repos/${PRIVATE_REPO}/invitations/4242`);
-    expect(r.stdout).toMatch(/private-repo: pending invitation withdrawn/);
-  });
-
-  it('reports a person who is no collaborator as such, and removes nothing', () => {
-    const r = run({ github: { collaborator: [] } });
-    expect(r.status, r.stderr).toBe(0);
-    expect(ghCalls()).not.toMatch(/DELETE/);
-    expect(r.stdout).toMatch(/public-repo: Jane-Doe is not a collaborator/);
-  });
-
-  it('fails when a removal does not read back as done', () => {
-    const r = run({ github: { collaborator: [PUBLIC_REPO], removalIgnored: true } });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/not proved ended: still listed as a collaborator/);
-    expect(r.stderr).toMatch(/--from-step 4/);
-    expect(r.stdout).not.toMatch(/Done\./);
-  });
-
-  it('refuses an administrator of either repository before anything changes', () => {
-    // An owner or admin is not ended by removing a collaborator.
-    const r = run({ github: { collaborator: [PRIVATE_REPO], permission: { [PRIVATE_REPO]: 'admin' } } });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/Jane-Doe administers example-owner\/private-repo/);
-    expect(outwardChanges()).toBe('');
-  });
-
-  it('refuses before anything changes when GitHub cannot be read', () => {
-    const r = run({ github: { unreadable: true } });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not read Jane-Doe's access to/);
-    expect(outwardChanges()).toBe('');
-  });
-
-  it('refuses before anything changes when the GitHub CLI is not installed', () => {
-    const r = run({ noGh: true });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/the GitHub CLI is not installed/);
-    expect(outwardChanges()).toBe('');
-  });
-
-  it('removes nothing, and says so, when told none', () => {
-    const r = run({ args: ['--target', 'staging', '--account', ACCOUNT, '--github-login', 'none', '--yes'] });
-    expect(r.status, r.stderr).toBe(0);
-    expect(ghCalls()).toBe('');
-    expect(r.stdout).toMatch(/No GitHub login was named, so no repository access was removed/);
   });
 });
 

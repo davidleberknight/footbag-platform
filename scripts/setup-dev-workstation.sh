@@ -35,7 +35,11 @@
 #   8. The two Python environments, each through its own builder.
 #   9. The repository's git hooks.
 #   10. With --operator only: the AWS CLI v2, which only operators use.
+#   11. With --account only: the named key pair a dev-and-tester is onboarded
+#       with, at ~/.ssh/id_ed25519_<account>, where the acceptance looks for it.
 #   Then it checks every tool again and exits non-zero if anything is missing.
+#   With --account it ends by printing what the holder who onboards them needs:
+#   the public key, its fingerprint, and the address this machine connects from.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -48,16 +52,33 @@
 #   - Install Docker. On WSL it is a desktop application with a group change and
 #     a restart; it is reported, with the page that installs it.
 #   - Touch anything without showing the plan and taking a typed APPLY.
+#   - Replace a named key pair it was not told to replace by fingerprint. A pair
+#     already at the path is the one an onboarding may have been sealed to, so a
+#     re-run keeps it; and once replaced, a re-run finds a different fingerprint
+#     there and keeps the new one.
+#   - Set aside, or create, only one half of a pair.
 #
 # Usage:
 #   bash scripts/setup-dev-workstation.sh
 #   bash scripts/setup-dev-workstation.sh --check
+#   bash scripts/setup-dev-workstation.sh --operator --account <first_last>
+#   bash scripts/setup-dev-workstation.sh --operator --account <first_last> \
+#     --replace-key <SHA256 fingerprint of the pair to retire>
 #
 # Flags:
 #   --check     Report what would be installed and exit: 0 when nothing is
 #               needed, 1 otherwise. Changes nothing and takes no confirmation.
 #   --operator  Also install the AWS CLI v2 at the pinned version, verified
 #               against its pinned checksum. For operators and dev-testers.
+#   --account <first_last>
+#               With --operator: make sure this dev-and-tester's named key pair
+#               exists, creating it if not, and end by printing what to post for
+#               the holder who onboards them.
+#   --replace-key <SHA256:...>
+#               With --account: when the pair at the path has this fingerprint,
+#               move both halves aside to ~/.ssh/retired_<account>_<time> and
+#               create a fresh pair. For re-onboarding after an offboard, which
+#               refuses the retired key.
 #   --yes       Accept the typed confirmation in advance.
 set -euo pipefail
 
@@ -80,15 +101,46 @@ source "${REPO_ROOT}/scripts/lib/npm-deps.sh"
 
 CHECK_ONLY=0
 OPERATOR=0
+ACCOUNT=""
+REPLACE_KEY=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK_ONLY=1; shift ;;
     --operator) OPERATOR=1; shift ;;
+    --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
+    --replace-key) REPLACE_KEY="${2:-}"; shift 2 || { echo "ERROR: --replace-key requires an argument" >&2; exit 2; } ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
   esac
 done
+
+# The same shape the onboarding holds a name to: it becomes their host account,
+# their IAM user and the role session name, so a key made under another
+# spelling is one the acceptance never finds.
+if [[ -n "$ACCOUNT" ]]; then
+  if (( ! OPERATOR )); then
+    echo "ERROR: --account goes with --operator: a named key pair is for a" >&2
+    echo "       dev-and-tester, who also needs the operator tools." >&2
+    exit 2
+  fi
+  if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
+    echo "ERROR: '${ACCOUNT}' is not a usable account name: firstname_lastname in" >&2
+    echo "       lower-case ASCII, at most 32 characters, as you will be onboarded." >&2
+    exit 2
+  fi
+fi
+if [[ -n "$REPLACE_KEY" ]]; then
+  if [[ -z "$ACCOUNT" ]]; then
+    echo "ERROR: --replace-key goes with --account, which names the pair it replaces." >&2
+    exit 2
+  fi
+  if [[ ! "$REPLACE_KEY" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
+    echo "ERROR: --replace-key takes the SHA256 fingerprint of the pair to retire," >&2
+    echo "       as ssh-keygen -l prints it." >&2
+    exit 2
+  fi
+fi
 
 # ── Pinned downloads ─────────────────────────────────────────────────────────
 #
@@ -201,6 +253,38 @@ chromium_ok() {
   [[ -n "$revision" && -f "${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}/chromium-${revision}/INSTALLATION_COMPLETE" ]]
 }
 
+NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
+NAMED_KEY_TILDE="~/.ssh/id_ed25519_${ACCOUNT}"
+# The SHA256 fingerprint of the pair at the named path, or nothing.
+named_key_sha() { ssh-keygen -l -f "${NAMED_KEY}.pub" 2>/dev/null | awk '{print $2}'; }
+
+# What the named key pair needs: nothing, "create", or "replace". Settled before
+# the plan, so a half pair or an unreadable one stops the run before anything
+# is installed.
+KEY_ACTION=""
+KEY_NOTE=""
+if [[ -n "$ACCOUNT" ]]; then
+  if [[ -e "$NAMED_KEY" && ! -e "${NAMED_KEY}.pub" ]] || [[ ! -e "$NAMED_KEY" && -e "${NAMED_KEY}.pub" ]]; then
+    echo "ERROR: only one half of a key pair is at ${NAMED_KEY_TILDE}. Move it aside," >&2
+    echo "       or put its other half beside it, and re-run. Nothing changed." >&2
+    exit 1
+  fi
+  if [[ -e "$NAMED_KEY" ]]; then
+    current_sha="$(named_key_sha)"
+    if [[ -z "$current_sha" ]]; then
+      echo "ERROR: ssh-keygen cannot read ${NAMED_KEY_TILDE}.pub. Nothing changed." >&2
+      exit 1
+    fi
+    if [[ -n "$REPLACE_KEY" && "$current_sha" == "$REPLACE_KEY" ]]; then
+      KEY_ACTION="replace"
+    elif [[ -n "$REPLACE_KEY" ]]; then
+      KEY_NOTE="The pair at ${NAMED_KEY_TILDE} is ${current_sha}, not ${REPLACE_KEY}: already replaced, so it is kept."
+    fi
+  else
+    KEY_ACTION="create"
+  fi
+fi
+
 PLAN=()
 system_python_ok || PLAN+=("system python3: point it back at Ubuntu's own $(distro_python), which apt's tools need")
 mapfile -t MISSING_APT < <(apt_missing)
@@ -215,6 +299,8 @@ legacy_env_ok || PLAN+=("python env: build or repair the legacy pipeline environ
 seeder_env_ok || PLAN+=("python env: build or repair the seeder environment")
 [[ "$(git rev-parse --git-path hooks 2>/dev/null)" == *.githooks ]] || PLAN+=("git: activate the repository's hooks")
 (( OPERATOR )) && ! aws_ok && PLAN+=("aws: install AWS CLI ${AWS_CLI_VERSION} into ${BIN_DIR}")
+[[ "$KEY_ACTION" == "create" ]] && PLAN+=("ssh key: create ${NAMED_KEY_TILDE} for ${ACCOUNT} (ssh-keygen asks for a passphrase)")
+[[ "$KEY_ACTION" == "replace" ]] && PLAN+=("ssh key: set ${NAMED_KEY_TILDE} (${REPLACE_KEY}) aside as ~/.ssh/retired_${ACCOUNT}_<time>, then create a fresh pair")
 
 echo "Developer workstation setup for ${REPO_ROOT}"
 if (( ${#PLAN[@]} == 0 )); then
@@ -222,6 +308,7 @@ if (( ${#PLAN[@]} == 0 )); then
 else
   printf '  %s\n' "${PLAN[@]}"
 fi
+[[ -n "$KEY_NOTE" ]] && echo "  ${KEY_NOTE}"
 tool_ok docker || echo "  Docker is not ready and is not installed by this script: see the container runtime section of the developer onboarding guide."
 
 if (( CHECK_ONLY )); then
@@ -347,6 +434,25 @@ if (( OPERATOR )) && ! aws_ok; then
   "$WORK/aws/install" --install-dir "${HOME}/.local/aws-cli" --bin-dir "$BIN_DIR" --update
 fi
 
+# ── 11. The named key pair, dev-and-testers only ─────────────────────────────
+# Moved aside, never deleted: the retired pair may still open something else
+# this machine uses, and an offboard has already made it useless on staging.
+if [[ "$KEY_ACTION" == "replace" ]]; then
+  retired="${HOME}/.ssh/retired_${ACCOUNT}_$(date -u +%Y%m%dT%H%M%SZ)"
+  mv -n -- "$NAMED_KEY" "$retired"
+  mv -n -- "${NAMED_KEY}.pub" "${retired}.pub"
+  if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]]; then
+    echo "ERROR: could not move ${NAMED_KEY_TILDE} aside. Nothing was created." >&2
+    exit 1
+  fi
+  echo "==> ${REPLACE_KEY} set aside as ${retired}"
+fi
+if [[ -n "$KEY_ACTION" ]]; then
+  echo "==> ssh key ${NAMED_KEY_TILDE}"
+  mkdir -p -m 700 "${HOME}/.ssh"
+  ssh-keygen -q -t ed25519 -f "$NAMED_KEY" -C "${ACCOUNT} footbag"
+fi
+
 # ── Verify the outcome ───────────────────────────────────────────────────────
 echo ""
 remaining=0
@@ -369,6 +475,40 @@ case ":${PATH#"${BIN_DIR}:"}:" in
   *":${BIN_DIR}:"*) ;;
   *) echo "  note: ${BIN_DIR} is not on your login PATH; Ubuntu adds it at the next login once it exists." ;;
 esac
+
+# What the holder who onboards them needs, read from the pair itself and from
+# the address the outside world sees, never from what was meant to happen.
+if [[ -n "$ACCOUNT" ]]; then
+  key_sha="$(named_key_sha)"
+  if [[ ! -f "$NAMED_KEY" || -z "$key_sha" ]]; then
+    echo "  still missing: the key pair ${NAMED_KEY_TILDE}" >&2
+    remaining=1
+  elif [[ -n "$REPLACE_KEY" && "$key_sha" == "$REPLACE_KEY" ]]; then
+    echo "  still in place: the retired pair ${REPLACE_KEY} at ${NAMED_KEY_TILDE}" >&2
+    remaining=1
+  else
+    address=""
+    if $FETCH "$WORK/address" "https://checkip.amazonaws.com" 2>/dev/null; then
+      address="$(tr -d '[:space:]' < "$WORK/address")"
+    fi
+    if [[ ! "$address" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+      echo "  could not read the address this machine connects from; re-run when online" >&2
+      remaining=1
+      address="unknown"
+    else
+      address="${address}/32"
+    fi
+    echo ""
+    echo "Post these on your onboarding card, for the holder who onboards you:"
+    echo "  account:      ${ACCOUNT}"
+    echo "  public key:   $(grep -m1 . "${NAMED_KEY}.pub")"
+    echo "  fingerprint:  ${key_sha}"
+    echo "  address:      ${address}"
+    echo "The address is the one this machine reaches the internet from now; onboard"
+    echo "from where you will work."
+  fi
+fi
+
 if (( remaining )); then
   echo "Setup incomplete: the items above are still missing." >&2
   exit 1

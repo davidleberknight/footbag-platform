@@ -64,6 +64,7 @@
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh \
 #     --target staging --account james_leberknight \
 #     --operator "James Leberknight" --public-key ~/james.pub \
+#     --expect-fingerprint SHA256:<as they posted it> \
 #     --address 203.0.113.7/32 --location home
 #
 # Flags:
@@ -75,7 +76,13 @@
 #                              holds access is read live from the host and IAM,
 #                              and the onboarding card records who approved it
 #   --public-key <path>        their SSH public key, as they sent it
-#   --address <cidr>           the address they connect from, put on the staging
+#   --expect-fingerprint <SHA256:...>
+#                              the key's fingerprint as they posted it, through a
+#                              channel other than the one the key came by. A key
+#                              swapped in transit would seal their access to
+#                              somebody else, so a mismatch stops the run before
+#                              anything is read or minted
+#   --address <cidr>          the address they connect from, put on the staging
 #                              allow-list; without it nothing else here reaches
 #                              anybody
 #   --location "<where>"       where that address is, such as home, for the
@@ -136,6 +143,7 @@ TARGET=""
 ACCOUNT=""
 OPERATOR=""
 PUBLIC_KEY=""
+EXPECT_FINGERPRINT=""
 ADDRESS=""
 LOCATION=""
 REISSUE=0
@@ -151,6 +159,7 @@ while [[ $# -gt 0 ]]; do
     --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
     --operator) OPERATOR="${2:-}"; shift 2 || { echo "ERROR: --operator requires an argument" >&2; exit 2; } ;;
     --public-key) PUBLIC_KEY="${2:-}"; shift 2 || { echo "ERROR: --public-key requires an argument" >&2; exit 2; } ;;
+    --expect-fingerprint) EXPECT_FINGERPRINT="${2:-}"; shift 2 || { echo "ERROR: --expect-fingerprint requires an argument" >&2; exit 2; } ;;
     --address) ADDRESS="${2:-}"; shift 2 || { echo "ERROR: --address requires an argument" >&2; exit 2; } ;;
     --location) LOCATION="${2:-}"; shift 2 || { echo "ERROR: --location requires an argument" >&2; exit 2; } ;;
     --reissue) REISSUE=1; shift ;;
@@ -190,6 +199,14 @@ if [[ -z "$PUBLIC_KEY" || ! -f "$PUBLIC_KEY" ]]; then
   echo "ERROR: --public-key must name their SSH public key file, as they sent it." >&2
   exit 2
 fi
+# The SHA256 form ssh-keygen prints: the prefix, then 43 characters of unpadded
+# base64.
+if [[ ! "$EXPECT_FINGERPRINT" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
+  echo "ERROR: --expect-fingerprint must be the key's SHA256 fingerprint as they" >&2
+  echo "       posted it, such as SHA256:YBSc2HxB3uZ8Xf3QRH8W7KT6l+RCDCZ4S8/uG9Ba3wA." >&2
+  echo "       It is what proves the key file is theirs, so it is not optional." >&2
+  exit 2
+fi
 # Checked for shape here so a typo is refused before anything is minted; the
 # allow-list step holds it to a canonical range itself.
 if [[ ! "$ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]]; then
@@ -220,6 +237,15 @@ if ! KEY_FINGERPRINT="$(ssh-keygen -l -f "$PUBLIC_KEY" 2>/dev/null)" \
    || [[ "$(grep -c . <<<"$KEY_FINGERPRINT")" != "1" ]]; then
   echo "ERROR: '${PUBLIC_KEY}' is not exactly one public key ssh-keygen can read." >&2
   exit 2
+fi
+# The SHA256 field alone: the length and the comment are presentation.
+KEY_SHA="$(awk '{print $2}' <<<"$KEY_FINGERPRINT")"
+if [[ "$KEY_SHA" != "$EXPECT_FINGERPRINT" ]]; then
+  echo "REFUSING: '${PUBLIC_KEY}' is ${KEY_SHA}," >&2
+  echo "          not the ${EXPECT_FINGERPRINT} they posted. Sealing to it would" >&2
+  echo "          hand their access to whoever holds that key. Get the key file again" >&2
+  echo "          and check it against what they posted. Nothing done." >&2
+  exit 1
 fi
 RECIPIENT_TAG="$(delivery_age_recipient_tag "$KEY_LINE" || true)"
 if [[ -z "$RECIPIENT_TAG" ]]; then
@@ -371,11 +397,10 @@ onboard_host_finished() {
     echo "          which is what an offboard that stopped part way leaves. Nothing was" >&2
     echo "          changed. Finish the offboarding, then onboard them again:" >&2
     echo "            bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT} \\" >&2
-    echo "              --github-login <their GitHub login, or none> --from-step 2" >&2
+    echo "              --from-step 2" >&2
     exit 1
   fi
-  # The SHA256 field alone: the length and the comment are presentation.
-  given="$(awk '{print $2}' <<<"$KEY_FINGERPRINT")"
+  given="$KEY_SHA"
   held="$(sed -n 's/^KEY //p' <<<"$out" | awk '{print $2}' | sed '/^$/d' | sort -u)"
   if [[ "$held" != "$given" ]]; then
     echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account does not hold" >&2

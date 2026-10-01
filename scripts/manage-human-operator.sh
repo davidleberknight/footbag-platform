@@ -45,7 +45,9 @@
 #     hold. Leaves the user itself inert.
 #
 #   bash scripts/manage-human-operator.sh --verify <operator_name>
-#     Reads and reports. Changes nothing.
+#     Reads and reports. Changes nothing. Includes what CloudTrail recorded
+#     under their name in the last seven days, newest first, which is how a
+#     deploy run through the job role is traced to the person who ran it.
 #
 # Flags:
 #   --offboard <name>  Retire the named identity.
@@ -344,6 +346,37 @@ if [[ "$ACTION" == "verify" ]]; then
     echo "    policy:    ${USER_POLICY_NAME} absent, so this identity reaches nothing"
   fi
   unset _policy
+
+  # What has been done under this name, read from CloudTrail. The job role's
+  # trust policy forces the session name to equal the user's own name, so every
+  # call made through the role, and every assumption of it, is recorded under
+  # it. Reported and never judged, since somebody newly onboarded has done
+  # nothing yet; but a trail that cannot be read is a finding, not an empty one.
+  # CloudTrail shows an event some minutes after the call, so one made moments
+  # ago may not be listed yet.
+  _since="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+  if _trail="$("$AWS_BIN" cloudtrail lookup-events \
+      --lookup-attributes "AttributeKey=Username,AttributeValue=${OPERATOR}" \
+      --start-time "$_since" --max-items 1000 \
+      --query 'Events[].[EventTime,EventName,EventSource]' --output text 2>/dev/null)"; then
+    # Event rows only, newest first, whatever order the pages arrived in; a
+    # pagination line the CLI may add is not an event.
+    _trail="$(grep -E $'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^\t]*\t' <<<"$_trail" | sort -r || true)"
+    if [[ -z "$_trail" ]]; then
+      echo "    trail:     no event as ${OPERATOR} since ${_since}"
+    else
+      echo "    trail:     $(grep -c . <<<"$_trail") event(s) as ${OPERATOR} since ${_since}"
+      IFS=$'\t' read -r _when _name _source <<<"$(head -1 <<<"$_trail")"
+      echo "    latest:    ${_when} ${_name} (${_source})"
+      _assumed="$(awk -F'\t' '$2=="AssumeRole"{print $1; exit}' <<<"$_trail")"
+      echo "    assumed:   ${_assumed:-no role assumption in that window}"
+    fi
+  else
+    echo "    trail:     CloudTrail could not be read, so what was done as"
+    echo "               ${OPERATOR} is unknown"
+    FINDINGS=$(( FINDINGS + 1 ))
+  fi
+  unset _since _trail _when _name _source _assumed
 
   # The local half. A section's presence is a fact about this workstation's
   # config file and says nothing about whose machine this is, so it is reported
@@ -670,10 +703,9 @@ echo "theirs to refuse it by, and AWS ends a chained session within the hour."
 # one running and it goes on to the rest.
 if (( ! DRIVEN_BY_OFFBOARD )); then
   echo ""
-  echo "Still owed: the host account, the address on the SSH allow-list and the"
-  echo "repository access. One command ends all of them, on staging, the only"
-  echo "environment a dev-and-tester is onboarded onto:"
+  echo "Still owed: the host account and the address on the SSH allow-list. One"
+  echo "command ends both, on staging, the only environment a dev-and-tester is"
+  echo "onboarded onto:"
   echo "  < ~/AWS/AWS_OPERATOR.txt \\"
-  echo "    bash scripts/offboard-dev-tester.sh --target staging --account ${OPERATOR} \\"
-  echo "      --github-login <their GitHub login, or none>"
+  echo "    bash scripts/offboard-dev-tester.sh --target staging --account ${OPERATOR}"
 fi
