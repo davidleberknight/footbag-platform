@@ -121,8 +121,8 @@ publicRouter.get('/freestyle/sets/reference', freestyleController.moves);
 publicRouter.get('/freestyle/sets/:slug',     freestyleController.setDetail);
 publicRouter.get('/freestyle/sets',           freestyleController.setsEncyclopedia);
 publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSets);
-// Three distinct reference resources: /freestyle/tricks finds tricks (with
-// "Reading the Dictionary" folded in at the top), /freestyle/glossary looks up
+// Three distinct reference resources: /freestyle/tricks finds tricks,
+// /freestyle/glossary looks up
 // terminology (the A–Z list), /freestyle/concepts explains concepts in depth
 // (the chapter-based reference; every #term-/#section- deep link lands here).
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);

@@ -71,19 +71,13 @@ describe('Freestyle Concepts — flat chapter architecture (reference-manual tab
     }
   });
 
-  it('opens on Movement Basics; Reading the Dictionary is not a chapter here but a disclosure on the trick dictionary', async () => {
+  it('opens on Movement Basics, with no Reading the Dictionary chapter', async () => {
     const html = await concepts();
     expect(html).not.toContain('id="chapter-reading-the-dictionary"');
     expect(html).not.toContain('id="section-reading-the-dictionary"');
     const firstChapterAt = html.indexOf('<details class="dict-tile" id="chapter-');
     expect(firstChapterAt).toBeGreaterThan(-1);
     expect(html.indexOf('<details class="dict-tile" id="chapter-movement-basics">')).toBe(firstChapterAt);
-
-    const res = await page('/freestyle/tricks');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('<details class="dict-tile" id="reading-the-dictionary">');
-    expect(res.text).toContain('id="section-reading-the-dictionary"');
-    expect(res.text).toContain('>Reading the Dictionary<');
   });
 
   it('names each chapter exactly once, never repeating the title inside the card', async () => {

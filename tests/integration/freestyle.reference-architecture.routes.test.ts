@@ -227,14 +227,16 @@ describe('GET /freestyle/concepts — Freestyle Concepts', () => {
     expect(html).toContain('id="section-notation"');
   });
 
-  it('no longer carries "Reading the Dictionary" as its first chapter, and links out to it instead', async () => {
+  it('opens on Movement Basics, with no "Reading the Dictionary" chapter and no link to the removed box', async () => {
     const html = await get('/freestyle/concepts');
     expect(html).not.toContain('id="chapter-reading-the-dictionary"');
     expect(html).not.toContain('id="section-reading-the-dictionary"');
     expect(html).not.toMatch(/dict-tile-title">Reading the Dictionary</);
     const firstChapter = html.match(/<details class="dict-tile" id="chapter-([a-z-]+)"/);
     expect(firstChapter?.[1]).toBe('movement-basics');
-    expect(html).toContain('href="/freestyle/tricks#reading-the-dictionary"');
+    // The box no longer exists on the dictionary page, so a link to it would
+    // land at the top of that page with nothing to explain why.
+    expect(html).not.toContain('#reading-the-dictionary');
   });
 
   it('carries no audience-level sublabels on chapters or sections (no Beginner / Intermediate / Advanced badges)', async () => {
@@ -263,43 +265,7 @@ describe('GET /freestyle/concepts — Freestyle Concepts', () => {
   });
 });
 
-describe('GET /freestyle/tricks — Reading the Dictionary disclosure', () => {
-  it('contains the disclosure, collapsed by default, above the browse controls', async () => {
-    const html = await get('/freestyle/tricks');
-    const m = html.match(/<details class="dict-tile" id="reading-the-dictionary"[^>]*>/);
-    expect(m, 'disclosure present').not.toBeNull();
-    expect(m![0]).not.toContain(' open');
-    expect(html).toMatch(/dict-tile-title">Reading the Dictionary<\/h2>/);
-    expect(html).toContain('id="section-reading-the-dictionary"');
-    // Ordering: search card, then the disclosure, then the browse-navigation card.
-    const search = html.indexOf('id="dictionary-top"');
-    const reading = html.indexOf('id="reading-the-dictionary"');
-    const nav = html.indexOf('class="card dict-nav-card"');
-    expect(search).toBeGreaterThan(-1);
-    expect(reading).toBeGreaterThan(search);
-    expect(nav).toBeGreaterThan(reading);
-  });
-
-  it('keeps the moved chapter content and its headings, with deep links now targeting Concepts', async () => {
-    const html = await get('/freestyle/tricks');
-    expect(html).toContain('The trick row');
-    expect(html).toContain('The browse views');
-    expect(html).toContain('Five kinds of object');
-    expect(html).toContain('Reading a compound name');
-    expect(html).toContain('href="/freestyle/concepts#section-notation"');
-    expect(html).toContain('href="/freestyle/concepts#section-add-accounting"');
-    expect(html).toContain('href="/freestyle/concepts#section-families"');
-    // No dangling in-page anchors that only existed on the old chaptered page.
-    expect(html).not.toMatch(/href="#section-(notation|add-accounting|families|modifiers|dexterities|media-claim-scope)"/);
-  });
-
-  it('renders the disclosure on secondary views and the family filter too', async () => {
-    for (const path of ['/freestyle/tricks?view=family', '/freestyle/tricks?view=set', '/freestyle/tricks?family=whirl']) {
-      const html = await get(path);
-      expect(html, path).toContain('id="reading-the-dictionary"');
-    }
-  });
-
+describe('GET /freestyle/tricks — dictionary navigation', () => {
   it('browse behaviour is unchanged: views, deep links, and detail routes still resolve', async () => {
     const app = await createApp();
     for (const p of ['/freestyle/tricks?view=add', '/freestyle/tricks?view=modifier', '/freestyle/tricks?view=set', '/freestyle/tricks/whirl']) {
@@ -313,7 +279,8 @@ describe('GET /freestyle/tricks — Reading the Dictionary disclosure', () => {
 
   it('the onboarding tile links point at the semantically right destinations', async () => {
     const html = await get('/freestyle/tricks');
-    expect(html).toContain('href="/freestyle/tricks#reading-the-dictionary">How to Read the Dictionary.');
+    // No in-page link survives to the removed "Reading the Dictionary" box.
+    expect(html).not.toContain('#reading-the-dictionary');
     expect(html).toContain('href="/freestyle/concepts#section-add-accounting">What Is an ADD?');
     expect(html).toContain('href="/freestyle/glossary">Look Up a Term in the Glossary.');
     expect(html).not.toContain('/freestyle/glossary#');

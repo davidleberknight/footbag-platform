@@ -294,15 +294,4 @@ describe('Emerging Vocabulary remains accessible', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Emerging Vocabulary');
   });
-
-  it('the dictionary landing surfaces a link to Emerging Vocabulary', async () => {
-    // Emerging Vocabulary renders as a single forward-looking line at the
-    // foot of the browse tile: the title links to /freestyle/observational
-    // and the sentence names the community sources. No count and no
-    // review-queue framing on the landing; the observational page carries
-    // the detail.
-    const res = await getPage('/freestyle/tricks?view=add');
-    expect(res.text).toContain('class="dict-emerging-line"');
-    expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>/);
-  });
 });

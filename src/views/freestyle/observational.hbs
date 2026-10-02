@@ -37,52 +37,25 @@
     {{else}}
 
     <p class="text-muted">Source key: PB is PassBack, FM is FootbagMoves, SG is Stanford shorthand.</p>
-
-    {{! ── Overview tiles (four sections + the open-question figure) ── }}
-    <div class="observed-stats">
-      {{#each content.stats}}
-      <div class="observed-stat">
-        <span class="observed-stat-value">{{value}}</span>
-        <span class="observed-stat-label">{{label}}</span>
-        <span class="observed-stat-hint">{{hint}}</span>
-      </div>
-      {{/each}}
-    </div>
-    <p class="observed-stats-note fw-600">{{content.statsNote}}</p>
-    {{#if content.sources.length}}
-    <p class="observed-source-strip">
-      Sources:
-      {{#each content.sources}}
-        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{badge}}">{{label}}</span>
-      {{/each}}
-    </p>
-    {{/if}}
     <p class="observational-layer-note">{{content.layerNote}}</p>
 
-    {{! ── Section 1 — Decide now ── }}
+    {{! ── Section 1 — Ready for a decision. Each group keeps its question, which
+        states what still separates its names from the dictionary; the curator's
+        recommendation and evidence live on the admin workbench. ── }}
     {{#if content.decideTotal}}
-    <section class="observed-section" id="decide-now" aria-label="Decide now">
+    <section class="observed-section" id="decide-now" aria-label="Ready for a decision">
       <div class="section-heading">
-        <h2>Decide now</h2>
+        <h2>Ready for a decision</h2>
         <span class="section-count">{{content.decideTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Names with enough evidence for a curator decision, grouped so one answer
-        resolves a whole cluster. Nothing here is promoted automatically.
+        Names with enough evidence to be confirmed or set aside. Nothing here joins
+        the dictionary automatically.
       </p>
       {{#each content.decideClusters}}
       <div class="observed-eco-group" id="decision-{{id}}">
         <h3 class="observed-eco-heading">{{title}} <span class="text-muted">({{count}})</span></h3>
         <p class="observed-decision-question">{{question}}</p>
-        <details class="observed-decision-detail">
-          <summary class="observed-decision-detail-summary">Recommendation and evidence</summary>
-          <dl class="observed-decision-facts">
-            <dt>Recommended</dt><dd>{{recommendation}}</dd>
-            <dt>Alternatives</dt><dd>{{alternatives}}</dd>
-            <dt>Evidence</dt><dd>{{evidence}}</dd>
-            <dt>Consequence</dt><dd>{{consequences}}</dd>
-          </dl>
-        </details>
         {{#if cards.length}}
         <div class="observed-card-grid">
           {{#each cards}}{{> observed-card-fields}}{{/each}}
@@ -91,7 +64,7 @@
         {{#if externalNames.length}}
         <ul class="observational-tracked-list">
           {{#each externalNames}}
-          <li>{{name}} <span class="tracked-tag">database-tracked</span></li>
+          <li>{{name}} <span class="tracked-tag">tracked</span></li>
           {{/each}}
         </ul>
         {{/if}}
@@ -100,23 +73,21 @@
     </section>
     {{/if}}
 
-    {{! ── Section 2 — Waiting on a named ruling ── }}
+    {{! ── Section 2 — Waiting on a ruling ── }}
     {{#if content.rulingTotal}}
-    <section class="observed-section" id="waiting-on-a-ruling" aria-label="Waiting on a named ruling">
+    <section class="observed-section" id="waiting-on-a-ruling" aria-label="Waiting on a ruling">
       <div class="section-heading">
-        <h2>Waiting on a named ruling</h2>
+        <h2>Waiting on a ruling</h2>
         <span class="section-count">{{content.rulingTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Every name here is gated by one of the {{content.openQuestionCount}} named open
-        questions below, shown with exactly what each answer unlocks. Nothing waits on a
-        vague category.
+        Each name here waits on one of the {{content.openQuestionCount}} open questions
+        below, shown with the names each answer would settle.
       </p>
       {{#each content.questions}}
       <details class="observed-disclosure" id="question-{{id}}">
         <summary class="observed-disclosure-summary">{{title}} <span class="text-muted">(unlocks {{unlockCount}})</span></summary>
         <p class="observed-question-text">{{question}}</p>
-        <p class="observed-question-meta">Status: {{status}} &middot; Owner: {{owner}} &middot; Vehicle: {{vehicle}}</p>
         <ul class="observational-tracked-list observed-fulllist-grid">
           {{#each names}}
           <li>{{name}} <span class="tracked-tag">{{source}}</span>{{#if publishedTarget}} <span class="text-muted">published as {{publishedTarget}}; name form only</span>{{/if}}</li>
@@ -177,7 +148,7 @@
       {{/if}}
       {{#if content.externalUnadjudicated.length}}
       <details class="observed-disclosure">
-        <summary class="observed-disclosure-summary">Database-tracked, not yet adjudicated <span class="text-muted">({{content.externalUnadjudicated.length}})</span></summary>
+        <summary class="observed-disclosure-summary">Tracked, not yet reviewed <span class="text-muted">({{content.externalUnadjudicated.length}})</span></summary>
         <ul class="observational-tracked-list">
           {{#each content.externalUnadjudicated}}
           <li>{{name}} <span class="tracked-tag">{{source}}</span></li>

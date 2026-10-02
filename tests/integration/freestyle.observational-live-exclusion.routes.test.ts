@@ -74,16 +74,15 @@ describe('GET /freestyle/observational — live publication exclusion', () => {
 });
 
 describe('observational counts recomputed from the runtime-filtered universe', () => {
-  it('the waiting-on-a-ruling tile equals the filtered ruling count, not the baked census', async () => {
+  it('the waiting-on-a-ruling count equals the filtered ruling count, not the baked census', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const vm = freestyleService.getObservationalLayerPage();
     const publishedKeys = new Set([
       key(EXCLUDED_ACTIVE!.slug), key('zzz_alias_target'), key(EXCLUDED_ALIAS!.slug),
     ]);
     const expectedRuling = RULING.filter(c => !publishedKeys.has(key(c.slug))).length;
-    const rulingTile = vm.content.stats.find(s => s.label === 'Waiting on a ruling');
-    expect(rulingTile).toBeDefined();
-    expect(Number(rulingTile!.value)).toBe(expectedRuling);
+    // The count the section heading shows.
+    expect(vm.content.rulingTotal).toBe(expectedRuling);
     // The seeded active-canonical candidate was a ruling row, so the filtered
     // count is strictly below the raw census (proving at least one live exclusion).
     expect(expectedRuling).toBeLessThan(RULING.length);

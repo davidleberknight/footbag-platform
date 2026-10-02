@@ -453,11 +453,6 @@ describe('public dictionary presentation', () => {
     const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="dict-tile-grid"');
-    // The corpus counts are surfaced as supporting metadata, in beginner-facing
-    // wording (not the internal "canonical").
-    expect(res.text).toContain('come with a full page');
-    expect(res.text).toMatch(/spans [\d,]+ names/);
-    expect(res.text).toMatch(/[\d,]+ aliases and alternate names/);
     // The retired publication-state expansion note must not return.
     expect(res.text).not.toContain('being expanded and aligned with established freestyle notation');
   });

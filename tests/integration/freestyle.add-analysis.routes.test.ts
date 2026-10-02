@@ -477,13 +477,6 @@ describe('ADD Analysis discoverability — inbound links', () => {
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('freestyle tricks index source-note links to ADD analysis', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    const note = res.text.match(/class="source-note"[\s\S]{0,500}/)?.[0] ?? '';
-    expect(note).toContain('href="/freestyle/add-analysis"');
-  });
-
   it('Freestyle Concepts ADD Accounting compact-equivalence block links to ADD analysis', async () => {
     const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');

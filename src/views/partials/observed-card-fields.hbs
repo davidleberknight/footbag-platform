@@ -4,8 +4,8 @@
   Layer-separation contract: visually distinct from canonical cards — a tracked
   tag (bare slug, NOT a canonical hashtag), no canonical ADD chip, no
   trick-detail link, no media. Provisional ADD + decomposition are
-  observationally extrapolated and labelled as such; parser-confidence and
-  doctrine-confidence are SEPARATE chips and never imply canonical status.
+  observationally extrapolated and labelled as such. Parser and doctrine
+  confidence are curation detail and show on the admin workbench, not here.
 --}}
 <article class="observed-card" data-ecosystem="{{ecosystem}}">
   <header class="observed-card-head">
@@ -13,11 +13,7 @@
     <h3 class="observed-card-name">{{name}}</h3>
     <span class="tracked-tag" title="Observational: not a canonical trick">{{slug}}</span>
   </header>
-  <p class="observed-card-meta">
-    {{#if addLabel}}<span class="observed-add">{{addLabel}}</span>{{/if}}
-    {{#if parserConfidence}}<span class="observed-conf observed-conf--{{parserConfidence}}" title="Parser confidence">parser: {{parserConfidence}}</span>{{/if}}
-    {{#if doctrineConfidence}}<span class="observed-conf observed-conf--{{doctrineConfidence}}" title="Doctrine confidence">doctrine: {{doctrineConfidence}}</span>{{/if}}
-  </p>
+  {{#if addLabel}}<p class="observed-card-meta"><span class="observed-add">{{addLabel}}</span></p>{{/if}}
   {{#if hasDetails}}
   <details class="observed-card-details">
     <summary class="observed-card-details-summary">Reading</summary>

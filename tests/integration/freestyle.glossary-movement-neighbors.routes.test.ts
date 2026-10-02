@@ -160,14 +160,4 @@ describe('Dexterities teaching spine — mindset, counterparts, repetition', () 
       expect(html).toContain(`href="/freestyle/tricks/${slug}"`);
     }
   });
-
-  it('the compound-name table (in Reading the Dictionary on the trick dictionary) clarifies coordinated movements, not reordered sequences', async () => {
-    const res = await page('/freestyle/tricks');
-    expect(res.status).toBe(200);
-    const html = res.text;
-    const disclosureAt = html.indexOf('id="reading-the-dictionary"');
-    const tableAt = html.indexOf('coordinated movements whose identities differ because the base');
-    expect(disclosureAt).toBeGreaterThan(-1);
-    expect(tableAt).toBeGreaterThan(disclosureAt);
-  });
 });

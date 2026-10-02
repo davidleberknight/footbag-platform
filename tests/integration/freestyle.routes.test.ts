@@ -618,19 +618,6 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toMatch(/observed-card-source-badge--PB/);
   });
 
-  it('renders the source-summary chip strip beneath canonical references', async () => {
-    // content.sources collects unique source badges represented across
-    // the page. Renders only when content.sources.length > 0.
-    // Chip labels are human-readable source names (PassBack /
-    // FootbagMoves / Stanford shorthand), not raw badge codes
-    // (PB/FM/SG). The CSS class carries the badge code.
-    const res = await page('/freestyle/observational');
-    expect(res.text).toMatch(/class="observed-source-strip"/);
-    expect(res.text).toMatch(
-      /class="observed-source-strip-item observed-source-strip-item--PB"[^>]*>PassBack</,
-    );
-  });
-
   it('observational cards have NO hashtag chip (canonical-only convention)', async () => {
     // Identity-layer forever-invariant: observational entries never get
     // #-tag chips.
@@ -1059,6 +1046,21 @@ describe('GET /freestyle/tricks/:slug', () => {
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Record Progression');
+  });
+
+  it('shows records without the authority caveat, and ends the page on the two links alone', async () => {
+    // Torque has records, so the records section renders. Its table carries the
+    // recorded ADD column; the paragraph ranking that value against the canonical
+    // ADD, and the footer's provenance and approximate-date sentences, are page
+    // furniture the tables already convey.
+    const res = await page('/freestyle/tricks/torque');
+    expect(res.text).toContain('<h2>Consecutive Records</h2>');
+    expect(res.text).not.toContain('the canonical ADD is authoritative');
+    expect(res.text).not.toContain('Records sourced from documented freestyle video archives');
+    expect(res.text).not.toContain('are confirmed only to the month or year');
+    expect(res.text).toMatch(
+      /<p class="source-note">\s*<a href="\/freestyle\/records">View all records<\/a>\s*&middot;\s*<a href="\/freestyle\/tricks">Trick Dictionary<\/a>\s*<\/p>/,
+    );
   });
 });
 

@@ -1,10 +1,7 @@
 /**
- * Integration tests for the additive Freestyle Concepts framing sections and
- * the Reading the Dictionary disclosure.
+ * Integration tests for the additive Freestyle Concepts framing sections.
  *
- * GET /freestyle/tricks carries the "Reading the Dictionary" disclosure (the
- * two-line trick-row contract explainer, the browse-semantics table, and the
- * ontology distinction table). GET /freestyle/concepts carries the chapter
+ * GET /freestyle/concepts carries the chapter
  * content that synchronizes the reference with the modern platform ontology
  * WITHOUT rewriting the §Families taxonomy (that is a separate, post-ruling
  * slice):
@@ -45,100 +42,6 @@ async function concepts(): Promise<string> {
   expect(res.status).toBe(200);
   return res.text;
 }
-
-async function dictionary(): Promise<string> {
-  const res = await page('/freestyle/tricks');
-  expect(res.status).toBe(200);
-  return res.text;
-}
-
-describe('Trick Dictionary — Reading the Dictionary disclosure', () => {
-  it('renders the "Reading the Dictionary" orientation disclosure', async () => {
-    const html = await dictionary();
-    expect(html).toContain('id="reading-the-dictionary"');
-    expect(html).toContain('id="section-reading-the-dictionary"');
-    // The disclosure's own heading names the section; it is not repeated inside.
-    expect(html).toMatch(/<h2 class="dict-tile-title">Reading the Dictionary<\/h2>/);
-    // Its chapter deep links point at Freestyle Concepts.
-    expect(html).toContain('href="/freestyle/concepts#section-families"');
-    expect(html).toContain('href="/freestyle/concepts#section-modifiers"');
-  });
-
-  it('explains the two-line trick-row contract (line 1 + line 2 slots)', async () => {
-    const html = await dictionary();
-    const m = html.match(/<div class="glossary-row-contract">[\s\S]*?<\/div>/);
-    expect(m, 'row-contract block').not.toBeNull();
-    const block = m![0];
-    // Line 1 slots
-    expect(block).toContain('Line 1');
-    expect(block).toMatch(/canonical trick name/);
-    expect(block).toMatch(/#hashtag/);
-    expect(block).toMatch(/interpretation \/ decomposition/);
-    // The row carries a Media link when the trick has clips, not a badge.
-    expect(block).toMatch(/Media<\/a> link when the trick has clips/);
-    // Line 2 slots
-    expect(block).toContain('Line 2');
-    expect(block).toMatch(/JOB/);
-    expect(block).toMatch(/ADD/);
-    // The "no green chip" boundary is stated in the section.
-    expect(html).toMatch(/no separate per-row ADD chip/);
-  });
-
-  it('renders a browse-semantics table covering all four views with links, plus the curation principle', async () => {
-    const html = await dictionary();
-    for (const [label, view] of [
-      ['By ADD', 'view=add'],
-      ['By family', 'view=family'],
-      ['By set', 'view=set'],
-      ['By modifier', 'view=modifier'],
-    ]) {
-      expect(html, `browse label ${label}`).toContain(label);
-      expect(html, `browse link ${view}`).toContain(`/freestyle/tricks?${view}`);
-    }
-    expect(html).toMatch(/Same rows, four lenses/);
-    expect(html).not.toMatch(/By movement system|Movement Neighborhoods|By dex count/);
-    // Curated-browse principle + the two broader reference surfaces.
-    expect(html).toMatch(/curated for useful\s+browsing/);
-    expect(html).toMatch(/broader modifier and operator\s+vocabulary/);
-    expect(html).toContain('href="/freestyle/sets"');
-    expect(html).toContain('href="/freestyle/operators"');
-  });
-
-  it('renders the five-way ontology distinction table, with sets and modifiers as separate kinds', async () => {
-    const html = await dictionary();
-    for (const kind of [
-      'Canonical family',
-      'Set / set system',
-      'Modifier / operator',
-      'Alternative surface',
-      'Alias / decomposition reading',
-    ]) {
-      expect(html, `ontology kind ${kind}`).toContain(kind);
-    }
-    expect(html).not.toContain('<td>Movement neighborhood</td>');
-    // The introductory object table keeps sets and modifiers as separate
-    // kinds; the combined "Modifier ecosystem" framing survives only in the
-    // later family-vs-modifier comparison material, never in this table.
-    const kindsStart = html.indexOf('Five kinds of object');
-    const kindsEnd = html.indexOf('Reading a compound name');
-    expect(kindsStart).toBeGreaterThan(-1);
-    expect(kindsEnd).toBeGreaterThan(kindsStart);
-    expect(html.slice(kindsStart, kindsEnd)).not.toContain('Modifier ecosystem');
-    // Explains WHY older vocabularies conflated them.
-    expect(html).toMatch(/flattened families, modifiers, surfaces/);
-    // Sharpens the interpretation-vs-modifier boundary.
-    expect(html).toMatch(/does not make the read-as name a\s+productive modifier/);
-  });
-
-  it('teaches ADD as component accounting, never a direct measure of execution difficulty', async () => {
-    const html = await dictionary();
-    expect(html).toContain('component accounting');
-    expect(html).toMatch(/not a direct measure of execution difficulty/);
-    expect(html).toMatch(/not necessarily equally difficult to\s+perform/);
-    // The compound-name pair holds the three dimensions apart explicitly.
-    expect(html).toMatch(/structural identity, ADD accounting,\s+and execution difficulty are three different dimensions/);
-  });
-});
 
 describe('Freestyle Concepts framing — settled family-root test note', () => {
   it('renders the settled family-root rule inside the families section', async () => {
@@ -249,27 +152,6 @@ describe('Freestyle Concepts framing — chapter navigation + non-regression', (
     expect(html).not.toContain('Branch and lineage families');
     expect(html).not.toContain('Root terminal families');
     expect(html).not.toContain('Branch families');
-  });
-});
-
-describe('Trick Dictionary — Reading the Dictionary row-contract and non-final-reading notes (additive, anchor-safe)', () => {
-  it('row-contract note distinguishes aliases from interpretations and flags non-final readings', async () => {
-    const html = await dictionary();
-    expect(html).toMatch(/is <em>not<\/em> an interpretation/);
-    expect(html).toMatch(/not always settled doctrine/);
-  });
-
-  it('explains why a trick appears in several browse views at once', async () => {
-    const html = await dictionary();
-    expect(html).toContain('A trick may appear in several of these views at once');
-  });
-
-  it('frames the family kind on two independent axes: lineage position and display tier', async () => {
-    const html = await dictionary();
-    expect(html).toMatch(/lineage position/i);
-    expect(html).toMatch(/display tier/i);
-    // The stale drifter-as-descendant-lineage framing is gone (drifter is a Family Parent now).
-    expect(html).not.toMatch(/such as the drifter lineage/);
   });
 });
 
@@ -499,11 +381,6 @@ describe('Freestyle Concepts — media claim-scope (L6)', () => {
     const html = await concepts();
     expect(html).toMatch(/teaches without resolving/);
     expect(html).toContain('href="/media"');
-  });
-
-  it('is reachable from the line-1 media mention in Reading the Dictionary on the trick dictionary', async () => {
-    const html = await dictionary();
-    expect(html).toContain('href="/freestyle/concepts#section-media-claim-scope"');
   });
 });
 

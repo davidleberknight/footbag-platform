@@ -6878,7 +6878,6 @@ a.trick-hero-meta-chip--media:hover {
  * Symbolic-layer styling (observational; visually subordinate to canonical)
  *
  * Used by:
- *   - .symbolic-related-topology (Related Topology panel on trick pages)
  *   - .symbolic-walking-progression (Walking Family Progression page)
  *   - .symbolic-modifier-family (Modifier-family teaching page)
  *
@@ -6894,7 +6893,7 @@ a.trick-hero-meta-chip--media:hover {
 
 /* Shared symbolic-card pattern: muted background + warm-tone left border.
  * Future symbolic surfaces should use this directly in HTML.
- * Existing surfaces (related-topology / progression-step / confusion-card)
+ * Existing surfaces (progression-step / confusion-card)
  * still ship their own rules with the same declarations;
  * HTML refactor to `.symbolic-card` is intentionally deferred. */
 .symbolic-card {
@@ -6906,7 +6905,6 @@ a.trick-hero-meta-chip--media:hover {
 /* Shared ADD-value chip: used by every symbolic surface that surfaces ADD
  * counts next to a trick name, unifying their visual treatment. */
 .symbolic-adds-chip,
-.symbolic-topology-adds,
 .symbolic-walking-progression .step-adds,
 .symbolic-modifier-family .cross-base-adds {
   font-size: 0.9rem;
@@ -6916,28 +6914,6 @@ a.trick-hero-meta-chip--media:hover {
   border-radius: var(--radius-2xs);
 }
 
-.symbolic-related-topology {
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  padding: 12px 16px;
-  margin-top: 12px;
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-.symbolic-related-topology .section-heading {
-  margin-bottom: 8px;
-}
-.symbolic-related-topology .section-heading h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--earth-500);
-  margin: 0 0 4px 0;
-}
-.symbolic-related-topology .section-intro {
-  font-size: 0.9rem;
-  color: var(--text);
-  font-style: italic;
-  margin: 0 0 8px 0;
-}
 /* Status chip marking a supplementary observational lens. Takes the site's
    neutral chip tones; the warm parchment palette belongs to the history
    surfaces and reads as a second design language on a dictionary page. */
@@ -7367,32 +7343,6 @@ a.trick-hero-meta-chip--media:hover {
 /* §8 ADD-accounting weight tables. Compact tabular reference for atom
    + modifier weights. Restraint-first: no heavy borders, alternating
    row backgrounds for scanability. */
-.glossary-row-contract {
-  margin: 8px 0 14px 0;
-  border: 1px solid var(--parch-450);
-  border-radius: var(--radius-xs);
-  overflow: hidden;
-}
-.glossary-row-contract-line {
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.glossary-row-contract-line + .glossary-row-contract-line {
-  border-top: 1px solid var(--parch-300);
-  background: var(--parch-50);
-}
-.glossary-row-contract-label {
-  display: inline-block;
-  min-width: 3.4em;
-  margin-right: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--earth-gold);
-}
 .glossary-add-weight-table-wrap {
   margin: 8px 0 18px 0;
   overflow-x: auto;
@@ -7681,22 +7631,6 @@ a.trick-hero-meta-chip--media:hover {
 .glossary-advanced-reference-group > h4.section-heading {
   margin-top: 1.5rem;
 }
-.symbolic-topology-members-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-}
-.symbolic-topology-members-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 0.9rem;
-}
-.symbolic-topology-members-list li > a { font-weight: 500; }
-/* .symbolic-topology-adds: see consolidated .symbolic-adds-chip rule above */
 .symbolic-layer-footer {
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -8342,29 +8276,6 @@ a.trick-hero-meta-chip--media:hover {
  * 2-line default visible per card; <details> expansion for additional
  * readings, formula, curator note, blockers, full source citation.
  * Hybrid grouping: ADD-bucket header h2, A-Z within. */
-.observed-source-strip {
-  margin: 0 0 24px 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.observed-source-strip-item {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: var(--radius-2xs);
-  font-weight: 600;
-  font-size: 0.9rem;
-  letter-spacing: 0.04em;
-  background: var(--parch-300);
-  color: var(--earth-650);
-  margin-left: 4px;
-}
-.observed-source-strip-item--PB { background: var(--sec-border); color: var(--steel-600); }
-.observed-source-strip-item--FM { background: var(--danger-border); color: var(--earth-bronze); }
-.observed-source-strip-item--SG { background: var(--fern-150); color: var(--fern-700); }
-.observed-source-strip-item--FF { background: var(--slate-300); color: var(--steel-600); }
-.observed-source-strip-item--FB { background: var(--parch-350); color: var(--earth-bronze); }   /* footbag.org */
-.observed-source-strip-item--OTHER { background: var(--gray-300); color: var(--gray-700); }
-
 .observed-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -8548,42 +8459,6 @@ a.trick-hero-meta-chip--media:hover {
 }
 
 /* ── Emerging Vocabulary v2 governance surface ────────────────────────── */
-.observed-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin: 4px 0 8px 0;
-}
-.observed-stat {
-  display: flex;
-  flex-direction: column;
-  padding: 10px 12px;
-  background: var(--parch-75);
-  border: 1px solid var(--parch-450);
-  border-radius: var(--radius-xs);
-}
-.observed-stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--earth-750);
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.observed-stat-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--earth-550);
-  margin-top: 2px;
-}
-.observed-stat-hint {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-.observed-stats-note {
-  font-size: 0.9rem;
-  margin: 0 0 14px 0;
-}
 .observed-section {
   margin: 22px 0;
 }
@@ -8597,14 +8472,6 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 0.9rem;
   margin: 4px 0 8px 0;
   max-width: 55ch;
-}
-.observed-decision-detail {
-  margin: 0 0 10px 0;
-}
-.observed-decision-detail-summary {
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--earth-550);
 }
 .observed-decision-facts {
   font-size: 0.9rem;
@@ -8622,11 +8489,6 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 0.9rem;
   margin: 8px 0 4px 0;
   max-width: 55ch;
-}
-.observed-question-meta {
-  font-size: 0.9rem;
-  color: var(--earth-550);
-  margin: 0 0 8px 0;
 }
 .observed-disclosure {
   margin: 14px 0;
@@ -8653,7 +8515,7 @@ a.trick-hero-meta-chip--media:hover {
   padding-bottom: 3px;
   border-bottom: 1px solid var(--parch-300);
 }
-/* ADD + confidence chips on cards */
+/* Provisional ADD chip on cards */
 .observed-add {
   flex: 0 0 auto;
   font-size: 0.9rem;
@@ -8664,20 +8526,6 @@ a.trick-hero-meta-chip--media:hover {
   padding: 1px 6px;
   font-variant-numeric: tabular-nums;
 }
-.observed-conf {
-  flex: 0 0 auto;
-  font-size: 0.9rem;
-  border-radius: var(--radius-2xs);
-  padding: 1px 6px;
-  background: var(--parch-150);
-  color: var(--earth-450);
-}
-.observed-conf--high   { background: var(--fern-150); color: var(--fern-700); }
-.observed-conf--medium { background: var(--parch-300); color: var(--earth-bronze); }
-.observed-conf--low    { background: var(--parch-300); color: var(--earth-400); }
-.observed-conf--stable           { background: var(--fern-150); color: var(--fern-700); }
-.observed-conf--blocked          { background: var(--danger-border); color: var(--blocked-brick); }
-.observed-conf--policy-dependent { background: var(--parch-450); color: var(--earth-bronze); }
 .observed-card-source-badge--MULTI { background: var(--gray-250); color: var(--doctrine-plum); }
 .observed-card-source-badge--IFPA  { background: var(--fern-150); color: var(--fern-700); }
 /* v2 card-meta carries several chips; wrap + left-align (overrides the
@@ -8730,7 +8578,6 @@ a.trick-hero-meta-chip--media:hover {
   .observed-fulllist-grid { columns: 2; }
 }
 @media (max-width: 480px) {
-  .observed-stats { grid-template-columns: 1fr 1fr; }
   .observed-card-grid { grid-template-columns: 1fr; }
   .observed-cluster-grid { grid-template-columns: 1fr; }
   .observed-fulllist-grid { columns: 1; }
@@ -9917,15 +9764,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text);
   font-size: 1rem;
   line-height: 1.55;
-}
-.dictionary-intro-glossary-link {
-  color: var(--primary-ink);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.dictionary-intro-glossary-link:hover,
-.dictionary-intro-glossary-link:focus-visible {
-  text-decoration: underline;
 }
 @media (max-width: 480px) {
   .browse-view-intro {
@@ -11722,13 +11560,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .dict-back-to-top { margin: 24px 0 0; }
 /* Clears the sticky header so the anchor does not land under it. */
 #dictionary-top { scroll-margin-top: var(--anchor-offset); }
-/* Emerging Vocabulary: one quiet forward-looking line at the foot of the
-   browse tile; the observational page carries the detail. */
-.dict-emerging-line {
-  margin: 12px 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
 /* Same width steps as .banner-tile: four across at desktop, then three, then
    two, then one. The behaviour differs at the last row: banner tiles grow to
    fill it, these keep their column width, because a chapter list runs to eleven

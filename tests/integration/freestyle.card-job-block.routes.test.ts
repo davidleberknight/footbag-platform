@@ -237,18 +237,6 @@ describe('/freestyle/observational — Emerging Vocabulary copy + source chips',
     // Stanford shorthand label should appear in the chip strip (or below in tracked-names).
     expect(res.text).toMatch(/Stanford shorthand/);
   });
-
-  it('source chip strip includes the four canonical external sources (Stanford / FootbagMoves / PassBack / Footbag.org)', async () => {
-    const res = await getPage('/freestyle/observational');
-    // PassBack
-    expect(res.text).toMatch(/observed-source-strip-item--PB[^>]*>PassBack</);
-    // FootbagMoves (FM)
-    expect(res.text).toMatch(/observed-source-strip-item--FM[^>]*>FootbagMoves</);
-    // Footbag.org (FB)
-    expect(res.text).toMatch(/observed-source-strip-item--FB[^>]*>Footbag\.org</);
-    // Stanford shorthand (SG)
-    expect(res.text).toMatch(/observed-source-strip-item--SG[^>]*>Stanford shorthand</);
-  });
 });
 
 // A trick's nicknames ride inline beside its name on the row, each in quotes.

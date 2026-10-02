@@ -104,21 +104,23 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
     expect(html).not.toContain('id="ready-for-curation"');
   });
 
-  it('decide-now renders the curator decision clusters with question and recommendation, unpromoted', async () => {
+  it('ready-for-a-decision renders each group with its question, without the curator workbench, unpromoted', async () => {
     const html = await page();
-    expect(html).toContain('Decide now');
-    // Cluster prose renders: the smallest exact decision plus its facts.
-    expect(html).toContain('observed-decision-question');
-    expect(html).toContain('Recommendation and evidence');
+    expect(html).toContain('Ready for a decision');
     // A populated decision group renders; an answered (empty) group vanishes.
     expect(html).toMatch(/id="decision-(D\d|A0)"/);
+    // The recommendation, alternatives, evidence and consequence a curator
+    // weighs belong to the admin workbench; on the public page they read as an
+    // internal queue.
+    expect(html).not.toContain('Recommendation and evidence');
+    expect(html).not.toMatch(/<dt>(Recommended|Alternatives|Consequence)<\/dt>/);
     // Decision members render as observational cards, never canonical links.
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/[a-z]/);
   });
 
-  it('waiting-on-a-ruling groups rows by question with exact text, meta, and unlock counts', async () => {
+  it('waiting-on-a-ruling groups rows by question with exact text and unlock counts, without ownership metadata', async () => {
     const html = await page();
-    expect(html).toContain('Waiting on a named ruling');
+    expect(html).toContain('Waiting on a ruling');
     // Every rendered question card is one of the registered questions and
     // shows an unlock count; no undifferentiated wall of names.
     for (const q of EMERGING_QUESTIONS) {
@@ -127,10 +129,54 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
         expect(html).toMatch(new RegExp(`id="question-${q.id}"[\\s\\S]{0,400}unlocks \\d+`));
       }
     }
-    expect(html).toContain('observed-question-text');
-    expect(html).toMatch(/Status: (drafted|sent)/);
+    // Who owns a question and how it travels is curation detail.
+    expect(html).not.toMatch(/Status: (drafted|sent)/);
+    expect(html).not.toMatch(/Owner: |Vehicle: /);
     // A published identity riding the name-form question carries its target.
     expect(html).toMatch(/published as [a-z_]+; name form only/);
+  });
+
+  it('every actionable entry states what still separates it from the dictionary', async () => {
+    // The story's contract for this page: each entry shows what would be needed
+    // for curation. A group, question or evidence row rendered without it would
+    // be a bare name with no explanation of why it is not a trick.
+    const html = await page();
+    const blocks = (startMarker: string, endMarker: RegExp): string[] =>
+      html.split(startMarker).slice(1).map(b => b.split(endMarker)[0]!);
+
+    const decisions = blocks('class="observed-eco-group" id="decision-', /class="observed-eco-group"|<\/section>/);
+    expect(decisions.length).toBeGreaterThan(0);
+    for (const d of decisions) {
+      expect(d, 'a decision group without its question').toMatch(/observed-decision-question">\s*\S/);
+    }
+
+    const questions = blocks('class="observed-disclosure" id="question-', /<\/details>/);
+    expect(questions.length).toBeGreaterThan(0);
+    for (const q of questions) {
+      expect(q, 'a ruling without its question').toMatch(/observed-question-text">\s*\S/);
+    }
+
+    if (inSection('evidence').length > 0) {
+      const evidence = html.split('id="needs-evidence"')[1]!.split('</section>')[0]!;
+      const rows = evidence.match(/<li>[\s\S]*?<\/li>/g) ?? [];
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row, 'an evidence row without the missing evidence').toMatch(/<span class="text-muted">\s*\S/);
+      }
+    }
+  });
+
+  it('keeps tracked names unmistakably apart from official tricks', async () => {
+    const html = await page();
+    // Said plainly twice: in the page lede and in the note above the sections.
+    expect(html).toContain('Nothing on this page is an official trick yet');
+    expect(html).toContain('None of these is an official trick yet.');
+    expect(html).toContain('a name gets its own page only when it joins the dictionary');
+    // Every entry carries a tracked tag, never a canonical hashtag or detail link.
+    expect(html).toContain('tracked-tag');
+    expect(html).not.toMatch(/href="\/freestyle\/tricks\/[a-z]/);
+    // The curation confidence chips stay off the public cards.
+    expect(html).not.toMatch(/>parser: |>doctrine: /);
   });
 
   it('needs-evidence states the precise missing evidence per row', async () => {
@@ -170,11 +216,11 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
     expect(primary.alsoRecordedAs).toContain(twin.name);
   });
 
-  it('tiles and counts derive from current dispositions, never hard-coded totals', async () => {
+  it('carries no dashboard tiles, and its census stays internally consistent', async () => {
     const html = await page();
-    for (const label of ['Decide now', 'Open questions', 'Waiting on a ruling', 'Needs evidence', 'Documented archive']) {
-      expect(html).toContain(label);
-    }
+    // Each section heading carries its own count; a row of headline figures
+    // above the sections reads as a work-queue dashboard.
+    expect(html).not.toContain('observed-stat');
     // The overall census stays internally consistent.
     expect(OBSERVATIONAL_UNIVERSE_STATS.total).toBe(OBSERVATIONAL_UNIVERSE.length);
     const sectionSum = Object.values(OBSERVATIONAL_UNIVERSE_STATS.publicSections).reduce((a, b) => a + b, 0);
@@ -199,7 +245,7 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
   // ── Database-tracked pending names ──
   it('unadjudicated database-tracked rows surface in the archive, never double-counted', async () => {
     const html = await page();
-    expect(html).toContain('Database-tracked, not yet adjudicated');
+    expect(html).toContain('Tracked, not yet reviewed');
     expect(html).toContain('pending zorblax');
     expect(html).toContain('pending quasar');
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/pending-zorblax"/);

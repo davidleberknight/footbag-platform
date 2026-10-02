@@ -93,7 +93,7 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
     expect(res.text).toContain('class="trick-compressed-from-reading">atomic legover');
     // The interpretation section no longer restates it as a canonical reading,
     // so the reading is stated exactly once on the page.
-    expect(res.text).not.toContain('Canonical reading');
+    expect(res.text).not.toContain('Current reading');
   });
 
   it('surfaces the historical reading "illusion + legover"', async () => {
@@ -146,7 +146,7 @@ describe('Naming & interpretation overlay — interpretation note (torque)', () 
     expect(res.text).toMatch(/Historical reading[\s\S]*?stepping opposite osis/);
     expect(res.text).toContain('interpretive/source terminology, not a different trick');
     // The canonical "miraging osis" reading is NOT repeated in this section.
-    expect(res.text).not.toMatch(/Canonical reading[\s\S]*?stepping opposite osis/);
+    expect(res.text).not.toMatch(/Current reading[\s\S]*?stepping opposite osis/);
     const interpStart = res.text.indexOf('trick-interpretation');
     const interpEnd = res.text.indexOf('</section>', interpStart);
     expect(res.text.slice(interpStart, interpEnd)).not.toContain('miraging osis');
@@ -158,14 +158,14 @@ describe('Naming & interpretation overlay — terminology note (clipper)', () =>
     const res = await page('/freestyle/tricks/clipper');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Naming &amp; interpretation');
-    expect(res.text).toMatch(/Canonical reading[\s\S]*?cross-body inside-foot kick/);
+    expect(res.text).toMatch(/Current reading[\s\S]*?cross-body inside-foot kick/);
     expect(res.text).toMatch(/1-ADD cross-body inside-foot kick/);
     expect(res.text).toMatch(/clipper stall is a separate move[\s\S]*?2-ADD stall/);
   });
 
   it('does NOT frame the clipper as a stall', async () => {
     const res = await page('/freestyle/tricks/clipper');
-    expect(res.text).not.toMatch(/Canonical reading[\s\S]*?cross-body inside-foot stall/);
+    expect(res.text).not.toMatch(/Current reading[\s\S]*?cross-body inside-foot stall/);
     expect(res.text).not.toContain("clipper is a stall, not a kick");
   });
 

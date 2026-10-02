@@ -105,9 +105,7 @@ import {
 import type { FreestyleStructuralRelative, FreestyleObservationalNote } from './freestyleRelatedTricks';
 import { movementNeighborsFor } from './freestyleMovementNeighbors';
 import {
-  SymbolicRelatedTopologyPanel,
   SymbolicEducationCta,
-  buildSymbolicRelatedTopologyPanel,
   buildSymbolicEducationCtas,
 } from './symbolicTrickPanels';
 import {
@@ -1610,18 +1608,9 @@ export interface FreestyleTrickContent {
   // dual-memberships. The template builds the `?family=` href from `slug`
   // (single-variable URL). Empty for root-family and route-out tricks.
   additionalFamilies: { label: string; slug: string; isMinorLineage: boolean; href: string }[];
-  // Observational symbolic-grammar topology panel (Layer 3). Null when:
-  //   - slug is not in the flagship allow-list (8 flagship slugs)
-  //   - slug has no topology-axis group membership in the staging CSVs
-  //   - the resolved topology group has no other active members after self-exclude
-  // Distinct from `relatedTricks`: this surfaces SYMBOLIC topology (cross-cuts
-  // IFPA family) rather than canonical family-based relating.
-  // Observational layer.
-  symbolicRelatedTopology: SymbolicRelatedTopologyPanel | null;
-  // Observational educational CTAs (DISCOVERABILITY phase). Trick-membership-
-  // driven; empty array when no symbolic surface is relevant for this slug.
-  // Renders subordinate to the canonical Related Tricks + Related Topology
-  // panels. Currently triggers: butterfly-wing-topology → walking progression;
+  // Observational educational CTAs. Trick-membership-driven; empty array when
+  // no symbolic surface is relevant for this slug. Renders subordinate to the
+  // canonical Related Tricks list. Currently triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
   // Reference Media — split by source tier:
@@ -2998,10 +2987,11 @@ export interface FreestyleTricksIndexContent {
   // Pre-shaped sort-toggle targets for the ADD view, so a tier page keeps its
   // canonical path and the all-tier view keeps ?view=add.
   addSortToggle: { familyHref: string; alphaHref: string };
-  // Dictionary size line under the hero: the unfiltered 'N documented
-  // tricks', the family-filtered 'M of N tricks', or a tier page's
-  // 'X ADD · M tricks'.
-  headerCount: string;
+  // Size of the subset a reader is looking at, under the hero: the
+  // family-filtered 'M of N tricks', or a tier page's 'X ADD · M tricks'.
+  // Null on the unfiltered dictionary, which opens on orientation rather than
+  // a total.
+  headerCount: string | null;
   activeView: FreestyleTricksActiveView;
 
   familyGroups: FreestyleFamilyGroup[];  // first-class Family Parents, rendered as full sections
@@ -3035,10 +3025,6 @@ export interface FreestyleTricksIndexContent {
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
   // Empty unless activeFamily is set AND the family has modifier-linked tricks.
   relatedModifierGroups: FreestyleRelatedModifierLink[];
-  // dictionaryStats: the corpus counts (full pages / documented names / aliases),
-  // shown right under the beginner onboarding block on the default landing as
-  // supporting metadata, prominent near the top but not the opening lede.
-  dictionaryStats: string | null;
   // familyViewIntro: per-view context note for the advanced family browse view.
   // Absence = silence (template branches on the truthy string).
   familyViewIntro: string | null;
@@ -3096,18 +3082,11 @@ export interface FreestyleTricksIndexContent {
   landingTiles: {
     start:    { title: string; hint: string };
     built:    { title: string; hint: string };
-    contents: { title: string; hint: string };
   };
   // Secondary action beside search: the page-level entry into freestyle media.
   // A button rather than a tile, because it leaves the page. Per-trick media
   // stays on the dictionary rows' own hashtag / Media controls.
   watchVideosButton: { label: string; href: string };
-  // Emerging Vocabulary, reframed as a single forward-looking line at the foot
-  // of the "Other ways to browse" tile: a link on the title and one sentence
-  // naming the community sources. Deliberately carries no count and no
-  // review-queue framing on this surface; the detail lives on the
-  // observational page itself.
-  emergingLine: { titleLabel: string; titleHref: string; sentence: string };
 }
 
 export interface DictionaryLandingOnboarding {
@@ -4108,12 +4087,6 @@ export interface LanguageOfFreestyleAtomCard {
 // (overlap-safe: in_db=false, governance_state∉{1,2}). Observational layer
 // only — every figure is observationally extrapolated, never canonical.
 
-export interface ObservationalStat {
-  label: string;
-  value: string;   // pre-formatted (e.g. '243', '16%')
-  hint:  string;
-}
-
 export interface ObservationalCard {
   name:               string;
   /** Proposed canonical slug; NOT a live route. */
@@ -4183,15 +4156,14 @@ export interface EmergingEvidenceRowVM {
 }
 
 // Page organization: four sections derived from the six-dimension lifecycle
-// model stamped on the generated universe (publicSection field). Decide now
-// (curator decisions), waiting on a named ruling (grouped by question),
-// needs evidence, and the documented vocabulary archive. Malformed and
-// rejected rows never render; duplicate identities render once.
+// model stamped on the generated universe (publicSection field). Ready for a
+// decision, waiting on a ruling (grouped by question), needs evidence, and the
+// documented vocabulary archive. Malformed and rejected rows never render;
+// duplicate identities render once. The curation mechanics behind each section
+// (recommendations, owners, confidence) show on the admin workbench only.
 export interface FreestyleObservationalContent {
-  stats:               readonly ObservationalStat[];
-  statsNote:           string;
   layerNote:           string;
-  /** Section 1 — Decide now: curator decisions with sufficient evidence. */
+  /** Section 1 — Ready for a decision: names with sufficient evidence. */
   decideClusters:      readonly EmergingDecisionClusterVM[];
   decideTotal:         number;
   /** Section 2 — Waiting on a named ruling: grouped by open question. */
@@ -4207,7 +4179,6 @@ export interface FreestyleObservationalContent {
   archiveTotal:        number;
   /** Database-tracked pending rows with no ledger adjudication yet. */
   externalUnadjudicated: readonly ObservationalSummaryRow[];
-  sources:             readonly { badge: string; label: string }[];
   canonicalReferences: readonly { label: string; href: string }[];
   isEmpty:             boolean;
 }
@@ -7569,7 +7540,6 @@ export const freestyleService = {
           structuralAbout: derivedStructuralAbout,
           quantityLadder,
           modifierMemberships,
-          symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows, hasTrickMedia),
           symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
           structuralFacts: (() => {
             if (!dictRow) return null;
@@ -8534,7 +8504,7 @@ export const freestyleService = {
       ? `${addTier} ADD · ${tierCardCount} ${tierCardCount === 1 ? 'trick' : 'tricks'}`
       : activeFamily
         ? `${canonicalCount} of ${canonicalCountUnfiltered} tricks`
-        : `${canonicalCountUnfiltered} documented tricks`;
+        : null;
     // Sort-toggle targets keep the reader on the surface they are on: the
     // canonical tier URL on a tier page, the all-tier query URL otherwise.
     const addSortToggle = addTier != null
@@ -8546,18 +8516,6 @@ export const freestyleService = {
           familyHref: '/freestyle/tricks?view=add&sort=family',
           alphaHref:  '/freestyle/tricks?view=add&sort=alpha',
         };
-
-    // Public-searchable aliases and alternate names: every alias whose target
-    // trick is active (nicknames, abbreviations, spelling variants, historical
-    // names, and hidden search/redirect forms alike). Sourced from the live alias
-    // table (search resolves these regardless of the display gate), NOT from the
-    // observational alias-archive, which is a different population of documented
-    // names. The documented trick-name
-    // universe total is the generated census; it is preserved as names resolve
-    // to canonical tricks, so it is stated whole and never a shrinking figure.
-    const searchableAliasCount = (runSqliteRead('freestyleTrickAliases.countSearchable', () =>
-      freestyleTrickAliases.countSearchable.get() as { n: number }).n);
-    const documentedUniverseTotal = OBSERVATIONAL_UNIVERSE_STATS.universeTotal;
 
     // ---- View toggle --------------------------------------------------
     const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'modifier'];
@@ -8965,7 +8923,6 @@ export const freestyleService = {
           intro: [
             'This is a reference for tricks: the named moves players do. Many documented tricks can be understood as a base movement with sets, modifiers, or other structures layered around it; additional recognized components increase the ADD total.',
             'That count is called ADD (added difficulty), freestyle\'s traditional component accounting. Foundational moves are 1 or 2; layer enough on and a trick can reach 7 or more.',
-            'Freestyle is generative: new combinations remain possible, community terminology continues to evolve, and no dictionary can claim to enumerate every trick that has been performed or could be performed. This dictionary records the tricks and structures we can document well enough to describe consistently.',
           ],
           definitions: [
             { term: 'ADD', plain: 'a count of the trick\'s recognized components; the more you layer on, the higher it goes.' },
@@ -8994,7 +8951,6 @@ export const freestyleService = {
             { label: 'Start With the Six Vocabulary Lessons.', href: '/freestyle/learn' },
             { label: 'What Is an ADD?', href: '/freestyle/concepts#section-add-accounting' },
             { label: 'How Trick Names Work.', href: '/freestyle/concepts#section-notation' },
-            { label: 'How to Read the Dictionary.', href: '/freestyle/tricks#reading-the-dictionary' },
             { label: 'Movement Basics.', href: '/freestyle/concepts#section-core-concepts' },
             { label: 'Look Up a Term in the Glossary.', href: '/freestyle/glossary' },
           ],
@@ -9015,23 +8971,8 @@ export const freestyleService = {
         landingTiles: {
           start:    { title: 'Where to start',           hint: 'Lessons, notation, and the first things to read.' },
           built:    { title: 'How tricks are built',     hint: 'ADD, dex, families, and modifiers, with a worked example.' },
-          contents: { title: "What's in the dictionary", hint: 'How many tricks and names, and what is still being confirmed.' },
         },
         watchVideosButton: { label: 'Watch Videos', href: '/freestyle/media' },
-        emergingLine: {
-          titleLabel: 'Emerging Vocabulary',
-          titleHref:  '/freestyle/observational',
-          sentence:
-            'trick names and readings still being confirmed, from PassBack, ' +
-            'Footbag.org, FootbagMoves, and Stanford.',
-        },
-        dictionaryStats:
-          `Most tricks here come with a full page: what the move is, how it's done, and how its ` +
-          `ADD is built. ${fmtCount(canonicalCount)} have one, and public search also finds them through ` +
-          `${fmtCount(searchableAliasCount)} aliases and alternate names. The wider documented trick-name universe spans ` +
-          `${fmtCount(documentedUniverseTotal)} names from across the community; the ones still being written ` +
-          'up are gathered under Emerging Vocabulary. That historical universe is preserved as names resolve ' +
-          'to canonical tricks, and only the unresolved work surface shrinks.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
@@ -9725,22 +9666,6 @@ export const freestyleService = {
       'names. Their home is the operator reference and glossary, not the trick backlog.');
     const archiveTotal = archiveRepresented.total + archiveObservational.total + archiveTerms.total;
 
-    // Health tiles: the four sections plus the open-question figure. Every
-    // number derives from the live-filtered lifecycle fields.
-    const statBlocks: ObservationalStat[] = [
-      { label: 'Decide now',          value: String(decideTotal),       hint: 'enough evidence for a curator decision; one answer clears a whole cluster' },
-      { label: 'Open questions',      value: String(questionVMs.length), hint: 'named doctrine questions currently gating names; each shows what it unlocks' },
-      { label: 'Waiting on a ruling', value: String(rulingTotal),       hint: 'names gated by one of the open questions; they move when its answer lands' },
-      { label: 'Needs evidence',      value: String(evidenceRows.length), hint: 'identity unrecoverable without footage, notation, or a stronger source' },
-      { label: 'Documented archive',  value: String(archiveTotal),      hint: 'resolved, historical, and non-trick vocabulary kept for reference' },
-    ];
-
-    // Source badges reflect the runtime-filtered universe: a source whose names
-    // have all been published no longer shows a chip.
-    const sources = [...new Set(visible.map(r => r.source))].map(badge => ({
-      badge, label: observedSourceLabel(badge),
-    }));
-
     return {
       seo: {
         title: 'Emerging Vocabulary',
@@ -9763,18 +9688,9 @@ export const freestyleService = {
         ],
       },
       content: {
-        stats: statBlocks,
-        statsNote:
-          `${decideTotal} ${decideTotal === 1 ? 'name is' : 'names are'} ready for a curator decision; ` +
-          `${rulingTotal} wait on ${questionVMs.length} named open ${questionVMs.length === 1 ? 'question' : 'questions'}; ` +
-          `${evidenceRows.length} need new evidence; and ${archiveTotal} are documented vocabulary kept ` +
-          `for reference. Nothing here duplicates a published canonical trick, and duplicate ` +
-          `spellings of one identity are shown once.`,
         layerNote:
-          'These are community-documented freestyle trick names being canonicalized. ' +
-          'Provisional ADD and decomposition are observationally extrapolated: they ' +
-          'are NOT canonical, carry a tracked tag rather than a hashtag, and have no ' +
-          'detail page until a curator promotes them.',
+          'None of these is an official trick yet. Any ADD or reading shown is ' +
+          'provisional, and a name gets its own page only when it joins the dictionary.',
         decideClusters,
         decideTotal,
         questions: questionVMs,
@@ -9786,7 +9702,6 @@ export const freestyleService = {
         archiveTerms,
         archiveTotal,
         externalUnadjudicated,
-        sources,
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },

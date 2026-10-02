@@ -141,16 +141,18 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(res.text).not.toContain('data-card-slug=');
   });
 
-  it('drops the generic intro and shows the corpus counts in beginner-facing wording', async () => {
+  it('opens on orientation, with no corpus total or statistics paragraph', async () => {
     const res = await page('/freestyle/tricks');
     // The generic "dictionary of named..." intro is dropped; the onboarding block
     // leads the landing instead (its lead position is covered separately).
     expect(res.text).not.toContain('dictionary of named freestyle footbag tricks');
-    // The corpus counts read in beginner-facing wording (not the internal "canonical").
-    expect(res.text).toContain('come with a full page');
-    expect(res.text).toMatch(/spans [\d,]+ names/);
-    expect(res.text).toMatch(/[\d,]+ aliases and alternate names/);
-    expect(res.text).toContain('Emerging Vocabulary');
+    // The unfiltered page leads with what a reader can do, not a count: no
+    // "N documented tricks" line under the hero, and no statistics paragraph
+    // about pages, aliases and the wider name universe.
+    expect(res.text).not.toContain('class="dict-header-count"');
+    expect(res.text).not.toMatch(/\d+ documented tricks/);
+    expect(res.text).not.toContain('come with a full page');
+    expect(res.text).not.toContain('work surface');
   });
 
   it('renders ADD navigation chips that link to the canonical per-tier URLs', async () => {
@@ -275,18 +277,6 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     }
   });
 
-  it('Emerging Vocabulary renders as one forward-looking line: a link plus sentence, no count', async () => {
-    const res = await page('/freestyle/tricks');
-    // A single line at the foot of the browse tile: the title links to the
-    // observational page and the sentence names the community sources. No
-    // count and no review-queue framing on this surface; the observational
-    // page itself carries the detail.
-    expect(res.text).toContain('class="dict-emerging-line"');
-    expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>: trick names and readings still being confirmed/);
-    expect(res.text).toContain('from PassBack, Footbag.org, FootbagMoves, and Stanford.');
-    expect(res.text).not.toContain('unconfirmed names');
-  });
-
   it('the browse axes are not duplicated by a parallel card grid', async () => {
     const res = await page('/freestyle/tricks');
     // The View row is the single home for the six axes. A second grid listing
@@ -347,7 +337,7 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(defs).toContain('a twist you add to a base move');
   });
 
-  it('the bridge links into the Freestyle Concepts primer sections, the in-page Reading the Dictionary tile, and the glossary', async () => {
+  it('the bridge links into the Freestyle Concepts primer sections and the glossary', async () => {
     const res = await page('/freestyle/tricks');
     const start = res.text.indexOf('class="dict-onboarding-links"');
     expect(start).toBeGreaterThan(-1);
@@ -355,7 +345,9 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(links).toContain('href="/freestyle/concepts#section-add-accounting"');
     expect(links).toContain('What Is an ADD?');
     expect(links).toContain('href="/freestyle/concepts#section-notation"');
-    expect(links).toContain('href="/freestyle/tricks#reading-the-dictionary"');
+    // The in-page "Reading the Dictionary" box is gone, so a link to it would
+    // land nowhere.
+    expect(res.text).not.toContain('#reading-the-dictionary');
     expect(links).toContain('href="/freestyle/concepts#section-core-concepts"');
     expect(links).toContain('Movement Basics.');
     expect(links).toContain('href="/freestyle/glossary"');
@@ -363,15 +355,13 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(links).not.toContain('Beginner Glossary.');
   });
 
-  it('does not render the orientation tiles on secondary or filtered views (Reading the Dictionary still renders)', async () => {
+  it('does not render the orientation tiles on secondary or filtered views', async () => {
     const family = await page('/freestyle/tricks?view=family');
     expect(family.text).not.toContain('aria-label="About the dictionary"');
     expect(family.text).not.toContain('class="dict-onboarding-links"');
-    expect(family.text).toContain('id="reading-the-dictionary"');
     const filtered = await page('/freestyle/tricks?family=whirl');
     expect(filtered.text).not.toContain('aria-label="About the dictionary"');
     expect(filtered.text).not.toContain('class="dict-onboarding-links"');
-    expect(filtered.text).toContain('id="reading-the-dictionary"');
   });
 
   it('softens internal ontology terms to beginner entry vocabulary', async () => {
@@ -423,14 +413,13 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
     expect(res.text).not.toContain('Pick a lens below to start');
   });
 
-  it('the corpus-count line renders inside the tile row, ahead of the browse controls', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    const tilesIdx = res.text.indexOf('class="dict-tile-grid"');
-    const countIdx = res.text.indexOf('class="browse-view-scale"');
-    const navIdx = res.text.indexOf('class="card dict-nav-card"');
-    expect(countIdx).toBeGreaterThan(tilesIdx);
-    expect(countIdx).toBeLessThan(navIdx);
+  it('a count line names the size of a subset, and only a subset', async () => {
+    // Under a family filter the line says how much of the dictionary is shown;
+    // on the unfiltered page there is no subset, so there is no line.
+    const filtered = await page('/freestyle/tricks?family=whirl');
+    expect(filtered.text).toMatch(/<p class="dict-header-count">\d+ of \d+ tricks<\/p>/);
+    const unfiltered = await page('/freestyle/tricks?view=add');
+    expect(unfiltered.text).not.toContain('class="dict-header-count"');
   });
 
   it('a secondary view shows its own state-specific lede', async () => {
@@ -445,31 +434,31 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
     expect(res.text).toContain('finish with a whirl');
   });
 
-  it('secondary views keep beginner help reachable via the Reading the Dictionary tile, the glossary, and Freestyle Concepts', async () => {
+  it('secondary views keep beginner help reachable via the glossary and Freestyle Concepts', async () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('New to the dictionary? Start with <a href="#reading-the-dictionary">Reading the Dictionary</a> above, look up a term in the <a href="/freestyle/glossary">Glossary</a>, or read the <a href="/freestyle/concepts">Freestyle Concepts</a> chapters.');
+    expect(res.text).toContain('New to the dictionary? Look up a term in the <a href="/freestyle/glossary">Glossary</a> or read the <a href="/freestyle/concepts">Freestyle Concepts</a> chapters.');
   });
 });
 
 describe('GET /freestyle/tricks — orientation tiles and search section', () => {
-  it('renders exactly three disclosure tiles, all closed on arrival', async () => {
+  it('renders exactly two disclosure tiles, all closed on arrival', async () => {
     const res = await page('/freestyle/tricks');
     const closed = res.text.match(/<details class="dict-tile">/g) ?? [];
-    expect(closed).toHaveLength(3);
+    expect(closed).toHaveLength(2);
     // No tile arrives open; the reader opens each independently.
     expect(res.text).not.toMatch(/<details class="dict-tile"[^>]*\sopen/);
   });
 
-  it('tile summaries carry the three titles in beginner-to-expert order', async () => {
+  it('tile summaries carry the two titles in beginner-to-expert order', async () => {
     const res = await page('/freestyle/tricks');
     const at = (s: string) => res.text.indexOf(s);
-    const start    = at('Where to start');
-    const built    = at('How tricks are built');
-    const contents = at('What&#x27;s in the dictionary');
+    const start = at('Where to start');
+    const built = at('How tricks are built');
     expect(start).toBeGreaterThan(-1);
     expect(built).toBeGreaterThan(start);
-    expect(contents).toBeGreaterThan(built);
+    // The statistics tile is gone, not merely reordered.
+    expect(res.text).not.toContain('What&#x27;s in the dictionary');
   });
 
   it('every tile in the row is a disclosure, and Watch Videos is a button beside search', async () => {
@@ -495,18 +484,6 @@ describe('GET /freestyle/tricks — orientation tiles and search section', () =>
     // singular and the plural forms render.
     expect(res.text).toContain('<span class="section-count">1 trick</span>');
     expect(res.text).toContain('<span class="section-count">5 tricks</span>');
-  });
-
-  it('data provenance sits in the top tiles, not stranded under the list', async () => {
-    const res = await page('/freestyle/tricks');
-    const noteIdx = res.text.indexOf('class="source-note"');
-    const tilesIdx = res.text.indexOf('class="dict-tile-grid"');
-    const listIdx = res.text.indexOf('data-trick-slug=');
-    expect(noteIdx).toBeGreaterThan(tilesIdx);
-    expect(noteIdx).toBeLessThan(listIdx);
-    // Still the same text, and still linking the ADD walkthrough.
-    expect(res.text).toContain('Trick data sourced from community documentation.');
-    expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
   it('the long list ends with a control back to the top of the dictionary', async () => {

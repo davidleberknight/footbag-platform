@@ -1,17 +1,11 @@
 /**
- * Public count correctness across the Dictionary and Emerging Vocabulary
- * surfaces. Every count a visitor reads must be produced from a live
- * source of truth and must reconcile:
- *   - the Dictionary summary reports active canonical trick pages, the
- *     public-searchable nickname count from the alias table, and the
- *     documented trick-name universe from the generated census;
- *   - the searchable-nickname count is every alias whose target trick is
- *     active, regardless of the display gate, and excludes inactive-target
- *     aliases;
+ * Public count correctness on the Emerging Vocabulary surface. Every count a
+ * visitor reads must be produced from a live source of truth and must
+ * reconcile:
  *   - the Emerging Vocabulary bucket totals reconcile to the generated
  *     observational surface;
  *   - the documented universe is stated whole and is never described as
- *     shrinking, and the retired "no real move is left out" copy is gone.
+ *     shrinking.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -33,16 +27,8 @@ import {
 
 const { dbPath } = setTestEnv('3168');
 
-const fmt = (n: number): string => n.toLocaleString('en-US');
-
-// Three active canonical tricks (plain slugs resolve to trick-kind), one
-// inactive trick used only as an alias target. Aliases: one active-target
-// displayed, one active-target hidden, one inactive-target hidden. Public
-// search resolves the two active-target aliases and never the inactive one,
-// so the searchable-nickname count is 2.
-const ACTIVE_CANONICAL = 3;
-const SEARCHABLE_ALIASES = 2;
-
+// A small live dictionary (three active tricks, one retired, and aliases of
+// each kind) so the pages render against real rows rather than an empty table.
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
@@ -68,34 +54,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('Dictionary summary counts are source-of-truth driven', () => {
-  it('reports active pages, searchable nicknames, and the documented universe from live sources', async () => {
-    const res = await page('/freestyle/tricks');
-    expect(res.status).toBe(200);
-    const html = res.text;
-
-    // Active canonical trick pages (the DB-derived count).
-    expect(html).toContain(`${fmt(ACTIVE_CANONICAL)} have one`);
-    // Public-searchable aliases = active-target aliases (display-gate blind),
-    // excluding the inactive-target alias. "Aliases and alternate names" is the
-    // honest label: the count spans nicknames, abbreviations, spelling variants,
-    // historical names, and hidden search/redirect forms, not just nicknames.
-    expect(html).toContain(`through ${fmt(SEARCHABLE_ALIASES)} aliases and alternate names`);
-    // Documented trick-name universe = the generated census, stated whole.
-    expect(html).toContain(`spans ${fmt(OBSERVATIONAL_UNIVERSE_STATS.universeTotal)} names`);
-  });
-
-  it('preserves the historical universe wording and drops the retired copy', async () => {
-    const res = await page('/freestyle/tricks');
-    const html = res.text;
-    expect(html).toContain('preserved as names resolve');
-    expect(html).toContain('only the unresolved work surface shrinks');
-    // Retired / misleading copy must not return.
-    expect(html).not.toContain('no real move is left out');
-    expect(html).not.toContain('trick names in all');
-  });
-});
 
 describe('Generated census reconciles', () => {
   it('universe total equals published + alias/equivalent + observational names', () => {
@@ -134,10 +92,8 @@ describe('Emerging Vocabulary section totals reconcile to the generated surface'
     expect(res.text).not.toContain('Observational names');
   });
 
-  it('frames itself as the active decision surface plus the resolved archive', async () => {
+  it('keeps the archive apart from the names still in play', async () => {
     const res = await page('/freestyle/observational');
-    const html = res.text;
-    expect(html).toContain('Nothing here duplicates a published canonical trick');
-    expect(html).toContain('not active publication candidates');
+    expect(res.text).toContain('not active publication candidates');
   });
 });

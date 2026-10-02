@@ -1,18 +1,7 @@
 {{!--
-  Symbolic Related Topology panel — observational symbolic-grammar layer.
-
-  This panel sits BESIDE the canonical Related Tricks list (trick-related.hbs)
-  and is clearly labelled as observational/non-canonical. It surfaces tricks
-  that share the current trick's mechanical topology, which may cross-cut
-  the IFPA trick_family.
-
-  Renders only when `content.symbolicRelatedTopology` is non-null (allow-listed
-  flagship slugs only). All data pre-shaped by the service layer.
-
-  Visually subordinate to canonical sections:
-    - secondary heading level (h3 inside the wrapper section)
-    - "Observational" badge in header
-    - footer note explaining non-canonical status
+  Educational links from a trick page to the teaching page its symbolic-group
+  membership points at (the walking-family progression, the spinning modifier
+  page). Renders only when the service supplies at least one link.
 --}}
 {{#if content.symbolicEducationCtas.length}}
 <aside class="symbolic-trick-ctas-block" aria-label="Educational pages for this trick">
@@ -23,30 +12,4 @@
     {{/each}}
   </ul>
 </aside>
-{{/if}}
-
-{{#if content.symbolicRelatedTopology}}
-<section class="content-section symbolic-related-topology" aria-label="Related topology tricks">
-  <div class="section-heading">
-    <h3>
-      Related topology tricks
-      <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer (supplementary; does not change canonical classifications)">observational</span>
-    </h3>
-    <p class="section-intro">{{content.symbolicRelatedTopology.reasonText}}.</p>
-  </div>
-  <ul class="symbolic-topology-members-list">
-    {{#each content.symbolicRelatedTopology.members}}
-    <li>
-      <a href="{{detailHref}}">{{canonicalName}}</a>
-      {{#if adds}}<span class="symbolic-topology-adds">{{adds}}</span>{{/if}}
-      {{#if hashtagHref}}
-        <a class="hashtag hashtag--block hashtag--media" href="{{hashtagHref}}">{{hashtag}}</a>
-      {{else}}
-        <span class="hashtag hashtag--block">{{hashtag}}</span>
-      {{/if}}
-    </li>
-    {{/each}}
-  </ul>
-  <p class="symbolic-layer-footer">Observational symbolic-grammar layer. Topology groups describe mechanical similarity and may cross-cut the IFPA trick family. Canonical relating lives in the Related Tricks section above.</p>
-</section>
 {{/if}}

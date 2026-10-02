@@ -133,12 +133,10 @@ describe('Trick-detail regression — numeric route never shadows slugs', () => 
 });
 
 describe('Dictionary header count', () => {
-  it('states the unfiltered documented-trick total', async () => {
+  it('states no total on the unfiltered dictionary, which opens on orientation', async () => {
     const html = await page('/freestyle/tricks');
-    const m = html.match(/<p class="dict-header-count">(\d+) documented tricks<\/p>/);
-    expect(m, 'header count line').not.toBeNull();
-    // Matches the seeded active trick universe.
-    expect(Number(m![1])).toBe(5);
+    expect(html).not.toContain('class="dict-header-count"');
+    expect(html).not.toMatch(/\d+ documented tricks/);
   });
 
   it('states M of N under a family filter', async () => {
