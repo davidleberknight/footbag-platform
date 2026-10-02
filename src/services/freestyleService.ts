@@ -190,7 +190,7 @@ import {
   type FamilyTier,
 } from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
-import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
+import { TERMINAL_SURFACES, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
 import {
@@ -668,6 +668,7 @@ function countNotatedDexes(r: {
 function buildFreestyleByNumbers(
   trickRows: readonly FreestyleTrickRow[],
   linkRows: readonly FreestyleTrickModifierLinkRow[],
+  familyHistogram: readonly TopologyHistogramRow[],
 ): { cards: FreestyleByNumbersCard[]; note: string; operatorGroups: OperatorSystemGroups } {
   const tricks = trickRows.filter(r => resolveTrickKind(r.slug) === 'trick');
   const N = Math.max(1, tricks.length);   // uniform denominator: the trick-kind total
@@ -748,7 +749,7 @@ function buildFreestyleByNumbers(
     { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry elements',
       href: '/freestyle/tricks?view=modifier', footnote: null, bars: top(entry, 20) },
     { key: 'terminal', eyebrow: 'How do tricks finish?', title: 'Family endings',
-      href: '/freestyle/tricks?view=family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
+      href: '/freestyle/tricks?view=family', footnote: null, bars: histTop(familyHistogram, 20) },
     // The body-movement bars are modifiers, so the modifier view is where
     // each one's tricks are listed.
     { key: 'body', eyebrow: 'What body movements shape tricks?', title: 'Body movements',
@@ -6780,6 +6781,29 @@ function classifyDensityTier(args: {
  * to a 5%-step width bucket (5..100) of the largest row, so the bar can take a
  * `--w{bucket}` class instead of an inline width style (CSP-safe).
  */
+// The family-endings chart: the two hand-authored terminal surfaces, then every
+// public browse family measured now from the same membership the family browse
+// renders. The browse draws one card per member of a family's membership, and
+// only for a family with more than two members, so a family's bar is its
+// membership size under that floor: the same count the browse shows, without
+// shaping every card to get it. A family below the floor gets no bar, as it gets
+// no browse section, because a zero would read as a measurement. Measured per
+// request, so a trick published or retired in the app moves its family's bar at
+// once. Largest first, then by label, so the order is a property of the data.
+function measureFamilyHistogram(): TopologyHistogramRow[] {
+  const allRows = runSqliteRead('freestyleTricks.listAllWithPending', () =>
+    freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
+  );
+  const familyMap = buildFamilyMembershipMap(allRows.filter(r => r.is_active === 1));
+  const families: TopologyHistogramRow[] = [];
+  for (const family of PUBLIC_DISPLAY_FAMILIES) {
+    const members = familyMap.get(family.slug)?.length ?? 0;
+    if (members > 2) families.push({ label: family.label, count: members, tier: 'family' });
+  }
+  families.sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
+  return [...TERMINAL_SURFACES, ...families];
+}
+
 function topologyHistogramRows(
   rows: readonly TopologyHistogramRow[],
 ): { label: string; count: number; tier: string; widthBucket: number }[] {
@@ -9381,7 +9405,8 @@ export const freestyleService = {
     const operatorLinkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
       freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
     );
-    const { operatorGroups } = buildFreestyleByNumbers(allDictRows, operatorLinkRows);
+    const familyHistogram = measureFamilyHistogram();
+    const { operatorGroups } = buildFreestyleByNumbers(allDictRows, operatorLinkRows, familyHistogram);
     const OPERATOR_HISTOGRAM_CAP = 10;
     const operatorBars = operatorGroups.operators.slice(0, OPERATOR_HISTOGRAM_CAP);
     const setSystemBars = operatorGroups.setSystems.slice(0, OPERATOR_HISTOGRAM_CAP);
@@ -9475,7 +9500,7 @@ export const freestyleService = {
         minorLineageRoster: PUBLIC_DISPLAY_FAMILIES
           .filter(f => !f.parent && familyTier(f.slug) === 'minor-lineage')
           .map(f => ({ slug: f.slug, label: f.label })),
-        familyHistogram: topologyHistogramRows(FAMILY_HISTOGRAM),
+        familyHistogram: topologyHistogramRows(familyHistogram),
         entryHistogram:  topologyHistogramRows(ENTRY_HISTOGRAM),
         operatorSystemHistogram,
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
@@ -11180,7 +11205,7 @@ export const freestyleService = {
     const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
       freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
     );
-    const { cards, note } = buildFreestyleByNumbers(trickRows, linkRows);
+    const { cards, note } = buildFreestyleByNumbers(trickRows, linkRows, measureFamilyHistogram());
 
     return {
       seo: {

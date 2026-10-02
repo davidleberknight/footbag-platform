@@ -2,47 +2,25 @@
  * freestyleTopologyHistograms.ts
  * ==============================
  *
- * Data for the two glossary histograms (family and entry).
+ * The hand-authored parts of the two glossary histograms (family and entry).
  *
- * The two charts are measured differently, and only one of them is measured by a
- * program. The family bars come from the dictionary browse's own family
- * membership, generated into a sibling module by a script and checked against a
- * fresh measurement by a database-backed guard, so a change to trick data that
- * nobody carries through fails a build rather than sitting on a public page. The
- * grandparent surface bars that head that chart, and the whole entry chart, are
- * hand-authored: landing counts, set counts and curated modifier membership are
- * separate questions with no live equivalent, and they carry the numbers a
- * curator measured for them.
+ * The two charts are measured differently, and only part of one is measured by a
+ * program. The family bars are measured by the service at request time, from the
+ * same family membership the dictionary browse renders, so the chart and the
+ * browse cannot disagree about how large a family is and a trick published in
+ * the app moves its family's bar at once. What lives here is the rest: the
+ * grandparent surface bars that head the family chart, and the whole entry chart.
+ * Landing counts, set counts and curated modifier membership are separate
+ * questions with no live equivalent, and they carry the numbers a curator
+ * measured for them.
  *
- * The family numbers descend from an earlier read-only topology study, which is
- * where the chart came from, but they are not that study's figures and no attempt
- * is made to reproduce them. Its corpus and its procedure were not kept, so what
- * it computed cannot be recomputed. It contributed the question; the measurement
- * is now the browse's answer to it, which is also why the chart and the browse
- * can no longer disagree about how large a family is.
+ * The family chart descends from an earlier read-only topology study, which is
+ * where its question came from; its figures are not reproduced, because that
+ * study's corpus and procedure were not kept.
  *
  * The render-time bar width is bucketed by the service; the bars carry no inline
  * style.
  */
-import {
-  FAMILY_HISTOGRAM_ROWS,
-  FAMILIES_WITHOUT_A_MEASURED_ROW,
-} from './freestyleFamilyHistogram';
-
-/**
- * Public browse families with no measured row, as the measurement reported them.
- *
- * Derived rather than declared. A family renders on the browse only once it has
- * more than two members, so one below that floor has nothing to measure; it is
- * named so an omission anybody can account for is distinguishable from one nobody
- * noticed. Nothing is drawn for it, because a zero would read as a measurement.
- *
- * Reading this from the generated module is what keeps it honest: an entry cannot
- * outlive the gap it describes, because the same run that measures a family is the
- * run that stops listing it here.
- */
-export const AWAITING_TOPOLOGY_AUDIT: ReadonlySet<string> =
-  new Set(FAMILIES_WITHOUT_A_MEASURED_ROW);
 
 export type TopologyHistogramTier = 'surface' | 'family' | 'system';
 
@@ -60,17 +38,11 @@ export interface TopologyHistogramRow {
  *
  * Landing counts: how many tricks resolve onto each surface. A different
  * question from family membership and measured separately, which is why they are
- * hand-authored here rather than generated with the bars below them.
+ * hand-authored here while the family bars beneath them are measured live.
  */
-const TERMINAL_SURFACES: readonly TopologyHistogramRow[] = [
+export const TERMINAL_SURFACES: readonly TopologyHistogramRow[] = [
   { label: 'Clipper Stall',    count: 328, tier: 'surface' },
   { label: 'Toe Stall',        count: 252, tier: 'surface' },
-];
-
-/** How tricks END: the two terminal surface roots, then every public browse family by membership. */
-export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
-  ...TERMINAL_SURFACES,
-  ...FAMILY_HISTOGRAM_ROWS.map(r => ({ ...r, tier: 'family' as const })),
 ];
 
 /**

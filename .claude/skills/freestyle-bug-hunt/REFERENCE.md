@@ -217,8 +217,8 @@ exploratory status label and non-override footer.
 
 ### §F13 Generated-content drift
 
-Four `src/content/freestyle*.ts` modules are generated (the observational universe,
-tracked names, embedded coverage and the family histogram); the rest are hand-written.
+Three `src/content/freestyle*.ts` modules are generated (the observational universe,
+tracked names and embedded coverage); the rest are hand-written.
 Generated TypeScript is being removed before cutover, its content moving into the
 database, and after that any generated file under `src/` is itself a finding. Until
 then, the generator, the committed module, and the consuming service must agree. A service that re-derives or
