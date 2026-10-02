@@ -222,13 +222,6 @@ def clear_prior_pending_from_footbag(conn: sqlite3.Connection) -> int:
         doomed,
     )
     conn.execute(
-        f"""
-        DELETE FROM freestyle_trick_relations
-         WHERE from_trick_slug IN ({qmarks}) OR to_trick_slug IN ({qmarks})
-        """,
-        doomed + doomed,
-    )
-    conn.execute(
         f"DELETE FROM freestyle_trick_source_links WHERE trick_slug IN ({qmarks})",
         doomed,
     )

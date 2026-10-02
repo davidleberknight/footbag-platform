@@ -10,7 +10,6 @@ Inputs:
       freestyle_trick_sources
       freestyle_trick_source_links
       freestyle_trick_modifier_links
-      freestyle_trick_relations
   - freestyle/inputs/footbag_org_moves_snapshot.csv  (produced by script 18)
 
 Outputs (freestyle/out/):
@@ -31,7 +30,6 @@ Conflict types detected:
   DUPLICATE_CANONICAL            — two slugs normalize to the same name
   MISSING_NOTATION               — active trick with no notation but footbag has it
   REVIEWER_NAME_LEAK             — description references a reviewer name
-  DIRECTION_AMBIGUITY            — known direction-pair flagged for review
   NEW_FROM_SOURCE                — footbag.org trick not present in canonical or aliases
   COMPOSITIONAL_REVIEW (WARN)    — active compound row whose slug fits a pure
                                    modifier-chain pattern AND whose ADD math
@@ -78,15 +76,6 @@ REVIEWER_NAME_PATTERNS = [
 ]
 
 ADDS_IN_DESC_RE = re.compile(r"=\s*(\d+)\s*ADD", re.IGNORECASE)
-
-# Pairs flagged for human direction-adjudication. These are documented in the
-# skill: same-stem names where direction is structural, not cosmetic.
-DIRECTION_PAIRS = [
-    ("around_the_world", "around_the_world_kick"),  # 2 ADD compound vs 1 ADD body
-    ("around_the_world", "orbit"),                  # reverse-direction ATW; canonical slug is orbit
-    ("mirage",   "illusion"),                       # in-to-out vs out-to-in dex
-    ("spinning", "inspinning"),
-]
 
 # Compositional-review constants (canonical-vs-compositional WARN check).
 # Source IDs whose presence on a row exempts it from compositional-review:
@@ -641,24 +630,6 @@ def detect_conflicts(curated: dict[str, dict],
                 "severity": "MED",
                 "suggested_resolution": "accept_footbag_notation",
                 "notes": "Active trick has no notation; footbag.org provides one.",
-            })
-
-    # Direction-pair ambiguity flags.
-    curated_slugs = set(curated.keys())
-    for a, b in DIRECTION_PAIRS:
-        if a in curated_slugs and b in curated_slugs:
-            out.append({
-                "conflict_id": conflict_id(a, b, "DIR"),
-                "trick_slug": a,
-                "canonical_name": curated[a]["canonical_name"],
-                "conflict_type": "DIRECTION_AMBIGUITY",
-                "canonical_value": a,
-                "asserted_value": b,
-                "source_id": "internal_qc",
-                "external_url": "",
-                "severity": "MED",
-                "suggested_resolution": "confirm_relation_type",
-                "notes": f"Direction-paired with '{b}'. Ensure freestyle_trick_relations entry exists.",
             })
 
     # NEW_FROM_SOURCE: footbag rows that didn't resolve to a curated slug.

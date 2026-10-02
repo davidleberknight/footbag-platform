@@ -567,8 +567,8 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
             # them. These four clears were once wholesale, because load_tricks()
             # emptied the parent table and a child row with no cascade would have
             # blocked it. The parent is upserted now, so the reason is gone and
-            # the reach was never wanted: it took the aliases, sources, modifier
-            # links and relations belonging to the other committed producers and
+            # the reach was never wanted: it took the aliases, sources and modifier
+            # links belonging to the other committed producers and
             # to every trick a curator published, none of which this loader can
             # put back.
             #
@@ -577,11 +577,6 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
             # further down stay scoped by source id, which is the right scope for
             # rows this loader does not own.
             owned = "SELECT slug FROM freestyle_tricks WHERE trick_origin_producer = ?"
-            conn.execute(
-                f"DELETE FROM freestyle_trick_relations"
-                f" WHERE from_trick_slug IN ({owned}) OR to_trick_slug IN ({owned})",
-                (BASE_DICTIONARY, BASE_DICTIONARY),
-            )
             conn.execute(
                 f"DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN ({owned})",
                 (BASE_DICTIONARY,),

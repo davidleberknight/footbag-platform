@@ -316,8 +316,6 @@ beforeAll(async () => {
   conn.prepare(`DELETE FROM freestyle_trick_aliases WHERE trick_slug IN (${marks})`).run(...slugs);
   conn.prepare(`DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN (${marks})`).run(...slugs);
   conn.prepare(`DELETE FROM freestyle_trick_source_links WHERE trick_slug IN (${marks})`).run(...slugs);
-  conn.prepare(`DELETE FROM freestyle_trick_relations WHERE from_trick_slug IN (${marks})`).run(...slugs);
-  conn.prepare(`DELETE FROM freestyle_trick_relations WHERE to_trick_slug IN (${marks})`).run(...slugs);
   conn.prepare(`DELETE FROM freestyle_tricks WHERE slug IN (${marks})`).run(...slugs);
   conn.exec('COMMIT');
 

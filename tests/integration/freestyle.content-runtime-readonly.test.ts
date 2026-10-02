@@ -12,7 +12,7 @@
  *
  * The snapshot covers the whole freestyle table set, not just the three tables a
  * public page reads directly: a stray runtime write to a composition, alias,
- * source-link, relation, or tip table is exactly the silent mutation this guard
+ * source-link, or tip table is exactly the silent mutation this guard
  * exists to catch, so every freestyle table is pinned.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -29,7 +29,6 @@ import {
   insertFreestyleTrickSourceLink,
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifierLink,
-  insertFreestyleTrickRelation,
   insertFreestyleTrickTip,
 } from '../fixtures/factories';
 
@@ -55,9 +54,6 @@ function snapshotTables(): string {
     modifierLinks: q(
       'SELECT * FROM freestyle_trick_modifier_links ORDER BY trick_slug, modifier_slug, apply_order',
     ),
-    relations: q(
-      'SELECT * FROM freestyle_trick_relations ORDER BY from_trick_slug, to_trick_slug, relation_type',
-    ),
     tips: q('SELECT * FROM freestyle_trick_tips ORDER BY id'),
   });
 }
@@ -65,7 +61,8 @@ function snapshotTables(): string {
 beforeAll(async () => {
   db = createTestDb(dbPath);
 
-  // Two tricks: the subject and a kin the relation table points at.
+  // Two tricks in one family: the subject and a sibling, so the detail pages
+  // serve family navigation between them during the read.
   insertFreestyleTrick(db, {
     slug: 'immutable_trick',
     canonical_name: 'Immutable Trick',
@@ -110,9 +107,6 @@ beforeAll(async () => {
   insertFreestyleTrickSourceLink(db, 'immutable_trick', sourceId, { asserted_adds: 3 });
   insertFreestyleTrickAlias(db, 'immutable_alias', 'immutable_trick', 'Immutable Alias');
   insertFreestyleTrickModifierLink(db, 'immutable_trick', 'immutable_modifier');
-  insertFreestyleTrickRelation(db, 'immutable_trick', 'immutable_trick_kin', {
-    relation_type: 'equivalent_to',
-  });
   insertFreestyleTrickTip(db, {
     trick_slug: 'immutable_trick',
     tip_text: 'Keep the set waist high and the head still.',

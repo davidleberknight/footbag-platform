@@ -41,8 +41,6 @@ from _freestyle_ownership import may_retire  # noqa: E402
 #: name the reference in the diagnostic; the constraint is what actually refuses.
 REFERENCING_TABLES = (
     ("freestyle_ev_adjudications", "published_trick_slug", "an Emerging Vocabulary ruling"),
-    ("freestyle_trick_relations", "to_trick_slug", "a trick relation"),
-    ("freestyle_trick_relations", "from_trick_slug", "a trick relation"),
 )
 
 

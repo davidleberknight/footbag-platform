@@ -109,8 +109,6 @@ and six `symbolic_*` tables.
 - **`freestyle_trick_modifiers`** and **`freestyle_trick_modifier_links`** - the
   operator/modifier registry (the data-side mirror of the operator reference) and
   its per-trick apply-ordered links.
-- **`freestyle_trick_relations`** - a stored relations table, empty by design;
-  relations are derived, not stored (section 4).
 - **`freestyle_trick_tips`** - community advice recovered from the legacy
   footbag.org member tips. Display-only and non-doctrinal: a tip never affects
   notation, ADD values, parser output, family membership, or canonical
@@ -173,10 +171,11 @@ exception below.
   modifier seed and, after cutover, a reviewed database migration, not an in-app
   create, because creating one publishes its ADD to public surfaces and
   the database registry is secondary to the curator-locked operator reference.
-- **Trick relations are derived and read-only.** No editor exists; the stored
-  `freestyle_trick_relations` table is empty by design and is not an incomplete
-  surface. A relation editor is built only on a demonstrated curator-authored
-  relation the derivation cannot represent.
+- **Trick relations are derived and read-only.** A trick page's related tricks
+  are computed from the dictionary itself (family, base-trick ancestry, shared
+  modifiers and movement neighbourhood), so they follow every edit to those rows.
+  A stored relation, with its own editor, is added only for a curator-authored
+  relationship that derivation cannot represent.
 - **The six symbolic layers are generated, doctrine-blocked, or code-managed.**
   Group membership, and any other layer derived from trick data, is regenerated
   in the app from the database whenever a trick is published or edited;

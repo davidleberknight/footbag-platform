@@ -5379,23 +5379,6 @@ CREATE TABLE freestyle_trick_modifier_links (
 );
 CREATE INDEX idx_freestyle_trick_modifier_links_modifier ON freestyle_trick_modifier_links(modifier_slug);
 
--- v2.1: Trick-to-trick relations distinct from base/family/aliases. Used when
--- two distinct canonical entries refer to the same physical trick OR carry
--- meaningful historical/derivative relationships:
---   'equivalent_to'  — same physical trick, both names well-established (Vortex ⇄ Gyro Drifter)
---   'renamed_from'   — newer name supersedes older (Quantum ← Toe Blur)
---   'variant_of'     — minor execution variant
---   'derivative_of'  — non-base derivation that doesn't fit base_trick
-CREATE TABLE freestyle_trick_relations (
-  from_trick_slug  TEXT NOT NULL REFERENCES freestyle_tricks(slug),
-  to_trick_slug    TEXT NOT NULL REFERENCES freestyle_tricks(slug),
-  relation_type    TEXT NOT NULL,                  -- 'equivalent_to' | 'renamed_from' | 'variant_of' | 'derivative_of' (no CHECK)
-  notes            TEXT,
-  created_at       TEXT NOT NULL,
-  PRIMARY KEY (from_trick_slug, to_trick_slug, relation_type)
-);
-CREATE INDEX idx_freestyle_trick_relations_to ON freestyle_trick_relations(to_trick_slug);
-
 -- Legacy footbag.org "Member Tips" — community technique advice recovered from
 -- the legacy moves2.movehints table. This is community guidance, NOT canonical
 -- doctrine: tips are display-only and never feed descriptions, notation, ADDs,
