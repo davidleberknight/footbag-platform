@@ -3193,7 +3193,7 @@ Success Criteria, Validation (enforced at the write; a save that fails any check
 
 - The notation's scoring-bracket count equals the stored ADD value.
 - The trick terminates in one of the twelve core atoms.
-- A modifier's or operator's ADD stays consistent with the single operator-reference source of truth.
+- The ADD contribution of each modifier or operator a trick links to is the one the single operator-reference source of truth gives it. The editor reads those contributions and never changes them: a modifier's or operator's own ADD changes only through the operator reference and a reviewed database migration.
 - The display-name-to-slug naming rule holds: the normalized canonical name reproduces the slug, honoring the curator-maintained genuine-hyphen exception list. This check applies to a name the admin changes; an existing row whose stored name predates the one-time name normalization stays editable in its other fields without the naming check blocking the save.
 - These are the same structural validations the freestyle content pipeline applies when it loads the dictionary, so a save that would fail the pipeline's quality gate is refused in the application rather than accepted and reconciled later.
 
