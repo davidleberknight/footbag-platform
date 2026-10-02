@@ -3,9 +3,12 @@
  * pages.
  *
  * Verifies:
- *   - The structural-fact block carries family base and modifier rows only:
- *     no movement-system or movement-neighborhood row, since the dictionary
- *     offers no view either would link into
+ *   - The structural-fact block carries family base, modifier and dexterity
+ *     rows: no movement-system or movement-neighborhood row, since the
+ *     dictionary offers no view either would link into
+ *   - The dexterity row counts every [DEX] in the notation, set dexes
+ *     included; shows zero for a dexless body atom; and is absent when the
+ *     trick has no notation to count
  *   - No trick page links to a dictionary view that no longer exists
  *   - The standalone Component-memberships panel is retired; per-modifier
  *     linkage is owned by the Modifiers section
@@ -117,6 +120,35 @@ beforeAll(async () => {
     operational_notation: '[clip] > toe',
   });
 
+  // Dex-count fixtures. Zeta slugs carry no core-trick spec or published
+  // formula, so each count comes from the notation seeded here.
+  // Two set dexes ahead of a one-dex base: three in all.
+  insertFreestyleTrick(db, {
+    slug: 'zeta-set-dex', canonical_name: 'zeta set dex', adds: '4',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+    operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE',
+  });
+  // Exactly one dex: the singular label.
+  insertFreestyleTrick(db, {
+    slug: 'zeta-one-dex', canonical_name: 'zeta one dex', adds: '2',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+    operational_notation: 'TOE > OP IN [DEX] > OP TOE',
+  });
+  // A body trick that is its own base, with no notation: zero dexes, not unknown.
+  insertFreestyleTrick(db, {
+    slug: 'zeta-hop', canonical_name: 'zeta hop', adds: '1',
+    base_trick: 'zeta-hop', trick_family: 'zeta-hop', category: 'body',
+    operational_notation: null,
+  });
+  // A compound still awaiting its notation: nothing to count. Its modifier link
+  // keeps the block rendering, so the missing row is a real absence.
+  insertFreestyleTrick(db, {
+    slug: 'zeta-unnotated', canonical_name: 'zeta unnotated', adds: '3',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+    operational_notation: null,
+  });
+  insertFreestyleTrickModifierLink(db, 'zeta-unnotated', 'ducking', 1);
+
   db.close();
   createApp = await importApp();
 });
@@ -131,7 +163,7 @@ function structuralBlock(html: string): string {
   return html.slice(start, html.indexOf('</section>', start));
 }
 
-describe('trick-detail — structural facts carry family base and modifiers only', () => {
+describe('trick-detail — structural facts carry no row for a removed grouping', () => {
   it('montage lists its modifiers and no movement-system or neighborhood row', async () => {
     const res = await page('/freestyle/tricks/montage');
     expect(res.status).toBe(200);
@@ -153,6 +185,40 @@ describe('trick-detail — structural facts carry family base and modifiers only
       expect(res.status, slug).toBe(200);
       expect(res.text, `${slug} links to a removed view`).not.toMatch(REMOVED_VIEW_LINK);
     }
+  });
+});
+
+describe('trick-detail — dexterity row in the structural facts', () => {
+  const dexRow = (block: string): string | null => {
+    const m = block.match(/<dt>Dexterity<\/dt>\s*<dd>([\s\S]*?)<\/dd>/);
+    return m ? m[1]!.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
+  };
+
+  it('counts every [DEX] in the notation, the set\'s dexes included, and uses the singular for one', async () => {
+    const setDex = await page('/freestyle/tricks/zeta-set-dex');
+    expect(setDex.status).toBe(200);
+    // Counting only the base's dex would read "1 dex" here. The row is the bare
+    // count: the execution notation above it already shows the dexes, so an
+    // explanatory sentence here would only repeat it.
+    expect(dexRow(structuralBlock(setDex.text))).toBe('3 dexes');
+    expect(setDex.text).not.toContain('Dex counts include dexes contributed by the set');
+    const oneDex = await page('/freestyle/tricks/zeta-one-dex');
+    expect(dexRow(structuralBlock(oneDex.text))).toBe('1 dex');
+  });
+
+  it('shows zero for a body trick that is its own base, rather than hiding it as unknown', async () => {
+    const res = await page('/freestyle/tricks/zeta-hop');
+    expect(res.status).toBe(200);
+    expect(dexRow(structuralBlock(res.text))).toBe('No dexes');
+  });
+
+  it('leaves the row out for a trick with no notation, instead of guessing a count', async () => {
+    const res = await page('/freestyle/tricks/zeta-unnotated');
+    expect(res.status).toBe(200);
+    // The block still renders for its modifier; only the dexterity row is absent.
+    const block = structuralBlock(res.text);
+    expect(block).toContain('href="/freestyle/modifier/ducking"');
+    expect(dexRow(block)).toBeNull();
   });
 });
 

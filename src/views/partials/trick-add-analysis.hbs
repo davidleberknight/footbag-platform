@@ -4,9 +4,6 @@
   Leads with the number, because that is what a reader wants first. The
   curator-published derivation formula follows: the operator-by-operator
   breakdown is pedagogy at trick level and always renders when published.
-  The plain-words line restates the same components without the
-  parenthesis-and-plus syntax, as a gloss for readers who don't parse
-  formulas.
 
   Renders only when content.addAnalysis is non-null (= the trick has a
   curator-published resolved formula). Provenance is intentionally NOT
@@ -24,9 +21,6 @@
     <dd>
       <span class="trick-add-analysis-total">{{content.addAnalysis.totalAdd}} ADD</span>
       <code class="trick-add-analysis-derivation">{{content.addAnalysis.derivation}}</code>
-      {{#if content.addAnalysis.derivationPlain}}
-      <span class="trick-add-analysis-derivation-plain">{{content.addAnalysis.derivationPlain}}</span>
-      {{/if}}
     </dd>
   </dl>
 </section>

@@ -1,8 +1,11 @@
 {{!--
-  Compact structural-fact block. Family base / Modifier(s) as concise labeled
-  rows, each value followed by a one-line plain-English note so a beginner
-  grasps what the classification means without leaving the page. Each row
-  hides when its list is empty.
+  Compact structural-fact block. Family base / Modifier(s) / Dexterity as
+  concise labeled rows. Family base and modifiers carry a one-line plain-English
+  note so a beginner grasps what the classification means without leaving the
+  page; Dexterity is the bare count, since the execution notation above already
+  shows the dexes. Each row hides when it has nothing to show; Dexterity hides
+  when the trick has no notation to count, and is plain text, since no view
+  groups by dex count.
 
   Hrefs are built here from literal path text + a single slug variable (per the
   single-variable URL rule), so the query string is not entity-escaped.
@@ -18,6 +21,11 @@
     {{#if content.structuralFacts.modifiers.length}}
     <dt>{{#if (gt content.structuralFacts.modifiers.length 1)}}Modifiers{{else}}Modifier{{/if}}</dt>
     <dd>{{#each content.structuralFacts.modifiers}}<span class="structural-fact"><a href="/freestyle/modifier/{{slug}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
+    {{/if}}
+
+    {{#if content.structuralFacts.dexterity}}
+    <dt>Dexterity</dt>
+    <dd><span class="structural-fact">{{content.structuralFacts.dexterity}}</span></dd>
     {{/if}}
   </dl>
 </section>

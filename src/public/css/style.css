@@ -5859,13 +5859,6 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   color: var(--text-muted);
 }
-.trick-add-analysis-derivation-plain {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
 .trick-add-analysis-context {
   margin: 0;
   padding: 4px 18px 14px 18px;
@@ -11998,7 +11991,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: inherit;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
-.by-numbers-card:hover {
+/* Only a linked card lifts on hover: a summary-only card is not a control and
+   must not answer the pointer as if it were. */
+a.by-numbers-card:hover {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
 }

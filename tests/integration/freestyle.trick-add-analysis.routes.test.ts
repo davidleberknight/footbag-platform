@@ -102,6 +102,15 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
     );
   });
 
+  it('states the components once, as the formula, with no restated plain-words line under it', async () => {
+    const res = await page('/freestyle/tricks/paradox_mirage');
+    // A second line repeating the same components without the punctuation
+    // ("paradox +1, mirage 2") only says the formula over again.
+    expect(res.text).toMatch(/<code[^>]*>paradox\(\+1\) \+ mirage\(2\)<\/code>/);
+    expect(res.text).not.toContain('paradox +1, mirage 2');
+    expect(res.text).not.toContain('trick-add-analysis-derivation-plain');
+  });
+
   it('ADD block renders expand-by-default (no <details> collapse remaining)', async () => {
     const res = await page('/freestyle/tricks/paradox_mirage');
     // The collapsed <details> pattern must not render.

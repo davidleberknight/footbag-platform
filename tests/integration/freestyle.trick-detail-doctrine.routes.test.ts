@@ -278,7 +278,7 @@ describe('Shell ordering — About sits above the fold, before Movement intuitio
 
   it('on a derivative, the structural-facts block sits between About and Movement intuition', async () => {
     // paradox_mirage carries a family base and a modifier, so the block
-    // renders; a bare base like mirage has neither and renders no block.
+    // renders.
     const res = await page('/freestyle/tricks/paradox_mirage');
     const aboutIdx     = res.text.indexOf('>About this trick<');
     const structIdx    = res.text.indexOf('class="content-section trick-structural-facts"');

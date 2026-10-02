@@ -591,9 +591,9 @@ export interface MediaTagDisplay {
   kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'discipline';
 }
 
-// "Freestyle by the Numbers" landing band: six summary cards, each a different
-// lens on the same dictionary, computed live (never baked) and each a gateway
-// into its matching browse axis.
+// "Freestyle by the Numbers" landing band: summary cards, each a different
+// lens on the same dictionary, computed live (never baked). A card links into
+// its matching browse axis where one exists.
 export interface FreestyleByNumbersBar {
   label: string;
   count: number;
@@ -604,8 +604,9 @@ export interface FreestyleByNumbersCard {
   key: string;
   eyebrow: string;       // the question this histogram answers
   title: string;
-  // The dictionary view this histogram counts; null when no view groups the
-  // tricks that way, and the card then renders as a plain panel.
+  // The dictionary view this histogram counts; null for a summary-only card
+  // whose dimension no view groups by, which renders without a link or a
+  // Browse label.
   href: string | null;
   footnote: string | null;
   bars: FreestyleByNumbersBar[];
@@ -640,7 +641,7 @@ export interface OperatorSystemGroups {
   setSystems: FreestyleByNumbersBar[];   // named launch / set systems
 }
 
-// Compute the six histogram cards from the already-loaded trick rows + the
+// Compute the five histogram cards from the already-loaded trick rows + the
 // modifier-link feed. Trick-kind population only (resolveTrickKind === 'trick'),
 // so the counts match the dictionary browse views the cards link into.
 // A body primitive that is its own base (the hop-over) is not a dex sequence, so
@@ -649,6 +650,19 @@ export interface OperatorSystemGroups {
 // Unknown until notated.
 function isDexlessBodyAtom(r: { category: string | null; base_trick: string | null; slug: string }): boolean {
   return r.category === 'body' && r.base_trick === r.slug;
+}
+
+// The one dex counter: every [DEX] token in the trick's resolved execution
+// notation, so the dexes a set contributes are counted with the base's. Null
+// when the trick has no notation to count (other than a dexless body atom).
+// By the Numbers buckets this value and the trick page shows it exactly, so the
+// two surfaces cannot disagree about a trick's count.
+function countNotatedDexes(r: {
+  slug: string; category: string | null; base_trick: string | null; operational_notation: string | null;
+}): number | null {
+  const op = resolveOperationalNotationRaw(r.slug, r.operational_notation);
+  if (!op || !op.trim()) return isDexlessBodyAtom(r) ? 0 : null;
+  return (op.match(/\[DEX\]/g) ?? []).length;
 }
 
 function buildFreestyleByNumbers(
@@ -676,13 +690,11 @@ function buildFreestyleByNumbers(
   const histTop = (hist: readonly TopologyHistogramRow[], n: number): FreestyleByNumbersBar[] =>
     hist.slice(0, n).map(h => bar(h.label, h.count));
 
-  // Same resolved-notation source as the dictionary rows (core-atom spec,
-  // then the published-formula overlay, then the DB column), so the histogram
-  // counts the notation a reader sees.
+  // Buckets the shared counter, which reads the same resolved notation as the
+  // dictionary rows, so the histogram counts the notation a reader sees.
   const dexCount = (r: FreestyleTrickRow): string => {
-    const op = resolveOperationalNotationRaw(r.slug, r.operational_notation);
-    if (!op || !op.trim()) return isDexlessBodyAtom(r) ? '0' : 'Unknown';
-    const n = (op.match(/\[DEX\]/g) ?? []).length;
+    const n = countNotatedDexes(r);
+    if (n === null) return 'Unknown';
     return n >= 3 ? '3+' : String(n);
   };
   const entrySurface = (op: string | null): string | null => {
@@ -721,11 +733,14 @@ function buildFreestyleByNumbers(
   const cards: FreestyleByNumbersCard[] = [
     { key: 'difficulty', eyebrow: 'How layered are tricks?', title: 'ADD',
       href: '/freestyle/tricks?view=add', footnote: null, bars: ordered(add, ['1', '2', '3', '4', '5', '6', '7', '8']) },
-    // No "Unknown" bar: a trick with no notation has no countable dex, and the
-    // page note carries the derived pending-notation count. No dictionary view
-    // groups by dex count, so this card links nowhere.
+    // Summary-only: no dictionary view groups tricks by dex count, so this card
+    // carries no link. No "Unknown" bar: a trick with no notation has no
+    // countable dex, and the page note carries the pending-notation count. The
+    // count is of [DEX] tokens in the notation, so a set's own dexes are
+    // included, which the footnote says.
     { key: 'dexterity', eyebrow: 'How many dexes define tricks?', title: 'Dexterity',
-      href: null, footnote: null, bars: ordered(dex, ['0', '1', '2', '3+']) },
+      href: null, footnote: 'Dex counts include dexes contributed by the set, as written in the trick notation.',
+      bars: ordered(dex, ['0', '1', '2', '3+']) },
     // "Entry elements" by design: this chart counts what a trick begins with
     // as a functional category (catch surfaces, launch sets, and the entry
     // operators paradox and symposium together), deliberately not the
@@ -1915,12 +1930,6 @@ export interface TrickAddAnalysisDisclosure {
   derivation: string;
   /** Total ADD value matching the derivation arithmetic. */
   totalAdd:   number;
-  /**
-   * The same derivation with the formula punctuation removed, so it reads as
-   * words and numbers rather than as arithmetic: 'paradox +1, mirage 2'. The
-   * page leads with the total; this is the supporting line under it.
-   */
-  derivationPlain: string;
 }
 
 export interface Ux2PilotData {
@@ -4476,21 +4485,6 @@ function stripDerivationAddTerminator(s: string): string {
   return s.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
 }
 
-/** Turn `paradox(+1) + mirage(2)` into `paradox +1, mirage 2`: the same
- *  components, without the parenthesis-and-plus syntax that makes a reader
- *  parse arithmetic to learn what a trick is built from. */
-function plainDerivation(s: string): string {
-  return stripDerivationAddTerminator(s)
-    // Separators first. A component's own sign lives inside its parentheses,
-    // so unwrapping those before splitting on '+' would let the split eat the
-    // sign and turn "atomic(+1)" into "atomic, 1".
-    .replace(/\s+\+\s+/g, ', ')
-    .replace(/\(([+-]?\d+)\)/g, ' $1')
-    .replace(/,\s*,/g, ',')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
 /** The modifier-link fallback's inputs, for a compound with no curator-published
  *  formula. Absent for a trick whose base or modifier weights cannot be
  *  resolved, in which case the difficulty block shows the value alone. */
@@ -4510,7 +4504,6 @@ function shapeTrickAddAnalysis(
   if (formula) {
     return {
       derivation:      stripDerivationAddTerminator(formula.derivation),
-      derivationPlain: plainDerivation(formula.derivation),
       totalAdd:        formula.totalAdd,
     };
   }
@@ -4523,7 +4516,6 @@ function shapeTrickAddAnalysis(
       const total = Number(atomic.decomposition.match(/=\s*(\d+)\s*ADD/)?.[1] ?? 0);
       return {
         derivation:      stripDerivationAddTerminator(atomic.decomposition),
-        derivationPlain: plainDerivation(atomic.decomposition),
         totalAdd:        total,
       };
     }
@@ -4538,7 +4530,6 @@ function shapeTrickAddAnalysis(
     if (derived) {
       return {
         derivation:      derived,
-        derivationPlain: plainDerivation(derived),
         totalAdd,
       };
     }
@@ -6493,8 +6484,8 @@ interface ModifierLinkInfo {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Compact structural-fact block for the trick-detail page: family base and
-// modifier(s). Consolidates data already computed elsewhere
+// Compact structural-fact block for the trick-detail page: family base,
+// modifier(s) and dex count. Consolidates data already computed elsewhere
 // (resolveDisplayFamily, the trick's modifier links) into one
 // scan-at-a-glance panel rendered high on the page, so a reader grasps the
 // trick's structure without scrolling into the deeper reference sections.
@@ -6509,11 +6500,20 @@ export interface TrickStructuralFact {
 export interface TrickStructuralFacts {
   familyBase:      TrickStructuralFact | null;
   modifiers:       readonly TrickStructuralFact[];
+  // The dex count as display words ("No dexes", "1 dex", "3 dexes"); null when
+  // the trick has no notation to count. No explanatory note: the execution
+  // notation just above already shows the dexes being counted.
+  dexterity:       string | null;
   hasAny:          boolean;
 }
 
+function dexCountLabel(n: number): string {
+  if (n === 0) return 'No dexes';
+  return n === 1 ? '1 dex' : `${n} dexes`;
+}
+
 function buildStructuralFacts(
-  row: { slug: string; base_trick: string | null; trick_family: string | null; operational_notation: string | null },
+  row: { slug: string; base_trick: string | null; trick_family: string | null; category: string | null; operational_notation: string | null },
   isBase: boolean,
   modifierLinks: ModifierLinkInfo[],
 ): TrickStructuralFacts {
@@ -6539,8 +6539,11 @@ function buildStructuralFacts(
     });
   }
 
-  const hasAny = !!familyBase || modifiers.length > 0;
-  return { familyBase, modifiers, hasAny };
+  const dexes = countNotatedDexes(row);
+  const dexterity = dexes === null ? null : dexCountLabel(dexes);
+
+  const hasAny = !!familyBase || modifiers.length > 0 || dexterity !== null;
+  return { familyBase, modifiers, dexterity, hasAny };
 }
 
 // Fallback modifier links for the structural-fact block when a trick has no DB
@@ -7552,7 +7555,7 @@ export const freestyleService = {
               ? currentTrickMods
               : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows);
             const facts = buildStructuralFacts(
-              { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family, operational_notation: dictRow.operational_notation },
+              { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family, category: dictRow.category, operational_notation: dictRow.operational_notation },
               dictEntry?.isBase ?? false,
               modsForFacts,
             );
@@ -11165,9 +11168,10 @@ export const freestyleService = {
   /**
    * "Freestyle by the Numbers": the histogram cards that summarize how the
    * dictionary distributes across difficulty, dexterity count, entry set,
-   * family ending, and body movement. Each card is a gateway into the browse
-   * view it counts, and every card shares one denominator so the cards are
-   * directly comparable.
+   * family ending, and body movement. A card whose dimension a dictionary view
+   * groups by links to that view; the dexterity card is summary-only, because
+   * no view groups tricks by dex count. Every card shares one denominator so
+   * the cards are directly comparable.
    */
   getByTheNumbersPage(): PageViewModel<FreestyleByTheNumbersContent> {
     const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
@@ -11187,7 +11191,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_by_the_numbers',
         title:      'Freestyle by the Numbers',
-        intro:      'How the trick dictionary breaks down. Each card opens the browse view it counts.',
+        intro:      'How the trick dictionary breaks down across its major dimensions.',
       },
       navigation: {
         breadcrumbs: [
