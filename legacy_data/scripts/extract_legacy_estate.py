@@ -12,6 +12,13 @@ leaves the private repository's working tree clean, and the only files that
 change are the ones whose source changed. Tables that disappear from a dump have
 their CSVs removed rather than left behind looking current.
 
+Everything it writes is owner-only: the export holds member personal data, so
+every file ends a run at mode 600 and every directory at 700, files left
+unchanged by this run included. Git does not record those modes, so a checkout
+of the private repository does not carry them; a run of this script is what puts
+the working export back into that state, and a run that cannot exits non-zero
+naming each path, which is what keeps it from certifying the final export.
+
 What never lands anywhere: the stored password, the live session handle and the
 update cookie, dropped from every table. The oldest member snapshot drops more,
 because it carries street addresses and phone numbers that the current member
@@ -27,6 +34,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -81,40 +91,52 @@ MODULES: list[tuple[str, str, list[str]]] = [
 
 
 # Material that is not a table and is copied rather than converted. Each entry
-# is (source directory or file under the legacy clone, output subdirectory).
+# is (source directory or file under the legacy clone, output subdirectory, the
+# name a single copied file takes, or None to keep the source's own name). Only
+# data is copied: the legacy tree also holds HTML pages saved under SQL-looking
+# names and a compiled program from the old moves engine, and neither is data.
 # The wiki images matter most: the archive mirror captured 251 of them, so the
 # rest exist nowhere else we hold, and they are the images the archive's own
 # wiki pages are missing.
-FILE_TREES: list[tuple[str, str]] = [
-    ('ifpa/data',                 'governance-prose'),
-    ('reference/images',          'reference-images'),
-    ('rules/rulebook.txt',        'source-data-files'),
-    ('clubs/create.mysql',        'source-data-files'),
-    ('events/create.mysql.saved', 'source-data-files'),
-    ('moves/sqml/parse',          'source-data-files'),
+FILE_TREES: list[tuple[str, str, str | None]] = [
+    ('ifpa/data',                 'governance-prose',  None),
+    ('reference/images',          'reference-images',  None),
+    ('rules/rulebook.txt',        'source-data-files', None),
     # The @footbag.org forwarding-alias map: each alias against the member
     # address behind it. Member personal data, and the only record of which
     # published addresses are aliases rather than real mailboxes, which the mail
     # cutover turns on. Copied verbatim rather than reshaped, because its format
-    # is the legacy mail system's and reshaping it would be a guess.
-    ('members/admin/tmp.out',     'mail-aliases'),
+    # is the legacy mail system's and reshaping it would be a guess; renamed,
+    # because the legacy system's scratch-file name says nothing about it.
+    ('members/admin/tmp.out',     'mail-aliases',      'mail_aliases.tsv'),
 ]
 
+# Files the export writes itself in a copied directory, which pruning keeps.
+OWN_FILES = {'README.md', 'MANIFEST.tsv'}
 
-def copy_tree(sources: list[Path], out_dir: Path) -> int:
+
+def copy_tree(sources: list[tuple[Path, str | None]], out_dir: Path) -> int:
     """Copy files or directories into one output directory, overwriting only what
-    differs, and removing what no source has any more. Byte-compare rather than
-    timestamp, so a re-run over unchanged input leaves the working tree clean.
-    Takes every source for the directory at once, because pruning after each one
-    separately would delete the previous source's files."""
+    differs, removing what no source has any more, and writing the directory's
+    manifest. Byte-compare rather than timestamp, so a re-run over unchanged
+    input leaves the working tree clean. Takes every source for the directory at
+    once, because pruning after each one separately would delete the previous
+    source's files."""
     out_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
     expected = set()
-    for source in sources:
+    for source, rename in sources:
         files = [source] if source.is_file() else sorted(
             p for p in source.rglob('*') if p.is_file())
         for src in files:
-            rel = src.name if source.is_file() else str(src.relative_to(source))
+            if source.is_file():
+                rel = rename or src.name
+            else:
+                rel = str(src.relative_to(source))
+            if rel in OWN_FILES:
+                raise SystemExit(
+                    f'{src} would overwrite the export\'s own {rel} in '
+                    f'{out_dir.name}; rename it in FILE_TREES and re-run.')
             dest = out_dir / rel
             expected.add(dest)
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -123,10 +145,62 @@ def copy_tree(sources: list[Path], out_dir: Path) -> int:
                 dest.write_bytes(data)
                 copied += 1
     for stale in sorted(p for p in out_dir.rglob('*') if p.is_file()):
-        if stale not in expected and stale.name != 'README.md':
+        if stale not in expected and stale.relative_to(out_dir).as_posix() not in OWN_FILES:
             stale.unlink()
             print(f'  {stale.name:32} removed (no longer in the source)')
+    write_copy_manifest(out_dir, sorted(expected))
     return copied
+
+
+def write_copy_manifest(out_dir: Path, files: list[Path]) -> None:
+    """The same manifest the converted directories carry, one row per copied
+    file, so every file in the export has a checksum to verify against. A row
+    count is given for text, as its line count, and left as '-' for binary
+    content such as images, where it means nothing. Nothing is withheld from a
+    copied file, so the dropped-columns field is always '-'."""
+    lines = ['file\tsha256\tbytes\trows\tdropped_columns']
+    for path in files:
+        data = path.read_bytes()
+        rows = '-' if b'\0' in data else str(data.count(b'\n'))
+        lines.append('\t'.join([
+            path.relative_to(out_dir).as_posix(),
+            hashlib.sha256(data).hexdigest(),
+            str(len(data)),
+            rows,
+            '-',
+        ]))
+    (out_dir / 'MANIFEST.tsv').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+
+def make_owner_only(root: Path) -> None:
+    """Every directory under the export to 700 and every file to 600, including
+    the ones this run did not rewrite: a byte-identical file is skipped by the
+    copy, so the run would otherwise leave an existing open mode as it found it.
+    A path this cannot change is left for the check below to report, rather than
+    stopping the pass halfway."""
+    for path in [root, *root.rglob('*')]:
+        if path.is_symlink():
+            continue
+        try:
+            path.chmod(0o700 if path.is_dir() else 0o600)
+        except OSError:
+            pass
+
+
+def owner_only_violations(root: Path) -> list[str]:
+    """Each path under the export that another account could read, with its mode.
+    A symlink is reported too: the export is written as plain files, so a link in
+    it is unexpected, and the mode that matters is the target's, which may lie
+    outside the export. Checked after the chmod pass rather than trusted to it,
+    because some filesystems accept a chmod and keep the old mode."""
+    found = []
+    for path in [root, *sorted(root.rglob('*'))]:
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            found.append(f'symlink {path}')
+        elif stat.S_IMODE(mode) & 0o077:
+            found.append(f'{stat.S_IMODE(mode):04o} {path}')
+    return found
 
 
 def write_scrape_only(export: Path, private: Path) -> int:
@@ -178,6 +252,10 @@ def main() -> int:
             'The private operations checkout is not reachable. Wire the '
             f'footbag_private_repo symlink at {REPO_ROOT} and re-run.')
 
+    # Before the first byte is written, so no export file is ever created
+    # readable by another account, whatever umask the operator's shell carries.
+    os.umask(0o077)
+
     # Two dumps feed the groups directory, so extraction is grouped by output
     # directory: every source for a directory runs before that directory is
     # pruned and its manifest written, or the second dump would delete the
@@ -207,17 +285,18 @@ def main() -> int:
 
     if not args.only:
         print('\nfiles copied rather than converted:')
-        files_by_dir: dict[str, list[Path]] = {}
-        for rel, out_name in FILE_TREES:
+        files_by_dir: dict[str, list[tuple[Path, str | None]]] = {}
+        for rel, out_name, rename in FILE_TREES:
             source = LEGACY / rel
             if not source.exists():
                 print(f'  {rel}: not present, skipped')
                 continue
-            files_by_dir.setdefault(out_name, []).append(source)
+            files_by_dir.setdefault(out_name, []).append((source, rename))
         for out_name, sources in files_by_dir.items():
             changed = copy_tree(sources, EXPORT / out_name)
             held = sum(1 for p in (EXPORT / out_name).rglob('*')
-                       if p.is_file() and p.name != 'README.md')
+                       if p.is_file()
+                       and p.relative_to(EXPORT / out_name).as_posix() not in OWN_FILES)
             print(f'  {out_name:24} {held:6} file(s), {changed} written this run')
 
     if not args.only:
@@ -225,6 +304,22 @@ def main() -> int:
         write_scrape_only(EXPORT, PRIVATE)
 
     print(f'\n{total_tables} tables, {total_rows} rows, under {EXPORT}')
+
+    # The whole export, not only what this run wrote: a checkout or an earlier
+    # run may have left it open, and an unchanged file is never rewritten.
+    if EXPORT.is_dir():
+        make_owner_only(EXPORT)
+        open_paths = owner_only_violations(EXPORT)
+        if open_paths:
+            print('\nREFUSED: these export paths are still readable by another '
+                  'account after the owner-only pass:', file=sys.stderr)
+            for line in open_paths:
+                print(f'  {line}', file=sys.stderr)
+            print('The export is not certified. Move it to a filesystem that '
+                  'keeps file modes, or fix each path, and re-run.', file=sys.stderr)
+            return 1
+        print('Every export file is owner-only (600; directories 700).')
+
     print('Nothing is committed. Review the diff and commit in the private repo.')
     return 0
 
