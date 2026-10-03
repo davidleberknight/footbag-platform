@@ -25,14 +25,7 @@
   <section class="content-section">
     <p>
       Operators are the movement ideas a player applies to a trick: a spin, a
-      duck, a paradox layered onto a base. They are different from notation
-      components such as <code>[PDX]</code> or <code>[XBD]</code>, which only
-      record what happened and are listed separately at the foot of this page.
-      Each row below is a compact directory entry: the operator's type, its ADD
-      weight, and its status. Open <em>View details</em> for the full teaching
-      page, or <em>Browse tricks</em> to see the tricks an operator produces. For
-      set systems as first-class objects, see the
-      <a href="/freestyle/sets">Set Encyclopedia</a>.
+      duck, a paradox layered onto a base.
     </p>
   </section>
 
@@ -74,40 +67,6 @@
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading" id="provisional-vocabulary">Provisional and historical vocabulary</h2>
-    <p>
-      These names are listed for completeness, but they are not ratified
-      operators. Some have no settled definition yet; others have no teaching
-      guide. Each row carries its own status so an unresolved name is never
-      mistaken for an established operator.
-    </p>
-    {{#each content.indexAxes}}
-    {{#if provisional}}
-    <section class="operator-index-axis" id="axis-{{axisKey}}" aria-label="{{axisName}}">
-      <ul class="dict-trick-row-stack" role="list">
-        {{#each modifiers}}
-        <li><article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
-          <div class="dict-trick-row-head">
-            <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
-            <span class="hashtag">{{hashtag}}</span>
-            <span class="operator-meta-chip">{{typeLabel}}</span>
-            {{#if addLabel}}<span class="operator-meta-chip operator-meta-chip--add">{{addLabel}}</span>{{/if}}
-            <span class="operator-status-pill operator-status-pill--{{status.key}}">{{status.label}}</span>
-          </div>
-          {{#if descriptor}}<p class="operator-row-descriptor">{{descriptor}}</p>{{/if}}
-          <p class="operator-row-links">
-            <a class="action-link" href="/freestyle/modifier/{{slug}}">View details</a>
-            <a class="action-link" href="{{{browseHref}}}">Browse tricks</a>
-          </p>
-        </article></li>
-        {{/each}}
-      </ul>
-    </section>
-    {{/if}}
-    {{/each}}
-  </section>
-
-  <section class="content-section">
     <h2 class="section-heading" id="how-operators-combine">How operators combine</h2>
     <p>
       Compound operators expand into simpler ones: nuclear reads as paradox plus
@@ -124,17 +83,4 @@
     </p>
   </section>
 
-  <section class="content-section">
-    <h2 class="section-heading" id="notation-components">Notation components that are not operators</h2>
-    <p>
-      These record what happened during a trick. They are notation and scoring
-      components, not operators a player applies. Their full definitions live in
-      the <a href="/freestyle/concepts#section-modifiers">Operators &amp; Modifiers chapter of Freestyle Concepts</a>.
-    </p>
-    <ul>
-      {{#each content.notationVocabulary}}
-      <li><code>{{token}}</code>: {{meaning}}</li>
-      {{/each}}
-    </ul>
-  </section>
 </div>

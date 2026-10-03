@@ -83,7 +83,8 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
       const escaped = t.term.replace(/&/g, '&amp;').replace(/'/g, '&#x27;');
       expect(html).toMatch(new RegExp(`<dt>${escaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(<\\/dt>| <span class="glossary-az-aliases">)`));
     }
-    expect(html).toContain(`${GLOSSARY_TERMS.length} terms,`);
+    // No term-count footer: the list itself is the inventory.
+    expect(html).not.toMatch(/\d+ terms, \d+ cross-references\./);
   });
 
   it('renders aliases inline on the term line, never as entries of their own', async () => {
@@ -146,7 +147,6 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
       // The pointer's own id is never a term- anchor, so it can't be mistaken for a definition.
       expect(html.split(`id="term-${x.slug}"`).length - 1).toBe(0);
     }
-    expect(html).toContain(`${GLOSSARY_TERMS.length} terms, ${GLOSSARY_CROSS_REFERENCES.length} cross-references.`);
   });
 
   it('renders terms in deterministic case-insensitive alphabetical order, grouped by letter', async () => {

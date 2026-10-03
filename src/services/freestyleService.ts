@@ -3727,8 +3727,6 @@ export interface FreestyleGlossaryLetterGroup {
   entries: FreestyleGlossaryEntry[];
 }
 export interface FreestyleGlossaryContent {
-  entryCount:          number;   // defined terms
-  crossReferenceCount: number;   // "see" pointers
   letters:             FreestyleGlossaryLetterGroup[];
   // Letter jump-links: every group's letter with its in-page anchor.
   letterNav:   { letter: string; href: string }[];
@@ -4132,11 +4130,6 @@ export interface FreestyleOperatorsContent {
   // operators surface no longer renders the per-modifier reference (that stays in
   // the glossary's Modifiers & Operators section, the anchor home).
   indexAxes: OperatorIndexAxisGroup[];
-  // The analysis vocabulary: the notation components an operator leaves behind
-  // when applied. These are scoring/notation constructs (a property a component
-  // has), not operators a player applies, so they sit apart from the index as
-  // peers. Sourced from the canonical component-flag labels.
-  notationVocabulary: { token: string; meaning: string }[];
 }
 
 // Data-driven detail page for a known modifier that has no hand-authored
@@ -9171,8 +9164,6 @@ export const freestyleService = {
         ],
       },
       content: {
-        entryCount:          GLOSSARY_TERMS.length,
-        crossReferenceCount: GLOSSARY_CROSS_REFERENCES.length,
         letters,
         letterNav: letters.map(g => ({ letter: g.letter, href: `#letter-${g.letter}` })),
         crossLinks: {
@@ -9477,14 +9468,6 @@ export const freestyleService = {
       },
       content: {
         indexAxes: buildOperatorIndexAxes(modifierRows),
-        // The notation components an operator leaves behind, surfaced as a short
-        // teaching vocabulary on the operators page. Glosses are intentionally
-        // terser than the canonical tooltip labels in COMPONENT_FLAG_LABELS.
-        notationVocabulary: [
-          { token: '[PDX]',  meaning: 'paradox-relationship marker on a dexterity' },
-          { token: '[XBD]',  meaning: 'cross-body configuration or traversal across the body\'s centreline, independent of SAME/OP' },
-          { token: '[XDEX]', meaning: 'conditional +1 X-Dex component' },
-        ],
       },
     };
   },

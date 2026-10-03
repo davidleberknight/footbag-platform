@@ -796,13 +796,13 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     term: 'Symple',
     slug: 'symple',
     definition: 'A historical token seen beside symposium in source material, described there as a component that starts symposium and replants the free foot midway. Whether it names a distinct movement is unresolved; Symposium is the established operator.',
-    moreHref: `${CONCEPTS}#term-symple`, moreLabel: 'Symple in Freestyle Concepts',
+    moreHref: '/freestyle/modifier/symple', moreLabel: 'Symple modifier page',
   },
   {
     term: 'Muted',
     slug: 'muted',
     definition: 'An active leg held in the air for an entire component without planting. Mostly said of dexes, but it applies to other components too.',
-    moreHref: `${CONCEPTS}#term-muted`, moreLabel: 'Muted in Freestyle Concepts',
+    moreHref: '/freestyle/modifier/muted', moreLabel: 'Muted modifier page',
   },
   {
     term: 'Frontside',
@@ -847,7 +847,7 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     slug: 'flying',
     definition: 'A contact or trick performed with the whole body in the air, a no-stall body modifier: a flying clipper is a clipper kick with no stall, and "flying clipper stall" states the stall explicitly to contrast the implied kick.',
     aliases: ['flyer'],
-    moreHref: `${CONCEPTS}#implicit-contacts`, moreLabel: 'Implied contacts',
+    moreHref: '/freestyle/modifier/flying', moreLabel: 'Flying modifier page',
   },
 
   // ── Foundational tricks ────────────────────────────────────────────────

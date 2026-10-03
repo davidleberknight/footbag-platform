@@ -284,6 +284,15 @@ describe('GET /freestyle/records', () => {
     expect(res.text).toContain('Whirl');
   });
 
+  it('shows the records without the recorded-versus-canonical ADD caveat', async () => {
+    // The table already labels its column "ADD (recorded)"; the paragraph
+    // ranking that value against the canonical ADD is page furniture.
+    const res = await page('/freestyle/records');
+    expect(res.text).toContain('<th>ADD (recorded)</th>');
+    expect(res.text).not.toContain('the canonical ADD is authoritative');
+    expect(res.text).not.toContain('the recording source assigned');
+  });
+
   it('links resolved person_id to /history/:personId', async () => {
     const res = await page('/freestyle/records');
     expect(res.text).toContain(`/history/${PERSON_ID}`);
@@ -529,22 +538,19 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');
-    // Tail keeps only the cross-cutting notes (how operators combine + alpine +
-    // notation components labelled as non-operators); per-modifier depth moved to
-    // the detail pages.
+    // Tail keeps only the cross-cutting notes (how operators combine + alpine);
+    // per-modifier depth moved to the detail pages.
     expect(res.text).toContain('id="how-operators-combine"');
     expect(res.text).toContain('id="alpine"');
-    expect(res.text).toContain('id="notation-components"');
     // The per-modifier reference dl/grid no longer renders on the operators page.
     expect(res.text).not.toContain('id="intermediate-operators"');
     expect(res.text).not.toContain('id="set-modifiers-tier-1"');
     expect(res.text).not.toContain('class="glossary-intermediate-operators"');
   });
 
-  it('cross-links the dictionary modifier view and the set encyclopedia', async () => {
+  it('cross-links the dictionary modifier view', async () => {
     const res = await page('/freestyle/operators');
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=modifier#modifier-[a-z_]+"/);
-    expect(res.text).toContain('href="/freestyle/sets"');
   });
 });
 
@@ -763,7 +769,6 @@ describe('GET /freestyle/concepts §6 is the per-modifier reference home (operat
     }
     // The operators page keeps only the cross-cutting tail.
     expect(operators.text).toContain('id="how-operators-combine"');
-    expect(operators.text).toContain('id="notation-components"');
     // Feel cards are Concepts-only.
     expect(concepts.text).toContain('class="glossary-modifier-card"');
     expect(operators.text).not.toContain('class="glossary-modifier-card"');

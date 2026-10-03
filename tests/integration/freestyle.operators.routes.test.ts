@@ -6,18 +6,16 @@
  *     (entry and side relationship, body rotation, head and body passage, set
  *     and preparatory, no-plant and suspension), in the dict-trick-row idiom
  *     shared with the dictionary and set encyclopedia.
- *   - Provisional and historical vocabulary (symple, muted, flying) renders in a
- *     section visibly separate from the ratified operators.
+ *   - Provisional names (symple, muted, flying) and the notation markers are not
+ *     listed; the glossary defines them, and its entries lead to the provisional
+ *     operator pages.
  *   - Set primitives (pixie, fairy, atomic, barraging, and the rest) are NOT
  *     listed here: they are first-class objects of the Set Encyclopedia, so the
- *     same concept is never presented as both a set and an operator. The page
- *     links out to the Set Encyclopedia for them.
+ *     same concept is never presented as both a set and an operator.
  *   - Each modifier row carries a type chip, an ADD weight when tracked, a
  *     status pill, and View-details / Browse-tricks click-throughs.
  *   - Paradox appears once as a directory row linking to its teaching page; the
  *     long explanation is not duplicated at the foot of the page.
- *   - The notation components [PDX] / [XBD] / [XDEX] sit in their own box,
- *     labelled as not operators.
  *   - Universal detail resolution: a known modifier without a teaching page
  *     resolves to a data-driven stub (not 404); a modifier with a teaching
  *     page still resolves to the rich page; an unknown slug 404s.
@@ -82,8 +80,6 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('Head and body passage');
     expect(res.text).toContain('Set and preparatory operators');
     expect(res.text).toContain('No-plant and suspension');
-    // Provisional vocabulary is a visibly separate section, not mixed in.
-    expect(res.text).toContain('Provisional and historical vocabulary');
     // The set primitives no longer have their own operator axis here.
     expect(res.text).not.toContain('Set / Uptime Systems');
     // Reuses the trick-dictionary row idiom.
@@ -91,14 +87,29 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('class="dict-trick-row"');
   });
 
-  it('renders provisional vocabulary in a section separate from the established operators', async () => {
+  it('lists only established operators; provisional names and notation markers live in the glossary', async () => {
+    // Unratified names and notation markers sat beside the operator directory as
+    // two extra sections; the glossary already defines each, so the directory
+    // carries operators alone.
     const res = await page('/freestyle/operators');
-    const establishedIdx = res.text.indexOf('Established operators by structural role');
-    const provisionalIdx = res.text.indexOf('Provisional and historical vocabulary');
-    const sympleIdx = res.text.indexOf('id="operator-symple"');
-    expect(establishedIdx).toBeGreaterThan(-1);
-    expect(provisionalIdx).toBeGreaterThan(establishedIdx);
-    expect(sympleIdx).toBeGreaterThan(provisionalIdx);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Provisional and historical vocabulary');
+    expect(res.text).not.toContain('Notation components that are not operators');
+    for (const slug of ['symple', 'muted', 'flying']) {
+      expect(res.text, `provisional ${slug} row`).not.toContain(`id="operator-${slug}"`);
+    }
+  });
+
+  it('keeps the provisional operator pages reachable from their glossary entries', async () => {
+    // With the provisional rows gone from the directory, the glossary entry is
+    // each page's way in; a page left with no link would be reachable only by
+    // typing its address.
+    const glossary = await page('/freestyle/glossary');
+    for (const slug of ['symple', 'muted', 'flying']) {
+      expect(glossary.text, `glossary links ${slug}`).toContain(`href="/freestyle/modifier/${slug}"`);
+      const detail = await page(`/freestyle/modifier/${slug}`);
+      expect(detail.status, `${slug} detail page`).toBe(200);
+    }
   });
 
   it('places Tapping under Set and preparatory operators, not the body axes', async () => {
@@ -109,11 +120,6 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(setPrepIdx).toBeGreaterThan(-1);
     expect(tappingIdx).toBeGreaterThan(setPrepIdx);
     expect(tappingIdx).toBeLessThan(noPlantIdx);
-  });
-
-  it('points sets at the Set Encyclopedia instead of listing them here', async () => {
-    const res = await page('/freestyle/operators');
-    expect(res.text).toContain('href="/freestyle/sets"');
   });
 
   it('gives every relationship/body modifier a row with click-throughs', async () => {
@@ -127,18 +133,18 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).not.toMatch(/\/freestyle\/tricks\?view=(movement-system|topology)/);
   });
 
-  it('presents Symple and symp as unresolved historical vocabulary, not settled doctrine', async () => {
+  it('presents Symple as unresolved historical vocabulary, not settled doctrine', async () => {
     const res = await page('/freestyle/operators');
     // The page must not assert the old settled explanation while the open
     // question is whether Symple is a distinct operator and whether symp is only
     // an abbreviation of the fully defined Symposium operator.
     expect(res.text).not.toContain('Starts as symposium');
     expect(res.text).not.toContain('can mean symposium or symple');
-    const symple = rowSlice(res.text, 'symple');
-    expect(symple, 'symple operator row should render').not.toBe('');
-    expect(symple).toContain('unresolved');
     // Symposium itself stays presented as the established operator.
     expect(res.text).toContain('id="operator-symposium"');
+    // The glossary entry that now leads to Symple's page keeps it unresolved.
+    const glossary = await page('/freestyle/glossary');
+    expect(glossary.text).toMatch(/Whether it names a distinct movement is unresolved/);
   });
 
   it('does not list set primitives as operator rows', async () => {
@@ -173,11 +179,10 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(rowSlice(res.text, 'spinning')).toContain('operator-status-pill--teaching');
   });
 
-  it('keeps a How operators combine section and a separate notation-components box', async () => {
+  it('keeps the How operators combine section', async () => {
     const res = await page('/freestyle/operators');
     expect(res.text).toContain('id="how-operators-combine"');
     expect(res.text).toContain('id="alpine"');
-    expect(res.text).toContain('id="notation-components"');
   });
 
   it('names Furious as the canonical two-dex set, not barraging', async () => {
@@ -205,12 +210,6 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     // The old tail Paradox block and its entry formula are gone.
     expect(res.text).not.toContain('CLIP &gt; OP IN [DEX]');
     expect(res.text).not.toMatch(/classic paradox entry topology/);
-    // Notation components are labelled as not operators, in their own box.
-    expect(res.text).toContain('Notation components that are not operators');
-    expect(res.text).toContain('id="notation-components"');
-    expect(res.text).toContain('[PDX]');
-    expect(res.text).toContain('[XBD]');
-    expect(res.text).toContain('[XDEX]');
   });
 });
 

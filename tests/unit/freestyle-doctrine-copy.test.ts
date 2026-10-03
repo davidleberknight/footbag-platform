@@ -218,7 +218,6 @@ describe('legitimate execution prose is not banned', () => {
 describe('glossary side section, clipper, XBD labels, and side-variant cards', () => {
   const concepts = read('src/views/freestyle/concepts.hbs');
   const opRender = read('src/services/operationalNotationRendering.ts');
-  const svc = read('src/services/freestyleService.ts');
   const related = read('src/services/freestyleRelatedTricks.ts');
   const variantCard = read('src/views/partials/trick-relative-side.hbs');
 
@@ -243,13 +242,10 @@ describe('glossary side section, clipper, XBD labels, and side-variant cards', (
     expect(concepts).not.toMatch(/Clipper stalls implicitly involve a same-side/);
   });
 
-  it('both XBD token labels state independence from SAME/OP with no opposite-side-surface definition', () => {
+  it('the XBD token label states independence from SAME/OP with no opposite-side-surface definition', () => {
     const xbdOp = lineWith(opRender, 'XBD:');
     expect(xbdOp).toMatch(/independent of SAME\/OP/);
     expect(xbdOp).not.toMatch(/opposite-side surface/);
-    const xbdSvc = lineWith(svc, "token: '[XBD]'");
-    expect(xbdSvc).toMatch(/independent of SAME\/OP/);
-    expect(xbdSvc).not.toMatch(/opposite-side surface/);
   });
 
   it('the side-variant card labels are exactly "Same-side variant" and "Far variant"', () => {

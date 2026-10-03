@@ -204,11 +204,6 @@ describe('Cross-link presence on sibling pages', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 
-  it('operators page links to the Set Encyclopedia', async () => {
-    const res = await page('/freestyle/operators');
-    expect(res.text).toMatch(/href="\/freestyle\/sets"/);
-  });
-
   it('glossary links to the Set Encyclopedia', async () => {
     const res = await page('/freestyle/glossary');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
