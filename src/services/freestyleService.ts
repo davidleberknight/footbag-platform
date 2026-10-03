@@ -2796,11 +2796,9 @@ export interface FreestyleSetDetailContent {
    *  unchanged and still renders in the provenance footer. */
   formulaSource:        string | null;
   movementExplanation:  string;
-  equivalenceReadings:  readonly string[];
-  // Doctrine-supported alternate / historic set names, distinct from the
-  // structural equivalenceReadings above. Pre-shaped for direct rendering.
+  // Doctrine-supported alternate / historic set names. Pre-shaped for direct
+  // rendering.
   equivalentNames:      readonly { name: string; structuralReading: string | null; note: string | null }[];
-  derivedSystems:       readonly SlugLinkVM[];
   relatedSystems:       readonly SlugLinkVM[];
   exampleTricks:        readonly SetDetailExampleTrick[];
   hasExampleTricks:     boolean;
@@ -3178,20 +3176,15 @@ export interface FamilyDetailTeaching {
   hook: string;
   physicalDescription: string;
   importance: string;
-  variantsIntro: string;
-  variants: { name: string; entry: string }[];
-  variantsRuling: string;
   howToRecognize: string[];
   howToThink: string;
   misconceptions: string[];
   seeItIn: { name: string; href: string }[];
   notationIntro: string;
   takeaway: string;
-  // Formula-first additions. Null when the card does not author them (the page
-  // then falls back to the variant-intro "structural model" flow).
+  // A one-line plain reading of the family's shape, opening "What is a ...?".
+  // Null when the card does not author one.
   plainLanguageReading: string | null;
-  structuralSignature: { conserved: string; mayChange: string; nearestNeighbors: string } | null;
-  atlasRelationship: { lines: string[]; note: string } | null;
 }
 
 export interface FreestyleFamilyDetailContent {
@@ -3223,7 +3216,6 @@ export interface FreestyleFamilyDetailContent {
   hasMembers: boolean;
   siblingFamilies: { name: string; href: string }[];
   notableCompounds: string[];
-  observationalNotes: { title: string; body: string }[];
   // Reader-facing teaching flow; null for a family with no authored teaching,
   // in which case the page renders the compact projection instead.
   teaching: FamilyDetailTeaching | null;
@@ -9830,9 +9822,6 @@ export const freestyleService = {
           hook:                card.teaching.hook,
           physicalDescription: card.teaching.physicalDescription,
           importance:          card.teaching.importance,
-          variantsIntro:       card.teaching.variantsIntro,
-          variants:            card.teaching.variants.map(v => ({ name: v.name, entry: v.entry })),
-          variantsRuling:      card.teaching.variantsRuling,
           howToRecognize:      [...card.teaching.howToRecognize],
           howToThink:          card.teaching.howToThink,
           misconceptions:      [...card.teaching.misconceptions],
@@ -9847,16 +9836,6 @@ export const freestyleService = {
           notationIntro:       card.teaching.notationIntro,
           takeaway:            card.teaching.takeaway,
           plainLanguageReading: card.teaching.plainLanguageReading ?? null,
-          structuralSignature: card.teaching.structuralSignature
-            ? {
-                conserved:        card.teaching.structuralSignature.conserved,
-                mayChange:        card.teaching.structuralSignature.mayChange,
-                nearestNeighbors: card.teaching.structuralSignature.nearestNeighbors,
-              }
-            : null,
-          atlasRelationship: card.teaching.atlasRelationship
-            ? { lines: [...card.teaching.atlasRelationship.lines], note: card.teaching.atlasRelationship.note }
-            : null,
         }
       : null;
 
@@ -9945,7 +9924,6 @@ export const freestyleService = {
         hasMembers:     isUmbrella ? variantGroups.length > 0 : group.cards.length > 0,
         siblingFamilies,
         notableCompounds:   [...(card?.notableCompounds ?? [])],
-        observationalNotes: (card?.observationalNotes ?? []).map(n => ({ title: n.title, body: n.body })),
         teaching,
         familyCrossLink:    group.crossLink,
         crossLinks: {
@@ -10107,16 +10085,10 @@ export const freestyleService = {
         subtypeLabel,
         formula:               set.formula,
         movementExplanation:   set.movementExplanation,
-        equivalenceReadings:   set.equivalenceNotes.map(n => `${n.reading}: ${n.citation}`),
         equivalentNames:       (set.equivalentNames ?? []).map(e => ({
           name:              e.name,
           structuralReading: e.structuralReading ?? null,
           note:              e.note ?? null,
-        })),
-        derivedSystems:        set.derivedSystems.map(r => ({
-          slug:  r.slug,
-          label: r.label,
-          href:  `/freestyle/sets/${r.slug}`,
         })),
         relatedSystems:        set.relatedSystems.map(r => ({
           slug:  r.slug,

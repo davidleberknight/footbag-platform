@@ -3,10 +3,8 @@
   One page per canonical set. Mirrors the trick-detail information order so the
   two surfaces read the same way: identity (name / hashtag) then notation
   (formula) then explanation (movement) near the top, then equivalent names,
-  then the structural equivalence readings, then related / derived systems,
-  then example tricks, then cross-links, sibling navigation, and source / audit
-  provenance last. Equivalent names (alternate set names) and the structural
-  equivalence readings are separate sections and are never merged.
+  then related systems, then example tricks, then cross-links, sibling
+  navigation, and source / audit provenance last.
 --}}
 {{! The shared page hero and page frame, arranged as the trick detail page
     arranges them, since this page mirrors that one's information order. It
@@ -153,24 +151,6 @@
         {{#if note}}<span class="set-detail-equivalent-note">{{note}}</span>{{/if}}
       </li>
       {{/each}}
-    </ul>
-  </section>
-  {{/if}}
-
-  {{#if content.equivalenceReadings.length}}
-  <section class="set-detail-section" aria-label="Equivalence readings">
-    <h2>Equivalence readings</h2>
-    <ul class="set-detail-equivalences">
-      {{#each content.equivalenceReadings}}<li>{{this}}</li>{{/each}}
-    </ul>
-  </section>
-  {{/if}}
-
-  {{#if content.derivedSystems.length}}
-  <section class="set-detail-section" aria-label="Derived systems">
-    <h2>Derived systems</h2>
-    <ul class="set-detail-link-list">
-      {{#each content.derivedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
     </ul>
   </section>
   {{/if}}

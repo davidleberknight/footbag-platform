@@ -11023,7 +11023,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.55;
   margin: 0;
 }
-.set-detail-equivalences,
 .set-detail-link-list,
 .set-detail-cross-links,
 .set-detail-equivalent-names {
@@ -11031,7 +11030,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding-left: 22px;
   margin: 0;
 }
-.set-detail-equivalences li,
 .set-detail-link-list li,
 .set-detail-cross-links li,
 .set-detail-equivalent-names li {

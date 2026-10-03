@@ -117,12 +117,6 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toMatch(/Stepping combined with a paradox-style orientation change/);
   });
 
-  it('renders derived systems as anchor links to /freestyle/sets/<slug>', async () => {
-    const res = await page('/freestyle/sets/pixie');
-    // pixie lists terraging, sailing, etc. as derived
-    expect(res.text).toMatch(/href="\/freestyle\/sets\/terraging"/);
-  });
-
   it('renders related systems for sets that have them', async () => {
     const res = await page('/freestyle/sets/pixie');
     // pixie's related: fairy
@@ -317,14 +311,17 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
     expect(res.text).toContain('illusioning is the outward dex realized standalone, not another name for atomic');
   });
 
-  it('keeps the equivalent name out of the structural Equivalence readings slot', async () => {
-    const res = await page('/freestyle/sets/atomic');
-    // The structural ≡ slot stays its own section with its own reading...
-    expect(res.text).toContain('Equivalence readings');
-    expect(res.text).toContain('Toe set Illusion');
-    // ...and the equivalent NAME does not leak into that structural slot.
-    const structuralSlot = res.text.split('Equivalence readings')[1]?.split('</section>')[0] ?? '';
-    expect(structuralSlot).not.toContain('Illusioning');
+  it('renders no equivalence-reading or derived-system section; those stay curator reference data', async () => {
+    // The structural readings and derived-system lists read as internal
+    // reference to a casual visitor; a set page keeps its names, related
+    // systems and example tricks instead.
+    for (const slug of ['atomic', 'pixie', 'stepping']) {
+      const res = await page(`/freestyle/sets/${slug}`);
+      expect(res.status).toBe(200);
+      expect(res.text, slug).not.toContain('<h2>Equivalence readings</h2>');
+      expect(res.text, slug).not.toContain('<h2>Derived systems</h2>');
+      expect(res.text, slug).toContain('aria-label="Example tricks"');
+    }
   });
 
   it('a set without equivalent names (pixie) does not render the section', async () => {
@@ -384,8 +381,6 @@ const SET_PARITY_ORDER = [
   'aria-label="Formula"',
   'aria-label="Movement explanation"',
   'aria-label="Equivalent names"',
-  'aria-label="Equivalence readings"',
-  'aria-label="Derived systems"',
   'aria-label="Related systems"',
   'aria-label="Example tricks"',
   'aria-label="Cross-references"',
@@ -429,7 +424,7 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
     // equivalent-name section under current doctrine.
     expect(present).not.toContain('aria-label="Equivalent names"');
     expect(present).not.toContain('aria-label="Movement explanation"');
-    expect(present).toContain('aria-label="Equivalence readings"');
+    expect(present).toContain('aria-label="Example tricks"');
   });
 });
 
@@ -528,10 +523,10 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
     }
   });
 
-  it('keeps the structural reference layer (derived systems, cross-references, provenance) below the teaching layer', async () => {
+  it('keeps the reference layer (cross-references, provenance) below the teaching layer', async () => {
     const res = await page('/freestyle/sets/stepping');
-    expect(res.text).toContain('Derived systems');
     expect(res.text).toContain('Cross-references');
+    expect(res.text).toContain('class="set-detail-provenance"');
     expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('Cross-references'));
   });
 });

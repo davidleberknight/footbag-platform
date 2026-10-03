@@ -856,7 +856,6 @@ set-detail
 set-detail-citation
 set-detail-component-note
 set-detail-cross-links
-set-detail-equivalences
 set-detail-equivalent-names
 set-detail-equivalent-note
 set-detail-equivalent-structural

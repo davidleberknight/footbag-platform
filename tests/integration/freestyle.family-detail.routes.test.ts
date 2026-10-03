@@ -242,18 +242,28 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     expect(notationAt).toBeGreaterThan(physicalAt);
   });
 
-  it('states the one-family ruling as prose, not inside an observational badge', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('By expert ruling the downs are a single structural decomposition');
-    expect(res.text).not.toContain('One decomposition, four variants');
-    expect(res.text).not.toContain('glossary-layer-badge--observational');
+  it('renders none of the structural-reference sections, and no observational badge', async () => {
+    // The formula block, signature or model, atlas lines and observational notes
+    // read as internal reference to a casual visitor; the formula itself stays
+    // under the notation reference.
+    for (const slug of ['down', 'osis', 'pickup']) {
+      const res = await page(`/freestyle/families/${slug}`);
+      expect(res.status).toBe(200);
+      for (const heading of ['Canonical formula', 'Structural signature', 'Structural model', 'Atlas relationship', 'Observational notes']) {
+        expect(res.text, `${slug}: ${heading}`).not.toContain(`<h2>${heading}</h2>`);
+      }
+      expect(res.text, slug).not.toContain('glossary-layer-badge--observational');
+      expect(res.text, slug).toContain('<h2>Notation reference</h2>');
+    }
   });
 
-  it('renders the four-variant grid under the structural-model section', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('Structural model');
-    expect(res.text).toContain('Toe set, setting-side leg');
-    expect(res.text).toContain('Clipper set, other leg');
+  it('opens "What is a ...?" with the family\'s plain reading where the card authors one', async () => {
+    const res = await page('/freestyle/families/pickup');
+    const whatIs = res.text.indexOf('<h2>What is a Pickup?</h2>');
+    expect(whatIs, 'the What-is section renders').toBeGreaterThan(-1);
+    const reading = res.text.indexOf('One inward dexterity, caught by the dexing foot.');
+    expect(reading).toBeGreaterThan(whatIs);
+    expect(reading).toBeLessThan(res.text.indexOf('</section>', whatIs));
   });
 
   it('renders the recognition cues, distinct from execution', async () => {
@@ -362,13 +372,6 @@ describe('GET /freestyle/families/osis — a generative-tree teaching page (cont
     expect(res.text).toContain('so much of the advanced vocabulary grows out of it');
     expect(res.text).toContain('a spin that resolves into a clipper stall');
     expect(res.text).toContain('defined by that ending, not by the way the player enters it');
-  });
-
-  it('renders the structural model as a generative tree: prose, no variant grid', async () => {
-    const res = await page('/freestyle/families/osis');
-    expect(res.text).toContain('Structural model');
-    expect(res.text).toContain('Osis is a destination');
-    expect(res.text).toContain('why osis is called a base');
   });
 
   it('makes recognition visual and entry-independent', async () => {
