@@ -153,7 +153,7 @@ export interface UptimeReinterpretationLadder {
   /**
    * Optional honest-conflict note. Non-null when this reading is
    * NOT the only published reading and the disagreement is worth
-   * surfacing inline. Used sparingly; the full audit lives in §4.
+   * surfacing inline. Used sparingly.
    */
   conflictNote: string | null;
 }
@@ -341,15 +341,16 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       'Both readings share the SPIN [BOD] entry; they disagree on whether the terminal dex reads as miraging (SET-led) or stepping (CLIP-led).',
     ],
     sourceCitation:  'Holden\'s compilation and later platform analysis.',
-    conflictNote:    'Surfaced as a documented disagreement, not normalized. See §4 (Consistency audit) below for the full Holden / platform comparison.',
+    conflictNote:    'Surfaced as a documented disagreement, not normalized.',
   },
 ];
 
 // ─────────────────────────────────────────────────────────────────────
-// §4  Consistency audit: Holden ⇄ platform
+// Holden ⇄ platform audit
 //
-// Single source of truth for the audit table rendered on
-// /freestyle/compositional-sets §4.
+// Curator-maintained audit of Holden's compilation against the platform's
+// readings. It is not rendered publicly; the doctrine checks over it keep a
+// ruled set from being filed as Holden-only.
 //
 // Categorization discipline (locked):
 //   - Notation match + decomposition match           → 'aligned'

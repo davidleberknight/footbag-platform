@@ -4946,162 +4946,12 @@ a.hashtag--media:hover {
   font-style: italic;
 }
 
-/* §4 audit: compact dl summary + status-badged row list. Status badge
-   colors echo the ladder accents: green=aligned, neutral=partial,
-   dashed-grey=conflict, light-grey=Holden-only. No warm palette. */
-.compositional-sets-audit-intro {
-  max-width: 720px;
-  margin: 0 0 1rem;
-  color: var(--text-secondary);
-}
-.compositional-sets-audit-summary {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 14px;
-  margin: 0 0 1.25rem;
-  padding: 14px 18px;
-  background: var(--slate-50);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  max-width: 720px;
-}
-.compositional-sets-audit-summary dt {
-  font-weight: 600;
-  color: var(--text-strong);
-}
-.compositional-sets-audit-summary dd {
-  margin: 0;
-  color: var(--text-secondary);
-}
-.compositional-sets-audit-summary-context {
-  margin-left: 4px;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-.compositional-sets-audit-headline-intro {
-  margin: 0 0 0.75rem;
-  font-size: 1rem;
-  color: var(--text-secondary);
-}
-
-.compositional-sets-audit-rows {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1rem;
-}
-.compositional-sets-audit-row {
-  margin: 0 0 12px;
-  padding: 12px 16px;
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border);
-  border-radius: var(--radius-xs);
-}
-.compositional-sets-audit-row--aligned {
-  border-left-color: var(--accent);
-}
-.compositional-sets-audit-row--partial {
-  border-left-color: var(--slate-400);
-}
-.compositional-sets-audit-row--conflict {
-  border-left-color: var(--slate-400);
-  border-left-style: dashed;
-  border-left-width: 3px;
-}
-.compositional-sets-audit-row--holden-only {
-  border-left-color: var(--slate-300);
-  background: var(--gray-50);
-}
-.compositional-sets-audit-row-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-.compositional-sets-audit-row-name {
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text-strong);
-}
-.compositional-sets-audit-status-badge {
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 8px;
-  border-radius: var(--radius-2xs);
-  background: var(--slate-100);
-  color: var(--text-secondary);
-}
-.compositional-sets-audit-status-badge--aligned {
-  background: var(--success-tint);
-  color: var(--success-text);
-}
-.compositional-sets-audit-status-badge--partial {
-  background: var(--slate-200);
-  color: var(--slate-600);
-}
-.compositional-sets-audit-status-badge--conflict {
-  background: var(--slate-100);
-  color: var(--slate-600);
-  border: 1px dashed var(--slate-400);
-}
-.compositional-sets-audit-status-badge--holden-only {
-  background: var(--slate-100);
-  color: var(--slate-500);
-}
-
-.compositional-sets-audit-row-holden,
-.compositional-sets-audit-row-platform {
-  margin: 4px 0;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-.compositional-sets-audit-row-platform--absent {
-  color: var(--text-muted);
-  font-style: italic;
-}
-.compositional-sets-audit-row-label {
-  font-weight: 600;
-  margin-right: 4px;
-  color: var(--text-strong);
-}
-.compositional-sets-audit-row-note {
-  margin: 6px 0 0;
-  padding: 6px 10px;
-  background: var(--slate-50);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  font-style: italic;
-  line-height: 1.45;
-}
-
-.compositional-sets-audit-full-note {
-  margin: 1rem 0 0;
-  padding: 10px 14px;
-  border-left: 3px solid var(--border);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  max-width: 720px;
-}
-
 @media (max-width: 480px) {
   .compositional-set-grid {
     grid-template-columns: 1fr;
   }
   .compositional-ladder-header {
     flex-direction: column;
-    gap: 4px;
-  }
-  .compositional-sets-audit-summary {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  .compositional-sets-audit-row-header {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 4px;
   }
 }
@@ -11719,7 +11569,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    on the shared tokens. */
 
 /* Deep-linkable browse and feature sections clear the sticky header. */
-.compositional-sets-audit,
 .freestyle-featured,
 /* Every browse-view group section is a deep-link target: the in-page jump bars
    point at it, and readers share the anchor. The site header is sticky, so a
