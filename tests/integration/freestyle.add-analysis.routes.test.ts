@@ -471,12 +471,6 @@ describe('GET /freestyle/add-analysis — interpretation notes + cross-links', (
 });
 
 describe('ADD Analysis discoverability — inbound links', () => {
-  it('freestyle landing surfaces an ADD analysis link in the History & ADD System card', async () => {
-    const res = await page('/freestyle');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/add-analysis"');
-  });
-
   it('Freestyle Concepts ADD Accounting compact-equivalence block links to ADD analysis', async () => {
     const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');

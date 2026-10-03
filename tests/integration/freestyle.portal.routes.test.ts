@@ -350,12 +350,32 @@ describe('GET /freestyle — two-band landing', () => {
       '/freestyle/records',
       '/freestyle/competition',
       '/freestyle/partnerships',
-      '/freestyle/combo-analysis',
-      '/freestyle/add-analysis',
+      '/freestyle/about',
       '/freestyle/by-the-numbers',
     ]) {
       expect(res.text, `Banner 2 href ${href}`).toContain(`href="${href}"`);
     }
+  });
+
+  it('keeps the landing to one tile per destination, and Record Leaders stays reachable from Records', async () => {
+    // Merged or dropped tiles: a second tile for a page another tile already
+    // covers, or for a page well linked elsewhere, is what made the landing a
+    // wall of near-duplicates.
+    const landing = await page('/freestyle');
+    for (const href of [
+      '/freestyle/leaders',
+      '/freestyle/add-analysis',
+      '/freestyle/combo-analysis',
+      '/media/browse?tag=freestyle',
+    ]) {
+      expect(landing.text, `landing tile for ${href}`).not.toContain(`href="${href}"`);
+    }
+    // Emerging Vocabulary keeps its tile: no other page links to it.
+    expect(landing.text).toContain('href="/freestyle/observational"');
+    // The Leaders page lost its landing tile, so Records must carry the way in.
+    const records = await page('/freestyle/records');
+    expect(records.status).toBe(200);
+    expect(records.text).toContain('href="/freestyle/leaders"');
   });
 
   it('the retired Insights address redirects permanently to By the Numbers and nothing links to it', async () => {
