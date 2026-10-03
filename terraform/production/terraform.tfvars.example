@@ -69,7 +69,7 @@ apex_txt_records = []
 #
 # Read all three values from the fresh zone snapshot, not from memory. Turn the
 # flag on at the zone move and leave it on until the legacy records are removed
-# at post-cutover cleanup: the MX and apex TXT count on it too, so clearing it
+# in the launch apply: the MX and apex TXT count on it too, so clearing it
 # while legacy mail is still a rollback target turns a mail-flag revert into a
 # deletion of those records rather than a restore.
 enable_legacy_mirror_records = false
@@ -122,7 +122,8 @@ legacy_mirror_txt_records = {
 }
 
 # The Workspace tenant's own names, kept apart from the legacy mirror so the
-# post-cutover cleanup leaves them.
+# launch apply leaves them; each goes when the IFPA secretary rules (my after the
+# apex becomes the Workspace's primary domain, g in the launch apply).
 workspace_mx_records = {
   # my = ["10 ASPMX.L.GOOGLE.COM."]   # the Workspace's own domain, served from
   #                                   # this zone rather than delegated; omitting

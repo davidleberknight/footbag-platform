@@ -8359,8 +8359,6 @@ export const freestyleService = {
         }))
       : [];
 
-    const fmtCount = (n: number): string => n.toLocaleString('en-US');
-
     // Public-family hit counts for the By-family jump menu, derived from the same
     // membership map the browse sections render, so a family's chip count always
     // matches its rendered section count. The map already folds sub-labels (for

@@ -297,7 +297,12 @@ IFPA board member can use the harness efficiently from day one.
 
 **Companion governance lives in this public harness.** The companion repos are reached by
 fixed-name symlinks under this repo's root, so tooling refers to them identically on every
-machine while only the symlink's target stays machine-local. Their governance — how to touch the
+machine while only the symlink's target stays machine-local. The private checkout has one standard
+place, a sibling clone named `footbag-ops`, which the setup script defaults to. The committed
+settings name that sibling as well as the symlink as working directories, because Claude Code
+checks an edit through a symlink against both the link and the real file, and allows it only when
+both are covered. A private checkout anywhere else still works for Terraform, but every Claude edit
+into it prompts. Their governance — how to touch the
 files, how the tracker is read — lives here (`.claude/rules/private-repo.md`, the `tracker-ops`
 skill, and `legacy_data/CLAUDE.md`), never in a companion's own `CLAUDE.md`: a directory added
 with `permissions.additionalDirectories` does not auto-load its `CLAUDE.md`/rules (only `--add-dir`

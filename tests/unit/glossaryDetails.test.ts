@@ -2,13 +2,12 @@
  * Unit tests for the glossary deep-link opener at
  * src/public/js/glossary-details.js.
  *
- * Freestyle Concepts presents its content as collapsible chapters (<details>),
- * and the Trick Dictionary folds Reading the Dictionary into one. Content
- * inside a closed <details> is not rendered, so a deep link to an id inside a
- * collapsed chapter would land on hidden content. The script opens every
- * <details> ancestor of the URL-fragment target (including nested chapters) and
- * scrolls to it, on load and on hashchange, and no-ops on pages carrying
- * neither surface.
+ * Freestyle Concepts presents its content as collapsible chapters (<details>).
+ * Content inside a closed <details> is not rendered, so a deep link to an id
+ * inside a collapsed chapter would land on hidden content. The script opens
+ * every <details> ancestor of the URL-fragment target (including nested
+ * chapters) and scrolls to it, on load and on hashchange, and no-ops off the
+ * glossary page.
  *
  * happy-dom is not a real browser, but the script only reads location.hash and
  * toggles <details>.open on DOM nodes, which are fully observable here.
@@ -115,21 +114,5 @@ describe('glossary-details.js — deep-link opener', () => {
     const events = spy.mock.calls.map((c) => c[0]);
     expect(events).not.toContain('hashchange');
     expect(events).not.toContain('DOMContentLoaded');
-  });
-
-  it('also arms on a page carrying the Reading the Dictionary disclosure and opens it when targeted', () => {
-    document.body.innerHTML = `
-      <div class="wrapper">
-        <details class="dict-tile" id="reading-the-dictionary">
-          <summary>Reading the Dictionary</summary>
-          <section id="section-reading-the-dictionary"><p>content</p></section>
-        </details>
-      </div>`;
-    const spy = vi.spyOn(window, 'addEventListener');
-    runScript();
-    expect(spy.mock.calls.map((c) => c[0])).toContain('hashchange');
-    setHash('#reading-the-dictionary');
-    window.dispatchEvent(new Event('DOMContentLoaded'));
-    expect((document.getElementById('reading-the-dictionary') as HTMLDetailsElement).open).toBe(true);
   });
 });

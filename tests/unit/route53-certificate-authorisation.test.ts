@@ -13,7 +13,7 @@
  *
  * Why the half in the zone matters. Roughly forty legacy names are mirrored into
  * the zone and resolve to hosts IFPA does not control, and they stand until the
- * post-cutover cleanup. This record stops any authority but the permitted one
+ * launch apply. This record stops any authority but the permitted one
  * issuing for them; certificate transparency shows one of those names held a
  * certificate from another authority in 2015 and 2016. A host answering over
  * HTTPS under the domain receives the archive's access cookies, which carry the

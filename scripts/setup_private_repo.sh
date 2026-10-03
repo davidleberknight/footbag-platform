@@ -47,15 +47,15 @@
 # because a correct link is correct whether or not its siblings exist yet.
 #
 # Usage:
-#   bash scripts/setup_private_repo.sh --private-repo ../ops
-#   bash scripts/setup_private_repo.sh --private-repo ../ops \
-#     --legacy-repo ../legacy
+#   bash scripts/setup_private_repo.sh
+#   bash scripts/setup_private_repo.sh --legacy-repo ../legacy
 #   bash scripts/setup_private_repo.sh --check
 #
 # Flags:
-#   --private-repo <path>  The companion operations checkout. Required unless
-#                          --check, or unless the root link already points at a
-#                          directory, in which case that is reused.
+#   --private-repo <path>  The companion operations checkout. Defaults to the
+#                          standard sibling clone, ../footbag-ops, which the
+#                          harness settings also name; if the root link already
+#                          points at a directory, that is reused instead.
 #   --legacy-repo <path>   The read-only legacy site clone. Optional: it is
 #                          needed only for historical-pipeline work, and a
 #                          developer without it is a supported configuration.
@@ -146,13 +146,19 @@ if [[ -z "$PRIVATE_REPO" && -L "footbag_private_repo" && -d "footbag_private_rep
   PRIVATE_REPO="$(readlink -- "footbag_private_repo")"
 fi
 
+# Otherwise the standard layout: the companion checkout cloned beside this one
+# under its repository name. The harness settings name the same sibling, so
+# Claude Code can edit through the root link without a prompt per edit; a
+# checkout anywhere else works for terraform but not for that.
+DEFAULT_PRIVATE_REPO="../footbag-ops"
 if [[ -z "$PRIVATE_REPO" && "$CHECK_ONLY" -eq 0 ]]; then
-  echo "ERROR: --private-repo is required, and there is no default." >&2
-  echo "       Where the companion checkout lives is a property of this" >&2
-  echo "       machine, and guessing at it is how a link comes to point at" >&2
-  echo "       nothing. Clone it as a sibling and name it:" >&2
-  echo "         bash scripts/setup_private_repo.sh --private-repo ../ops" >&2
-  exit 2
+  if [[ ! -d "$DEFAULT_PRIVATE_REPO" ]]; then
+    echo "ERROR: no companion checkout at the standard place, ${DEFAULT_PRIVATE_REPO}." >&2
+    echo "       Clone the private operations repository beside this one under" >&2
+    echo "       its own name, or name another location with --private-repo." >&2
+    exit 2
+  fi
+  PRIVATE_REPO="$DEFAULT_PRIVATE_REPO"
 fi
 
 # ── State of one link ────────────────────────────────────────────────────────

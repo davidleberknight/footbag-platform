@@ -41,6 +41,7 @@ import {
   readlinkSync,
   lstatSync,
   existsSync,
+  renameSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -183,10 +184,20 @@ describe('setup_private_repo.sh — what it refuses', () => {
     expect(existsSync(join(fakeRepo, 'terraform/shared/terraform.tfvars'))).toBe(false);
   });
 
-  it('refuses without a checkout path, rather than guessing one', () => {
+  it('refuses when no path is given and the standard sibling is absent', () => {
+    // A link to a checkout that is not there points at nothing.
     const r = run(['--yes']);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/--private-repo is required/);
+    expect(r.stderr).toMatch(/no companion checkout at the standard place/);
+    expect(existsSync(join(fakeRepo, 'footbag_private_repo'))).toBe(false);
+  });
+
+  it('wires the standard sibling checkout when no path is given', () => {
+    // The harness settings name ../footbag-ops; a fresh setup must land there.
+    renameSync(privateRepo, join(root, 'footbag-ops'));
+    const r = run(['--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readlinkSync(join(fakeRepo, 'footbag_private_repo'))).toBe('../footbag-ops');
   });
 
   it('refuses a checkout path that is not a directory', () => {

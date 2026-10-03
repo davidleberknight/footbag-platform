@@ -106,7 +106,7 @@ variable "enable_apex_alias_records" {
 }
 
 variable "enable_legacy_mirror_records" {
-  description = "Carry the legacy host's answers in Terraform through the transition, so the zone serves them faithfully from the moment delegation lands and each switch is a Terraform change rather than a console edit. Covers the apex address and www here, and the apex MX and apex SPF in the mail records. On from the zone move until the legacy records are removed at post-cutover cleanup, NOT merely until the alias flip: the mail records count on this flag too, so turning it off while legacy mail can still be rolled back to means reverting the mail flag deletes the MX and apex TXT outright instead of restoring the legacy values."
+  description = "Carry the legacy host's answers in Terraform through the transition, so the zone serves them faithfully from the moment delegation lands and each switch is a Terraform change rather than a console edit. Covers the apex address and www here, and the apex MX and apex SPF in the mail records. On from the zone move until the legacy records are removed in the launch apply (the go-live cutover change), NOT merely until the alias flip: the mail records count on this flag too, so turning it off while legacy mail can still be rolled back to means reverting the mail flag deletes the MX and apex TXT outright instead of restoring the legacy values."
   type        = bool
   default     = false
 }
@@ -230,7 +230,7 @@ variable "legacy_apex_cname_records" {
 # Because each is a CNAME onto one of the two names being switched, the instant
 # the flip lands they follow it to the distribution -- which answers a hostname
 # its certificate does not cover with a refusal rather than a page. So they
-# cannot be deferred to a later cleanup pass: deferring by even an hour means an
+# cannot wait for the launch apply: deferring by even an hour means an
 # hour of visitors reaching an error on names that served a page a moment
 # earlier. The gate for their removal is therefore the flip itself, not the
 # mirror flag, which stays on past the flip because the mail records count on it.
@@ -239,9 +239,9 @@ variable "legacy_apex_cname_records" {
 # Terraform resource, so no apply could remove them.
 #
 # These five are separated from the rest of the mirrored zone because their
-# disposition is fixed by their shape rather than by the cleanup schedule: they
+# disposition is fixed by their shape rather than by the removal schedule: they
 # ride the apex and www, so they leave with them. Every other legacy name is
-# carried by the general mirror below and retires in the later cleanup pass.
+# carried by the general mirror below and retires in the launch apply.
 resource "aws_route53_record" "legacy_apex_cnames" {
   for_each = var.enable_legacy_mirror_records && !local.apex_alias_mode ? var.legacy_apex_cname_records : {}
 
@@ -270,8 +270,8 @@ resource "aws_route53_record" "legacy_apex_cnames" {
 # moment delegation lands -- including the account needed to recover
 # administrative control of that Workspace.
 #
-# These names retire in the post-cutover cleanup pass rather than at the alias
-# flip, so they are gated on the mirror flag alone. The mail-carrying ones among
+# These names retire in the launch apply (the go-live cutover change) rather
+# than at the alias flip, so they are gated on the mirror flag alone. The mail-carrying ones among
 # them are removed only after inbound mail has moved, never before, or an address
 # is left with no delivery path.
 #
@@ -362,13 +362,16 @@ resource "aws_route53_record" "legacy_mirror_txt" {
 # ── Google Workspace tenant names ────────────────────────────────────────────
 # The Workspace tenant's own domains and their site aliases are IFPA's
 # infrastructure rather than the legacy operator's, so they are not part of the
-# legacy mirror and the post-cutover cleanup that clears the mirror leaves them.
+# legacy mirror and the launch apply that clears the mirror leaves them.
 # Clearing them with it would stop every mailbox and group still addressed at
-# them. Each retires only by removing its entry from these maps, after the
-# Workspace itself has let that domain go: console first, records after.
+# them. Each retires only by removing its entry from these maps, when the IFPA
+# secretary rules: the `my` entries stay until the Workspace's primary domain is
+# the apex, so no `@my` mailbox loses delivery first, while the `g` entries
+# leave in the launch apply once IFPA's material is off that domain, ahead of
+# its removal in the console.
 
 variable "workspace_mx_records" {
-  description = "Google Workspace tenant names carrying mail routing, as name => list of MX strings. Not gated on the legacy mirror: these outlive the post-cutover cleanup and retire only by removing the entry, after the Workspace has released the domain."
+  description = "Google Workspace tenant names carrying mail routing, as name => list of MX strings. Not gated on the legacy mirror: these outlive the launch apply's mirror removal and retire only by removing the entry, when the IFPA secretary rules (my after the apex becomes the Workspace's primary domain; g in the launch apply)."
   type        = map(list(string))
   default     = {}
 }
@@ -642,7 +645,7 @@ resource "aws_route53_record" "origin_caa" {
 # ancestor's rather than adding to it.
 #
 # What it buys across that window: the mirrored legacy names resolve to hosts IFPA
-# does not control and stand until the post-cutover cleanup, which is AFTER the
+# does not control and stand until the launch apply, which is AFTER the
 # flip. This record stops any authority but Amazon's issuing for them, and
 # certificate transparency shows one of them, rimu2.footbag.org, held a
 # certificate from another authority in 2015 and 2016. A certificate obtained
