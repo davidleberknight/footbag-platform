@@ -334,26 +334,17 @@ describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descen
     expect(html).not.toContain('href="/freestyle/tricks?view=topology"');
   });
 
-  it('renders the family histogram with the two surface roots leading the families', async () => {
-    const html = await concepts();
-    expect(html).toContain('gloss-histogram');
-    // The two grandparent surfaces lead, marked as a distinct tier with a full bar.
-    expect(html).toMatch(/gloss-histogram-row--surface[\s\S]{0,200}Clipper Stall[\s\S]{0,200}gloss-bar-count">328/);
-    expect(html).toContain('gloss-bar-fill--w100');
-    // The family bars beneath them are measured live from the dictionary; the
-    // family-histogram route suite seeds families and pins those counts.
-    // The paragraph reframes the roster as measured rather than curator-picked.
-    expect(html).toMatch(/too broad to be families/);
-  });
-
-  it('renders the entry histogram in the timing-and-sets section', async () => {
+  it('teaches how tricks begin and end in prose, with no bar charts or hand-entered counts', async () => {
+    // The charts live on By the Numbers; a chart or a frozen count back on
+    // Concepts would put a second, drifting copy of those figures in front of
+    // readers.
     const html = await concepts();
     expect(html).toContain('How tricks begin');
-    expect(html).toMatch(/<dt>Toe set<\/dt>[\s\S]{0,200}gloss-bar-count">207/);
-    for (const label of ['Symposium', 'Pixie', 'Stepping', 'Furious']) {
-      expect(html, `entry system ${label}`).toContain(`<dt>${label}</dt>`);
+    expect(html).not.toMatch(/class="[^"]*(gloss-histogram|gloss-bar)/);
+    expect(html).not.toContain('id="how-widely-systems-appear"');
+    for (const frozen of ['(207)', '(197)', '(328)', '(252)']) {
+      expect(html, `hand-entered count ${frozen}`).not.toContain(frozen);
     }
-    expect(html).toMatch(/the ending mirrors it/);
   });
 });
 

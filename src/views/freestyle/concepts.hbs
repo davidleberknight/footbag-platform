@@ -584,18 +584,9 @@
       <dd>How quickly a player begins the next phase's component. A transition that has to fire aggressively (like attacking the mirage quickly after the stepping set in Blur) is said to need a fast attack.</dd>
     </dl>
 
-    {{! Entry histogram: measured set frequency }}
     <h3 class="section-heading">How tricks begin</h3>
-    <dl class="gloss-histogram" aria-label="Set surfaces and set systems by number of documented tricks">
-      {{#each content.entryHistogram}}
-      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
-        <dt>{{label}}</dt>
-        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
-      </div>
-      {{/each}}
-    </dl>
     <p>
-      Two set surfaces dominate how tricks begin: toe (207) and clipper (197).
+      Two set surfaces dominate how tricks begin: toe and clipper.
       The launch sets Pixie, Fairy, and Stepping recur widely, with operators
       such as Paradox and Symposium layered alongside them. The set surface
       itself is too broad to be a system; the systems are what players layer on
@@ -745,54 +736,6 @@
       <a href="/freestyle/tricks?view=set">By set</a> and a body or timing
       ecosystem under <a href="/freestyle/tricks?view=modifier">By modifier</a>.
     </p>
-
-    {{! Operator/set-system histogram: a second rendering of the shared landing-band
-        model (buildFreestyleByNumbers operatorGroups), bucketed on one scale by the
-        same topologyHistogramRows helper the family/entry histograms use. }}
-    <h3 class="section-heading" id="how-widely-systems-appear">How widely the systems appear</h3>
-    <p>
-      The same set and modifier systems recur across many unrelated base tricks.
-      These live counts show how much of the documented vocabulary carries each
-      system: documented decomposition coverage across the public canonical
-      vocabulary, read from the same shared data as the live charts on the
-      <a href="/freestyle">Freestyle overview</a>.
-    </p>
-    <p class="detail-muted">
-      The split into two groups below is a pedagogical reading aid for this chart,
-      not a canonical classification. A system&rsquo;s authoritative role lives in the
-      <a href="/freestyle/operators">Operators &amp; Modifiers reference</a>; the chart
-      separates launch sets from body operators only to show how differently the two
-      kinds of system spread across the vocabulary.
-    </p>
-
-    <h4>Body and movement operators</h4>
-    <p class="detail-muted">Transformations layered on a base trick already under way.</p>
-    <dl class="gloss-histogram" aria-label="Body and movement operators by number of documented tricks">
-      {{#each content.operatorSystemHistogram.operators}}
-      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
-        <dt>{{label}}</dt>
-        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
-      </div>
-      {{/each}}
-    </dl>
-
-    <h4>Entry, launch, and support systems</h4>
-    <p class="detail-muted">Named systems that shape how a trick begins or constrain the body and support relationship around its dexes. This group includes launch sets as well as Paradox and Symposium, which are operators rather than sets.</p>
-    <dl class="gloss-histogram" aria-label="Entry, launch, and support systems by number of documented tricks">
-      {{#each content.operatorSystemHistogram.setSystems}}
-      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
-        <dt>{{label}}</dt>
-        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
-      </div>
-      {{/each}}
-    </dl>
-
-    <p class="detail-muted">
-      These counts use explicit editorial decomposition links. Some structurally
-      compound tricks do not yet carry a complete link record, so the chart shows
-      documented coverage rather than every possible occurrence.
-    </p>
-
 
     <h3 class="section-heading" id="lineage-or-ecosystem">Lineage or ecosystem? A test you can apply</h3>
     <p>
@@ -996,30 +939,14 @@
       conserved-terminal lineage below the threshold is a
       <strong>Minor Lineage</strong>. This is the same set the dictionary&rsquo;s
       <a href="/freestyle/tricks?view=family">By family</a> browse uses, so this
-      roster and the dictionary roster always match:
+      roster and the dictionary roster always match.
     </p>
-
-    {{! Family histogram: terminal surfaces, then families by measured membership }}
-    <dl class="gloss-histogram" aria-label="Terminal surfaces and family lineages by measured family membership">
-      {{#each content.familyHistogram}}
-      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
-        <dt>{{label}}</dt>
-        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
-      </div>
-      {{/each}}
-    </dl>
     <p>
       Just as two surfaces dominate how tricks begin, two dominate how they end:
-      clipper stall (328) and toe stall (252) catch nearly every trick. The
+      clipper stall and toe stall catch nearly every trick. The
       families below are the largest distinct lineages that resolve onto those
       two surfaces, which are themselves too broad to be families (that is why
-      they are not family cards). This roster is not curator-picked; it is what
-      the documented vocabulary measures. Family size is measured from the
-      current public family-membership topology the
-      <a href="/freestyle/tricks?view=family">By family</a> browse uses,
-      including curated branch folding and the public family mappings, so
-      sub-families such as Torque and Blender are nested under a root family and
-      their tricks are counted within the parent&rsquo;s bar as well.
+      they are not family cards).
     </p>
     <p class="detail-muted glossary-family-roster">
       {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}

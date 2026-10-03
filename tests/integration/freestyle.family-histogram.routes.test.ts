@@ -1,8 +1,7 @@
 /**
  * The family-endings chart measures the dictionary as it stands.
  *
- * By the Numbers and the Concepts page both draw a bar per public browse
- * family, sized by that family's membership as the family browse renders it:
+ * By the Numbers draws a bar per public browse family, sized by that family's membership as the family browse renders it:
  * a branch's tricks count toward its parent root too, and a family below the
  * browse's three-member floor gets no bar. The counts are measured when the page
  * is requested, so a trick added to a family moves its bar on the next request,
@@ -54,23 +53,13 @@ async function byNumbersFamilyBars(): Promise<Map<string, number>> {
   )].map(m => [m[1]!, Number(m[2])]));
 }
 
-/** The Concepts page's family chart, as label → count. */
-async function conceptsFamilyBars(): Promise<Map<string, number>> {
-  const res = await request(await createApp()).get('/freestyle/concepts');
-  expect(res.status).toBe(200);
-  return new Map([...res.text.matchAll(
-    /gloss-histogram-row--family[^>]*>\s*<dt>([^<]+)<\/dt>[\s\S]*?gloss-bar-count">(\d+)</g,
-  )].map(m => [m[1]!, Number(m[2])]));
-}
-
 describe('family-endings chart', () => {
   it('sizes a root family by its folded membership and gives a family below the floor no bar', async () => {
     // A plain family-column tally would read Osis 3; a bar for Torque would
     // chart a family the browse does not show.
-    for (const bars of [await byNumbersFamilyBars(), await conceptsFamilyBars()]) {
-      expect(bars.get('Osis')).toBe(5);
-      expect(bars.has('Torque')).toBe(false);
-    }
+    const bars = await byNumbersFamilyBars();
+    expect(bars.get('Osis')).toBe(5);
+    expect(bars.has('Torque')).toBe(false);
   });
 
   it('keeps the hand-authored surface bars leading the family bars on By the Numbers', async () => {
@@ -84,9 +73,8 @@ describe('family-endings chart', () => {
     const db = new BetterSqlite3(dbPath);
     seedTrick(db, 'zeta_torque_c', 'torque');
     db.close();
-    for (const bars of [await byNumbersFamilyBars(), await conceptsFamilyBars()]) {
-      expect(bars.get('Torque')).toBe(3);
-      expect(bars.get('Osis')).toBe(6);
-    }
+    const bars = await byNumbersFamilyBars();
+    expect(bars.get('Torque')).toBe(3);
+    expect(bars.get('Osis')).toBe(6);
   });
 });

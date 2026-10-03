@@ -406,9 +406,6 @@ gallery-tile-play
 gallery-tile-set-link
 gallery-tile-tag
 gallery-tile-tags
-gloss-bar
-gloss-bar-count
-gloss-histogram
 glossary-about-framing
 glossary-add-example-add
 glossary-add-example-card
