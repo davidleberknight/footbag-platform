@@ -1401,10 +1401,9 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     expect(res.text).toContain('id="section-run-architecture"');
   });
 
-  it('history page links to the ADD analysis and Insights pages as its difficulty evidence', async () => {
+  it('history page links to the ADD analysis page as its difficulty evidence', async () => {
     const res = await page('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/add-analysis"');
-    expect(res.text).toContain('href="/freestyle/insights"');
     // The narrative history page no longer routes readers through a run-quality anchor.
     expect(res.text).not.toContain('/freestyle/combo-analysis#run-quality');
     expect(res.text).not.toContain('/freestyle/glossary#run-quality');

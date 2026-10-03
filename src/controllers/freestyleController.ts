@@ -178,14 +178,9 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/insights */
-  insights(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getFreestyleInsightsPage();
-      res.render('freestyle/insights', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
+  /** GET /freestyle/insights — retired; By the Numbers carries the live corpus statistics. */
+  insights(_req: Request, res: Response): void {
+    res.redirect(301, '/freestyle/by-the-numbers');
   },
 
   /** GET /freestyle/by-the-numbers */

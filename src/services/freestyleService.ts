@@ -18,7 +18,7 @@
  *     (getCanonicalSetDetailPage), /freestyle/sets/reference (getMovesPage),
  *     /freestyle/compositional-sets (getCompositionalSetsPage).
  *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/leaders (getLeadersPage),
- *     /freestyle/competition, /freestyle/partnerships, /freestyle/insights, /freestyle/add-analysis
+ *     /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
  *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
  *     /freestyle/by-the-numbers (getByTheNumbersPage).
  *   - Pedagogy: /freestyle/learn (getSymbolicLearnPage), /freestyle/progression/walking-family,
@@ -52,10 +52,7 @@ import {
   FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
   FreestyleTrickModifierLinkRow, FreestyleTrickModifierLinkDetailRow,
   FreestyleModifierLinkPairRow,
-  FreestyleModifierUsageRow,
-  FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
-  FreestyleMilestoneRow, FreestyleCareerRow, FreestyleNationRow,
-  FreestyleWorldChampionRow, FreestyleDecadeNationRow, FreestyleFormatEventRow,
+  FreestyleRecentEventRow, FreestyleWorldChampionRow,
   FreestylePartnershipRow,
   freestyleRecords, freestyleTricks, freestyleTrickModifiers, freestyleTrickAliases,
   freestyleTrickTips,
@@ -301,16 +298,6 @@ import {
   SymbolicLearnIndexContent,
   buildSymbolicLearnIndex,
 } from './symbolicLearnIndex';
-import {
-  InsightsTrick,
-  InsightsTransition,
-  InsightsSequence,
-  INSIGHTS_MOST_USED,
-  INSIGHTS_CONNECTORS,
-  INSIGHTS_TRANSITIONS,
-  INSIGHTS_SEQUENCES,
-} from '../content/freestyleEditorial';
-
 // ---------------------------------------------------------------------------
 // Record type labels
 // ---------------------------------------------------------------------------
@@ -3298,43 +3285,8 @@ export interface FreestyleFamilyDetailContent {
 }
 
 // ---------------------------------------------------------------------------
-// Freestyle Insights types (service-layer constants, not DB-backed)
-// ---------------------------------------------------------------------------
-
-export interface InsightsModifier {
-  rank:  number;
-  name:  string;
-  type:  string;   // pre-shaped label, e.g. "body modifier"
-  count: number;
-}
-
-export interface FreestyleInsightsContent {
-  mostUsed:          InsightsTrick[];
-  mostUsedModifiers: InsightsModifier[];
-  connectors:        InsightsTrick[];
-  transitions:       InsightsTransition[];
-  notableSequences:  InsightsSequence[];
-}
-
-// ---------------------------------------------------------------------------
 // Competition content types (canonical-results-derived)
 // ---------------------------------------------------------------------------
-
-export interface FreestyleCompetitorViewModel {
-  personId: string;
-  name: string;
-  country: string | null;
-  golds: number;
-  silvers: number;
-  bronzes: number;
-  totalPodiums: number;
-  profileHref: string | null;    // /members/{slug} if claimed, else /history/:personId
-}
-
-export interface FreestyleEraViewModel {
-  era: string;
-  events: number;
-}
 
 export interface FreestyleRecentEventViewModel {
   eventId:    string;
@@ -3346,11 +3298,9 @@ export interface FreestyleRecentEventViewModel {
 }
 
 export interface FreestyleFormatViewModel {
-  key:        string;
-  name:       string;
-  blurb:      string;
-  eventCount: number;   // live prevalence in documented events; 0 if none found
-  eventLabel: string;   // pre-shaped, e.g. "20 documented events" or "" when 0
+  key:   string;
+  name:  string;
+  blurb: string;
 }
 
 export interface FreestyleMilestoneEntry {
@@ -3362,37 +3312,10 @@ export interface FreestyleMilestoneEntry {
   profileHref: string | null;
 }
 
-export interface FreestyleMilestoneBucket {
-  key:       string;
-  title:     string;
-  valueLabel: string;    // column header for `value`
-  entries:   FreestyleMilestoneEntry[];
-}
-
-export interface FreestyleNationViewModel {
-  rank:        number;
-  country:     string;
-  podiums:     number;
-  golds:       number;
-  competitors: number;
-}
-
-export interface FreestyleDecadeNationViewModel {
-  decade:      string;
-  nationCount: number;
-  nations:     { country: string; podiums: number }[];
-}
-
 export interface FreestyleCompetitionContent {
   formats:           FreestyleFormatViewModel[];
-  topCompetitors:    FreestyleCompetitorViewModel[];
-  milestones:        FreestyleMilestoneBucket[];
-  nations:           FreestyleNationViewModel[];
   worldChampions:    FreestyleMilestoneEntry[];
-  geographyByDecade: FreestyleDecadeNationViewModel[];
-  eventsByEra:       FreestyleEraViewModel[];
   recentEvents:      FreestyleRecentEventViewModel[];
-  totalEvents:       number;
   dataNote:          string;
 }
 
@@ -8019,33 +7942,9 @@ export const freestyleService = {
   },
 
   getFreestyleCompetitionPage(): PageViewModel<FreestyleCompetitionContent> {
-    const competitorRows = runSqliteRead('freestyleCompetition.listTopCompetitors', () =>
-      freestyleCompetition.listTopCompetitors.all() as FreestyleCompetitorRow[],
-    );
-    const eraRows = runSqliteRead('freestyleCompetition.listEventsByEra', () =>
-      freestyleCompetition.listEventsByEra.all() as FreestyleEraRow[],
-    );
     const recentRows = runSqliteRead('freestyleCompetition.listRecentEvents', () =>
       freestyleCompetition.listRecentEvents.all() as FreestyleRecentEventRow[],
     );
-
-    const totalEvents = eraRows.reduce((sum, r) => sum + r.events, 0);
-
-    const topCompetitors: FreestyleCompetitorViewModel[] = competitorRows.map(r => ({
-      personId:     r.person_id,
-      name:         r.person_name,
-      country:      r.country,
-      golds:        r.golds,
-      silvers:      r.silvers,
-      bronzes:      r.bronzes,
-      totalPodiums: r.total_podiums,
-      profileHref:  personHref(r.member_slug, r.person_id),
-    }));
-
-    const eventsByEra: FreestyleEraViewModel[] = eraRows.map(r => ({
-      era:    r.era,
-      events: r.events,
-    }));
 
     const recentEvents: FreestyleRecentEventViewModel[] = recentRows.map(r => ({
       eventId:   r.event_id,
@@ -8058,66 +7957,11 @@ export const freestyleService = {
       href:      `/events/${r.tag_normalized.replace('#', '')}`,
     }));
 
-    // Competition formats: static beginner prose, live event prevalence.
-    const formatEventRows = runSqliteRead('freestyleCompetition.listFormatDisciplineEvents', () =>
-      freestyleCompetition.listFormatDisciplineEvents.all() as FreestyleFormatEventRow[],
-    );
-    const formats: FreestyleFormatViewModel[] = COMPETITION_FORMATS.map(f => {
-      const events = new Set<string>();
-      for (const row of formatEventRows) {
-        if (f.match.some(m => row.name.includes(m))) events.add(row.event_id);
-      }
-      const eventCount = events.size;
-      return {
-        key:        f.key,
-        name:       f.name,
-        blurb:      f.blurb,
-        eventCount,
-        eventLabel: eventCount > 0 ? `${eventCount} documented events` : '',
-      };
-    });
-
-    // Milestones: most golds / most podiums / longest careers.
-    const milestoneRows = runSqliteRead('freestyleCompetition.listCompetitorMilestones', () =>
-      freestyleCompetition.listCompetitorMilestones.all() as FreestyleMilestoneRow[],
-    );
-    const careerRows = runSqliteRead('freestyleCompetition.listLongestCareers', () =>
-      freestyleCompetition.listLongestCareers.all() as FreestyleCareerRow[],
-    );
-    const BUCKET = 8;
-    const mostGolds: FreestyleMilestoneEntry[] = [...milestoneRows]
-      .sort((a, b) => b.golds - a.golds || b.total_podiums - a.total_podiums)
-      .slice(0, BUCKET)
-      .map((r, i) => ({
-        rank: i + 1, name: r.person_name, country: r.country,
-        value: r.golds, detail: `${r.total_podiums} podiums`,
-        profileHref: personHref(r.member_slug, r.person_id),
-      }));
-    const mostPodiums: FreestyleMilestoneEntry[] = [...milestoneRows]
-      .sort((a, b) => b.total_podiums - a.total_podiums || b.golds - a.golds)
-      .slice(0, BUCKET)
-      .map((r, i) => ({
-        rank: i + 1, name: r.person_name, country: r.country,
-        value: r.total_podiums, detail: `${r.golds} gold`,
-        profileHref: personHref(r.member_slug, r.person_id),
-      }));
-    const longestCareers: FreestyleMilestoneEntry[] = careerRows.map((r, i) => ({
-      rank: i + 1, name: r.person_name, country: r.country,
-      value: r.span, detail: `${r.first_year}–${r.last_year}`,
-      profileHref: personHref(r.member_slug, r.person_id),
-    }));
-    const milestones: FreestyleMilestoneBucket[] = [
-      { key: 'golds',   title: 'Most Documented Golds',     valueLabel: 'Golds',   entries: mostGolds },
-      { key: 'podiums', title: 'Most Documented Podiums',   valueLabel: 'Podiums', entries: mostPodiums },
-      { key: 'careers', title: 'Longest Documented Careers', valueLabel: 'Years',  entries: longestCareers },
-    ].filter(b => b.entries.length > 0);
-
-    // Most successful nations (by medalist nationality).
-    const nationRows = runSqliteRead('freestyleCompetition.listNationPodiums', () =>
-      freestyleCompetition.listNationPodiums.all() as FreestyleNationRow[],
-    );
-    const nations: FreestyleNationViewModel[] = nationRows.map((r, i) => ({
-      rank: i + 1, country: r.country, podiums: r.podiums, golds: r.golds, competitors: r.competitors,
+    // Competition formats: static beginner prose.
+    const formats: FreestyleFormatViewModel[] = COMPETITION_FORMATS.map(f => ({
+      key:   f.key,
+      name:  f.name,
+      blurb: f.blurb,
     }));
 
     // World champions: wins at World Championship events.
@@ -8129,23 +7973,6 @@ export const freestyleService = {
       value: r.world_titles, detail: r.country ?? '',
       profileHref: personHref(r.member_slug, r.person_id),
     }));
-
-    // Geographic evolution: podiums by medalist nationality and decade.
-    const decadeNationRows = runSqliteRead('freestyleCompetition.listPodiumsByDecadeNation', () =>
-      freestyleCompetition.listPodiumsByDecadeNation.all() as FreestyleDecadeNationRow[],
-    );
-    const decadeMap = new Map<string, { country: string; podiums: number }[]>();
-    for (const r of decadeNationRows) {
-      const list = decadeMap.get(r.decade) ?? [];
-      list.push({ country: r.country, podiums: r.podiums });
-      decadeMap.set(r.decade, list);
-    }
-    const geographyByDecade: FreestyleDecadeNationViewModel[] = [...decadeMap.keys()]
-      .sort()
-      .map(decade => {
-        const all = decadeMap.get(decade)!;
-        return { decade, nationCount: all.length, nations: all.slice(0, 6) };
-      });
 
     return {
       seo: {
@@ -8170,18 +7997,10 @@ export const freestyleService = {
       },
       content: {
         formats,
-        topCompetitors,
-        milestones,
-        nations,
         worldChampions,
-        geographyByDecade,
-        eventsByEra,
         recentEvents,
-        totalEvents,
-        dataNote: 'Freestyle singles only (Open, Intermediate, and Women\'s divisions). All placements ' +
-                  'come directly from documented event results. Nationality is shown where recorded ' +
-                  '(about two thirds of competitors); pre-1997 coverage is sparse and still being recovered ' +
-                  'from the historical archive, so earlier eras are under-represented.',
+        dataNote: 'Freestyle singles only (Open, Intermediate, and Women\'s divisions), from ' +
+                  'documented event results.',
       },
     };
   },
@@ -8990,51 +8809,6 @@ export const freestyleService = {
         modifierIntro,
         setViewIntro,
         familyFilterIntro,
-      },
-    };
-  },
-
-  getFreestyleInsightsPage(): PageViewModel<FreestyleInsightsContent> {
-    // Live dictionary-frequency of modifiers (how many canonical tricks carry
-    // each). This is the one Insights metric that regenerates from the DB; the
-    // sequence-derived tables remain curated until the sequence corpus is live.
-    const modifierRows = runSqliteRead('freestyleTrickModifiers.listModifierUsage', () =>
-      freestyleTrickModifiers.listModifierUsage.all() as FreestyleModifierUsageRow[],
-    );
-    const mostUsedModifiers: InsightsModifier[] = modifierRows.map((r, i) => ({
-      rank:  i + 1,
-      name:  r.modifier_name,
-      type:  r.modifier_type === 'set'  ? 'set primitive'
-           : r.modifier_type === 'body' ? 'body modifier'
-           : r.modifier_type,
-      count: r.trick_count,
-    }));
-
-    return {
-      seo: {
-        title: 'Freestyle Insights',
-        description:
-          'Patterns observed in a documented archive of competitive freestyle footbag sequences: ' +
-          'the tricks, modifiers, and transitions that recur across the record.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_insights',
-        title:      'Freestyle Insights',
-        intro:      'What patterns show up when tricks are strung into sequences, drawn from a documented archive of Sick 3, a three-trick sequence format.',
-      },
-      navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Insights' },
-        ],
-      },
-      content: {
-        mostUsed:          INSIGHTS_MOST_USED,
-        mostUsedModifiers,
-        connectors:        INSIGHTS_CONNECTORS,
-        transitions:       INSIGHTS_TRANSITIONS,
-        notableSequences:  INSIGHTS_SEQUENCES,
       },
     };
   },

@@ -682,7 +682,7 @@ Success Criteria:
 
 Access: Any visitor can read the reference layer without logging in.
 
-Story: As a visitor, I can read the freestyle reference layer (the A–Z glossary, Freestyle Concepts, operators, notation article, scoring and combo analysis, corpus insights) so that I can learn the movement language and how difficulty is derived.
+Story: As a visitor, I can read the freestyle reference layer (the A–Z glossary, Freestyle Concepts, operators, notation article, scoring and combo analysis, corpus statistics) so that I can learn the movement language and how difficulty is derived.
 
 Success Criteria:
 
@@ -694,7 +694,7 @@ Success Criteria:
 - `/freestyle/modifier/{slug}` renders a modifier's detail page: a visitor can open it to read its definition, scoring and structural role, related examples, and any clearly labeled stub state when fuller teaching content is not yet available.
 - `/freestyle/notation-article` reproduces Ben Job's notation article verbatim with its source attribution.
 - `/freestyle/add-analysis` walks worked examples of difficulty scoring against the live dictionary. Every trick reference links to an active canonical page, resolves through an alias to the canonical page when the referenced name is superseded, or renders as plain text; it never links to a page that would 404.
-- `/freestyle/combo-analysis` presents run-level (sequence) analysis; `/freestyle/insights` presents corpus statistics computed from the live dictionary, so counts reflect the loaded data rather than hand-maintained numbers.
+- `/freestyle/combo-analysis` presents run-level (sequence) analysis; `/freestyle/by-the-numbers` presents corpus statistics computed from the live dictionary, so counts reflect the loaded data rather than hand-maintained numbers.
 
 ### V_View_Set_Encyclopedia
 

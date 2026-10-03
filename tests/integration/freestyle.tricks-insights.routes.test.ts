@@ -1,11 +1,10 @@
 /**
- * Integration tests for freestyle trick dictionary and insights pages.
+ * Integration tests for the freestyle trick dictionary.
  *
  * Covers:
  *   GET /freestyle/tricks         — trick dictionary index
  *   GET /freestyle/tricks/:slug   — enhanced trick detail (dict info + records)
- *   GET /freestyle/insights       — editorial insights page (service-layer constants)
- *   GET /freestyle                — landing page highlights (tricks + insights)
+ *   GET /freestyle                — landing page highlights (dictionary tile)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -958,135 +957,11 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/insights', () => {
-  it('shows page title', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Freestyle Insights');
-  });
-
-  it('lede links unfamiliar terms to the glossary', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('href="/freestyle/glossary"');
-  });
-
-  it('shows most-used tricks section', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Commonly Used Tricks');
-    expect(res.text).toContain('whirl');
-    expect(res.text).toContain('blurry whirl');
-  });
-
-  it('shows connector tricks section', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Connector Tricks');
-    expect(res.text).toContain('ripwalk');
-  });
-
-  it('shows transitions section', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Example Transitions');
-    expect(res.text).toContain('blurry whirl');
-  });
-
-  it('shows Example High-ADD Chains as current canonical arithmetic, not historical scores', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Example High-ADD Chains');
-    // The ADD totals are explicitly framed as sums of current canonical values.
-    expect(res.text).toContain('sum of the current canonical ADD values');
-    expect(res.text).toContain('22'); // a kept chain's canonical ADD sum
-    // The corpus player/year provenance is removed.
-    expect(res.text).not.toContain('Greg Solis');
-    expect(res.text).not.toContain('Hardest Documented Sequences');
-  });
-
-  it('no longer presents the Evolution of Difficulty conclusion or the Analysis prose', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).not.toContain('Evolution of Difficulty');
-    expect(res.text).not.toContain('<h2>Analysis</h2>');
-  });
-
-  it('restructures into the four labelled areas', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Vocabulary');
-    expect(res.text).toContain('Sequence Structure');
-    expect(res.text).toContain('Player Diversity');
-    expect(res.text).toContain('Archive Notes');
-  });
-
-  it('keeps the Player Diversity area as a qualitative note without per-player counts', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Player Diversity');
-    expect(res.text).toContain('breadth of distinct tricks');
-    expect(res.text).not.toContain('Mariusz Wilk');
-  });
-
-  it('renders no unsupported exact figures or attributions from the sequence corpus', async () => {
-    const res = await page('/freestyle/insights');
-    const forbidden = [
-      'Greg Solis', 'Brad Nelson', 'Mariusz Wilk', 'Stefan Siegert', 'Cody Rushing',
-      'mentions', 'connections,',
-    ];
-    for (const phrase of forbidden) {
-      expect(
-        res.text.includes(phrase),
-        `Unsupported corpus figure/attribution present on Insights: "${phrase}"`,
-      ).toBe(false);
-    }
-  });
-
-  it('shows the live Most Used Modifiers table, framed as dictionary usage', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Most Used Modifiers');
-    expect(res.text).toContain('dictionary usage, not competitive frequency');
-  });
-
-  it('shows Archive Notes with a page-level scope statement and no unsupported corpus size', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('Archive Notes');
-    expect(res.text).toContain('no longer fully reproducible');
-    expect(res.text).toMatch(/educational interpretation of that\s+archival sample/);
-    expect(res.text).toMatch(/not a complete or reproducible census/);
-    // The specific, unreproducible corpus size is gone (the located export is not 395).
-    expect(res.text).not.toContain('395');
-  });
-
-  it('does not substitute the distinct historical Sick 3 corpus figures', async () => {
-    const res = await page('/freestyle/insights');
-    for (const phrase of ['308', '117 normalized', '94%', '17-ADD']) {
-      expect(
-        res.text.includes(phrase),
-        `Historical Sick 3 substitution present on Insights: "${phrase}"`,
-      ).toBe(false);
-    }
-  });
-
-  it('contains breadcrumb back to /freestyle', async () => {
-    const res = await page('/freestyle/insights');
-    expect(res.text).toContain('/freestyle');
-    expect(res.text).toContain('Freestyle');
-  });
-});
-
-// ---------------------------------------------------------------------------
-
 describe('GET /freestyle — landing page highlights', () => {
-  it('shows links to Trick Dictionary and Insights', async () => {
-    const res = await page('/freestyle');
-    expect(res.text).toContain('/freestyle/tricks');
-    expect(res.text).toContain('/freestyle/insights');
-  });
-
-  it('shows trick count in landing highlights', async () => {
+  it('links the Trick Dictionary tile when the dictionary has tricks', async () => {
     const res = await page('/freestyle');
     expect(res.text).toContain('Trick Dictionary');
-    expect(res.text).toContain('/freestyle/insights');  // link to insights exists
-  });
-
-  it('contains nav links for the language and analysis destinations', async () => {
-    const res = await page('/freestyle');
-    expect(res.text).toContain('Trick Dictionary');
-    expect(res.text).toContain('Freestyle Patterns');
+    expect(res.text).toContain('href="/freestyle/tricks"');
   });
 });
 

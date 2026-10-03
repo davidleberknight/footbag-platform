@@ -45,9 +45,6 @@ describe('freestyle landing foundations gallery link', () => {
     // a button reading "Start Here" and that control is not a portal card.
     expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Start Here\s*<\/h[1-6]>/);
     expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Go Deeper\s*<\/h[1-6]>/);
-    // Insights renamed to Freestyle Patterns (route unchanged)
-    expect(res.text).toContain('Freestyle Patterns');
-    expect(res.text).toContain('href="/freestyle/insights"');
     expect(res.text).toContain('href="/freestyle/partnerships"');
     // supporting sections moved below the educational core
     expect(res.text).toContain('Freestyle Media');

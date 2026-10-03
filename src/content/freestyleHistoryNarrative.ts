@@ -2,8 +2,8 @@
  * The freestyle History page as a single coherent article: how freestyle evolved from a
  * handful of tricks into a movement language with names, notation, classification, and this
  * encyclopedia. Organized entirely around one thesis (each generation expanded the shared
- * vocabulary), with the encyclopedia's own pages as the factual foundation: Competition and
- * Insights numbers are woven in as evidence, the Hall of Fame and BAP are integrated as the
+ * vocabulary), with the encyclopedia's own pages as the factual foundation: Competition
+ * numbers are woven in as evidence, the Hall of Fame and BAP are integrated as the
  * recognition institutions, and the dictionary and glossary are where the language is
  * organized. Rendered on a public surface, so the prose carries no em dashes and states only
  * what our own pages and settled record support; uncertain dates and inventors are omitted or
@@ -90,7 +90,6 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
         'The whirl became central not because it is flashy but because it returns a player to a reusable position, so a combination can keep going. A language needs connectors, and freestyle found one. The same is true at the other end of a move: a few endings and a few families came to organize how everything resolves.',
       ],
       links: [
-        { label: 'Insights', href: '/freestyle/insights' },
         { label: 'Whirl', href: '/freestyle/families/whirl' },
       ],
     },
@@ -160,7 +159,6 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
     { label: 'Footbag Hall of Fame', href: '/hof' },
     { label: 'Big Add Posse', href: '/bap' },
     { label: 'Competition', href: '/freestyle/competition' },
-    { label: 'Insights', href: '/freestyle/insights' },
     { label: 'Records', href: '/freestyle/records' },
   ],
   whereNext: [

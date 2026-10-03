@@ -13,7 +13,7 @@
  *   - All 5 worked examples render with concept cross-links
  *   - Topology patterns render
  *   - Caveats render
- *   - Cross-links to ADD Analysis, history, tricks, glossary, insights present
+ *   - Cross-links to ADD Analysis, history, tricks, glossary present
  *   - Lexicon discipline — no "should be"/"is wrong"/"incorrect" framing
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -231,7 +231,6 @@ describe('GET /freestyle/combo-analysis — §7 caveats + §8 cross-links', () =
     expect(res.text).toContain('href="/freestyle/history"');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
-    expect(res.text).toContain('href="/freestyle/insights"');
   });
 });
 

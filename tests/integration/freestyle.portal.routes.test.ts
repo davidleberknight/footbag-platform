@@ -67,9 +67,9 @@ beforeAll(async () => {
   const entryB = insertResultEntry(db, eventId, upload1, discId, { placement: 2 });
   insertResultParticipant(db, entryB, 'Tom Runner', { historical_person_id: PERSON_B });
 
-  // A second event — Vera wins again
+  // A second event, a world championship: Vera wins again, her one world title.
   const event2Id = insertEvent(db, {
-    title: 'Test Freestyle Cup',
+    title: 'Test World Freestyle Championships',
     start_date: '2018-09-10',
     end_date: '2018-09-12',
     city: 'Vienna',
@@ -81,8 +81,10 @@ beforeAll(async () => {
   insertResultParticipant(db, entry2, 'Vera Champion', { historical_person_id: PERSON_A });
 
   // A doubles event — should NOT count for singles competition page
+  // A world-championship doubles win, which must not count as a singles world
+  // title for either partner.
   const event3Id = insertEvent(db, {
-    title: 'Test Doubles',
+    title: 'Test World Doubles',
     start_date: '2018-09-10',
     end_date: '2018-09-12',
     city: 'Vienna',
@@ -149,30 +151,29 @@ describe('GET /freestyle/competition', () => {
     expect(res.text).toContain('Freestyle Competition');
   });
 
-  it('shows top singles competitor (Vera — 2 golds)', async () => {
+  it('lists singles world titles, linked to the champion, without counting doubles', async () => {
     const res = await page('/freestyle/competition');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Vera Champion');
-    expect(res.text).toContain(`/history/${PERSON_A}`);
+    const start = res.text.indexOf('<h2>Most World Titles</h2>');
+    expect(start, 'the world titles section renders').toBeGreaterThan(-1);
+    const section = res.text.slice(start, res.text.indexOf('</section>', start));
+    // Vera won the singles title and the doubles title at world events; only
+    // the singles one is a world title here.
+    expect(section).toMatch(new RegExp(`href="/history/${PERSON_A}">Vera Champion</a>[\\s\\S]*?col-num">1<`));
+    // Tom's only world win is the doubles one.
+    expect(section).not.toContain('Tom Runner');
   });
 
-  it('shows silver medalist (Tom — 1 silver)', async () => {
+  it('carries no podium leaderboards, era counts or nation tables', async () => {
+    // The page keeps the formats, recent events and world titles; the wider
+    // statistics pages were cut as page furniture.
     const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Tom Runner');
-    expect(res.text).toContain(`/history/${PERSON_B}`);
-  });
-
-  it('shows the Documented Competitors section, honestly framed', async () => {
-    const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Documented Competitors');
-    expect(res.text).toContain('not a definitive all-time ranking');
-  });
-
-  it('shows Events by Era section', async () => {
-    const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Events by Era');
-    // Both test events are in the 2010s
-    expect(res.text).toContain('2010s');
+    for (const cut of [
+      'Documented Competitors', 'Events by Era', 'Competition Milestones',
+      'Most Successful Nations', 'Freestyle Around the World',
+    ]) {
+      expect(res.text, `${cut} renders`).not.toContain(cut);
+    }
   });
 
   it('shows recent events section', async () => {
@@ -201,28 +202,12 @@ describe('GET /freestyle/competition', () => {
     expect(res.text).toContain('documented event results');
   });
 
-  it('shows the Competition Formats section with beginner descriptions', async () => {
+  it('shows the Competition Formats section with beginner descriptions, without event counts', async () => {
     const res = await page('/freestyle/competition');
     expect(res.text).toContain('Competition Formats');
     expect(res.text).toContain('Routines');
     expect(res.text).toContain('Sick 3');
-  });
-
-  it('shows Competition Milestones with golds and podiums buckets', async () => {
-    const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Competition Milestones');
-    expect(res.text).toContain('Most Documented Golds');
-    expect(res.text).toContain('Most Documented Podiums');
-  });
-
-  it('shows Most Successful Nations by medalist nationality', async () => {
-    const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Most Successful Nations');
-  });
-
-  it('shows the Freestyle Around the World geographic section', async () => {
-    const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Freestyle Around the World');
+    expect(res.text).not.toContain('<th class="col-num">Documented events</th>');
   });
 
   it('contains breadcrumb back to /freestyle', async () => {
@@ -286,10 +271,9 @@ describe('GET /freestyle/history', () => {
     expect(res.text).toContain('href="/bap"');
   });
 
-  it('contains cross-links to competition, insights, and the dictionary', async () => {
+  it('contains cross-links to competition and the dictionary', async () => {
     const res = await page('/freestyle/history');
     expect(res.text).toContain('/freestyle/competition');
-    expect(res.text).toContain('/freestyle/insights');
     expect(res.text).toContain('/freestyle/tricks');
   });
 
@@ -358,21 +342,29 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   // ── Banner 2 — Analysis & Competition ───────────────────────────────────
-  it('renders Banner 2 (Analysis & Competition), retires Go Deeper, renames Insights to Freestyle Patterns', async () => {
+  it('renders Banner 2 (Analysis & Competition) and retires Go Deeper', async () => {
     const res = await page('/freestyle');
     expect(res.text).toContain('Analysis &amp; Competition');
     expect(res.text).not.toContain('>Go Deeper<');
-    expect(res.text).toContain('Freestyle Patterns');
-    expect(res.text).not.toContain('>Insights<');
     for (const href of [
       '/freestyle/records',
       '/freestyle/competition',
       '/freestyle/partnerships',
       '/freestyle/combo-analysis',
       '/freestyle/add-analysis',
-      '/freestyle/insights',
+      '/freestyle/by-the-numbers',
     ]) {
       expect(res.text, `Banner 2 href ${href}`).toContain(`href="${href}"`);
+    }
+  });
+
+  it('the retired Insights address redirects permanently to By the Numbers and nothing links to it', async () => {
+    const res = await request(createApp()).get('/freestyle/insights');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/by-the-numbers');
+    for (const path of ['/freestyle', '/freestyle/history', '/freestyle/combo-analysis']) {
+      const linking = await page(path);
+      expect(linking.text, `${path} links to the retired Insights page`).not.toContain('href="/freestyle/insights"');
     }
   });
 

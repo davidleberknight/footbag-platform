@@ -429,11 +429,6 @@ const CROSS_LINKS: readonly ComboAnalysisCrossLink[] = [
     label:       'Freestyle Glossary',
     description: 'Short definitions of freestyle terms, A to Z.',
   },
-  {
-    href:        '/freestyle/insights',
-    label:       'Freestyle Insights',
-    description: 'Data-driven analytical surfaces; current Sick3 statistics and emerging patterns.',
-  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
