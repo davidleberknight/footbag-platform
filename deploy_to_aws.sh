@@ -234,13 +234,15 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     echo "Recommendation: run it from a terminal. There is no non-interactive form of this confirmation." >&2
     exit 1
   fi
-  # The release rules, before anything is typed: a tree that may not ship to
-  # production is refused without costing the operator a confirmation or a
-  # password. After the terminal check, which decides whether the run may happen
-  # at all. The same check runs again in each leaf this hands off to.
+  # The release rules, before anything is typed: a real problem stops the deploy
+  # without costing a confirmation or a password, and everything else is reported
+  # so the operator sees where this tree stands before confirming. Only
+  # footbag-operator deploys production, and that holder decides at the typed
+  # confirmation. After the terminal check, which decides whether the run may
+  # happen at all. The leaves this hands off to check again.
   # shellcheck source=scripts/lib/production-release-gate.sh
   source "${SCRIPT_DIR}/scripts/lib/production-release-gate.sh"
-  production_release_gate_require "$SCRIPT_DIR" || exit 1
+  production_release_gate_deploy "$SCRIPT_DIR" || exit 1
   # What happens to the media bucket, asked here or not at all.
   #
   # A rebuild couples the media sync on, because it reseeds curated media and

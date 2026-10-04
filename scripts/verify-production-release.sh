@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # scripts/verify-production-release.sh -- may this tree ship to production?
 #
-# The one place an operator asks that question before starting a production
-# deploy. It runs exactly the check every production deploy runs before it
-# touches a host (scripts/lib/production-release-gate.sh), so a PASS here means
-# the deploy's own gate will pass on this tree, and a refusal lists every rule
-# that fails with what to do about it.
+# The strict form of the production release rules, asked on demand. Every
+# production deploy checks the same rules (scripts/lib/production-release-gate.sh):
+# it stops on a real problem and reports the rest as warnings, because only
+# footbag-operator deploys production and that holder decides at the typed
+# confirmation. Here a tree that does not meet every rule fails, listing each
+# with what to do about it.
 #
-# What a production release needs, in order:
+# What a proven production release has, in order:
 #   1. The change is committed, pushed to main, and CI's "Type-check and test"
 #      check is green for that commit.
-#   2. ./run_all_tests.sh --full has passed on that tree (local; no role needed).
+#   2. ./run_all_tests.sh has passed on that tree (local; no role needed).
 #   3. Staging runs that commit, deployed from the clean tree.
 #   4. The read-only staging checks have passed against that deploy, as a
 #      dev-tester:

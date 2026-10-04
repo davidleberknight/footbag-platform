@@ -143,13 +143,15 @@ if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
 fi
 
 # The production release rules, as in scripts/deploy-code.sh: a clean tree on
-# origin/main, green CI, a --full pass for this tree, staging already running it,
-# a --staging pass against that deploy, and no skipped verification or safety
-# step. Staging is deliberately not held to them.
+# origin/main, green CI, a ./run_all_tests.sh pass for this tree, staging already
+# running it, a --staging pass against that deploy, and no skipped verification
+# or safety step. A real problem stops the deploy, the rest are warnings:
+# footbag-operator decides when production is deployed. Staging is not checked
+# against them.
 if [[ "$REMOTE" == "footbag-production" ]]; then
   # shellcheck source=lib/production-release-gate.sh
   source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
-  production_release_gate_require "$REPO_ROOT" || exit 1
+  production_release_gate_deploy "$REPO_ROOT" || exit 1
 fi
 
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file

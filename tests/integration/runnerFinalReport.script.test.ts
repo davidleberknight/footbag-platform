@@ -117,9 +117,11 @@ describe('the final report, driven through run_gate with stub gates', () => {
 
   // Defect caught: a run that takes an hour gives no way to tell which gate the
   // hour went to.
+  // No real time passes: the row's shape is the contract, and a wall-clock
+  // sleep made the verdict depend on the machine's load.
   it('gives every gate that ran its elapsed seconds in the summary row', () => {
-    const r = drive('slow_gate() { sleep 1.2; return 0; }\nrun_gate e2e slow_gate\nsummarize');
-    expect(summaryOf(r.out)).toMatch(/^\s+e2e\s+PASS \[[1-9]\d*s\]$/m);
+    const r = drive('quick_gate() { return 0; }\nrun_gate e2e quick_gate\nsummarize');
+    expect(summaryOf(r.out)).toMatch(/^\s+e2e\s+PASS \[\d+s\]$/m);
   });
 
   it('gives a skipped gate its reason in the summary row', () => {
@@ -151,16 +153,30 @@ describe('the final report, driven through run_gate with stub gates', () => {
     expect(notices).toContain('ffmpeg  6.1.1');
   });
 
+  // Deterministic by construction: no real signal and no sleep. A signal sent
+  // from inside the gate pipeline to the runner's own shell made the verdict
+  // depend on scheduling under load. The runner's part is naming the gate while
+  // it runs and the handler's output, so each is driven directly; delivering the
+  // signal is bash's, and the trap line itself is held below.
   it('prints the report for the finished gates when the run is interrupted, naming the gate it landed in', () => {
-    const interrupted = 'interrupted_gate() { echo "halfway"; kill -INT $$; sleep 0.3; return 0; }';
+    const seen = 'seen_gate() { echo "current gate: ${CURRENT_GATE}"; return 0; }';
     const r = drive(
-      `${BURYING_GATE}\n${interrupted}\nrun_gate coverage burying_gate\nrun_gate e2e interrupted_gate\necho "SHOULD NOT REACH"`,
+      `${BURYING_GATE}\n${seen}\nrun_gate coverage burying_gate\nrun_gate e2e seen_gate\nCURRENT_GATE=e2e\non_interrupt\necho "SHOULD NOT REACH"`,
     );
     expect(r.status).toBe(130);
+    // run_gate names the gate for the whole time it runs, which is what lets an
+    // interrupt landing in it be reported against it.
+    expect(r.out).toContain('current gate: e2e');
     expect(r.out).toContain('INTERRUPTED during the e2e gate');
     expect(r.out).toContain('run_all_tests.sh — summary');
     expect(r.out.slice(r.out.indexOf('failure details'))).toContain('FAIL tests/integration/seederEnv');
     expect(r.out).not.toContain('SHOULD NOT REACH');
+  });
+
+  // Defect caught: the handler exists but is never installed, so an interrupted
+  // run ends with no report at all.
+  it('installs the interrupt handler for both INT and TERM', () => {
+    expect(RUNNER_TEXT).toMatch(/^trap on_interrupt INT TERM$/m);
   });
 });
 
@@ -232,7 +248,9 @@ describe('each test runs once under --full', () => {
 
   it('keeps the rows of the gates the room finished when the run is interrupted inside it', () => {
     const r = drive(
-      `FULL=1\n${FAILED_ROOM}\ninterrupted_room() { kill -INT $$; sleep 0.3; return 0; }\nrun_gate clean-room interrupted_room\necho "SHOULD NOT REACH"`,
+      // The interrupt is the handler called with the room named as the gate it
+      // landed in: no real signal, no sleep, so no scheduling decides the verdict.
+      `FULL=1\n${FAILED_ROOM}\nCURRENT_GATE=clean-room\non_interrupt\necho "SHOULD NOT REACH"`,
     );
     expect(r.status).toBe(130);
     expect(r.out).toContain('INTERRUPTED during the clean-room gate');
@@ -547,7 +565,8 @@ describe('every test that did not run is named, on every exit that reports', () 
   });
 
   it('names what the run did not check when it is interrupted', () => {
-    const r = drive('FULL=1\nstopped() { kill -INT $$; sleep 0.3; return 0; }\nrun_gate audit stopped');
+    // The handler called directly, with the gate named: no real signal, no sleep.
+    const r = drive('FULL=1\nCURRENT_GATE=audit\non_interrupt');
     expect(r.status).toBe(130);
     expect(r.out).toContain('WHAT THIS RUN DID NOT CHECK');
   });

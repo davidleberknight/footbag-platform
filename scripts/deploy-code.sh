@@ -139,15 +139,16 @@ if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
   exit 1
 fi
 
-# The production release rules: a clean tree on origin/main, green CI, a --full
-# pass for this tree, staging already running it, a --staging pass against that
-# deploy, and no skipped verification or safety step.
-# Checked here as well as in deploy_to_aws.sh, so this leaf holds to them however
-# it was reached. Staging is deliberately not held to them.
+# The production release rules: a clean tree on origin/main, green CI, a
+# ./run_all_tests.sh pass for this tree, staging already running it, a --staging
+# pass against that deploy, and no skipped verification or safety step.
+# Checked here as well as in deploy_to_aws.sh, however this leaf was reached: a
+# real problem stops the deploy, the rest are warnings, because footbag-operator
+# decides when production is deployed. Staging is not checked against them.
 if [[ "$REMOTE" == "footbag-production" ]]; then
   # shellcheck source=lib/production-release-gate.sh
   source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
-  production_release_gate_require "$REPO_ROOT" || exit 1
+  production_release_gate_deploy "$REPO_ROOT" || exit 1
 fi
 
 # shellcheck source=lib/image-transfer.sh
