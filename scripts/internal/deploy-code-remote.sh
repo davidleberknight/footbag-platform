@@ -1261,7 +1261,13 @@ if [[ -n "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" && "$FOOTBAG_ENV" != "development" 
   echo "       or use a workstation that does not have the file present." >&2
   exit 1
 fi
-if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
+# Written only by a deploy from a maintainer's machine, which holds the list's
+# file. Any other deploy (a dev-and-tester's) leaves the host's line untouched.
+# Unset means a caller that predates the distinction, which always wrote it.
+: "${FOOTBAG_DEV_INITIAL_ADMIN_MANAGED:=yes}"
+if [[ "$FOOTBAG_DEV_INITIAL_ADMIN_MANAGED" != "yes" ]]; then
+  echo "==> FOOTBAG_DEV_INITIAL_ADMIN_EMAILS left as it is: this deploy carries no say in it."
+elif [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
   echo "==> Updating FOOTBAG_DEV_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"

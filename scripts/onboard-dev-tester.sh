@@ -59,13 +59,22 @@
 # account reads back live holding exactly the key given.
 #
 # Usage. The redirect is the sudo password of the account your alias connects
-# as, which the host step reads; this script reads nothing from stdin itself:
+# as, which this run reads once and hands to each host step:
 #
+#   Somebody else, with what they posted:
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh \
 #     --target staging --account james_leberknight \
-#     --operator "James Leberknight" --public-key ~/james.pub \
-#     --expect-fingerprint SHA256:<as they posted it> \
-#     --address 203.0.113.7/32 --location home
+#     --operator "James Leberknight" --public-key "ssh-ed25519 AAAA... james" \
+#     --expect-fingerprint SHA256:<as they posted it> --address 203.0.113.7/32
+#
+#   Yourself, on your own machine, after setup-dev-workstation.sh --account
+#   made your pair: the key, its fingerprint and your address are all derived.
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh \
+#     --target staging --account david_leberknight --operator "David Leberknight"
+#
+#   Proving an accepted onboarding, read-only, with one verdict:
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh --verify \
+#     --target staging --account james_leberknight --expect-fingerprint SHA256:<...>
 #
 # Flags:
 #   --target staging           the only environment a dev-and-tester reaches;
@@ -75,27 +84,47 @@
 #                              sealed file. Nobody named has a vault entry: who
 #                              holds access is read live from the host and IAM,
 #                              and the onboarding card records who approved it
-#   --public-key <path>        their SSH public key, as they sent it
+#   --public-key <key>         their SSH public key line, as they sent it, or a
+#                              file holding it. Leave it out to onboard yourself:
+#                              the key is then ~/.ssh/id_ed25519_<account>.pub
+#                              on this machine, and nothing else
 #   --expect-fingerprint <SHA256:...>
 #                              the key's fingerprint as they posted it, through a
 #                              channel other than the one the key came by. A key
 #                              swapped in transit would seal their access to
 #                              somebody else, so a mismatch stops the run before
-#                              anything is read or minted
-#   --address <cidr>          the address they connect from, put on the staging
-#                              allow-list; without it nothing else here reaches
-#                              anybody
-#   --location "<where>"       where that address is, such as home, for the
-#                              allow-list entry's attribution
+#                              anything is read or minted. Required with
+#                              --public-key; derived when onboarding yourself
+#   --address <cidr>           the address they connect from, put on the staging
+#                              allow-list as their own entry. Required for
+#                              somebody else; read from checkip when onboarding
+#                              yourself
+#   --location "<where>"       where that address is, for the entry's
+#                              description. Default: home
 #   --reissue                  replace a finished onboarding: a fresh one-time
 #                              password and key, sealed again. For a lost sealed
 #                              file or a forgotten password
+#   --verify                   change nothing; prove the onboarding finished and
+#                              accepted: the host account live holding exactly the
+#                              key and the shared account not holding it, the IAM
+#                              user ours with the grant and exactly one active key,
+#                              the address parameter present, and the job role
+#                              assumed with that key since it was made (CloudTrail,
+#                              polled up to about 15 minutes). Exit 0 proved, 1 not,
+#                              3 pending: accepted not yet seen, with the re-run
+#
+# Ends with an evidence block (date, account, fingerprint, key id, address and,
+# once seen, the assumed-role ARN) for the onboarding card. Posting it is human.
 #
 # Test seams (CI only; operators never set these):
 #   ONBOARD_DEV_TESTER_AWS_BIN        replaces the aws CLI
 #   ONBOARD_DEV_TESTER_PROVISION_CMD  replaces the host step
 #   ONBOARD_DEV_TESTER_AGE_BIN        replaces age
 #   ONBOARD_DEV_TESTER_ADDRESS_CMD    replaces the allow-list step
+#   ONBOARD_DEV_TESTER_FETCH          replaces the checkip read of this machine's
+#                                     address
+#   ONBOARD_DEV_TESTER_POLL_SECONDS   the wait between CloudTrail reads (30)
+#   ONBOARD_DEV_TESTER_POLL_TRIES     how many reads before "pending" (30)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -133,6 +162,12 @@ IAM_OPERATOR_AWS_BIN="$AWS_BIN"
 AGE_BIN="${ONBOARD_DEV_TESTER_AGE_BIN:-age}"
 PROVISION_CMD="${ONBOARD_DEV_TESTER_PROVISION_CMD:-${SCRIPT_DIR}/provision-operator-account.sh}"
 ADDRESS_CMD="${ONBOARD_DEV_TESTER_ADDRESS_CMD:-${SCRIPT_DIR}/authorize-operator-address.sh}"
+FETCH_CMD="${ONBOARD_DEV_TESTER_FETCH:-}"
+POLL_SECONDS="${ONBOARD_DEV_TESTER_POLL_SECONDS:-30}"
+POLL_TRIES="${ONBOARD_DEV_TESTER_POLL_TRIES:-30}"
+# Where each dev-and-tester's own staging address lives, as the allow-list step
+# writes it.
+DEV_TESTER_PATH="/footbag-ops/staging/dev-testers"
 
 # Spelled as literals, as in manage-human-operator.sh: a check that reads the
 # name from the place the credential came from is not a check.
@@ -147,6 +182,9 @@ EXPECT_FINGERPRINT=""
 ADDRESS=""
 LOCATION=""
 REISSUE=0
+VERIFY=0
+# Onboarding yourself: no key was handed over, so it is this machine's own pair.
+SELF=0
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
@@ -163,6 +201,7 @@ while [[ $# -gt 0 ]]; do
     --address) ADDRESS="${2:-}"; shift 2 || { echo "ERROR: --address requires an argument" >&2; exit 2; } ;;
     --location) LOCATION="${2:-}"; shift 2 || { echo "ERROR: --location requires an argument" >&2; exit 2; } ;;
     --reissue) REISSUE=1; shift ;;
+    --verify) VERIFY=1; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
   esac
@@ -190,40 +229,80 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   echo "       session name every trail entry of theirs carries." >&2
   exit 2
 fi
-if [[ -z "$OPERATOR" || "$OPERATOR" == *$'\n'* ]]; then
+if (( VERIFY )); then
+  if (( REISSUE )) || [[ -n "$OPERATOR$PUBLIC_KEY$ADDRESS$LOCATION" ]]; then
+    echo "ERROR: --verify changes nothing and takes only --target, --account and" >&2
+    echo "       --expect-fingerprint." >&2
+    exit 2
+  fi
+elif [[ -z "$OPERATOR" || "$OPERATOR" == *$'\n'* ]]; then
   echo "ERROR: --operator \"<Full Name>\" is required, on one line: it names whose" >&2
   echo "       host account this is, on the host itself." >&2
   exit 2
 fi
-if [[ -z "$PUBLIC_KEY" || ! -f "$PUBLIC_KEY" ]]; then
-  echo "ERROR: --public-key must name their SSH public key file, as they sent it." >&2
+
+# The key: a line they sent, a file holding one, or, with neither, this machine's
+# own named pair for a holder onboarding themselves. The self case takes that one
+# file and nothing else, so a run cannot pick up some other key that happens to
+# be lying around.
+#
+# A verification of somebody else needs no key at all, only the fingerprint they
+# posted: it compares what the host and IAM hold against that.
+VERIFY_BY_FINGERPRINT=0
+if (( VERIFY )) && [[ -z "$PUBLIC_KEY" && -n "$EXPECT_FINGERPRINT" ]]; then
+  VERIFY_BY_FINGERPRINT=1
+  if [[ ! "$EXPECT_FINGERPRINT" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
+    echo "ERROR: --expect-fingerprint must be a SHA256 fingerprint as ssh-keygen prints it." >&2
+    exit 2
+  fi
+  KEY_SHA="$EXPECT_FINGERPRINT"
+elif [[ -z "$PUBLIC_KEY" ]]; then
+  SELF=1
+  PUBLIC_KEY_SOURCE="${HOME}/.ssh/id_ed25519_${ACCOUNT}.pub"
+  if [[ ! -f "$PUBLIC_KEY_SOURCE" ]]; then
+    echo "ERROR: no --public-key, and no ${PUBLIC_KEY_SOURCE} on this machine." >&2
+    echo "       Onboarding somebody else, pass the key line they sent with" >&2
+    echo "       --public-key and its fingerprint with --expect-fingerprint." >&2
+    echo "       Onboarding yourself, make your pair first:" >&2
+    echo "         bash scripts/setup-dev-workstation.sh --operator --account ${ACCOUNT}" >&2
+    exit 2
+  fi
+  KEY_LINE="$(grep -m1 . "$PUBLIC_KEY_SOURCE" || true)"
+elif [[ "$PUBLIC_KEY" == ssh-* ]]; then
+  PUBLIC_KEY_SOURCE="the key line given"
+  KEY_LINE="$PUBLIC_KEY"
+elif [[ -f "$PUBLIC_KEY" ]]; then
+  PUBLIC_KEY_SOURCE="$PUBLIC_KEY"
+  # One key, or a refusal: a file of several is not "their key", and taking the
+  # first would seal to whichever happened to come first.
+  if [[ "$(grep -c . "$PUBLIC_KEY" || true)" != "1" ]]; then
+    echo "ERROR: '${PUBLIC_KEY}' is not exactly one public key ssh-keygen can read." >&2
+    exit 2
+  fi
+  KEY_LINE="$(grep -m1 . "$PUBLIC_KEY" || true)"
+else
+  echo "ERROR: --public-key must be their SSH public key line, as they sent it, or" >&2
+  echo "       a file holding it." >&2
   exit 2
 fi
+if (( ! VERIFY_BY_FINGERPRINT )); then
+if [[ "$KEY_LINE" == *$'\n'* ]]; then
+  echo "ERROR: the key given is more than one line." >&2
+  exit 2
+fi
+
 # The SHA256 form ssh-keygen prints: the prefix, then 43 characters of unpadded
-# base64.
-if [[ ! "$EXPECT_FINGERPRINT" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
+# base64. Required for somebody else's key, because it is what proves the key is
+# theirs; derived for your own, which never travelled.
+if [[ -n "$EXPECT_FINGERPRINT" && ! "$EXPECT_FINGERPRINT" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]] \
+   || { (( ! SELF )) && [[ -z "$EXPECT_FINGERPRINT" ]]; }; then
   echo "ERROR: --expect-fingerprint must be the key's SHA256 fingerprint as they" >&2
   echo "       posted it, such as SHA256:YBSc2HxB3uZ8Xf3QRH8W7KT6l+RCDCZ4S8/uG9Ba3wA." >&2
-  echo "       It is what proves the key file is theirs, so it is not optional." >&2
+  echo "       It is what proves the key is theirs, so it is not optional when the" >&2
+  echo "       key came from somebody else." >&2
   exit 2
 fi
-# Checked for shape here so a typo is refused before anything is minted; the
-# allow-list step holds it to a canonical range itself.
-if [[ ! "$ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]]; then
-  echo "ERROR: --address must be the IPv4 address they connect from, such as" >&2
-  echo "       203.0.113.7/32. Without it on the allow-list nothing else this run" >&2
-  echo "       makes reaches them. They can read it with:" >&2
-  echo "         curl -s https://checkip.amazonaws.com" >&2
-  exit 2
-fi
-if [[ -z "$LOCATION" || "$LOCATION" == *$'\n'* || "$LOCATION" == *';'* ]]; then
-  echo "ERROR: --location \"<where>\" is required, on one line and without a ';':" >&2
-  echo "       it completes the allow-list attribution '${ACCOUNT}; <where>'." >&2
-  exit 2
-fi
-[[ "$ADDRESS" == */* ]] || ADDRESS="${ADDRESS}/32"
 
-KEY_LINE="$(grep -m1 . "$PUBLIC_KEY" || true)"
 KEY_TYPE="${KEY_LINE%% *}"
 case "$KEY_TYPE" in
   ssh-ed25519|ssh-rsa) ;;
@@ -233,17 +312,17 @@ case "$KEY_TYPE" in
     exit 2
     ;;
 esac
-if ! KEY_FINGERPRINT="$(ssh-keygen -l -f "$PUBLIC_KEY" 2>/dev/null)" \
+if ! KEY_FINGERPRINT="$(ssh-keygen -l -f /dev/stdin <<<"$KEY_LINE" 2>/dev/null)" \
    || [[ "$(grep -c . <<<"$KEY_FINGERPRINT")" != "1" ]]; then
-  echo "ERROR: '${PUBLIC_KEY}' is not exactly one public key ssh-keygen can read." >&2
+  echo "ERROR: ${PUBLIC_KEY_SOURCE} is not exactly one public key ssh-keygen can read." >&2
   exit 2
 fi
 # The SHA256 field alone: the length and the comment are presentation.
 KEY_SHA="$(awk '{print $2}' <<<"$KEY_FINGERPRINT")"
-if [[ "$KEY_SHA" != "$EXPECT_FINGERPRINT" ]]; then
-  echo "REFUSING: '${PUBLIC_KEY}' is ${KEY_SHA}," >&2
+if [[ -n "$EXPECT_FINGERPRINT" && "$KEY_SHA" != "$EXPECT_FINGERPRINT" ]]; then
+  echo "REFUSING: ${PUBLIC_KEY_SOURCE} is ${KEY_SHA}," >&2
   echo "          not the ${EXPECT_FINGERPRINT} they posted. Sealing to it would" >&2
-  echo "          hand their access to whoever holds that key. Get the key file again" >&2
+  echo "          hand their access to whoever holds that key. Get the key again" >&2
   echo "          and check it against what they posted. Nothing done." >&2
   exit 1
 fi
@@ -252,11 +331,53 @@ if [[ -z "$RECIPIENT_TAG" ]]; then
   echo "ERROR: could not compute the sealing tag of that key." >&2
   exit 2
 fi
+fi  # the key itself, skipped when verifying by fingerprint alone
+
+if (( ! VERIFY )); then
+  # Your own address, read the way setup-dev-workstation.sh reads it, when you
+  # are onboarding yourself from the machine you will connect from.
+  if [[ -z "$ADDRESS" ]] && (( SELF )); then
+    if [[ -n "$FETCH_CMD" ]]; then
+      echo "SYNTHETIC: checkip='${FETCH_CMD}' -- this machine's address is a stand-in." >&2
+      ADDRESS="$("$FETCH_CMD" 2>/dev/null || true)"
+    else
+      ADDRESS="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null || true)"
+    fi
+    ADDRESS="${ADDRESS//[[:space:]]/}"
+    [[ -n "$ADDRESS" ]] && echo "==> This machine connects from ${ADDRESS} (checkip)." >&2
+  fi
+  # Checked for shape here so a typo is refused before anything is minted; the
+  # allow-list step holds it to a canonical single host itself.
+  _octets_ok=1
+  if [[ "$ADDRESS" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})(/32)?$ ]]; then
+    for _o in "${BASH_REMATCH[@]:1:4}"; do (( 10#$_o <= 255 )) || _octets_ok=0; done
+  else
+    _octets_ok=0
+  fi
+  if (( ! _octets_ok )); then
+    echo "ERROR: --address must be the IPv4 address they connect from, such as" >&2
+    echo "       203.0.113.7/32, one host. Without it on the allow-list nothing else" >&2
+    echo "       this run makes reaches them. They can read it with:" >&2
+    echo "         curl -s https://checkip.amazonaws.com" >&2
+    exit 2
+  fi
+  [[ -n "$LOCATION" ]] || LOCATION="home"
+  if [[ "$LOCATION" == *$'\n'* || "$LOCATION" == *';'* ]]; then
+    echo "ERROR: --location \"<where>\" goes on one line and without a ';': it" >&2
+    echo "       completes the address description '${ACCOUNT}; <where>'." >&2
+    exit 2
+  fi
+  [[ "$ADDRESS" == */* ]] || ADDRESS="${ADDRESS}/32"
+fi
 
 # ── Tools and terminal, before anything is minted ────────────────────────────
 
-delivery_require_tools "age=${AGE_BIN}" openssl=openssl ssh-keygen=ssh-keygen || exit 1
-[[ "$AGE_BIN" != "age" ]] && echo "SYNTHETIC: age='${AGE_BIN}' -- nothing is really sealed." >&2
+if (( VERIFY )); then
+  delivery_require_tools ssh-keygen=ssh-keygen jq=jq || exit 1
+else
+  delivery_require_tools "age=${AGE_BIN}" openssl=openssl ssh-keygen=ssh-keygen || exit 1
+fi
+[[ "$AGE_BIN" != "age" ]] && (( ! VERIFY )) && echo "SYNTHETIC: age='${AGE_BIN}' -- nothing is really sealed." >&2
 [[ "$AWS_BIN" != "aws" ]] && echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
 [[ -n "${ONBOARD_DEV_TESTER_PROVISION_CMD:-}" ]] && echo "SYNTHETIC: host step='${PROVISION_CMD}' -- no host is being changed." >&2
 [[ -n "${ONBOARD_DEV_TESTER_ADDRESS_CMD:-}" ]] && echo "SYNTHETIC: allow-list step='${ADDRESS_CMD}' -- no firewall is being changed." >&2
@@ -267,12 +388,30 @@ if [[ -t 0 ]]; then
   echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh ..." >&2
   exit 1
 fi
-if ! terminal_present; then
+if (( ! VERIFY )) && ! terminal_present; then
   echo "ERROR: no terminal to confirm on. Every step that creates something is" >&2
   echo "       confirmed by a typed word. Re-run from an interactive shell." >&2
   echo "       Nothing has been created." >&2
   exit 1
 fi
+
+# The sudo password, read once. More than one host step needs it (the read
+# before anything is confirmed, the change itself, and the read-back), and a
+# single stdin cannot serve two: the first consumer drains it. Each step gets it
+# as the first line of its own pipe, never as an argument.
+SUDO_PASS=""
+IFS= read -r SUDO_PASS || true
+if [[ -z "$SUDO_PASS" ]]; then
+  echo "ERROR: nothing arrived on stdin. Redirect the sudo password file of the" >&2
+  echo "       account your alias connects as:" >&2
+  echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh ..." >&2
+  exit 1
+fi
+
+# host_step <args...>: the host step, fed the sudo password and nothing else.
+host_step() {
+  printf '%s\n' "$SUDO_PASS" | bash "$PROVISION_CMD" "$@"
+}
 
 # ── The identity this run acts on the strength of ────────────────────────────
 
@@ -305,17 +444,157 @@ case "$IAM_OPERATOR_STATE" in
   *) IAM_USER_EXISTS=0 ;;
 esac
 
+# onboard_evidence <key id> <address> <assumed-role ARN or a reason it is absent>
+# The block a person copies onto the onboarding card. Nothing in it is secret: a
+# key id names a key without being one, and a fingerprint names a public key.
+onboard_evidence() {
+  echo ""
+  echo "---- evidence for the onboarding card ----"
+  echo "date:          $(date -u +%Y-%m-%d)"
+  echo "account:       ${ACCOUNT}"
+  echo "fingerprint:   ${KEY_SHA}"
+  echo "access key id: ${1:-unknown}"
+  echo "address:       ${2:-none}"
+  echo "assumed role:  ${3}"
+  echo "------------------------------------------"
+}
+
+# ── Proving an accepted onboarding, read-only ────────────────────────────────
+#
+# One verdict from every place an onboarding leaves a mark, each read rather
+# than assumed, and nothing written anywhere. A failure names what is wrong; the
+# one thing time alone can fix (CloudTrail not yet showing the acceptance) is
+# reported as pending rather than as a failure, with the command to re-run.
+if (( VERIFY )); then
+  VERIFY_FAIL=0
+  vfail() { echo "  FAIL  $1" >&2; VERIFY_FAIL=1; }
+  vpass() { echo "  ok    $1"; }
+
+  echo "Verifying ${ACCOUNT} on ${TARGET}, key ${KEY_SHA}"
+
+  # IAM: ours, the one grant, exactly one active key.
+  VERIFY_AKID=""
+  VERIFY_CREATED=""
+  if [[ "$IAM_OPERATOR_STATE" != "ours" ]]; then
+    vfail "IAM user ${ACCOUNT} reads as ${IAM_OPERATOR_STATE}, not one of ours"
+  else
+    vpass "IAM user ours, at ${IAM_OPERATOR_FOUND_PATH}, all three ownership tags"
+    V_POLICY="$(iam_operator_policy_state "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
+    if [[ "$V_POLICY" == "present" ]]; then
+      vpass "grant ${IAM_OPERATOR_POLICY_NAME}"
+    else
+      vfail "no ${IAM_OPERATOR_POLICY_NAME} grant, so the user reaches nothing"
+    fi
+    V_KEYS="$(iam_operator_keys "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
+    V_ACTIVE="$(printf '%s\n' "$V_KEYS" | awk -F'\t' '$2=="Active"')"
+    V_COUNT="$(grep -c . <<<"$V_ACTIVE" || true)"
+    if [[ "$V_COUNT" == "1" ]]; then
+      VERIFY_AKID="$(cut -f1 <<<"$V_ACTIVE")"
+      VERIFY_CREATED="$(cut -f3 <<<"$V_ACTIVE")"
+      vpass "exactly one active key, ${VERIFY_AKID}, made ${VERIFY_CREATED}"
+    else
+      vfail "${V_COUNT:-0} active keys where exactly one belongs"
+    fi
+  fi
+
+  # The host: live, holding exactly this key, and the shared account not holding it.
+  if ! V_HOST="$(host_step --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
+    vfail "the ${TARGET} host could not be read"
+  else
+    if ! grep -qx 'ACCOUNT present' <<<"$V_HOST"; then
+      vfail "no ${ACCOUNT} account on the ${TARGET} host"
+    elif ! grep -qx 'LOCKED no' <<<"$V_HOST"; then
+      vfail "the ${ACCOUNT} host account is locked"
+    else
+      V_HELD="$(sed -n 's/^KEY //p' <<<"$V_HOST" | awk '{print $2}' | sed '/^$/d' | sort -u)"
+      if [[ "$V_HELD" == "$KEY_SHA" ]]; then
+        vpass "host account live, holding exactly ${KEY_SHA}"
+      else
+        vfail "host account holds ${V_HELD:-no key}, not exactly ${KEY_SHA}"
+      fi
+    fi
+    V_SHARED="$(sed -n 's/^SHARED //p' <<<"$V_HOST")"
+    if [[ -z "$V_SHARED" || "$V_SHARED" == "unknown" ]]; then
+      vfail "whether the shared ${SHARED_HOST_ACCOUNT} account holds this key could not be read"
+    elif grep -qxF -- "$KEY_SHA" <<<"$V_SHARED"; then
+      vfail "the shared ${SHARED_HOST_ACCOUNT} account holds this key too"
+    else
+      vpass "the shared ${SHARED_HOST_ACCOUNT} account does not hold this key"
+    fi
+  fi
+
+  # The address: their own parameter, which the staging firewall admits.
+  VERIFY_ADDRESS=""
+  if VERIFY_ADDRESS="$("$AWS_BIN" ssm get-parameter --region us-east-1 \
+        --name "${DEV_TESTER_PATH}/${ACCOUNT}" --query Parameter.Value --output text 2>/dev/null)" \
+     && [[ -n "$VERIFY_ADDRESS" ]]; then
+    vpass "address ${VERIFY_ADDRESS}"
+  else
+    VERIFY_ADDRESS=""
+    vfail "no staging address parameter for ${ACCOUNT}"
+  fi
+
+  if (( VERIFY_FAIL )); then
+    onboard_evidence "${VERIFY_AKID:-}" "$VERIFY_ADDRESS" "not checked: the onboarding is not in place"
+    echo ""
+    echo "NOT VERIFIED: ${ACCOUNT}'s onboarding is not in place; each FAIL above says why." >&2
+    exit 1
+  fi
+
+  # The acceptance: the job role assumed with the active key, after it was made.
+  # Accepting is the only thing that does that, so seeing it in the trail is
+  # seeing the acceptance. CloudTrail delivers events some minutes late, so the
+  # read is repeated rather than judged once.
+  VERIFY_ARN=""
+  V_TRY=0
+  while (( V_TRY < POLL_TRIES )); do
+    V_TRY=$(( V_TRY + 1 ))
+    V_EVENTS="$("$AWS_BIN" cloudtrail lookup-events --region us-east-1 \
+      --lookup-attributes "AttributeKey=AccessKeyId,AttributeValue=${VERIFY_AKID}" \
+      --start-time "$VERIFY_CREATED" --output json 2>/dev/null || true)"
+    [[ -n "$V_EVENTS" ]] || V_EVENTS='{}'
+    VERIFY_ARN="$(jq -r --arg created "$VERIFY_CREATED" '
+        [ .Events[]?
+          | select(.EventName == "AssumeRole")
+          | (.CloudTrailEvent | fromjson?) // {}
+          | select((.eventTime // "") > $created)
+          | .responseElements.assumedRoleUser.arn // empty ] | first // empty
+      ' <<<"$V_EVENTS" 2>/dev/null || true)"
+    [[ -n "$VERIFY_ARN" ]] && break
+    (( V_TRY < POLL_TRIES )) && sleep "$POLL_SECONDS"
+  done
+
+  if [[ -z "$VERIFY_ARN" ]]; then
+    onboard_evidence "$VERIFY_AKID" "$VERIFY_ADDRESS" "not yet seen in CloudTrail"
+    echo ""
+    echo "PENDING: everything is in place, but CloudTrail does not yet show ${VERIFY_AKID}"
+    echo "assuming the role. Either the onboarding has not been accepted yet, or the"
+    echo "trail has not caught up. Re-run in a few minutes:"
+    echo "  < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh --verify \\"
+    echo "    --target ${TARGET} --account ${ACCOUNT} --expect-fingerprint ${KEY_SHA}"
+    exit 3
+  fi
+  vpass "accepted: ${VERIFY_AKID} assumed the role as ${VERIFY_ARN}"
+  onboard_evidence "$VERIFY_AKID" "$VERIFY_ADDRESS" "$VERIFY_ARN"
+  echo ""
+  echo "VERIFIED: ${ACCOUNT} is onboarded and has accepted. Nothing was changed."
+  exit 0
+fi
+
 # ── The two steps every run ends with ────────────────────────────────────────
 #
 # Both are idempotent and both hand off to the script that owns the thing, with
 # stdin closed, because this run's stdin carries the sudo password.
 
-# The person's address on the staging allow-list. Without it nothing else
-# reaches them, so it is part of onboarding rather than a step to remember.
+# The person's address on the staging allow-list, as their own parameter. Without
+# it nothing else reaches them, so it is part of onboarding rather than a step to
+# remember. The values file, which holds the administrators' entries, is never
+# opened on this path, so an administrator's entry cannot be changed by it even
+# when the person shares an administrator's address.
 onboard_address() {
   echo ""
   echo "==> ${ACCOUNT}'s address on the ${TARGET} allow-list"
-  if ! bash "$ADDRESS_CMD" --target "$TARGET" --address "$ADDRESS" \
+  if ! bash "$ADDRESS_CMD" --target "$TARGET" --dev-tester "$ACCOUNT" --address "$ADDRESS" \
       --for "${ACCOUNT}; ${LOCATION}" </dev/null; then
     echo "ERROR: ${ADDRESS} is not proved on the ${TARGET} allow-list. Everything else is" >&2
     echo "       in place; re-run this same command to finish it." >&2
@@ -373,14 +652,13 @@ onboard_readback_failed() {
 # The host half of a finished onboarding, proved before it is called done. IAM
 # alone cannot say: an offboard that locked the host account and then failed to
 # reach IAM leaves the grant and the key live over an account nobody can use.
-# Read through the host step's read-only inspection, which consumes this run's
-# stdin for the sudo password; this is on the way to an exit, so nothing later
-# needs it. A host that cannot be read is a refusal, never "done".
+# Read through the host step's read-only inspection. A host that cannot be read
+# is a refusal, never "done".
 onboard_host_finished() {
   local out given held
   echo ""
   echo "==> Reading ${ACCOUNT} on the ${TARGET} host"
-  if ! out="$(bash "$PROVISION_CMD" --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
+  if ! out="$(host_step --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
     echo "ERROR: IAM shows ${ACCOUNT} onboarded, but their host account could not be" >&2
     echo "       read, so the onboarding is not proved finished. Nothing was changed." >&2
     echo "       Re-run once the host is reachable." >&2
@@ -436,6 +714,35 @@ if (( IAM_USER_EXISTS )); then
   fi
 fi
 
+# The host account as it stands, read before anything is confirmed. A key the
+# account was retired with is refused here rather than at the host step, after
+# two typed confirmations and a minted key: whoever still holds the private half
+# of a retired key would be let back in by reinstating it, which is why a
+# re-onboarding takes a pair made fresh for it. A key the shared account holds is
+# refused here too, for the reason the host half refuses it.
+if ! PRE_HOST="$(host_step --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
+  echo "ERROR: the ${TARGET} host could not be read, so the key cannot be checked" >&2
+  echo "       against what the account was retired with. Nothing has been created." >&2
+  exit 1
+fi
+PRE_RETIRED="$(sed -n 's/^RETIRED //p' <<<"$PRE_HOST" | awk '{print $2}')"
+if grep -qxF -- "$KEY_SHA" <<<"$PRE_RETIRED"; then
+  echo "REFUSING: ${KEY_SHA} is a key ${ACCOUNT} was retired with. Reinstating it would" >&2
+  echo "          let back in whoever still holds its private half. Make a fresh pair:" >&2
+  echo "            bash scripts/setup-dev-workstation.sh --operator --account ${ACCOUNT} \\" >&2
+  echo "              --replace-key retired --profile ${ACCOUNT}" >&2
+  echo "          (--profile proves the old identity dead where no acceptance marker" >&2
+  echo "          sits beside the pair; with one, it is not needed)" >&2
+  echo "          then onboard with the new key. Nothing has been created." >&2
+  exit 1
+fi
+PRE_SHARED="$(sed -n 's/^SHARED //p' <<<"$PRE_HOST")"
+if grep -qxF -- "$KEY_SHA" <<<"$PRE_SHARED"; then
+  echo "REFUSING: ${KEY_SHA} is also on the shared ${SHARED_HOST_ACCOUNT} account. A named key" >&2
+  echo "          must be a pair of its own. Nothing has been created." >&2
+  exit 1
+fi
+
 # Read before anything changes, so a Terraform or Lightsail problem costs
 # nothing but the run.
 known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
@@ -462,9 +769,12 @@ fi
 echo "  pin lines     ${KNOWN_HOSTS_PIN_COUNT} for ${KNOWN_HOSTS_PIN_IP}"
 echo "  sealed file   ${OUT_FILE}"
 [[ -e "$OUT_FILE" ]] && echo "                (replacing the one there, which this run makes obsolete)"
-echo "  allow-list    ${ADDRESS}, attributed '${ACCOUNT}; ${LOCATION}', on ${TARGET}"
+echo "  allow-list    ${ADDRESS}, as ${ACCOUNT}'s own address parameter on ${TARGET}"
+echo "                (staging's firewall is reapplied alone: every staging port"
+echo "                blinks for a few seconds; the values file is not opened)"
 echo ""
-echo "No IAM change names ${FOOTBAG_OPERATOR_USER}, and no AWS file on this machine is written."
+echo "No IAM change names ${FOOTBAG_OPERATOR_USER}, no administrator allow-list entry is"
+echo "touched, and no AWS file on this machine is written."
 if ! confirm_from_tty "Type 'APPLY' to onboard ${ACCOUNT}: " "APPLY"; then
   echo "Not confirmed; nothing was created." >&2
   exit 1
@@ -501,8 +811,8 @@ trap onboard_cleanup EXIT INT TERM
 # shred.
 PASS_FILE="$(umask 077 && mktemp)"
 secret_file_register "$PASS_FILE"
-OPACC_SEALED_OUT="$PASS_FILE" bash "$PROVISION_CMD" --target "$TARGET" \
-  --account "$ACCOUNT" --operator "$OPERATOR" --key-file "$PUBLIC_KEY" --sealed || {
+printf '%s\n' "$SUDO_PASS" | OPACC_SEALED_OUT="$PASS_FILE" bash "$PROVISION_CMD" --target "$TARGET" \
+  --account "$ACCOUNT" --operator "$OPERATOR" --key-line "$KEY_LINE" --sealed || {
   echo "ERROR: the host step did not finish; nothing else was started." >&2
   exit 1
 }
@@ -575,21 +885,22 @@ echo "Only the private half of ${KEY_FINGERPRINT%% (*} opens it."
 
 onboard_address
 onboard_readback "$IAM_KEY_AKID"
+onboard_evidence "$IAM_KEY_AKID" "$ADDRESS" "not yet: seen once they accept, by --verify"
 
 echo ""
 echo "1. Get that file to ${OPERATOR} by any channel. It is useless to anybody else."
 echo "   Onboarding yourself, it is already where it needs to be."
 echo ""
-echo "2. They install age, pull the public repository, and run on their own computer"
-echo "   (on this one, when onboarding yourself):"
+echo "2. They pull the public repository and run, on their own computer (on this one,"
+echo "   when onboarding yourself), with the file in ~/Downloads, ~/AWS or the"
+echo "   current directory:"
 echo ""
-echo "     bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} \\"
-echo "       --account ${ACCOUNT} <path to ${ACCOUNT}-${TARGET}.onboarding.age>"
+echo "     bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account ${ACCOUNT}"
 echo ""
 echo "3. Nothing goes in the vault: nobody named has a vault entry. Who holds this"
-echo "   access is read live, and the onboarding card records who approved it. The"
-echo "   access key id issued is ${IAM_KEY_AKID}."
+echo "   access is read live, and the onboarding card records who approved it."
 echo ""
-echo "4. When they report success, read the host side back from here:"
+echo "4. When they report success, prove it from here, read-only:"
 echo ""
-echo "     bash scripts/host-diagnostics.sh --target ${TARGET} host-access"
+echo "     < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh --verify \\"
+echo "       --target ${TARGET} --account ${ACCOUNT} --expect-fingerprint ${KEY_SHA}"

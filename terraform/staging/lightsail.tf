@@ -34,6 +34,55 @@ locals {
   ]
 }
 
+# Each dev-and-tester's address, one parameter per person, written and deleted
+# only by onboarding and offboarding as the directly authenticated identity. The
+# administrators' own entries stay in operator_cidrs, in the values file, and are
+# never read from here. Outside /footbag/<env>/ on purpose: the runtime role reads
+# that whole prefix, and an operator's home address is nothing the application
+# should see. An empty path reads as an empty list, so with nobody onboarded the
+# firewall is exactly operator_cidrs.
+data "aws_ssm_parameters_by_path" "dev_tester_addresses" {
+  path      = "/footbag-ops/${var.environment}/dev-testers"
+  recursive = false
+}
+
+locals {
+  # The provider marks parameter values sensitive whatever their type. These are
+  # plain String parameters holding firewall addresses, and leaving them marked
+  # would hide the whole port_info diff, the administrators' entries included.
+  dev_tester_address_names  = data.aws_ssm_parameters_by_path.dev_tester_addresses.names
+  dev_tester_address_values = nonsensitive(data.aws_ssm_parameters_by_path.dev_tester_addresses.values)
+
+  # Only a canonical single IPv4 host is admitted, so a malformed or widened
+  # value in someone's parameter can neither open the port to a range nor fail
+  # an administrator's plan; it is left out and reported by the check below.
+  dev_tester_valid = [
+    for v in local.dev_tester_address_values :
+    can(regex("^[0-9.]+/32$", v)) && try("${cidrhost(v, 0)}/32" == v, false)
+  ]
+  dev_tester_cidrs = [
+    for i, v in local.dev_tester_address_values : v if local.dev_tester_valid[i]
+  ]
+  dev_tester_invalid_names = [
+    for i, n in local.dev_tester_address_names : n if !local.dev_tester_valid[i]
+  ]
+
+  # The SSH allow-list: the administrators' entries first, as they always were,
+  # then each dev-and-tester address not already present. An address both an
+  # administrator and a dev-and-tester hold appears once, and removing the
+  # dev-and-tester's parameter leaves the administrator's entry admitting it.
+  operator_ssh_cidrs = distinct(concat(var.operator_cidrs, local.dev_tester_cidrs))
+}
+
+# A warning, never a failure: a bad value in one person's parameter must not stop
+# anybody's apply. The address is simply not admitted until it is corrected.
+check "dev_tester_addresses_are_single_hosts" {
+  assert {
+    condition     = length(local.dev_tester_invalid_names) == 0
+    error_message = "These dev-and-tester address parameters hold something other than a single IPv4 host (a.b.c.d/32) and are not admitted to SSH: ${join(", ", local.dev_tester_invalid_names)}. Re-run onboarding for that person to correct it."
+  }
+}
+
 resource "aws_lightsail_key_pair" "operator" {
   name       = "${local.prefix}-operator"
   public_key = var.ssh_public_key
@@ -87,15 +136,17 @@ resource "aws_lightsail_instance_public_ports" "web" {
   # when no address on the list still works, when the named accounts are
   # damaged, or when a new host has nobody on it, and it rests on the AWS
   # permission that mints its short-lived credential rather than on any key in
-  # the host's authorized_keys. An operator whose own address has changed
-  # updates operator_cidrs and applies instead. operator_cidrs in
-  # terraform.tfvars holds the routine SSH CIDR allow-list and may carry
-  # multiple /32s for network flexibility.
+  # the host's authorized_keys. An administrator whose own address has changed
+  # updates operator_cidrs and applies instead; a dev-and-tester's new address
+  # is set by re-running their onboarding. operator_cidrs in
+  # terraform.tfvars holds the administrators' routine SSH CIDR allow-list and
+  # may carry multiple /32s for network flexibility; the dev-and-testers'
+  # addresses are joined to it above, from their own parameters.
   port_info {
     protocol          = "tcp"
     from_port         = 22
     to_port           = 22
-    cidrs             = var.operator_cidrs
+    cidrs             = local.operator_ssh_cidrs
     cidr_list_aliases = ["lightsail-connect"]
   }
 
@@ -118,7 +169,7 @@ resource "aws_lightsail_instance_public_ports" "web" {
     protocol  = "tcp"
     from_port = 2222
     to_port   = 2222
-    cidrs     = var.operator_cidrs
+    cidrs     = local.operator_ssh_cidrs
   }
 
   # HTTPS — not terminated at Lightsail; CloudFront handles TLS

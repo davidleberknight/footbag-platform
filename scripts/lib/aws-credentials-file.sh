@@ -34,6 +34,29 @@ source "${AWS_CRED_LIB_DIR}/secret-file.sh"
 # The reason the last call failed, empty on success.
 AWS_CRED_ERROR=""
 
+# _aws_cred_header <line>
+#
+# True when <line> is a section header, setting AWS_CRED_HEADER to the name
+# between the brackets with every space removed, so "[profile  x]" and
+# "[profilex]" compare equal the way the AWS tools treat them. False otherwise,
+# with AWS_CRED_HEADER empty.
+#
+# A header may carry a trailing comment, "[footbag-operator] # main key" or
+# "[x] ; note", and the AWS tools still read it as the section. Every reader and
+# writer here asks this one function, because a test that saw such a line as
+# body rather than a header was worse than blind: a removal ran on past it and
+# deleted the next section whole, which on an administrator's machine is the
+# directly authenticated identity's own key.
+_aws_cred_header() {
+  local re='^[[:space:]]*\[([^]]*)\][[:space:]]*([#;].*)?$'
+  AWS_CRED_HEADER=""
+  if [[ "$1" =~ $re ]]; then
+    AWS_CRED_HEADER="${BASH_REMATCH[1]//[[:space:]]/}"
+    return 0
+  fi
+  return 1
+}
+
 # aws_cred_key_id_looks_valid <access-key-id>
 #
 # Shape only; it says nothing about whether the key exists. The point is to
@@ -130,12 +153,12 @@ aws_cred_put() {
       # back untouched unless it is one of ours to replace.
       norm="${line//[[:space:]]/}"
 
-      if [[ "$norm" == \[*\] ]]; then
+      if _aws_cred_header "$line"; then
         in_target=0
-        if [[ "$norm" == "[${profile}]" ]]; then
+        if [[ "$AWS_CRED_HEADER" == "$profile" ]]; then
           in_target=1
           emitted=1
-          printf '[%s]\n' "$profile" >> "$tmp"
+          printf '%s\n' "$line" >> "$tmp"
           printf 'aws_access_key_id = %s\n' "$akid" >> "$tmp"
           printf 'aws_secret_access_key = %s\n' "$sak" >> "$tmp"
           continue
@@ -195,7 +218,7 @@ aws_cred_put() {
 # every AWS call on the machine.
 aws_cred_remove_section() {
   local file="$1" profile="$2"
-  local dir tmp line norm in_target=0 found=0
+  local dir tmp line in_target=0 found=0
 
   AWS_CRED_ERROR=""
 
@@ -226,19 +249,50 @@ aws_cred_remove_section() {
   # shellcheck disable=SC2064
   trap "secret_file_destroy '${tmp}'; trap - RETURN" RETURN
 
+  # Comment and blank lines met inside the removed section are held rather than
+  # dropped: those just above the next header are that section's own note (an
+  # administrator's "# main key" sitting over [footbag-operator]), so they are
+  # written back when a header follows. Only at the end of the file, with no
+  # section after them, do they go with the removed one. A comment carrying `=`
+  # is never held: it may be a commented-out key of the removed profile, and
+  # removal takes everything of it.
+  #
+  # Blank lines outside the section are held too, until the next line that is
+  # not blank: the ones directly above the removed header are the separator
+  # aws_cred_put wrote when it added the section, so they go with it, and adding
+  # then removing a profile leaves the file exactly as it was.
+  local held="" pend=""
   while IFS= read -r line || [[ -n "$line" ]]; do
-    norm="${line//[[:space:]]/}"
-    if [[ "$norm" == \[*\] ]]; then
-      if [[ "$norm" == "[${profile}]" ]]; then
+    if _aws_cred_header "$line"; then
+      if [[ "$AWS_CRED_HEADER" == "$profile" ]]; then
         in_target=1
         found=1
+        held=""
+        pend=""
         continue
       fi
+      if (( in_target )) && [[ -n "$held" ]]; then
+        printf '%s' "$held" >> "$tmp"
+      fi
+      held=""
       in_target=0
     fi
-    (( in_target )) && continue
-    printf '%s\n' "$line" >> "$tmp"
+    if (( in_target )); then
+      if [[ "$line" =~ ^[[:space:]]*([#\;][^=]*)?$ ]]; then
+        held+="${line}"$'\n'
+      else
+        held=""
+      fi
+      continue
+    fi
+    if [[ "$line" =~ ^[[:space:]]*$ ]]; then
+      pend+="${line}"$'\n'
+      continue
+    fi
+    printf '%s%s\n' "$pend" "$line" >> "$tmp"
+    pend=""
   done < "$file"
+  [[ -n "$pend" ]] && printf '%s' "$pend" >> "$tmp"
 
   if (( ! found )); then
     return 2
@@ -261,11 +315,10 @@ aws_cred_remove_section() {
 # file spells a profile without the `profile ` prefix the config file uses,
 # which is why this is not the same test as aws_config_has_profile.
 aws_cred_has_section() {
-  local file="$1" profile="$2" line norm
+  local file="$1" profile="$2" line
   [[ -f "$file" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
-    norm="${line//[[:space:]]/}"
-    [[ "$norm" == "[${profile}]" ]] && return 0
+    _aws_cred_header "$line" && [[ "$AWS_CRED_HEADER" == "$profile" ]] && return 0
   done < "$file"
   return 1
 }
@@ -280,9 +333,9 @@ aws_cred_current_key_id() {
   [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     norm="${line//[[:space:]]/}"
-    if [[ "$norm" == \[*\] ]]; then
+    if _aws_cred_header "$line"; then
       in_target=0
-      [[ "$norm" == "[${profile}]" ]] && in_target=1
+      [[ "$AWS_CRED_HEADER" == "$profile" ]] && in_target=1
       continue
     fi
     if (( in_target )) && [[ "$norm" == aws_access_key_id=* ]]; then
@@ -300,11 +353,10 @@ aws_cred_current_key_id() {
 # which is the difference that makes a hand-copied stanza land in the wrong
 # shape and resolve as nothing.
 aws_config_has_profile() {
-  local file="$1" profile="$2" line norm
+  local file="$1" profile="$2" line
   [[ -f "$file" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
-    norm="${line//[[:space:]]/}"
-    [[ "$norm" == "[profile${profile}]" ]] && return 0
+    _aws_cred_header "$line" && [[ "$AWS_CRED_HEADER" == "profile${profile}" ]] && return 0
   done < "$file"
   return 1
 }
@@ -321,12 +373,11 @@ aws_config_has_profile() {
 # same as the profile check above, because the AWS tools accept "[profile  x]"
 # and an operator's editor sometimes produces it.
 aws_config_has_section() {
-  local file="$1" header="$2" line norm want
-  want="[${header//[[:space:]]/}]"
+  local file="$1" header="$2" line want
+  want="${header//[[:space:]]/}"
   [[ -f "$file" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
-    norm="${line//[[:space:]]/}"
-    [[ "$norm" == "$want" ]] && return 0
+    _aws_cred_header "$line" && [[ "$AWS_CRED_HEADER" == "$want" ]] && return 0
   done < "$file"
   return 1
 }
@@ -347,9 +398,9 @@ aws_config_profile_key_id() {
   [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     norm="${line//[[:space:]]/}"
-    if [[ "$norm" == \[*\] ]]; then
+    if _aws_cred_header "$line"; then
       in_target=0
-      [[ "$norm" == "[profile${profile}]" ]] && in_target=1
+      [[ "$AWS_CRED_HEADER" == "profile${profile}" ]] && in_target=1
       continue
     fi
     if (( in_target )) && [[ "$norm" == aws_access_key_id=* ]]; then
@@ -374,9 +425,9 @@ aws_config_profile_source() {
   [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     norm="${line//[[:space:]]/}"
-    if [[ "$norm" == \[*\] ]]; then
+    if _aws_cred_header "$line"; then
       in_target=0
-      [[ "$norm" == "[profile${profile}]" ]] && in_target=1
+      [[ "$AWS_CRED_HEADER" == "profile${profile}" ]] && in_target=1
       continue
     fi
     if (( in_target )) && [[ "$norm" == source_profile=* ]]; then

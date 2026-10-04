@@ -42,12 +42,30 @@
 #
 # Usage:
 #   bash scripts/verify-account-baseline.sh --profile <p>
+#   bash scripts/verify-account-baseline.sh --save
+#   bash scripts/verify-account-baseline.sh --compare ~/AWS/baseline-<date>.txt \
+#     [--ignore-user <name>]...
 #
 # Flags:
 #   --profile <p>   AWS profile; else the identity this run settles and proves.
 #   --quiet         only print failures.
+#   --save          instead of the report, record the facts that must not change
+#                   under anybody else's work: footbag-operator's unique id, every
+#                   key and its status, its attached and inline policies, its MFA
+#                   device, whether it has a console sign-in, and its tags; every
+#                   user's keys and their status; and both runtime trust
+#                   documents, canonical JSON. Written to ~/AWS/baseline-<date>.txt,
+#                   mode 600, never over an existing file.
+#   --compare <file>
+#                   instead of the report, read the same facts and compare them
+#                   with a saved file, printing every difference.
+#   --ignore-user <name>
+#                   with --compare: leave that user's own keys out, for the one
+#                   change a dev-and-tester lifecycle is expected to make. Never
+#                   footbag-operator.
 #
-# Exit: 0 everything passes, 1 one or more findings, 2 usage error.
+# Exit: 0 everything passes (or saved, or the same), 1 one or more findings or
+# a fact that could not be read, 2 usage error, 3 the compared facts differ.
 #
 # Test seam (CI only; operators never set this): ACCOUNT_BASELINE_AWS_BIN
 # replaces the aws CLI. A run using it says so, because this script exists to be
@@ -79,6 +97,9 @@ RUNTIME_ROLES=("$STAGING_RUNTIME_ROLE" "$PRODUCTION_RUNTIME_ROLE")
 DEV_TESTER_ROLE="$FOOTBAG_DEV_TESTER_ROLE"
 PROFILE=""
 QUIET=0
+MODE="report"
+COMPARE_FILE=""
+IGNORE_USERS=()
 
 usage() {
   # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -94,9 +115,35 @@ while [[ $# -gt 0 ]]; do
       shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
       ;;
     --quiet) QUIET=1; shift ;;
+    --save) MODE="save"; shift ;;
+    --compare)
+      MODE="compare"
+      COMPARE_FILE="${2:-}"
+      shift 2 || { echo "ERROR: --compare requires a saved file" >&2; exit 2; }
+      ;;
+    --ignore-user)
+      IGNORE_USERS+=("${2:-}")
+      shift 2 || { echo "ERROR: --ignore-user requires a name" >&2; exit 2; }
+      ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
   esac
+done
+
+if [[ "$MODE" == "compare" && ! -r "$COMPARE_FILE" ]]; then
+  echo "ERROR: --compare needs a saved baseline file it can read; '${COMPARE_FILE}' is not one." >&2
+  exit 2
+fi
+if (( ${#IGNORE_USERS[@]} )) && [[ "$MODE" != "compare" ]]; then
+  echo "ERROR: --ignore-user goes with --compare." >&2
+  exit 2
+fi
+for _ignored in ${IGNORE_USERS[@]+"${IGNORE_USERS[@]}"}; do
+  if [[ "$_ignored" == "footbag-operator" || -z "$_ignored" ]]; then
+    echo "ERROR: footbag-operator is the identity this comparison exists to hold" >&2
+    echo "       still; it is never left out." >&2
+    exit 2
+  fi
 done
 
 AWS_ARGS=()
@@ -140,6 +187,122 @@ if [[ -z "$ACCOUNT_ID" || "$ACCOUNT_ID" == "None" ]]; then
   echo "ERROR: could not resolve an identity, so nothing below could be read." >&2
   echo "       Check the profile and that its key still authenticates." >&2
   exit 1
+fi
+
+# ── The facts that must not move, saved or compared ──────────────────────────
+#
+# A dev-and-tester's onboarding, offboarding and proving all run on a machine
+# that also holds footbag-operator, and the requirement on every one of them is
+# that the directly authenticated identity and both runtime trusts come out
+# exactly as they went in. Saying so is a claim; saving these facts before and
+# comparing after is the evidence. One fact per line, each read directly and
+# normalized so that ordering and formatting never read as a change. A read that
+# fails ends the run: a fact that could not be read is not the same fact.
+baseline_facts() {
+  local out user rows policy tags mfa login trust role
+  facts_fail() { echo "ERROR: could not read ${1}; nothing was saved or compared." >&2; exit 1; }
+
+  out="$(aws_q iam get-user --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'User.[UserId,Arn]' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}"
+  printf 'operator.id\t%s\n' "$(cut -f1 <<<"$out")"
+  printf 'operator.arn\t%s\n' "$(cut -f2 <<<"$out")"
+  rows="$(aws_q iam list-access-keys --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'AccessKeyMetadata[].[AccessKeyId,Status]' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s keys"
+  while IFS=$'\t' read -r akid status; do
+    [[ -n "$akid" ]] && printf 'operator.key\t%s %s\n' "$akid" "$status"
+  done <<<"$rows"
+  policy="$(aws_q iam list-attached-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'AttachedPolicies[].PolicyArn' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s attached policies"
+  # The CLI prints None for an empty answer in text form; that is no entry.
+  for p in $policy; do [[ "$p" == None ]] || printf 'operator.attached\t%s\n' "$p"; done
+  policy="$(aws_q iam list-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'PolicyNames' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s inline policies"
+  # Each inline policy by its content as well as its name, so an edit to the
+  # document under an unchanged name is a change. Recorded as a digest of the
+  # normalized document: the comparison needs equality, not the text.
+  local doc digest
+  for p in $policy; do
+    [[ "$p" == None ]] && continue
+    doc="$(aws_q iam get-user-policy --user-name "$FOOTBAG_OPERATOR_USER" --policy-name "$p" \
+      --query 'PolicyDocument' --output json)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s inline policy ${p}"
+    digest="$(jq -S -c . <<<"$doc" 2>/dev/null | sha256sum | cut -d' ' -f1)"
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || facts_fail "${FOOTBAG_OPERATOR_USER}'s inline policy ${p} as JSON"
+    printf 'operator.inline\t%s %s\n' "$p" "$digest"
+  done
+  mfa="$(aws_q iam list-mfa-devices --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'MFADevices[].SerialNumber' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s MFA devices"
+  for p in $mfa; do [[ "$p" == None ]] || printf 'operator.mfa\t%s\n' "$p"; done
+  # A console sign-in, by its presence. Absent is an answer AWS gives by name;
+  # any other failure is a fact that could not be read.
+  if login="$("$AWS_BIN" iam get-login-profile --user-name "$FOOTBAG_OPERATOR_USER" \
+        ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} --query 'LoginProfile.UserName' --output text 2>&1)"; then
+    printf 'operator.console\tpresent\n'
+  elif [[ "$login" == *NoSuchEntity* ]]; then
+    printf 'operator.console\tabsent\n'
+  else
+    facts_fail "${FOOTBAG_OPERATOR_USER}'s console sign-in"
+  fi
+  tags="$(aws_q iam list-user-tags --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'Tags[].[Key,Value]' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s tags"
+  while IFS=$'\t' read -r k v; do
+    [[ -n "$k" ]] && printf 'operator.tag\t%s=%s\n' "$k" "$v"
+  done <<<"$tags"
+
+  rows="$(aws_q iam list-users --query 'Users[].UserName' --output text)" || facts_fail "the IAM users"
+  for user in $rows; do
+    out="$(aws_q iam list-access-keys --user-name "$user" \
+      --query 'AccessKeyMetadata[].[AccessKeyId,Status]' --output text)" || facts_fail "${user}'s keys"
+    if [[ -z "$out" ]]; then
+      printf 'user.key\t%s none\n' "$user"
+    fi
+    while IFS=$'\t' read -r akid status; do
+      [[ -n "$akid" ]] && printf 'user.key\t%s %s %s\n' "$user" "$akid" "$status"
+    done <<<"$out"
+  done
+
+  for role in "${RUNTIME_ROLES[@]}"; do
+    trust="$(aws_q iam get-role --role-name "$role" \
+      --query 'Role.AssumeRolePolicyDocument' --output json)" || facts_fail "${role}'s trust policy"
+    trust="$(jq -S -c . <<<"$trust" 2>/dev/null)" || facts_fail "${role}'s trust policy as JSON"
+    printf 'trust.%s\t%s\n' "$role" "$trust"
+  done
+}
+
+if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
+  command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is needed to read the trust policies." >&2; exit 1; }
+  FACTS="$(baseline_facts | LC_ALL=C sort)"
+  if [[ "$MODE" == "save" ]]; then
+    SAVE_DIR="${HOME}/AWS"
+    SAVE_BASE="${SAVE_DIR}/baseline-$(date -u +%Y-%m-%d)"
+    SAVE_PATH="${SAVE_BASE}.txt"
+    n=2
+    while [[ -e "$SAVE_PATH" ]]; do SAVE_PATH="${SAVE_BASE}-${n}.txt"; n=$(( n + 1 )); done
+    mkdir -p -m 700 -- "$SAVE_DIR"
+    ( umask 077 && printf '%s\n' "$FACTS" > "$SAVE_PATH" )
+    echo "Saved $(grep -c . <<<"$FACTS") facts for account ${ACCOUNT_ID} to ${SAVE_PATH}"
+    exit 0
+  fi
+  # A named user's own key lines are left out on both sides when asked: that
+  # one change is what a dev-and-tester lifecycle makes. Nothing about
+  # footbag-operator or either trust can be left out.
+  ignore_filter() {
+    local u line
+    while IFS= read -r line; do
+      for u in ${IGNORE_USERS[@]+"${IGNORE_USERS[@]}"}; do
+        [[ "$line" == "user.key"$'\t'"${u} "* ]] && continue 2
+      done
+      printf '%s\n' "$line"
+    done
+  }
+  SAVED="$(ignore_filter < "$COMPARE_FILE" | LC_ALL=C sort)"
+  NOW="$(ignore_filter <<<"$FACTS" | LC_ALL=C sort)"
+  if [[ "$SAVED" == "$NOW" ]]; then
+    echo "Unchanged since ${COMPARE_FILE}: footbag-operator, every key outside those left out, and both runtime trusts."
+    exit 0
+  fi
+  echo "CHANGED since ${COMPARE_FILE}:" >&2
+  diff <(printf '%s\n' "$SAVED") <(printf '%s\n' "$NOW") | sed -n 's/^< /  was: /p; s/^> /  now: /p' >&2 || true
+  exit 3
 fi
 
 echo "Account baseline for ${ACCOUNT_ID}"

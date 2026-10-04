@@ -45,6 +45,15 @@
 #   scripts/terraform-apply.sh --target staging --init-upgrade
 #   scripts/terraform-apply.sh --target staging --break-stale-lock
 #   scripts/terraform-apply.sh --target staging --break-stale-lock --i-killed-that-run
+#   scripts/terraform-apply.sh --target staging --firewall-only
+#   scripts/terraform-apply.sh --target staging --require-empty-plan
+#
+# --firewall-only and --require-empty-plan are for callers that know in advance
+# what the plan may contain, on staging only. The first, run by the dev-and-tester
+# address path, applies only when the firewall rule set is the whole change, and
+# says first that every staging port blinks while it is replaced. The second, run
+# when proving the job role, applies nothing and refuses unless there is nothing
+# to apply. Either refuses any other change as drift it did not come to apply.
 #
 # --i-killed-that-run waives the staleness floor, and nothing else, for an
 # operator who knows the holding process is gone because they stopped it. The
@@ -78,7 +87,15 @@
 # silently used a stub would prove nothing about the estate.
 # TERRAFORM_APPLY_PROC_COUNT stands in for the local terraform process count the
 # state-lock report reads, so both of its branches are testable on a machine that
-# has no terraform running.
+# has no terraform running. TERRAFORM_APPLY_VALUES_FILE names the file the
+# job-role values check reads, so both of its branches are testable whether or
+# not the machine running the suite has the private checkout linked.
+#
+# Under the job role (an assumed-role session of FootbagDevTester, as AWS
+# reports it) three things differ, and nothing else: terraform is never allowed
+# to prompt (-input=false), a missing values link is refused before planning,
+# and a plan that changes any aws_iam_* resource is refused before applying,
+# because the role holds no IAM write.
 set -euo pipefail
 
 TARGET=""
@@ -97,6 +114,12 @@ KILLED_IT=0
 # apply in these trees takes, so a lock still held past it was left by a process
 # that is gone rather than one still working.
 STALE_LOCK_MIN_AGE_SECS=1800
+# What the plan is allowed to contain, for the two callers that know in advance:
+# "firewall-only" for a dev-and-tester address change, "empty" for proving the
+# job role can plan staging. Empty means no restriction, which is every other run.
+PLAN_SHAPE=""
+# The one resource a dev-and-tester address change may touch.
+FIREWALL_ADDRESS="aws_lightsail_instance_public_ports.web"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # confirm_from_tty reads the answer from /dev/tty rather than stdin, refuses when
@@ -262,6 +285,14 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=1
       shift
       ;;
+    --firewall-only)
+      PLAN_SHAPE="firewall-only"
+      shift
+      ;;
+    --require-empty-plan)
+      PLAN_SHAPE="empty"
+      shift
+      ;;
     --yes)
       ASSUME_YES="yes"
       shift
@@ -286,6 +317,17 @@ done
 # scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh own that
 # instead.
 require_target "$TARGET" staging production shared identity || exit 2
+
+# Both shapes are staging-only: the dev-and-tester path exists on staging alone,
+# and a restriction on the plan is not a reason to apply any other tree.
+if [[ -n "$PLAN_SHAPE" && "$TARGET" != "staging" ]]; then
+  echo "ERROR: --firewall-only and --require-empty-plan apply to staging only." >&2
+  exit 2
+fi
+if [[ -n "$PLAN_SHAPE" ]] && (( BREAK_LOCK )); then
+  echo "ERROR: --firewall-only and --require-empty-plan do not combine with --break-stale-lock." >&2
+  exit 2
+fi
 
 if [[ ! "$FROM_STEP" =~ ^[1-2]$ ]]; then
   echo "ERROR: --from-step takes a step number from 1 to 2 (got '$FROM_STEP')." >&2
@@ -404,6 +446,40 @@ if [[ "$TARGET" == "identity" ]]; then
   aws_identity_require_direct_user "footbag-operator" || exit 1
 fi
 
+# Whether this run is a session of the job role, decided from the identity AWS
+# just reported and never from a profile name. Everything keyed on it below
+# applies to that session only; a run as the directly authenticated identity
+# keeps exactly the arguments and output it always had.
+JOB_ROLE=0
+case "${AWS_IDENTITY_ARN:-}" in
+  *":assumed-role/${FOOTBAG_DEV_TESTER_ROLE}/"*) JOB_ROLE=1 ;;
+esac
+
+# A job-role session never answers a terraform prompt. A variable with no value
+# would otherwise make terraform stop and ask, which in a wrapped run reads as a
+# hang; refusing to ask turns it into an error naming the variable.
+declare -a TF_INPUT_ARGS=()
+(( JOB_ROLE )) && TF_INPUT_ARGS=(-input=false)
+
+# The values file is a link into the maintainers' private operations checkout,
+# which a dev-and-tester is not required to have: deploying and testing staging
+# need no apply. Without it terraform fails on a missing variable partway into a
+# plan, in words that do not name the file, so the job role is refused here,
+# before any state is touched.
+VALUES_FILE="${TERRAFORM_APPLY_VALUES_FILE:-${TF_DIR}/terraform.tfvars}"
+if [[ -n "${TERRAFORM_APPLY_VALUES_FILE:-}" ]]; then
+  echo "SYNTHETIC: values file='${VALUES_FILE}' -- the job-role check reads a stand-in." >&2
+fi
+if (( JOB_ROLE )) && [[ ! -r "$VALUES_FILE" ]]; then
+  echo "ERROR: terraform/${TARGET}/terraform.tfvars is missing or unreadable." >&2
+  echo "       It is a link into the private operations checkout, which this" >&2
+  echo "       workstation does not have wired. A dev-and-tester deploys and tests" >&2
+  echo "       staging without applying Terraform; an apply needs the checkout," >&2
+  echo "       linked with: bash scripts/setup_private_repo.sh" >&2
+  echo "       Nothing was planned or applied." >&2
+  exit 1
+fi
+
 # ── Breaking a stale state lock ──────────────────────────────────────────────
 #
 # A plan or apply that is killed rather than interrupted leaves its lock behind,
@@ -436,7 +512,7 @@ if (( BREAK_LOCK )); then
   # -no-color because this output is parsed, not read: terraform colours its
   # error box even when writing to a file. The parser strips escapes anyway, so
   # this is the belt to that braces rather than the only defence.
-  "$TF_BIN" -chdir="$TF_DIR" plan -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || PROBE_STATUS=$?
+  "$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || PROBE_STATUS=$?
 
   if (( PROBE_STATUS == 0 )); then
     echo "ERROR: the state is not locked, so there is nothing to break." >&2
@@ -552,7 +628,7 @@ if (( BREAK_LOCK )); then
   echo ""
   echo "Verifying the lock is gone rather than trusting the exit status."
   VERIFY_STATUS=0
-  "$TF_BIN" -chdir="$TF_DIR" plan -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || VERIFY_STATUS=$?
+  "$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || VERIFY_STATUS=$?
   if parse_lock_info "$TF_PLAN_LOG"; then
     echo "ERROR: the state is still locked, now by ${LOCK_WHO} (${LOCK_ID})." >&2
     echo "       Something re-took it, or the unlock did not take effect." >&2
@@ -637,7 +713,7 @@ PLAN_STATUS=0
 # DNS check below greps when jq is unavailable. Terraform's colour escapes land
 # between the start of a line and its +/-/~ marker, which defeats an anchored
 # pattern and makes that check silently match nothing.
-"$TF_BIN" -chdir="$TF_DIR" plan -no-color -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
+"$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} -no-color -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
 if (( PLAN_STATUS != 0 )); then
   echo "ERROR: terraform plan failed. Nothing was applied." >&2
   if ! report_state_lock "$TF_PLAN_LOG"; then
@@ -749,6 +825,96 @@ else
   echo "      prompt it raises against the plan above." >&2
 fi
 
+# ── An IAM change is the directly authenticated identity's to apply ──────────
+#
+# The job role holds no IAM write, so a plan that changes any aws_iam_* resource
+# would be refused by AWS partway through the apply, after the resources ahead of
+# it had already changed. Refused here instead, before anything is applied, and
+# failing closed like the DNS read: a plan this cannot read is refused too.
+if (( JOB_ROLE )); then
+  IAM_CHANGES=""
+  if command -v jq >/dev/null 2>&1; then
+    if ! IAM_CHANGES="$(printf '%s' "${PLAN_JSON:-}" | jq -r '
+        .resource_changes[]?
+        | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+        | select(.type | startswith("aws_iam"))
+        | "  \(.change.actions | join("+"))  \(.address)"
+      ')"; then
+      echo "ERROR: could not read the saved plan to check it for IAM changes." >&2
+      echo "       Nothing has been applied." >&2
+      exit 1
+    fi
+  else
+    IAM_GREP_STATUS=0
+    IAM_CHANGES="$(grep -E '^[[:space:]]*[#~+-].*aws_iam_' "$TF_PLAN_LOG")" || IAM_GREP_STATUS=$?
+    if (( IAM_GREP_STATUS > 1 )); then
+      echo "ERROR: could not read the plan text to check it for IAM changes." >&2
+      echo "       Nothing has been applied." >&2
+      exit 1
+    fi
+  fi
+  if [[ -n "$IAM_CHANGES" ]]; then
+    echo "ERROR: this plan changes IAM, which the job role may not do:" >&2
+    printf '%s\n' "$IAM_CHANGES" >&2
+    echo "       AWS would refuse it partway through, after the changes ahead of" >&2
+    echo "       it had landed. Nothing has been applied. A footbag-operator holder" >&2
+    echo "       applies this one, as the directly authenticated identity." >&2
+    exit 1
+  fi
+fi
+
+# ── A caller that knows what the plan may contain ────────────────────────────
+#
+# A dev-and-tester address change touches the firewall resource and nothing
+# else, and proving the job role can plan staging touches nothing at all. In
+# either case anything else in the plan is drift somebody did not come here to
+# apply, so it is refused rather than carried along. Read from the plan's JSON
+# only: the text fallback over-matches by design, which is right for a warning
+# and wrong for a refusal, so without jq these modes do not run.
+if [[ -n "$PLAN_SHAPE" ]]; then
+  if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
+    echo "ERROR: --${PLAN_SHAPE/empty/require-empty-plan} needs the plan read as JSON, and jq is not installed." >&2
+    echo "       Nothing has been applied." >&2
+    exit 1
+  fi
+  if ! PLANNED_CHANGES="$(printf '%s' "$PLAN_JSON" | jq -r '
+      .resource_changes[]?
+      | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+      | .address
+    ')"; then
+    echo "ERROR: could not read the saved plan to check what it changes. Nothing has been applied." >&2
+    exit 1
+  fi
+  OTHER_CHANGES="$(printf '%s\n' "$PLANNED_CHANGES" | grep -vxF -e "$FIREWALL_ADDRESS" -e '' || true)"
+  if [[ "$PLAN_SHAPE" == "empty" ]]; then
+    if [[ -n "$PLANNED_CHANGES" ]]; then
+      echo "ERROR: the plan was required to be empty, and it changes:" >&2
+      printf '%s\n' "$PLANNED_CHANGES" | sed 's/^/  /' >&2
+      echo "       Nothing has been applied. A footbag-operator holder applies or" >&2
+      echo "       resolves that drift first." >&2
+      exit 1
+    fi
+    echo "The plan is empty, as required. Nothing to apply."
+    exit 0
+  fi
+  if [[ -n "$OTHER_CHANGES" ]]; then
+    echo "ERROR: this firewall-only apply would also change:" >&2
+    printf '%s\n' "$OTHER_CHANGES" | sed 's/^/  /' >&2
+    echo "       That is drift this run did not come to apply. Nothing has been" >&2
+    echo "       applied; a footbag-operator holder applies staging first." >&2
+    exit 1
+  fi
+  if [[ -z "$PLANNED_CHANGES" ]]; then
+    echo "The staging firewall already admits exactly these addresses. Nothing to apply."
+    exit 0
+  fi
+  echo "This apply replaces the staging firewall rule set (${FIREWALL_ADDRESS})."
+  echo "Every staging port, SSH and the site alike, closes for a few seconds while"
+  echo "the rules are rewritten, then reopens with the new list. Production is not"
+  echo "touched."
+  echo ""
+fi
+
 if [[ -n "$DNS_CHANGES" ]]; then
   echo ""
   echo "=============================================================="
@@ -819,7 +985,7 @@ else
   echo "The plan covers this whole environment, not only the change you came for."
   echo ""
 fi
-if ! "$TF_BIN" -chdir="$TF_DIR" apply "$TF_PLAN"; then
+if ! "$TF_BIN" -chdir="$TF_DIR" apply ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} "$TF_PLAN"; then
   echo "ERROR: terraform apply failed. Resume with --from-step 2 once fixed." >&2
   exit 1
 fi

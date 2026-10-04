@@ -31,7 +31,15 @@
 #    9. the runtime role it may assume, which it may read and not rewrite;
 #   10. a key alias on a production-tagged or untagged key;
 #   11. a production edge function, by name;
-#   12. passing a role to budgets.
+#   12. passing a role to budgets;
+#   13. IAM write over staging-named principals, never granted: every route
+#       from a staging-named user, role or policy to administrator;
+#   14. assuming any role but the staging runtime role;
+#   15. writing an operator's allow-list address, and reading the
+#       dev-and-tester addresses the staging plan needs;
+#   16. editing or deleting the job's own managed policies, that all three are
+#       attached, and that nothing but session revocations is inline;
+#   17. the reads a staging plan makes, which must all be allowed.
 #
 # Until this script existed, proving that meant an operator composing an
 # `aws iam simulate-principal-policy` invocation at the keyboard, from the
@@ -550,6 +558,138 @@ SIM_CONTEXT=(--context-entries \
 simulate_denied "passing a role to budgets" \
   "arn:aws:iam::${ACCOUNT_ID}:role/footbag-staging-probe" "${BUDGETS_PASS[@]}"
 SIM_CONTEXT=()
+
+# ── 13. IAM write over staging-named principals ──────────────────────────────
+#
+# An absence rather than a denial statement, like the static IP. Each of these
+# is one step of a route to administrator: make a staging-named user, give it
+# AdministratorAccess and a key; or make or rewrite a staging-named role and
+# pass it to a service; or add a policy version. None is granted, and a grant
+# creeping back is the finding. implicitDeny is the expected answer here.
+
+echo ""
+echo "IAM write over staging-named principals"
+PROBE_USER="arn:aws:iam::${ACCOUNT_ID}:user/footbag-staging-probe"
+PROBE_ROLE="arn:aws:iam::${ACCOUNT_ID}:role/footbag-staging-probe"
+PROBE_POLICY="arn:aws:iam::${ACCOUNT_ID}:policy/footbag-staging-probe"
+iam_write_probe() {
+  local resource="$1" action decision ; shift
+  for action in "$@"; do
+    decision="$(aws_q iam simulate-principal-policy \
+      --policy-source-arn "$ROLE_ARN" \
+      --action-names "$action" \
+      --resource-arns "$resource" \
+      --query 'EvaluationResults[0].EvalDecision' --output text || true)"
+    if [[ "$decision" == "allowed" ]]; then
+      fail "IAM write: ${action} on ${resource##*:} is granted, a step to administrator"
+    elif [[ -z "$decision" ]]; then
+      fail "IAM write: the simulator returned nothing for ${action}, so the absence is unproven"
+    else
+      pass "IAM write: ${action} on ${resource##*:} is not granted (${decision})"
+    fi
+  done
+}
+iam_write_probe "$PROBE_USER" iam:CreateUser iam:CreateAccessKey \
+  iam:AttachUserPolicy iam:PutUserPolicy
+iam_write_probe "$PROBE_ROLE" iam:CreateRole iam:PassRole iam:AttachRolePolicy \
+  iam:PutRolePolicy iam:UpdateAssumeRolePolicy
+iam_write_probe "$PROBE_POLICY" iam:CreatePolicyVersion iam:SetDefaultPolicyVersion
+
+# ── 14. Assuming another role ────────────────────────────────────────────────
+#
+# The role may assume the staging runtime role and nothing else, stated as a
+# Deny so a role created later with a trust naming this one is still refused.
+
+echo ""
+echo "Assuming another role"
+simulate_denied "assuming a staging-named role" "$PROBE_ROLE" sts:AssumeRole
+simulate_denied "assuming the production runtime role" \
+  "arn:aws:iam::${ACCOUNT_ID}:role/footbag-production-app-runtime" sts:AssumeRole
+simulate_allowed "chaining into the staging runtime role" sts:AssumeRole "$RUNTIME_ROLE_ARN"
+
+# ── 15. Operator allow-list addresses ────────────────────────────────────────
+#
+# Who may reach staging's SSH ports follows from these parameters. The role
+# reads the dev-and-tester addresses, because the staging plan builds the
+# allow-list from them, and writes no operator address anywhere under the path.
+# The region is arbitrary: the policy scopes these ARNs to every region.
+
+echo ""
+echo "Operator allow-list addresses"
+ADDRESS_PATH="arn:aws:ssm:us-east-1:${ACCOUNT_ID}:parameter/footbag-ops/staging/dev-testers"
+note "NotAction-shaped, so this set is representative rather than exhaustive"
+simulate_denied "writing a dev-and-tester address" "${ADDRESS_PATH}/probe" \
+  ssm:PutParameter ssm:DeleteParameter ssm:DeleteParameters \
+  ssm:LabelParameterVersion ssm:AddTagsToResource
+simulate_denied "writing any operator address" \
+  "arn:aws:ssm:us-east-1:${ACCOUNT_ID}:parameter/footbag-ops/production/probe" \
+  ssm:PutParameter ssm:DeleteParameter
+simulate_allowed "reading the dev-and-tester addresses" ssm:GetParametersByPath "$ADDRESS_PATH"
+simulate_allowed "reading one dev-and-tester address" ssm:GetParameter "${ADDRESS_PATH}/probe"
+
+# ── 16. The job's own policies ───────────────────────────────────────────────
+#
+# The job is three managed policies attached to the role, and the role's inline
+# policies are left to the session revocations offboarding writes, because a
+# role's inline policies share one size limit. So the role must not be able to
+# edit or remove its own policies, the three must be attached, and nothing but
+# revocations may be inline. The listings are read as this run's identity.
+
+echo ""
+echo "The job's own policies"
+JOB_POLICIES=(StagingServices EdgeAndIdentity Guardrails)
+for suffix in "${JOB_POLICIES[@]}"; do
+  iam_write_probe "arn:aws:iam::${ACCOUNT_ID}:policy/${ROLE_NAME}-${suffix}" \
+    iam:CreatePolicyVersion iam:SetDefaultPolicyVersion iam:DeletePolicyVersion iam:DeletePolicy
+done
+ATTACHED="$(aws_q iam list-attached-role-policies --role-name "$ROLE_NAME" \
+  --query 'AttachedPolicies[].PolicyName' --output text || true)"
+for suffix in "${JOB_POLICIES[@]}"; do
+  if [[ " ${ATTACHED//$'\t'/ } " == *" ${ROLE_NAME}-${suffix} "* ]]; then
+    pass "policy ${ROLE_NAME}-${suffix} is attached"
+  else
+    fail "policy ${ROLE_NAME}-${suffix} is not attached; apply the identity tree"
+  fi
+done
+INLINE="$(aws_q iam list-role-policies --role-name "$ROLE_NAME" \
+  --query 'PolicyNames' --output text || true)"
+STRAY=""
+for name in $INLINE; do
+  [[ "$name" == revoke-sessions-* ]] || STRAY+=" ${name}"
+done
+if [[ -n "$STRAY" ]]; then
+  fail "inline policies other than session revocations:${STRAY}; they take the room offboarding needs"
+else
+  pass "the role's inline policies hold only session revocations"
+fi
+
+# ── 17. What a staging plan reads ────────────────────────────────────────────
+#
+# A plan by this role refreshes every resource in the staging tree, and one
+# denied read fails the whole plan. The first four are AWS calls that are
+# authorized on no resource, or on a region-less ARN, which a staging-scoped
+# grant never matched; the rest are representative of each scoped service. The
+# region is arbitrary where the policy scopes to every region.
+
+echo ""
+echo "What a staging plan reads"
+simulate_allowed "staging refresh" cloudwatch:GetDashboard \
+  "arn:aws:cloudwatch::${ACCOUNT_ID}:dashboard/footbag-staging"
+simulate_allowed "staging refresh" ssm:DescribeParameters "*"
+simulate_allowed "staging refresh" logs:DescribeLogGroups "*"
+simulate_allowed "staging refresh" ses:DescribeConfigurationSet "*"
+simulate_allowed "staging refresh" ssm:GetParameter \
+  "arn:aws:ssm:us-east-1:${ACCOUNT_ID}:parameter/footbag/staging/app/probe"
+simulate_allowed "staging refresh" cloudwatch:DescribeAlarms \
+  "arn:aws:cloudwatch:us-east-1:${ACCOUNT_ID}:alarm:footbag-staging-probe"
+simulate_allowed "staging refresh" sqs:GetQueueAttributes \
+  "arn:aws:sqs:us-east-1:${ACCOUNT_ID}:footbag-staging-probe"
+simulate_allowed "staging refresh" sns:GetTopicAttributes \
+  "arn:aws:sns:us-east-1:${ACCOUNT_ID}:footbag-staging-alarms"
+simulate_allowed "staging refresh" s3:GetBucketPolicy "arn:aws:s3:::footbag-staging-media"
+simulate_allowed "staging refresh" iam:GetRole "$RUNTIME_ROLE_ARN"
+simulate_allowed "staging refresh" lightsail:GetInstance "*"
+simulate_allowed "staging refresh" cloudfront:GetDistribution "*"
 
 # ── Verdict ──────────────────────────────────────────────────────────────────
 

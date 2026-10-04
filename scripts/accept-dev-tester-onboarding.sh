@@ -40,13 +40,29 @@
 #     mode-600 temp file shredded on every way out, and the sealed file itself
 #     is deleted only after everything is proved, on a typed APPLY.
 #
+#   - Write the staging runtime profile on a machine whose AWS config carries a
+#     footbag-operator profile. That name is the administrators' chain there, and
+#     a holder onboarding themselves keeps it exactly as it is.
+#   - Rewrite the pin file when it already verifies the staging host with the
+#     delivered keys, however those lines happen to be written.
+#   - Need the private operations checkout. Nothing here, nor in the workstation
+#     setup it ends with, reads it.
+#
 # Every step is shown before it changes anything, confirmed with APPLY, and
 # skipped when its outcome is already proven, so a run that stopped part way is
-# finished by running the same command again.
+# finished by running the same command again. Before it opens anything it checks
+# every tool the staging work needs (age, the pinned AWS CLI and Terraform,
+# docker, jq, rsync, sqlite3), with ~/.local/bin first on the path, where the
+# workstation setup installs them. It ends behind one APPLY with the full
+# workstation setup and its check, both run through the wrapper as you, and an
+# evidence block for the onboarding card.
 #
-# Usage:
+# Usage, with the sealed file in ~/Downloads, ~/AWS or the current directory:
 #   bash scripts/accept-dev-tester-onboarding.sh --target staging \
-#     --account james_leberknight ~/Downloads/james_leberknight-staging.onboarding.age
+#     --account james_leberknight
+# or naming it:
+#   bash scripts/accept-dev-tester-onboarding.sh --target staging \
+#     --account james_leberknight ~/somewhere/james_leberknight-staging.onboarding.age
 #
 # A holder who onboarded themselves runs this on the same machine, exactly as
 # anybody else runs it on theirs. It writes no footbag-operator section, edits
@@ -58,16 +74,25 @@
 # Flags:
 #   --target staging          the environment the onboarding is for; required
 #   --account <first_last>    your account name, as the holder onboarded you
-#   <sealed file>             the .onboarding.age file the holder sent you
+#   <sealed file>             the .onboarding.age file the holder sent you;
+#                             found by name when left out
 #
 # Test seams (CI only; nobody else sets these):
 #   ACCEPT_AWS_BIN            replaces the aws CLI
 #   ACCEPT_AGE_BIN            replaces age
 #   ACCEPT_SSH_BIN            replaces ssh for the connections to the host
-#   ACCEPT_PROPAGATION_POLL   seconds between identity polls
+#   ACCEPT_SSH_ADD_BIN        replaces ssh-add
+#   ACCEPT_SETUP_CMD          replaces the wrapped workstation setup it ends with
+#   ACCEPT_PROPAGATION_POLL   seconds between identity polls (5)
+#   ACCEPT_PROPAGATION_TRIES  how many polls before giving up (60)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Where the workstation setup installs the pinned AWS CLI and the Python tools,
+# ahead of any older copy elsewhere on the path, for this run and its children.
+PATH="${HOME}/.local/bin:${PATH}"
+export PATH
 
 # shellcheck source=lib/terminal.sh
 source "${SCRIPT_DIR}/lib/terminal.sh"
@@ -98,6 +123,8 @@ AWS_IDENTITY_BIN="$AWS_BIN"
 AGE_BIN="${ACCEPT_AGE_BIN:-age}"
 SSH_BIN="${ACCEPT_SSH_BIN:-ssh}"
 POLL="${ACCEPT_PROPAGATION_POLL:-5}"
+POLL_TRIES="${ACCEPT_PROPAGATION_TRIES:-60}"
+SSH_ADD_BIN="${ACCEPT_SSH_ADD_BIN:-ssh-add}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/change-own-password-remote.sh"
 
 DEV_TESTER_PROFILE="FootbagDevTester"
@@ -133,13 +160,65 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   echo "ERROR: '${ACCOUNT}' is not an account name: firstname_lastname, lower case." >&2
   exit 2
 fi
-if [[ -z "$SEALED" || ! -f "$SEALED" ]]; then
-  echo "ERROR: name the sealed .onboarding.age file the holder sent you." >&2
-  exit 2
+# Every tool the staging work needs, before anything is opened: a machine that
+# accepts and then cannot deploy or test has an onboarding nobody can use.
+delivery_require_tools "age=${AGE_BIN}" "ssh=${SSH_BIN}" ssh-keygen=ssh-keygen \
+  openssl=openssl "aws=${AWS_BIN}" terraform=terraform docker=docker jq=jq \
+  rsync=rsync sqlite3=sqlite3 || exit 1
+# Present is not enough for two of them. The AWS CLI and Terraform are pinned,
+# and each pin is read from the one place that sets it rather than copied here.
+# shellcheck source=lib/tool-report.sh
+source "${SCRIPT_DIR}/lib/tool-report.sh"
+WRONG_VERSIONS=()
+AWS_PIN="$(sed -n 's/^AWS_CLI_VERSION="\(.*\)"$/\1/p' "${SCRIPT_DIR}/setup-dev-workstation.sh")"
+if [[ "$("$AWS_BIN" --version 2>&1)" != "aws-cli/${AWS_PIN} "* ]]; then
+  WRONG_VERSIONS+=("the AWS CLI is not ${AWS_PIN}, the version the scripts are written for")
+fi
+TF_PROBLEM="$(_tool_report_check terraform "$REPO_ROOT")"
+[[ -z "$TF_PROBLEM" ]] || WRONG_VERSIONS+=("${TF_PROBLEM%% Install*}")
+if (( ${#WRONG_VERSIONS[@]} )); then
+  echo "ERROR: the right tools are here, at the wrong versions:" >&2
+  printf '  - %s\n' "${WRONG_VERSIONS[@]}" >&2
+  echo "Nothing was changed on this machine. Install the pinned versions with:" >&2
+  echo "  bash scripts/setup-dev-workstation.sh --operator --account ${ACCOUNT}" >&2
+  echo "then run this again." >&2
+  exit 1
 fi
 
-delivery_require_tools "age=${AGE_BIN}" "ssh=${SSH_BIN}" ssh-keygen=ssh-keygen \
-  openssl=openssl "aws=${AWS_BIN}" || exit 1
+# The sealed file: as named, or found by its own name where people put files
+# they were sent. Exactly one is used; two copies in different places are asked
+# about rather than chosen between.
+if [[ -z "$SEALED" ]]; then
+  SEALED_NAME="${ACCOUNT}-${TARGET}.onboarding.age"
+  declare -A SEEN=()
+  FOUND_SEALED=()
+  for where in "${HOME}/Downloads" "${HOME}/AWS" "$PWD"; do
+    candidate="${where}/${SEALED_NAME}"
+    [[ -f "$candidate" ]] || continue
+    real="$(readlink -f -- "$candidate")"
+    [[ -n "${SEEN[$real]:-}" ]] && continue
+    SEEN[$real]=1
+    FOUND_SEALED+=("$candidate")
+  done
+  if (( ${#FOUND_SEALED[@]} == 0 )); then
+    echo "ERROR: no ${SEALED_NAME} in ~/Downloads, ~/AWS or here. Put the file the" >&2
+    echo "       holder sent you in one of those, or name it on the command line." >&2
+    exit 2
+  fi
+  if (( ${#FOUND_SEALED[@]} > 1 )); then
+    echo "ERROR: more than one ${SEALED_NAME}:" >&2
+    printf '         %s\n' "${FOUND_SEALED[@]}" >&2
+    echo "       Name the one to use on the command line." >&2
+    exit 2
+  fi
+  SEALED="${FOUND_SEALED[0]}"
+  echo "==> Using ${SEALED}"
+fi
+if [[ ! -f "$SEALED" ]]; then
+  echo "ERROR: ${SEALED} is not a file. Name the sealed .onboarding.age file the" >&2
+  echo "       holder sent you." >&2
+  exit 2
+fi
 [[ "$AGE_BIN" != "age" ]] && echo "SYNTHETIC: age='${AGE_BIN}' -- nothing is really opened." >&2
 [[ "$AWS_BIN" != "aws" ]] && echo "SYNTHETIC: aws='${AWS_BIN}' -- nothing proves an identity." >&2
 [[ "$SSH_BIN" != "ssh" ]] && echo "SYNTHETIC: ssh='${SSH_BIN}' -- no host is reached." >&2
@@ -256,6 +335,25 @@ else
   echo "  copied"
 fi
 
+# A key with a passphrase is asked for it on every connection the staging work
+# makes, which is dozens per deploy. An agent holding it for a working day asks
+# once. Offered, never done unasked, and only where an agent is running; the
+# lifetime means the key leaves the agent on its own.
+if [[ -n "${SSH_AUTH_SOCK:-}" ]] && command -v "$SSH_ADD_BIN" >/dev/null 2>&1; then
+  AGENT_KEYS="$("$SSH_ADD_BIN" -l 2>/dev/null || true)"
+  NAMED_FP="$(ssh-keygen -l -f "${NAMED_KEY}.pub" 2>/dev/null | awk '{print $2}')"
+  if [[ -n "$NAMED_FP" ]] && ! grep -qF -- "$NAMED_FP" <<<"$AGENT_KEYS"; then
+    echo "  Your SSH agent is running and does not hold this key. Adding it for eight"
+    echo "  hours means its passphrase, if it has one, is asked for once rather than on"
+    echo "  every connection the staging work makes."
+    if confirm_from_tty "Type 'APPLY' to add it to the agent for eight hours: " "APPLY"; then
+      "$SSH_ADD_BIN" -t 8h "$NAMED_KEY" || echo "  not added; every connection will ask instead"
+    else
+      echo "  not added; every connection will ask for the passphrase instead"
+    fi
+  fi
+fi
+
 # ── 2. Open the delivery ─────────────────────────────────────────────────────
 
 step "Opening the delivery"
@@ -310,6 +408,18 @@ if [[ -n "$DT_SOURCE" && "$DT_SOURCE" != "$ACCOUNT" ]]; then
 fi
 RT_PRESENT=0
 aws_config_has_profile "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" && RT_PRESENT=1
+# On a machine that also carries the directly authenticated identity's profile,
+# the staging runtime profile is that identity's chain, administrative tooling
+# relies on it, and it is never written from here, present or absent: a chain
+# through the job role under that name would quietly change what every
+# administrator run on this machine acts as. This decides only whether to write
+# a file entry, never who anybody is; the profile list is the CLI's own answer.
+OPERATOR_PROFILE_HERE=0
+if grep -qx 'footbag-operator' <<<"$("$AWS_BIN" configure list-profiles 2>/dev/null || true)"; then
+  OPERATOR_PROFILE_HERE=1
+fi
+WRITE_RT=0
+(( ! RT_PRESENT && ! OPERATOR_PROFILE_HERE )) && WRITE_RT=1
 
 # The CLI keeps each job-role session it is issued in its cache and answers the
 # profile from there until the session expires, up to an hour. A re-onboarding
@@ -331,8 +441,12 @@ clear_cached_sessions() {
   (( cleared )) || echo "    no cached ${DEV_TESTER_PROFILE} session of ${ACCOUNT}'s to remove"
 }
 
-if [[ "$CURRENT_KEY" == "$DELIVERY_AWS_ACCESS_KEY_ID" && -n "$DT_SOURCE" ]] && (( RT_PRESENT )); then
-  echo "  already in place: [${ACCOUNT}] holds ${CURRENT_KEY}, and both profiles exist"
+if (( ! RT_PRESENT && OPERATOR_PROFILE_HERE )); then
+  echo "  This machine carries a footbag-operator profile, so [profile ${STAGING_RUNTIME_PROFILE}]"
+  echo "  is the administrators' chain here and is not written by this run."
+fi
+if [[ "$CURRENT_KEY" == "$DELIVERY_AWS_ACCESS_KEY_ID" && -n "$DT_SOURCE" ]] && (( ! WRITE_RT )); then
+  echo "  already in place: [${ACCOUNT}] holds ${CURRENT_KEY}, and the job-role profile exists"
 else
   echo "  In ${CRED_FILE}:"
   if [[ -z "$CURRENT_KEY" ]]; then
@@ -351,7 +465,7 @@ else
     echo "    role_session_name = ${ACCOUNT}"
     echo "    region            = us-east-1"
   fi
-  if (( ! RT_PRESENT )); then
+  if (( WRITE_RT )); then
     echo "    [profile ${STAGING_RUNTIME_PROFILE}]"
     echo "    role_arn          = ${DELIVERY_STAGING_RUNTIME_ROLE_ARN}"
     echo "    source_profile    = ${DEV_TESTER_PROFILE}"
@@ -371,7 +485,7 @@ else
       "$DELIVERY_DEV_TESTER_ROLE_ARN" "$ACCOUNT" us-east-1 "$ACCOUNT" || {
       echo "ERROR: could not write [profile ${DEV_TESTER_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1; }
   fi
-  if (( ! RT_PRESENT )); then
+  if (( WRITE_RT )); then
     aws_config_add_role_profile "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" \
       "$DELIVERY_STAGING_RUNTIME_ROLE_ARN" "$DEV_TESTER_PROFILE" us-east-1 || {
       echo "ERROR: could not write [profile ${STAGING_RUNTIME_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1; }
@@ -395,9 +509,9 @@ FRESH_CALL=(sts assume-role --profile "$ACCOUNT" --role-arn "$DELIVERY_DEV_TESTE
   --role-session-name "$ACCOUNT" --query AssumedRoleUser.Arn --output text --region us-east-1)
 FRESH_WANT="arn:aws:sts::${DELIVERY_AWS_ACCOUNT_ID}:assumed-role/${DEV_TESTER_PROFILE}/${ACCOUNT}"
 FRESH_ARN=""
-for (( try = 0; try <= 24; try++ )); do
+for (( try = 0; try <= POLL_TRIES; try++ )); do
   if (( try )); then
-    (( try == 1 )) && echo "  waiting for the new key to take effect (up to $(( POLL * 24 ))s)"
+    (( try == 1 )) && echo "  waiting for the new key to take effect (up to $(( POLL * POLL_TRIES ))s)"
     sleep "$POLL"
   fi
   FRESH_ARN="$("$AWS_BIN" "${FRESH_CALL[@]}" 2>/dev/null)" && break
@@ -414,7 +528,11 @@ if [[ "$FRESH_ARN" != "$FRESH_WANT" ]]; then
     echo "       AWS said:" >&2
     "$AWS_BIN" "${FRESH_CALL[@]}" 2>&1 >/dev/null | sed 's/^/         /' >&2 || true
   fi
-  echo "       Ask the holder who onboarded you to check your grant." >&2
+  echo "       A key made minutes ago can take a while longer to be honoured. Wait a" >&2
+  echo "       few minutes and run the same command again; every step already done" >&2
+  echo "       is found done:" >&2
+  echo "         bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account ${ACCOUNT}" >&2
+  echo "       If it still fails, ask the holder who onboarded you to check your grant." >&2
   exit 1
 fi
 echo "  a fresh ${DEV_TESTER_PROFILE} session, signed with your new key: ${FRESH_ARN}"
@@ -445,11 +563,21 @@ fi
 
 step "The staging host's pinned keys"
 PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
+# A delivered pin is already in place when the file verifies that host with that
+# key, which is what ssh asks; how the line is written (hashed, combined with
+# other names, in another order) is not the question. So a pin file that already
+# works, an administrator's included, is left byte for byte.
 MISSING=()
 for _pin in "${DELIVERY_PINS[@]}"; do
-  [[ -f "$PIN" ]] && grep -qxF -- "$_pin" "$PIN" && continue
+  _pin_host="${_pin%% *}"
+  _pin_key="$(cut -d' ' -f2,3 <<<"$_pin")"
+  if [[ -f "$PIN" ]] \
+     && grep -qF -- "$_pin_key" <<<"$(ssh-keygen -F "$_pin_host" -f "$PIN" 2>/dev/null)"; then
+    continue
+  fi
   MISSING+=("$_pin")
 done
+unset _pin_host _pin_key
 if (( ${#MISSING[@]} == 0 )); then
   echo "  already pinned in ${PIN}"
 else
@@ -624,7 +752,22 @@ else
 fi
 DELIVERY_HOST_PASSWORD=""
 
-# ── 8. The sealed file ───────────────────────────────────────────────────────
+# ── 8. The acceptance marker ─────────────────────────────────────────────────
+#
+# Which pair this account was onboarded with, recorded beside the pair. The only
+# reader is setup-dev-workstation.sh --replace-key retired, which sets a pair
+# aside for a re-onboarding only when this says it is the one that was accepted,
+# so a pair that never reached the host is not mistaken for a retired one. It
+# holds a fingerprint, nothing secret; offboarding removes it.
+MARKER="${NAMED_KEY}.onboarded"
+NAMED_SHA="$(ssh-keygen -l -f "${NAMED_KEY}.pub" 2>/dev/null | awk '{print $2}')"
+if [[ -f "$MARKER" && "$(cat "$MARKER")" == "$NAMED_SHA" ]]; then
+  :
+else
+  ( umask 077 && printf '%s\n' "$NAMED_SHA" > "$MARKER" )
+fi
+
+# ── 9. The sealed file ───────────────────────────────────────────────────────
 
 step "The sealed file"
 echo "  Everything in ${SEALED} is now in place and proved, and its one-time"
@@ -636,10 +779,49 @@ else
   echo "  kept. It opens only with your key and holds nothing that still works."
 fi
 
+# ── 10. The workstation, set up and checked as you ───────────────────────────
+#
+# The rest of what deploying and testing staging needs (the Terraform tree, the
+# host address, the checks that prove the login) is the workstation setup's, run
+# through the wrapper so it acts as this person on AWS and on the host together.
+# As the job role it writes no stanza, no credential file and no administrator
+# setting, so on a holder's own machine nothing administrative moves.
+step "Your workstation, as ${ACCOUNT}"
+if [[ -n "${ACCEPT_SETUP_CMD:-}" ]]; then
+  echo "SYNTHETIC: setup='${ACCEPT_SETUP_CMD}' -- the workstation setup is a stand-in." >&2
+  SETUP_WRAP=("$ACCEPT_SETUP_CMD")
+else
+  SETUP_WRAP=(bash "${SCRIPT_DIR}/as-dev-tester.sh" --account "$ACCOUNT"
+    bash "${SCRIPT_DIR}/setup-operator-workstation.sh")
+fi
+SETUP_RC=0
+echo "  The full workstation setup, then its check, both as ${ACCOUNT}:"
+echo "    bash scripts/as-dev-tester.sh --account ${ACCOUNT} \\"
+echo "      bash scripts/setup-operator-workstation.sh --target ${TARGET}"
+echo "    (and the same with --check)"
+if confirm_from_tty "Type 'APPLY' to run them: " "APPLY"; then
+  "${SETUP_WRAP[@]}" --target "$TARGET" || true
+  "${SETUP_WRAP[@]}" --target "$TARGET" --check || SETUP_RC=$?
+else
+  echo "  not run. Run them yourself when you are ready; they repeat nothing done."
+fi
+
+echo ""
+echo "---- evidence for the onboarding card ----"
+echo "date:          $(date -u +%Y-%m-%d)"
+echo "account:       ${ACCOUNT}"
+echo "fingerprint:   ${NAMED_SHA}"
+echo "access key id: ${DELIVERY_AWS_ACCESS_KEY_ID}"
+echo "assumed role:  ${FRESH_ARN}"
+echo "------------------------------------------"
 echo ""
 echo "Done. You reach ${TARGET} only as yourself, through the wrapper:"
 echo ""
-echo "  bash scripts/as-dev-tester.sh --account ${ACCOUNT} \\"
-echo "    bash scripts/setup-operator-workstation.sh --target ${TARGET} --check"
+echo "  bash scripts/as-dev-tester.sh --account ${ACCOUNT} <command>"
 echo ""
-echo "Tell the holder who onboarded you that this finished."
+echo "Tell the holder who onboarded you that this finished, with the block above."
+if (( SETUP_RC != 0 )); then
+  echo ""
+  echo "The workstation check above still lists something to do; it says what." >&2
+  exit "$SETUP_RC"
+fi

@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { createScratchDir } from '../fixtures/scratchDir';
+import { ADMIN_FILES, ADMIN_STANZAS, OPERATOR_PROFILES, OPERATOR_SECTION } from '../fixtures/maintainerMachine';
 
 const SCRIPT = join(process.cwd(), 'scripts/offboard-dev-tester.sh');
 
@@ -173,29 +174,24 @@ interface RunOptions {
   iamUser?: IamUser;
   /** Leave the SSH config a test wrote itself, rather than writing one from aliasUser. */
   keepConfig?: boolean;
-  /** Addresses the allow-list child lists for the account, or 'unreadable'. */
-  listed?: string[] | 'unreadable';
+  /** The account's own address parameter: its value, absent (null), or unreadable. */
+  param?: string | null | 'unreadable';
   /** The allow-list child's exit on a removal. */
   removeExit?: number;
+  /** The address this machine connects from, as checkip answers it. */
+  here?: string;
+  /** What the terminal answers, for the warning about this machine's own address. */
+  terminal?: string;
 }
 
 const BASE = ['--target', 'staging', '--account', ACCOUNT, '--yes'];
 
-/** The allow-list child: lists what the test says, and records every removal. */
-function addressStub(listed: string[] | 'unreadable', removeExit: number): string {
+/** The allow-list child: records every call and answers a removal as told. */
+function addressStub(removeExit: number): string {
   const path = join(workDir, 'address-child.sh');
   writeFileSync(
     path,
-    [
-      '#!/usr/bin/env bash',
-      `printf '%s\\n' "$*" >> ${JSON.stringify(addressLog)}`,
-      'if [[ " $* " == *" --list-for "* ]]; then',
-      listed === 'unreadable'
-        ? '  echo "ERROR: the operator_cidrs list cannot be read with certainty" >&2; exit 1'
-        : `  ${listed.map((a) => `printf '%s\\n' ${JSON.stringify(a)}; `).join('')}exit 0`,
-      'fi',
-      `exit ${removeExit}`,
-    ].join('\n'),
+    ['#!/usr/bin/env bash', `printf '%s\\n' "$*" >> ${JSON.stringify(addressLog)}`, `exit ${removeExit}`].join('\n'),
     'utf-8',
   );
   chmodSync(path, 0o755);
@@ -234,9 +230,18 @@ function run(options: RunOptions = {}) {
     aliasUser = 'footbag',
     iamUser = 'present',
     keepConfig = false,
-    listed = [],
+    param = null,
     removeExit = 0,
+    here = '198.51.100.250',
   } = options;
+  const paramAnswer =
+    param === 'unreadable'
+      ? ['  echo "Could not connect to the endpoint URL: \\"https://ssm.us-east-1.amazonaws.com/\\"" >&2', '  exit 255']
+      : param === null
+        ? ['  echo "An error occurred (ParameterNotFound) when calling the GetParameter operation:" >&2', '  exit 254']
+        : [`  printf '%s\\n' ${JSON.stringify(param)}`, '  exit 0'];
+  const fetchPath = join(workDir, 'checkip.sh');
+  writeFileSync(fetchPath, `#!/usr/bin/env bash\necho ${JSON.stringify(here)}\n`, { mode: 0o755 });
   if (!keepConfig) writeFileSync(sshConfig, stanza(aliasUser), 'utf-8');
   const stubPath = join(workDir, 'aws-stub.sh');
   writeFileSync(
@@ -253,6 +258,9 @@ function run(options: RunOptions = {}) {
       'fi',
       'if [[ "$1" == "iam" && "$2" == "get-user" ]]; then',
       ...getUserAnswer(iamUser),
+      'fi',
+      'if [[ "$1" == "ssm" && "$2" == "get-parameter" ]]; then',
+      ...paramAnswer,
       'fi',
       'exit 64',
     ].join('\n'),
@@ -277,7 +285,8 @@ function run(options: RunOptions = {}) {
       OFFBOARD_HOST_CMD: childStub('host-child', hostLog, hostExit, true),
       OFFBOARD_AWS_CMD: childStub('aws-child', awsLog, awsExit),
       OFFBOARD_SSH_CONFIG: sshConfig,
-      OFFBOARD_ADDRESS_CMD: addressStub(listed, removeExit),
+      OFFBOARD_ADDRESS_CMD: addressStub(removeExit),
+      OFFBOARD_FETCH: fetchPath,
       HOME: workDir,
     },
     ...SPAWN_GUARD,
@@ -343,12 +352,47 @@ describe('offboard-dev-tester refuses the wrong caller and the wrong subject', (
   });
 });
 
+describe('offboard-dev-tester on a maintainer\'s own machine', () => {
+  it('removes everything of the named identity and leaves every administrative file byte for byte', () => {
+    // The holder offboards themselves on the machine that holds footbag-operator,
+    // both runtime chains sourced from it, the shared account's password files
+    // and the alias stanzas. Each must come out exactly as it went in.
+    writeFileSync(awsCred, `${OPERATOR_SECTION}\n${NAMED_CRED}`, 'utf-8');
+    const namedProfile = `[profile FootbagDevTester]\nrole_arn = arn:aws:iam::111122223333:role/FootbagDevTester\nsource_profile = ${ACCOUNT}\nrole_session_name = ${ACCOUNT}\n`;
+    writeFileSync(awsConfig, OPERATOR_PROFILES + namedProfile, 'utf-8');
+    writeFileSync(sshConfig, blockFor(ACCOUNT) + ADMIN_STANZAS, 'utf-8');
+    mkdirSync(join(workDir, 'AWS'), { recursive: true });
+    writeFileSync(join(workDir, 'AWS', 'AWS_OPERATOR.txt'), ADMIN_FILES['AWS/AWS_OPERATOR.txt']);
+    writeFileSync(join(workDir, 'AWS', 'AWS_OPERATOR_PRODUCTION.txt'), ADMIN_FILES['AWS/AWS_OPERATOR_PRODUCTION.txt']);
+    writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'their-password\n');
+    mkdirSync(join(workDir, '.ssh'), { recursive: true });
+    writeFileSync(namedKey, 'private');
+    writeFileSync(`${namedKey}.pub`, 'ssh-ed25519 AAAA jane_doe\n');
+    writeFileSync(`${namedKey}.onboarded`, 'SHA256:fixtureAcceptedPairFingerprint000000000000\n');
+
+    const r = run({ keepConfig: true, param: '203.0.113.7/32' });
+    expect(r.status, r.stderr).toBe(0);
+    // The credentials file loses only the named section, which sat after the
+    // administrator's commented header: the shape that once deleted it. The
+    // blank line that separated the two goes with it, so the file is exactly
+    // the administrator's again rather than growing a line per cycle.
+    expect(readFileSync(awsCred, 'utf-8')).toBe(OPERATOR_SECTION);
+    expect(readFileSync(awsConfig, 'utf-8')).toBe(OPERATOR_PROFILES);
+    expect(readFileSync(sshConfig, 'utf-8')).toBe(ADMIN_STANZAS);
+    expect(readFileSync(join(workDir, 'AWS', 'AWS_OPERATOR.txt'), 'utf-8')).toBe(ADMIN_FILES['AWS/AWS_OPERATOR.txt']);
+    expect(readFileSync(join(workDir, 'AWS', 'AWS_OPERATOR_PRODUCTION.txt'), 'utf-8')).toBe(ADMIN_FILES['AWS/AWS_OPERATOR_PRODUCTION.txt']);
+    expect(existsSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'))).toBe(false);
+    expect(existsSync(`${namedKey}.onboarded`), 'the acceptance marker goes with the pair').toBe(false);
+    expect(r.stdout).toMatch(/acceptance marker: removed/);
+  });
+});
+
 describe('offboard-dev-tester leaves repository access alone', () => {
   it('completes a full offboarding without ever calling the GitHub CLI', () => {
     // Repository access is granted and withdrawn separately; an offboarding that
     // reached GitHub would end access nobody asked it to end.
     workstationHeldIt();
-    const r = run({ keepConfig: true, listed: ['203.0.113.7/32'] });
+    const r = run({ keepConfig: true, param: '203.0.113.7/32' });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/Done\./);
     expect(ghCalls()).toBe('');
@@ -392,8 +436,8 @@ describe('offboard-dev-tester offboards the named identity this machine accepted
   it('leaves footbag-operator and the alias stanza byte for byte, whatever else it removes', () => {
     workstationHeldIt();
     run({ keepConfig: true });
-    expect(readFileSync(awsCred, 'utf-8')).toBe(OPERATOR_CRED + '\n');
-    expect(readFileSync(awsConfig, 'utf-8')).toBe(OPERATOR_CONFIG + '\n');
+    expect(readFileSync(awsCred, 'utf-8')).toBe(OPERATOR_CRED);
+    expect(readFileSync(awsConfig, 'utf-8')).toBe(OPERATOR_CONFIG);
     expect(readFileSync(sshConfig, 'utf-8')).toBe(stanza('footbag'));
   });
 
@@ -520,42 +564,60 @@ describe('offboard-dev-tester ends the shell before the AWS identity', () => {
 });
 
 describe('offboard-dev-tester takes their address off the allow-list', () => {
-  it('removes every address attributed to them, through the script that owns the list', () => {
-    const r = run({ listed: ['203.0.113.7/32', '203.0.113.8/32'] });
+  it('removes their own address parameter, and never touches the administrators\' list', () => {
+    // The dev-and-tester path of the allow-list step never opens the values
+    // file, so an administrator's entry cannot be removed by an offboarding,
+    // even one sharing the address.
+    const r = run({ param: '203.0.113.7/32' });
     expect(r.status, r.stderr).toBe(0);
     const calls = addressCalls();
-    expect(calls).toContain(`--target staging --list-for ${ACCOUNT}`);
-    expect(calls).toContain('--target staging --address 203.0.113.7/32 --remove --yes');
-    expect(calls).toContain('--target staging --address 203.0.113.8/32 --remove --yes');
-    expect(r.stdout).toMatch(/203\.0\.113\.7\/32: off the list, and the live firewall agrees/);
+    expect(calls).toBe(`--target staging --dev-tester ${ACCOUNT} --remove --yes\n`);
+    expect(calls).not.toContain('--list-for');
+    expect(r.stdout).toMatch(/203\.0\.113\.7\/32: jane_doe's own entry is gone/);
   });
 
   it('runs after the host and AWS halves', () => {
     // An address with no account behind it reaches a login prompt and nothing
     // more; the shell and the identity are what matter first.
-    const r = run({ listed: ['203.0.113.7/32'], hostExit: 1 });
+    const r = run({ param: '203.0.113.7/32', hostExit: 1 });
     expect(r.status).toBe(1);
     expect(addressCalls()).toBe('');
   });
 
-  it('says so by name when no entry is attributed to them', () => {
-    const r = run({ listed: [] });
+  it('says so by name when they have no address parameter', () => {
+    const r = run({ param: null });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/no entry on it is attributed to jane_doe/);
-    expect(addressCalls()).not.toContain('--remove');
+    expect(r.stdout).toMatch(/jane_doe has no staging address parameter; nothing to remove/);
+    expect(addressCalls()).toBe('');
   });
 
-  it('fails, naming where to resume, when the list cannot be read', () => {
-    // An unreadable list must not read as "nothing to remove".
-    const r = run({ listed: 'unreadable' });
+  it('fails, naming where to resume, when the parameter cannot be read', () => {
+    // An unreadable parameter must not read as "nothing to remove".
+    const r = run({ param: 'unreadable' });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not read the staging allow-list/);
+    expect(r.stderr).toMatch(/could not read jane_doe's staging address/);
     expect(r.stderr).toMatch(/--from-step 3/);
     expect(r.stdout).not.toMatch(/Done\./);
   });
 
+  it('warns and asks before removing the address this machine connects from', () => {
+    // Without an administrator entry also admitting it, the machine running the
+    // offboard loses its own SSH to staging.
+    const r = run({ param: '203.0.113.7/32', here: '203.0.113.7' });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/this machine connects from 203\.0\.113\.7\/32, the address being removed/);
+    expect(addressCalls()).toBe('');
+    expect(r.stderr).toMatch(/--from-step 3/);
+  });
+
+  it('asks nothing when this machine connects from somewhere else', () => {
+    const r = run({ param: '203.0.113.7/32', here: '198.51.100.250' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/WARNING: this machine connects from/);
+  });
+
   it('fails, naming where to resume, when a removal is not proved', () => {
-    const r = run({ listed: ['203.0.113.7/32'], removeExit: 1 });
+    const r = run({ param: '203.0.113.7/32', removeExit: 1 });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/203\.0\.113\.7\/32 was not proved off the staging allow-list/);
     expect(r.stderr).toMatch(/--from-step 3/);
@@ -568,7 +630,7 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     writeFileSync(sshConfig, stanza('footbag').replace('footbag-staging', 'footbag-production'), 'utf-8');
     const r = run({
       args: ['--target', 'production', '--account', ACCOUNT, '--yes'],
-      listed: ['203.0.113.7/32'],
+      param: '203.0.113.7/32',
       keepConfig: true,
     });
     expect(r.status).toBe(2);

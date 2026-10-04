@@ -214,20 +214,26 @@ if command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-# Settled before the steps that depend on it. A run with no working identity
-# stays classified as not the job role; the AWS profiles step reports that.
-# It asks as the identity the AWS profiles step will settle on: the shell's own
-# where it carries one, otherwise the profile the library supplies. The CLI's
-# bare default would be a third identity that nothing else here uses.
+# Settled before the steps that depend on it, by the same library call the AWS
+# profiles step makes, so steps 2 and 3 are decided by the identity this run
+# actually settles on rather than by a guess at it. Settled once, here, because
+# each call starts the AWS CLI, which costs about a second. What the library
+# says while settling it is held back and printed by the AWS profiles step,
+# where it has always appeared and where a failure is reported and fixed. A run
+# with no working identity stays classified as not the job role.
+EARLY_ENSURE_RC=1
+EARLY_ENSURE_ERR=""
 if command -v aws >/dev/null 2>&1; then
-  _probe=()
-  if [[ -z "${AWS_PROFILE:-}${AWS_ACCESS_KEY_ID:-}${AWS_DEFAULT_PROFILE:-}" ]] \
-     && aws_profile_exists "$FOOTBAG_OPERATOR_PROFILE"; then
-    _probe=(--profile "$FOOTBAG_OPERATOR_PROFILE")
+  _ensure_err="$(mktemp)"
+  EARLY_ENSURE_RC=0
+  aws_profile_ensure 2>"$_ensure_err" || EARLY_ENSURE_RC=$?
+  EARLY_ENSURE_ERR="$(cat "$_ensure_err")"
+  rm -f -- "$_ensure_err"
+  unset _ensure_err
+  if (( EARLY_ENSURE_RC == 0 )) \
+     && [[ "${AWS_IDENTITY_ARN:-}" == *":assumed-role/${DEV_TESTER_ROLE_NAME}/"* ]]; then
+    RUN_AS_JOB_ROLE=1
   fi
-  _caller_arn="$(aws "${_probe[@]}" sts get-caller-identity --query Arn --output text 2>/dev/null || true)"
-  [[ "$_caller_arn" == *":assumed-role/${DEV_TESTER_ROLE_NAME}/"* ]] && RUN_AS_JOB_ROLE=1
-  unset _caller_arn _probe
 fi
 
 # ── 2. The gitignored Terraform secrets files ────────────────────────────────
@@ -241,7 +247,10 @@ fi
 # Resolved from the checkout path rather than through the link, for the same
 # reason.
 step "Terraform variable files that no clone can give you"
-PRIVATE_LINK="${REPO_ROOT}/footbag_private_repo"
+PRIVATE_LINK="${SETUP_OPERATOR_PRIVATE_LINK:-${REPO_ROOT}/footbag_private_repo}"
+if [[ -n "${SETUP_OPERATOR_PRIVATE_LINK:-}" ]]; then
+  echo "SYNTHETIC: private checkout link='${PRIVATE_LINK}' -- this run reads a stand-in." >&2
+fi
 PRIVATE_DIR=""
 if [[ -n "$PRIVATE_REPO" ]]; then
   PRIVATE_DIR="$PRIVATE_REPO"
@@ -249,7 +258,11 @@ elif [[ -d "$PRIVATE_LINK" ]]; then
   PRIVATE_DIR="$PRIVATE_LINK"
 fi
 
-if [[ -z "$PRIVATE_DIR" ]]; then
+if [[ -z "$PRIVATE_DIR" ]] && (( RUN_AS_JOB_ROLE )); then
+  # A dev-and-tester deploys and tests staging without the private checkout;
+  # only a Terraform apply needs it, and terraform-apply.sh says so itself.
+  note "no private operations checkout here, and a run as the ${DEV_TESTER_ROLE_NAME} role does not need one: deploying and testing staging read no values file"
+elif [[ -z "$PRIVATE_DIR" ]]; then
   todo "cannot find the companion checkout: re-run with --private-repo <path to your footbag-ops clone>"
   todo "and inside it create the gitignored secrets files, mode 600: terraform/staging.secrets.auto.tfvars and terraform/production.secrets.auto.tfvars, each one line reading alarm_email = \"<the operations mailbox on the mail-ifpa-aws vault entry>\", and terraform/shared.secrets.auto.tfvars, empty"
 elif [[ ! -d "${PRIVATE_DIR}/terraform" ]]; then
@@ -294,8 +307,14 @@ fi
 # resolves, which is the check nobody does by hand and the reason a link to a
 # file the private checkout lacks looks healthy in `ls -l`.
 step "Private checkout wiring"
-if bash "${SCRIPT_DIR}/setup_private_repo.sh" --check >/dev/null 2>&1; then
+WIRING_CMD="${SETUP_OPERATOR_WIRING_CMD:-${SCRIPT_DIR}/setup_private_repo.sh}"
+if [[ -n "${SETUP_OPERATOR_WIRING_CMD:-}" ]]; then
+  echo "SYNTHETIC: wiring check='${WIRING_CMD}' -- this run proves nothing about the links." >&2
+fi
+if bash "$WIRING_CMD" --check >/dev/null 2>&1; then
   ok "all links wired and resolving"
+elif (( RUN_AS_JOB_ROLE )); then
+  note "the private checkout links are not wired, and a run as the ${DEV_TESTER_ROLE_NAME} role does not need them: only a Terraform apply reads the values they reach"
 elif [[ -n "$PRIVATE_REPO" ]]; then
   todo "links are not wired — run: bash scripts/setup_private_repo.sh --private-repo ${PRIVATE_REPO}"
   todo "it skips any secrets file above that does not exist yet; create those first, or run it again once you have"
@@ -323,7 +342,7 @@ fi
 step "AWS profiles"
 if ! command -v aws >/dev/null 2>&1; then
   todo "the AWS CLI is not installed, so no profile can be checked or proved"
-elif ! aws_profile_ensure; then
+elif ! { [[ -n "$EARLY_ENSURE_ERR" ]] && printf '%s\n' "$EARLY_ENSURE_ERR" >&2; (( EARLY_ENSURE_RC == 0 )); }; then
   # The library has already named the credential and printed the command that
   # installs the current one, so this adds the verdict and repeats none of it.
   todo "this run has no AWS identity that authenticates; the message just above names the fix"
@@ -531,6 +550,12 @@ elif [[ -f "$CRED_FILE" ]]; then
   else
     ok "$(basename "$CRED_FILE") present, one line, mode ${mode}"
   fi
+elif (( RUN_AS_JOB_ROLE )); then
+  # A dev-and-tester's own password file is written by accepting the
+  # onboarding, which proves sudo with it on the host. This run writes no
+  # credential file, so a wrapped run on a machine that also holds the shared
+  # account's files can never create or replace one of them.
+  todo "$(basename "$CRED_FILE") is missing; it is written when you accept your onboarding: bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account ${CRED_ACCOUNT:-<your_name>}"
 elif (( CHECK )); then
   todo "$(basename "$CRED_FILE") is missing"
 else
@@ -605,7 +630,12 @@ if (( IDENTITY_OK == 0 )); then
 elif tf_output_read "terraform/${TARGET}" lightsail_static_ip 2>/dev/null; then
   ok "${TARGET} host address: ${TF_OUTPUT_VALUE}"
   HOST_ADDRESS="$TF_OUTPUT_VALUE"
-  if (( STANZA_MISSING && ! CHECK )); then
+  if (( STANZA_MISSING && RUN_AS_JOB_ROLE )); then
+    # Accepting the onboarding writes the stanza and the block beside it that a
+    # wrapped run connects through. A run as the role writes neither, so it can
+    # never touch an alias an administrator relies on.
+    todo "${ALIAS} does not resolve; accepting your onboarding writes it: bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account <your_name>"
+  elif (( STANZA_MISSING && ! CHECK )); then
     # The operator's own file: the change is shown, confirmed and only then
     # written, and a result ssh would not parse is never handed back.
     SSH_CONFIG_FILE="${HOME}/.ssh/config"
@@ -656,7 +686,7 @@ elif (( RUN_AS_JOB_ROLE )); then
        && ssh-keygen -F "[${HOST_ADDRESS}]:2222" -f "$_pin" >/dev/null 2>&1; then
     ok "pinned for ${TARGET} (${HOST_ADDRESS}), as installed by your delivery"
   else
-    todo "no usable pin for ${TARGET} (${HOST_ADDRESS}) in ${_pin}; it arrives sealed in your onboarding: bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account <your_name> <file>"
+    todo "no usable pin for ${TARGET} (${HOST_ADDRESS}) in ${_pin}; it arrives sealed in your onboarding: bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account <your_name>"
   fi
   unset _pin
 elif (( CHECK )); then

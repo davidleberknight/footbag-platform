@@ -525,6 +525,38 @@ describe('the inspection of an existing account', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('does not exist');
   });
+
+  it('reports the keys the shared account authorizes, so a named key on it can be caught', () => {
+    addAccount(LEAVER, ['leaver']);
+    addAccount('footbag', ['leaver', 'other']);
+    const r = spawnSync('bash', [script], {
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
+        FAKE: host,
+        OPACC_MODE: 'inspect',
+        OPACC_ACCOUNT: LEAVER,
+        OPACC_SHARED_ACCOUNT: 'footbag',
+      },
+      ...SPAWN_GUARD,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const leaverFp = r.stdout.match(/^KEY 256 (SHA256:\S+) leaver/m)?.[1];
+    expect(leaverFp, r.stdout).toBeTruthy();
+    expect(r.stdout).toContain(`SHARED ${leaverFp}`);
+    expect(r.stdout.match(/^SHARED SHA256:/gm)).toHaveLength(2);
+  });
+
+  it('says unknown, never an empty list, when the shared account name did not arrive', () => {
+    // An empty answer would read as "the key is not on the shared account" and
+    // pass the check it exists for.
+    addAccount(LEAVER, ['leaver']);
+    const r = runInspect(LEAVER);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^SHARED unknown$/m);
+    expect(r.stdout).not.toMatch(/^SHARED SHA256:/m);
+  });
 });
 
 /**

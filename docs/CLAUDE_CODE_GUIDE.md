@@ -114,7 +114,7 @@ The second premise in practice: enforcement that does not depend on the agent ch
 
 **What is enforced.** A hook on Edit and Write (`block-secrets.sh`) blocks changes to secret-bearing files, and a chain of hooks runs on every Bash command:
 
-- (`block-git-mutations.sh`) hard-denies every write to the repository and to its GitHub remote. It parses each command the way a shell would rather than matching a list of verb spellings: split at shell separators, strip environment assignments and wrappers (`env`, `command`, `sudo`, `xargs`, and a `bash -c` whose real command hides among its arguments), resolve the binary (`git` or `gh`, absolute path included), skip git's own global options so a leading `-C DIR` or `-c k=v` cannot hide the verb behind it, then judge the verb actually being run. A spelling list only blocks the verbs someone thought to list, so branch creation — none of add, commit, push or pull — passes straight through one. Never regress this gate to a verb-spelling allowlist. Verbs with no read-only form are denied outright; the dual-mode verbs (`branch`, `tag`, `remote`, `worktree`, `stash`, `submodule`, `notes`, `reflog`, `config`) are denied unless what follows is one of their listing forms, so `git branch -vv` and `git tag -l` still read while `git branch feature` does not. The same rule holds on the GitHub CLI — pull requests, releases, workflow runs, keys, repository settings, and any `gh api` call that is not a GET — with the maintainers' private issue tracker as the one sanctioned exception, since operating it is the workflow the permission rules already grant. A verb the parser cannot resolve because it sits behind a variable or a command substitution is denied rather than guessed: an invocation the gate cannot read is the case it exists for;
+- (`block-git-mutations.sh`) hard-denies every write to the repository and to its GitHub remote. It parses each command the way a shell would rather than matching a list of verb spellings: split at shell separators, strip environment assignments and wrappers (`env`, `command`, `sudo`, `xargs`, and a `bash -c` whose real command hides among its arguments), resolve the binary (`git` or `gh`, absolute path included), skip git's own global options so a leading `-C DIR` or `-c k=v` cannot hide the verb behind it, then judge the verb actually being run. A spelling list only blocks the verbs someone thought to list, so branch creation — none of add, commit, push or pull — passes straight through one. Never regress this gate to a verb-spelling allowlist. Verbs with no read-only form are denied outright; the dual-mode verbs (`branch`, `tag`, `remote`, `worktree`, `stash`, `submodule`, `notes`, `reflog`, `config`) are denied unless what follows is one of their listing forms, so `git branch -vv` and `git tag -l` still read while `git branch feature` does not. The same rule holds on the GitHub CLI — pull requests, releases, workflow runs, keys, repository settings, and any `gh api` call that is not a GET, except a GraphQL read: a `gh api graphql` call is refused only when the command carries a mutation or a subscription anywhere, or a body the gate cannot see — with the maintainers' private issue tracker as the one sanctioned exception, since operating it is the workflow the permission rules already grant. A verb the parser cannot resolve because it sits behind a variable or a command substitution is denied rather than guessed: an invocation the gate cannot read is the case it exists for;
 - (`guard-secret-reads.sh`) blocks reads of secret-bearing files;
 - (`guard-prod-ops.sh`) guards production operations;
 - (`guard-aws-reach.sh`) asks before anything that reaches AWS, every invocation: the `aws` CLI, and the Terraform subcommands that contact the account or the remote S3 state (`init`, `plan`, `apply`, `output`, `refresh`, `state`, and the rest; `fmt` and `validate` are local and never prompt). Crucially it also reads the scripts a command names — literal `.sh` paths and whatever an `npm run <name>` resolves to, followed one level deeper — because a permission rule matches the command prefix and a wrapper script's name reveals nothing about the AWS calls inside it. That gap was real: a command containing neither `aws` nor `terraform` reached SSM and Terraform state through the script body. Matching is anchored to command position with optional leading `VAR=value` assignments, so `aws` as a bare argument (`grep -rn aws src/`) does not prompt and the guard stays signal rather than noise. The decision is always `ask`, never a cached allow, so approval is per-invocation and Claude reaches AWS only on an explicit human yes;
@@ -280,15 +280,17 @@ IFPA board member can use the harness efficiently from day one.
 - **footbag-platform** (this repo) — the public application: code, schema, infrastructure, tests,
   and the canonical design docs. Development, the full test suite, and architecture orientation
   need nothing else. **Operations do:** every environment's Terraform values file lives in the
-  private repo and is reached from here through a symlink, and the deploy entry point refuses
-  every mode without it. So "works standalone" is true of the developer and tester path and false
+  private repo and is reached from here through a symlink, so no environment is applied without
+  it, and a deploy that runs the full member load refuses without it. A dev-and-tester's staging
+  deploys, including a rebuild from the public inputs alone, need none of it. So "works standalone" is true of the developer and tester path and false
   of the operator path, which is a distinction worth keeping straight because a new operator who
   reads the first half stops looking for the second.
 - **The private operations repo** — the maintainers' work tracker (GitHub Issues), operations
   docs, and private/sensitive data, kept private for member-data privacy. Reached through a
   canonical-named, gitignored symlink (`footbag_private_repo`) at this repo's root, plus a
-  machine-local slug in `.claude/settings.local.json`. Optional for a developer or tester;
-  **hard-required for any AWS work**.
+  machine-local slug in `.claude/settings.local.json`. Optional for a developer or
+  dev-and-tester, staging deploys included; **hard-required for applying infrastructure and for
+  the full data load**.
 - **The legacy footbag.org clone** — a read-only snapshot of the old site, reached through the
   `footbag_legacy_repo` symlink. Needed only for historical-pipeline work. Optional per machine.
 - **The footbag.org mirror crawl output** — the gitignored data tree the mirror crawler produces,
@@ -316,7 +318,8 @@ is "solve, don't defer" — the absence is handled explicitly, never left to imp
 
 **Where to get wired.** A maintainer sets up both companion repos following the private repo's
 `ONBOARDING.md` (private GitHub repo), the entry point for every private-access role: developers,
-governance browser users, dev-testers and operators, the last two continuing into the joining
-chapter of `DEVOPS_GUIDE.md` (private GitHub repo). This public guide does not restate those steps; it
+governance browser users and operators, the last continuing into the joining chapter of
+`DEVOPS_GUIDE.md` (private GitHub repo). A dev-and-tester needs neither; their steps are in
+`DEV_ONBOARDING.md`, "Staging as a dev-and-tester". This public guide does not restate those steps; it
 records only which companion repos a given kind of work requires and how the harness behaves
 without them: optional for a developer or tester, hard-required for an operator.

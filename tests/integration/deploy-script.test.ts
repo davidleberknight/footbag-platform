@@ -43,9 +43,9 @@ function run(
 
 const HAS_DOCKER = requireToolInCI('docker', '--version');
 
-// The wrapper refuses to deploy at all without the maintainers' private checkout,
-// and a developer or CI machine legitimately has none, so a test that needs to
-// reach any later check runs the wrapper from a temp root carrying a stand-in.
+// The wrapper refuses a rebuild without the maintainers' private checkout, and a
+// developer or CI machine legitimately has none, so a test that needs to reach
+// any later check runs the wrapper from a temp root carrying a stand-in.
 // Copying the single file is enough: each of those assertions lands at the
 // production gate or the credential check, and both sit above anything else the
 // wrapper reads from the tree.
@@ -347,7 +347,35 @@ describe('deploy_to_aws.sh wrapper', () => {
     },
   );
 
-  it('refuses to deploy at all without the maintainers private checkout', () => {
+  it('does not ask for the private checkout on a code-only or reuse deploy', () => {
+    // A dev-and-tester has no private checkout and deploys staging code-only.
+    // Neither mode runs the member intake, so neither reads the checkout, and
+    // refusing them would lock every dev-and-tester out of the deploy they test.
+    const tmpRoot = scaffoldWrapperRoot(false);
+    try {
+      for (const args of [['--target', 'staging'], ['-k', '--target', 'staging'], ['-r', '--target', 'staging']]) {
+        const r = run('bash', ['deploy_to_aws.sh', ...args], { cwd: tmpRoot });
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(combined, args.join(' ')).not.toMatch(/private checkout is not reachable/);
+      }
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('still refuses a staging rebuild without the checkout', () => {
+    // The rebuild runs the member intake whichever environment it targets.
+    const tmpRoot = scaffoldWrapperRoot(false);
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '--target', 'staging'], { cwd: tmpRoot });
+      expect(r.status).toBe(1);
+      expect((r.stderr ?? '') + (r.stdout ?? '')).toMatch(/private checkout is not reachable/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a rebuild without the maintainers private checkout', () => {
     // The member intake reads the recorded account rulings and the board roster
     // from that checkout. A build without them is a different database that looks
     // identical afterwards: accounts a human ruled to be two people are fused and
@@ -433,6 +461,113 @@ describe('deploy_to_aws.sh wrapper', () => {
       expect(combined).not.toMatch(/PRODUCTION/);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── the public-inputs rebuild ────────────────────────────────────────────────
+//
+// Contract: a dev-and-tester, who holds no private checkout, can still land a
+// schema change on staging by rebuilding from the committed public inputs. The
+// database that ships lacks everything the checkout supplies, so the run says so
+// before it starts and again as the last thing it prints, and production never
+// takes such a database.
+
+describe('deploy --public-data rebuilds staging from public inputs only', () => {
+  const MISSING = /MISSING everything the maintainers' private checkout supplies/;
+
+  it('builds with the public-only local build, then replaces staging with media and personas', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--public-data', '-ny'], { input: 'fake-pw\n' });
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(r.status, combined).toBe(0);
+    // The local build reads no private input; --from-csv would need the roster.
+    expect(combined).toMatch(/deploy-local-data\.sh --db-only/);
+    expect(combined).not.toMatch(/deploy-local-data\.sh --from-csv/);
+    expect(combined).toMatch(/replace staging:\s+yes/);
+    // A rebuild reseeds curated media, so the bytes ship with it.
+    expect(combined).toMatch(/sync media:\s+yes/);
+    expect(combined).toMatch(/seed personas:\s+yes/);
+    // Said before anything runs, so nobody learns it only afterwards.
+    expect(combined).toMatch(MISSING);
+  });
+
+  it('is refused for production by the orchestrator, for a direct invocation', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--public-data', '-ny'], {
+      input: 'fake-pw\n',
+      env: { DEPLOY_TARGET: 'footbag-production' },
+    });
+    expect(r.status).toBe(1);
+    expect((r.stderr ?? '') + (r.stdout ?? '')).toMatch(/--public-data is staging only/);
+  });
+
+  it('cannot be combined with another rebuild source or with reuse', () => {
+    for (const extra of ['--from-csv', '-r']) {
+      const r = run('bash', ['scripts/deploy-to-aws.sh', '--public-data', extra, '-ny'], { input: 'fake-pw\n' });
+      expect(r.status, extra).toBe(1);
+      expect((r.stderr ?? '') + (r.stdout ?? ''), extra).toMatch(/mutually exclusive|conflict with -r/);
+    }
+  });
+
+  it('runs on staging without the private checkout, which the wrapper still demands of --from-csv', () => {
+    const tmpRoot = scaffoldWrapperRoot(false);
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--public-data', '--target', 'staging'], { cwd: tmpRoot });
+      expect((r.stderr ?? '') + (r.stdout ?? '')).not.toMatch(/private checkout is not reachable/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('is refused for production by the wrapper ahead of the typed gate', () => {
+    const tmpRoot = scaffoldWrapperRoot(false);
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '--public-data', '--target', 'production'], { cwd: tmpRoot });
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(r.status).toBe(1);
+      expect(combined).toMatch(/--public-data is staging only/);
+      expect(combined).not.toMatch(/PRODUCTION/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  // The orchestrator, copied beside stub leaves, so the real run's final output
+  // can be read without building a database or reaching a host.
+  function stagedOrchestrator(rebuildExit: number): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-public-data-'));
+    const scripts = path.join(root, 'scripts');
+    fs.mkdirSync(scripts);
+    fs.copyFileSync(path.join(REPO_ROOT, 'scripts', 'deploy-to-aws.sh'), path.join(scripts, 'deploy-to-aws.sh'));
+    fs.writeFileSync(path.join(scripts, 'deploy-local-data.sh'), 'echo "local build $*"\n');
+    fs.writeFileSync(path.join(scripts, 'deploy-rebuild.sh'), `cat >/dev/null\necho "rebuild leaf done"\nexit ${rebuildExit}\n`);
+    return root;
+  }
+
+  it('ends a successful run with the warning, after the deploy step itself', () => {
+    const root = stagedOrchestrator(0);
+    try {
+      const r = run('bash', [path.join(root, 'scripts', 'deploy-to-aws.sh'), '--public-data'], { input: 'fake-pw\n' });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain('rebuild leaf done');
+      // The warning is the last thing on stderr: nothing the run prints after the
+      // deploy can push it off the operator's screen.
+      const tail = (r.stderr ?? '').trimEnd().split('\n').slice(-12).join('\n');
+      expect(tail).toMatch(/Staging now runs a database built from the committed public inputs only/);
+      expect(tail).toMatch(MISSING);
+      expect(tail).toMatch(/Only a maintainer's full rebuild \(--all-data\) restores them/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not claim staging changed when the deploy step failed, and keeps its exit status', () => {
+    const root = stagedOrchestrator(7);
+    try {
+      const r = run('bash', [path.join(root, 'scripts', 'deploy-to-aws.sh'), '--public-data'], { input: 'fake-pw\n' });
+      expect(r.status).toBe(7);
+      expect(r.stderr ?? '').not.toMatch(/Staging now runs/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 });
@@ -854,6 +989,41 @@ describe('deploy wrappers do not read the dev admin allowlist for production (st
     // A wrapper that resolves the file itself has reintroduced the copy this
     // library exists to remove, and with it the chance of the two diverging.
     expect(content).not.toMatch(/initial-admins\.txt/);
+  });
+
+  it('gives a machine without the private checkout no say in the list', () => {
+    // A dev-and-tester deploys staging from a clone with no private checkout.
+    // Read as the maintainers emptying the list, their deploy would clear the
+    // staging bootstrap allow-list nobody asked them to touch.
+    const lib = path.join(REPO_ROOT, 'scripts/lib/initial-admins.sh');
+    const without = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admins-'));
+    const withCheckout = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admins-'));
+    try {
+      fs.mkdirSync(path.join(withCheckout, 'footbag_private_repo'));
+      const managed = (root: string) =>
+        spawnSync('bash', ['-c', `source ${JSON.stringify(lib)}; initial_admin_list_managed ${JSON.stringify(root)}`], SPAWN_GUARD).status;
+      expect(managed(without)).not.toBe(0);
+      expect(managed(withCheckout)).toBe(0);
+    } finally {
+      fs.rmSync(without, { recursive: true, force: true });
+      fs.rmSync(withCheckout, { recursive: true, force: true });
+    }
+    // Both paths that write the list onto a host: the code-only deploy, and the
+    // one that ships a database (which a reuse deploy reaches without the checkout).
+    for (const [wrapper, remoteHalf] of [
+      ['scripts/deploy-code.sh', 'scripts/internal/deploy-code-remote.sh'],
+      ['scripts/deploy-rebuild.sh', 'scripts/internal/deploy-rebuild-remote.sh'],
+    ]) {
+      const sender = fs.readFileSync(path.join(REPO_ROOT, wrapper), 'utf8');
+      expect(sender, wrapper).toMatch(/initial_admin_list_managed "\$REPO_ROOT" && INITIAL_ADMIN_MANAGED="yes"/);
+      expect(sender, wrapper).toMatch(/printf 'FOOTBAG_DEV_INITIAL_ADMIN_MANAGED=%q\\n' "\$INITIAL_ADMIN_MANAGED"/);
+      // The host writes the line only when told the deploy has a say in it.
+      const remote = fs.readFileSync(path.join(REPO_ROOT, remoteHalf), 'utf8');
+      const guard = remote.indexOf('if [[ "$FOOTBAG_DEV_INITIAL_ADMIN_MANAGED" != "yes" ]]; then');
+      const write = remote.indexOf("printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%s\\n'");
+      expect(guard, remoteHalf).toBeGreaterThan(0);
+      expect(write, remoteHalf).toBeGreaterThan(guard);
+    }
   });
 });
 

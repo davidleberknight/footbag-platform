@@ -502,6 +502,80 @@ describe('a run acting as the shared job role', () => {
     expect(output(r)).toContain('staging.secrets.auto.tfvars is missing');
   });
 
+  /** No private checkout at all, and a wiring check that says the links are absent. */
+  function noCheckout(): NodeJS.ProcessEnv {
+    const wiring = join(fakeHome, 'wiring-absent.sh');
+    writeFileSync(wiring, '#!/usr/bin/env bash\nexit 1\n', 'utf-8');
+    chmodSync(wiring, 0o755);
+    return {
+      SETUP_OPERATOR_PRIVATE_LINK: join(fakeHome, 'no-such-checkout'),
+      SETUP_OPERATOR_WIRING_CMD: wiring,
+    };
+  }
+
+  it('notes a missing private checkout instead of counting it, since a dev-and-tester needs none', () => {
+    // A dev-and-tester deploys and tests staging without the checkout. Counted
+    // as work to do, every wrapped run on their machine would end "not ready".
+    const r = run(['--target', 'staging', '--check'], { ...asJobRole(), ...noCheckout() });
+    const all = output(r);
+    expect(all).toMatch(/\[note\]\s+no private operations checkout here, and a run as the FootbagDevTester role does not need one/);
+    expect(all).toMatch(/\[note\]\s+the private checkout links are not wired/);
+    expect(all).not.toMatch(/\[TODO\]\s+cannot find the companion checkout/);
+    expect(all).not.toMatch(/\[TODO\]\s+links are not wired/);
+  });
+
+  it('still counts a missing checkout for the directly authenticated identity, and exits 1', () => {
+    // An administrator applies Terraform, which reads the values the checkout
+    // holds, so for them its absence is real work.
+    const r = run(['--target', 'staging', '--check'], { ...stubAwsOnPath(HEALTHY_AWS), ...noCheckout() });
+    const all = output(r);
+    expect(r.status).toBe(1);
+    expect(all).toMatch(/\[TODO\]\s+cannot find the companion checkout/);
+    expect(all).toMatch(/\[TODO\]\s+links are not wired/);
+  });
+
+  it('a real wrapped run changes no administrator file, stanza, link or credential', () => {
+    // The maintainer's machine holds the shared account's password files, the
+    // administrator AWS sections and the alias stanza beside a dev-and-tester's
+    // setup. A wrapped run of the full setup must create or replace none of
+    // them, whatever is missing.
+    mkdirSync(join(fakeHome, '.aws'), { recursive: true });
+    mkdirSync(join(fakeHome, 'AWS'), { recursive: true, mode: 0o700 });
+    mkdirSync(join(fakeHome, '.ssh'), { recursive: true, mode: 0o700 });
+    const seeded: Record<string, string> = {
+      '.aws/credentials': '[footbag-operator] # administrator key\naws_access_key_id = AKIAOPERATOR\naws_secret_access_key = opsecret\n',
+      '.aws/config':
+        '[profile footbag-operator]\nregion = us-east-1\n[profile footbag-staging-runtime]\nrole_arn = arn:aws:iam::000000000000:role/footbag-staging-app-runtime\nsource_profile = footbag-operator\n[profile footbag-production-runtime]\nrole_arn = arn:aws:iam::000000000000:role/footbag-production-app-runtime\nsource_profile = footbag-operator\n',
+      'AWS/AWS_OPERATOR.txt': 'shared-staging-password\n',
+      'AWS/AWS_OPERATOR_PRODUCTION.txt': 'shared-production-password\n',
+      '.ssh/config': 'Host footbag-staging\n  HostName 203.0.113.10\n  User footbag\n  Port 2222\n',
+    };
+    for (const [rel, body] of Object.entries(seeded)) {
+      writeFileSync(join(fakeHome, rel), body, { mode: 0o600 });
+    }
+    // Terraform and docker answer without touching anything; the host address
+    // read gets an address so the stanza and pin steps are reached.
+    const binDir = join(fakeHome, 'stubbin');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(
+      join(binDir, 'terraform'),
+      '#!/usr/bin/env bash\nfor a in "$@"; do [[ "$a" == "output" ]] && { printf "203.0.113.10"; exit 0; }; done\nexit 0\n',
+      { mode: 0o755 },
+    );
+    writeFileSync(join(binDir, 'docker'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+    // The alias does not resolve, so the stanza step is reached with a stanza
+    // missing: the case where an unguarded run would write one.
+    const env = { ...asJobRole(), ...noCheckout(), ...stubSshOnPath(['user footbag', 'hostname footbag-staging', 'port 22']) };
+    const r = run(['--target', 'staging'], env);
+    const all = output(r);
+    for (const [rel, body] of Object.entries(seeded)) {
+      expect(readFileSync(join(fakeHome, rel), 'utf-8'), `${rel} changed`).toBe(body);
+    }
+    expect(existsSync(join(fakeHome, 'AWS', 'HOST_OPERATOR.txt')), 'no credential file was written').toBe(false);
+    expect(all).toMatch(/footbag-staging does not resolve; accepting your onboarding writes it/);
+    expect(all).not.toMatch(/stanza written/);
+  });
+
   it('classifies by the identity the run settles on, not the CLI default', () => {
     // The shell names no profile. The CLI's bare default reaches the job role,
     // but the run itself settles on the footbag-operator profile, so it is an

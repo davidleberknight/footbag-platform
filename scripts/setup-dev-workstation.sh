@@ -64,6 +64,8 @@
 #   bash scripts/setup-dev-workstation.sh --operator --account <first_last>
 #   bash scripts/setup-dev-workstation.sh --operator --account <first_last> \
 #     --replace-key <SHA256 fingerprint of the pair to retire>
+#   bash scripts/setup-dev-workstation.sh --operator --account <first_last> \
+#     --replace-key retired [--profile <first_last>]
 #
 # Flags:
 #   --check     Report what would be installed and exit: 0 when nothing is
@@ -74,12 +76,23 @@
 #               With --operator: make sure this dev-and-tester's named key pair
 #               exists, creating it if not, and end by printing what to post for
 #               the holder who onboards them.
-#   --replace-key <SHA256:...>
+#   --replace-key <SHA256:...|retired>
 #               With --account: when the pair at the path has this fingerprint,
 #               move both halves aside to ~/.ssh/retired_<account>_<time> and
 #               create a fresh pair. For re-onboarding after an offboard, which
-#               refuses the retired key.
+#               refuses the retired key. The word "retired" instead of a
+#               fingerprint sets aside the pair at the path only when it is the
+#               one an onboarding was accepted with (the marker the acceptance
+#               leaves beside it says so), or, where there is no marker, when
+#               --profile names that account's AWS profile and AWS refuses its
+#               key as invalid, which is what an offboarded identity's key is
+#   --profile <account>
+#               With --replace-key retired and no acceptance marker: the AWS
+#               profile whose key must be proved dead before its pair is set aside
 #   --yes       Accept the typed confirmation in advance.
+#
+# Test seam (CI only): SETUP_DEV_AWS_BIN replaces the aws CLI used for the
+# dead-identity proof, and a run using it says so.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -103,12 +116,14 @@ CHECK_ONLY=0
 OPERATOR=0
 ACCOUNT=""
 REPLACE_KEY=""
+DEAD_PROFILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK_ONLY=1; shift ;;
     --operator) OPERATOR=1; shift ;;
     --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
     --replace-key) REPLACE_KEY="${2:-}"; shift 2 || { echo "ERROR: --replace-key requires an argument" >&2; exit 2; } ;;
+    --profile) DEAD_PROFILE="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
@@ -135,11 +150,20 @@ if [[ -n "$REPLACE_KEY" ]]; then
     echo "ERROR: --replace-key goes with --account, which names the pair it replaces." >&2
     exit 2
   fi
-  if [[ ! "$REPLACE_KEY" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
+  if [[ "$REPLACE_KEY" != "retired" && ! "$REPLACE_KEY" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
     echo "ERROR: --replace-key takes the SHA256 fingerprint of the pair to retire," >&2
-    echo "       as ssh-keygen -l prints it." >&2
+    echo "       as ssh-keygen -l prints it, or the word retired." >&2
     exit 2
   fi
+fi
+if [[ -n "$DEAD_PROFILE" && "$REPLACE_KEY" != "retired" ]]; then
+  echo "ERROR: --profile goes with --replace-key retired." >&2
+  exit 2
+fi
+if [[ -n "$DEAD_PROFILE" && "$DEAD_PROFILE" != "$ACCOUNT" ]]; then
+  echo "ERROR: --profile names the account's own profile, ${ACCOUNT}. A different" >&2
+  echo "       profile proves nothing about whether this pair's identity is retired." >&2
+  exit 2
 fi
 
 # ── Pinned downloads ─────────────────────────────────────────────────────────
@@ -270,12 +294,55 @@ if [[ -n "$ACCOUNT" ]]; then
     exit 1
   fi
   if [[ -e "$NAMED_KEY" ]]; then
-    current_sha="$(named_key_sha)"
+    current_sha="$(named_key_sha)" || current_sha=""
     if [[ -z "$current_sha" ]]; then
       echo "ERROR: ssh-keygen cannot read ${NAMED_KEY_TILDE}.pub. Nothing changed." >&2
       exit 1
     fi
-    if [[ -n "$REPLACE_KEY" && "$current_sha" == "$REPLACE_KEY" ]]; then
+    if [[ "$REPLACE_KEY" == "retired" ]]; then
+      # A pair is retired when the onboarding it was accepted with has ended.
+      # The marker the acceptance left says which pair that was; without one,
+      # the account's own identity is asked, and only AWS refusing its key as
+      # invalid counts as dead. Anything else, an unreachable network included,
+      # is not proof, and the pair is kept.
+      marker="${NAMED_KEY}.onboarded"
+      if [[ -f "$marker" ]]; then
+        if [[ "$(cat "$marker")" == "$current_sha" ]]; then
+          KEY_ACTION="replace"
+          REPLACE_KEY="$current_sha"
+        else
+          KEY_NOTE="The pair at ${NAMED_KEY_TILDE} is ${current_sha}, not the one accepted (${marker}): it is kept."
+        fi
+      elif [[ -z "$DEAD_PROFILE" ]]; then
+        echo "ERROR: ${NAMED_KEY_TILDE} carries no acceptance marker, so nothing here says" >&2
+        echo "       it was the pair an onboarding used. Name the account's profile so its" >&2
+        echo "       identity can be proved retired first:" >&2
+        echo "         --replace-key retired --profile ${ACCOUNT}" >&2
+        exit 2
+      else
+        dead_aws="${SETUP_DEV_AWS_BIN:-aws}"
+        [[ "$dead_aws" != "aws" ]] && echo "SYNTHETIC: aws='${dead_aws}' -- the identity proof is a stand-in." >&2
+        dead_out="$("$dead_aws" sts get-caller-identity --profile "$DEAD_PROFILE" --output text 2>&1 || true)"
+        case "$dead_out" in
+          *InvalidClientTokenId*|*"security token included in the request is invalid"*)
+            KEY_ACTION="replace"
+            REPLACE_KEY="$current_sha"
+            echo "==> AWS refuses the ${DEAD_PROFILE} key as invalid: that identity is retired."
+            ;;
+          *"arn:aws:"*)
+            echo "ERROR: the ${DEAD_PROFILE} identity still works, so the pair at ${NAMED_KEY_TILDE}" >&2
+            echo "       is not retired. Offboard first; nothing changed." >&2
+            exit 1
+            ;;
+          *)
+            echo "ERROR: could not prove the ${DEAD_PROFILE} identity retired:" >&2
+            printf '         %s\n' "$dead_out" >&2
+            echo "       Only AWS refusing the key as invalid counts. Nothing changed." >&2
+            exit 1
+            ;;
+        esac
+      fi
+    elif [[ -n "$REPLACE_KEY" && "$current_sha" == "$REPLACE_KEY" ]]; then
       KEY_ACTION="replace"
     elif [[ -n "$REPLACE_KEY" ]]; then
       KEY_NOTE="The pair at ${NAMED_KEY_TILDE} is ${current_sha}, not ${REPLACE_KEY}: already replaced, so it is kept."
@@ -441,6 +508,8 @@ if [[ "$KEY_ACTION" == "replace" ]]; then
   retired="${HOME}/.ssh/retired_${ACCOUNT}_$(date -u +%Y%m%dT%H%M%SZ)"
   mv -n -- "$NAMED_KEY" "$retired"
   mv -n -- "${NAMED_KEY}.pub" "${retired}.pub"
+  # The acceptance marker describes the pair it sits beside, so it goes with it.
+  [[ -e "${NAMED_KEY}.onboarded" ]] && mv -n -- "${NAMED_KEY}.onboarded" "${retired}.onboarded"
   if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]]; then
     echo "ERROR: could not move ${NAMED_KEY_TILDE} aside. Nothing was created." >&2
     exit 1
@@ -479,7 +548,9 @@ esac
 # What the holder who onboards them needs, read from the pair itself and from
 # the address the outside world sees, never from what was meant to happen.
 if [[ -n "$ACCOUNT" ]]; then
-  key_sha="$(named_key_sha)"
+  # Under pipefail an unreadable or absent pair fails the read, and errexit
+  # would end the run there without the message below saying what is missing.
+  key_sha="$(named_key_sha)" || key_sha=""
   if [[ ! -f "$NAMED_KEY" || -z "$key_sha" ]]; then
     echo "  still missing: the key pair ${NAMED_KEY_TILDE}" >&2
     remaining=1

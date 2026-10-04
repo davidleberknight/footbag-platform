@@ -493,6 +493,15 @@ fi
 # so the two cannot drift apart. An empty value is a valid answer and clears the
 # env var on staging, so a stale list cannot survive the operator emptying it.
 INITIAL_ADMIN_EMAILS_CSV="$(resolve_initial_admin_emails_csv "$REPO_ROOT" "$REMOTE")"
+# The list belongs to the maintainers, and its file lives in their private
+# checkout. A deploy from a machine without that checkout (a dev-and-tester's)
+# has no say in it, so it leaves the host's list exactly as it is rather than
+# writing an empty one over it.
+INITIAL_ADMIN_MANAGED="no"
+initial_admin_list_managed "$REPO_ROOT" && INITIAL_ADMIN_MANAGED="yes"
+if [[ "$INITIAL_ADMIN_MANAGED" == "no" && "$REMOTE" != "footbag-production" ]]; then
+  echo "==> No private checkout here, so the host's initial-admin list is left as it is."
+fi
 
 # Deploy provenance. This deploy rsyncs the local working tree, not a tagged
 # artifact, so the commit alone does not describe what is running: uncommitted
@@ -535,6 +544,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'RELEASE_DIR=%q\n'                  "$REMOTE_RELEASE_DIR"
   printf 'RELEASE_STAMP=%q\n'                "$RELEASE_STAMP"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
+  printf 'FOOTBAG_DEV_INITIAL_ADMIN_MANAGED=%q\n' "$INITIAL_ADMIN_MANAGED"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'REFRESH_TEST_PERSONAS=%q\n'       "${REFRESH_TEST_PERSONAS:-no}"
   # Empty on every ordinary code deploy. scripts/deploy-migrate.sh is the only

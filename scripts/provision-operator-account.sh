@@ -495,6 +495,7 @@ inspect_account() {
       printf '%s\n' "$SUDO_PASS"
       printf 'OPACC_MODE=%q\n' "inspect"
       printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
+      printf 'OPACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
       cat "$REMOTE_HALF"
     } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash')" || return 1
   INSPECT_SHELL="$(sed -n 's/^SHELL //p' <<<"$INSPECT")"
@@ -526,6 +527,15 @@ if [[ "$INSPECT_ONLY" -eq 1 ]]; then
   echo "ACCOUNT present"
   echo "LOCKED ${INSPECT_LOCKED}"
   [[ -n "$INSPECT_KEYS" ]] && sed 's/^/KEY /' <<<"$INSPECT_KEYS"
+  [[ -n "$INSPECT_RETIRED" ]] && sed 's/^/RETIRED /' <<<"$INSPECT_RETIRED"
+  # Passed through as the remote half printed it, and "unknown" when it printed
+  # nothing, so no reader can take a missing line for an absent key.
+  INSPECT_SHARED="$(sed -n 's/^SHARED //p' <<<"$INSPECT")"
+  if [[ -n "$INSPECT_SHARED" ]]; then
+    sed 's/^/SHARED /' <<<"$INSPECT_SHARED"
+  else
+    echo "SHARED unknown"
+  fi
   exit 0
 fi
 
@@ -574,8 +584,8 @@ if [[ "$OFFBOARD" -eq 1 ]]; then
   echo ""
   echo "The host account is retired. This is the first step of a departure, not"
   echo "the whole of one: bash scripts/offboard-dev-tester.sh runs this step and then"
-  echo "retires their AWS identity, their allow-list entry and their repository"
-  echo "access, and names what is left after that."
+  echo "retires their AWS identity and their own allow-list address, and names what"
+  echo "is left after that. Their repository access is separate, and not its to end."
   exit 0
 fi
 

@@ -110,14 +110,21 @@ locals {
     # them. The jwt alias matched and the main one did not, which is the kind of
     # half-working grant that reads as a broken credential rather than as a
     # scope error.
-    kms_alias = "alias/footbag-staging*"
-    iam_write_resources = [
-      "arn:aws:iam::${var.aws_account_id}:role/footbag-staging-*",
-      "arn:aws:iam::${var.aws_account_id}:user/footbag-staging-*",
-      "arn:aws:iam::${var.aws_account_id}:policy/footbag-staging-*",
-      "arn:aws:iam::${var.aws_account_id}:instance-profile/footbag-staging-*",
-    ]
+    kms_alias     = "alias/footbag-staging*"
     runtime_roles = ["arn:aws:iam::${var.aws_account_id}:role/footbag-staging-app-runtime"]
+
+    # Each dev-and-tester's staging address, one parameter per person, written
+    # only by onboarding and offboarding as the directly authenticated identity.
+    # The staging plan reads them to build the SSH allow-list, so this role reads
+    # them too. Outside /footbag/<env>/ on purpose: both runtime roles read their
+    # whole environment prefix, and an operator's home address is nothing the
+    # application should be able to see. The bare path is listed beside its
+    # children because a by-path read is authorized against the path itself.
+    dev_tester_addresses = [
+      "arn:aws:ssm:*:${var.aws_account_id}:parameter/footbag-ops/staging/dev-testers",
+      "arn:aws:ssm:*:${var.aws_account_id}:parameter/footbag-ops/staging/dev-testers/*",
+    ]
+    operator_parameters = "arn:aws:ssm:*:${var.aws_account_id}:parameter/footbag-ops/*"
 
     # Both trees name their configuration sets `${local.prefix}-<kind>` and
     # local.prefix carries the environment, so unlike the rest of SES these ARNs
@@ -126,6 +133,12 @@ locals {
     # transactional and bulk sets, which carry the reputation tracking for every
     # message the membership receives.
     ses_configuration_sets = "arn:aws:ses:*:${var.aws_account_id}:configuration-set/footbag-staging-*"
+
+    # The staging tree's one dashboard, named for the environment prefix alone.
+    # Dashboard ARNs carry no region, so the alarm pattern above, which does,
+    # never matched it: refreshing the dashboard was denied and the put and
+    # delete grants that sat beside the alarm actions were inert.
+    staging_dashboard = "arn:aws:cloudwatch::${var.aws_account_id}:dashboard/footbag-staging"
   }
 
   # ── The statements ──────────────────────────────────────────────────────────
@@ -176,10 +189,16 @@ locals {
       Effect = "Allow"
       Action = ["ssm:*", "sqs:*", "sns:*", "logs:*", "events:*",
         "cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms",
-        "cloudwatch:DescribeAlarms*", "cloudwatch:PutDashboard",
-        "cloudwatch:DeleteDashboards", "cloudwatch:ListTagsForResource",
+        "cloudwatch:DescribeAlarms*", "cloudwatch:ListTagsForResource",
       "cloudwatch:TagResource", "cloudwatch:UntagResource"]
       Resource = local.scope.project_resources
+    }
+
+    staging_dashboard = {
+      Sid      = "StagingDashboard"
+      Effect   = "Allow"
+      Action   = ["cloudwatch:GetDashboard", "cloudwatch:PutDashboard", "cloudwatch:DeleteDashboards"]
+      Resource = local.scope.staging_dashboard
     }
 
     project_keys_by_alias = {
@@ -235,10 +254,19 @@ locals {
     # stay behind the alias, so a key this project never named is beyond an
     # operator's reach, and an orphan left by an interrupted apply is cleaned
     # up by the directly authenticated identity rather than by a role.
+    #
+    # Two reads a staging refresh makes on every run are here because AWS
+    # authorizes them on no resource: describing parameters, which the provider
+    # does for each SSM parameter's metadata, and describing log groups, which it
+    # does for each log group. Scoped to staging ARNs, as they were under the
+    # services statement, both were denied and no staging plan could complete.
+    # On "*" they return names and descriptions account-wide, never a parameter's
+    # value or a log's contents, and AWS offers nothing narrower.
     calls_that_carry_no_resource = {
       Sid    = "CallsThatCarryNoResource"
       Effect = "Allow"
-      Action = ["cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics",
+      Action = ["ssm:DescribeParameters", "logs:DescribeLogGroups",
+        "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics",
         "kms:CreateKey", "kms:ListKeys",
         "kms:ListAliases", "kms:CreateAlias", "kms:DeleteAlias",
         "kms:DescribeKey", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus",
@@ -371,20 +399,21 @@ locals {
     # send as the domain and survive an offboard, the DKIM signing attributes,
     # and the account-level send switch. A staging send test, if one is ever
     # wanted, is a from-address condition rather than a wildcard.
-    # The three that name a configuration set are scoped to the staging ones by
-    # ARN. Listing and the account read carry no resource and stay on "*".
+    # Creating and deleting a configuration set name it, and are scoped to the
+    # staging ones by ARN. Describing one, which a refresh does, carries no
+    # resource in the SES v1 API the provider calls, so it sits with listing and
+    # the account read on "*"; scoped by ARN it was denied on every refresh.
     ses_staging_configuration = {
-      Sid    = "SesConfigurationSetsByName"
-      Effect = "Allow"
-      Action = ["ses:CreateConfigurationSet", "ses:DescribeConfigurationSet",
-      "ses:DeleteConfigurationSet"]
+      Sid      = "SesConfigurationSetsByName"
+      Effect   = "Allow"
+      Action   = ["ses:CreateConfigurationSet", "ses:DeleteConfigurationSet"]
       Resource = local.scope.ses_configuration_sets
     }
 
     ses_account_read = {
       Sid      = "SesListAndAccountRead"
       Effect   = "Allow"
-      Action   = ["ses:ListConfigurationSets", "ses:GetAccount"]
+      Action   = ["ses:ListConfigurationSets", "ses:DescribeConfigurationSet", "ses:GetAccount"]
       Resource = "*"
     }
 
@@ -395,23 +424,48 @@ locals {
       Resource = "*"
     }
 
-    # An operator who applies Terraform that manages IAM necessarily holds IAM
-    # write, which is most of the distance to administrator. Scoping it by
-    # resource name to this project's own staging roles, users, policies and
-    # instance profiles is a real narrowing rather than a complete one, and the
-    # denials below are what stop it closing the remaining distance.
-    iam_write_project = {
-      Sid      = "IamWriteOnlyWhatThisProjectDeclares"
-      Effect   = "Allow"
-      Action   = "iam:*"
-      Resource = local.scope.iam_write_resources
-    }
+    # No IAM write at all. IAM write over staging-named principals is most of
+    # the distance to administrator: create a footbag-staging user, attach
+    # AdministratorAccess, mint it a key, and from there change footbag-operator
+    # and both runtime trusts. A name scope narrows that without closing it. So
+    # a staging apply that changes staging IAM, a rare and feature-driven event,
+    # runs as the directly authenticated identity, and terraform-apply.sh refuses
+    # such a plan under this role before applying any of it.
 
     chain_into_runtime_roles = {
       Sid      = "ChainIntoTheRuntimeRoles"
       Effect   = "Allow"
       Action   = "sts:AssumeRole"
       Resource = local.scope.runtime_roles
+    }
+
+    # The Allow above names one role, and an explicit Deny on every other makes
+    # that the whole of it. Without the Deny, any role whose trust policy names
+    # this one, created later by anybody, would be assumable from it, and the
+    # bound would rest on nobody ever writing such a trust.
+    never_assume_another_role = {
+      Sid         = "NeverAssumeAnyRoleButTheStagingRuntime"
+      Effect      = "Deny"
+      Action      = "sts:AssumeRole"
+      NotResource = local.scope.runtime_roles
+    }
+
+    read_dev_tester_addresses = {
+      Sid      = "ReadTheDevTesterAddresses"
+      Effect   = "Allow"
+      Action   = ["ssm:GetParametersByPath", "ssm:GetParameter", "ssm:GetParameters"]
+      Resource = local.scope.dev_tester_addresses
+    }
+
+    # Who may reach staging's SSH ports is decided by these parameters, so a
+    # holder who could write one could admit any address, or drop a colleague's.
+    # Inverted, so a write action added to the service later is denied by
+    # default; only the three reads the staging plan makes pass.
+    never_write_operator_addresses = {
+      Sid       = "NeverWriteOperatorAddresses"
+      Effect    = "Deny"
+      NotAction = ["ssm:GetParametersByPath", "ssm:GetParameter", "ssm:GetParameters"]
+      Resource  = local.scope.operator_parameters
     }
 
     # The trail records the role session name with every action this role takes,
@@ -472,10 +526,11 @@ locals {
       Resource = "*"
     }
 
-    # Everything except reads, rather than a list of forbidden actions. The Allow
-    # above carries iam:* over user/footbag-staging-*, and an enumerated Deny
-    # protects only the actions somebody thought to name while permitting the
-    # rest. Inverting the match denies each IAM action added later by default.
+    # Everything except reads, rather than a list of forbidden actions. This role
+    # holds no IAM write today, and this denial is what keeps any IAM grant added
+    # to it later from reaching this user: an enumerated Deny protects only the
+    # actions somebody thought to name, while inverting the match denies each IAM
+    # action added later by default.
     # Reads stay because verify-account-baseline.sh calls ListAccessKeys and
     # GetAccessKeyLastUsed against this user, and reading the identity is how the
     # baseline gate reports on it.
@@ -553,9 +608,9 @@ locals {
     }
 
     # The role this one is allowed to assume is the one role it must not be able
-    # to rewrite. Two statements above grant iam:* over role/footbag-staging-*
-    # and sts:AssumeRole on footbag-staging-app-runtime, and that role is inside
-    # that name pattern. Attaching AdministratorAccess to it and assuming it is
+    # to rewrite. This role holds no IAM write today; this denial keeps it so for
+    # the runtime role whatever IAM grant is added later. Attaching
+    # AdministratorAccess to the runtime role and assuming it is
     # two calls to administrator over the whole account -- staging and
     # production share one account, so the staging name is a convention and not
     # a boundary -- and the holder lands as a principal none of the denials here
@@ -683,9 +738,8 @@ locals {
 
     # A budget action applies an IAM policy on its own schedule, under a role it
     # is passed, after the person who created it has gone. The budgets wildcard
-    # that made it reachable is removed above; this denial is what stops it
-    # coming back through the IAM grant over staging-named roles, which carries
-    # PassRole with it.
+    # that made it reachable is not granted, and this role holds no PassRole;
+    # this denial is what stops it returning through any IAM grant added later.
     never_pass_a_role_to_budgets = {
       Sid      = "NeverPassARoleToBudgets"
       Effect   = "Deny"
@@ -792,28 +846,44 @@ resource "aws_iam_role" "dev_tester" {
   })
 }
 
-resource "aws_iam_role_policy" "dev_tester" {
-  name = "dev-tester-job"
-  role = aws_iam_role.dev_tester.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+# The job is three customer managed policies attached to the role, not an
+# inline policy. A role's inline policies share one 10,240-character budget, and
+# that budget belongs to the session revocations offboarding writes onto this
+# role: each is an inline policy, the form AWS's own "revoke active sessions"
+# takes, because a revocation is tied to this one role and to nothing else. The
+# job policy alone grew to fill nearly all of it, so two offboards in a row were
+# refused for want of room, with the departing person's sessions still live.
+# Managed policies are sized separately, at 6,144 characters each, and are what
+# AWS recommends for a permission set like this one.
+#
+# Split by what each policy is about, so a grant lands beside its kind and each
+# stays well inside its own limit. IAM evaluates the union of every policy
+# attached to the role, so a deny in the guardrails still overrides an allow in
+# either of the others, exactly as it did inside one document. The role holds no
+# IAM write, so it can neither edit these policies nor detach them.
+locals {
+  dev_tester_policies = {
+    StagingServices = [
       local.statements.project_buckets,
       local.statements.state_bucket_listing,
       local.statements.project_scoped_services,
+      local.statements.staging_dashboard,
       local.statements.project_keys_by_alias,
       local.statements.calls_that_carry_no_resource,
       local.statements.publish_staging_metrics,
       local.statements.lightsail_staging_lifecycle,
-      local.statements.cloudfront_project_surfaces,
       local.statements.ses_staging_configuration,
       local.statements.ses_account_read,
+    ]
+    EdgeAndIdentity = [
+      local.statements.cloudfront_project_surfaces,
       local.statements.iam_read_everywhere,
-      local.statements.iam_write_project,
       local.statements.chain_into_runtime_roles,
+      local.statements.read_dev_tester_addresses,
       local.statements.resolve_who_acted,
       local.statements.reads_the_operator_scripts_make,
+    ]
+    Guardrails = [
       local.statements.no_self_elevation,
       local.statements.never_touch_super_admin_identity,
       local.statements.never_administer_a_human_operator,
@@ -825,6 +895,37 @@ resource "aws_iam_role_policy" "dev_tester" {
       local.statements.never_pass_a_role_to_budgets,
       local.statements.never_mint_host_access,
       local.statements.never_reach_a_non_staging_host,
+      local.statements.never_assume_another_role,
+      local.statements.never_write_operator_addresses,
     ]
+  }
+}
+
+resource "aws_iam_policy" "dev_tester" {
+  for_each = local.dev_tester_policies
+
+  name        = "FootbagDevTester-${each.key}"
+  description = "Part of the FootbagDevTester job role's permission set; attached to that role only."
+
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = each.value
   })
+
+  # Refused at plan time rather than by IAM partway through an apply. AWS does
+  # not count whitespace and the rendered document carries almost none, so this
+  # length is a safe upper bound on what IAM measures.
+  lifecycle {
+    precondition {
+      condition     = length(jsonencode({ Version = "2012-10-17", Statement = each.value })) <= 6144
+      error_message = "The FootbagDevTester-${each.key} policy exceeds IAM's 6,144-character limit for a managed policy. Move a statement into another of the role's policies, or add a fourth."
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "dev_tester" {
+  for_each = aws_iam_policy.dev_tester
+
+  role       = aws_iam_role.dev_tester.name
+  policy_arn = each.value.arn
 }

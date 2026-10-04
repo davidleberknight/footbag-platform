@@ -74,7 +74,19 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                Requires the gitignored membership roster AND
                                either the footbag.org dump or a prior
                                intermediate CSV.
-  --soup-to-nuts               Full clean rebuild from the legacy mirror
+  --public-data                Staging only. Rebuild the local DB from the
+                               committed public inputs alone (the
+                               deploy-local-data.sh --db-only build), then
+                               replace the staging DB with it. Needs no
+                               private checkout, roster or dump, so it is the
+                               rebuild a dev-and-tester runs to land a schema
+                               change. What it does NOT carry: the real legacy
+                               members, the roster-based enrichment, the
+                               account rulings and board flags, and every
+                               other member row staging held. Those stay gone
+                               until a maintainer's next --all-data rebuild.
+                               Seeds personas and syncs media like any rebuild.
+  --soup-to-nuts              Full clean rebuild from the legacy mirror
                                (the footbag_legacy_mirror symlink). Drops
                                the DB file, regenerates canonical_input
                                CSVs from the mirror, runs all enrichment
@@ -205,6 +217,7 @@ DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
 ALL_DATA="no"        # --from-csv build + member intake applied and shipped (full migration load)
+PUBLIC_DATA="no"     # --db-only build from committed public inputs; staging only, no private checkout
 # CUTOVER-REMOVE: --seed-test-personas flag.
 # Current: post-deploy seeds the canonical persona catalog into dev/staging
 #   only; not part of the production path. Signal only, no JSON payload.
@@ -259,7 +272,8 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     --from-csv)            FROM_CSV="yes" ;;
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
     --all-data)            ALL_DATA="yes" ;;
-    --seed-test-personas)  SEED_TEST_PERSONAS="yes" ;;
+    --public-data)         PUBLIC_DATA="yes" ;;
+    --seed-test-personas) SEED_TEST_PERSONAS="yes" ;;
     --refresh-test-personas) REFRESH_TEST_PERSONAS="yes"; REFRESH_ASKED_EXPLICITLY="yes" ;;
     --no-refresh-personas) NO_REFRESH_FLAG="yes" ;;
     --no-media)            NO_MEDIA_FLAG="yes" ;;
@@ -273,24 +287,37 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   esac
 done
 
-# --from-csv / --soup-to-nuts / --all-data are valid only with the default rebuild mode.
+# --from-csv / --soup-to-nuts / --all-data / --public-data are valid only with the default rebuild mode.
 _rebuild_modes=0
 [[ "$FROM_CSV" == "yes" ]]     && _rebuild_modes=$((_rebuild_modes + 1))
 [[ "$SOUP_TO_NUTS" == "yes" ]] && _rebuild_modes=$((_rebuild_modes + 1))
 [[ "$ALL_DATA" == "yes" ]]     && _rebuild_modes=$((_rebuild_modes + 1))
+[[ "$PUBLIC_DATA" == "yes" ]]  && _rebuild_modes=$((_rebuild_modes + 1))
 if (( _rebuild_modes > 1 )); then
-  echo "ERROR: --from-csv, --soup-to-nuts, and --all-data are mutually exclusive." >&2
+  echo "ERROR: --from-csv, --soup-to-nuts, --all-data, and --public-data are mutually exclusive." >&2
   exit 1
 fi
-if [[ "$SOUP_TO_NUTS" == "yes" || "$FROM_CSV" == "yes" || "$ALL_DATA" == "yes" ]]; then
+# Any database rebuild, whichever source it builds from.
+ANY_REBUILD="no"
+(( _rebuild_modes == 1 )) && ANY_REBUILD="yes"
+if [[ "$ANY_REBUILD" == "yes" ]]; then
   if [[ "$MODE" == "reuse" ]]; then
-    echo "ERROR: --from-csv / --soup-to-nuts / --all-data conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
+    echo "ERROR: --from-csv / --soup-to-nuts / --all-data / --public-data conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
     exit 1
   fi
   if [[ "$MODE" == "keep" ]]; then
-    echo "ERROR: --from-csv / --soup-to-nuts / --all-data conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --all-data to rebuild locally without deploying." >&2
+    echo "ERROR: --from-csv / --soup-to-nuts / --all-data / --public-data conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --all-data to rebuild locally without deploying." >&2
     exit 1
   fi
+fi
+
+# A database built from public inputs alone is a staging artifact. Production is
+# built once, from everything, at the cutover; a public-only build there would
+# replace the real members with placeholders.
+if [[ "$PUBLIC_DATA" == "yes" &&"${DEPLOY_TARGET:-footbag-staging}" != "footbag-staging" ]]; then
+  echo "ERROR: --public-data is staging only. Production's database is built from the full" >&2
+  echo "       sources, never from the public inputs alone." >&2
+  exit 1
 fi
 
 # Opt-out / opt-in conflicts.
@@ -339,7 +366,7 @@ fi
 # built. Reusing the local DB replaces the target's database wholesale for the
 # same reason. Excluding both keeps the flag meaning one thing: make the
 # personas on the target's EXISTING database match the code just deployed.
-if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" || "$ALL_DATA" == "yes" ]]; then
+if [[ "$ANY_REBUILD" == "yes" ]]; then
   refresh_off "is for code-only deploys; a DB rebuild already ships a current persona catalog."
 fi
 if [[ "$MODE" == "reuse" ]]; then
@@ -358,12 +385,12 @@ fi
 # --soup-to-nuts (both seed personas by default on staging). A stray --no-*
 # anywhere else is almost certainly an operator mistake: fail loud.
 if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
-  if [[ "$NO_MEDIA_FLAG" == "yes" && "$FROM_CSV" != "yes" && "$ALL_DATA" != "yes" ]]; then
-    echo "ERROR: --no-media is only meaningful with --from-csv, --all-data, or --soup-to-nuts (the media sync is off by default otherwise)." >&2
+  if [[ "$NO_MEDIA_FLAG" == "yes" && "$ANY_REBUILD" != "yes" ]]; then
+    echo "ERROR: --no-media is only meaningful with --from-csv, --all-data, --public-data, or --soup-to-nuts (the media sync is off by default otherwise)." >&2
     exit 1
   fi
-  if [[ "$NO_PERSONAS_FLAG" == "yes" && "$FROM_CSV" != "yes" && "$ALL_DATA" != "yes" ]]; then
-    echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
+  if [[ "$NO_PERSONAS_FLAG" == "yes" && "$ANY_REBUILD" != "yes" ]]; then
+    echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, --public-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
     exit 1
   fi
 fi
@@ -373,7 +400,7 @@ fi
 # with --no-personas. Staging-only (CUTOVER-REMOVE): auto-enable ONLY on staging,
 # re-enforcing the wrapper's allowlist (which scans literal --seed-* flags and
 # cannot see this implicit enable). The seed runner is idempotent.
-if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" || "$ALL_DATA" == "yes" ]]; then
+if [[ "$ANY_REBUILD" == "yes" ]]; then
   if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-staging" ]]; then
     [[ "$NO_PERSONAS_FLAG" == "yes" ]] || SEED_TEST_PERSONAS="yes"
   else
@@ -424,7 +451,7 @@ case "$MODE" in
   reuse)  REBUILD_LOCAL="no";  REPLACE_STAGING="yes"; ;;
   keep)   REBUILD_LOCAL="no";  REPLACE_STAGING="no";  ;;
   "")
-    if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" || "$ALL_DATA" == "yes" ]]; then
+    if [[ "$ANY_REBUILD" == "yes" ]]; then
       REBUILD_LOCAL="yes"; REPLACE_STAGING="yes"
     else
       REBUILD_LOCAL="no";  REPLACE_STAGING="no"
@@ -479,6 +506,37 @@ echo "    refresh personas: ${REFRESH_TEST_PERSONAS}"
 echo "    dry run:          ${DRY_RUN}"
 echo ""
 
+# What a --public-data database lacks, said before the run and again as the last
+# thing it prints. The build succeeds and the site works, so nothing else would
+# tell the next person on staging why every real member has gone.
+public_data_warning() {  # $1 = "will" before the run, "now" after it
+  local lead="This deploy will replace"
+  [[ "$1" == "now" ]] && lead="Staging now runs"
+  {
+    echo ""
+    echo "=================================================================="
+    echo "  WARNING: PUBLIC-INPUTS DATABASE (--public-data)"
+    echo "=================================================================="
+    if [[ "$1" == "now" ]]; then
+      echo "  ${lead} a database built from the committed public inputs only."
+    else
+      echo "  ${lead} the staging database with one built from the"
+      echo "  committed public inputs only."
+    fi
+    echo "  It is MISSING everything the maintainers' private checkout supplies:"
+    echo "    - the real legacy members and their claims (placeholders only)"
+    echo "    - the roster-based membership enrichment and club inference"
+    echo "    - the recorded account rulings and the board flags"
+    echo "    - every other member row staging held before this deploy"
+    echo "  Only a maintainer's full rebuild (--all-data) restores them."
+    echo "=================================================================="
+    echo ""
+  } >&2
+}
+if [[ "$PUBLIC_DATA" == "yes" ]]; then
+  public_data_warning will
+fi
+
 # -----------------------------------------------------------------------------
 # Helpers preserved from prior orchestrator.
 # -----------------------------------------------------------------------------
@@ -509,8 +567,12 @@ exec_step() {
   # Inherit this orchestrator's stdin (the password line) and pass it through
   # to the leaf, which forwards via ssh to remote sudo -S. The password
   # remains in unnamed kernel pipes only; never lands in argv or a shell var.
-  "$@"
-  exit $?
+  local rc=0
+  "$@" || rc=$?
+  if (( rc == 0 )) && [[ "$PUBLIC_DATA" == "yes" ]]; then
+    public_data_warning now
+  fi
+  exit "$rc"
 }
 
 check_canonical_freshness() {
@@ -654,6 +716,12 @@ elif [[ "$ALL_DATA" == "yes" ]]; then
   # accidental deploy.
   echo "==> Step 1 (local DB rebuild + member intake applied): scripts/deploy-local-data.sh --all-data --apply-members"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members
+elif [[ "$PUBLIC_DATA" == "yes" ]]; then
+  # The public-inputs build: committed seed and canonical CSVs, freestyle, net,
+  # clubs and curated media, with no enrichment phase and no member intake, so
+  # nothing here reads the private checkout, the roster or the dump.
+  echo "==> Step 1 (local DB rebuild, public inputs only): scripts/deploy-local-data.sh --db-only"
+  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --db-only
 else
   echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv

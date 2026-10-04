@@ -176,6 +176,111 @@ describe('aws_cred_put: the file surgery', () => {
   });
 });
 
+describe('a section header carrying a trailing comment is still a header', () => {
+  // The AWS tools read "[name] # note" and "[name] ; note" as the section. Seen
+  // as body instead, a removal runs on past it and deletes the next section
+  // whole; on an administrator's machine that section is the directly
+  // authenticated identity's own key.
+  const OPERATOR = ['[footbag-operator] # main key, do not touch', 'aws_access_key_id = AKIAOPERATOR', 'aws_secret_access_key = opsecret'].join('\n');
+
+  it('removing a section leaves a commented neighbour after it byte for byte', () => {
+    const file = credFile(['[david_leberknight]', 'aws_access_key_id = AKIADAVID', 'aws_secret_access_key = davidsecret', OPERATOR, ''].join('\n'));
+    const r = inLib(`aws_cred_remove_section "${file}" david_leberknight`);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(file, 'utf-8')).toBe(`${OPERATOR}\n`);
+  });
+
+  it('keeps the note written above the next section when removing the one before it', () => {
+    // The comment over [footbag-operator] is the administrator's own; read as
+    // part of the section above it, it went with that section.
+    const note = '# administrators: rotate only through install-operator-key.sh';
+    const file = credFile(['[david_leberknight]', 'aws_access_key_id = AKIADAVID', '', note, OPERATOR, ''].join('\n'));
+    const r = inLib(`aws_cred_remove_section "${file}" david_leberknight`);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(file, 'utf-8')).toBe(['', note, OPERATOR, ''].join('\n'));
+  });
+
+  it('takes a commented-out key of the removed section with it, not leaving it above the next', () => {
+    // An offboarded profile's old secret, commented out rather than deleted,
+    // would otherwise survive the removal sitting over the administrator's key.
+    const note = '#   ';
+    const file = credFile(
+      ['[david_leberknight]', 'aws_access_key_id = AKIADAVID', '# aws_secret_access_key = oldsecret', '   ', note, OPERATOR, ''].join('\n'),
+    );
+    const r = inLib(`aws_cred_remove_section "${file}" david_leberknight`);
+    expect(r.status, r.stderr).toBe(0);
+    const after = readFileSync(file, 'utf-8');
+    expect(after).not.toContain('oldsecret');
+    expect(after, 'a spaces-only line is a blank, so the note above the next header survives').toBe(['   ', note, OPERATOR, ''].join('\n'));
+  });
+
+  it('adding a profile and removing it again leaves the file byte for byte', () => {
+    // One cycle per onboarding and offboarding: a separator left behind each
+    // time grows the administrator's file a line per cycle.
+    const original = `${OPERATOR}\n`;
+    const file = credFile(original);
+    expect(inLib(`aws_cred_put "${file}" david_leberknight "${FAKE_ID}" "${FAKE_SECRET}"`).status).toBe(0);
+    expect(readFileSync(file, 'utf-8')).not.toBe(original);
+    const r = inLib(`aws_cred_remove_section "${file}" david_leberknight`);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(file, 'utf-8')).toBe(original);
+  });
+
+  it('removes a target whose own header carries a comment, rather than reporting it absent', () => {
+    const file = credFile(['[david_leberknight] ; named', 'aws_access_key_id = AKIADAVID', OPERATOR, ''].join('\n'));
+    const r = inLib(`aws_cred_remove_section "${file}" david_leberknight`);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(file, 'utf-8')).toBe(`${OPERATOR}\n`);
+  });
+
+  it('putting a key keeps the credentials of a commented section after the target', () => {
+    const file = credFile(['[david_leberknight]', 'aws_access_key_id = AKIAOLD', 'aws_secret_access_key = old', OPERATOR, ''].join('\n'));
+    const r = inLib(`aws_cred_put "${file}" david_leberknight "${FAKE_ID}" "${FAKE_SECRET}"`);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(file, 'utf-8')).toContain(OPERATOR);
+  });
+
+  it('putting a key into a commented target replaces it in place, header kept, no second section', () => {
+    const file = credFile([OPERATOR, ''].join('\n'));
+    const r = inLib(`aws_cred_put "${file}" footbag-operator "${FAKE_ID}" "${FAKE_SECRET}"`);
+    expect(r.status, r.stderr).toBe(0);
+    const after = readFileSync(file, 'utf-8');
+    expect(after.match(/\[footbag-operator\]/g)).toHaveLength(1);
+    expect(after.startsWith('[footbag-operator] # main key, do not touch\n')).toBe(true);
+    expect(after).toContain(`aws_access_key_id = ${FAKE_ID}`);
+    expect(after).not.toContain('AKIAOPERATOR');
+  });
+
+  it('the readers find a commented section and stop at the next commented one', () => {
+    const file = credFile(['[david_leberknight] # named', '[footbag-operator] ; main', 'aws_access_key_id = AKIAOPERATOR', ''].join('\n'));
+    const r = inLib(
+      `aws_cred_has_section "${file}" footbag-operator && echo HAS; ` +
+        `echo "david=[$(aws_cred_current_key_id "${file}" david_leberknight)]"; ` +
+        `echo "operator=[$(aws_cred_current_key_id "${file}" footbag-operator)]"`,
+    );
+    expect(r.stdout).toContain('HAS');
+    expect(r.stdout).toContain('david=[]');
+    expect(r.stdout).toContain('operator=[AKIAOPERATOR]');
+  });
+
+  it('the config writers see a commented profile and add no duplicate', () => {
+    const config = join(workDir, 'config');
+    const before = ['[profile footbag-operator] # admin', 'region = us-east-1', '[profile FootbagDevTester] ; job role', 'role_arn = arn:aws:iam::000000000000:role/FootbagDevTester', 'source_profile = david_leberknight', ''].join('\n');
+    writeFileSync(config, before, 'utf-8');
+    const r = inLib(
+      `rc=0; aws_config_add_role_profile "${config}" FootbagDevTester arn:x david_leberknight us-east-1 || rc=$?; echo "add=$rc"; ` +
+        `rc=0; aws_config_append_section "${config}" "profile footbag-operator" "region = x" || rc=$?; echo "append=$rc"; ` +
+        `echo "src=[$(aws_config_profile_source "${config}" footbag-operator)]"; ` +
+        `echo "tester=[$(aws_config_profile_source "${config}" FootbagDevTester)]"`,
+    );
+    expect(r.stdout).toContain('add=2');
+    expect(r.stdout).toContain('append=2');
+    expect(r.stdout, 'a source read must stop at the next commented header').toContain('src=[]');
+    expect(r.stdout).toContain('tester=[david_leberknight]');
+    expect(readFileSync(config, 'utf-8')).toBe(before);
+  });
+});
+
 describe('the secret does not escape', () => {
   // Asserted rather than reasoned about. Each of these is a place a secret has
   // historically leaked out of a script like this one: into the output a

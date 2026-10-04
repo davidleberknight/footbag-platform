@@ -898,6 +898,26 @@ describe('provision-operator-account.sh — inspecting', () => {
     }
   });
 
+  it('passes the retired keys and the shared account\'s keys through, and asks the host about the shared account', () => {
+    const r = runScript(INSPECT, {
+      existingAccount: true,
+      env: { FAKE_INSPECT: `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${fp()}\nRETIRED ${fp()}\nSHARED SHA256:abc\n` },
+    });
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`RETIRED ${fp()}`);
+    expect(r.stdout).toMatch(/^SHARED SHA256:abc$/m);
+  });
+
+  it('reports the shared account as unknown when the host said nothing about it', () => {
+    // A missing line must never read as "the key is not on the shared account".
+    const r = runScript(INSPECT, {
+      existingAccount: true,
+      env: { FAKE_INSPECT: `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${fp()}\n` },
+    });
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^SHARED unknown$/m);
+  });
+
   it('fails when the account cannot be read, rather than describing it', () => {
     const r = runScript(INSPECT, { existingAccount: true, env: { FAKE_INSPECT_FAILS: '1' } });
     expect(r.exitCode).toBe(1);

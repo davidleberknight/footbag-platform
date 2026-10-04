@@ -517,6 +517,18 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     expect(r.stderr).toContain('is not a usable account name');
   });
 
+  it('says why it stops on a pair ssh-keygen cannot read, rather than exiting silently', () => {
+    // The read is a pipeline under pipefail, so its failure used to end the run
+    // through errexit with no message at all.
+    operatorMachine();
+    mkdirSync(join(home, '.ssh'), { recursive: true });
+    writeFileSync(namedKey(), 'not a key\n');
+    writeFileSync(`${namedKey()}.pub`, 'not a public key\n');
+    const r = run(['--check', '--operator', '--account', ACCOUNT]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(`ssh-keygen cannot read ~/.ssh/id_ed25519_${ACCOUNT}.pub`);
+  });
+
   it('plans the pair under --check and creates nothing', () => {
     operatorMachine();
     const r = run(['--check', '--operator', '--account', ACCOUNT]);
@@ -559,6 +571,80 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     expect(second.status, second.stderr).toBe(0);
     expect(fingerprint(`${namedKey()}.pub`)).toBe(fresh);
     expect(second.stdout).toContain('already replaced, so it is kept');
+  });
+
+  describe('--replace-key retired', () => {
+    const awsSays = (output: string) => {
+      const path = join(root, 'aws-identity');
+      file(path, `#!/bin/bash\necho ${JSON.stringify(output)} >&2\n[[ ${JSON.stringify(output)} == arn:* ]] && { echo ${JSON.stringify(output)}; exit 0; }\nexit 255\n`, 0o755);
+      return { SETUP_DEV_AWS_BIN: path };
+    };
+    const retiredFiles = () => readdirSync(join(home, '.ssh')).filter((f) => f.startsWith(`retired_${ACCOUNT}_`));
+
+    it('sets aside the pair the acceptance marker names, marker and all, and makes a fresh one', () => {
+      operatorMachine();
+      const old = makePair();
+      writeFileSync(`${namedKey()}.onboarded`, `${old}\n`);
+      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired']);
+      expect(r.status, r.stderr).toBe(0);
+      expect(fingerprint(`${namedKey()}.pub`)).not.toBe(old);
+      expect(existsSync(`${namedKey()}.onboarded`), 'the marker goes with its pair').toBe(false);
+      expect(retiredFiles().some((f) => f.endsWith('.onboarded'))).toBe(true);
+    });
+
+    it('keeps a pair the marker does not name, which no onboarding accepted', () => {
+      operatorMachine();
+      const current = makePair();
+      writeFileSync(`${namedKey()}.onboarded`, 'SHA256:somebodyElsesAcceptedPairFingerprint0000000\n');
+      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired']);
+      expect(r.status, r.stderr).toBe(0);
+      expect(fingerprint(`${namedKey()}.pub`)).toBe(current);
+      expect(r.stdout).toMatch(/not the one accepted/);
+    });
+
+    it('asks for the profile when there is no marker, rather than guessing', () => {
+      operatorMachine();
+      makePair();
+      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired']);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toMatch(/--replace-key retired --profile jane_doe/);
+    });
+
+    it('sets the pair aside without a marker once AWS refuses its key as invalid', () => {
+      operatorMachine();
+      const old = makePair();
+      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
+        awsSays('An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.'));
+      expect(r.status, r.stderr).toBe(0);
+      expect(fingerprint(`${namedKey()}.pub`)).not.toBe(old);
+      expect(r.stdout).toMatch(/identity is retired/);
+    });
+
+    it('keeps the pair when its identity still works, since it is not retired', () => {
+      operatorMachine();
+      const current = makePair();
+      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
+        awsSays('arn:aws:iam::000000000000:user/footbag-operators/jane_doe'));
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/still works/);
+      expect(fingerprint(`${namedKey()}.pub`)).toBe(current);
+    });
+
+    it('keeps the pair when the proof cannot be made, a network failure included', () => {
+      operatorMachine();
+      const current = makePair();
+      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
+        awsSays('Could not connect to the endpoint URL: "https://sts.amazonaws.com/"'));
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/Only AWS refusing the key as invalid counts/);
+      expect(fingerprint(`${namedKey()}.pub`)).toBe(current);
+    });
+
+    it('refuses a profile other than the account\'s own', () => {
+      const r = run(['--check', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', 'footbag-operator']);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toMatch(/names the account's own profile/);
+    });
   });
 
   it('refuses half a pair before anything is installed', () => {

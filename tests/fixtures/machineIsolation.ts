@@ -49,6 +49,17 @@
  * needs an alias to resolve says so by putting its own `ssh` in front of this
  * one, visibly, in the file that depends on it.
  *
+ * The AWS CLI is the fifth, for the same reason as the SSH client. The
+ * credential declaration beside this one already leaves it nothing to sign
+ * with, so a real CLI refuses before any request leaves the machine; but it
+ * refuses only after starting, which costs about a second each time, and only
+ * because nothing it finds happens to resolve. Whether it is installed at all
+ * also changed which branch a script took, so a suite's verdict depended on the
+ * machine running it. A stub `aws` answers the way a machine with no AWS
+ * configuration answers: no profiles, and no credentials for anything else, in
+ * the CLI's own words for that. A suite that needs AWS answers supplies its own
+ * stub ahead of this one, as the SSH note says.
+ *
  * Spread this into the `env` of every spawn a test makes, alongside the
  * credential declaration.
  */
@@ -108,6 +119,20 @@ echo "ssh: refused by tests/fixtures/machineIsolation.ts, which puts a stub ssh 
 exit 255
 `;
 
+/**
+ * The stub `aws`. A machine with no AWS configuration lists no profiles and
+ * exits 0, and refuses every request for want of credentials; both are answered
+ * that way here, with a line saying where the refusal came from. The exit is
+ * the one the real CLI gives a configuration problem.
+ */
+const AWS_STUB = `#!/usr/bin/env bash
+if [[ "\${1:-}" == "configure" && "\${2:-}" == "list-profiles" ]]; then
+  exit 0
+fi
+echo "Unable to locate credentials. You can configure credentials by running \\"aws configure\\". (refused by tests/fixtures/machineIsolation.ts, which puts a stub aws on PATH so that no test reaches AWS or depends on whether this machine has the CLI. A suite that needs answers supplies its own stub ahead of this.)" >&2
+exit 253
+`;
+
 export function noMachineState(root: string): Record<string, string> {
   const home = join(root, 'home');
   const media = join(root, 'media');
@@ -119,6 +144,9 @@ export function noMachineState(root: string): Record<string, string> {
   const sshStub = join(bin, 'ssh');
   writeFileSync(sshStub, SSH_STUB, 'utf-8');
   chmodSync(sshStub, 0o755);
+  const awsStub = join(bin, 'aws');
+  writeFileSync(awsStub, AWS_STUB, 'utf-8');
+  chmodSync(awsStub, 0o755);
   return {
     HOME: home,
     FOOTBAG_MEDIA_DIR: media,

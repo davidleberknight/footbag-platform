@@ -285,6 +285,17 @@ expect "$H" 'gh issue view 325 -R "$FOOTBAG_PRIVATE_REPO"' defer
 expect "$H" 'gh issue comment -R "$FOOTBAG_PRIVATE_REPO" 325 --body x' defer
 expect "$H" 'gh issue close -R "$FOOTBAG_PRIVATE_REPO" 325' defer
 expect "$H" 'gh api repos/o/r/commits --jq ".[0].sha"' defer
+expect "$H" 'gh project item-list 1 --owner o --format json' defer
+expect "$H" 'gh project field-list 1 --owner o' defer
+expect "$H" 'gh project item-edit --id X --field-id Y' deny
+expect "$H" "gh api graphql -f query='query { viewer { login } }'" defer
+expect "$H" "gh api graphql -f query='{ viewer { login } }'" defer
+expect "$H" "gh api graphql -f query='mutation { addStar(input:{}) { clientMutationId } }'" deny
+expect "$H" "gh api graphql -f query='query A { viewer { login } } mutation B { x }'" deny
+expect "$H" 'gh api graphql -F query=@q.graphql' deny
+expect "$H" 'gh api graphql --input body.json' deny
+expect "$H" 'gh api graphql -f query="$(cat q.graphql)"' deny
+expect "$H" 'gh api graphql -f query=`cat q.graphql`' deny
 
 H=guard-db-destructive.sh
 

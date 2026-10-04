@@ -282,7 +282,7 @@ describe('the convention gate: rules about src/', () => {
     expect(res.stderr).toContain('no longer puts a stub ssh at the front of PATH');
   });
 
-  it('accepts a machine declaration that puts a stub ssh at the front of the path', () => {
+  it('accepts a machine declaration that puts a stub ssh and a stub aws at the front of the path', () => {
     const res = inFixtureRepo({
       'tests/setup-env.ts':
         "import { noMachineState } from './fixtures/machineIsolation';\n" +
@@ -291,6 +291,7 @@ describe('the convention gate: rules about src/', () => {
         "export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV'];\n" +
         'export function noMachineState(root) {\n' +
         "  writeFileSync(join(root, 'ssh'), STUB);\n" +
+        "  writeFileSync(join(bin, 'aws'), AWS_STUB);\n" +
         '  return {\n' +
         '    HOME: root, FOOTBAG_MEDIA_DIR: root, FOOTBAG_CURATED_MEDIA_DIR: root,\n' +
         '    PATH: `${root}:${process.env.PATH}`,\n' +
@@ -299,7 +300,27 @@ describe('the convention gate: rules about src/', () => {
     });
     expect(res.exitCode, res.stderr).toBe(0);
     expect(res.stderr).not.toContain('no longer puts a stub ssh');
+    expect(res.stderr).not.toContain('no longer puts a stub aws');
     expectCheckRan(res, 'the test setup isolates the rest of the machine');
+  });
+
+  it('refuses a machine declaration that has stopped denying the AWS CLI', () => {
+    // Whether the machine has the CLI decided which branch a script took, and
+    // each real start costs a second; the stub is what makes both the same
+    // everywhere, so losing it is worth a rule.
+    const res = inFixtureRepo({
+      'tests/setup-env.ts':
+        "import { noMachineState } from './fixtures/machineIsolation';\n" +
+        'Object.assign(process.env, noMachineState(root));\n',
+      'tests/fixtures/machineIsolation.ts':
+        "export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV'];\n" +
+        'export function noMachineState(root) {\n' +
+        "  writeFileSync(join(root, 'ssh'), STUB);\n" +
+        '  return { HOME: root, FOOTBAG_MEDIA_DIR: root, FOOTBAG_CURATED_MEDIA_DIR: root, PATH: root };\n' +
+        '}\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('no longer puts a stub aws at the front of PATH');
   });
 
   it('refuses a script that names one account home directory', () => {

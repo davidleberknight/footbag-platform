@@ -318,7 +318,7 @@ aws_profile_ensure() {
     echo "       A named identity's profile holding your own key, and the" >&2
     echo "       '${FOOTBAG_DEV_TESTER_PROFILE}' profile that chains from it, arrive" >&2
     echo "       sealed from the holder who onboarded you and are written by:" >&2
-    echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name> <file>" >&2
+    echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name>" >&2
     echo "       Your key was sealed to you alone and there is no other copy of it" >&2
     echo "       anywhere, so a lost one is re-issued by the holder, never fetched." >&2
     echo "" >&2
@@ -397,13 +397,13 @@ aws_profile_use() {
       echo "       That profile arrives sealed from the holder who onboarded you, and" >&2
       echo "       only on the machine of the person whose key it chains from. It is" >&2
       echo "       written by:" >&2
-      echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name> <file>" >&2
+      echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name>" >&2
     else
       echo "       That is a chained runtime section. Accepting an onboarding writes" >&2
       echo "       the staging one for a dev-and-tester where none exists, and the key" >&2
       echo "       install writes both for the directly authenticated identity. Which" >&2
       echo "       applies here is a fact about whose key this machine holds:" >&2
-      echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name> <file>" >&2
+      echo "         bash scripts/accept-dev-tester-onboarding.sh --target staging --account <your_name>" >&2
       echo "         bash scripts/install-operator-key.sh" >&2
     fi
     return 1

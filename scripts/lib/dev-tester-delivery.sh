@@ -55,6 +55,14 @@ delivery_require_tools() {
       openssl)
         echo "  - openssl:  sudo apt install openssl" >&2
         ;;
+      terraform|jq|rsync|sqlite3)
+        echo "  - ${name}, which the staging deploy and tests use:" >&2
+        echo "      bash scripts/setup-dev-workstation.sh --operator installs it" >&2
+        ;;
+      docker)
+        echo "  - docker, which builds what the staging deploy ships: the container" >&2
+        echo "      runtime install in the developer onboarding guide" >&2
+        ;;
       *)
         echo "  - ${name}" >&2
         ;;

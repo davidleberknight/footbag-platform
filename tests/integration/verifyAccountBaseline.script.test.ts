@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -611,5 +611,196 @@ describe('verify-account-baseline.sh — Identity Center dormancy', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not read the permission sets of the dormant instance/);
     expect(r.stdout + r.stderr).toMatch(/not the same as there being none/);
+  });
+});
+
+/**
+ * The facts a dev-and-tester lifecycle must leave as they were: saved before,
+ * compared after. Each case spoils the account in exactly one way between the
+ * two runs, and the comparison must name it.
+ */
+describe('verify-account-baseline.sh --save / --compare', () => {
+  interface Facts {
+    operatorId?: string;
+    operatorKeys?: string;
+    attached?: string;
+    inline?: string;
+    inlineDoc?: string;
+    mfa?: string;
+    console?: boolean;
+    tags?: string;
+    davidKey?: string;
+    stagingTrust?: object;
+    productionTrust?: object;
+    tagsUnreadable?: boolean;
+  }
+  const STAGING_TRUST = {
+    Version: '2012-10-17',
+    Statement: [{ Effect: 'Allow', Action: 'sts:AssumeRole', Principal: { AWS: ['arn:aws:iam::111122223333:user/footbag-operator', DEV_TESTER_ROLE_ARN] } }],
+  };
+  const PRODUCTION_TRUST = {
+    Version: '2012-10-17',
+    Statement: [{ Effect: 'Allow', Action: 'sts:AssumeRole', Principal: { AWS: ['arn:aws:iam::111122223333:user/footbag-operator'] } }],
+  };
+  const BASE: Required<Facts> = {
+    operatorId: 'AIDAOPERATORUNIQUEID',
+    operatorKeys: 'AKIAEXAMPLE\tActive',
+    attached: 'arn:aws:iam::aws:policy/AdministratorAccess',
+    inline: '',
+    inlineDoc: '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:ListBucket","Resource":"*"}]}',
+    mfa: 'arn:aws:iam::111122223333:mfa/footbag-operator-mfa',
+    console: true,
+    tags: 'Project\tfootbag',
+    davidKey: 'AKIADAVIDKEY0001\tActive',
+    stagingTrust: STAGING_TRUST,
+    productionTrust: PRODUCTION_TRUST,
+    tagsUnreadable: false,
+  };
+
+  function factsStub(facts: Facts): string {
+    const f = { ...BASE, ...facts };
+    const path = join(workDir, 'aws-facts-stub.sh');
+    // %b, because the CLI's text answers are tab-separated and JSON writes a tab
+    // as a backslash escape that only %b turns back into one.
+    const out = (v: string) => `printf '%b\\n' ${JSON.stringify(v)}`;
+    writeFileSync(
+      path,
+      [
+        '#!/usr/bin/env bash',
+        'user=""; prev=""; for a in "$@"; do [[ "$prev" == "--user-name" || "$prev" == "--role-name" ]] && user="$a"; prev="$a"; done',
+        'case "$1 $2" in',
+        '  "sts get-caller-identity") echo 111122223333 ;;',
+        `  "iam get-user") ${out(`${f.operatorId}\tarn:aws:iam::111122223333:user/footbag-operator`)} ;;`,
+        '  "iam list-access-keys")',
+        `    if [[ "$user" == footbag-operator ]]; then ${out(f.operatorKeys)}; else ${out(f.davidKey)}; fi ;;`,
+        `  "iam list-attached-user-policies") ${out(f.attached)} ;;`,
+        `  "iam list-user-policies") ${f.inline ? out(f.inline) : "printf ''"} ;;`,
+        `  "iam get-user-policy") ${out(f.inlineDoc)} ;;`,
+        `  "iam list-mfa-devices") ${out(f.mfa)} ;;`,
+        `  "iam get-login-profile") ${f.console ? "echo footbag-operator" : 'echo "An error occurred (NoSuchEntity) when calling the GetLoginProfile operation: Login Profile for User footbag-operator cannot be found." >&2; exit 254'} ;;`,
+        `  "iam list-user-tags") ${f.tagsUnreadable ? 'exit 254' : out(f.tags)} ;;`,
+        `  "iam list-users") ${out('footbag-operator\tdavid_leberknight')} ;;`,
+        '  "iam get-role")',
+        `    if [[ "$user" == footbag-staging-app-runtime ]]; then ${out(JSON.stringify(f.stagingTrust))}; else ${out(JSON.stringify(f.productionTrust))}; fi ;;`,
+        'esac',
+        'exit 0',
+      ].join('\n'),
+      'utf-8',
+    );
+    chmodSync(path, 0o755);
+    return path;
+  }
+
+  function runFacts(facts: Facts, args: string[]) {
+    const res = spawnSync('bash', [SCRIPT, ...args], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: '',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        ...awsIdentityStubEnv(workDir),
+        HOME: workDir,
+        ACCOUNT_BASELINE_AWS_BIN: factsStub(facts),
+      },
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  function saved(): string {
+    const r = runFacts({}, ['--save']);
+    expect(r.status, r.stderr).toBe(0);
+    const m = r.stdout.match(/to (\S+baseline-\S+\.txt)$/m);
+    expect(m, r.stdout).toBeTruthy();
+    return m![1];
+  }
+
+  it('saves the facts owner-only and never over an earlier file', () => {
+    const first = saved();
+    const second = saved();
+    expect(second).not.toBe(first);
+    expect(statSync(first).mode & 0o777).toBe(0o600);
+    const body = readFileSync(first, 'utf-8');
+    for (const fact of ['operator.id\tAIDAOPERATORUNIQUEID', 'operator.key\tAKIAEXAMPLE Active', 'operator.console\tpresent', 'operator.mfa\t', 'operator.tag\tProject=footbag', 'trust.footbag-staging-app-runtime\t{']) {
+      expect(body, fact).toContain(fact);
+    }
+  });
+
+  it('reports the same facts as unchanged, and a trust written in another key order as the same', () => {
+    const file = saved();
+    const reordered = { Statement: STAGING_TRUST.Statement, Version: STAGING_TRUST.Version };
+    const r = runFacts({ stagingTrust: reordered }, ['--compare', file]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Unchanged since/);
+  });
+
+  it.each([
+    ['a new access key on footbag-operator', { operatorKeys: 'AKIAEXAMPLE\tActive\nAKIASECONDKEY\tActive' }, /now: operator\.key\tAKIASECONDKEY Active/],
+    ['its key made inactive', { operatorKeys: 'AKIAEXAMPLE\tInactive' }, /now: operator\.key\tAKIAEXAMPLE Inactive/],
+    ['a policy attached to it', { attached: 'arn:aws:iam::aws:policy/AdministratorAccess\tarn:aws:iam::aws:policy/Other' }, /now: operator\.attached\tarn:aws:iam::aws:policy\/Other/],
+    ['an inline policy added', { inline: 'Sneaky' }, /now: operator\.inline\tSneaky/],
+    ['its MFA device removed', { mfa: '' }, /was: operator\.mfa/],
+    ['its console sign-in removed', { console: false }, /now: operator\.console\tabsent/],
+    ['a tag rewritten', { tags: 'Project\tother' }, /now: operator\.tag\tProject=other/],
+    ['the user recreated under the same name', { operatorId: 'AIDARECREATEDUSERID0' }, /now: operator\.id\tAIDARECREATEDUSERID0/],
+    ['production trusting the job role', { productionTrust: STAGING_TRUST }, /now: trust\.footbag-production-app-runtime/],
+  ])('names %s as a change, with its own exit', (_label, change, pattern) => {
+    const file = saved();
+    const r = runFacts(change as Facts, ['--compare', file]);
+    expect(r.status).toBe(3);
+    expect(r.stderr).toMatch(/CHANGED since/);
+    expect(r.stderr).toMatch(pattern as RegExp);
+  });
+
+  it('names an inline policy rewritten under the same name as a change', () => {
+    // Comparing names alone passed a footbag-operator whose inline policy had
+    // been edited, which is the change the comparison exists to catch.
+    const before = runFacts({ inline: 'OperatorExtras' }, ['--save']);
+    expect(before.status, before.stderr).toBe(0);
+    const file = before.stdout.match(/to (\S+baseline-\S+\.txt)$/m)![1];
+    const same = runFacts({ inline: 'OperatorExtras' }, ['--compare', file]);
+    expect(same.status, same.stderr).toBe(0);
+    const rewritten = runFacts(
+      { inline: 'OperatorExtras', inlineDoc: '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' },
+      ['--compare', file],
+    );
+    expect(rewritten.status).toBe(3);
+    expect(rewritten.stderr).toMatch(/now: operator\.inline\tOperatorExtras [0-9a-f]{64}/);
+  });
+
+  it('leaves out a named dev-and-tester\'s own key when asked, and nothing else', () => {
+    // A self-onboarding replaces exactly that one key; footbag-operator and the
+    // trusts are still compared in full.
+    const file = saved();
+    const ok = runFacts({ davidKey: 'AKIADAVIDKEY0002\tActive' }, ['--compare', file, '--ignore-user', 'david_leberknight']);
+    expect(ok.status, ok.stderr).toBe(0);
+    const caught = runFacts({ davidKey: 'AKIADAVIDKEY0002\tActive' }, ['--compare', file]);
+    expect(caught.status).toBe(3);
+    const stillCaught = runFacts(
+      { davidKey: 'AKIADAVIDKEY0002\tActive', operatorKeys: 'AKIAEXAMPLE\tInactive' },
+      ['--compare', file, '--ignore-user', 'david_leberknight'],
+    );
+    expect(stillCaught.status).toBe(3);
+  });
+
+  it('refuses to leave footbag-operator out of a comparison', () => {
+    const file = saved();
+    const r = runFacts({}, ['--compare', file, '--ignore-user', 'footbag-operator']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/never left out/);
+  });
+
+  it('fails rather than saving when a fact cannot be read', () => {
+    const r = runFacts({ tagsUnreadable: true }, ['--save']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read footbag-operator's tags/);
+  });
+
+  it('keeps the report and its exit unchanged without the flags', () => {
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Account baseline for 111122223333/);
+    expect(r.stdout).not.toMatch(/Saved|Unchanged since/);
   });
 });

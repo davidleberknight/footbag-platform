@@ -24,6 +24,15 @@
 # disagreeing. That refusal stays as the backstop; this function simply declines
 # to send something production must never accept.
 
+# initial_admin_list_managed <repository root>
+# True when this machine has a say in the list: it holds the maintainers'
+# private checkout, where the list's file lives. A deploy from anywhere else (a
+# dev-and-tester's machine) leaves the host's list as it is, because an absent
+# checkout is not the maintainers emptying the list.
+initial_admin_list_managed() {
+  [[ -d "${1}/footbag_private_repo" ]]
+}
+
 # Prints the CSV to stdout. Empty output is a valid answer and clears the value
 # on the host, so a stale list cannot survive the operator emptying the file.
 #

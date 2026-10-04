@@ -20,6 +20,7 @@ import {
   lstatSync,
   symlinkSync,
   rmSync,
+  mkdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
 
@@ -98,7 +99,15 @@ interface Estate {
    * handed to the JSON parser, not its wording.
    */
   warn?: boolean;
+  /** Dev-and-tester address parameters present before the run, by account. */
+  params?: Record<string, string>;
+  /** A parameter read failing for a reason other than the parameter being absent. */
+  ssmReadFails?: boolean;
 }
+
+const paramDir = () => join(workDir, 'params');
+const paramFile = (account: string) => join(paramDir(), `__footbag-ops__staging__dev-testers__${account}`);
+const paramOf = (account: string) => (existsSync(paramFile(account)) ? readFileSync(paramFile(account), 'utf-8') : null);
 
 /**
  * One stub answering the profile list, the caller, and the live port states.
@@ -109,7 +118,7 @@ interface Estate {
  * made after the apply is answered by what the apply did.
  */
 function awsStub(estate: Estate = {}): string {
-  const { before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false } = estate;
+  const { before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false, ssmReadFails = false } = estate;
   const afterSet = after ?? before;
   const path = join(workDir, 'aws-stub.sh');
   const states = (on22: string[], on2222: string[]) =>
@@ -152,6 +161,25 @@ function awsStub(estate: Estate = {}): string {
       ...liveAnswer(afterSet, after2222 ?? afterSet, true),
       '  fi',
       ...liveAnswer(before, before),
+      'fi',
+      // A parameter store on disk, one file per parameter, so a read after a
+      // write sees what the write did, as the real service does.
+      `PDIR=${JSON.stringify(paramDir())}; mkdir -p "$PDIR"`,
+      'name=""; value=""; prev=""',
+      'for a in "$@"; do [[ "$prev" == "--name" ]] && name="$a"; [[ "$prev" == "--value" ]] && value="$a"; prev="$a"; done',
+      'f="$PDIR/${name//\\//__}"',
+      'if [[ "$1" == "ssm" && "$2" == "get-parameter" ]]; then',
+      ssmReadFails
+        ? '  echo "An error occurred (AccessDeniedException) when calling the GetParameter operation" >&2; exit 254'
+        : '  [[ -e "$f" ]] && { cat "$f"; echo; exit 0; }',
+      '  echo "An error occurred (ParameterNotFound) when calling the GetParameter operation" >&2; exit 254',
+      'fi',
+      'if [[ "$1" == "ssm" && "$2" == "put-parameter" ]]; then printf "%s" "$value" > "$f"; exit 0; fi',
+      'if [[ "$1" == "ssm" && "$2" == "delete-parameter" ]]; then rm -f "$f"; exit 0; fi',
+      'if [[ "$1" == "ssm" && "$2" == "get-parameters-by-path" ]]; then',
+      '  out=\'{"Parameters":[\'; sep=""',
+      '  for p in "$PDIR"/*; do [[ -e "$p" ]] || continue; n="$(basename "$p")"; n="${n//__//}"; out+="$sep{\\"Name\\":\\"$n\\",\\"Value\\":\\"$(cat "$p")\\"}"; sep=","; done',
+      '  printf "%s]}\\n" "$out"; exit 0',
       'fi',
       'exit 64',
     ].join('\n'),
@@ -197,6 +225,10 @@ const removeArgs = (address: string) => ['--target', 'staging', '--address', add
 function run(options: RunOptions = {}) {
   const { args = ADD, applyExit = 0, terraformExit = 0, tfvars = tfvarsLink, fileBody, ...estate } = options;
   if (fileBody !== undefined) writeFileSync(tfvarsTarget, fileBody, 'utf-8');
+  for (const [account, value] of Object.entries(estate.params ?? {})) {
+    mkdirSync(paramDir(), { recursive: true });
+    writeFileSync(paramFile(account), value, 'utf-8');
+  }
   const stub = awsStub(estate);
   const res = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
@@ -233,10 +265,15 @@ describe('authorize-operator-address refuses what it must not do', () => {
     expect(values()).toBe(TFVARS_BEFORE);
   });
 
-  it('accepts a FootbagDevTester session on staging, which may change staging\'s firewall', () => {
+  it('refuses a FootbagDevTester session on the values file, before reading it', () => {
+    // The values file holds the administrators' entries. A dev-and-tester's own
+    // address is a parameter onboarding writes; a session of the job role that
+    // could edit this file could drop an administrator's address.
     const r = run({ callerArn: DEV_TESTER_ARN, before: [EXISTING], after: [EXISTING, NEW_ADDRESS] });
-    expect(r.status, r.stderr).toBe(0);
-    expect(values()).toContain(`"${NEW_ADDRESS}"`);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is a FootbagDevTester session/);
+    expect(values()).toBe(TFVARS_BEFORE);
+    expect(applyRan()).toBe(false);
   });
 
   it('refuses --yes on production, where the apply asks at the terminal anyway', () => {
@@ -692,6 +729,137 @@ describe('authorize-operator-address says when a seam is in use', () => {
   });
 });
 
+describe('authorize-operator-address --dev-tester: a person\'s own address parameter', () => {
+  const addFor = (account: string, address: string) => ['--target', 'staging', '--dev-tester', account, '--address', address, '--yes'];
+  const removeFor = (account: string) => ['--target', 'staging', '--dev-tester', account, '--remove', '--yes'];
+
+  it('writes the parameter, applies the firewall alone, and never touches the values file', () => {
+    const r = run({ args: addFor('jane_doe', NEW_ADDRESS), before: [EXISTING], after: [EXISTING, NEW_ADDRESS] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(paramOf('jane_doe')).toBe(NEW_ADDRESS);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe('--target staging --firewall-only');
+    expect(values()).toBe(TFVARS_BEFORE);
+    expect(r.stdout).toMatch(/proved against the firewall rather than the parameter/);
+  });
+
+  it('refuses anything wider than one host, which the staging Terraform would silently drop', () => {
+    const r = run({ args: addFor('jane_doe', '203.0.113.0/24') });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/single host/);
+    expect(paramOf('jane_doe')).toBeNull();
+  });
+
+  it('is the directly authenticated identity\'s alone; a job-role session is refused before any write', () => {
+    const r = run({ args: addFor('jane_doe', NEW_ADDRESS), callerArn: DEV_TESTER_ARN });
+    expect(r.status).toBe(1);
+    expect(paramOf('jane_doe')).toBeNull();
+    expect(applyRan()).toBe(false);
+  });
+
+  it('refuses on production, where no dev-and-tester has access', () => {
+    const r = run({ args: ['--target', 'production', '--dev-tester', 'jane_doe', '--address', NEW_ADDRESS] });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/staging only/);
+  });
+
+  it('does nothing when the parameter holds the address and the firewall admits it', () => {
+    const r = run({ args: addFor('jane_doe', NEW_ADDRESS), params: { jane_doe: NEW_ADDRESS }, before: [EXISTING, NEW_ADDRESS] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Already authorized/);
+    expect(applyRan()).toBe(false);
+  });
+
+  it('puts the parameter back when the firewall apply fails, leaving nothing pending', () => {
+    // A parameter left written after a failed apply would be picked up by
+    // whoever applies staging next, for a reason that has nothing to do with it.
+    const r = run({ args: addFor('jane_doe', NEW_ADDRESS), params: { jane_doe: '192.0.2.9/32' }, applyExit: 1 });
+    expect(r.status).toBe(1);
+    expect(paramOf('jane_doe')).toBe('192.0.2.9/32');
+    expect(r.stderr).toMatch(/restored to 192\.0\.2\.9\/32/);
+  });
+
+  it('removes a first-time write again when its apply fails', () => {
+    const r = run({ args: addFor('jane_doe', NEW_ADDRESS), applyExit: 1 });
+    expect(r.status).toBe(1);
+    expect(paramOf('jane_doe')).toBeNull();
+  });
+
+  it('removes what the parameter holds, so offboarding needs no remembered address', () => {
+    const r = run({ args: removeFor('jane_doe'), params: { jane_doe: NEW_ADDRESS }, before: [EXISTING, NEW_ADDRESS], after: [EXISTING] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(paramOf('jane_doe')).toBeNull();
+    expect(r.stdout).toMatch(/203\.0\.113\.7\/32 is no longer admitted on ports 22 2222/);
+    expect(values()).toBe(TFVARS_BEFORE);
+  });
+
+  it('says already absent, and applies nothing, when the account has no parameter', () => {
+    const r = run({ args: removeFor('jane_doe') });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Already absent/);
+    expect(applyRan()).toBe(false);
+  });
+
+  it('refuses when the parameter cannot be read, rather than taking unknown for absent', () => {
+    const r = run({ args: removeFor('jane_doe'), ssmReadFails: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read \/footbag-ops\/staging\/dev-testers\/jane_doe/);
+    expect(applyRan()).toBe(false);
+  });
+
+  it('onboards, offboards and re-onboards an administrator\'s own address without touching their entry', () => {
+    // The maintainer's home address is on the administrators' list and is also
+    // their dev-and-tester address. Every step leaves the values file byte for
+    // byte, and offboarding reports the address still admitted through the
+    // administrators' list rather than failing or removing it.
+    const onboard = run({ args: addFor('dave_doe', EXISTING), before: [EXISTING] });
+    expect(onboard.status, onboard.stderr).toBe(0);
+    expect(paramOf('dave_doe')).toBe(EXISTING);
+    expect(values()).toBe(TFVARS_BEFORE);
+
+    rmSync(appliedMarker, { force: true });
+    const offboard = run({ args: removeFor('dave_doe'), before: [EXISTING] });
+    expect(offboard.status, offboard.stderr).toBe(0);
+    expect(paramOf('dave_doe')).toBeNull();
+    expect(offboard.stdout).toMatch(/is still admitted, because another entry\s+holds it: the administrators' list/);
+    expect(values()).toBe(TFVARS_BEFORE);
+
+    rmSync(appliedMarker, { force: true });
+    const reonboard = run({ args: addFor('dave_doe', EXISTING), before: [EXISTING] });
+    expect(reonboard.status, reonboard.stderr).toBe(0);
+    expect(paramOf('dave_doe')).toBe(EXISTING);
+    expect(values()).toBe(TFVARS_BEFORE);
+  });
+
+  it('names another dev-and-tester who holds the same address when one is offboarded', () => {
+    const r = run({
+      args: removeFor('jane_doe'),
+      params: { jane_doe: NEW_ADDRESS, john_roe: NEW_ADDRESS },
+      before: [EXISTING, NEW_ADDRESS],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/the dev-and-tester address of john_roe/);
+  });
+
+  it('names a dev-and-tester parameter when removing a values-file entry leaves the address admitted', () => {
+    // The administrators' list and the dev-and-tester parameters both reach the
+    // staging firewall; a report naming only the first would make the second
+    // look like nobody's.
+    const twoEntries = TFVARS_BEFORE.replace(
+      `  "${EXISTING}",  # dave_doe; home (2degrees, NZ)\n`,
+      `  "${EXISTING}",  # dave_doe; home (2degrees, NZ)\n  "192.0.2.50/32",  # julie_roe; home\n`,
+    );
+    const r = run({
+      args: removeArgs(EXISTING),
+      fileBody: twoEntries,
+      params: { jane_doe: EXISTING },
+      before: [EXISTING, '192.0.2.50/32'],
+      after: [EXISTING, '192.0.2.50/32'],
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/also the dev-and-tester address of jane_doe/);
+  });
+});
+
 describe('authorize-operator-address checks every port the operator list opens', () => {
   it('reads exactly the ports whose firewall rule takes the operator list, in both trees', () => {
     // A port added to the Terraform without being added here would be opened to
@@ -700,14 +868,37 @@ describe('authorize-operator-address checks every port the operator list opens',
     const declared = script.match(/^SSH_PORTS=\(([^)]*)\)/m);
     expect(declared, 'SSH_PORTS is not declared').not.toBeNull();
     const ports = declared![1].trim().split(/\s+/).map(Number).sort((a, b) => a - b);
+    // Production takes the administrators' list as it is. Staging takes that
+    // list joined with the dev-and-tester addresses, so its ports name the
+    // joined local, and the local itself must still contain the list.
+    const operatorList: Record<string, RegExp> = {
+      production: /cidrs\s*=\s*var\.operator_cidrs\b/,
+      staging: /cidrs\s*=\s*local\.operator_ssh_cidrs\b/,
+    };
     for (const tree of ['staging', 'production']) {
       const tf = readFileSync(join(process.cwd(), `terraform/${tree}/lightsail.tf`), 'utf-8');
       const blocks = tf.match(/port_info\s*\{[\s\S]*?\n\s*\}/g) ?? [];
       const operatorPorts = blocks
-        .filter((b) => /cidrs\s*=\s*var\.operator_cidrs/.test(b))
+        .filter((b) => operatorList[tree].test(b))
         .map((b) => Number(b.match(/from_port\s*=\s*(\d+)/)?.[1]))
         .sort((a, b) => a - b);
-      expect(operatorPorts, `${tree} ports taking operator_cidrs`).toEqual(ports);
+      expect(operatorPorts, `${tree} ports taking the operator list`).toEqual(ports);
     }
+    const staging = readFileSync(join(process.cwd(), 'terraform/staging/lightsail.tf'), 'utf-8');
+    expect(staging).toMatch(/operator_ssh_cidrs\s*=\s*distinct\(concat\(var\.operator_cidrs,\s*local\.dev_tester_cidrs\)\)/);
+  });
+
+  it('admits a dev-and-tester address only as a canonical single host, and never fails a plan over one', () => {
+    // A widened or malformed value in one person's parameter must neither open
+    // the port to a range nor stop an administrator's apply: it is filtered out
+    // and reported by a check block, which warns rather than fails.
+    const staging = readFileSync(join(process.cwd(), 'terraform/staging/lightsail.tf'), 'utf-8');
+    expect(staging).toMatch(/path\s*=\s*"\/footbag-ops\/\$\{var\.environment\}\/dev-testers"/);
+    expect(staging).toMatch(/nonsensitive\(data\.aws_ssm_parameters_by_path\.dev_tester_addresses\.values\)/);
+    expect(staging).toMatch(/"\$\{cidrhost\(v, 0\)\}\/32" == v/);
+    expect(staging).toMatch(/check "dev_tester_addresses_are_single_hosts"/);
+    // Production reads no dev-and-tester address at all.
+    const production = readFileSync(join(process.cwd(), 'terraform/production/lightsail.tf'), 'utf-8');
+    expect(production).not.toMatch(/dev-testers|dev_tester/);
   });
 });

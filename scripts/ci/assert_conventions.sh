@@ -1261,6 +1261,13 @@ if ! grep -q "PATH:" tests/fixtures/machineIsolation.ts \
   echo "  FAIL: tests/fixtures/machineIsolation.ts no longer puts a stub ssh at the front of PATH" >&2
   violations=$((violations + 1))
 fi
+# The AWS CLI the same way: whether this machine has it installed changed which
+# branch a script took, and each real start costs about a second while it finds
+# nothing to sign with. The stub answers as a machine with no AWS configuration.
+if ! grep -q "join(bin, 'aws')" tests/fixtures/machineIsolation.ts; then
+  echo "  FAIL: tests/fixtures/machineIsolation.ts no longer puts a stub aws at the front of PATH" >&2
+  violations=$((violations + 1))
+fi
 fi
 
 # Rule: every temporary path a test builds carries the swept prefix.

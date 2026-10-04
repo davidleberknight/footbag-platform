@@ -109,6 +109,7 @@ MODE_CODE_ONLY=0   # -k / --keep-staging-db (and the bare default): no DB ops at
 MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; no rebuild.
 DB_REBUILD_INVOLVED=0   # set when --from-csv / --soup-to-nuts / --all-data opt into a DB rebuild.
 DATA_REBUILD=0     # --from-csv / --soup-to-nuts / --all-data: opt-in DB rebuild + replace.
+PUBLIC_REBUILD=0   # --public-data: rebuild from committed public inputs only (staging).
 SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy (CUTOVER-REMOVE).
 # --refresh-test-personas: persona rebuild after deploy (CUTOVER-REMOVE). The
 # rebuild is ON BY DEFAULT for a code-only staging deploy; this counter tracks
@@ -124,7 +125,8 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -k|--keep-staging-db)       MODE_CODE_ONLY=1; HAS_MODE=1 ;;
     -r|--reuse-local-db)        MODE_REUSE=1;     HAS_MODE=1 ;;
     --from-csv|--soup-to-nuts|--all-data)  DATA_REBUILD=1 ;;
-    --seed-test-personas)       SEED_TEST_PERSONAS=1 ;;
+    --public-data)              PUBLIC_REBUILD=1 ;;
+    --seed-test-personas)      SEED_TEST_PERSONAS=1 ;;
     --refresh-test-personas)    REFRESH_TEST_PERSONAS=1 ;;
     # Whether the operator has said what happens to the media bucket. Any of
     # these answers it, in either direction; the production gate asks only when
@@ -136,29 +138,47 @@ done
 # no DB ops at all. --from-csv / --soup-to-nuts / --all-data opt into a DB rebuild
 # + replace; only then does the DB-touching preflight + prod-replace gate apply.
 if (( HAS_MODE == 0 )); then
-  if (( DATA_REBUILD == 1 )); then
+  if (( DATA_REBUILD == 1 || PUBLIC_REBUILD == 1 )); then
     DB_REBUILD_INVOLVED=1
   else
     MODE_CODE_ONLY=1
   fi
 fi
 
-# The maintainers' private checkout is a prerequisite for deploying, not an
-# optional convenience. It carries the recorded human decisions the member intake
-# applies, and a build without them is a different database that looks identical
-# afterwards: duplicate accounts a human ruled to be two people get fused, and the
-# directors sitting at cutover load as ordinary members. Neither failure raises an
-# error of its own. Every operator is a maintainer and has the checkout, so this
-# refuses rather than degrading, and it refuses here, ahead of the production gate,
-# so a missing symlink never costs a typed confirmation or a typed password.
+# The maintainers' private checkout is a prerequisite for a deploy that rebuilds
+# the database, not an optional convenience. It carries the recorded human
+# decisions the member intake applies, and a build without them is a different
+# database that looks identical afterwards: duplicate accounts a human ruled to be
+# two people get fused, and the directors sitting at cutover load as ordinary
+# members. Neither failure raises an error of its own, so a rebuild refuses rather
+# than degrading, and it refuses here, ahead of the production gate, so a missing
+# symlink never costs a typed confirmation or a typed password.
+#
+# A code-only or reuse deploy runs no member intake and reads nothing from the
+# checkout, which is what lets a dev-and-tester, who has no checkout, deploy
+# staging. So does --public-data, which builds from the committed inputs alone
+# and says at the start and the end of its run what that database lacks. Keyed
+# on any rebuild flag that reaches the intake rather than on the settled mode, so
+# every combination that could reach it is covered.
 PRIVATE_CHECKOUT="${SCRIPT_DIR}/footbag_private_repo"
-if [[ ! -d "$PRIVATE_CHECKOUT" ]]; then
+if (( DATA_REBUILD == 1 )) && [[ ! -d "$PRIVATE_CHECKOUT" ]]; then
   echo "ERROR: the maintainers' private checkout is not reachable: ${PRIVATE_CHECKOUT}" >&2
   echo "Recommendation: clone the private operations repo beside this one and wire it with" >&2
   echo "  bash scripts/setup_private_repo.sh --private-repo <path to that clone>" >&2
   echo "  then re-run. A deploy requires it: the member intake" >&2
   echo "  reads the recorded account rulings and the board roster from it, and a database built" >&2
   echo "  without them is wrong in ways nothing afterwards reports." >&2
+  echo "  Without the checkout, a staging rebuild from the public inputs alone is" >&2
+  echo "  bash deploy_to_aws.sh --public-data" >&2
+  exit 1
+fi
+
+# A public-inputs database is a staging artifact, refused for production here,
+# ahead of the production gate, so the mistake costs no typed confirmation or
+# password. The orchestrator refuses it again for a direct invocation.
+if (( PUBLIC_REBUILD == 1 )) && [[ "$DEPLOY_TARGET" != "footbag-staging" ]]; then
+  echo "ERROR: --public-data is staging only. Production's database is built from the full" >&2
+  echo "       sources, never from the public inputs alone." >&2
   exit 1
 fi
 
@@ -731,6 +751,9 @@ if (( MODE_CODE_ONLY == 1 )) \
       echo "Choose one explicitly and re-run:" >&2
       echo "  bash deploy_to_aws.sh -k         ship code only, leaving the deployed DB alone" >&2
       echo "  bash deploy_to_aws.sh --from-csv rebuild and REPLACE the deployed DB" >&2
+      echo "  bash deploy_to_aws.sh --public-data" >&2
+      echo "                                   staging, without the private checkout: rebuild" >&2
+      echo "                                   from public inputs only and REPLACE the DB" >&2
       echo "" >&2
       echo "Code-only against a drifted schema is expected to crash at runtime; the rebuild" >&2
       echo "destroys the deployed database. Neither is a safe default, which is why there" >&2
@@ -741,14 +764,16 @@ if (( MODE_CODE_ONLY == 1 )) \
       printf "  Proceed with code-only deploy despite schema drift? [y/N] " >&2
       read -r _ans </dev/tty || _ans=""
       if ! [[ "${_ans:-}" =~ ^[Yy]$ ]]; then
-        echo "Aborted. Run a rebuild deploy (bash deploy_to_aws.sh --from-csv), or set" >&2
+        echo "Aborted. Run a rebuild deploy (bash deploy_to_aws.sh --from-csv, or --public-data" >&2
+        echo "  on staging without the private checkout), or set" >&2
         echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to ship code-only despite drift." >&2
         exit 1
       fi
     else
       # Non-interactive and not acked: refuse rather than silently ship a crash.
       echo "ERROR: schema drift detected and no TTY to confirm." >&2
-      echo "Recommendation: run a rebuild deploy (bash deploy_to_aws.sh --from-csv), or set" >&2
+      echo "Recommendation: run a rebuild deploy (bash deploy_to_aws.sh --from-csv, or --public-data" >&2
+      echo "  on staging without the private checkout), or set" >&2
       echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to ship code-only anyway, or" >&2
       echo "  FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 to skip this check." >&2
       exit 1

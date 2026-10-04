@@ -117,6 +117,9 @@ fi
 #   PASSWORD <field two of passwd -S>
 #   OFFBOARDED yes|no     keys moved aside by an offboard
 #   KEY <ssh-keygen -l line>, one per authorized key
+#   RETIRED <ssh-keygen -l line>, one per key an offboard moved aside
+#   SHARED <fingerprint>, one per key the shared account authorizes; or
+#   SHARED none, or SHARED unknown when the shared account cannot be read
 if [[ "$OPACC_MODE" == "inspect" ]]; then
   if ! id -u -- "$OPACC_ACCOUNT" >/dev/null 2>&1; then
     echo "ERROR: ${OPACC_ACCOUNT} does not exist." >&2
@@ -153,6 +156,22 @@ if [[ "$OPACC_MODE" == "inspect" ]]; then
       [[ -n "$inspect_line" ]] && echo "RETIRED ${inspect_line}"
     done < <(ssh-keygen -l -f "$inspect_retired" 2>/dev/null || true)
   done
+  # The fingerprints the shared account authorizes, so a caller can prove a named
+  # key is not also a way onto the shared account. Without the shared account's
+  # name, or with no such account, the answer is "unknown", never an empty list:
+  # an empty list would read as "not there" and pass the very check it serves.
+  if [[ -z "$OPACC_SHARED_ACCOUNT" ]] || ! id -u -- "$OPACC_SHARED_ACCOUNT" >/dev/null 2>&1; then
+    echo "SHARED unknown"
+  else
+    inspect_shared="$(opacc_shared_fingerprints)"
+    if [[ -z "$inspect_shared" ]]; then
+      echo "SHARED none"
+    else
+      while IFS= read -r inspect_line; do
+        [[ -n "$inspect_line" ]] && echo "SHARED ${inspect_line}"
+      done <<<"$inspect_shared"
+    fi
+  fi
   exit 0
 fi
 

@@ -129,8 +129,32 @@ judge_config() {
 # there. The one sanctioned exception is the maintainers' private issue tracker,
 # whose create/edit/comment/close operations this project's permission rules grant
 # on their own merits; everything that changes repository state is refused.
+# A GraphQL call is always a POST carrying its query in a field, so the field rule
+# below would refuse every one, reads included. It is judged on the document
+# instead: a mutation or subscription anywhere in the command is refused, and so is
+# a body the gate cannot see (--input, or a field read from a file with @). The
+# whole command is searched rather than this segment, because the segment splitter
+# breaks the query at its braces, and a second operation would otherwise arrive as
+# a segment of its own and never be judged.
+judge_gh_graphql() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      --input|--input=*|*=@*|-X|--method|-X*|--method=*) deny "$GH_DENY" ;;
+    esac
+  done
+  if grep -qiE '(^|[^A-Za-z0-9_])(mutation|subscription)([^A-Za-z0-9_]|$)' <<<"$COMMAND"; then
+    deny "$GH_DENY"
+  fi
+  # A query assembled at run time, by command substitution or backticks, is one
+  # the gate cannot read, so it is refused like a body read from a file.
+  case "$COMMAND" in *'$('*|*'`'*) deny "$GH_DENY" ;; esac
+  return 0
+}
+
 judge_gh_api() {
   local expect_method=0 a
+  if [ "$(first_subcommand "$@")" = "graphql" ]; then judge_gh_graphql "$@"; return 0; fi
   for a in "$@"; do
     if [ "$expect_method" -eq 1 ]; then
       expect_method=0
@@ -169,7 +193,10 @@ judge_gh() {
     run) case "$sub" in list|view|watch|download) : ;; *) deny "$GH_DENY" ;; esac ;;
     workflow) case "$sub" in list|view) : ;; *) deny "$GH_DENY" ;; esac ;;
     label|gist|cache) case "$sub" in list|view) : ;; *) deny "$GH_DENY" ;; esac ;;
-    secret|variable|ssh-key|gpg-key|auth|alias|extension|codespace|org|project|ruleset)
+    # Reading a project board's items and fields is a read, as the read-only
+    # approver already treats it; editing items or fields is not.
+    project) case "$sub" in list|view|item-list|field-list) : ;; *) deny "$GH_DENY" ;; esac ;;
+    secret|variable|ssh-key|gpg-key|auth|alias|extension|codespace|org|ruleset)
       case "$sub" in list|view|status) : ;; *) deny "$GH_DENY" ;; esac ;;
     *) : ;;
   esac

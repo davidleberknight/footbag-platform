@@ -26,11 +26,23 @@
 #
 # WHO RUNS IT.
 #
-# On staging, either the `footbag-operator` IAM user or a FootbagDevTester
-# session, which may change staging's firewall and is how an operator whose
-# own address has changed puts the new one on. On production, the
-# `footbag-operator` IAM user only: the job role is denied production's
-# firewall.
+# The `footbag-operator` IAM user, on both environments. A FootbagDevTester
+# session is refused: the values file holds the administrators' entries, and
+# the job role is denied writing the dev-and-tester parameters.
+#
+# TWO KINDS OF ENTRY.
+#
+# The administrators' addresses live in the values file and are edited here as
+# described above. Each dev-and-tester's staging address lives in a parameter of
+# its own, /footbag-ops/staging/dev-testers/<account>, which the staging
+# Terraform joins to the administrators' list. --dev-tester writes or deletes
+# that one parameter, applies staging's firewall alone (terraform-apply.sh
+# --firewall-only), and proves the result; it never opens the values file, so
+# nothing a dev-and-tester's onboarding or offboarding does can touch an
+# administrator's entry. A failed apply puts the parameter back as it was. A
+# removal whose address is still admitted by another holder says which, and is
+# not a failure: that person's own entry is gone. Onboarding and offboarding are
+# the only callers.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -63,6 +75,10 @@
 #     --address 203.0.113.7/32 --remove
 #   bash scripts/authorize-operator-address.sh --target staging \
 #     --list-for <account>
+#   bash scripts/authorize-operator-address.sh --target staging \
+#     --dev-tester <account> --address 203.0.113.7/32 [--for '<account>; <where>']
+#   bash scripts/authorize-operator-address.sh --target staging \
+#     --dev-tester <account> --remove
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default
@@ -73,7 +89,11 @@
 #                                  attribution names that account first, as an
 #                                  add writes it ('<account>; <where>'). Reads
 #                                  the values file only and changes nothing; it
-#                                  is how offboarding finds what to remove
+#                                  is how an administrator's entries are found
+#   --dev-tester <account>         act on that dev-and-tester's own address
+#                                  parameter instead of the values file
+#                                  (staging only; --for, when given, becomes the
+#                                  parameter's description)
 #   --yes                          accept the typed confirmation in advance
 #                                  (staging only)
 #   -h, --help                     this text
@@ -125,6 +145,13 @@ ADDRESS_RAW=""
 ATTRIBUTION=""
 REMOVE=0
 LIST_FOR=""
+# Set by --dev-tester: the account whose own address parameter this run writes
+# or deletes, instead of editing the values file.
+DEV_TESTER=""
+# Where each dev-and-tester's staging address lives, one parameter per person.
+# The staging Terraform reads this path and joins what it finds to the
+# administrators' list; nothing else writes it.
+DEV_TESTER_PATH="/footbag-ops/staging/dev-testers"
 
 # A flag's value never starts with a double dash. Taking one as the value
 # swallows the next flag: `--for --yes` would attribute an address to "--yes"
@@ -143,6 +170,7 @@ while (( $# )); do
     --for) flag_value "$1" "${2:-}"; ATTRIBUTION="$2"; shift 2 ;;
     --remove) REMOVE=1; shift ;;
     --list-for) flag_value "$1" "${2:-}"; LIST_FOR="$2"; shift 2 ;;
+    --dev-tester) flag_value "$1" "${2:-}"; DEV_TESTER="$2"; shift 2 ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage 2 ;;
@@ -158,6 +186,26 @@ if [[ -n "$LIST_FOR" ]]; then
   fi
   if [[ ! "$LIST_FOR" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ ]]; then
     echo "ERROR: '${LIST_FOR}' is not an account name (firstname_lastname)." >&2
+    exit 2
+  fi
+fi
+
+if [[ -n "$DEV_TESTER" ]]; then
+  if [[ "$TARGET" != "staging" ]]; then
+    echo "ERROR: --dev-tester is staging only. A dev-and-tester has no production access." >&2
+    exit 2
+  fi
+  if [[ -n "$LIST_FOR" ]]; then
+    echo "ERROR: --dev-tester and --list-for do not combine." >&2
+    exit 2
+  fi
+  if [[ ! "$DEV_TESTER" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ ]]; then
+    echo "ERROR: '${DEV_TESTER}' is not an account name (firstname_lastname)." >&2
+    exit 2
+  fi
+  if (( REMOVE )) && [[ -n "$ADDRESS_RAW" ]]; then
+    echo "ERROR: --dev-tester --remove takes no --address: it removes whatever that" >&2
+    echo "       account's own parameter holds, so nothing has to be remembered." >&2
     exit 2
   fi
 fi
@@ -216,7 +264,7 @@ canonical_cidr() {
 }
 
 ADDRESS=""
-if [[ -z "$LIST_FOR" ]]; then
+if [[ -z "$LIST_FOR" ]] && ! { [[ -n "$DEV_TESTER" ]] && (( REMOVE )); }; then
   if [[ -z "$ADDRESS_RAW" ]]; then
     echo "ERROR: --address names the address to authorize or remove." >&2
     exit 2
@@ -228,9 +276,15 @@ if [[ -z "$LIST_FOR" ]]; then
   fi
   canonical_cidr "$ADDRESS_RAW" >/dev/null
   ADDRESS="$CANON"
+  # A dev-and-tester's entry is one host. The staging Terraform admits nothing
+  # wider from a parameter, so a range written here would be silently dropped.
+  if [[ -n "$DEV_TESTER" && "$ADDRESS" != */32 ]]; then
+    echo "ERROR: a dev-and-tester's address is a single host (a.b.c.d/32), not ${ADDRESS}." >&2
+    exit 2
+  fi
 fi
 
-if [[ -z "$LIST_FOR" ]] && (( ! REMOVE )); then
+if [[ -z "$LIST_FOR" && -z "$DEV_TESTER" ]] && (( ! REMOVE )); then
   ATTRIBUTION="${ATTRIBUTION#\#}"
   ATTRIBUTION="${ATTRIBUTION#"${ATTRIBUTION%%[![:space:]]*}"}"
   if [[ -z "$ATTRIBUTION" ]]; then
@@ -262,6 +316,323 @@ fi
 [[ -n "${TFVARS_OVERRIDE:-}" ]] && \
   echo "==> NOTE: the values file is replaced for this run (${TFVARS_OVERRIDE})." >&2
 
+# ── The live firewall ────────────────────────────────────────────────────────
+#
+# Defined here, ahead of both paths that use them: the dev-and-tester path below
+# never opens the values file, so these cannot sit after it.
+
+# live_read
+# Reads the instance's port states into LIVE_<port>, one range per line, for
+# every SSH port. Returns 1 with LIVE_WHY set when anything cannot be read:
+# the call failing, an empty or unparseable answer, or a port with no rule at
+# all. Run in this shell, never in a pipeline or a substitution, so what it
+# learned and why it failed both survive.
+live_read() {
+  local states port ranges
+  # Read from stdout alone, so a warning the CLI prints on stderr beside a
+  # successful answer is never handed to jq; the error text is fetched by
+  # reading again only when the read failed.
+  local -a call=(lightsail get-instance-port-states
+    --region us-east-1 --instance-name "$INSTANCE" --output json)
+  LIVE_WHY=""
+  if ! states="$("$AWS_BIN" "${call[@]}" 2>/dev/null)"; then
+    states="$("$AWS_BIN" "${call[@]}" 2>&1 >/dev/null)" || true
+    LIVE_WHY="the port-state read failed: ${states}"
+    return 1
+  fi
+  if [[ -z "$states" ]] || ! jq -e '.portStates | type == "array"' >/dev/null 2>&1 <<<"$states"; then
+    LIVE_WHY="the port-state read returned nothing that could be parsed"
+    return 1
+  fi
+  for port in "${SSH_PORTS[@]}"; do
+    if ! ranges="$(jq -r --argjson p "$port" '
+        [ .portStates[]
+          | select(((.protocol // "tcp") | ascii_downcase) as $pr | $pr == "tcp" or $pr == "all")
+          | select(.fromPort <= $p and .toPort >= $p) ]
+        | if length == 0 then "NORULE" else (map(.cidrs // []) | add | .[]) end
+      ' <<<"$states" 2>/dev/null)"; then
+      LIVE_WHY="the rule for port ${port} could not be parsed"
+      return 1
+    fi
+    if [[ "$ranges" == "NORULE" ]]; then
+      LIVE_WHY="no rule on port ${port} at all"
+      return 1
+    fi
+    printf -v "LIVE_${port}" '%s' "$ranges"
+  done
+  return 0
+}
+
+# covering <ranges> -- prints the first range at least as wide as the address
+# that contains it, or nothing. Returns 2 when a range cannot be read.
+covering() {
+  local ranges="$1" want_bits="${ADDRESS#*/}" base="${ADDRESS%%/*}" cidr bits rc
+  while IFS= read -r cidr; do
+    [[ -z "$cidr" ]] && continue
+    bits="${cidr#*/}"; [[ "$cidr" == */* ]] || bits=32
+    [[ "$bits" =~ ^[0-9]+$ ]] || return 2
+    (( bits <= want_bits )) || continue
+    rc=0; egress_cidr_contains "$cidr" "$base" || rc=$?
+    (( rc == 2 )) && return 2
+    if (( rc == 0 )); then printf '%s' "$cidr"; return 0; fi
+  done <<<"$ranges"
+  return 0
+}
+
+# exact <ranges> -- true when the address itself is one of the ranges.
+exact() {
+  local cidr
+  while IFS= read -r cidr; do
+    [[ -z "$cidr" ]] && continue
+    [[ "$cidr" == */* ]] || cidr="${cidr}/32"
+    [[ "$cidr" == "$ADDRESS" ]] && return 0
+  done <<<"$1"
+  return 1
+}
+
+live_or_die() {
+  if ! live_read; then
+    echo "ERROR: the live firewall on ${INSTANCE} could not be read: ${LIVE_WHY}." >&2
+    echo "       Unknown is not the same as absent or admitted, so nothing is" >&2
+    echo "       reported as done. ${1}" >&2
+    exit 1
+  fi
+}
+
+# admitted_everywhere / present_anywhere, over every SSH port.
+admitted_everywhere() {
+  local port var cover
+  for port in "${SSH_PORTS[@]}"; do
+    var="LIVE_${port}"
+    cover="$(covering "${!var}")" || { echo "ERROR: a live range on port ${port} cannot be read." >&2; exit 1; }
+    [[ -n "$cover" ]] || return 1
+  done
+  return 0
+}
+present_anywhere() {
+  local port var
+  for port in "${SSH_PORTS[@]}"; do
+    var="LIVE_${port}"
+    exact "${!var}" && return 0
+  done
+  return 1
+}
+# still_covered prints a live range, other than the address itself, that still
+# admits it on some port.
+still_covered() {
+  local port var cover others bare
+  # The address as the firewall may also write it, with no prefix length.
+  bare="${ADDRESS%/32}"
+  for port in "${SSH_PORTS[@]}"; do
+    var="LIVE_${port}"
+    others="$(grep -vxF -e "$ADDRESS" -e "$bare" <<<"${!var}" || true)"
+    cover="$(covering "$others")" || { echo "ERROR: a live range on port ${port} cannot be read." >&2; exit 1; }
+    if [[ -n "$cover" ]]; then printf '%s on port %s' "$cover" "$port"; return 0; fi
+  done
+  return 1
+}
+# whose <cidr> -- who holds a range: the comment the values file carries for it,
+# and any dev-and-tester whose own parameter holds it, since the staging
+# firewall admits both and a removal report that named only the first would
+# leave the second looking like nobody's.
+whose() {
+  local i note="not declared in the values file" owners
+  for i in "${!E_CANON[@]}"; do
+    [[ "${E_CANON[$i]}" == "$1" ]] && { note="${E_NOTE[$i]:-(no attribution)}"; break; }
+  done
+  owners=""
+  [[ "$TARGET" == "staging" ]] && owners="$(dev_tester_owners "$1")"
+  if [[ -n "$owners" ]]; then
+    printf '%s; and the dev-and-tester address of %s' "$note" "$owners"
+  else
+    printf '%s' "$note"
+  fi
+}
+
+# ── Dev-and-tester addresses ─────────────────────────────────────────────────
+
+# dev_tester_owners <cidr> -- prints, comma-separated, every dev-and-tester whose
+# own parameter holds exactly that address. Empty when none does or the path
+# cannot be read; a report built on this says which.
+dev_tester_owners() {
+  local listing
+  listing="$("$AWS_BIN" ssm get-parameters-by-path --region us-east-1 \
+    --path "$DEV_TESTER_PATH" --output json 2>/dev/null)" || return 0
+  jq -r --arg a "$1" --arg p "${DEV_TESTER_PATH}/" '
+      [ .Parameters[]? | select(.Value == $a or .Value + "/32" == $a)
+        | .Name | ltrimstr($p) ] | join(", ")
+    ' <<<"$listing" 2>/dev/null || true
+}
+
+if [[ -n "$DEV_TESTER" ]]; then
+  if [[ "$ATTRIBUTION" =~ [[:cntrl:]] ]]; then
+    echo "ERROR: --for may not carry a line break or a control character." >&2
+    exit 2
+  fi
+  # Written by onboarding and offboarding, which are the directly authenticated
+  # identity's work. The job role is denied writing these parameters, so a run
+  # under it is refused here rather than by AWS halfway through.
+  aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
+    "A dev-and-tester's address is written by onboarding and offboarding, as the directly authenticated identity." \
+    || exit 1
+  aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
+
+  INSTANCE="footbag-${TARGET}-web"
+  PARAM="${DEV_TESTER_PATH}/${DEV_TESTER}"
+
+  # What the parameter holds now. Absent is a fact; a read that fails for any
+  # other reason is unknown, and unknown is never treated as absent.
+  CURRENT=""
+  READ_ERR=""
+  if ! CURRENT="$("$AWS_BIN" ssm get-parameter --region us-east-1 --name "$PARAM" \
+        --query Parameter.Value --output text 2>/dev/null)"; then
+    READ_ERR="$("$AWS_BIN" ssm get-parameter --region us-east-1 --name "$PARAM" \
+        --query Parameter.Value --output text 2>&1 >/dev/null || true)"
+    if [[ "$READ_ERR" == *ParameterNotFound* ]]; then
+      CURRENT=""
+    else
+      echo "ERROR: could not read ${PARAM}: ${READ_ERR}" >&2
+      echo "       Nothing has been changed." >&2
+      exit 1
+    fi
+  fi
+
+  # Its description too, so a restore after a failed apply puts back the
+  # attribution as well as the address. A description that cannot be read is
+  # only a missing note, never a reason to stop.
+  CURRENT_DESC=""
+  if [[ -n "$CURRENT" ]]; then
+    CURRENT_DESC="$("$AWS_BIN" ssm describe-parameters --region us-east-1 \
+      --parameter-filters "Key=Name,Values=${PARAM}" \
+      --query 'Parameters[0].Description' --output text 2>/dev/null || true)"
+    [[ "$CURRENT_DESC" == "None" ]] && CURRENT_DESC=""
+  fi
+
+  if (( REMOVE )); then
+    if [[ -z "$CURRENT" ]]; then
+      echo "Already absent: ${DEV_TESTER} has no staging address parameter. Nothing to do."
+      exit 0
+    fi
+    ADDRESS="$CURRENT"
+    [[ "$ADDRESS" == */* ]] || ADDRESS="${ADDRESS}/32"
+  fi
+
+  echo "-- ${DEV_TESTER}'s staging SSH address --"
+  echo "    parameter: ${PARAM}"
+  echo "    now:       ${CURRENT:-(none)}"
+  if (( REMOVE )); then
+    echo "    after:     (none)"
+  else
+    echo "    after:     ${ADDRESS}"
+  fi
+  echo "    ports:     ${SSH_PORTS[*]}"
+
+  live_or_die "Nothing has been changed."
+
+  if (( ! REMOVE )) && [[ "$CURRENT" == "$ADDRESS" ]] && admitted_everywhere; then
+    echo ""
+    echo "Already authorized: ${PARAM} holds ${ADDRESS} and the firewall admits it"
+    echo "on every SSH port. Nothing to do."
+    exit 0
+  fi
+
+  echo ""
+  if (( REMOVE )); then
+    echo "This deletes ${PARAM}, applies staging's firewall alone, and then reads it"
+  else
+    echo "This writes ${ADDRESS} to ${PARAM}, applies staging's firewall alone, and"
+    echo "then reads it"
+  fi
+  echo "back. The values file and every administrator's entry are not touched. The"
+  echo "apply replaces staging's firewall rule set, so every staging port closes for"
+  echo "a few seconds and reopens."
+  echo ""
+  if ! confirm_from_tty "Type 'APPLY' to change ${DEV_TESTER}'s staging address: " "APPLY"; then
+    echo "Not confirmed; nothing was changed." >&2
+    exit 1
+  fi
+
+  # From the write until the apply has succeeded, a failure puts the parameter
+  # back as it was. The parameter is this run's own change and nothing outside
+  # has recorded it yet, so undoing it is safe, and it leaves no half-made change
+  # pending for whoever applies staging next.
+  RESTORE_PENDING=0
+  restore_parameter() {
+    (( RESTORE_PENDING )) || return 0
+    RESTORE_PENDING=0
+    if [[ -n "$CURRENT" ]]; then
+      local -a restore_desc=()
+      [[ -n "$CURRENT_DESC" ]] && restore_desc=(--description "$CURRENT_DESC")
+      "$AWS_BIN" ssm put-parameter --region us-east-1 --name "$PARAM" --type String \
+        --value "$CURRENT" --overwrite ${restore_desc[@]+"${restore_desc[@]}"} >/dev/null 2>&1 \
+        && echo "==> ${PARAM} restored to ${CURRENT}." >&2 \
+        || echo "ERROR: could not restore ${PARAM} to ${CURRENT}; set it back before the next staging apply." >&2
+    else
+      "$AWS_BIN" ssm delete-parameter --region us-east-1 --name "$PARAM" >/dev/null 2>&1 \
+        && echo "==> ${PARAM} removed again." >&2 \
+        || echo "ERROR: could not remove ${PARAM}; delete it before the next staging apply." >&2
+    fi
+    return 0
+  }
+  trap restore_parameter EXIT INT TERM
+
+  RESTORE_PENDING=1
+  if (( REMOVE )); then
+    if ! "$AWS_BIN" ssm delete-parameter --region us-east-1 --name "$PARAM" >/dev/null; then
+      RESTORE_PENDING=0
+      echo "ERROR: could not delete ${PARAM}. Nothing was applied." >&2
+      exit 1
+    fi
+  else
+    declare -a DESC=()
+    [[ -n "$ATTRIBUTION" ]] && DESC=(--description "$ATTRIBUTION")
+    if ! "$AWS_BIN" ssm put-parameter --region us-east-1 --name "$PARAM" --type String \
+          --value "$ADDRESS" --overwrite ${DESC[@]+"${DESC[@]}"} >/dev/null; then
+      RESTORE_PENDING=0
+      echo "ERROR: could not write ${PARAM}. Nothing was applied." >&2
+      exit 1
+    fi
+  fi
+
+  echo "==> Applying staging's firewall"
+  if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only; then
+    echo "ERROR: the firewall apply did not complete; ${PARAM} is being put back." >&2
+    exit 1
+  fi
+  RESTORE_PENDING=0
+
+  echo "==> Reading the firewall back"
+  live_or_die "The apply ran, so the firewall may or may not carry the change."
+  if (( REMOVE )); then
+    if present_anywhere || COVER="$(still_covered)"; then
+      # The person's own entry is gone; whether the address still reaches the
+      # host is decided by whoever else holds it. Named, so it is never mistaken
+      # for this account still having access of its own.
+      OTHERS="$(dev_tester_owners "$ADDRESS")"
+      echo "    ${PARAM} is gone. ${ADDRESS} is still admitted, because another entry"
+      if [[ -n "$OTHERS" ]]; then
+        echo "    holds it: the dev-and-tester address of ${OTHERS}."
+      else
+        echo "    holds it: the administrators' list in the values file, which this run"
+        echo "    does not change."
+      fi
+    else
+      echo "    ${ADDRESS} is no longer admitted on ports ${SSH_PORTS[*]}"
+    fi
+  else
+    if ! admitted_everywhere; then
+      echo "ERROR: ${INSTANCE} does not admit ${ADDRESS} on every SSH port." >&2
+      echo "       The parameter holds it and the apply reported success, so the" >&2
+      echo "       staging Terraform did not carry it. Check the plan's warnings." >&2
+      exit 1
+    fi
+    echo "    ${ADDRESS} is admitted on ports ${SSH_PORTS[*]}"
+  fi
+  echo ""
+  echo "Done, and proved against the firewall rather than the parameter."
+  exit 0
+fi
+
 # ── The identity ─────────────────────────────────────────────────────────────
 
 # A listing reads the values file and nothing else, so it asks no identity.
@@ -276,11 +647,21 @@ else
   aws_profile_ensure || exit 1
   [[ -n "${AWS_IDENTITY_ARN:-}" ]] || aws_identity_resolve "${AWS_PROFILE:-}" || exit 1
   case "$AWS_IDENTITY_ARN" in
-    *":user/${FOOTBAG_OPERATOR_USER}"|*":assumed-role/${FOOTBAG_DEV_TESTER_ROLE}/"?*) ;;
+    *":user/${FOOTBAG_OPERATOR_USER}") ;;
+    *":assumed-role/${FOOTBAG_DEV_TESTER_ROLE}/"?*)
+      # The values file holds the administrators' entries. A dev-and-tester's
+      # own address is a parameter that onboarding writes, so a session of the
+      # job role has no business in this file and is refused before it is read.
+      echo "ERROR: this run is a ${FOOTBAG_DEV_TESTER_ROLE} session (${AWS_IDENTITY_ARN##*/})." >&2
+      echo "       The values file holds the administrators' entries and is changed only" >&2
+      echo "       by the ${FOOTBAG_OPERATOR_USER} IAM user. A dev-and-tester's address is" >&2
+      echo "       set by onboarding; a footbag-operator holder re-runs it for a new one." >&2
+      exit 1
+      ;;
     *)
       echo "ERROR: this run is acting as ${AWS_IDENTITY_ARN}." >&2
-      echo "       Staging's allow-list is changed by the ${FOOTBAG_OPERATOR_USER} IAM user" >&2
-      echo "       or by a ${FOOTBAG_DEV_TESTER_ROLE} session, and this is neither." >&2
+      echo "       Staging's allow-list is changed by the ${FOOTBAG_OPERATOR_USER} IAM user," >&2
+      echo "       and this is not it." >&2
       exit 1
       ;;
   esac
@@ -447,133 +828,12 @@ if (( ${#FILE_MATCHES[@]} > 1 )); then
   exit 1
 fi
 
-# ── The live firewall ────────────────────────────────────────────────────────
-
-# live_read
-# Reads the instance's port states into LIVE_<port>, one range per line, for
-# every SSH port. Returns 1 with LIVE_WHY set when anything cannot be read:
-# the call failing, an empty or unparseable answer, or a port with no rule at
-# all. Run in this shell, never in a pipeline or a substitution, so what it
-# learned and why it failed both survive.
-live_read() {
-  local states port ranges
-  # Read from stdout alone, so a warning the CLI prints on stderr beside a
-  # successful answer is never handed to jq; the error text is fetched by
-  # reading again only when the read failed.
-  local -a call=(lightsail get-instance-port-states
-    --region us-east-1 --instance-name "$INSTANCE" --output json)
-  LIVE_WHY=""
-  if ! states="$("$AWS_BIN" "${call[@]}" 2>/dev/null)"; then
-    states="$("$AWS_BIN" "${call[@]}" 2>&1 >/dev/null)" || true
-    LIVE_WHY="the port-state read failed: ${states}"
-    return 1
-  fi
-  if [[ -z "$states" ]] || ! jq -e '.portStates | type == "array"' >/dev/null 2>&1 <<<"$states"; then
-    LIVE_WHY="the port-state read returned nothing that could be parsed"
-    return 1
-  fi
-  for port in "${SSH_PORTS[@]}"; do
-    if ! ranges="$(jq -r --argjson p "$port" '
-        [ .portStates[]
-          | select(((.protocol // "tcp") | ascii_downcase) as $pr | $pr == "tcp" or $pr == "all")
-          | select(.fromPort <= $p and .toPort >= $p) ]
-        | if length == 0 then "NORULE" else (map(.cidrs // []) | add | .[]) end
-      ' <<<"$states" 2>/dev/null)"; then
-      LIVE_WHY="the rule for port ${port} could not be parsed"
-      return 1
-    fi
-    if [[ "$ranges" == "NORULE" ]]; then
-      LIVE_WHY="no rule on port ${port} at all"
-      return 1
-    fi
-    printf -v "LIVE_${port}" '%s' "$ranges"
-  done
-  return 0
-}
-
-# covering <ranges> -- prints the first range at least as wide as the address
-# that contains it, or nothing. Returns 2 when a range cannot be read.
-covering() {
-  local ranges="$1" want_bits="${ADDRESS#*/}" base="${ADDRESS%%/*}" cidr bits rc
-  while IFS= read -r cidr; do
-    [[ -z "$cidr" ]] && continue
-    bits="${cidr#*/}"; [[ "$cidr" == */* ]] || bits=32
-    [[ "$bits" =~ ^[0-9]+$ ]] || return 2
-    (( bits <= want_bits )) || continue
-    rc=0; egress_cidr_contains "$cidr" "$base" || rc=$?
-    (( rc == 2 )) && return 2
-    if (( rc == 0 )); then printf '%s' "$cidr"; return 0; fi
-  done <<<"$ranges"
-  return 0
-}
-
-# exact <ranges> -- true when the address itself is one of the ranges.
-exact() {
-  local cidr
-  while IFS= read -r cidr; do
-    [[ -z "$cidr" ]] && continue
-    [[ "$cidr" == */* ]] || cidr="${cidr}/32"
-    [[ "$cidr" == "$ADDRESS" ]] && return 0
-  done <<<"$1"
-  return 1
-}
-
-live_or_die() {
-  if ! live_read; then
-    echo "ERROR: the live firewall on ${INSTANCE} could not be read: ${LIVE_WHY}." >&2
-    echo "       Unknown is not the same as absent or admitted, so nothing is" >&2
-    echo "       reported as done. ${1}" >&2
-    exit 1
-  fi
-}
-
 echo "-- the SSH allow-list for ${TARGET} --"
 echo "    instance:  ${INSTANCE}"
 echo "    address:   ${ADDRESS}"
 echo "    ports:     ${SSH_PORTS[*]}"
 
 live_or_die "Nothing has been changed."
-
-# admitted_everywhere / present_anywhere, over every SSH port.
-admitted_everywhere() {
-  local port var cover
-  for port in "${SSH_PORTS[@]}"; do
-    var="LIVE_${port}"
-    cover="$(covering "${!var}")" || { echo "ERROR: a live range on port ${port} cannot be read." >&2; exit 1; }
-    [[ -n "$cover" ]] || return 1
-  done
-  return 0
-}
-present_anywhere() {
-  local port var
-  for port in "${SSH_PORTS[@]}"; do
-    var="LIVE_${port}"
-    exact "${!var}" && return 0
-  done
-  return 1
-}
-# still_covered prints a live range, other than the address itself, that still
-# admits it on some port.
-still_covered() {
-  local port var cover others bare
-  # The address as the firewall may also write it, with no prefix length.
-  bare="${ADDRESS%/32}"
-  for port in "${SSH_PORTS[@]}"; do
-    var="LIVE_${port}"
-    others="$(grep -vxF -e "$ADDRESS" -e "$bare" <<<"${!var}" || true)"
-    cover="$(covering "$others")" || { echo "ERROR: a live range on port ${port} cannot be read." >&2; exit 1; }
-    if [[ -n "$cover" ]]; then printf '%s on port %s' "$cover" "$port"; return 0; fi
-  done
-  return 1
-}
-# whose <cidr> -- the comment the file carries for a range, if it declares it.
-whose() {
-  local i
-  for i in "${!E_CANON[@]}"; do
-    [[ "${E_CANON[$i]}" == "$1" ]] && { printf '%s' "${E_NOTE[$i]:-(no attribution)}"; return; }
-  done
-  printf 'not declared in the values file'
-}
 
 # ── What has to happen ───────────────────────────────────────────────────────
 #
@@ -805,8 +1065,15 @@ live_or_die "The apply ran, so the firewall may or may not carry the change."
 if (( REMOVE )); then
   if present_anywhere; then
     echo "ERROR: ${INSTANCE} still carries ${ADDRESS} on an SSH port." >&2
-    echo "       The apply reported success, so what it applied did not remove" >&2
-    echo "       this address. Their access has NOT ended." >&2
+    HELD_BY="$( [[ "$TARGET" == "staging" ]] && dev_tester_owners "$ADDRESS" || true)"
+    if [[ -n "$HELD_BY" ]]; then
+      echo "       It is also the dev-and-tester address of ${HELD_BY}, which the staging" >&2
+      echo "       firewall admits from that parameter; offboarding that person removes it." >&2
+    else
+      echo "       The apply reported success, so what it applied did not remove" >&2
+      echo "       this address." >&2
+    fi
+    echo "       Their access has NOT ended." >&2
     exit 1
   fi
   if COVER="$(still_covered)"; then

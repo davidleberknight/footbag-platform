@@ -72,12 +72,30 @@ function actions(sid: string, key: 'Action' | 'NotAction' = 'Action'): string[] 
   return [...list![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 
-/** The statement names the role's inline policy actually assembles, in order. */
-function assembled(): string[] {
-  const head = source.indexOf('resource "aws_iam_role_policy" "dev_tester"');
-  expect(head, 'no inline policy resource for the role').toBeGreaterThanOrEqual(0);
-  const block = source.slice(head);
-  return [...block.matchAll(/local\.statements\.(\w+)/g)].map((m) => m[1]);
+/**
+ * The statement names each of the role's managed policies assembles, in order,
+ * keyed by the policy's name suffix.
+ */
+function assembled(): Record<string, string[]> {
+  const head = source.search(/^ {2}dev_tester_policies = \{/m);
+  expect(head, 'no dev_tester_policies map for the role').toBeGreaterThanOrEqual(0);
+  const rest = source.slice(head);
+  const block = rest.slice(0, rest.search(/\n {2}\}/));
+  const out: Record<string, string[]> = {};
+  for (const m of block.matchAll(/\n {4}(\w+) = \[([\s\S]*?)\n {4}\]/g)) {
+    out[m[1]] = [...m[2].matchAll(/local\.statements\.(\w+)/g)].map((s) => s[1]);
+  }
+  return out;
+}
+
+/** Every statement the locals block defines, with its Effect. */
+function definedEffects(): Record<string, string> {
+  const block = source.slice(source.indexOf('statements = {'));
+  const out: Record<string, string> = {};
+  for (const m of block.matchAll(/\n {4}(\w+) = \{\s*\n\s+Sid\s+= "\w+"\s*\n\s+Effect\s+= "(\w+)"/g)) {
+    out[m[1]] = m[2];
+  }
+  return out;
 }
 
 /** The scope map, which is the whole of what this role may reach by name. */
@@ -91,38 +109,76 @@ function scopeBlock(): string {
 }
 
 describe('the job role carries exactly the statements it is meant to', () => {
-  it('assembles one named list, and adding or dropping one is a change here too', () => {
-    // The exact set, in order. A statement added to the locals block and wired
-    // into the policy is a real widening of what every operator may do, and it
+  it('assembles three named lists, and adding or dropping one is a change here too', () => {
+    // The exact sets, in order. A statement added to the locals block and wired
+    // into a policy is a real widening of what every operator may do, and it
     // should not be possible to land one without this line changing.
-    expect(assembled()).toEqual([
-      'project_buckets',
-      'state_bucket_listing',
-      'project_scoped_services',
-      'project_keys_by_alias',
-      'calls_that_carry_no_resource',
-      'publish_staging_metrics',
-      'lightsail_staging_lifecycle',
-      'cloudfront_project_surfaces',
-      'ses_staging_configuration',
-      'ses_account_read',
-      'iam_read_everywhere',
-      'iam_write_project',
-      'chain_into_runtime_roles',
-      'resolve_who_acted',
-      'reads_the_operator_scripts_make',
-      'no_self_elevation',
-      'never_touch_super_admin_identity',
-      'never_administer_a_human_operator',
-      'never_touch_this_role',
-      'never_rewrite_a_role_we_can_assume',
-      'never_graft_an_alias_onto_production',
-      'never_rewrite_a_production_edge_function',
-      'never_touch_a_production_edge_surface',
-      'never_pass_a_role_to_budgets',
-      'never_mint_host_access',
-      'never_reach_a_non_staging_host',
-    ]);
+    expect(assembled()).toEqual({
+      StagingServices: [
+        'project_buckets',
+        'state_bucket_listing',
+        'project_scoped_services',
+        'staging_dashboard',
+        'project_keys_by_alias',
+        'calls_that_carry_no_resource',
+        'publish_staging_metrics',
+        'lightsail_staging_lifecycle',
+        'ses_staging_configuration',
+        'ses_account_read',
+      ],
+      EdgeAndIdentity: [
+        'cloudfront_project_surfaces',
+        'iam_read_everywhere',
+        'chain_into_runtime_roles',
+        'read_dev_tester_addresses',
+        'resolve_who_acted',
+        'reads_the_operator_scripts_make',
+      ],
+      Guardrails: [
+        'no_self_elevation',
+        'never_touch_super_admin_identity',
+        'never_administer_a_human_operator',
+        'never_touch_this_role',
+        'never_rewrite_a_role_we_can_assume',
+        'never_graft_an_alias_onto_production',
+        'never_rewrite_a_production_edge_function',
+        'never_touch_a_production_edge_surface',
+        'never_pass_a_role_to_budgets',
+        'never_mint_host_access',
+        'never_reach_a_non_staging_host',
+        'never_assume_another_role',
+        'never_write_operator_addresses',
+      ],
+    });
+  });
+
+  it('wires every defined statement into exactly one policy, every deny into the guardrails', () => {
+    // A statement defined and wired nowhere is a deny the role silently lacks;
+    // one wired twice is a grant that survives removal from either policy.
+    const effects = definedEffects();
+    expect(Object.keys(effects).length, 'no statements were found to check').toBeGreaterThan(20);
+    const wired = Object.values(assembled()).flat();
+    expect([...wired].sort()).toEqual(Object.keys(effects).sort());
+    const policies = assembled();
+    for (const [name, keys] of Object.entries(policies)) {
+      for (const key of keys) {
+        expect(effects[key], `${key} in ${name}`).toBe(name === 'Guardrails' ? 'Deny' : 'Allow');
+      }
+    }
+  });
+
+  it('keeps the job out of the role inline budget, which the session revocations need', () => {
+    // A role's inline policies share 10,240 characters. Offboarding writes each
+    // session revocation as an inline policy, so a job policy held inline left
+    // room for one and refused the next offboard with that person's sessions
+    // still live.
+    expect(source).not.toMatch(/resource "aws_iam_role_policy" /);
+    expect(source).toMatch(/resource "aws_iam_policy" "dev_tester" \{\s*\n\s+for_each = local\.dev_tester_policies/);
+    expect(source).toMatch(
+      /resource "aws_iam_role_policy_attachment" "dev_tester" \{\s*\n\s+for_each = aws_iam_policy\.dev_tester/,
+    );
+    // Each policy is refused at plan time above the managed-policy limit.
+    expect(source).toMatch(/precondition \{\s*\n\s+condition\s+= length\(jsonencode\(\{[^}]*Statement = each\.value \}\)\) <= 6144/);
   });
 
   it('declares no Identity Center resource of any kind', () => {
@@ -172,12 +228,24 @@ describe('the job role grants what a terraform plan actually calls', () => {
       'cloudwatch:PutMetricAlarm',
       'cloudwatch:DeleteAlarms',
       'cloudwatch:DescribeAlarms*',
-      'cloudwatch:PutDashboard',
-      'cloudwatch:DeleteDashboards',
       'cloudwatch:ListTagsForResource',
       'cloudwatch:TagResource',
       'cloudwatch:UntagResource',
     ]);
+  });
+
+  it('reaches the staging dashboard by its region-less ARN', () => {
+    // A dashboard ARN carries no region, so the alarm pattern never matched it:
+    // the refresh was denied and every staging plan by this role failed there.
+    expect(actions('StagingDashboard')).toEqual([
+      'cloudwatch:GetDashboard',
+      'cloudwatch:PutDashboard',
+      'cloudwatch:DeleteDashboards',
+    ]);
+    expect(statement('StagingDashboard')).toContain('local.scope.staging_dashboard');
+    expect(scopeBlock()).toMatch(
+      /staging_dashboard = "arn:aws:cloudwatch::\$\{var\.aws_account_id\}:dashboard\/footbag-staging"/,
+    );
   });
 
   it('lists the unconditioned calls whole, so a widening cannot arrive unnoticed', () => {
@@ -190,6 +258,10 @@ describe('the job role grants what a terraform plan actually calls', () => {
     // including one this project never named.
     const list = actions('CallsThatCarryNoResource');
     expect(list).toEqual([
+      // Authorized on no resource, and made on every staging refresh: scoped to
+      // staging ARNs, each was denied and no plan by this role completed.
+      'ssm:DescribeParameters',
+      'logs:DescribeLogGroups',
       'cloudwatch:GetMetricStatistics',
       'cloudwatch:ListMetrics',
       'kms:CreateKey',
@@ -238,13 +310,25 @@ describe('the job role grants what a terraform plan actually calls', () => {
     expect(s).not.toContain('Footbag/production');
   });
 
-  it('reads IAM everywhere and writes it only where the project declares it', () => {
+  it('reads IAM everywhere and writes it nowhere', () => {
+    // IAM write over staging-named principals is a path to administrator:
+    // create a footbag-staging user, attach AdministratorAccess, mint it a key,
+    // then change footbag-operator and both runtime trusts. So no Allow in the
+    // policy may grant an IAM action beyond the reads.
     expect(actions('IamReadEverywhere')).toEqual([
       'iam:Get*',
       'iam:List*',
       'iam:SimulatePrincipalPolicy',
     ]);
-    expect(actions('IamWriteOnlyWhatThisProjectDeclares')).toEqual(['iam:*']);
+    const policy = source.slice(source.indexOf('statements = {'));
+    const allows = [...policy.matchAll(/Sid\s+= "(\w+)"\s*\n\s+Effect\s+= "Allow"/g)].map((m) => m[1]);
+    expect(allows.length, 'no Allow statements were found to check').toBeGreaterThan(10);
+    for (const sid of allows) {
+      const iamWrites = actions(sid).filter(
+        (a) => a.startsWith('iam:') && !/^iam:(Get|List|Simulate)/.test(a),
+      );
+      expect(iamWrites, `${sid} grants IAM write`).toEqual([]);
+    }
   });
 
   it('names the staging configuration sets rather than wildcarding SES', () => {
@@ -255,17 +339,18 @@ describe('the job role grants what a terraform plan actually calls', () => {
     // every message the membership receives.
     expect(actions('SesConfigurationSetsByName')).toEqual([
       'ses:CreateConfigurationSet',
-      'ses:DescribeConfigurationSet',
       'ses:DeleteConfigurationSet',
     ]);
     expect(statement('SesConfigurationSetsByName')).toContain(
       'local.scope.ses_configuration_sets',
     );
 
-    // Only the two that genuinely carry no resource stay unscoped, and neither
-    // of them can change anything.
+    // Only the reads that genuinely carry no resource stay unscoped, and none
+    // of them can change anything. Describing a set is one: in the SES v1 API a
+    // refresh calls it takes no resource, so scoped by ARN it was denied.
     expect(actions('SesListAndAccountRead')).toEqual([
       'ses:ListConfigurationSets',
+      'ses:DescribeConfigurationSet',
       'ses:GetAccount',
     ]);
   });
@@ -332,8 +417,8 @@ describe('the job role cannot become an administrator', () => {
   });
 
   it('leaves the directly authenticated identity readable while denying every write', () => {
-    // Inverted rather than enumerated: the Allow above carries iam:* over
-    // user/footbag-staging-*, and an enumerated Deny protects only the actions
+    // Inverted rather than enumerated, so any IAM grant added to the role later
+    // still cannot reach this user: an enumerated Deny protects only the actions
     // somebody thought to name. Reads stay because the baseline gate calls
     // ListAccessKeys against that user, and reading it is how the gate reports.
     const s = statement('NeverTouchTheSuperAdminIdentity');
@@ -366,8 +451,8 @@ describe('the job role cannot become an administrator', () => {
     // operator legitimately reads and simulates against their own user and
     // their colleagues': the inverted form would deny the reads the workstation
     // check and the lifecycle verifier both depend on. That makes the exactness
-    // of this list the whole of the protection, since anything not named here
-    // is permitted by the iam:* Allow wherever the resource pattern reaches.
+    // of this list the whole of the protection against any IAM grant the role
+    // gains later, since anything not named here would then be permitted.
     expect(actions('NeverAdministerAHumanOperator')).toEqual([
       'iam:CreateUser',
       'iam:DeleteUser',
@@ -418,11 +503,9 @@ describe('the job role cannot become an administrator', () => {
 
   it('may not hand a role to the budget service, which would re-arm itself', () => {
     // A budget action applies an IAM policy on its own schedule, under a role
-    // it is passed, after the person who created it is gone. The iam:* Allow is
-    // scoped to footbag-staging-* names and carries PassRole with it, so the
-    // role a departing operator created there is passable. The budgets wildcard
-    // that made the action reachable is gone; this denial is what stops it
-    // returning through the IAM grant.
+    // it is passed, after the person who created it is gone. The role holds no
+    // budgets wildcard and no PassRole; this denial is what stops the action
+    // returning through any IAM grant added later.
     expect(actions('NeverPassARoleToBudgets')).toEqual(['iam:PassRole']);
     expect(statement('NeverPassARoleToBudgets')).toContain(
       '"iam:PassedToService" = "budgets.amazonaws.com"',
@@ -430,9 +513,9 @@ describe('the job role cannot become an administrator', () => {
   });
 
   it('may not widen the one role it is allowed to assume', () => {
-    // Two Allows meet here: iam:* over role/footbag-staging-*, and AssumeRole
-    // on footbag-staging-app-runtime, which is inside that name pattern. So the
-    // role could attach AdministratorAccess to it and assume it — two calls to
+    // The role may assume footbag-staging-app-runtime, so if any IAM grant ever
+    // reached that role, the holder could attach AdministratorAccess to it and
+    // assume it — two calls to
     // administrator over the whole account, since both environments share one
     // account and the staging prefix is a naming convention rather than a
     // boundary. It leaves nothing for an offboard to find and shows no plan
@@ -586,7 +669,9 @@ describe('the job role reaches staging and nothing else', () => {
     // key alias/footbag-staging with nothing after it, so a hyphen here leaves
     // every SecureString keyed on that alias unreadable under this policy.
     expect(scope).toMatch(/kms_alias\s*=\s*"alias\/footbag-staging\*"/);
-    expect(scope).toContain('role/footbag-staging-*');
+    // No IAM name pattern at all: a staging-wide role or user glob in the scope
+    // is the shape IAM write came back through.
+    expect(scope).not.toMatch(/:(role|user|policy|instance-profile)\/footbag-staging-\*/);
     expect(scope).toContain('configuration-set/footbag-staging-*');
     expect(scope).toContain('footbag-staging-app-runtime');
     expect(scope).not.toContain('footbag-production-app-runtime');
@@ -610,6 +695,42 @@ describe('the job role reaches staging and nothing else', () => {
   it('chains only into the staging runtime role', () => {
     expect(actions('ChainIntoTheRuntimeRoles')).toEqual(['sts:AssumeRole']);
     expect(statement('ChainIntoTheRuntimeRoles')).toContain('local.scope.runtime_roles');
+  });
+
+  it('is denied assuming any other role, whatever trust a role created later carries', () => {
+    // An Allow alone leaves any role whose trust names this one assumable; the
+    // Deny over everything but the runtime role is what makes the bound hold
+    // without relying on nobody ever writing such a trust.
+    const s = statement('NeverAssumeAnyRoleButTheStagingRuntime');
+    expect(s).toMatch(/Effect\s+= "Deny"/);
+    expect(actions('NeverAssumeAnyRoleButTheStagingRuntime')).toEqual(['sts:AssumeRole']);
+    expect(s).toMatch(/NotResource\s+= local\.scope\.runtime_roles/);
+  });
+
+  it('reads the dev-and-tester addresses and may write no operator address', () => {
+    // The staging plan reads each person's address to build the SSH allow-list.
+    // A holder who could write one could admit any address or drop a
+    // colleague's, so writes are denied by inversion: only the three reads pass.
+    expect(actions('ReadTheDevTesterAddresses')).toEqual([
+      'ssm:GetParametersByPath',
+      'ssm:GetParameter',
+      'ssm:GetParameters',
+    ]);
+    expect(statement('ReadTheDevTesterAddresses')).toContain('local.scope.dev_tester_addresses');
+    const deny = statement('NeverWriteOperatorAddresses');
+    expect(deny).toMatch(/Effect\s+= "Deny"/);
+    expect(actions('NeverWriteOperatorAddresses', 'NotAction')).toEqual([
+      'ssm:GetParametersByPath',
+      'ssm:GetParameter',
+      'ssm:GetParameters',
+    ]);
+    expect(deny).toContain('local.scope.operator_parameters');
+    const scope = scopeBlock();
+    expect(scope).toContain('parameter/footbag-ops/staging/dev-testers"');
+    expect(scope).toContain('parameter/footbag-ops/staging/dev-testers/*"');
+    expect(scope).toMatch(/operator_parameters\s+= "arn:aws:ssm:\*:\$\{var\.aws_account_id\}:parameter\/footbag-ops\/\*"/);
+    // Outside the application's prefix, which both runtime roles read whole.
+    expect(scope).not.toContain('parameter/footbag/staging/dev-testers');
   });
 });
 

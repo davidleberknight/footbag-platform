@@ -48,6 +48,7 @@ This guide helps contributors understand how the platform is structured and get 
   - [2.5 Architecture mental model](#25-architecture-mental-model)
   - [2.6 Repo map](#26-repo-map)
 - [3. AWS deployment and operations](#3-aws-deployment-and-operations)
+  - [3.1 Staging as a dev-and-tester](#31-staging-as-a-dev-and-tester)
 - [4. Appendices](#4-appendices)
   - [4.1 Troubleshooting reference](#41-troubleshooting-reference)
   - [4.2 Deterministic seed-data reference](#42-deterministic-seed-data-reference)
@@ -631,7 +632,7 @@ Admin in dev confers the curator role, which authors real `/curated/` content (t
 
 For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in an operator-local allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The allowlist carries maintainer email addresses, so it lives in the maintainers' private operations checkout rather than this one, reached through the canonical repo-root symlink; a developer without that checkout gets an empty allowlist, which is a supported configuration.
 
-Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's copy into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9.
+Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's copy into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. A deploy from a machine without the private checkout leaves the staging value as it is. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9.
 
 #### 1.14.2 Dev and staging test infrastructure
 
@@ -927,7 +928,50 @@ Important file-level responsibilities:
 
 ## 3. AWS deployment and operations
 
-Local development, the test suite, and the architecture orientation above need no AWS access. Staging access is granted by an operator to fully vetted volunteers only, following ONBOARDING.md in the private operations repository.
+Local development, the test suite, and the architecture orientation above need no AWS access. Staging access is granted by a maintainer to fully vetted volunteers only, as a dev-and-tester. A dev-and-tester needs nothing beyond this public repository: no access to the maintainers' private operations repository and no checkout of it. The rest of AWS operations belongs to the maintainers and is documented in that private repository.
+
+### 3.1 Staging as a dev-and-tester
+
+A dev-and-tester has their own host account on staging and their own IAM user, whose only permission is to assume one shared staging job role, `FootbagDevTester`, under their own name. The role reaches staging and nothing in production. The account name is lower case, first name then last, joined by an underscore (`<first>_<last>`), and names both the host account and the IAM user.
+
+**Joining.** Three steps on your own machine, from this checkout, with the maintainer's onboarding run between the first and the second:
+
+1. Make your key pair and send three things:
+
+   ```bash
+   bash scripts/setup-dev-workstation.sh --operator \
+     --account <first>_<last>
+   ```
+
+   It installs the pinned tools, the AWS CLI included, creates the pair at `~/.ssh/id_ed25519_<first>_<last>` if it is missing (asking for a passphrase), and prints the public key line, its SHA256 fingerprint and the address this machine connects from. Send the maintainer the key and the address, and the fingerprint by a different channel, so the key can be checked as it arrives.
+2. Accept the onboarding. The maintainer sends a sealed file, `<account>-staging.onboarding.age`, that only your key opens. Put it in `~/Downloads`, then:
+
+   ```bash
+   bash scripts/accept-dev-tester-onboarding.sh --target staging \
+     --account <your_account>
+   ```
+
+   It checks your tools first, then shows each change and asks you to type `APPLY`: your AWS profiles, the pinned staging host key, the SSH stanza, and your own sudo password in place of the one-time one (at least 12 characters, kept in `~/AWS/HOST_OPERATOR.txt`). It deletes the sealed file, ends by setting up and checking your workstation as you, and prints an evidence block to send the maintainer.
+3. Prove the path with a code-only deploy and the smoke suite, after telling the maintainer:
+
+   ```bash
+   bash scripts/as-dev-tester.sh --account <your_account> \
+     ./deploy_to_aws.sh
+   bash scripts/as-dev-tester.sh --account <your_account> \
+     npm run test:smoke -- --target staging
+   ```
+
+**Working on staging.** Develop locally with `./run_dev.sh` as before. Reach staging only by putting a command through `bash scripts/as-dev-tester.sh --account <your_account>`, which runs it as you: on AWS as the job role under your name, on the host as your account. A command run without it has no identity and is refused.
+
+- Message the maintainer before any staging deploy, of any kind, every time. Staging is shared, and a deploy can replace what someone else is testing. The read-only `--staging` test rows are exempt.
+- A schema change reaches staging with `./deploy_to_aws.sh --public-data`, through the wrapper. It rebuilds staging's database from the committed public inputs alone and replaces it. Staging then lacks the real legacy members, the roster-based enrichment, the account rulings and board flags, and every other member row it held, until a maintainer's full rebuild restores them. The run says so before it starts and as the last thing it prints, and it is refused for production.
+
+**Leaving.** Offboarding disables your host account, retires your AWS identity and its key, and removes your address from the staging allow-list. Your clone of this repository is untouched, and repository access is granted and withdrawn separately. To come back, make a fresh pair, retiring the one your acceptance recorded, and join again from step 1 with the new key:
+
+```bash
+bash scripts/setup-dev-workstation.sh --operator \
+  --account <your_account> --replace-key retired
+```
 
 ## 4. Appendices
 

@@ -24,13 +24,14 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, statSync, readdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, statSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+import { seedMaintainerMachine, snapshotAdminFiles } from '../fixtures/maintainerMachine';
 
 const SCRIPT = join(process.cwd(), 'scripts/onboard-dev-tester.sh');
 const ACCOUNT = 'james_leberknight';
@@ -131,7 +132,8 @@ case "$1 $2" in
       *"length("*) n=0; [[ -e "$S/active-key" ]] && n=$((n+1)); [[ -e "$S/minted-key" ]] && n=$((n+1)); echo "$n" ;;
       *)
         st=Active; [[ -e "$S/key-inactive" ]] && st=Inactive
-        [[ -e "$S/active-key" ]] && printf '%s\\t%s\\t2026-01-01T00:00:00Z\\n' ${JSON.stringify(EARLIER_KEY_ID)} "$st"
+        [[ -e "$S/active-key" ]] && printf '%s\\t%s\\t2026-01-01T00:00:00+00:00\\n' ${JSON.stringify(EARLIER_KEY_ID)} "$st"
+        [[ -e "$S/second-active-key" ]] && printf '%s\\t%s\\t2026-02-01T00:00:00+00:00\\n' fixture-second-key-id Active
         st=Active; [[ -e "$S/minted-inactive" ]] && st=Inactive
         [[ -e "$S/minted-key" ]] && printf '%s\\t%s\\t2026-09-01T00:00:00Z\\n' ${JSON.stringify(MINTED_KEY_ID)} "$st"
         true ;;
@@ -139,6 +141,17 @@ case "$1 $2" in
   "iam create-access-key")
     [[ -e "$S/minted-lost" ]] || touch "$S/minted-key"
     printf '%s\\t%s\\n' ${JSON.stringify(MINTED_KEY_ID)} ${JSON.stringify(MINTED_SECRET)} ;;
+  "ssm get-parameter")
+    [[ -e "$S/param" ]] && { cat "$S/param"; exit 0; }
+    echo "aws: [ERROR]: An error occurred (ParameterNotFound) when calling the GetParameter operation:" >&2
+    exit 254 ;;
+  "cloudtrail lookup-events")
+    printf '%s\\n' "$*" >> "$S/cloudtrail.args"
+    if [[ -e "$S/assumed" ]]; then
+      cat "$S/assumed"
+    else
+      echo '{"Events":[]}'
+    fi ;;
   "lightsail get-instance-access-details")
     printf 'ssh-ed25519\\tAAAAC3NzaC1lZDI1NTE5AAAAIFixtureHostKeyEd25519\\n'
     printf 'ssh-rsa\\tAAAAB3NzaC1yc2EAAAADAQABFixtureHostKeyRsa\\n' ;;
@@ -167,10 +180,19 @@ if [[ " $* " == *" --inspect "* ]]; then
   echo "==> Account:     ${ACCOUNT}  for "
   echo "ACCOUNT present"
   if [[ -e ${D}/host-locked ]]; then echo "LOCKED yes"; else echo "LOCKED no"; fi
+  mine="$(ssh-keygen -l -f ${JSON.stringify(join(dir, 'id_ed25519_james.pub'))})"
   if [[ -e ${D}/host-other-key ]]; then
     echo "KEY 256 SHA256:fixtureSomebodyElsesKeyFingerprint0000000000 other (ED25519)"
   else
-    echo "KEY $(ssh-keygen -l -f ${JSON.stringify(join(dir, 'id_ed25519_james.pub'))})"
+    echo "KEY $mine"
+  fi
+  [[ -e ${D}/host-retired-this-key ]] && echo "RETIRED $mine"
+  if [[ -e ${D}/host-shared-this-key ]]; then
+    echo "SHARED $(awk '{print $2}' <<<"$mine")"
+  elif [[ -e ${D}/host-shared-unknown ]]; then
+    echo "SHARED unknown"
+  else
+    echo "SHARED SHA256:fixtureTheSharedAccountsOwnKey00000000000000"
   fi
   exit 0
 fi
@@ -294,14 +316,14 @@ function runPiped(argv: string[], extraEnv: Record<string, string> = {}) {
 }
 
 /** Through `script`, with the sudo password redirected in as documented. */
-function runInTerminal(terminal: string, argv: string[] = args()) {
+function runInTerminal(terminal: string, argv: string[] = args(), extraEnv: Record<string, string> = {}) {
   const cred = join(dir, 'cred');
   writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
   const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
   const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
     encoding: 'utf-8',
     input: terminal,
-    env: { ...process.env, ...env() },
+    env: { ...process.env, ...env(), ...extraEnv },
     ...SPAWN_GUARD,
   });
   return { status: r.status, out: r.stdout ?? '' };
@@ -381,10 +403,22 @@ describe('onboard-dev-tester.sh — refused before anything is read or reached',
     expect(r.stderr).toMatch(/--address must be/);
   });
 
-  it('refuses a missing location, which completes the allow-list attribution', () => {
-    const r = runPiped(args({ '--location': '' }));
+  it('refuses an address with an octet past 255 before anything is minted', () => {
+    // The shape check alone admitted 999.1.1.1, and the run then minted a key
+    // and sealed a file before the allow-list step refused it.
+    const r = runPiped(args({ '--address': '999.1.1.1' }));
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/--location "<where>" is required/);
+    expect(r.stderr).toMatch(/--address must be/);
+    expect(calls()).toEqual([]);
+    // The edge of the range is still an address.
+    const ok = runInTerminal('APPLY\n', args({ '--address': '255.255.255.254/32' }));
+    expect(ok.status, ok.out).toBe(0);
+  });
+
+  it('describes the address as home when no location is given', () => {
+    const r = runInTerminal('APPLY\n', args({ '--location': '' }));
+    expect(r.status, r.out).toBe(0);
+    expect(read('address.args')).toContain(`--for ${ACCOUNT}; home`);
   });
 
   it('refuses a location carrying the attribution separator', () => {
@@ -483,7 +517,9 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
   it('puts their address on the allow-list, attributed to them, with the sudo password kept away from it', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status, r.out).toBe(0);
-    expect(read('address.args')).toBe(`--target staging --address ${ADDRESS} --for ${ACCOUNT}; home\n`);
+    // Their own parameter, never the values file that holds the administrators'
+    // entries, so an onboarding cannot change an administrator's access.
+    expect(read('address.args')).toBe(`--target staging --dev-tester ${ACCOUNT} --address ${ADDRESS} --for ${ACCOUNT}; home\n`);
     expect(read('address.stdin')).toBe('');
   });
 
@@ -572,7 +608,8 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(r.out).not.toContain(MINTED_SECRET);
     expect(r.out).not.toMatch(/Title:/);
     expect(r.out).toMatch(/Nothing goes in the vault: nobody named has a vault entry/);
-    expect(r.out).toContain(`access key id issued is ${MINTED_KEY_ID}`);
+    expect(r.out).toMatch(new RegExp(`access key id: ${MINTED_KEY_ID}`));
+    expect(r.out).toMatch(new RegExp(`fingerprint: +${pubSha.replace(/[+/]/g, '\\$&')}`));
     expect(r.out).toContain('accept-dev-tester-onboarding.sh');
   });
 
@@ -811,5 +848,207 @@ describe('onboard-dev-tester.sh — an onboarding that stops after the host step
     expect(existsSync(SEALED())).toBe(false);
     expect(calls().some((c) => c.startsWith(`iam delete-access-key --user-name ${ACCOUNT}`))).toBe(true);
     expect(readdirSync(tmp)).toEqual([]);
+  });
+});
+
+describe('onboard-dev-tester.sh — the key and the address it is given', () => {
+  it('takes the key line itself, as it was sent, and hands that line to the host step', () => {
+    const line = readFileSync(pub, 'utf-8').trim();
+    const r = runInTerminal('APPLY\n', args({ '--public-key': line }));
+    expect(r.status, r.out).toBe(0);
+    expect(read('provision.args')).toContain(`--key-line ${line}`);
+  });
+
+  it('onboards yourself from your own named pair, deriving the fingerprint and reading your address', () => {
+    // No key travelled, so there is nothing to compare a posted fingerprint to;
+    // the pair is the one this machine made for that account name and no other.
+    mkdirSync(join(home, '.ssh'), { recursive: true });
+    writeFileSync(join(home, '.ssh', `id_ed25519_${ACCOUNT}.pub`), readFileSync(pub, 'utf-8'));
+    const fetch = stub('checkip', 'echo 203.0.113.44');
+    const cred = join(dir, 'cred');
+    writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
+    const argv = args({ '--public-key': '', '--expect-fingerprint': '', '--address': '' });
+    const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
+    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+      encoding: 'utf-8',
+      input: 'APPLY\n',
+      env: { ...process.env, ...env(), ONBOARD_DEV_TESTER_FETCH: fetch },
+      ...SPAWN_GUARD,
+    });
+    expect(r.status, r.stdout).toBe(0);
+    expect(read('address.args')).toContain('--address 203.0.113.44/32 ');
+    expect(r.stdout).toMatch(new RegExp(`fingerprint: +${pubSha.replace(/[+/]/g, '\\$&')}`));
+  });
+
+  it('refuses to onboard yourself when this machine has no pair of that name', () => {
+    const r = runPiped(args({ '--public-key': '', '--expect-fingerprint': '' }));
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/no --public-key, and no .*id_ed25519_james_leberknight\.pub/);
+    expect(r.stderr).toMatch(/setup-dev-workstation\.sh --operator --account james_leberknight/);
+  });
+
+  it('refuses a range, since a dev-and-tester\'s address is one host', () => {
+    const r = runPiped(args({ '--address': '198.51.100.0/24' }));
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/one host/);
+  });
+
+  it('refuses a key the account was retired with, before anything is confirmed or created', () => {
+    // Reinstating it would let back in whoever still holds its private half.
+    writeFileSync(join(dir, 'host-retired-this-key'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/is a key james_leberknight was retired with/);
+    expect(r.out).toMatch(/--replace-key retired/);
+    expect(r.out).not.toMatch(/Type 'APPLY' to onboard/);
+    expect(read('provision.args')).toBe('');
+    expect(mutatingCalls()).toEqual([]);
+  });
+
+  it('refuses a key the shared account holds, before anything is confirmed or created', () => {
+    writeFileSync(join(dir, 'host-shared-this-key'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/also on the shared footbag account/);
+    expect(read('provision.args')).toBe('');
+    expect(mutatingCalls()).toEqual([]);
+  });
+
+  it('hands the sudo password to every host step, the early read included', () => {
+    const r = runInTerminal('APPLY\n');
+    expect(r.status, r.out).toBe(0);
+    expect(read('inspect.stdin')).toBe('fixture-sudo-password\n');
+    expect(read('provision.stdin')).toBe('fixture-sudo-password\n');
+  });
+});
+
+describe('onboard-dev-tester.sh on a maintainer\'s own machine', () => {
+  it('leaves every administrative file byte for byte across an onboarding, an already-done run and a re-issue', () => {
+    // The holder onboards themselves on the machine holding footbag-operator, both
+    // runtime chains, the shared password files, the pin file and the stanzas.
+    // The only thing any of these runs may add is the sealed file.
+    seedMaintainerMachine(home, ['203.0.113.10 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost']);
+    const files = {
+      AWS_CONFIG_FILE: join(home, '.aws', 'config'),
+      AWS_SHARED_CREDENTIALS_FILE: join(home, '.aws', 'credentials'),
+    };
+    const before = snapshotAdminFiles(home);
+
+    const onboard = runInTerminal('APPLY\n', args(), files);
+    expect(onboard.status, onboard.out).toBe(0);
+    expect(snapshotAdminFiles(home)).toEqual(before);
+
+    // The onboarding is now finished in IAM, so a second run reads it back.
+    const again = runInTerminal('', args(), files);
+    expect(again.status, again.out).toBe(0);
+    expect(again.out).toMatch(/Already done/);
+    expect(snapshotAdminFiles(home)).toEqual(before);
+
+    const reissue = runInTerminal('APPLY\n', args({}, ['--reissue']), files);
+    expect(reissue.status, reissue.out).toBe(0);
+    expect(snapshotAdminFiles(home)).toEqual(before);
+    expect(readdirSync(join(home, 'AWS')).sort()).toEqual(
+      ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt', 'footbag_known_hosts', `${ACCOUNT}-staging.onboarding.age`].sort(),
+    );
+  });
+});
+
+describe('onboard-dev-tester.sh --verify: one read-only verdict', () => {
+  const VERIFY = ['--verify', '--target', 'staging', '--account', ACCOUNT];
+  const ASSUMED_ARN = `arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${ACCOUNT}`;
+
+  /** A finished, accepted onboarding: IAM, the host, the address, and the trail. */
+  function accepted(): void {
+    finished();
+    writeFileSync(join(dir, 'param'), ADDRESS);
+    const event = JSON.stringify({
+      eventTime: '2026-01-02T10:00:00Z',
+      responseElements: { assumedRoleUser: { arn: ASSUMED_ARN } },
+    });
+    writeFileSync(join(dir, 'assumed'), JSON.stringify({ Events: [{ EventName: 'AssumeRole', CloudTrailEvent: event }] }));
+  }
+
+  function runVerify(extra: string[] = [], extraEnv: Record<string, string> = {}) {
+    return runPiped([...VERIFY, '--expect-fingerprint', pubSha, ...extra], {
+      ONBOARD_DEV_TESTER_POLL_SECONDS: '0',
+      ONBOARD_DEV_TESTER_POLL_TRIES: '2',
+      ...extraEnv,
+    });
+  }
+
+  it('proves an accepted onboarding, with no terminal, changing nothing, and prints the evidence', () => {
+    accepted();
+    const r = runVerify();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/VERIFIED/);
+    expect(r.stdout).toContain(`assumed role:  ${ASSUMED_ARN}`);
+    expect(r.stdout).toContain(`access key id: ${EARLIER_KEY_ID}`);
+    expect(mutatingCalls()).toEqual([]);
+    expect(read('provision.args')).toBe('');
+    expect(read('address.args')).toBe('');
+    // The acceptance is looked for with the active key, from the moment it was made.
+    expect(read('cloudtrail.args')).toContain(`AttributeKey=AccessKeyId,AttributeValue=${EARLIER_KEY_ID}`);
+    expect(read('cloudtrail.args')).toContain('--start-time 2026-01-01T00:00:00+00:00');
+  });
+
+  it('reports pending, with the re-run, when the trail does not show the acceptance yet', () => {
+    accepted();
+    writeFileSync(join(dir, 'assumed'), '{"Events":[]}');
+    const r = runVerify();
+    expect(r.status).toBe(3);
+    expect(r.stdout).toMatch(/PENDING/);
+    expect(r.stdout).toMatch(/onboard-dev-tester\.sh --verify/);
+    expect(read('cloudtrail.args').split('\n').filter(Boolean)).toHaveLength(2);
+  });
+
+  it('does not count an assumption from before the key was made', () => {
+    accepted();
+    const old = JSON.stringify({ eventTime: '2025-12-31T10:00:00Z', responseElements: { assumedRoleUser: { arn: ASSUMED_ARN } } });
+    writeFileSync(join(dir, 'assumed'), JSON.stringify({ Events: [{ EventName: 'AssumeRole', CloudTrailEvent: old }] }));
+    expect(runVerify().status).toBe(3);
+  });
+
+  it('fails when the shared account holds the key too', () => {
+    accepted();
+    writeFileSync(join(dir, 'host-shared-this-key'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/shared footbag account holds this key too/);
+  });
+
+  it('fails when whether the shared account holds the key cannot be read', () => {
+    accepted();
+    writeFileSync(join(dir, 'host-shared-unknown'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not be read/);
+  });
+
+  it('fails when the user holds more than one active key', () => {
+    accepted();
+    writeFileSync(join(dir, 'second-active-key'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/2 active keys where exactly one belongs/);
+  });
+
+  it('fails when the address parameter is missing', () => {
+    accepted();
+    rmSync(join(dir, 'param'));
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/no staging address parameter/);
+  });
+
+  it('fails when the host account holds a different key', () => {
+    accepted();
+    writeFileSync(join(dir, 'host-other-key'), '');
+    expect(runVerify().status).toBe(1);
+  });
+
+  it('takes nothing that would change anything', () => {
+    const r = runPiped([...VERIFY, '--expect-fingerprint', pubSha, '--reissue']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--verify changes nothing/);
   });
 });

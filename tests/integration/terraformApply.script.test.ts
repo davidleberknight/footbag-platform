@@ -240,6 +240,13 @@ function assumedRoleIdentity(): NodeJS.ProcessEnv {
   });
 }
 
+/** A stand-in values file, so the job-role check passes whatever this machine has linked. */
+function valuesPresent(): NodeJS.ProcessEnv {
+  const file = join(tmpDir, 'terraform.tfvars');
+  writeFileSync(file, 'operator_cidrs = []\n');
+  return { TERRAFORM_APPLY_VALUES_FILE: file };
+}
+
 function plannedPath(): string {
   const line = calls().split('\n').find((l) => l.includes('-out='));
   expect(line, 'the run planned to a file').toBeTruthy();
@@ -367,7 +374,7 @@ describe('terraform-apply.sh: argument handling', () => {
   it('applies the caller rule to the identity tree alone', () => {
     // Every other tree is ordinary work for whoever the operator signed in as.
     writeTerraformStub();
-    const res = run(['--target', 'staging', '--yes'], true, assumedRoleIdentity());
+    const res = run(['--target', 'staging', '--yes'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
     expect(res.exitCode).toBe(0);
     expect(res.stderr).not.toMatch(/is an assumed role/);
   });
@@ -397,6 +404,136 @@ describe('terraform-apply.sh: argument handling', () => {
       expect(calls(), 'terraform was never invoked').toBe('');
     },
   );
+});
+
+describe('terraform-apply.sh: a job-role session', () => {
+  it('refuses before planning when the values link is missing, naming it', () => {
+    // A dev-and-tester need not have the private checkout. Without the values
+    // file terraform fails on a missing variable partway into a plan, in words
+    // that do not name the file.
+    writeTerraformStub();
+    const res = run(['--target', 'staging'], true, {
+      ...assumedRoleIdentity(),
+      TERRAFORM_APPLY_VALUES_FILE: join(tmpDir, 'no-such.tfvars'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/terraform\/staging\/terraform\.tfvars is missing or unreadable/);
+    expect(res.stderr).toMatch(/setup_private_repo\.sh/);
+    expect(calls(), 'terraform was never invoked').toBe('');
+  });
+
+  it('never lets terraform prompt, on the plan and on the apply', () => {
+    // A prompt in a wrapped run reads as a hang; -input=false turns it into an
+    // error naming the variable.
+    writeTerraformStub();
+    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    expect(res.exitCode, res.stderr).toBe(0);
+    const lines = calls().split('\n').filter((l) => / (plan|apply) /.test(l));
+    expect(lines.length).toBe(2);
+    for (const l of lines) expect(l).toContain('-input=false');
+  });
+
+  it('refuses a plan that changes IAM, before applying anything', () => {
+    // The role holds no IAM write, so AWS would refuse partway through, after
+    // the changes ahead of it had landed.
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_iam_role_policy', address: 'aws_iam_role_policy.runtime', actions: ['update'] },
+      ],
+    });
+    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/this plan changes IAM, which the job role may not do/);
+    expect(res.stderr).toContain('aws_iam_role_policy.runtime');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('applies a plan whose IAM entries are all no-ops', () => {
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_iam_role', address: 'aws_iam_role.runtime', actions: ['no-op'] },
+      ],
+    });
+    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toMatch(/ apply /);
+  });
+
+  it('leaves the directly authenticated identity exactly as it was', () => {
+    // No -input=false, no values check and no IAM refusal: the administrator's
+    // own apply must not change shape because the job role gained guards.
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_iam_role_policy', address: 'aws_iam_role_policy.runtime', actions: ['update'] },
+      ],
+    });
+    const res = run(['--target', 'staging'], true, {
+      TERRAFORM_APPLY_VALUES_FILE: join(tmpDir, 'no-such.tfvars'),
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    const log = calls();
+    expect(log).not.toContain('-input=false');
+    expect(log).toMatch(/^terraform -chdir=\S+terraform\/staging plan -no-color -out=\S+$/m);
+    expect(log).toMatch(/^terraform -chdir=\S+terraform\/staging apply \S+$/m);
+  });
+});
+
+describe('terraform-apply.sh: a caller that knows what the plan may contain', () => {
+  const FIREWALL = { type: 'aws_lightsail_instance_public_ports', address: 'aws_lightsail_instance_public_ports.web', actions: ['delete', 'create'] };
+
+  it('applies a firewall-only plan, saying first that every staging port blinks', () => {
+    writeTerraformStub({ planResourceChanges: [FIREWALL] });
+    const res = run(['--target', 'staging', '--firewall-only']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/Every staging port, SSH and the site alike, closes for a few seconds/);
+    expect(calls()).toMatch(/ apply \//);
+  });
+
+  it('refuses a firewall-only apply that would carry other drift with it', () => {
+    // An address change must not quietly apply whatever else is pending in the tree.
+    writeTerraformStub({
+      planResourceChanges: [FIREWALL, { type: 'aws_s3_bucket', address: 'aws_s3_bucket.media', actions: ['update'] }],
+    });
+    const res = run(['--target', 'staging', '--firewall-only']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would also change:\n\s+aws_s3_bucket\.media/);
+    expect(res.stderr).not.toContain('  aws_lightsail_instance_public_ports.web');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('applies nothing when the firewall already matches', () => {
+    writeTerraformStub({ planResourceChanges: [{ ...FIREWALL, actions: ['no-op'] }] });
+    const res = run(['--target', 'staging', '--firewall-only']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/already admits exactly these addresses/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('accepts an empty plan when one is required, and applies nothing', () => {
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_s3_bucket', address: 'aws_s3_bucket.media', actions: ['no-op'] }] });
+    const res = run(['--target', 'staging', '--require-empty-plan']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/The plan is empty, as required/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('refuses any change at all when the plan is required to be empty, the firewall included', () => {
+    writeTerraformStub({ planResourceChanges: [FIREWALL] });
+    const res = run(['--target', 'staging', '--require-empty-plan']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/required to be empty, and it changes:\n\s+aws_lightsail_instance_public_ports\.web/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('refuses either mode on any tree but staging, before terraform runs', () => {
+    writeTerraformStub();
+    for (const flag of ['--firewall-only', '--require-empty-plan']) {
+      const res = run(['--target', 'production', flag]);
+      expect(res.exitCode, flag).toBe(2);
+      expect(res.stderr).toMatch(/apply to staging only/);
+    }
+    expect(calls()).toBe('');
+  });
 });
 
 describe('terraform-apply.sh: breaking a stale state lock', () => {

@@ -83,8 +83,11 @@
 # Steps, referenced by --from-step so a run that stopped part way is resumable:
 #   1  the Linux account on the host
 #   2  the AWS identity, and the job-role sessions already issued to it
-#   3  their address on this environment's SSH allow-list: every entry whose
-#      attribution names their account first, as an add writes it
+#   3  their address on this environment's SSH allow-list: their own address
+#      parameter, removed through the allow-list step's dev-and-tester path,
+#      which never opens the values file holding the administrators' entries.
+#      When this machine connects from that very address, it warns first and
+#      asks, since removing it can end this machine's own SSH to staging
 # Whatever the step, this workstation is cleaned last, and that detects what is
 # already done.
 #
@@ -116,6 +119,7 @@
 #                         IAM user read
 #   OFFBOARD_SSH_CONFIG   the SSH config file to read and change
 #   OFFBOARD_ADDRESS_CMD  replaces the allow-list child
+#   OFFBOARD_FETCH        replaces the checkip read of this machine's address
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -140,6 +144,8 @@ source "${REPO_ROOT}/scripts/lib/aws-credentials-file.sh"
 HOST_CMD="${OFFBOARD_HOST_CMD:-${SCRIPT_DIR}/provision-operator-account.sh}"
 AWS_CMD="${OFFBOARD_AWS_CMD:-${SCRIPT_DIR}/manage-human-operator.sh}"
 ADDRESS_CMD="${OFFBOARD_ADDRESS_CMD:-${SCRIPT_DIR}/authorize-operator-address.sh}"
+FETCH_CMD="${OFFBOARD_FETCH:-}"
+DEV_TESTER_PATH="/footbag-ops/staging/dev-testers"
 AWS_BIN="${OFFBOARD_AWS_BIN:-aws}"
 AWS_IDENTITY_BIN="$AWS_BIN"
 SSH_CONFIG="${OFFBOARD_SSH_CONFIG:-${HOME}/.ssh/config}"
@@ -237,7 +243,7 @@ HELD_HERE=0
 # named-account password is one file per machine, not per account, so it is
 # this account's only when the Match block says this machine is theirs.
 MATCH_ACCOUNT_HERE="$(ssh_alias_match_account "$SSH_CONFIG" "$ALIAS" "$FOOTBAG_DEV_TESTER_PROFILE" 2>/dev/null || true)"
-if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]] \
+if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" || -e "${NAMED_KEY}.onboarded" ]] \
    || aws_cred_has_section "$AWS_CRED_PATH" "$ACCOUNT" \
    || [[ "$MATCH_ACCOUNT_HERE" == "$ACCOUNT" ]]; then
   HELD_HERE=1
@@ -324,38 +330,76 @@ fi
 # ── Step 3: the SSH allow-list ───────────────────────────────────────────────
 
 # After the host and AWS halves, because an address with no account behind it
-# reaches a login prompt and nothing more. The entries are the ones attributed
-# to this account first, as an add writes them, found by the script that owns
-# the list; each is removed by it too, which proves the address gone on every
-# SSH port against the live firewall and refuses if somebody else's range still
-# admits it. An entry attributed any other way is somebody else's, or nobody's,
-# and is never removed on a guess.
+# reaches a login prompt and nothing more. The address is this account's own
+# parameter, removed by the script that owns the allow-list, which proves the
+# firewall afterwards and never opens the values file: the administrators'
+# entries cannot be touched from here, even when this person shares an
+# administrator's address, and the report then names that entry as what still
+# admits it.
 if (( FROM_STEP <= 3 )); then
   echo ""
   echo "== Step 3: ${ACCOUNT}'s address on the ${TARGET} SSH allow-list"
-  if ! LISTED="$(bash "$ADDRESS_CMD" --target "$TARGET" --list-for "$ACCOUNT" </dev/null)"; then
-    echo "" >&2
-    echo "ERROR: could not read the ${TARGET} allow-list for ${ACCOUNT}'s entries. The host" >&2
-    echo "       account and the AWS identity ARE retired. Once the list reads:" >&2
-    echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
-    exit 1
+  OWN_ADDRESS=""
+  ADDRESS_READ_ERR=""
+  if ! OWN_ADDRESS="$("$AWS_BIN" ssm get-parameter --region us-east-1 \
+        --name "${DEV_TESTER_PATH}/${ACCOUNT}" --query Parameter.Value --output text 2>/dev/null)"; then
+    ADDRESS_READ_ERR="$("$AWS_BIN" ssm get-parameter --region us-east-1 \
+        --name "${DEV_TESTER_PATH}/${ACCOUNT}" --query Parameter.Value --output text 2>&1 >/dev/null || true)"
+    OWN_ADDRESS=""
+    if [[ "$ADDRESS_READ_ERR" != *ParameterNotFound* ]]; then
+      echo "" >&2
+      echo "ERROR: could not read ${ACCOUNT}'s staging address: ${ADDRESS_READ_ERR}" >&2
+      echo "       The host account and the AWS identity ARE retired. Once it reads:" >&2
+      echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
+      exit 1
+    fi
   fi
-  if [[ -z "$LISTED" ]]; then
-    echo "    no entry on it is attributed to ${ACCOUNT}"
+
+  if [[ -z "$OWN_ADDRESS" ]]; then
+    echo "    ${ACCOUNT} has no staging address parameter; nothing to remove"
   else
-    while IFS= read -r cidr; do
-      [[ -z "$cidr" ]] && continue
-      ADDRESS_ARGS=(--target "$TARGET" --address "$cidr" --remove)
-      [[ "$ASSUME_YES" == "yes" ]] && ADDRESS_ARGS+=(--yes)
-      if ! bash "$ADDRESS_CMD" "${ADDRESS_ARGS[@]}" </dev/null; then
-        echo "" >&2
-        echo "ERROR: ${cidr} was not proved off the ${TARGET} allow-list. The host account" >&2
-        echo "       and the AWS identity ARE retired. Resume:" >&2
-        echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
+    # This machine's own address, the way onboarding reads it. Removing the
+    # address this machine connects from can end its own SSH to staging, unless
+    # an administrator entry also admits it, which this run does not read: the
+    # warning says both, and the person running it decides.
+    if [[ -n "$FETCH_CMD" ]]; then
+      echo "SYNTHETIC: checkip='${FETCH_CMD}' -- this machine's address is a stand-in." >&2
+      HERE="$("$FETCH_CMD" 2>/dev/null || true)"
+    else
+      HERE="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null || true)"
+    fi
+    HERE="${HERE//[[:space:]]/}"
+    [[ -n "$HERE" && "$HERE" != */* ]] && HERE="${HERE}/32"
+    if [[ -n "$HERE" && "$HERE" == "$OWN_ADDRESS" ]]; then
+      echo ""
+      echo "  WARNING: this machine connects from ${OWN_ADDRESS}, the address being removed."
+      echo "  If no administrator entry also admits it, this machine loses SSH to"
+      echo "  ${TARGET} when it is removed. An administrator's own entry stays exactly"
+      echo "  as it is; the removal report says whether one still admits this address."
+      # --yes does not answer this one: whether to cut this machine off is
+      # decided by the person at it, not by a flag passed before they knew.
+      SELF_ASSUME_YES_WAS="$ASSUME_YES"
+      ASSUME_YES="no"
+      SELF_OK=0
+      confirm_from_tty "Type 'APPLY' to remove this machine's own address: " "APPLY" && SELF_OK=1
+      ASSUME_YES="$SELF_ASSUME_YES_WAS"
+      if (( ! SELF_OK )); then
+        echo "Not confirmed. The host account and the AWS identity ARE retired; the" >&2
+        echo "address stays until this is resumed:" >&2
+        echo "  bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
         exit 1
       fi
-      echo "    ${cidr}: off the list, and the live firewall agrees"
-    done <<< "$LISTED"
+    fi
+    ADDRESS_ARGS=(--target "$TARGET" --dev-tester "$ACCOUNT" --remove)
+    [[ "$ASSUME_YES" == "yes" ]] && ADDRESS_ARGS+=(--yes)
+    if ! bash "$ADDRESS_CMD" "${ADDRESS_ARGS[@]}" </dev/null; then
+      echo "" >&2
+      echo "ERROR: ${OWN_ADDRESS} was not proved off the ${TARGET} allow-list. The host" >&2
+      echo "       account and the AWS identity ARE retired. Resume:" >&2
+      echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
+      exit 1
+    fi
+    echo "    ${OWN_ADDRESS}: ${ACCOUNT}'s own entry is gone, and the live firewall was read back"
   fi
 fi
 
@@ -452,15 +496,21 @@ else
   else
     echo "  ${NAMED_KEY_TILDE} key pair: none here"
   fi
+  # The acceptance marker named the pair just shredded; left behind, it would
+  # describe a pair that no longer exists.
+  if [[ -e "${NAMED_KEY}.onboarded" ]]; then
+    secret_file_destroy "${NAMED_KEY}.onboarded"
+    echo "  ${NAMED_KEY_TILDE}.onboarded acceptance marker: removed"
+  fi
 fi
 
 # Reached only when every step above proved its outcome: each one that could
 # not has already stopped the run, naming where to resume.
 echo ""
 echo "Done. On ${TARGET}, ${ACCOUNT} holds no shell, their IAM user is inert with no"
-echo "job-role session still working, and no address on the SSH allow-list is"
-echo "attributed to them. Each step proved its own outcome rather than reporting"
-echo "what it ran."
+echo "job-role session still working, and their own address is off the SSH"
+echo "allow-list. Each step proved its own outcome rather than reporting what it"
+echo "ran."
 echo ""
 echo "One thing no step here reaches: a staging runtime session they chained from"
 echo "one of their job-role sessions before now carries no name of theirs to refuse"

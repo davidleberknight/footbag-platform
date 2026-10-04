@@ -218,6 +218,12 @@ function awsStub(): string {
       // replaces the answer to prove the proof itself refuses.
       '  put-role-policy)',
       `    [ -f "$S/put-role-fails" ] && { echo "An error occurred (AccessDenied) when calling the PutRolePolicy operation" >&2; exit 254; }`,
+      // The role's shared inline budget, as IAM enforces it: the documents
+      // already on the role, other than the one being replaced, plus this one.
+      `    if [ -s "$S/inline-budget" ]; then`,
+      `      used=$(cat "$S"/role-policy-* 2>/dev/null | wc -c); [ -f "$S/role-policy-$pname" ] && used=$(( used - $(wc -c < "$S/role-policy-$pname") ))`,
+      `      [ $(( used + \${#doc} )) -gt "$(cat "$S/inline-budget")" ] && { echo "An error occurred (LimitExceeded) when calling the PutRolePolicy operation: Maximum policy size exceeded" >&2; exit 254; }`,
+      '    fi',
       `    printf '%s' "$doc" > "$S/role-policy-$pname" ;;`,
       '  get-role-policy)',
       `    [ -f "$S/role-policy-$pname" ] || { echo NoSuchEntity >&2; exit 254; }`,
@@ -541,6 +547,31 @@ describe('manage-human-operator.sh — offboarding', () => {
     expect(existsSync(join(stateDir, 'role-policy-revoke-sessions-long_gone'))).toBe(false);
     expect(existsSync(join(stateDir, `role-policy-revoke-sessions-${OPERATOR}`))).toBe(true);
     expect(r.stdout).toMatch(/revoke-sessions-long_gone: cut off at 2020-01-01T00:00:00Z, refuses nothing now, removed/);
+  });
+
+  it('clears an expired revocation before writing, so a role with room for one still takes the next', () => {
+    // A role's inline policies share one size limit. With room for a single
+    // revocation, an earlier departure's expired one left on the role refused
+    // this write when clearing ran after it, and every re-run was refused the
+    // same way with the departing person's sessions still live.
+    seedRevocation('long_gone', '2020-01-01T00:00:00Z');
+    writeFileSync(join(stateDir, 'inline-budget'), '300\n', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    expect(existsSync(join(stateDir, 'role-policy-revoke-sessions-long_gone'))).toBe(false);
+    expect(JSON.parse(revokeDoc()).Statement[0].Condition.StringLike['aws:userid']).toBe(`*:${OPERATOR}`);
+  });
+
+  it('names the size limit when a full role refuses the revocation', () => {
+    // A live revocation cannot be cleared, so a role with no room left refuses,
+    // and the operator is told what that refusal means and how to see it.
+    seedRevocation('just_left', new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    writeFileSync(join(stateDir, 'inline-budget'), '300\n', 'utf-8');
+    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/LimitExceeded refusal means the role's inline policies are full/);
+    expect(r.stderr).toMatch(/aws iam list-role-policies --role-name FootbagDevTester/);
+    expect(r.stdout).not.toMatch(/Done\./);
   });
 
   it('keeps an earlier revocation that could still be refusing a live session', () => {

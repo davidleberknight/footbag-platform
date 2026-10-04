@@ -576,6 +576,14 @@ fi
 # so the two cannot drift apart. An empty value is a valid answer and clears the
 # env var on staging, so a stale list cannot survive the operator emptying it.
 INITIAL_ADMIN_EMAILS_CSV="$(resolve_initial_admin_emails_csv "$REPO_ROOT" "$REMOTE")"
+# The list belongs to the maintainers, and its file lives in their private
+# checkout. A deploy from a machine without that checkout has no say in it, so
+# it leaves the host's list exactly as it is rather than writing an empty one.
+INITIAL_ADMIN_MANAGED="no"
+initial_admin_list_managed "$REPO_ROOT" && INITIAL_ADMIN_MANAGED="yes"
+if [[ "$INITIAL_ADMIN_MANAGED" == "no" && "$REMOTE" != "footbag-production" ]]; then
+  echo "==> No private checkout here, so the host's initial-admin list is left as it is."
+fi
 
 # Deploy provenance, same shape the code-only path records. This deploy rsyncs
 # the local working tree, not a tagged artifact, so the commit alone understates
@@ -628,6 +636,7 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'CURATOR_SEED=%q\n'                 "${CURATOR_SEED:-yes}"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
+  printf 'FOOTBAG_DEV_INITIAL_ADMIN_MANAGED=%q\n' "$INITIAL_ADMIN_MANAGED"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'DEPLOY_PROVENANCE=%q\n'            "$DEPLOY_PROVENANCE"
   # The guards run first inside the root session: on a post-cutover host, a

@@ -61,6 +61,8 @@
 #
 # Test seams (CI only; operators never set these):
 #   MANAGE_OPERATOR_AWS_BIN           replaces the aws CLI
+#   MANAGE_OPERATOR_PROPAGATION_TRIES how many of those retries before the
+#                                     identity is reported NOT retired (60)
 #   MANAGE_OPERATOR_PROPAGATION_POLL  seconds between retries while a deleted
 #                                     key is still honoured
 set -euo pipefail
@@ -556,7 +558,10 @@ else
   # honouring a deleted key for some seconds, so a success is retried until it
   # stops or the wait runs out.
   RETIRE_POLL="${MANAGE_OPERATOR_PROPAGATION_POLL:-5}"
-  RETIRE_TRIES=24
+  # About five minutes: IAM has been seen honouring a deleted key for longer
+  # than two, and a wait that gives up early reports a live identity that is
+  # merely slow to die.
+  RETIRE_TRIES="${MANAGE_OPERATOR_PROPAGATION_TRIES:-60}"
   retire_try=0
   while REAL_ASSUME="$("$AWS_BIN" sts assume-role --profile "$ASSUME_SOURCE" \
       --role-arn "$DEV_TESTER_ROLE_ARN" --role-session-name "$OPERATOR" \
@@ -567,7 +572,9 @@ else
       printf '%s\n' "$REAL_ASSUME" | sed 's/^/         /' >&2
       echo "" >&2
       echo "       The grant and the keys report as gone, so something is still" >&2
-      echo "       authenticating. This identity is NOT retired." >&2
+      echo "       authenticating. This identity is NOT retired. If it is only slow" >&2
+      echo "       to take effect, a re-run in a few minutes finishes the job:" >&2
+      echo "         bash scripts/offboard-dev-tester.sh --target staging --account ${OPERATOR} --from-step 2" >&2
       exit 1
     fi
     (( retire_try == 0 )) \
@@ -594,61 +601,15 @@ if [[ "$_login" != "absent" ]]; then
 fi
 echo "    login profile: none"
 
-# Sessions already issued. Removing the grant stops new sessions being minted;
-# it does not reach one somebody already holds, which stays valid until it
-# expires, up to the role's four hours. So the role itself is told to refuse
-# every session this person was issued before now: a named inline policy on the
-# role, the shape AWS's own "revoke active sessions" writes, narrowed to this
-# person's sessions by the session name the trust policy forces to be theirs.
-# Nobody else's session is touched, and a re-onboarding's sessions are issued after the
-# cutoff and pass it; the next offboard of the same name rewrites the cutoff.
-#
-# Written here rather than in Terraform because it belongs to one departure and
-# revoking access must never wait on an apply. Terraform declares the role's job
-# policy by its own name and nothing that manages the whole set, so it neither
-# reports nor removes this one. The job role is denied writing to itself, so
-# only the identity running this can take it away.
-#
-# Last, after every proof, so a run that failed earlier has denied nobody.
-REVOKE_POLICY_NAME="revoke-sessions-${OPERATOR}"
-REVOKE_BEFORE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-REVOKE_USERID="*:${OPERATOR}"
-printf -v REVOKE_DOC '%s' \
-  '{"Version":"2012-10-17","Statement":[{"Sid":"RevokeSessionsIssuedBeforeOffboard",' \
-  '"Effect":"Deny","Action":"*","Resource":"*","Condition":{' \
-  '"DateLessThan":{"aws:TokenIssueTime":"'"$REVOKE_BEFORE"'"},' \
-  '"StringLike":{"aws:userid":"'"$REVOKE_USERID"'"}}}]}'
-echo "==> Ending the sessions ${OPERATOR} already holds"
-if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
-    --policy-name "$REVOKE_POLICY_NAME" --policy-document "$REVOKE_DOC" >/dev/null; then
-  echo "ERROR: could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}." >&2
-  echo "       The grant and the keys are gone, so no new session can be minted," >&2
-  echo "       but one issued before now still works until it expires. Re-run" >&2
-  echo "       this offboard: every step before this one finds its work done." >&2
-  exit 1
-fi
-REVOKE_READ="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
-  --policy-name "$REVOKE_POLICY_NAME" \
-  --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
-  --output text 2>/dev/null || true)"
-if [[ "$REVOKE_READ" != "Deny"$'\t'"${REVOKE_BEFORE}"$'\t'"${REVOKE_USERID}" ]]; then
-  echo "ERROR: ${REVOKE_POLICY_NAME} on ${DEV_TESTER_ROLE_NAME} does not read back as" >&2
-  echo "       written. It reads:" >&2
-  printf '%s\n' "${REVOKE_READ:-<nothing>}" | sed 's/^/         /' >&2
-  echo "       Until it does, a session issued before now still works. Re-run this" >&2
-  echo "       offboard." >&2
-  exit 1
-fi
-echo "    ${REVOKE_POLICY_NAME}: every ${DEV_TESTER_ROLE_NAME} session of ${OPERATOR}'s"
-echo "      issued before ${REVOKE_BEFORE} is refused"
-
 # Earlier departures' revocations, once they can refuse nothing. A session lives
 # at most the role's maximum duration, so a cutoff older than that plus an hour
 # of margin denies no session that still exists. Each departure leaves one such
-# policy on the role, and the role's inline policies share one size limit that
-# the job policy needs too, so they are cleared here rather than left to grow
-# until an offboard or an identity apply is refused. The person being retired
-# now is already retired above, so a failure here is reported and ends nothing.
+# inline policy on the role, and a role's inline policies share one
+# 10,240-character limit, so they are cleared BEFORE this departure's revocation
+# is written: cleared after, a full role refused the write and the run could
+# never make the room it needed. Removing a revocation that refuses nothing
+# denies nobody and exposes nothing, so this may run ahead of the write, and a
+# failure here is reported and stops nothing.
 echo "==> Clearing earlier revocations that can no longer refuse any session"
 PRUNE_MAX="$("$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" \
   --query 'Role.MaxSessionDuration' --output text 2>/dev/null || true)"
@@ -662,7 +623,8 @@ else
   PRUNE_NOW="$(date -u +%s)"
   PRUNED=0
   for _pname in $PRUNE_LIST; do
-    [[ "$_pname" == revoke-sessions-* && "$_pname" != "$REVOKE_POLICY_NAME" ]] || continue
+    # This person's own earlier revocation is rewritten below, not cleared.
+    [[ "$_pname" == revoke-sessions-* && "$_pname" != "revoke-sessions-${OPERATOR}" ]] || continue
     _cutoff="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
       --policy-name "$_pname" \
       --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
@@ -687,6 +649,58 @@ else
   unset _pname _cutoff _cutoff_epoch
   (( PRUNED )) || echo "    none to clear"
 fi
+
+# Sessions already issued. Removing the grant stops new sessions being minted;
+# it does not reach one somebody already holds, which stays valid until it
+# expires, up to the role's four hours. So the role itself is told to refuse
+# every session this person was issued before now: a named inline policy on the
+# role, the shape AWS's own "revoke active sessions" writes, narrowed to this
+# person's sessions by the session name the trust policy forces to be theirs.
+# Nobody else's session is touched, and a re-onboarding's sessions are issued after the
+# cutoff and pass it; the next offboard of the same name rewrites the cutoff.
+#
+# Written here rather than in Terraform because it belongs to one departure and
+# revoking access must never wait on an apply. Terraform declares the role's three
+# managed policies and their attachments, and nothing that manages its inline
+# policies, so it neither reports nor removes this one. The job role is denied writing to itself, so
+# only the identity running this can take it away.
+#
+# Last, after every proof, so a run that failed earlier has denied nobody.
+REVOKE_POLICY_NAME="revoke-sessions-${OPERATOR}"
+REVOKE_BEFORE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+REVOKE_USERID="*:${OPERATOR}"
+printf -v REVOKE_DOC '%s' \
+  '{"Version":"2012-10-17","Statement":[{"Sid":"RevokeSessionsIssuedBeforeOffboard",' \
+  '"Effect":"Deny","Action":"*","Resource":"*","Condition":{' \
+  '"DateLessThan":{"aws:TokenIssueTime":"'"$REVOKE_BEFORE"'"},' \
+  '"StringLike":{"aws:userid":"'"$REVOKE_USERID"'"}}}]}'
+echo "==> Ending the sessions ${OPERATOR} already holds"
+if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
+    --policy-name "$REVOKE_POLICY_NAME" --policy-document "$REVOKE_DOC" >/dev/null; then
+  echo "ERROR: could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}." >&2
+  echo "       The grant and the keys are gone, so no new session can be minted," >&2
+  echo "       but one issued before now still works until it expires. Re-run" >&2
+  echo "       this offboard: every step before this one finds its work done." >&2
+  echo "       A LimitExceeded refusal means the role's inline policies are full;" >&2
+  echo "       they should hold only revocations, so list them with" >&2
+  echo "         aws iam list-role-policies --role-name ${DEV_TESTER_ROLE_NAME}" >&2
+  echo "       and apply the identity tree if anything else is there." >&2
+  exit 1
+fi
+REVOKE_READ="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
+  --policy-name "$REVOKE_POLICY_NAME" \
+  --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
+  --output text 2>/dev/null || true)"
+if [[ "$REVOKE_READ" != "Deny"$'\t'"${REVOKE_BEFORE}"$'\t'"${REVOKE_USERID}" ]]; then
+  echo "ERROR: ${REVOKE_POLICY_NAME} on ${DEV_TESTER_ROLE_NAME} does not read back as" >&2
+  echo "       written. It reads:" >&2
+  printf '%s\n' "${REVOKE_READ:-<nothing>}" | sed 's/^/         /' >&2
+  echo "       Until it does, a session issued before now still works. Re-run this" >&2
+  echo "       offboard." >&2
+  exit 1
+fi
+echo "    ${REVOKE_POLICY_NAME}: every ${DEV_TESTER_ROLE_NAME} session of ${OPERATOR}'s"
+echo "      issued before ${REVOKE_BEFORE} is refused"
 
 echo ""
 echo "Done. ${OPERATOR} is inert: no grant, no keys, no console sign-in, and no"

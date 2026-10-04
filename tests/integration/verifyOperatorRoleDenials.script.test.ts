@@ -76,6 +76,24 @@ interface Estate {
   productionFunctionWritable?: boolean;
   /** The regression where a role can be passed to budgets. */
   budgetsPassable?: boolean;
+  /** The regression where IAM write over a staging-named user comes back. */
+  stagingIamWritable?: boolean;
+  /** The regression where a role other than the staging runtime is assumable. */
+  otherRoleAssumable?: boolean;
+  /** The regression where the chain into the staging runtime role is lost. */
+  runtimeChainDenied?: boolean;
+  /** The regression where an operator address can be written. */
+  addressWritable?: boolean;
+  /** The regression where the staging plan can no longer read the addresses. */
+  addressesUnreadable?: boolean;
+  /** A read a staging refresh makes that the role is denied. */
+  refreshReadDenied?: string | null;
+  /** Whether the job's three managed policies are attached to the role. */
+  jobPoliciesAttached?: boolean;
+  /** An inline policy on the role that is not a session revocation. */
+  strayInline?: string | null;
+  /** The regression where the role can rewrite its own managed policies. */
+  ownPolicyWritable?: boolean;
 }
 
 const HEALTHY: Required<Estate> = {
@@ -99,6 +117,15 @@ const HEALTHY: Required<Estate> = {
   untaggedAliasGraftable: false,
   productionFunctionWritable: false,
   budgetsPassable: false,
+  stagingIamWritable: false,
+  otherRoleAssumable: false,
+  runtimeChainDenied: false,
+  addressWritable: false,
+  addressesUnreadable: false,
+  refreshReadDenied: null,
+  jobPoliciesAttached: true,
+  strayInline: null,
+  ownPolicyWritable: false,
 };
 
 let workDir: string;
@@ -133,6 +160,13 @@ function awsStub(estate: Estate): string {
       '  get-caller-identity) echo 111122223333; exit 0 ;;',
       `  get-role) ${e.roleExists ? "printf '{}\\n'; exit 0" : 'exit 254'} ;;`,
       '  simulate-principal-policy) ;;',
+      e.jobPoliciesAttached
+        ? `  list-attached-role-policies) printf 'FootbagDevTester-StagingServices\\tFootbagDevTester-EdgeAndIdentity\\tFootbagDevTester-Guardrails\\n'; exit 0 ;;`
+        : `  list-attached-role-policies) printf 'FootbagDevTester-StagingServices\\n'; exit 0 ;;`,
+      `  list-role-policies) printf 'revoke-sessions-someone_gone%s\\n'; exit 0 ;;`.replace(
+        '%s',
+        e.strayInline ? `\\t${e.strayInline}` : '',
+      ),
       '  *) exit 0 ;;',
       'esac',
       '',
@@ -154,7 +188,17 @@ function awsStub(estate: Estate): string {
       '',
       'decide() {',
       '  local a="$1"',
+      `  if [[ -n ${q(e.refreshReadDenied)} && "$a" == ${q(e.refreshReadDenied)} ]]; then echo implicitDeny; return; fi`,
       '  case "$a" in',
+      '    cloudwatch:GetDashboard|ssm:DescribeParameters|logs:DescribeLogGroups|ses:DescribeConfigurationSet|cloudwatch:DescribeAlarms|sqs:GetQueueAttributes|sns:GetTopicAttributes|s3:GetBucketPolicy|lightsail:GetInstance)',
+      '      echo allowed; return ;;',
+      '    iam:CreatePolicyVersion|iam:SetDefaultPolicyVersion|iam:DeletePolicyVersion|iam:DeletePolicy)',
+      '      if [[ "$resource" == *:policy/FootbagDevTester-* ]]; then',
+      `        ${e.ownPolicyWritable ? 'echo allowed' : 'echo implicitDeny'}`,
+      '      else',
+      '        echo implicitDeny',
+      '      fi',
+      '      return ;;',
       '    s3:GetObject)',
       '      if [[ "$resource" == */staging/* ]]; then',
       `        ${e.stagingStateReadable ? 'echo allowed' : 'echo implicitDeny'}`,
@@ -197,6 +241,21 @@ function awsStub(estate: Estate): string {
       '      fi',
       '      return ;;',
       `    iam:PassRole) ${e.budgetsPassable ? 'echo allowed' : 'echo explicitDeny'}; return ;;`,
+      '    iam:CreateAccessKey)',
+      '      if [[ "$resource" == */footbag-staging-probe ]]; then',
+      `        ${e.stagingIamWritable ? 'echo allowed' : 'echo implicitDeny'}`,
+      '        return',
+      '      fi',
+      '      ;;',
+      '    sts:AssumeRole)',
+      '      if [[ "$resource" == */footbag-staging-app-runtime ]]; then',
+      `        ${e.runtimeChainDenied ? 'echo explicitDeny' : 'echo allowed'}`,
+      '      else',
+      `        ${e.otherRoleAssumable ? 'echo allowed' : 'echo explicitDeny'}`,
+      '      fi',
+      '      return ;;',
+      `    ssm:GetParametersByPath|ssm:GetParameter) ${e.addressesUnreadable ? 'echo implicitDeny' : 'echo allowed'}; return ;;`,
+      `    ssm:PutParameter) ${e.addressWritable ? 'echo allowed' : 'echo explicitDeny'}; return ;;`,
       '    cloudfront:UpdateFunction|cloudfront:PublishFunction|cloudfront:DeleteFunction)',
       '      if [[ "$resource" == *function/footbag-production-* ]]; then',
       `        ${e.productionFunctionWritable ? 'echo allowed' : 'echo explicitDeny'}`,
@@ -461,6 +520,52 @@ describe('verify-operator-role-denials.sh — the account, the assumable role, a
   });
 });
 
+describe('verify-operator-role-denials.sh — IAM write, other roles, operator addresses', () => {
+  it('proves every route from a staging-named principal to administrator is ungranted', () => {
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    for (const action of ['iam:CreateUser', 'iam:CreateAccessKey', 'iam:AttachUserPolicy', 'iam:PassRole', 'iam:UpdateAssumeRolePolicy', 'iam:CreatePolicyVersion']) {
+      expect(r.stdout, action).toMatch(new RegExp(`IAM write: ${action} on \\S+ is not granted`));
+    }
+  });
+
+  it('fails when IAM write over a staging-named user is granted again', () => {
+    // That grant is the first step of making a user, giving it administrator
+    // and a key, and from there changing footbag-operator.
+    const r = run({ stagingIamWritable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/IAM write: iam:CreateAccessKey on user\/footbag-staging-probe is granted/);
+  });
+
+  it('fails when a role other than the staging runtime role can be assumed', () => {
+    const r = run({ otherRoleAssumable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/assuming the production runtime role: sts:AssumeRole came back allowed/);
+  });
+
+  it('fails when the chain into the staging runtime role is denied too', () => {
+    // A deny that also caught the runtime role would break every deploy and
+    // smoke check the role exists to run, and read as a broken credential.
+    const r = run({ runtimeChainDenied: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/chaining into the staging runtime role: sts:AssumeRole came back explicitDeny/);
+  });
+
+  it('fails when an operator address can be written', () => {
+    // A holder who could write one could admit any address to staging SSH, or
+    // drop a colleague's.
+    const r = run({ addressWritable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/writing a dev-and-tester address: ssm:PutParameter came back allowed/);
+  });
+
+  it('fails when the addresses can no longer be read, which breaks the staging plan', () => {
+    const r = run({ addressesUnreadable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/reading the dev-and-tester addresses: ssm:GetParametersByPath came back implicitDeny/);
+  });
+});
+
 describe('verify-operator-role-denials.sh — the terraform state boundary', () => {
   it('fails when the role can read another tree state', () => {
     const r = run({ sharedStateReadable: true });
@@ -492,6 +597,44 @@ describe('verify-operator-role-denials.sh — the reads that must survive', () =
     const r = run({ roleReadable: false });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/iam:GetRole came back explicitDeny/);
+  });
+});
+
+describe('verify-operator-role-denials.sh — the job policies and the staging plan', () => {
+  it('fails when a read a staging refresh makes is denied, naming it', () => {
+    // One denied read fails the whole plan, so each is its own finding. These
+    // four are the reads that are authorized on no resource or on a region-less
+    // ARN, which a staging-scoped grant never matched.
+    for (const action of [
+      'cloudwatch:GetDashboard',
+      'ssm:DescribeParameters',
+      'logs:DescribeLogGroups',
+      'ses:DescribeConfigurationSet',
+    ]) {
+      const r = run({ refreshReadDenied: action });
+      expect(r.status, action).toBe(1);
+      expect(r.stderr, action).toMatch(new RegExp(`staging refresh: ${action} came back implicitDeny`));
+    }
+  });
+
+  it('fails when the role could rewrite its own managed policies', () => {
+    const r = run({ ownPolicyWritable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/IAM write: iam:CreatePolicyVersion on policy\/FootbagDevTester-StagingServices is granted/);
+  });
+
+  it('fails when a job policy is not attached', () => {
+    const r = run({ jobPoliciesAttached: false });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/policy FootbagDevTester-Guardrails is not attached/);
+    expect(r.stdout).toMatch(/policy FootbagDevTester-StagingServices is attached/);
+  });
+
+  it('fails when anything but a session revocation is inline, since it takes their room', () => {
+    const r = run({ strayInline: 'dev-tester-job' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/inline policies other than session revocations: dev-tester-job/);
+    expect(run().stdout).toMatch(/the role's inline policies hold only session revocations/);
   });
 });
 
