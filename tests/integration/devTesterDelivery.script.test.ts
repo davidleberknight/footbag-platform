@@ -44,7 +44,7 @@ function withLib(body: string, env: Record<string, string> = {}) {
 const VALUES: Record<string, string> = {
   TARGET: 'staging',
   ACCOUNT: 'james_leberknight',
-  OPERATOR: 'James Leberknight',
+  FULL_NAME: 'James Leberknight',
   HOST_PASSWORD: 'fixture+one/time=password',
   AWS_ACCESS_KEY_ID: 'AKIAFIXTURE000000001',
   AWS_SECRET_ACCESS_KEY: 'fixture/secret+access=key',
@@ -70,7 +70,7 @@ function parse(bundle: string) {
   writeFileSync(path, bundle);
   return withLib(
     `if delivery_bundle_parse ${JSON.stringify(path)}; then
-       printf '%s\\n' "$DELIVERY_ACCOUNT" "$DELIVERY_OPERATOR" "$DELIVERY_HOST_PASSWORD" "\${#DELIVERY_PINS[@]}"
+       printf '%s\\n' "$DELIVERY_ACCOUNT" "$DELIVERY_FULL_NAME" "$DELIVERY_HOST_PASSWORD" "\${#DELIVERY_PINS[@]}"
      else
        printf 'REFUSED %s\\n' "$DELIVERY_ERROR"; exit 1
      fi`,
@@ -93,10 +93,10 @@ describe('the delivery format — written and read by the same library', () => {
 
   it('refuses to write a value that spans lines, which would forge a second key', () => {
     // Through the environment, so the newline is a real one.
-    const script = emitScript().replace(/^DELIVERY_OPERATOR=.*$/m, 'DELIVERY_OPERATOR="$FORGED"');
+    const script = emitScript().replace(/^DELIVERY_FULL_NAME=.*$/m, 'DELIVERY_FULL_NAME="$FORGED"');
     const w = withLib(script, { FORGED: 'James\nHOST_PASSWORD=forged' });
     expect(w.status).not.toBe(0);
-    expect(w.stderr).toMatch(/OPERATOR is empty or spans lines/);
+    expect(w.stderr).toMatch(/FULL_NAME is empty or spans lines/);
   });
 
   it('refuses to write an empty value', () => {
@@ -140,8 +140,8 @@ describe('the delivery format — written and read by the same library', () => {
     withLib(emitScript());
     const marker = join(dir, 'ran');
     const bundle = readFileSync(join(dir, 'bundle'), 'utf-8').replace(
-      /^OPERATOR=.*$/m,
-      `OPERATOR=$(touch ${marker})`,
+      /^FULL_NAME=.*$/m,
+      `FULL_NAME=$(touch ${marker})`,
     );
     const r = parse(bundle);
     expect(r.status).toBe(0);

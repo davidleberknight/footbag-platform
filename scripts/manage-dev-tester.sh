@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# manage-human-operator.sh
+# manage-dev-tester.sh
 #
 # The AWS half of a dev-and-tester's retirement, and the read-back of their
 # identity: an IAM user of their own whose single grant is permission to assume
@@ -23,8 +23,8 @@
 # WHAT IT REFUSES TO DO.
 #
 #   - Run as anything but the directly authenticated IAM user footbag-operator. Every
-#     role in this account, including the job role operators use for everyday
-#     work, is denied every write to a human operator's identity. A run started
+#     role in this account, including the job role dev-and-testers use for
+#     everyday work, is denied every write to a dev-and-tester's identity. A run started
 #     under one would fail partway through rather than at the door.
 #   - Touch the directly authenticated user itself, under any flag. That
 #     identity is the break-glass path and the principal both runtime trust
@@ -39,12 +39,12 @@
 #
 # Usage:
 #
-#   bash scripts/manage-human-operator.sh --offboard <operator_name>
+#   bash scripts/manage-dev-tester.sh --offboard <dev_tester_name>
 #     Removes the grant, then retires every key, then proves the identity can
 #     no longer reach the role, then ends the job-role sessions they already
 #     hold. Leaves the user itself inert.
 #
-#   bash scripts/manage-human-operator.sh --verify <operator_name>
+#   bash scripts/manage-dev-tester.sh --verify <dev_tester_name>
 #     Reads and reports. Changes nothing. Includes what CloudTrail recorded
 #     under their name in the last seven days, newest first, which is how a
 #     deploy run through the job role is traced to the person who ran it.
@@ -60,11 +60,11 @@
 #                      so that command is not printed again here.
 #
 # Test seams (CI only; operators never set these):
-#   MANAGE_OPERATOR_AWS_BIN           replaces the aws CLI
-#   MANAGE_OPERATOR_PROPAGATION_TRIES how many of those retries before the
-#                                     identity is reported NOT retired (60)
-#   MANAGE_OPERATOR_PROPAGATION_POLL  seconds between retries while a deleted
-#                                     key is still honoured
+#   MANAGE_DEV_TESTER_AWS_BIN           replaces the aws CLI
+#   MANAGE_DEV_TESTER_PROPAGATION_TRIES how many of those retries before the
+#                                       identity is reported NOT retired (60)
+#   MANAGE_DEV_TESTER_PROPAGATION_POLL  seconds between retries while a deleted
+#                                       key is still honoured
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,17 +86,17 @@ source "${SCRIPT_DIR}/lib/iam-access-key.sh"
 # shellcheck source=lib/aws-credentials-file.sh
 source "${SCRIPT_DIR}/lib/aws-credentials-file.sh"
 # The IAM user itself: ownership, the one grant, the retirement of old keys.
-# shellcheck source=lib/iam-operator-user.sh
-source "${SCRIPT_DIR}/lib/iam-operator-user.sh"
+# shellcheck source=lib/iam-dev-tester-user.sh
+source "${SCRIPT_DIR}/lib/iam-dev-tester-user.sh"
 # confirm_from_tty, and the unconditional assignment of ASSUME_YES that stops an
 # exported value in the operator's shell standing in for the typed word.
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
-AWS_BIN="${MANAGE_OPERATOR_AWS_BIN:-aws}"
+AWS_BIN="${MANAGE_DEV_TESTER_AWS_BIN:-aws}"
 IAM_KEY_AWS_BIN="$AWS_BIN"
 AWS_IDENTITY_BIN="$AWS_BIN"
-IAM_OPERATOR_AWS_BIN="$AWS_BIN"
+IAM_DEV_TESTER_AWS_BIN="$AWS_BIN"
 
 # The identity that administers the others, and the one identity this script
 # will not act on.
@@ -112,23 +112,23 @@ FOOTBAG_OPERATOR_USER="footbag-operator"
 
 # The path, the policy name and the tags are canonical in the IAM user library,
 # which the onboarding script shares; these are local names for them.
-OPERATOR_PATH="$IAM_OPERATOR_PATH"
+DEV_TESTER_PATH="$IAM_DEV_TESTER_PATH"
 # The role, taken from the shared library so there is one spelling of it.
 DEV_TESTER_ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
-USER_POLICY_NAME="$IAM_OPERATOR_POLICY_NAME"
+USER_POLICY_NAME="$IAM_DEV_TESTER_POLICY_NAME"
 # The job-role profile the offboarding proof looks for on this machine. A
 # profile, not a principal: nothing here reads it to decide who anybody is. It
 # is named for the principal it reaches, so it carries the role's own spelling.
 DEV_TESTER_PROFILE="$FOOTBAG_DEV_TESTER_PROFILE"
-TAG_PROJECT="$IAM_OPERATOR_TAG_PROJECT"
-TAG_MANAGED_BY="$IAM_OPERATOR_TAG_MANAGED_BY"
-TAG_OPERATOR_ROLE="$IAM_OPERATOR_TAG_OPERATOR_ROLE"
+TAG_PROJECT="$IAM_DEV_TESTER_TAG_PROJECT"
+TAG_MANAGED_BY="$IAM_DEV_TESTER_TAG_MANAGED_BY"
+TAG_DEV_TESTER_ROLE="$IAM_DEV_TESTER_TAG_ROLE"
 
 CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 CRED_FILE="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
 
 ACTION=""
-OPERATOR=""
+DEV_TESTER=""
 # Set only by offboard-dev-tester.sh, which has already retired the host account
 # and goes on to the rest of what a departure owes, so this child does not name
 # a command that is already running.
@@ -138,13 +138,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --offboard)
       ACTION="offboard"
-      OPERATOR="${2:-}"
-      shift 2 || { echo "ERROR: --offboard requires the operator name" >&2; exit 2; }
+      DEV_TESTER="${2:-}"
+      shift 2 || { echo "ERROR: --offboard requires the dev-tester name" >&2; exit 2; }
       ;;
     --verify)
       ACTION="verify"
-      OPERATOR="${2:-}"
-      shift 2 || { echo "ERROR: --verify requires the operator name" >&2; exit 2; }
+      DEV_TESTER="${2:-}"
+      shift 2 || { echo "ERROR: --verify requires the dev-tester name" >&2; exit 2; }
       ;;
     --yes) ASSUME_YES="yes"; shift ;;
     --driven-by-offboard) DRIVEN_BY_OFFBOARD=1; shift ;;
@@ -161,8 +161,8 @@ if [[ -z "$ACTION" ]]; then
   exit 2
 fi
 
-if [[ -z "$OPERATOR" ]]; then
-  echo "ERROR: --${ACTION} requires the operator name." >&2
+if [[ -z "$DEV_TESTER" ]]; then
+  echo "ERROR: --${ACTION} requires the dev-tester name." >&2
   exit 2
 fi
 
@@ -173,17 +173,17 @@ fi
 # identity must be refused in its own words whatever else is true of it. It is
 # the directly authenticated IAM user, it is spelled to a different
 # convention than the names this script creates, and nothing here touches it.
-if [[ "$OPERATOR" == "$FOOTBAG_OPERATOR_USER" ]]; then
+if [[ "$DEV_TESTER" == "$FOOTBAG_OPERATOR_USER" ]]; then
   echo "ERROR: ${FOOTBAG_OPERATOR_USER} is not managed here, under any flag." >&2
   echo "       It is the directly authenticated identity that administers the" >&2
   echo "       others and the principal both runtime trust policies name. This" >&2
-  echo "       script's whole subject is the named operators it creates." >&2
+  echo "       script's whole subject is the named dev-testers it creates." >&2
   echo "       Nothing done." >&2
   exit 2
 fi
 
-if [[ ! "$OPERATOR" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#OPERATOR} -gt 64 ]]; then
-  echo "ERROR: '${OPERATOR}' is not a usable operator name." >&2
+if [[ ! "$DEV_TESTER" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#DEV_TESTER} -gt 64 ]]; then
+  echo "ERROR: '${DEV_TESTER}' is not a usable dev-tester name." >&2
   echo "       The house convention is firstname_lastname in lower-case ASCII," >&2
   echo "       and this name becomes three things that have to agree: the IAM" >&2
   echo "       user, the role session name the trust policy forces into every" >&2
@@ -211,28 +211,28 @@ fi
 # ── Reads ────────────────────────────────────────────────────────────────────
 
 # The reads live in the IAM user library; these are this script's names for them.
-user_path() { iam_operator_path "$@"; }
-user_tag() { iam_operator_tag "$@"; }
-user_keys() { iam_operator_keys "$@"; }
-user_policy_state() { iam_operator_policy_state "$@"; }
+user_path() { iam_dev_tester_path "$@"; }
+user_tag() { iam_dev_tester_tag "$@"; }
+user_keys() { iam_dev_tester_keys "$@"; }
+user_policy_state() { iam_dev_tester_policy_state "$@"; }
 
 # The simulator's decision on whether the user's own permissions would let it
 # assume the role: allowed, implicitDeny or explicitDeny. Asked of the policy
 # simulator rather than by attempting the assume, because the caller here is
 # footbag-operator and its own success or failure says nothing about the
-# operator's. Returns 1, having said why, when the simulator could not answer,
+# dev-and-tester's. Returns 1, having said why, when the simulator could not answer,
 # which is never read as a refusal. The answer is read from stdout alone, so a
 # warning the CLI prints on stderr for a successful call is not taken as part of
 # it; the error text is fetched by asking again only when the call failed.
 role_assume_decision() {
   local decision
   local -a call=(iam simulate-principal-policy
-    --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user${OPERATOR_PATH}${1}"
+    --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user${DEV_TESTER_PATH}${1}"
     --action-names sts:AssumeRole
     --resource-arns "$DEV_TESTER_ROLE_ARN"
     --query 'EvaluationResults[0].EvalDecision' --output text)
   if ! decision="$("$AWS_BIN" "${call[@]}" 2>/dev/null)"; then
-    decision="$(_iam_operator_error_of "${call[@]}")"
+    decision="$(_iam_dev_tester_error_of "${call[@]}")"
   fi
   if [[ ! "$decision" =~ ^(allowed|implicitDeny|explicitDeny)$ ]]; then
     echo "ERROR: the policy simulator could not say whether ${1} may assume" >&2
@@ -274,7 +274,7 @@ DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${DEV_TESTER_ROLE_NAME}"
 
 if ! "$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" >/dev/null 2>&1; then
   echo "ERROR: there is no ${DEV_TESTER_ROLE_NAME} role in account ${ACCOUNT_ID}." >&2
-  echo "       It is the whole of what a named operator is granted, so there is" >&2
+  echo "       It is the whole of what a named dev-tester is granted, so there is" >&2
   echo "       no named identity to act on. Apply the account-level identity" >&2
   echo "       tree first:" >&2
   echo "         bash scripts/terraform-apply.sh --target identity" >&2
@@ -282,7 +282,7 @@ if ! "$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" >/dev/null 2>&1
   exit 1
 fi
 
-echo "==> ${ACTION}: ${OPERATOR}"
+echo "==> ${ACTION}: ${DEV_TESTER}"
 echo "    account ${ACCOUNT_ID}, job role ${DEV_TESTER_ROLE_NAME}"
 
 # ── verify ───────────────────────────────────────────────────────────────────
@@ -293,27 +293,27 @@ if [[ "$ACTION" == "verify" ]]; then
   # a legitimate answer to "is this person onboarded".
   FINDINGS=0
 
-  FOUND_PATH="$(user_path "$OPERATOR")" || exit 1
+  FOUND_PATH="$(user_path "$DEV_TESTER")" || exit 1
   if [[ -z "$FOUND_PATH" ]]; then
     echo "    user:      absent"
     exit 0
   fi
 
   echo "    user:      present"
-  if [[ "$FOUND_PATH" == "$OPERATOR_PATH" ]]; then
+  if [[ "$FOUND_PATH" == "$DEV_TESTER_PATH" ]]; then
     echo "    path:      ${FOUND_PATH}"
   else
-    echo "    path:      ${FOUND_PATH} -- NOT ${OPERATOR_PATH}, so the job role's"
+    echo "    path:      ${FOUND_PATH} -- NOT ${DEV_TESTER_PATH}, so the job role's"
     echo "               trust policy does not match this user and it cannot"
     echo "               assume the role whatever its own grants say."
     FINDINGS=$(( FINDINGS + 1 ))
   fi
 
   for _pair in "Project=${TAG_PROJECT}" "ManagedBy=${TAG_MANAGED_BY}" \
-               "OperatorRole=${TAG_OPERATOR_ROLE}"; do
+               "DevTesterRole=${TAG_DEV_TESTER_ROLE}"; do
     _key="${_pair%%=*}"
     _want="${_pair#*=}"
-    _got="$(user_tag "$OPERATOR" "$_key")" || exit 1
+    _got="$(user_tag "$DEV_TESTER" "$_key")" || exit 1
     if [[ "$_got" == "$_want" ]]; then
       echo "    tag:       ${_key}=${_got}"
     else
@@ -328,7 +328,7 @@ if [[ "$ACTION" == "verify" ]]; then
   # so an age threshold would fail a run over a credential nothing is wrong
   # with and teach the operator to ignore the output.
   _active=0
-  _keys="$(user_keys "$OPERATOR")" || exit 1
+  _keys="$(user_keys "$DEV_TESTER")" || exit 1
   while IFS=$'\t' read -r _id _status _created; do
     [[ -z "$_id" ]] && continue
     [[ "$_status" == "Active" ]] && _active=$(( _active + 1 ))
@@ -341,7 +341,7 @@ if [[ "$ACTION" == "verify" ]]; then
   echo "    active:    ${_active} key(s)"
   unset _id _status _created _age _epoch _keys
 
-  _policy="$(user_policy_state "$OPERATOR")" || exit 1
+  _policy="$(user_policy_state "$DEV_TESTER")" || exit 1
   if [[ "$_policy" == "present" ]]; then
     echo "    policy:    ${USER_POLICY_NAME} present"
   else
@@ -358,16 +358,16 @@ if [[ "$ACTION" == "verify" ]]; then
   # ago may not be listed yet.
   _since="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
   if _trail="$("$AWS_BIN" cloudtrail lookup-events \
-      --lookup-attributes "AttributeKey=Username,AttributeValue=${OPERATOR}" \
+      --lookup-attributes "AttributeKey=Username,AttributeValue=${DEV_TESTER}" \
       --start-time "$_since" --max-items 1000 \
       --query 'Events[].[EventTime,EventName,EventSource]' --output text 2>/dev/null)"; then
     # Event rows only, newest first, whatever order the pages arrived in; a
     # pagination line the CLI may add is not an event.
     _trail="$(grep -E $'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^\t]*\t' <<<"$_trail" | sort -r || true)"
     if [[ -z "$_trail" ]]; then
-      echo "    trail:     no event as ${OPERATOR} since ${_since}"
+      echo "    trail:     no event as ${DEV_TESTER} since ${_since}"
     else
-      echo "    trail:     $(grep -c . <<<"$_trail") event(s) as ${OPERATOR} since ${_since}"
+      echo "    trail:     $(grep -c . <<<"$_trail") event(s) as ${DEV_TESTER} since ${_since}"
       IFS=$'\t' read -r _when _name _source <<<"$(head -1 <<<"$_trail")"
       echo "    latest:    ${_when} ${_name} (${_source})"
       _assumed="$(awk -F'\t' '$2=="AssumeRole"{print $1; exit}' <<<"$_trail")"
@@ -375,7 +375,7 @@ if [[ "$ACTION" == "verify" ]]; then
     fi
   else
     echo "    trail:     CloudTrail could not be read, so what was done as"
-    echo "               ${OPERATOR} is unknown"
+    echo "               ${DEV_TESTER} is unknown"
     FINDINGS=$(( FINDINGS + 1 ))
   fi
   unset _since _trail _when _name _source _assumed
@@ -386,10 +386,10 @@ if [[ "$ACTION" == "verify" ]]; then
   # failure there is a finding rather than a line to read past. Both checks used
   # to end in `|| true`, in the one mode whose whole job is to report, so the
   # chain proof could fail and the run still said nothing and exited 0.
-  if aws_profile_exists "$OPERATOR"; then
-    aws_identity_require_user "$OPERATOR" "$OPERATOR" || FINDINGS=$(( FINDINGS + 1 ))
+  if aws_profile_exists "$DEV_TESTER"; then
+    aws_identity_require_user "$DEV_TESTER" "$DEV_TESTER" || FINDINGS=$(( FINDINGS + 1 ))
   else
-    echo "    section:   no [${OPERATOR}] section in this workstation's AWS config"
+    echo "    section:   no [${DEV_TESTER}] section in this workstation's AWS config"
   fi
   if aws_profile_exists "$DEV_TESTER_PROFILE"; then
     aws_identity_require_chain "$DEV_TESTER_PROFILE" || FINDINGS=$(( FINDINGS + 1 ))
@@ -409,9 +409,9 @@ fi
 
 # ── offboard ─────────────────────────────────────────────────────────────────
 
-FOUND_PATH="$(user_path "$OPERATOR")" || exit 1
+FOUND_PATH="$(user_path "$DEV_TESTER")" || exit 1
 if [[ -z "$FOUND_PATH" ]]; then
-  echo "ERROR: there is no IAM user named ${OPERATOR}." >&2
+  echo "ERROR: there is no IAM user named ${DEV_TESTER}." >&2
   echo "       Nothing done." >&2
   exit 1
 fi
@@ -419,21 +419,21 @@ fi
 # Read before the test rather than inside it: a read that fails inside `[[ ]]`
 # is an empty string, and would be refused as somebody else's user rather than
 # as unreadable.
-FOUND_MANAGED_BY="$(user_tag "$OPERATOR" ManagedBy)" || exit 1
-if [[ "$FOUND_PATH" != "$OPERATOR_PATH" || "$FOUND_MANAGED_BY" != "$TAG_MANAGED_BY" ]]; then
-  echo "REFUSING: ${OPERATOR} sits at ${FOUND_PATH} and is not a user this script" >&2
+FOUND_MANAGED_BY="$(user_tag "$DEV_TESTER" ManagedBy)" || exit 1
+if [[ "$FOUND_PATH" != "$DEV_TESTER_PATH" || "$FOUND_MANAGED_BY" != "$TAG_MANAGED_BY" ]]; then
+  echo "REFUSING: ${DEV_TESTER} sits at ${FOUND_PATH} and is not a user this script" >&2
   echo "          manages. Retiring somebody else's identity is not something to" >&2
   echo "          do by analogy with the name. Nothing done." >&2
   exit 1
 fi
 
 echo ""
-echo "This will remove ${OPERATOR}'s permission to assume ${DEV_TESTER_ROLE_NAME},"
+echo "This will remove ${DEV_TESTER}'s permission to assume ${DEV_TESTER_ROLE_NAME},"
 echo "then deactivate and delete every access key they hold. The IAM user itself is"
 echo "left in place with nothing attached, because the trail goes on naming it and a"
 echo "deleted user makes those entries unreadable."
 echo ""
-if ! confirm_from_tty "Type 'APPLY' to retire ${OPERATOR}: " "APPLY"; then
+if ! confirm_from_tty "Type 'APPLY' to retire ${DEV_TESTER}: " "APPLY"; then
   echo "Not confirmed; nothing was changed." >&2
   exit 1
 fi
@@ -442,11 +442,11 @@ fi
 # the policy by a few seconds can reach nothing; a policy that outlives the keys
 # is a live grant waiting for a key that was never actually destroyed.
 echo "==> Removing the grant"
-_policy="$(user_policy_state "$OPERATOR")" || exit 1
+_policy="$(user_policy_state "$DEV_TESTER")" || exit 1
 if [[ "$_policy" == "present" ]]; then
-  "$AWS_BIN" iam delete-user-policy --user-name "$OPERATOR" \
+  "$AWS_BIN" iam delete-user-policy --user-name "$DEV_TESTER" \
     --policy-name "$USER_POLICY_NAME" || {
-    echo "ERROR: could not remove ${USER_POLICY_NAME} from ${OPERATOR}." >&2
+    echo "ERROR: could not remove ${USER_POLICY_NAME} from ${DEV_TESTER}." >&2
     echo "       Nothing further was attempted: the keys are still live and" >&2
     echo "       deleting them while the grant stands would leave the identity" >&2
     echo "       able to act the moment anybody issues it another one." >&2
@@ -461,7 +461,7 @@ echo "==> Retiring the keys"
 # The ids IAM holds for them, read before any is deleted. The real-session proof
 # below needs to know whether this workstation's chain signs with one of them,
 # and after deletion IAM no longer says.
-_keys="$(user_keys "$OPERATOR")" || exit 1
+_keys="$(user_keys "$DEV_TESTER")" || exit 1
 RETIRED_KEY_IDS="$(printf '%s\n' "$_keys" | cut -f1)"
 RETIRED_ANY=0
 while IFS=$'\t' read -r _id _status _rest; do
@@ -471,35 +471,35 @@ while IFS=$'\t' read -r _id _status _rest; do
   # and the default refusal is written for a rotation, which must leave a
   # working identity something it can still authenticate with.
   if [[ "$_status" == "Active" ]]; then
-    IAM_KEY_ALLOW_LAST=1 iam_key_retire "$OPERATOR" "$_id" deactivate || exit 1
+    IAM_KEY_ALLOW_LAST=1 iam_key_retire "$DEV_TESTER" "$_id" deactivate || exit 1
   fi
-  IAM_KEY_ALLOW_LAST=1 iam_key_retire "$OPERATOR" "$_id" delete || exit 1
+  IAM_KEY_ALLOW_LAST=1 iam_key_retire "$DEV_TESTER" "$_id" delete || exit 1
 done <<< "$_keys"
 unset _id _status _rest _keys _policy
 (( RETIRED_ANY )) || echo "    no keys to retire"
 
 echo "==> Proving it"
-REMAINING="$(user_keys "$OPERATOR")" || exit 1
+REMAINING="$(user_keys "$DEV_TESTER")" || exit 1
 # The status field on its own, matched whole: "Inactive" contains "Active", so
 # a substring count would report a retired key as a live one.
 ACTIVE_LEFT="$(printf '%s\n' "$REMAINING" | cut -f2 | grep -cx 'Active' || true)"
 if [[ "$ACTIVE_LEFT" != "0" ]]; then
-  echo "ERROR: ${OPERATOR} still holds ${ACTIVE_LEFT} active key(s)." >&2
+  echo "ERROR: ${DEV_TESTER} still holds ${ACTIVE_LEFT} active key(s)." >&2
   exit 1
 fi
 echo "    active keys: none"
 
-_policy="$(user_policy_state "$OPERATOR")" || exit 1
+_policy="$(user_policy_state "$DEV_TESTER")" || exit 1
 if [[ "$_policy" != "absent" ]]; then
-  echo "ERROR: ${USER_POLICY_NAME} is still attached to ${OPERATOR}." >&2
+  echo "ERROR: ${USER_POLICY_NAME} is still attached to ${DEV_TESTER}." >&2
   exit 1
 fi
 unset _policy
 echo "    ${USER_POLICY_NAME}: gone"
 
-_decision="$(role_assume_decision "$OPERATOR")" || exit 1
+_decision="$(role_assume_decision "$DEV_TESTER")" || exit 1
 if [[ "$_decision" == "allowed" ]]; then
-  echo "ERROR: ${OPERATOR} would still be allowed to assume ${DEV_TESTER_ROLE_NAME}." >&2
+  echo "ERROR: ${DEV_TESTER} would still be allowed to assume ${DEV_TESTER_ROLE_NAME}." >&2
   echo "       Something else grants it — a group, a managed policy, a boundary —" >&2
   echo "       and this script did not put it there. Find it before calling this" >&2
   echo "       identity retired." >&2
@@ -515,16 +515,16 @@ echo "    a new role session: refused by the policy simulator"
 # credentials, and the two can differ. A key that survived the retirement above
 # would still authenticate, and the simulator would never notice.
 #
-# So where the workstation carries the retired operator's own chain, the assume
+# So where the workstation carries the retired dev-and-tester's own chain, the assume
 # is attempted for real and required to fail. This was a command an operator was
 # told to type at the keyboard afterwards, which is a check that gets skipped on
 # the day it matters, and the go-live gate asks for the stronger evidence.
 #
 # It is attempted only where the local chain signs with one of the keys IAM held
-# for THIS operator. A chain signing with anybody else's key would prove nothing
+# for THIS dev-and-tester. A chain signing with anybody else's key would prove nothing
 # about the person being retired, and its failure or success would be about them
 # instead. Which key the chain uses is read from the local files; whether that
-# key was the operator's is decided by comparing its id with the ids IAM listed
+# key was the dev-and-tester's is decided by comparing its id with the ids IAM listed
 # for them, never by what the sections happen to be called.
 ASSUME_SOURCE=""
 ASSUME_KEY_ID=""
@@ -548,7 +548,7 @@ elif [[ -z "$ASSUME_KEY_ID" ]] \
   echo "    a real role session: not attempted here, because [profile"
   echo "      ${DEV_TESTER_PROFILE}] on this machine chains from [${ASSUME_SOURCE}],"
   echo "      signing with ${ASSUME_KEY_ID:-no key recorded here}, which is not one of"
-  echo "      the keys IAM held for ${OPERATOR}, so what it resolves to would be a"
+  echo "      the keys IAM held for ${DEV_TESTER}, so what it resolves to would be a"
   echo "      fact about somebody else's identity."
 else
   # A fresh assume signed with the retired key itself. Asking through the role
@@ -557,24 +557,24 @@ else
   # the key, so it would prove nothing about the retirement. IAM also goes on
   # honouring a deleted key for some seconds, so a success is retried until it
   # stops or the wait runs out.
-  RETIRE_POLL="${MANAGE_OPERATOR_PROPAGATION_POLL:-5}"
+  RETIRE_POLL="${MANAGE_DEV_TESTER_PROPAGATION_POLL:-5}"
   # About five minutes: IAM has been seen honouring a deleted key for longer
   # than two, and a wait that gives up early reports a live identity that is
   # merely slow to die.
-  RETIRE_TRIES="${MANAGE_OPERATOR_PROPAGATION_TRIES:-60}"
+  RETIRE_TRIES="${MANAGE_DEV_TESTER_PROPAGATION_TRIES:-60}"
   retire_try=0
   while REAL_ASSUME="$("$AWS_BIN" sts assume-role --profile "$ASSUME_SOURCE" \
-      --role-arn "$DEV_TESTER_ROLE_ARN" --role-session-name "$OPERATOR" \
+      --role-arn "$DEV_TESTER_ROLE_ARN" --role-session-name "$DEV_TESTER" \
       --query AssumedRoleUser.Arn --output text --region us-east-1 2>&1)"; do
     if (( retire_try >= RETIRE_TRIES )); then
-      echo "ERROR: ${OPERATOR}'s own credentials still reached ${DEV_TESTER_ROLE_NAME}." >&2
+      echo "ERROR: ${DEV_TESTER}'s own credentials still reached ${DEV_TESTER_ROLE_NAME}." >&2
       echo "       The attempt resolved to:" >&2
       printf '%s\n' "$REAL_ASSUME" | sed 's/^/         /' >&2
       echo "" >&2
       echo "       The grant and the keys report as gone, so something is still" >&2
       echo "       authenticating. This identity is NOT retired. If it is only slow" >&2
       echo "       to take effect, a re-run in a few minutes finishes the job:" >&2
-      echo "         bash scripts/offboard-dev-tester.sh --target staging --account ${OPERATOR} --from-step 2" >&2
+      echo "         bash scripts/offboard-dev-tester.sh --target staging --account ${DEV_TESTER} --from-step 2" >&2
       exit 1
     fi
     (( retire_try == 0 )) \
@@ -591,9 +591,9 @@ fi
 # other route, and it is a console sign-in with no second factor that neither
 # the grant removal nor the key retirement above touches. An offboard that left
 # one behind would report a retired identity that can still sign in.
-_login="$(iam_operator_login_profile_state "$OPERATOR")" || exit 1
+_login="$(iam_dev_tester_login_profile_state "$DEV_TESTER")" || exit 1
 if [[ "$_login" != "absent" ]]; then
-  echo "ERROR: ${OPERATOR} still has a console login profile." >&2
+  echo "ERROR: ${DEV_TESTER} still has a console login profile." >&2
   echo "       The grant and the keys are gone, but this is a console sign-in" >&2
   echo "       that survives both, and nothing here created it. Remove it" >&2
   echo "       before calling this identity retired." >&2
@@ -624,7 +624,7 @@ else
   PRUNED=0
   for _pname in $PRUNE_LIST; do
     # This person's own earlier revocation is rewritten below, not cleared.
-    [[ "$_pname" == revoke-sessions-* && "$_pname" != "revoke-sessions-${OPERATOR}" ]] || continue
+    [[ "$_pname" == revoke-sessions-* && "$_pname" != "revoke-sessions-${DEV_TESTER}" ]] || continue
     _cutoff="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
       --policy-name "$_pname" \
       --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
@@ -666,15 +666,15 @@ fi
 # only the identity running this can take it away.
 #
 # Last, after every proof, so a run that failed earlier has denied nobody.
-REVOKE_POLICY_NAME="revoke-sessions-${OPERATOR}"
+REVOKE_POLICY_NAME="revoke-sessions-${DEV_TESTER}"
 REVOKE_BEFORE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-REVOKE_USERID="*:${OPERATOR}"
+REVOKE_USERID="*:${DEV_TESTER}"
 printf -v REVOKE_DOC '%s' \
   '{"Version":"2012-10-17","Statement":[{"Sid":"RevokeSessionsIssuedBeforeOffboard",' \
   '"Effect":"Deny","Action":"*","Resource":"*","Condition":{' \
   '"DateLessThan":{"aws:TokenIssueTime":"'"$REVOKE_BEFORE"'"},' \
   '"StringLike":{"aws:userid":"'"$REVOKE_USERID"'"}}}]}'
-echo "==> Ending the sessions ${OPERATOR} already holds"
+echo "==> Ending the sessions ${DEV_TESTER} already holds"
 if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
     --policy-name "$REVOKE_POLICY_NAME" --policy-document "$REVOKE_DOC" >/dev/null; then
   echo "ERROR: could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}." >&2
@@ -699,11 +699,11 @@ if [[ "$REVOKE_READ" != "Deny"$'\t'"${REVOKE_BEFORE}"$'\t'"${REVOKE_USERID}" ]];
   echo "       offboard." >&2
   exit 1
 fi
-echo "    ${REVOKE_POLICY_NAME}: every ${DEV_TESTER_ROLE_NAME} session of ${OPERATOR}'s"
+echo "    ${REVOKE_POLICY_NAME}: every ${DEV_TESTER_ROLE_NAME} session of ${DEV_TESTER}'s"
 echo "      issued before ${REVOKE_BEFORE} is refused"
 
 echo ""
-echo "Done. ${OPERATOR} is inert: no grant, no keys, no console sign-in, and no"
+echo "Done. ${DEV_TESTER} is inert: no grant, no keys, no console sign-in, and no"
 echo "job-role session still working. The user itself is left for the trail to keep"
 echo "naming."
 echo ""
@@ -721,5 +721,5 @@ if (( ! DRIVEN_BY_OFFBOARD )); then
   echo "command ends both, on staging, the only environment a dev-and-tester is"
   echo "onboarded onto:"
   echo "  < ~/AWS/AWS_OPERATOR.txt \\"
-  echo "    bash scripts/offboard-dev-tester.sh --target staging --account ${OPERATOR}"
+  echo "    bash scripts/offboard-dev-tester.sh --target staging --account ${DEV_TESTER}"
 fi

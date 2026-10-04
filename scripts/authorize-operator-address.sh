@@ -594,8 +594,22 @@ if [[ -n "$DEV_TESTER" ]]; then
     fi
   fi
 
+  # The apply is held to exactly this one address: the old one out and the new
+  # one in, so a values file on this machine that disagrees with the live
+  # firewall cannot drop an administrator's address on the way through.
+  declare -a FIREWALL_NAMES=()
+  if (( REMOVE )); then
+    FIREWALL_NAMES=(--firewall-remove "$ADDRESS")
+  else
+    FIREWALL_NAMES=(--firewall-add "$ADDRESS")
+    if [[ -n "$CURRENT" ]]; then
+      PREVIOUS="$CURRENT"
+      [[ "$PREVIOUS" == */* ]] || PREVIOUS="${PREVIOUS}/32"
+      [[ "$PREVIOUS" != "$ADDRESS" ]] && FIREWALL_NAMES+=(--firewall-remove "$PREVIOUS")
+    fi
+  fi
   echo "==> Applying staging's firewall"
-  if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only; then
+  if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only "${FIREWALL_NAMES[@]}"; then
     echo "ERROR: the firewall apply did not complete; ${PARAM} is being put back." >&2
     exit 1
   fi

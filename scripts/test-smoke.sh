@@ -74,7 +74,7 @@ TF_DIR="terraform/${SMOKE_TARGET_ENV}"
 #
 # The refusal says what is missing and what writes it, rather than calling the
 # suite operator-only. That wording was a diagnosis and it was the wrong one for
-# a named operator, who assumes a role granting exactly this staging access and
+# a dev-and-tester, who assumes a role granting exactly this staging access and
 # was being told they were the wrong kind of person.
 if ! grep -qs "footbag-${SMOKE_TARGET_ENV}-runtime" "$HOME/.aws/config" "$HOME/.aws/credentials"; then
   echo "ERROR: the footbag-${SMOKE_TARGET_ENV}-runtime AWS profile is not configured on this machine," >&2

@@ -110,7 +110,7 @@ tf_output_explain() {
   echo "       Three causes look identical here, so check all three:" >&2
   echo "         - the tree has not been initialised (terraform -chdir=${dir} init);" >&2
   echo "         - your access key no longer authenticates, because it was" >&2
-  echo "           deactivated or replaced (bash scripts/manage-human-operator.sh" >&2
+  echo "           deactivated or replaced (bash scripts/manage-dev-tester.sh" >&2
   echo "           --verify <your-name> says which);" >&2
   echo "         - no operator profile is set up on this machine at all" >&2
   echo "           (bash scripts/setup-operator-workstation.sh)." >&2

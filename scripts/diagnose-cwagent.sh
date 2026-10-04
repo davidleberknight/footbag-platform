@@ -22,11 +22,11 @@
 # are separate hosts with separate passwords:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR.txt  (staging only; none on production)
+#   your own named account:  ~/AWS/DEV_TESTER_HOST.txt  (staging only; none on production)
 #
 # A run started without the redirect names the one it needs.
 #
-#   < ~/AWS/HOST_OPERATOR.txt bash scripts/diagnose-cwagent.sh --target staging
+#   < ~/AWS/DEV_TESTER_HOST.txt bash scripts/diagnose-cwagent.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/diagnose-cwagent.sh --target production
 
 set -euo pipefail
@@ -35,7 +35,7 @@ TARGET=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/diagnose-cwagent.sh --target staging
+Usage: < ~/AWS/DEV_TESTER_HOST.txt bash scripts/diagnose-cwagent.sh --target staging
        < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/diagnose-cwagent.sh --target production
 
 Reads the sudo password from stdin (line 1). Read-only.
@@ -68,7 +68,7 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/diagnose-cwagent-remote.sh"
 # The shared guard rather than a gate of this script's own. It reads the account
 # the alias connects as and names the credential file that account keeps for this
 # environment, which is what this script's header promises and what a
-# placeholder in a refusal cannot do: an operator part way onto their own named
+# placeholder in a refusal cannot do: a dev-and-tester part way onto their own named
 # account is told to redirect a file holding somebody else's password, the
 # connection succeeds on the key, and sudo fails in a way that reads as a broken
 # account. It reads the one password line too, so nothing here consumes stdin

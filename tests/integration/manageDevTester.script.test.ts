@@ -1,5 +1,5 @@
 /**
- * scripts/manage-human-operator.sh — retiring a dev-and-tester's AWS identity,
+ * scripts/manage-dev-tester.sh — retiring a dev-and-tester's AWS identity,
  * and reading it back.
  *
  * A shared identity cannot say who did something. The model gives each person
@@ -14,7 +14,7 @@
  * pinned here:
  *
  *   - only the directly authenticated IAM user footbag-operator may run it, because every
- *     role in the account is denied every write to a human operator's identity,
+ *     role in the account is denied every write to a dev-and-tester's identity,
  *     and a run started under one would fail partway through rather than at the
  *     door;
  *   - there is no onboarding here at all, so a request for one is refused as an
@@ -51,14 +51,14 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
-const SCRIPT = join(process.cwd(), 'scripts/manage-human-operator.sh');
+const SCRIPT = join(process.cwd(), 'scripts/manage-dev-tester.sh');
 
 const ACCOUNT = '111122223333';
-const OPERATOR = 'test_operator';
-const OPERATOR_PATH = '/footbag-operators/';
+const DEV_TESTER = 'test_dev_tester';
+const DEV_TESTER_PATH = '/footbag-dev-testers/';
 const ROLE_ARN = `arn:aws:iam::${ACCOUNT}:role/FootbagDevTester`;
 const SUPER_ADMIN_ARN = `arn:aws:iam::${ACCOUNT}:user/footbag-operator`;
-const ASSUMED_ARN = `arn:aws:sts::${ACCOUNT}:assumed-role/FootbagDevTester/${OPERATOR}`;
+const ASSUMED_ARN = `arn:aws:sts::${ACCOUNT}:assumed-role/FootbagDevTester/${DEV_TESTER}`;
 
 // AWS's own documented example pair. The id is the one AWS prints in its
 // samples and the secret is plainly a filler of the right shape, so the
@@ -74,7 +74,7 @@ let configFile: string;
 let credFile: string;
 
 beforeEach(() => {
-  workDir = mkdtempSync(join(tmpdir(), 'footbag-test-humanop-'));
+  workDir = mkdtempSync(join(tmpdir(), 'footbag-test-dev-tester-'));
   stateDir = join(workDir, 'state');
   mkdirSync(stateDir);
   configFile = join(workDir, 'config');
@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 interface Account {
-  /** The role the operators assume. Absent unless the identity tree is applied. */
+  /** The role the dev-and-testers assume. Absent unless the identity tree is applied. */
   role?: boolean;
   /** The IAM user's path, or absent for a user that does not exist. */
   userPath?: string;
@@ -110,8 +110,8 @@ interface Account {
 
 const MANAGED_TAGS = {
   Project: 'footbag',
-  ManagedBy: 'manage-human-operator.sh',
-  OperatorRole: 'dev_tester',
+  ManagedBy: 'manage-dev-tester.sh',
+  DevTesterRole: 'dev_tester',
 };
 
 function seed(a: Account) {
@@ -188,9 +188,9 @@ function awsStub(): string {
       `      FootbagDevTester)`,
       `        [ -f "$S/assumed" ] || { echo "profile could not be found" >&2; exit 255; }`,
       `        cat "$S/assumed" ;;`,
-      `      ${OPERATOR})`,
+      `      ${DEV_TESTER})`,
       `        [ -f "$S/user" ] || { echo "profile could not be found" >&2; exit 255; }`,
-      `        printf '%s\\n' "arn:aws:iam::${ACCOUNT}:user${OPERATOR_PATH}${OPERATOR}" ;;`,
+      `        printf '%s\\n' "arn:aws:iam::${ACCOUNT}:user${DEV_TESTER_PATH}${DEV_TESTER}" ;;`,
       '      *) echo "profile could not be found" >&2; exit 255 ;;',
       '    esac ;;',
       // A fresh assume with the source key, never a cached session. It succeeds
@@ -200,7 +200,7 @@ function awsStub(): string {
       '  assume-role)',
       `    if [ -s "$S/revoke-lag" ] && [ "$(cat "$S/revoke-lag")" -gt 0 ]; then`,
       `      echo $(( $(cat "$S/revoke-lag") - 1 )) > "$S/revoke-lag"`,
-      `      printf '%s\\n' "arn:aws:sts::${ACCOUNT}:assumed-role/FootbagDevTester/${OPERATOR}"; exit 0`,
+      `      printf '%s\\n' "arn:aws:sts::${ACCOUNT}:assumed-role/FootbagDevTester/${DEV_TESTER}"; exit 0`,
       '    fi',
       `    [ -f "$S/assumed" ] || { echo "An error occurred (InvalidClientTokenId) when calling the AssumeRole operation: The security token included in the request is invalid." >&2; exit 254; }`,
       `    cat "$S/assumed" ;;`,
@@ -290,7 +290,7 @@ function run(
       AWS_PROFILE: 'footbag-operator',
       AWS_CONFIG_FILE: configFile,
       AWS_SHARED_CREDENTIALS_FILE: credFile,
-      MANAGE_OPERATOR_AWS_BIN: awsStub(),
+      MANAGE_DEV_TESTER_AWS_BIN: awsStub(),
       ...(opts.env ?? {}),
     },
     ...SPAWN_GUARD,
@@ -298,13 +298,13 @@ function run(
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
-/** A healthy account with the role applied and no IAM user of the operator's name. */
+/** A healthy account with the role applied and no IAM user of the dev-tester's name. */
 const READY: Account = { role: true };
 
 /** The same account holding an identity that has already been retired. */
 const INERT_MANAGED: Account = {
   role: true,
-  userPath: OPERATOR_PATH,
+  userPath: DEV_TESTER_PATH,
   tags: MANAGED_TAGS,
   keys: [[OLD_KEY_ID, 'Inactive']],
 };
@@ -312,7 +312,7 @@ const INERT_MANAGED: Account = {
 /** A live identity: managed, granted, and holding an active key. */
 const ACTIVE: Account = {
   role: true,
-  userPath: OPERATOR_PATH,
+  userPath: DEV_TESTER_PATH,
   tags: MANAGED_TAGS,
   keys: [[FAKE_KEY_ID, 'Active']],
   policy: true,
@@ -345,7 +345,7 @@ function credentials(): string {
   return existsSync(credFile) ? readFileSync(credFile, 'utf-8') : '';
 }
 
-describe('manage-human-operator.sh — the argument guards', () => {
+describe('manage-dev-tester.sh — the argument guards', () => {
   it('refuses with no action, because retiring and reading back are different acts', () => {
     const r = run([]);
     expect(r.status).toBe(2);
@@ -365,21 +365,21 @@ describe('manage-human-operator.sh — the argument guards', () => {
   it('refuses --onboard as an unknown argument, since an identity is created elsewhere', () => {
     // Onboarding seals the key to its owner and writes nothing onto this
     // workstation; a second path that did either would be a way round that.
-    const r = run(['--onboard', OPERATOR, '--yes'], READY);
+    const r = run(['--onboard', DEV_TESTER, '--yes'], READY);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/unknown argument '--onboard'/);
     expect(calls()).toHaveLength(0);
   });
 
-  it('refuses an action with no operator name', () => {
+  it('refuses an action with no dev-tester name', () => {
     const r = run(['--offboard']);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/--offboard requires the operator name/);
+    expect(r.stderr).toMatch(/--offboard requires the dev-tester name/);
     expect(calls()).toHaveLength(0);
   });
 
   it('refuses an unknown flag', () => {
-    const r = run(['--offboard', OPERATOR, '--force']);
+    const r = run(['--offboard', DEV_TESTER, '--force']);
     expect(r.status).toBe(2);
     expect(calls()).toHaveLength(0);
   });
@@ -387,7 +387,7 @@ describe('manage-human-operator.sh — the argument guards', () => {
   it('refuses a name that would not survive as a profile and a session name', () => {
     const r = run(['--offboard', 'a name with spaces', '--yes']);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/not a usable operator name/);
+    expect(r.stderr).toMatch(/not a usable dev-tester name/);
     expect(calls()).toHaveLength(0);
   });
 
@@ -398,7 +398,7 @@ describe('manage-human-operator.sh — the argument guards', () => {
     // should have to meet.
     const bothDir = join(workDir, 'both');
     mkdirSync(bothDir, { recursive: true });
-    const r = run(['--verify', OPERATOR], INERT_MANAGED, {
+    const r = run(['--verify', DEV_TESTER], INERT_MANAGED, {
       env: {
         AWS_PROFILE: 'FootbagDevTester',
         ...awsIdentityStubEnv(bothDir, {
@@ -421,9 +421,9 @@ describe('manage-human-operator.sh — the argument guards', () => {
   });
 });
 
-describe('manage-human-operator.sh — who may run it', () => {
+describe('manage-dev-tester.sh — who may run it', () => {
   it('refuses a different directly authenticated user before any mutation', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], {
+    const r = run(['--offboard', DEV_TESTER, '--yes'], {
       ...ACTIVE,
       caller: `arn:aws:iam::${ACCOUNT}:user/somebody-else`,
     });
@@ -433,7 +433,7 @@ describe('manage-human-operator.sh — who may run it', () => {
   });
 
   it('refuses an assumed role, naming why no role can do this', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], {
+    const r = run(['--offboard', DEV_TESTER, '--yes'], {
       ...ACTIVE,
       caller: `arn:aws:sts::${ACCOUNT}:assumed-role/SomeOtherRole/session`,
     });
@@ -444,17 +444,17 @@ describe('manage-human-operator.sh — who may run it', () => {
 
   it('refuses the job role itself, which is the caller most likely to try', () => {
     // A dev-and-tester working as themselves holds this role all day. It is
-    // denied every write to its own definition and to any operator identity,
+    // denied every write to its own definition and to any dev-and-tester identity,
     // so a run started here gets partway and stops on an access denial having
     // already made some of the changes.
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...ACTIVE, caller: ASSUMED_ARN });
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...ACTIVE, caller: ASSUMED_ARN });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/is an assumed role/);
     expect(mutatingCalls()).toHaveLength(0);
   });
 
   it('refuses when the job role does not exist yet, and names the tree that makes it', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...ACTIVE, role: false });
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...ACTIVE, role: false });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/there is no FootbagDevTester role/);
     expect(r.stderr).toMatch(/--target identity/);
@@ -462,12 +462,12 @@ describe('manage-human-operator.sh — who may run it', () => {
   });
 });
 
-describe('manage-human-operator.sh — offboarding', () => {
+describe('manage-dev-tester.sh — offboarding', () => {
   it('removes the grant before it touches a key', () => {
     // A key that outlives the policy by a moment can reach nothing. A policy
     // that outlives the keys is a live grant waiting for the next credential
     // anybody issues.
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     const order = calls();
     const policyAt = order.findIndex((c) => c.includes('delete-user-policy'));
@@ -478,7 +478,7 @@ describe('manage-human-operator.sh — offboarding', () => {
   });
 
   it('deactivates before deleting, so the irreversible step is second', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     const order = calls();
     const deactivateAt = order.findIndex((c) => c.includes('update-access-key'));
@@ -491,7 +491,7 @@ describe('manage-human-operator.sh — offboarding', () => {
   });
 
   it('leaves the IAM user itself in place for the trail', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(calls().some((c) => c.includes('delete-user '))).toBe(false);
     expect(existsSync(join(stateDir, 'user'))).toBe(true);
@@ -502,13 +502,13 @@ describe('manage-human-operator.sh — offboarding', () => {
     // a group, a managed policy, a permissions boundary — and calling the
     // identity retired while that stands is the failure worth catching.
     writeFileSync(join(stateDir, 'simulate'), 'allowed\n', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/would still be allowed to assume/);
   });
 
   function revokeDoc(): string {
-    const p = join(stateDir, `role-policy-revoke-sessions-${OPERATOR}`);
+    const p = join(stateDir, `role-policy-revoke-sessions-${DEV_TESTER}`);
     return existsSync(p) ? readFileSync(p, 'utf-8') : '';
   }
 
@@ -517,10 +517,10 @@ describe('manage-human-operator.sh — offboarding', () => {
     // before it stays valid until it expires, up to four hours. The role is
     // told to refuse this person's sessions issued before now: a time
     // comparison rather than a fixed date, scoped by the session name the trust
-    // policy forces to be the person's, so no other operator's session is cut.
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    // policy forces to be the person's, so no other dev-and-tester's session is cut.
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
-    expect(calls().some((c) => /put-role-policy --role-name FootbagDevTester --policy-name revoke-sessions-test_operator /.test(c))).toBe(true);
+    expect(calls().some((c) => /put-role-policy --role-name FootbagDevTester --policy-name revoke-sessions-test_dev_tester /.test(c))).toBe(true);
     const doc = JSON.parse(revokeDoc());
     expect(doc.Statement).toHaveLength(1);
     const st = doc.Statement[0];
@@ -528,7 +528,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     expect(st.Action).toBe('*');
     expect(Object.keys(st.Condition).sort()).toEqual(['DateLessThan', 'StringLike']);
     expect(st.Condition.DateLessThan['aws:TokenIssueTime']).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-    expect(st.Condition.StringLike['aws:userid']).toBe(`*:${OPERATOR}`);
+    expect(st.Condition.StringLike['aws:userid']).toBe(`*:${DEV_TESTER}`);
     expect(r.stdout).toMatch(/no\s+job-role session still working/);
   });
 
@@ -542,10 +542,10 @@ describe('manage-human-operator.sh — offboarding', () => {
 
   it('clears an earlier revocation whose cutoff is older than any session can live', () => {
     seedRevocation('long_gone', '2020-01-01T00:00:00Z');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(stateDir, 'role-policy-revoke-sessions-long_gone'))).toBe(false);
-    expect(existsSync(join(stateDir, `role-policy-revoke-sessions-${OPERATOR}`))).toBe(true);
+    expect(existsSync(join(stateDir, `role-policy-revoke-sessions-${DEV_TESTER}`))).toBe(true);
     expect(r.stdout).toMatch(/revoke-sessions-long_gone: cut off at 2020-01-01T00:00:00Z, refuses nothing now, removed/);
   });
 
@@ -556,10 +556,10 @@ describe('manage-human-operator.sh — offboarding', () => {
     // same way with the departing person's sessions still live.
     seedRevocation('long_gone', '2020-01-01T00:00:00Z');
     writeFileSync(join(stateDir, 'inline-budget'), '300\n', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(stateDir, 'role-policy-revoke-sessions-long_gone'))).toBe(false);
-    expect(JSON.parse(revokeDoc()).Statement[0].Condition.StringLike['aws:userid']).toBe(`*:${OPERATOR}`);
+    expect(JSON.parse(revokeDoc()).Statement[0].Condition.StringLike['aws:userid']).toBe(`*:${DEV_TESTER}`);
   });
 
   it('names the size limit when a full role refuses the revocation', () => {
@@ -567,7 +567,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     // and the operator is told what that refusal means and how to see it.
     seedRevocation('just_left', new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
     writeFileSync(join(stateDir, 'inline-budget'), '300\n', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/LimitExceeded refusal means the role's inline policies are full/);
     expect(r.stderr).toMatch(/aws iam list-role-policies --role-name FootbagDevTester/);
@@ -578,7 +578,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     // Cut off moments ago: a session issued just before it can still be alive.
     const recent = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
     seedRevocation('just_left', recent);
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(stateDir, 'role-policy-revoke-sessions-just_left'))).toBe(true);
   });
@@ -587,7 +587,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     // date(1) reads this as a real, long-past time, so only the shape check
     // stands between it and removing a revocation nobody can vouch for.
     seedRevocation('odd_one', '1 Jan 2020');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(stateDir, 'role-policy-revoke-sessions-odd_one'))).toBe(true);
     expect(r.stdout).toMatch(/revoke-sessions-odd_one: cutoff unreadable, left in place/);
@@ -597,7 +597,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     // A run that failed a proof has not retired anybody, and denying the
     // person's sessions at that point would be a half-finished state reported
     // as nothing.
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     const order = calls();
     const putAt = order.findIndex((c) => c.includes('put-role-policy'));
@@ -609,16 +609,16 @@ describe('manage-human-operator.sh — offboarding', () => {
     expect(putAt).toBeGreaterThan(loginAt);
 
     // A second run in the same account that fails a proof writes nothing more.
-    const r2 = run(['--offboard', OPERATOR, '--yes'], { ...ACTIVE, login: true });
+    const r2 = run(['--offboard', DEV_TESTER, '--yes'], { ...ACTIVE, login: true });
     expect(calls().filter((c) => c.includes('put-role-policy'))).toHaveLength(1);
     expect(r2.status).toBe(1);
   });
 
   it('fails the run when the revocation cannot be written', () => {
     writeFileSync(join(stateDir, 'put-role-fails'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not write revoke-sessions-test_operator onto FootbagDevTester/);
+    expect(r.stderr).toMatch(/could not write revoke-sessions-test_dev_tester onto FootbagDevTester/);
     expect(r.stdout).not.toMatch(/Done\./);
   });
 
@@ -626,7 +626,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     // The read-back is the proof. A cutoff or a person other than the one
     // written would leave the sessions it was meant to end still working.
     writeFileSync(join(stateDir, 'readback'), 'Deny\t2000-01-01T00:00:00Z\t*:somebody_else\n', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/does not read back as/);
     expect(r.stdout).not.toMatch(/Done\./);
@@ -636,10 +636,10 @@ describe('manage-human-operator.sh — offboarding', () => {
     // Retiring the AWS identity leaves the host account and the allow-list
     // entry. An operator who ran only this and saw it succeed would have a
     // departed colleague still holding both.
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/Still owed/);
-    expect(r.stdout).toMatch(/bash scripts\/offboard-dev-tester\.sh --target staging --account test_operator/);
+    expect(r.stdout).toMatch(/bash scripts\/offboard-dev-tester\.sh --target staging --account test_dev_tester/);
     expect(r.stdout).not.toMatch(/--target <env>/);
     // The offboarding command it names takes no GitHub flag, and would refuse one.
     expect(r.stdout).not.toMatch(/--github-login/);
@@ -647,7 +647,7 @@ describe('manage-human-operator.sh — offboarding', () => {
   });
 
   it('does not name that command when it is the one driving this run', () => {
-    const r = run(['--offboard', OPERATOR, '--yes', '--driven-by-offboard'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes', '--driven-by-offboard'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toMatch(/Still owed/);
     expect(r.stdout).not.toMatch(/offboard-dev-tester\.sh/);
@@ -658,14 +658,14 @@ describe('manage-human-operator.sh — offboarding', () => {
     // route, and it is a console sign-in with no second factor that neither the
     // grant removal nor the key retirement touches.
     // Without this the run reports a retired identity that can still sign in.
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...ACTIVE, login: true });
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...ACTIVE, login: true });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/still has a console login profile/);
     expect(r.stderr).toMatch(/survives both/);
   });
 
   it('refuses a user this script does not manage', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], {
+    const r = run(['--offboard', DEV_TESTER, '--yes'], {
       role: true,
       userPath: '/',
       keys: [[FAKE_KEY_ID, 'Active']],
@@ -676,7 +676,7 @@ describe('manage-human-operator.sh — offboarding', () => {
 
   it('fails rather than calling the keys gone when IAM cannot list them', () => {
     writeFileSync(join(stateDir, 'unreadable-list-access-keys'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not read .*access keys from IAM/);
     expect(r.stdout).not.toMatch(/active keys: none/);
@@ -684,7 +684,7 @@ describe('manage-human-operator.sh — offboarding', () => {
 
   it('fails rather than calling the grant gone when IAM cannot read it', () => {
     writeFileSync(join(stateDir, 'unreadable-get-user-policy'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not read whether .* holds AssumeFootbagDevTester/);
     expect(r.stdout).not.toMatch(/already absent/);
@@ -692,7 +692,7 @@ describe('manage-human-operator.sh — offboarding', () => {
 
   it('fails rather than calling a new session refused when the simulator cannot answer', () => {
     writeFileSync(join(stateDir, 'unreadable-simulate-principal-policy'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/policy simulator could not say/);
     expect(r.stdout).not.toMatch(/refused by the policy simulator/);
@@ -700,7 +700,7 @@ describe('manage-human-operator.sh — offboarding', () => {
 
   it('fails rather than calling the console sign-in absent when IAM cannot read it', () => {
     writeFileSync(join(stateDir, 'unreadable-get-login-profile'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not read whether .* has a console login profile/);
     expect(r.stdout).not.toMatch(/login profile: none/);
@@ -708,18 +708,18 @@ describe('manage-human-operator.sh — offboarding', () => {
 
   it('fails rather than calling the user absent when IAM cannot read it', () => {
     writeFileSync(join(stateDir, 'unreadable-get-user'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not read the IAM user test_operator/);
+    expect(r.stderr).toMatch(/could not read the IAM user test_dev_tester/);
     expect(r.stderr).not.toMatch(/there is no IAM user named/);
     expect(mutatingCalls()).toHaveLength(0);
   });
 
   it('refuses as unreadable, not as somebody else\'s, a user whose tags cannot be read', () => {
     writeFileSync(join(stateDir, 'unreadable-list-user-tags'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not read test_operator's ManagedBy tag from IAM/);
+    expect(r.stderr).toMatch(/could not read test_dev_tester's ManagedBy tag from IAM/);
     expect(r.stderr).not.toMatch(/is not a user this script/);
     expect(mutatingCalls()).toHaveLength(0);
   });
@@ -728,7 +728,7 @@ describe('manage-human-operator.sh — offboarding', () => {
     // A warning read together with an answer would be a key id to retire and a
     // decision the simulator never gave, so every answer is read from stdout.
     writeFileSync(join(stateDir, 'warn-on-success'), '', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], ACTIVE);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
     expect(r.status, r.stderr).toBe(0);
     expect(keyRows()).toHaveLength(0);
     expect(r.stdout).toMatch(/refused by the policy simulator/);
@@ -740,18 +740,18 @@ describe('manage-human-operator.sh — offboarding', () => {
     // the ownership check below it, so a test that only pinned the exit code
     // would pass with this guard gone and report the wrong thing to whoever
     // mistyped a name.
-    const r = run(['--offboard', OPERATOR, '--yes'], READY);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], READY);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/there is no IAM user named/);
     expect(mutatingCalls()).toHaveLength(0);
   });
 });
 
-describe('manage-human-operator.sh — verify', () => {
+describe('manage-dev-tester.sh — verify', () => {
   it('changes nothing at all', () => {
-    const r = run(['--verify', OPERATOR], {
+    const r = run(['--verify', DEV_TESTER], {
       role: true,
-      userPath: OPERATOR_PATH,
+      userPath: DEV_TESTER_PATH,
       tags: MANAGED_TAGS,
       keys: [[FAKE_KEY_ID, 'Active']],
       policy: true,
@@ -762,20 +762,20 @@ describe('manage-human-operator.sh — verify', () => {
     expect(credentials()).toBe('');
   });
 
-  it('reports an absent operator without failing', () => {
-    const r = run(['--verify', OPERATOR], READY);
+  it('reports an absent dev-and-tester without failing', () => {
+    const r = run(['--verify', DEV_TESTER], READY);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/user:\s+absent/);
   });
 
-  it('fails rather than reporting the operator absent when IAM cannot read the user', () => {
+  it('fails rather than reporting the dev-and-tester absent when IAM cannot read the user', () => {
     // Absent is an answer IAM gives by name. A denied call, an expired session
     // or a dropped connection is no answer, and reporting it as absent would
     // pass a read-back of an identity nobody had looked at.
     writeFileSync(join(stateDir, 'unreadable-get-user'), '', 'utf-8');
-    const r = run(['--verify', OPERATOR], ACTIVE);
+    const r = run(['--verify', DEV_TESTER], ACTIVE);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/could not read the IAM user test_operator/);
+    expect(r.stderr).toMatch(/could not read the IAM user test_dev_tester/);
     expect(r.stdout).not.toMatch(/user:\s+absent/);
   });
 
@@ -783,9 +783,9 @@ describe('manage-human-operator.sh — verify', () => {
     // Keys here are replaced for a reason and never on a calendar, so an age
     // threshold would fail a run over a credential nothing is wrong with, and
     // teach the operator to stop reading the output.
-    const r = run(['--verify', OPERATOR], {
+    const r = run(['--verify', DEV_TESTER], {
       role: true,
-      userPath: OPERATOR_PATH,
+      userPath: DEV_TESTER_PATH,
       tags: MANAGED_TAGS,
       keys: [[FAKE_KEY_ID, 'Active']],
       policy: true,
@@ -800,9 +800,9 @@ describe('manage-human-operator.sh — verify', () => {
     // the path, so a user outside it cannot assume the role whatever its own
     // grants say, and a read-back that reports that and exits 0 is a report
     // nobody acts on.
-    const r = run(['--verify', OPERATOR], { role: true, userPath: '/', tags: MANAGED_TAGS });
+    const r = run(['--verify', DEV_TESTER], { role: true, userPath: '/', tags: MANAGED_TAGS });
     expect(r.status).toBe(1);
-    expect(r.stdout).toMatch(/NOT \/footbag-operators\//);
+    expect(r.stdout).toMatch(/NOT \/footbag-dev-testers\//);
     expect(r.stderr).toMatch(/1 finding\(s\)/);
   });
 
@@ -810,7 +810,7 @@ describe('manage-human-operator.sh — verify', () => {
     // No policy and no active key is the correct state after an offboard, so a
     // verify of a properly retired person passes. Counting it would fail the
     // run for the outcome the offboard is supposed to produce.
-    const r = run(['--verify', OPERATOR], INERT_MANAGED);
+    const r = run(['--verify', DEV_TESTER], INERT_MANAGED);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/absent, so this identity reaches nothing/);
   });
@@ -823,22 +823,22 @@ describe('manage-human-operator.sh — verify', () => {
       for (const reserved of ['FootbagDevTester', 'footbag-staging-runtime', 'footbag-production-runtime']) {
         const r = run([action, reserved, '--yes'], READY);
         expect(r.status, `${action} ${reserved} must be refused`).toBe(2);
-        expect(r.stderr).toMatch(/not a usable operator name/);
+        expect(r.stderr).toMatch(/not a usable dev-tester name/);
       }
     }
     expect(calls()).toEqual([]);
   });
 
   it('says plainly when the run is against a stub', () => {
-    const r = run(['--verify', OPERATOR], READY);
+    const r = run(['--verify', DEV_TESTER], READY);
     expect(r.stderr).toMatch(/SYNTHETIC/);
   });
 });
 
-describe('manage-human-operator.sh — verify reads what was done under the name', () => {
+describe('manage-dev-tester.sh — verify reads what was done under the name', () => {
   const HELD: Account = {
     role: true,
-    userPath: OPERATOR_PATH,
+    userPath: DEV_TESTER_PATH,
     tags: MANAGED_TAGS,
     keys: [[FAKE_KEY_ID, 'Active']],
     policy: true,
@@ -858,23 +858,23 @@ describe('manage-human-operator.sh — verify reads what was done under the name
       ].join('\n'),
       'utf-8',
     );
-    const r = run(['--verify', OPERATOR], HELD);
+    const r = run(['--verify', DEV_TESTER], HELD);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/trail:\s+3 event\(s\) as test_operator since/);
+    expect(r.stdout).toMatch(/trail:\s+3 event\(s\) as test_dev_tester since/);
     expect(r.stdout).toMatch(/latest:\s+2026-10-01T09:00:05\+00:00 GetParameter \(ssm\.amazonaws\.com\)/);
     expect(r.stdout).toMatch(/assumed:\s+2026-10-01T09:00:00\+00:00/);
-    expect(calls().some((c) => c.includes('lookup-events') && c.includes(`AttributeValue=${OPERATOR}`))).toBe(true);
+    expect(calls().some((c) => c.includes('lookup-events') && c.includes(`AttributeValue=${DEV_TESTER}`))).toBe(true);
   });
 
   it('reports no events as information, since a new identity has done nothing yet', () => {
-    const r = run(['--verify', OPERATOR], HELD);
+    const r = run(['--verify', DEV_TESTER], HELD);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/trail:\s+no event as test_operator since/);
+    expect(r.stdout).toMatch(/trail:\s+no event as test_dev_tester since/);
   });
 
   it('counts an unreadable trail as a finding rather than an empty one', () => {
     writeFileSync(join(stateDir, 'unreadable-lookup-events'), '', 'utf-8');
-    const r = run(['--verify', OPERATOR], HELD);
+    const r = run(['--verify', DEV_TESTER], HELD);
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/CloudTrail could not be read/);
     expect(r.stdout).not.toMatch(/no event as/);
@@ -889,7 +889,7 @@ describe('manage-human-operator.sh — verify reads what was done under the name
  * a check left for an operator to type at the end of a long sitting is the one
  * that gets skipped.
  */
-describe('manage-human-operator.sh — the proofs the run makes for itself', () => {
+describe('manage-dev-tester.sh — the proofs the run makes for itself', () => {
   /** A profile list naming more than the one the shared helper offers. */
   function profileListStub(names: string[]): string {
     const path = join(workDir, 'profile-list-stub.sh');
@@ -909,7 +909,7 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
     return path;
   }
 
-  /** The two sections an onboarded operator's workstation carries. */
+  /** The two sections an onboarded dev-and-tester's workstation carries. */
   function seedWorkstation(sourceProfile: string, keyId?: string) {
     writeFileSync(
       configFile,
@@ -925,7 +925,7 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
     if (keyId) {
       writeFileSync(
         credFile,
-        [`[${OPERATOR}]`, `aws_access_key_id = ${keyId}`, `aws_secret_access_key = ${FAKE_SECRET}`, ''].join(
+        [`[${DEV_TESTER}]`, `aws_access_key_id = ${keyId}`, `aws_secret_access_key = ${FAKE_SECRET}`, ''].join(
           '\n',
         ),
         'utf-8',
@@ -939,15 +939,15 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
 
   const RETIRING: Account = {
     role: true,
-    userPath: OPERATOR_PATH,
+    userPath: DEV_TESTER_PATH,
     tags: MANAGED_TAGS,
     keys: [[FAKE_KEY_ID, 'Active']],
     policy: true,
   };
 
   it('attempts the refused assume for real and reports what it said', () => {
-    seedWorkstation(OPERATOR, FAKE_KEY_ID);
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    seedWorkstation(DEV_TESTER, FAKE_KEY_ID);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null }, withChain());
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('a real role session: refused');
     // The verbatim failure is the evidence the go-live gate asks for, so it is
@@ -959,19 +959,19 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
     // The CLI caches role sessions on disk, and a cached one stays valid until
     // it expires whatever happens to the key. Asking through the role profile
     // answered with that session and failed a retirement that had worked.
-    seedWorkstation(OPERATOR, FAKE_KEY_ID);
-    run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    seedWorkstation(DEV_TESTER, FAKE_KEY_ID);
+    run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null }, withChain());
     const calls = readFileSync(join(stateDir, 'calls.log'), 'utf-8');
-    expect(calls).toMatch(new RegExp(`sts assume-role --profile ${OPERATOR} --role-arn ${ROLE_ARN}`));
+    expect(calls).toMatch(new RegExp(`sts assume-role --profile ${DEV_TESTER} --role-arn ${ROLE_ARN}`));
     expect(calls).not.toMatch(/get-caller-identity --profile FootbagDevTester/);
   });
 
   it('waits for a deleted key to stop working rather than failing the retirement', () => {
     // IAM goes on honouring a deleted key for some seconds.
-    seedWorkstation(OPERATOR, FAKE_KEY_ID);
+    seedWorkstation(DEV_TESTER, FAKE_KEY_ID);
     writeFileSync(join(stateDir, 'revoke-lag'), '3\n', 'utf-8');
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, {
-      env: { ...withChain().env, MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null }, {
+      env: { ...withChain().env, MANAGE_DEV_TESTER_PROPAGATION_POLL: '0' },
     });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/waiting for the retired key to stop working/);
@@ -979,17 +979,17 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
   });
 
   it('keeps the simulator proof alongside it, since they answer different questions', () => {
-    seedWorkstation(OPERATOR, FAKE_KEY_ID);
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    seedWorkstation(DEV_TESTER, FAKE_KEY_ID);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null }, withChain());
     expect(r.stdout).toContain('a new role session: refused by the policy simulator');
   });
 
   it('fails the offboard when the retired credentials still reach the role', () => {
     // The case the simulator cannot see: policy evaluation says no while a
     // credential that survived the retirement still authenticates.
-    seedWorkstation(OPERATOR, FAKE_KEY_ID);
-    const r = run(['--offboard', OPERATOR, '--yes'], RETIRING, {
-      env: { ...withChain().env, MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    seedWorkstation(DEV_TESTER, FAKE_KEY_ID);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], RETIRING, {
+      env: { ...withChain().env, MANAGE_DEV_TESTER_PROPAGATION_POLL: '0' },
     });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/still reached FootbagDevTester/);
@@ -1000,17 +1000,17 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
     // A profile of that name sourcing another person's credentials would answer
     // a question about them, and either answer would be misread as this one.
     seedWorkstation('somebody_else', FAKE_KEY_ID);
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null }, withChain());
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/chains from \[somebody_else\]/);
     expect(r.stdout).not.toContain('a real role session: refused');
   });
 
-  it('treats a chain named for the operator as evidence only when it signs with their key', () => {
+  it('treats a chain named for the dev-and-tester as evidence only when it signs with their key', () => {
     // The section is called after them but signs with a key IAM never held for
     // them, so its refusal says nothing about the retirement.
-    seedWorkstation(OPERATOR, OLD_KEY_ID);
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null }, withChain());
+    seedWorkstation(DEV_TESTER, OLD_KEY_ID);
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null }, withChain());
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toContain('a real role session: refused');
     expect(r.stdout).toMatch(/signing with \S+, which is not one of\s+the keys IAM held/);
@@ -1026,7 +1026,7 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
         '[profile FootbagDevTester]',
         `role_arn = ${ROLE_ARN}`,
         'source_profile = laptop_key',
-        `role_session_name = ${OPERATOR}`,
+        `role_session_name = ${DEV_TESTER}`,
         '',
       ].join('\n'),
       'utf-8',
@@ -1038,8 +1038,8 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
       ),
       'utf-8',
     );
-    const r = run(['--offboard', OPERATOR, '--yes'], RETIRING, {
-      env: { ...withChain().env, MANAGE_OPERATOR_PROPAGATION_POLL: '0' },
+    const r = run(['--offboard', DEV_TESTER, '--yes'], RETIRING, {
+      env: { ...withChain().env, MANAGE_DEV_TESTER_PROPAGATION_POLL: '0' },
     });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/still reached FootbagDevTester/);
@@ -1047,7 +1047,7 @@ describe('manage-human-operator.sh — the proofs the run makes for itself', () 
   });
 
   it('says why it could not attempt it on a workstation without the chain', () => {
-    const r = run(['--offboard', OPERATOR, '--yes'], { ...RETIRING, assumed: null });
+    const r = run(['--offboard', DEV_TESTER, '--yes'], { ...RETIRING, assumed: null });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/no \[profile FootbagDevTester\] chaining from anything/);
   });

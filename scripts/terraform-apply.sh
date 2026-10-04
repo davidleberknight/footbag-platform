@@ -45,7 +45,7 @@
 #   scripts/terraform-apply.sh --target staging --init-upgrade
 #   scripts/terraform-apply.sh --target staging --break-stale-lock
 #   scripts/terraform-apply.sh --target staging --break-stale-lock --i-killed-that-run
-#   scripts/terraform-apply.sh --target staging --firewall-only
+#   scripts/terraform-apply.sh --target staging --firewall-only --firewall-add 203.0.113.7/32
 #   scripts/terraform-apply.sh --target staging --require-empty-plan
 #
 # --firewall-only and --require-empty-plan are for callers that know in advance
@@ -54,6 +54,13 @@
 # says first that every staging port blinks while it is replaced. The second, run
 # when proving the job role, applies nothing and refuses unless there is nothing
 # to apply. Either refuses any other change as drift it did not come to apply.
+#
+# --firewall-only also takes the one SSH address the caller is adding
+# (--firewall-add <cidr>) and the one it is removing (--firewall-remove <cidr>),
+# at least one of them, and refuses a plan whose SSH ports gain or lose any
+# other address. The values file is read from whichever private checkout this
+# machine holds, so a stale one would otherwise drop an administrator's address
+# from the live firewall while every resource check passed.
 #
 # --i-killed-that-run waives the staleness floor, and nothing else, for an
 # operator who knows the holding process is gone because they stopped it. The
@@ -64,7 +71,7 @@
 #
 # The typed APPLY is asked for on production, on the shared tree, which holds
 # every environment's state, and on the identity tree, where the plan is what
-# every human operator in this account may do. Staging applies without it:
+# every dev-and-tester in this account may do. Staging applies without it:
 # its data is meant to be thrown away, and a word typed on every iteration is one
 # that stops being read. --break-stale-lock asks on every tree, staging included,
 # because what it removes is not staging's disposable data.
@@ -94,8 +101,12 @@
 # Under the job role (an assumed-role session of FootbagDevTester, as AWS
 # reports it) three things differ, and nothing else: terraform is never allowed
 # to prompt (-input=false), a missing values link is refused before planning,
-# and a plan that changes any aws_iam_* resource is refused before applying,
-# because the role holds no IAM write.
+# and a plan the role may not apply is refused before applying: any aws_iam_*
+# change, because the role holds no IAM write; a replication configuration
+# change, because it passes a role, which the role is never granted; and any
+# change to the staging firewall, because the addresses it admits are written by
+# onboarding and offboarding as footbag-operator, and a values file on a
+# dev-and-tester's machine is no authority over an administrator's entry.
 set -euo pipefail
 
 TARGET=""
@@ -120,6 +131,9 @@ STALE_LOCK_MIN_AGE_SECS=1800
 PLAN_SHAPE=""
 # The one resource a dev-and-tester address change may touch.
 FIREWALL_ADDRESS="aws_lightsail_instance_public_ports.web"
+# The one SSH address a firewall-only apply may add, and the one it may remove.
+FIREWALL_ADD=""
+FIREWALL_REMOVE=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # confirm_from_tty reads the answer from /dev/tty rather than stdin, refuses when
@@ -293,6 +307,14 @@ while [[ $# -gt 0 ]]; do
       PLAN_SHAPE="empty"
       shift
       ;;
+    --firewall-add|--firewall-remove)
+      if [[ -z "${2:-}" || "$2" == --* ]]; then
+        echo "ERROR: $1 takes an address in CIDR form, e.g. 203.0.113.7/32." >&2
+        exit 2
+      fi
+      if [[ "$1" == "--firewall-add" ]]; then FIREWALL_ADD="$2"; else FIREWALL_REMOVE="$2"; fi
+      shift 2
+      ;;
     --yes)
       ASSUME_YES="yes"
       shift
@@ -305,14 +327,14 @@ done
 # No default target. Which tree an apply lands on is exactly the decision this
 # script must not make for the operator.
 #
-# `identity` declares what a human operator may do. It is applied through here
+# `identity` declares what a dev-and-tester may do. It is applied through here
 # like any other tree, but only by the directly authenticated identity, which
 # is asserted below once a credential has actually been settled: the job role
 # is denied every write to its own definition, so a run started under it would
 # stop on an access denial partway through an apply rather than at the door,
 # having already made some of the changes.
 #
-# Who the operators ARE is not a tree at all. Onboarding and offboarding mint and
+# Who the dev-and-testers ARE is not a tree at all. Onboarding and offboarding mint and
 # revoke key material that must never enter Terraform state, so
 # scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh own that
 # instead.
@@ -326,6 +348,16 @@ if [[ -n "$PLAN_SHAPE" && "$TARGET" != "staging" ]]; then
 fi
 if [[ -n "$PLAN_SHAPE" ]] && (( BREAK_LOCK )); then
   echo "ERROR: --firewall-only and --require-empty-plan do not combine with --break-stale-lock." >&2
+  exit 2
+fi
+# A firewall-only apply names the address it changes, so the plan can be held to
+# exactly that. Without one, nothing would say which addresses it may drop.
+if [[ "$PLAN_SHAPE" == "firewall-only" && -z "$FIREWALL_ADD" && -z "$FIREWALL_REMOVE" ]]; then
+  echo "ERROR: --firewall-only needs --firewall-add <cidr>, --firewall-remove <cidr>, or both." >&2
+  exit 2
+fi
+if [[ "$PLAN_SHAPE" != "firewall-only" && ( -n "$FIREWALL_ADD" || -n "$FIREWALL_REMOVE" ) ]]; then
+  echo "ERROR: --firewall-add and --firewall-remove go with --firewall-only." >&2
   exit 2
 fi
 
@@ -412,7 +444,7 @@ fi
 # advance is not the operator's judgement that the holding run is gone.
 #
 # The identity tree is here for the same reason it takes a typed APPLY: its
-# state is the record of what every human operator may do, so two runs writing
+# state is the record of what every dev-and-tester may do, so two runs writing
 # it at once can leave a grant standing that was being removed. Staging is the only
 # tree that keeps --yes here. Its lock prompt is the one place staging still
 # stops, and an explicitly typed flag is entitled to answer it; the tree's data
@@ -825,40 +857,49 @@ else
   echo "      prompt it raises against the plan above." >&2
 fi
 
-# ── An IAM change is the directly authenticated identity's to apply ──────────
+# ── Changes that are the directly authenticated identity's to apply ──────────
 #
-# The job role holds no IAM write, so a plan that changes any aws_iam_* resource
-# would be refused by AWS partway through the apply, after the resources ahead of
-# it had already changed. Refused here instead, before anything is applied, and
-# failing closed like the DNS read: a plan this cannot read is refused too.
+# The job role holds no IAM write and no iam:PassRole, so a plan that changes any
+# aws_iam_* resource, or a replication configuration (which passes the
+# replication role to S3), would be refused by AWS partway through the apply,
+# after the resources ahead of it had already changed. The staging firewall is
+# refused for a different reason: AWS would allow it, but the addresses it admits
+# belong to the administrators' values file and to each dev-and-tester's own
+# parameter, and a values file on this machine is no authority over either.
+# Refused here instead, before anything is applied, and failing closed like the
+# DNS read: a plan this cannot read is refused too.
 if (( JOB_ROLE )); then
-  IAM_CHANGES=""
+  ROLE_REFUSED=""
   if command -v jq >/dev/null 2>&1; then
-    if ! IAM_CHANGES="$(printf '%s' "${PLAN_JSON:-}" | jq -r '
+    if ! ROLE_REFUSED="$(printf '%s' "${PLAN_JSON:-}" | jq -r --arg fw "$FIREWALL_ADDRESS" '
         .resource_changes[]?
         | select(.change.actions != ["no-op"] and .change.actions != ["read"])
-        | select(.type | startswith("aws_iam"))
+        | select((.type | startswith("aws_iam"))
+                 or .type == "aws_s3_bucket_replication_configuration"
+                 or .address == $fw)
         | "  \(.change.actions | join("+"))  \(.address)"
       ')"; then
-      echo "ERROR: could not read the saved plan to check it for IAM changes." >&2
+      echo "ERROR: could not read the saved plan to check it for changes the job role may not apply." >&2
       echo "       Nothing has been applied." >&2
       exit 1
     fi
   else
-    IAM_GREP_STATUS=0
-    IAM_CHANGES="$(grep -E '^[[:space:]]*[#~+-].*aws_iam_' "$TF_PLAN_LOG")" || IAM_GREP_STATUS=$?
-    if (( IAM_GREP_STATUS > 1 )); then
-      echo "ERROR: could not read the plan text to check it for IAM changes." >&2
+    ROLE_GREP_STATUS=0
+    ROLE_REFUSED="$(grep -E '^[[:space:]]*[#~+-].*(aws_iam_|aws_s3_bucket_replication_configuration|aws_lightsail_instance_public_ports)' "$TF_PLAN_LOG")" || ROLE_GREP_STATUS=$?
+    if (( ROLE_GREP_STATUS > 1 )); then
+      echo "ERROR: could not read the plan text to check it for changes the job role may not apply." >&2
       echo "       Nothing has been applied." >&2
       exit 1
     fi
   fi
-  if [[ -n "$IAM_CHANGES" ]]; then
-    echo "ERROR: this plan changes IAM, which the job role may not do:" >&2
-    printf '%s\n' "$IAM_CHANGES" >&2
-    echo "       AWS would refuse it partway through, after the changes ahead of" >&2
-    echo "       it had landed. Nothing has been applied. A footbag-operator holder" >&2
-    echo "       applies this one, as the directly authenticated identity." >&2
+  if [[ -n "$ROLE_REFUSED" ]]; then
+    echo "ERROR: this plan changes what the job role may not apply:" >&2
+    printf '%s\n' "$ROLE_REFUSED" >&2
+    echo "       IAM and replication would be refused by AWS partway through, after" >&2
+    echo "       the changes ahead of them had landed; the staging firewall's" >&2
+    echo "       addresses are not this machine's to decide. Nothing has been" >&2
+    echo "       applied. A footbag-operator holder applies this one, as the" >&2
+    echo "       directly authenticated identity." >&2
     exit 1
   fi
 fi
@@ -907,6 +948,34 @@ if [[ -n "$PLAN_SHAPE" ]]; then
   if [[ -z "$PLANNED_CHANGES" ]]; then
     echo "The staging firewall already admits exactly these addresses. Nothing to apply."
     exit 0
+  fi
+  # The resource being the whole change says nothing about which addresses it
+  # carries. Compare the SSH ports' addresses before and after: anything gained
+  # or lost beyond the one address this run names is an administrator's entry,
+  # or another dev-and-tester's, that this run has no business changing. An
+  # after-state the plan does not know reads as every address lost, so this
+  # fails closed.
+  if ! SSH_DIFF="$(printf '%s' "$PLAN_JSON" | jq -r --arg fw "$FIREWALL_ADDRESS" '
+      def ssh(x): [(x // {}).port_info[]? | select(.from_port == 22 or .from_port == 2222) | .cidrs[]?] | unique;
+      [.resource_changes[]? | select(.address == $fw)][0].change as $c
+      | (ssh($c.before)) as $b | (ssh($c.after)) as $a
+      | (($b - $a)[] | "removed \(.)"), (($a - $b)[] | "added \(.)")
+    ')"; then
+    echo "ERROR: could not read the firewall's addresses out of the saved plan. Nothing has been applied." >&2
+    exit 1
+  fi
+  UNNAMED="$(printf '%s\n' "$SSH_DIFF" | grep -vxF -e '' \
+    ${FIREWALL_ADD:+-e "added ${FIREWALL_ADD}"} \
+    ${FIREWALL_REMOVE:+-e "removed ${FIREWALL_REMOVE}"} || true)"
+  if [[ -n "$UNNAMED" ]]; then
+    echo "ERROR: this firewall-only apply would change SSH addresses it was not asked to:" >&2
+    printf '%s\n' "$UNNAMED" | sed 's/^/  /' >&2
+    echo "       Asked for: ${FIREWALL_ADD:+added ${FIREWALL_ADD}}${FIREWALL_ADD:+${FIREWALL_REMOVE:+, }}${FIREWALL_REMOVE:+removed ${FIREWALL_REMOVE}}." >&2
+    echo "       This machine's values file disagrees with the live firewall, so" >&2
+    echo "       applying would drop or add somebody else's access. Nothing has been" >&2
+    echo "       applied. Update the private checkout, or a footbag-operator holder" >&2
+    echo "       applies staging first." >&2
+    exit 1
   fi
   echo "This apply replaces the staging firewall rule set (${FIREWALL_ADDRESS})."
   echo "Every staging port, SSH and the site alike, closes for a few seconds while"
@@ -958,8 +1027,8 @@ fi
 # bucket the other two trees need in order to exist at all. It also costs
 # nothing: the shared tree changes about once a year.
 #
-# The identity tree asks for a different reason: its plan is what every human
-# operator in this account is permitted to do. A widened statement hands
+# The identity tree asks for a different reason: its plan is what every
+# dev-and-tester in this account is permitted to do. A widened statement hands
 # everybody something, a narrowed one takes it away mid-incident; neither is a
 # change to skim past, and the diff is short enough that reading it costs
 # nothing. It is also the one tree whose plan the reader cannot sanity-check

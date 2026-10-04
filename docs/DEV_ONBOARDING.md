@@ -107,7 +107,7 @@ One canonical, idempotent script installs every tool the repository needs, at th
 
 Every download is compared with a pinned checksum before anything from it is unpacked. The script shows its plan and changes nothing until you type `APPLY`; `--check` reports what it would install and changes nothing, and `--yes` accepts the confirmation in advance. Re-run it any time: on a machine that already has everything, it reports that there is nothing to do.
 
-Docker is the one prerequisite the script does not install; it reports Docker's state and §1.13 covers the install. The AWS CLI is for operators and dev-testers only: `bash scripts/setup-dev-workstation.sh --operator` adds the pinned AWS CLI v2.
+Docker is the one prerequisite the script does not install; it reports Docker's state and §1.13 covers the install. The AWS CLI is for operators and dev-testers only: `bash scripts/setup-dev-workstation.sh --aws` adds the pinned AWS CLI v2.
 
 Claude Code (`@anthropic-ai/claude-code`) is required for all contributors, but it is not needed to run the site or the tests; set it up after your first hello-world success (§1.10B).
 
@@ -939,7 +939,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
 1. Make your key pair and send three things:
 
    ```bash
-   bash scripts/setup-dev-workstation.sh --operator \
+   bash scripts/setup-dev-workstation.sh --aws \
      --account <first>_<last>
    ```
 
@@ -951,7 +951,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
      --account <your_account>
    ```
 
-   It checks your tools first, then shows each change and asks you to type `APPLY`: your AWS profiles, the pinned staging host key, the SSH stanza, and your own sudo password in place of the one-time one (at least 12 characters, kept in `~/AWS/HOST_OPERATOR.txt`). It deletes the sealed file, ends by setting up and checking your workstation as you, and prints an evidence block to send the maintainer.
+   It checks your tools first, then shows each change and asks you to type `APPLY`: your AWS profiles, the pinned staging host key, the SSH stanza, and your own sudo password in place of the one-time one (at least 12 characters, kept in `~/AWS/DEV_TESTER_HOST.txt`). It deletes the sealed file, ends by setting up and checking your workstation as you, and prints an evidence block to send the maintainer.
 3. Prove the path with a code-only deploy and the smoke suite, after telling the maintainer:
 
    ```bash
@@ -969,7 +969,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
 **Leaving.** Offboarding disables your host account, retires your AWS identity and its key, and removes your address from the staging allow-list. Your clone of this repository is untouched, and repository access is granted and withdrawn separately. To come back, make a fresh pair, retiring the one your acceptance recorded, and join again from step 1 with the new key:
 
 ```bash
-bash scripts/setup-dev-workstation.sh --operator \
+bash scripts/setup-dev-workstation.sh --aws \
   --account <your_account> --replace-key retired
 ```
 
@@ -1060,7 +1060,7 @@ This guide preserves these project constraints:
 - Lightsail origin behind CloudFront
 - /srv/footbag/env as the file the runtime reads in non-local deployments, mirrored from Parameter Store on every deploy
 - Parameter Store as the runtime source of truth for deployed secrets, with a hand edit on the host reverted by the next deploy
-- hardened per-operator SSH for host access
+- hardened SSH for host access: administrators to the shared account with their own keys, dev-and-testers to their own named staging accounts
 - Terraform as the authority for infrastructure, with host bootstrap steps reproducible and reflected in the runbooks
 
 ### 4.5 Official references

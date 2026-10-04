@@ -617,12 +617,12 @@ staging_blocked() {
 staging_preflight() {
   local all=(staging-aws-smoke staging-realdata-invariants staging-route-smoke staging-browser)
   local fix_role="run it through the dev-tester switch: scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --staging (onboarding: scripts/accept-dev-tester-onboarding.sh)"
-  local fix_wire="the staging alias must connect as your own account (run through scripts/as-dev-tester.sh --account <your-name>), ~/AWS/HOST_OPERATOR.txt must hold your staging sudo password at mode 600, and the alias and its pinned host key come from scripts/accept-dev-tester-onboarding.sh"
+  local fix_wire="the staging alias must connect as your own account (run through scripts/as-dev-tester.sh --account <your-name>), ~/AWS/DEV_TESTER_HOST.txt must hold your staging sudo password at mode 600, and the alias and its pinned host key come from scripts/accept-dev-tester-onboarding.sh"
   local arn probe members authoritative claimable site ssh_bin
 
   echo "→ --staging preflight: checking what the staging rows need ..."
   if ! command -v aws >/dev/null 2>&1; then
-    staging_block "the AWS CLI is not installed; bash scripts/setup-dev-workstation.sh --operator installs it" "${all[@]}"
+    staging_block "the AWS CLI is not installed; bash scripts/setup-dev-workstation.sh --aws installs it" "${all[@]}"
   else
     # An AWS fact, not a profile name found in a file: the caller must be a
     # session of the dev-tester job role, and the staging runtime identity the

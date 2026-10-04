@@ -10,7 +10,7 @@
  *
  * The rebuild path did not follow. It carried the literal on both sides and defended
  * it by refusing any connecting account but the shared one, which stopped the
- * destructive success at the price of locking a named operator out of the rebuild
+ * destructive success at the price of locking a dev-and-tester out of the rebuild
  * entirely. This is the same contract, now asserted for that path too, because the
  * rebuild is the one that replaces the live database: promoting a tree nobody named
  * costs the data as well as the code.

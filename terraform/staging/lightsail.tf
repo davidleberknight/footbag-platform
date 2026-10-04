@@ -38,7 +38,7 @@ locals {
 # only by onboarding and offboarding as the directly authenticated identity. The
 # administrators' own entries stay in operator_cidrs, in the values file, and are
 # never read from here. Outside /footbag/<env>/ on purpose: the runtime role reads
-# that whole prefix, and an operator's home address is nothing the application
+# that whole prefix, and a dev-and-tester's home address is nothing the application
 # should see. An empty path reads as an empty list, so with nobody onboarded the
 # firewall is exactly operator_cidrs.
 data "aws_ssm_parameters_by_path" "dev_tester_addresses" {
@@ -71,7 +71,7 @@ locals {
   # then each dev-and-tester address not already present. An address both an
   # administrator and a dev-and-tester hold appears once, and removing the
   # dev-and-tester's parameter leaves the administrator's entry admitting it.
-  operator_ssh_cidrs = distinct(concat(var.operator_cidrs, local.dev_tester_cidrs))
+  ssh_cidrs = distinct(concat(var.operator_cidrs, local.dev_tester_cidrs))
 }
 
 # A warning, never a failure: a bad value in one person's parameter must not stop
@@ -146,7 +146,7 @@ resource "aws_lightsail_instance_public_ports" "web" {
     protocol          = "tcp"
     from_port         = 22
     to_port           = 22
-    cidrs             = local.operator_ssh_cidrs
+    cidrs             = local.ssh_cidrs
     cidr_list_aliases = ["lightsail-connect"]
   }
 
@@ -169,7 +169,7 @@ resource "aws_lightsail_instance_public_ports" "web" {
     protocol  = "tcp"
     from_port = 2222
     to_port   = 2222
-    cidrs     = local.operator_ssh_cidrs
+    cidrs     = local.ssh_cidrs
   }
 
   # HTTPS — not terminated at Lightsail; CloudFront handles TLS

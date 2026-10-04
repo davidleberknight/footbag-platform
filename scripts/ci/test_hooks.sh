@@ -6,6 +6,11 @@
 # mismatches. Covers the Bash-command guards (command-style events), the Edit/Write
 # secret-file guard (file_path-style events), and the Stop-hook question gate.
 set -uo pipefail
+# Reaches no AWS, and is cut off from it before anything runs: the fixtures name
+# the aws CLI as data in every case they feed the AWS-reach guard, and this is
+# what lets that guard trust this script without reading them.
+source "$(dirname "$0")/../lib/aws-isolation.sh"
+aws_isolate_self "$@"
 cd "$(dirname "$0")/../.."
 
 # The read-only approver accepts `git -C` only for the project directory or a path
@@ -379,8 +384,21 @@ expect "$H" 'npm run test:smoke' ask
 expect "$H" 'terraform -chdir=terraform/staging fmt -check' defer
 expect "$H" 'terraform -chdir=terraform/staging validate' defer
 
+# A wrapper word in front still runs aws or terraform.
+expect "$H" 'env -i aws s3 ls' ask
+expect "$H" 'env -u AWS_PROFILE aws sts get-caller-identity' ask
+expect "$H" 'env AWS_PROFILE=x aws s3 ls' ask
+expect "$H" 'sudo -E aws s3 ls' ask
+expect "$H" 'command aws s3 ls' ask
+expect "$H" 'nohup terraform -chdir=terraform/staging plan' ask
+expect "$H" 'echo x | xargs -n1 aws s3 ls' ask
+expect "$H" 'env - aws s3 ls' ask
+expect "$H" 'exec -c aws s3 ls' ask
+expect "$H" 'env -i terraform -chdir=terraform/staging validate' defer
+
 # `aws` as an argument is not an AWS call.
 expect "$H" 'grep -rn aws src/adapters/' defer
+expect "$H" 'echo env aws' defer
 expect "$H" 'echo "run aws ssm get-parameter yourself"' defer
 expect "$H" 'ls scripts/ | grep aws' defer
 expect "$H" 'npm test' defer
@@ -408,6 +426,52 @@ expect "$H" 'cat scripts/test-smoke.sh | bash' ask
 expect "$H" 'sudo bash scripts/test-smoke.sh' ask
 expect "$H" 'env FOO=1 bash scripts/test-smoke.sh' ask
 expect "$H" 'bash -c "scripts/test-smoke.sh"' ask
+
+# A script that cuts itself off from AWS as its first command is trusted without
+# reading its body; the same body without that, or with the call only in a
+# comment, or undoing the isolation later, still asks. Each probe script is
+# written to a throwaway directory and the guard is run from there, so it reads
+# that file and nothing in the repository.
+expect_script() {
+  local body="$1" want="$2" dir out decision
+  dir="$(mktemp -d)"
+  printf '%s\n' "$body" > "$dir/probe.sh"
+  out="$(cd "$dir" && printf '{"tool_input":{"command":"bash probe.sh"}}' \
+    | "$HOOKS_ROOT/.claude/hooks/guard-aws-reach.sh")"
+  rm -rf "$dir"
+  if [ -z "$out" ]; then decision="defer"; else decision="$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$out")"; fi
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL (guard-aws-reach.sh): want $want, got $decision for probe script: ${body//$'\n'/ \\n }" >&2
+    fail=1
+  fi
+}
+HOOKS_ROOT="$PWD"
+ISOLATED_HEAD=$'#!/usr/bin/env bash\nset -euo pipefail\nsource scripts/lib/aws-isolation.sh\naws_isolate_self "$@"'
+expect_script "${ISOLATED_HEAD}"$'\n'"expect x 'ls && aws sts get-caller-identity' ask" defer
+# The two heads the real isolated scripts use.
+expect_script $'#!/usr/bin/env bash\nset -uo pipefail\nsource "$(dirname "$0")/../lib/aws-isolation.sh"\naws_isolate_self "$@"\naws s3 ls' defer
+expect_script $'#!/usr/bin/env bash\nset -euo pipefail\nsource scripts/lib/aws-isolation.sh\naws_isolate_self "$@"\naws s3 ls' defer
+expect_script $'#!/usr/bin/env bash\nset -euo pipefail\n'"aws sts get-caller-identity" ask
+expect_script $'#!/usr/bin/env bash\n# aws_isolate_self "$@"\naws s3 ls' ask
+expect_script $'#!/usr/bin/env bash\naws s3 ls\naws_isolate_self "$@"' ask
+expect_script "${ISOLATED_HEAD}"$'\nexport AWS_PROFILE=footbag-operator\naws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nunset AWS_CONFIG_FILE\naws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nenv -i aws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nenv -u AWS_PROFILE aws s3 ls' ask
+# The forms that put a credential source back, each its own way past a narrower
+# check: an emptied environment, option flags on unset and export, an assignment
+# after a separator, sudo's environment reset, and exec's cleared environment.
+expect_script "${ISOLATED_HEAD}"$'\nenv - aws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nunset -v AWS_CONFIG_FILE\naws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nexport -- AWS_PROFILE=footbag-operator\naws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\ntrue; AWS_CONFIG_FILE=/home/x/.aws/config aws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nsudo aws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nexec -c aws s3 ls' ask
+# A command hidden in the setup lines ahead of the call runs before isolation.
+expect_script $'#!/usr/bin/env bash\nset -e; aws s3 ls\nsource scripts/lib/aws-isolation.sh\naws_isolate_self "$@"' ask
+expect_script $'#!/usr/bin/env bash\nsource /dev/null; aws s3 ls # aws-isolation.sh\naws_isolate_self "$@"' ask
+expect_script $'#!/usr/bin/env bash\nsource "$(aws s3 ls)/aws-isolation.sh"\naws_isolate_self "$@"' ask
+expect_script $'#!/usr/bin/env bash\nset $(aws s3 ls)\nsource scripts/lib/aws-isolation.sh\naws_isolate_self "$@"' ask
 
 H=guard-readonly-bash.sh
 

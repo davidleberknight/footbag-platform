@@ -8,7 +8,7 @@
 #
 #   ~/AWS/AWS_OPERATOR.txt              shared account, staging
 #   ~/AWS/AWS_OPERATOR_PRODUCTION.txt   shared account, production
-#   ~/AWS/HOST_OPERATOR.txt             your own account, staging
+#   ~/AWS/DEV_TESTER_HOST.txt           your own account, staging
 #
 # A named account is a dev-and-tester's, and a dev-and-tester is onboarded onto
 # staging only, so there is no named account on production and no file for one.
@@ -40,8 +40,8 @@
 # and whichever of the two settles second compares them. Sourced here rather
 # than in each caller because every host-touching run reaches this file, which
 # is the same reason the credential rule itself lives here.
-# shellcheck source=lib/operator-identity-agreement.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/operator-identity-agreement.sh"
+# shellcheck source=lib/dev-tester-identity-agreement.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dev-tester-identity-agreement.sh"
 
 # The shared account. Every other name is a person, and a person's sudo password
 # is their own, which is the distinction the rule turns on.
@@ -90,7 +90,7 @@ operator_credential_file_for() {
   if [[ "$account" == "$OPERATOR_SHARED_ACCOUNT" ]]; then
     pair="AWS_OPERATOR"
   else
-    pair="HOST_OPERATOR"
+    pair="DEV_TESTER_HOST"
     if [[ "$target" == "production" ]]; then
       echo "ERROR: '${account}' is a named account, and there is none on production:" >&2
       echo "       a named account is a dev-and-tester's, onboarded onto staging only, and" >&2
@@ -154,7 +154,7 @@ operator_credential_select() {
   # and the workstation report calls it precisely to describe a machine whose
   # setup is half finished. The refusal belongs to the callers that are about to
   # act on the credential.
-  operator_identity_agreement_record
+  dev_tester_identity_agreement_record
   return 0
 }
 
@@ -185,7 +185,7 @@ operator_credential_mode_ok() {
 # require_operator_credential <alias> <target>
 # For the scripts that open the credential file themselves rather than having it
 # piped in. Refuses by name when the selected file is missing, and never reaches
-# for the other pair: a silent fallback would run a named operator's work under
+# for the other pair: a silent fallback would run a dev-and-tester's work under
 # the shared account's credential, and nothing afterwards would say so.
 require_operator_credential() {
   local alias="$1" target="$2"
@@ -200,7 +200,7 @@ require_operator_credential() {
   # This caller is about to open the credential and act, so a run naming two
   # different people stops here rather than shipping under one name and calling
   # AWS under another.
-  operator_identity_agreement_require || return 1
+  dev_tester_identity_agreement_require || return 1
   echo "credential: ${OPERATOR_CREDENTIAL_DISPLAY} ('${alias}' connects as '${OPERATOR_CREDENTIAL_ACCOUNT}')" >&2
   return 0
 }

@@ -141,8 +141,8 @@ source "${REPO_ROOT}/scripts/lib/ssh-alias.sh"
 # shellcheck source=lib/aws-credentials-file.sh
 source "${REPO_ROOT}/scripts/lib/aws-credentials-file.sh"
 
-HOST_CMD="${OFFBOARD_HOST_CMD:-${SCRIPT_DIR}/provision-operator-account.sh}"
-AWS_CMD="${OFFBOARD_AWS_CMD:-${SCRIPT_DIR}/manage-human-operator.sh}"
+HOST_CMD="${OFFBOARD_HOST_CMD:-${SCRIPT_DIR}/provision-dev-tester-account.sh}"
+AWS_CMD="${OFFBOARD_AWS_CMD:-${SCRIPT_DIR}/manage-dev-tester.sh}"
 ADDRESS_CMD="${OFFBOARD_ADDRESS_CMD:-${SCRIPT_DIR}/authorize-operator-address.sh}"
 FETCH_CMD="${OFFBOARD_FETCH:-}"
 DEV_TESTER_PATH="/footbag-ops/staging/dev-testers"
@@ -183,7 +183,7 @@ fi
 require_target "$TARGET" staging || exit 2
 
 if [[ -z "$ACCOUNT" ]]; then
-  echo "ERROR: --account names the operator being retired." >&2
+  echo "ERROR: --account names the dev-and-tester being retired." >&2
   exit 2
 fi
 if [[ "$ACCOUNT" == "$OPERATOR_SHARED_ACCOUNT" ]]; then
@@ -212,7 +212,7 @@ if [[ ! "$FROM_STEP" =~ ^[1-3]$ ]]; then
 fi
 
 aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
-  "Retiring a human operator is refused to every role, including the job role, by the role's own policy." \
+  "Retiring a dev-and-tester is refused to every role, including the job role, by the role's own policy." \
   || exit 1
 aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
 

@@ -4,10 +4,10 @@
 # value, edit the private file the symlink points at. Without that checkout you
 # cannot apply this tree at all.
 #
-# This tree declares what a human operator MAY DO. Who the operators are is not
-# declared in Terraform at all: onboarding mints an access key, and a secret
+# This tree declares what a dev-and-tester MAY DO. Who the dev-and-testers are is
+# not declared in Terraform at all: onboarding mints an access key, and a secret
 # Terraform creates is a secret held in its state, so the named users are
-# created and retired by scripts/manage-human-operator.sh instead.
+# created and retired by scripts/manage-dev-tester.sh instead.
 #
 # It is applied by the directly authenticated identity, never by the job role it
 # declares: that role is denied every write to its own definition, so it cannot

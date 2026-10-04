@@ -29,7 +29,10 @@ beforeEach(() => {
   dir = createScratchDir('prove-dev-tester');
   home = join(dir, 'home');
   mkdirSync(join(home, 'AWS'), { recursive: true });
-  baseline = join(home, 'AWS', 'baseline-2026-10-04.txt');
+  // Where verify-account-baseline.sh --save writes, derived from TMPDIR, which
+  // the run helper points at this test's own directory.
+  mkdirSync(join(dir, `footbag-baseline-${process.getuid!()}`), { mode: 0o700 });
+  baseline = join(dir, `footbag-baseline-${process.getuid!()}`, 'baseline-2026-10-04.txt');
   writeFileSync(baseline, 'operator.id\tAIDAFIXTURE\n', { mode: 0o600 });
 });
 
@@ -66,11 +69,38 @@ function wrap(): string {
   return path;
 }
 
+/**
+ * The aws CLI the chain is proved with: answers the account, and an assume-role
+ * of the staging runtime role with the session it was asked for, or lands on
+ * `chainLandsOn` instead, or is refused when `chainRefused` is set.
+ */
+function aws(opts: { chainLandsOn?: string; chainRefused?: boolean } = {}): string {
+  // Named for its answers, so a variant is never overwritten by the default the
+  // run helper writes alongside it.
+  const path = join(dir, `aws-${opts.chainRefused ? 'refused' : (opts.chainLandsOn ?? 'runtime')}`);
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env bash',
+      `printf 'aws %s %s\\n' "$1" "$2" >> ${JSON.stringify(join(dir, 'calls.log'))}`,
+      '[[ "$2" == get-caller-identity ]] && { echo 000000000000; exit 0; }',
+      'session=""; role=""; prev=""',
+      'for a in "$@"; do [[ "$prev" == --role-session-name ]] && session="$a"; [[ "$prev" == --role-arn ]] && role="${a##*/}"; prev="$a"; done',
+      opts.chainRefused ? 'echo "An error occurred (AccessDenied) when calling the AssumeRole operation" >&2; exit 254' : '',
+      `echo "arn:aws:sts::000000000000:assumed-role/${opts.chainLandsOn ?? '${role}'}/\${session}"`,
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  return path;
+}
+
 function env(exits: Partial<Record<string, number>> = {}): Record<string, string> {
   return {
     ...NO_AWS_CREDENTIALS,
     HOME: home,
+    TMPDIR: dir,
     PROVE_WRAP_CMD: wrap(),
+    PROVE_AWS_BIN: aws(),
     PROVE_APPLY_CMD: step('apply', exits.apply),
     PROVE_DEPLOY_CMD: step('deploy', exits.deploy),
     PROVE_RUNNER_CMD: step('runner', exits.runner),
@@ -80,14 +110,19 @@ function env(exits: Partial<Record<string, number>> = {}): Record<string, string
   };
 }
 
-function run(terminal: string, argv: string[] = ['--account', ACCOUNT], exits: Partial<Record<string, number>> = {}) {
+function run(
+  terminal: string,
+  argv: string[] = ['--account', ACCOUNT],
+  exits: Partial<Record<string, number>> = {},
+  extra: Record<string, string> = {},
+) {
   const cred = join(dir, 'cred');
   writeFileSync(cred, `${PASSWORD}\n`, { mode: 0o600 });
   const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
   const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
     encoding: 'utf-8',
     input: terminal,
-    env: { ...process.env, ...env(exits) },
+    env: { ...process.env, ...env(exits), ...extra },
     ...SPAWN_GUARD,
   });
   return { status: r.status, out: r.stdout ?? '' };
@@ -106,7 +141,7 @@ describe('prove-dev-tester-role.sh — refused before anything runs', () => {
     const r = spawnSync('bash', [SCRIPT, '--account', ACCOUNT], {
       encoding: 'utf-8',
       input: '',
-      env: { ...process.env, ...env(), HOME: join(dir, 'empty-home') },
+      env: { ...process.env, ...env(), TMPDIR: join(dir, 'empty-tmp') },
       ...SPAWN_GUARD,
     });
     expect(r.status).toBe(2);
@@ -132,8 +167,13 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
     const r = run('APPLY\n');
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/PROVED/);
+    expect(r.out).toContain(`chained into arn:aws:sts::000000000000:assumed-role/footbag-staging-app-runtime/${ACCOUNT}`);
     const lines = log().split('\n').filter(Boolean);
     expect(lines).toEqual([
+      `wrap --account ${ACCOUNT}`,
+      'aws sts get-caller-identity',
+      `wrap --account ${ACCOUNT}`,
+      'aws sts assume-role',
       `wrap --account ${ACCOUNT}`,
       'apply --target staging --require-empty-plan | stdin=',
       `wrap --account ${ACCOUNT}`,
@@ -149,13 +189,30 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
   it('compares against the most recently saved baseline, not the last by name', () => {
     // A second save on one day is named with a counter, which sorts before the
     // first; the time it was written is what says which is newer.
-    const newer = join(home, 'AWS', 'baseline-2026-10-04-2.txt');
+    const newer = join(dir, `footbag-baseline-${process.getuid!()}`, 'baseline-2026-10-04-2.txt');
     writeFileSync(newer, 'operator.id\tAIDAFIXTURE\n', { mode: 0o600 });
     utimesSync(baseline, new Date('2026-10-04T08:00:00Z'), new Date('2026-10-04T08:00:00Z'));
     utimesSync(newer, new Date('2026-10-04T09:00:00Z'), new Date('2026-10-04T09:00:00Z'));
     const r = run('APPLY\n');
     expect(r.status, r.out).toBe(0);
     expect(log()).toContain(`baseline --compare ${newer} `);
+  });
+
+  it('proves the job role\'s own chain into the runtime role, and stops when it is refused', () => {
+    // On a machine that also holds footbag-operator, the workstation's runtime
+    // profile chains from footbag-operator, so only a direct assume-role from
+    // the job-role session proves the job role's chain.
+    const r = run('APPLY\n', ['--account', ACCOUNT], {}, { PROVE_AWS_BIN: aws({ chainRefused: true }) });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/FAILED at step 1: the job role could not assume the staging runtime role/);
+    expect(log()).not.toMatch(/^apply/m);
+  });
+
+  it('stops when the chain lands on any role but the staging runtime role', () => {
+    const r = run('APPLY\n', ['--account', ACCOUNT], {}, { PROVE_AWS_BIN: aws({ chainLandsOn: 'footbag-production-app-runtime' }) });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/the chain landed on \S+footbag-production-app-runtime\S*, not footbag-staging-app-runtime/);
+    expect(log()).not.toMatch(/^apply/m);
   });
 
   it('stops at a failing step, runs nothing after it, and names where to resume', () => {

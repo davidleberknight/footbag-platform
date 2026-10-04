@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# verify-operator-role-denials.sh
+# verify-dev-tester-role-denials.sh
 #
-# Proves, against the live account, that the shared human-operator job role is
+# Proves, against the live account, that the shared dev-and-tester job role is
 # denied the things it is meant to be denied. Reads only; changes nothing.
 #
 # WHY THIS EXISTS.
 #
-# The job role's policy denies the whole lifecycle of a human operator, every
+# The job role's policy denies the whole lifecycle of a dev-and-tester, every
 # write to its own definition, every write to the directly authenticated
 # identity, every mutation of a production edge surface, and the certificate
 # that opens a root shell on any host. Those denials are
-# what make the lifecycle script's refusal more than a convention: an operator
-# who bypasses the wrapper and calls IAM directly is refused by AWS rather than
+# what make the lifecycle script's refusal more than a convention: a
+# dev-and-tester who bypasses the wrapper and calls IAM directly is refused by AWS rather than
 # by a script they chose not to run.
 #
 # WHAT IT CHECKS, in order:
 #
-#    1. the whole lifecycle of a human operator, and their second factor;
+#    1. the whole lifecycle of a dev-and-tester, and their second factor;
 #    2. the role's own definition, which it may read and not rewrite;
 #    3. the directly authenticated IAM user footbag-operator;
 #    4. the production edge surface, denied on a production tag and allowed on
@@ -35,7 +35,7 @@
 #   13. IAM write over staging-named principals, never granted: every route
 #       from a staging-named user, role or policy to administrator;
 #   14. assuming any role but the staging runtime role;
-#   15. writing an operator's allow-list address, and reading the
+#   15. writing any allow-list address, and reading the
 #       dev-and-tester addresses the staging plan needs;
 #   16. editing or deleting the job's own managed policies, that all three are
 #       attached, and that nothing but session revocations is inline;
@@ -51,7 +51,7 @@
 # WHY THE SIMULATOR RATHER THAN A REAL ATTEMPT.
 #
 # Because the thing being proved is a refusal. Proving it by attempting it would
-# mean really trying to create an operator, really trying to rewrite the role,
+# mean really trying to create a dev-and-tester, really trying to rewrite the role,
 # really trying to delete the production distribution, and the successful case
 # is the catastrophe. The simulator answers the same question with no call
 # reaching the resource.
@@ -77,11 +77,11 @@
 #     than implying the coverage is exhaustive.
 #
 # Usage:
-#   bash scripts/verify-operator-role-denials.sh [--profile <p>] [--quiet]
+#   bash scripts/verify-dev-tester-role-denials.sh [--profile <p>] [--quiet]
 #
 # Flags:
 #   --profile <p>    AWS profile; else the identity this run settles and proves.
-#   --operator <n>   Name to use for the operator ARN the lifecycle denials are
+#   --dev-tester <n> Name to use for the dev-tester ARN the lifecycle denials are
 #                    simulated against. It need not exist: the denial matches on
 #                    the IAM path, so any name under that path answers the
 #                    question. Defaults to a placeholder.
@@ -96,7 +96,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-ROLE_TF="${REPO_ROOT}/terraform/identity/human-operator-role.tf"
+ROLE_TF="${REPO_ROOT}/terraform/identity/dev-tester-role.tf"
 
 # The AWS identity this run uses, supplied and proved rather than inherited from
 # whichever shell the operator started from.
@@ -108,8 +108,8 @@ ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
 FOOTBAG_OPERATOR_USER="footbag-operator"
 # Spelled exactly as every other definition of it in the tree, slashes included,
 # so two variables of one name cannot hold two different values.
-OPERATOR_PATH="/footbag-operators/"
-OPERATOR_NAME="an-operator"
+DEV_TESTER_PATH="/footbag-dev-testers/"
+DEV_TESTER_NAME="a-dev-tester"
 QUIET=0
 PROFILE=""
 declare -a AWS_ARGS=()
@@ -125,9 +125,9 @@ while (( $# )); do
       PROFILE="${2:-}"
       shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
       ;;
-    --operator)
-      OPERATOR_NAME="${2:-}"
-      shift 2 || { echo "ERROR: --operator requires an argument" >&2; exit 2; }
+    --dev-tester)
+      DEV_TESTER_NAME="${2:-}"
+      shift 2 || { echo "ERROR: --dev-tester requires an argument" >&2; exit 2; }
       ;;
     --quiet) QUIET=1; shift ;;
     -h|--help) usage 0 ;;
@@ -158,7 +158,21 @@ fail() { printf '  FAIL  %s\n' "$1" >&2; FINDINGS=$(( FINDINGS + 1 )); }
 weak() { printf '  WEAK  %s\n' "$1" >&2; WEAK=$(( WEAK + 1 )); }
 note() { (( QUIET )) || printf '        %s\n' "$1"; }
 
-aws_q() { "$AWS_BIN" "$@" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>/dev/null; }
+# A run makes about seventy simulator calls in a row, and IAM throttles that
+# rate. The CLI's adaptive retry absorbs it, so a throttled call is retried
+# rather than read as an empty answer. Whatever AWS still says on a failure is
+# kept, so a FAIL names the reason instead of "returned nothing".
+export AWS_RETRY_MODE=adaptive AWS_MAX_ATTEMPTS=10
+AWS_ERR="$(mktemp)"
+trap 'rm -f "$AWS_ERR"' EXIT INT TERM
+aws_q() { "$AWS_BIN" "$@" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>"$AWS_ERR"; }
+# The last error AWS gave, for a FAIL line; empty when it gave none.
+aws_said() {
+  local said
+  said="$(grep -v '^[[:space:]]*$' "$AWS_ERR" 2>/dev/null | tail -n 1 || true)"
+  [[ -n "$said" ]] && printf ' (AWS said: %s)' "$said"
+  return 0
+}
 
 # ── Reading the denied actions out of the Terraform ──────────────────────────
 
@@ -190,8 +204,8 @@ if [[ -z "$ACCOUNT_ID" || "$ACCOUNT_ID" == "None" ]]; then
 fi
 
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
-OPERATOR_ARN="arn:aws:iam::${ACCOUNT_ID}:user${OPERATOR_PATH}${OPERATOR_NAME}"
-MFA_ARN="arn:aws:iam::${ACCOUNT_ID}:mfa/${OPERATOR_NAME}"
+DEV_TESTER_ARN="arn:aws:iam::${ACCOUNT_ID}:user${DEV_TESTER_PATH}${DEV_TESTER_NAME}"
+MFA_ARN="arn:aws:iam::${ACCOUNT_ID}:mfa/${DEV_TESTER_NAME}"
 FOOTBAG_OPERATOR_ARN="arn:aws:iam::${ACCOUNT_ID}:user/${FOOTBAG_OPERATOR_USER}"
 
 if ! aws_q iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
@@ -203,7 +217,7 @@ if ! aws_q iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Operator job role denials for ${ROLE_NAME} in account ${ACCOUNT_ID}"
+echo "Dev-and-tester job role denials for ${ROLE_NAME} in account ${ACCOUNT_ID}"
 echo ""
 
 # ── The simulation ───────────────────────────────────────────────────────────
@@ -230,7 +244,7 @@ simulate_denied() {
     --output text || true)"
 
   if [[ -z "$results" ]]; then
-    fail "${label}: the simulator returned nothing, so the denial is unproven"
+    fail "${label}: the simulator returned nothing, so the denial is unproven$(aws_said)"
     return
   fi
 
@@ -254,7 +268,7 @@ simulate_denied() {
 
 # Simulates one action expecting it to be ALLOWED. The denials above are only
 # half the contract: a denial that also catches the staging case is a broken
-# role rather than a safe one, and that failure shows up as an operator unable
+# role rather than a safe one, and that failure shows up as a dev-and-tester unable
 # to work rather than as a security event.
 simulate_allowed() {
   local label="$1" action="$2" resource="$3" ; shift 3
@@ -268,17 +282,17 @@ simulate_allowed() {
   if [[ "$decision" == "allowed" ]]; then
     pass "${label}: ${action} is allowed, as it must be"
   else
-    fail "${label}: ${action} came back ${decision:-nothing}, so the role cannot do its job"
+    fail "${label}: ${action} came back ${decision:-nothing}, so the role cannot do its job$( [[ -z "$decision" ]] && aws_said)"
   fi
 }
 
-# ── 1. The whole lifecycle of a human operator ───────────────────────────────
+# ── 1. The whole lifecycle of a dev-and-tester ───────────────────────────────
 
-echo "Operator lifecycle"
-mapfile -t LIFECYCLE < <(statement_actions NeverAdministerAHumanOperator)
+echo "Dev-and-tester lifecycle"
+mapfile -t LIFECYCLE < <(statement_actions NeverAdministerADevTester)
 LIFECYCLE_COUNT=${#LIFECYCLE[@]}
-note "${LIFECYCLE_COUNT} action(s) drawn from NeverAdministerAHumanOperator"
-simulate_denied "lifecycle on the operator path" "$OPERATOR_ARN" "${LIFECYCLE[@]}"
+note "${LIFECYCLE_COUNT} action(s) drawn from NeverAdministerADevTester"
+simulate_denied "lifecycle on the dev-tester path" "$DEV_TESTER_ARN" "${LIFECYCLE[@]}"
 
 # The same statement names the MFA ARNs as well, and a device is not a user, so
 # the second resource is checked rather than assumed to follow from the first.
@@ -315,7 +329,7 @@ simulate_denied "touching ${FOOTBAG_OPERATOR_USER}" "$FOOTBAG_OPERATOR_ARN" \
 # has a failure mode in each direction. Denied on a production tag is the
 # control working; allowed on a staging tag is the guard working. A run that
 # checked only the first would pass just as happily against a statement that
-# denies the operator every CloudFront call there is.
+# denies the job role every CloudFront call there is.
 
 echo ""
 echo "The production edge surface"
@@ -361,7 +375,7 @@ fi
 # Denied on every instance, so it is checked against a staging-tagged instance
 # as well as a production one. The staging case is the one that matters: a
 # denial conditioned on the tag would still pass the production check while
-# handing every operator who can assume the job role a root shell on staging.
+# handing every dev-and-tester who can assume the job role a root shell on staging.
 
 echo ""
 echo "The host-access certificate"
@@ -436,7 +450,7 @@ fi
 #
 # Not a denial statement: the role simply never grants these, and that absence
 # is load-bearing enough to check. Its S3 object scope reaches the staging state
-# key only, which is what stops an operator applying the shared, production or
+# key only, which is what stops a dev-and-tester applying the shared, production or
 # identity trees, and is why a walkthrough that expects those applies to succeed
 # is expecting the wrong thing.
 
@@ -455,6 +469,8 @@ else
       --query 'EvaluationResults[0].EvalDecision' --output text || true)"
     if [[ "$decision" == "allowed" ]]; then
       fail "state boundary: the role can read ${tree}/terraform.tfstate"
+    elif [[ -z "$decision" || "$decision" == None ]]; then
+      fail "state boundary: the simulator returned nothing for ${tree} state, so the boundary is unproven$(aws_said)"
     else
       pass "state boundary: ${tree} state is out of reach (${decision})"
     fi
@@ -482,8 +498,8 @@ for action in lightsail:AttachStaticIp lightsail:DetachStaticIp lightsail:Releas
     --query 'EvaluationResults[0].EvalDecision' --output text || true)"
   if [[ "$decision" == "allowed" ]]; then
     fail "static IP: ${action} is granted, which reaches production's address"
-  elif [[ -z "$decision" ]]; then
-    fail "static IP: the simulator returned nothing for ${action}, so the absence is unproven"
+  elif [[ -z "$decision" || "$decision" == None ]]; then
+    fail "static IP: the simulator returned nothing for ${action}, so the absence is unproven$(aws_said)"
   else
     pass "static IP: ${action} is not granted (${decision})"
   fi
@@ -522,15 +538,26 @@ simulate_allowed "reading the runtime role" iam:GetRole "$RUNTIME_ROLE_ARN"
 #
 # Stated in the negative on the Environment tag, so it must refuse on a
 # production-tagged key and on a key carrying no tag at all, since an absent
-# condition key makes a negated match true.
+# condition key makes a negated match true. KMS authorises an alias call against
+# the alias as well as the key, and no condition key exists on the alias side,
+# so the denial is scoped to key ARNs; both halves of a staging alias change
+# must then come back allowed, or a role-run staging apply stops partway with a
+# key created and unnamed.
 
 echo ""
 echo "A key alias"
 mapfile -t KEY_ALIAS < <(statement_actions NeverGraftAnAliasOntoProduction)
+PROBE_KEY="arn:aws:kms:us-east-1:${ACCOUNT_ID}:key/00000000-0000-0000-0000-000000000000"
 SIM_CONTEXT=(--context-entries "$PROD_TAG")
-simulate_denied "key alias on a production-tagged key" "*" "${KEY_ALIAS[@]}"
+simulate_denied "key alias on a production-tagged key" "$PROBE_KEY" "${KEY_ALIAS[@]}"
 SIM_CONTEXT=()
-simulate_denied "key alias on an untagged key" "*" "${KEY_ALIAS[@]}"
+simulate_denied "key alias on an untagged key" "$PROBE_KEY" "${KEY_ALIAS[@]}"
+simulate_allowed "staging alias, alias side" kms:CreateAlias \
+  "arn:aws:kms:us-east-1:${ACCOUNT_ID}:alias/footbag-staging"
+simulate_allowed "staging alias, alias side" kms:DeleteAlias \
+  "arn:aws:kms:us-east-1:${ACCOUNT_ID}:alias/footbag-staging"
+simulate_allowed "staging alias, key side" kms:CreateAlias "$PROBE_KEY" \
+  --context-entries "$STAGING_TAG"
 
 # ── 11. A production edge function ───────────────────────────────────────────
 #
@@ -582,8 +609,8 @@ iam_write_probe() {
       --query 'EvaluationResults[0].EvalDecision' --output text || true)"
     if [[ "$decision" == "allowed" ]]; then
       fail "IAM write: ${action} on ${resource##*:} is granted, a step to administrator"
-    elif [[ -z "$decision" ]]; then
-      fail "IAM write: the simulator returned nothing for ${action}, so the absence is unproven"
+    elif [[ -z "$decision" || "$decision" == None ]]; then
+      fail "IAM write: the simulator returned nothing for ${action}, so the absence is unproven$(aws_said)"
     else
       pass "IAM write: ${action} on ${resource##*:} is not granted (${decision})"
     fi
@@ -606,22 +633,41 @@ simulate_denied "assuming a staging-named role" "$PROBE_ROLE" sts:AssumeRole
 simulate_denied "assuming the production runtime role" \
   "arn:aws:iam::${ACCOUNT_ID}:role/footbag-production-app-runtime" sts:AssumeRole
 simulate_allowed "chaining into the staging runtime role" sts:AssumeRole "$RUNTIME_ROLE_ARN"
+# The other half of the chain is the runtime role's own trust, which the
+# simulation above does not read. It must name this role, or the chain is
+# refused however the role's own policy reads.
+if ! RUNTIME_TRUST="$(aws_q iam get-role --role-name footbag-staging-app-runtime \
+    --query 'Role.AssumeRolePolicyDocument' --output json)"; then
+  fail "the staging runtime role's trust could not be read, so the chain is unproven$(aws_said)"
+elif grep -qF -- "$ROLE_ARN" <<<"$RUNTIME_TRUST" \
+     || grep -qE -- '"AROA[A-Z0-9]+"' <<<"$RUNTIME_TRUST"; then
+  # A role's trust names another role by ARN, or by its unique id when that
+  # role was deleted and recreated; the id form is a broken trust.
+  if grep -qF -- "$ROLE_ARN" <<<"$RUNTIME_TRUST"; then
+    pass "the staging runtime role's trust names ${ROLE_NAME}"
+  else
+    fail "the staging runtime role's trust names a role by unique id, which is a deleted ${ROLE_NAME}; re-run scripts/wire-staging-runtime-trust.sh"
+  fi
+else
+  fail "the staging runtime role's trust does not name ${ROLE_NAME}, so the chain is refused; run scripts/wire-staging-runtime-trust.sh"
+fi
 
-# ── 15. Operator allow-list addresses ────────────────────────────────────────
+# ── 15. Allow-list addresses ─────────────────────────────────────────────────
 #
 # Who may reach staging's SSH ports follows from these parameters. The role
 # reads the dev-and-tester addresses, because the staging plan builds the
-# allow-list from them, and writes no operator address anywhere under the path.
+# allow-list from them, and writes no address anywhere under the path, a
+# dev-and-tester's or an administrator's.
 # The region is arbitrary: the policy scopes these ARNs to every region.
 
 echo ""
-echo "Operator allow-list addresses"
+echo "Allow-list addresses"
 ADDRESS_PATH="arn:aws:ssm:us-east-1:${ACCOUNT_ID}:parameter/footbag-ops/staging/dev-testers"
 note "NotAction-shaped, so this set is representative rather than exhaustive"
 simulate_denied "writing a dev-and-tester address" "${ADDRESS_PATH}/probe" \
   ssm:PutParameter ssm:DeleteParameter ssm:DeleteParameters \
   ssm:LabelParameterVersion ssm:AddTagsToResource
-simulate_denied "writing any operator address" \
+simulate_denied "writing any other address under /footbag-ops" \
   "arn:aws:ssm:us-east-1:${ACCOUNT_ID}:parameter/footbag-ops/production/probe" \
   ssm:PutParameter ssm:DeleteParameter
 simulate_allowed "reading the dev-and-tester addresses" ssm:GetParametersByPath "$ADDRESS_PATH"
@@ -648,19 +694,24 @@ for suffix in "${JOB_POLICIES[@]}"; do
   if [[ " ${ATTACHED//$'\t'/ } " == *" ${ROLE_NAME}-${suffix} "* ]]; then
     pass "policy ${ROLE_NAME}-${suffix} is attached"
   else
-    fail "policy ${ROLE_NAME}-${suffix} is not attached; apply the identity tree"
+    fail "policy ${ROLE_NAME}-${suffix} is not attached; apply the identity tree$( [[ -z "$ATTACHED" ]] && aws_said)"
   fi
 done
-INLINE="$(aws_q iam list-role-policies --role-name "$ROLE_NAME" \
-  --query 'PolicyNames' --output text || true)"
-STRAY=""
-for name in $INLINE; do
-  [[ "$name" == revoke-sessions-* ]] || STRAY+=" ${name}"
-done
-if [[ -n "$STRAY" ]]; then
-  fail "inline policies other than session revocations:${STRAY}; they take the room offboarding needs"
+# A listing that failed is not an empty one: read as empty, it would pass the
+# very check it exists for.
+if ! INLINE="$(aws_q iam list-role-policies --role-name "$ROLE_NAME" \
+    --query 'PolicyNames' --output text)"; then
+  fail "the role's inline policies could not be listed, so what they hold is unproven$(aws_said)"
 else
-  pass "the role's inline policies hold only session revocations"
+  STRAY=""
+  for name in $INLINE; do
+    [[ "$name" == None || "$name" == revoke-sessions-* ]] || STRAY+=" ${name}"
+  done
+  if [[ -n "$STRAY" ]]; then
+    fail "inline policies other than session revocations:${STRAY}; they take the room offboarding needs"
+  else
+    pass "the role's inline policies hold only session revocations"
+  fi
 fi
 
 # ── 17. What a staging plan reads ────────────────────────────────────────────

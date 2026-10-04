@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -429,7 +429,7 @@ describe('verify-account-baseline.sh — how it behaves', () => {
  * that something is still THERE. The IAM user is retained permanently as the
  * directly authenticated identity, reached without assuming anything so that whatever
  * breaks the shared job role cannot take the normal route and the way back in
- * down with it, and every named operator's path is added beside it rather than
+ * down with it, and every named dev-and-tester's path is added beside it rather than
  * in place of it. So its absence is the finding.
  *
  * The trust policies are the pair that strands everyone. Both name that user by
@@ -484,7 +484,7 @@ describe('verify-account-baseline.sh — the directly authenticated IAM user foo
 });
 
 /**
- * The shared job role every named human operator assumes, checked against the
+ * The shared job role every named dev-and-tester assumes, checked against the
  * same two runtime trust policies for opposite answers.
  *
  * Staging must name it, because the reads a deploy makes are that job.
@@ -493,7 +493,7 @@ describe('verify-account-baseline.sh — the directly authenticated IAM user foo
  * that tree shows nothing, and an ARN sitting in that trust document grants
  * the one thing the boundary between the two environments exists to prevent.
  */
-describe('verify-account-baseline.sh — the human operator job role', () => {
+describe('verify-account-baseline.sh — the dev-and-tester job role', () => {
   it('reports the role once it exists, with the ARN it actually has', () => {
     const r = run({ devTesterRole: true, stagingTrustsDevTester: true });
     expect(r.status, r.stderr).toBe(0);
@@ -532,7 +532,7 @@ describe('verify-account-baseline.sh — the human operator job role', () => {
   });
 
   it('fails when staging does not name it, and says which value sets it', () => {
-    // A named operator can then authenticate and reach nothing a deploy needs,
+    // A named dev-and-tester can then authenticate and reach nothing a deploy needs,
     // which reads as a broken account rather than as a missing principal.
     const r = run({ devTesterRole: true, stagingTrustsDevTester: false });
     expect(r.status).toBe(1);
@@ -633,6 +633,11 @@ describe('verify-account-baseline.sh --save / --compare', () => {
     stagingTrust?: object;
     productionTrust?: object;
     tagsUnreadable?: boolean;
+    boundary?: string;
+    groups?: string;
+    sshKeys?: string;
+    signingCerts?: string;
+    serviceCreds?: string;
   }
   const STAGING_TRUST = {
     Version: '2012-10-17',
@@ -655,6 +660,11 @@ describe('verify-account-baseline.sh --save / --compare', () => {
     stagingTrust: STAGING_TRUST,
     productionTrust: PRODUCTION_TRUST,
     tagsUnreadable: false,
+    boundary: 'None',
+    groups: '',
+    sshKeys: '',
+    signingCerts: '',
+    serviceCreds: '',
   };
 
   function factsStub(facts: Facts): string {
@@ -670,7 +680,11 @@ describe('verify-account-baseline.sh --save / --compare', () => {
         'user=""; prev=""; for a in "$@"; do [[ "$prev" == "--user-name" || "$prev" == "--role-name" ]] && user="$a"; prev="$a"; done',
         'case "$1 $2" in',
         '  "sts get-caller-identity") echo 111122223333 ;;',
-        `  "iam get-user") ${out(`${f.operatorId}\tarn:aws:iam::111122223333:user/footbag-operator`)} ;;`,
+        `  "iam get-user") ${out(`${f.operatorId}\tarn:aws:iam::111122223333:user/footbag-operator\t${f.boundary}`)} ;;`,
+        `  "iam list-groups-for-user") ${f.groups ? out(f.groups) : "printf ''"} ;;`,
+        `  "iam list-ssh-public-keys") ${f.sshKeys ? out(f.sshKeys) : "printf ''"} ;;`,
+        `  "iam list-signing-certificates") ${f.signingCerts ? out(f.signingCerts) : "printf ''"} ;;`,
+        `  "iam list-service-specific-credentials") ${f.serviceCreds ? out(f.serviceCreds) : "printf ''"} ;;`,
         '  "iam list-access-keys")',
         `    if [[ "$user" == footbag-operator ]]; then ${out(f.operatorKeys)}; else ${out(f.davidKey)}; fi ;;`,
         `  "iam list-attached-user-policies") ${out(f.attached)} ;;`,
@@ -701,6 +715,9 @@ describe('verify-account-baseline.sh --save / --compare', () => {
         ...NO_AWS_CREDENTIALS,
         ...awsIdentityStubEnv(workDir),
         HOME: workDir,
+        // The save directory derives from TMPDIR, so the run writes inside this
+        // test's own directory and never into the machine's shared temp.
+        TMPDIR: workDir,
         ACCOUNT_BASELINE_AWS_BIN: factsStub(facts),
       },
       ...SPAWN_GUARD,
@@ -716,15 +733,29 @@ describe('verify-account-baseline.sh --save / --compare', () => {
     return m![1];
   }
 
-  it('saves the facts owner-only and never over an earlier file', () => {
+  it('saves the facts owner-only, in a private temp directory, never over an earlier file', () => {
     const first = saved();
     const second = saved();
     expect(second).not.toBe(first);
     expect(statSync(first).mode & 0o777).toBe(0o600);
+    // Working state for one cycle, kept out of the credential directory.
+    const saveDir = join(workDir, `footbag-baseline-${process.getuid!()}`);
+    expect(first.startsWith(`${saveDir}/`)).toBe(true);
+    expect(statSync(saveDir).mode & 0o777).toBe(0o700);
+    expect(first).not.toContain('/AWS/');
     const body = readFileSync(first, 'utf-8');
     for (const fact of ['operator.id\tAIDAOPERATORUNIQUEID', 'operator.key\tAKIAEXAMPLE Active', 'operator.console\tpresent', 'operator.mfa\t', 'operator.tag\tProject=footbag', 'trust.footbag-staging-app-runtime\t{']) {
       expect(body, fact).toContain(fact);
     }
+  });
+
+  it('refuses to save into a temp directory others can open, which somebody else may have made', () => {
+    const saveDir = join(workDir, `footbag-baseline-${process.getuid!()}`);
+    mkdirSync(saveDir, { mode: 0o755 });
+    chmodSync(saveDir, 0o755);
+    const r = runFacts({}, ['--save']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is not a directory of yours at mode 700; nothing was saved/);
   });
 
   it('reports the same facts as unchanged, and a trust written in another key order as the same', () => {
@@ -745,6 +776,11 @@ describe('verify-account-baseline.sh --save / --compare', () => {
     ['a tag rewritten', { tags: 'Project\tother' }, /now: operator\.tag\tProject=other/],
     ['the user recreated under the same name', { operatorId: 'AIDARECREATEDUSERID0' }, /now: operator\.id\tAIDARECREATEDUSERID0/],
     ['production trusting the job role', { productionTrust: STAGING_TRUST }, /now: trust\.footbag-production-app-runtime/],
+    ['a permissions boundary set on it', { boundary: 'arn:aws:iam::111122223333:policy/Cap' }, /now: operator\.boundary\tarn:aws:iam::111122223333:policy\/Cap/],
+    ['a group membership added', { groups: 'Restricted' }, /now: operator\.group\tRestricted/],
+    ['an SSH public key added', { sshKeys: 'APKAEXAMPLESSHKEY\tActive' }, /now: operator\.ssh-public-keys\tAPKAEXAMPLESSHKEY Active/],
+    ['a signing certificate added', { signingCerts: 'CERTEXAMPLE\tActive' }, /now: operator\.signing-certificates\tCERTEXAMPLE Active/],
+    ['a service-specific credential added', { serviceCreds: 'ACCAEXAMPLE\tActive' }, /now: operator\.service-specific-credentials\tACCAEXAMPLE Active/],
   ])('names %s as a change, with its own exit', (_label, change, pattern) => {
     const file = saved();
     const r = runFacts(change as Facts, ['--compare', file]);

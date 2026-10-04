@@ -1,5 +1,5 @@
 /**
- * scripts/lib/operator-identity-agreement.sh — one run, one person.
+ * scripts/lib/dev-tester-identity-agreement.sh — one run, one person.
  *
  * A run reaching both a deployed host and AWS chooses its host account and its
  * AWS principal by mechanisms that know nothing about each other: the host
@@ -32,7 +32,7 @@ import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { createScratchDir } from '../fixtures/scratchDir';
 
 const LIB_DIR = join(process.cwd(), 'scripts/lib');
-const AGREEMENT_LIB = join(LIB_DIR, 'operator-identity-agreement.sh');
+const AGREEMENT_LIB = join(LIB_DIR, 'dev-tester-identity-agreement.sh');
 const PROFILE_LIB = join(LIB_DIR, 'aws-profile.sh');
 const CREDENTIAL_LIB = join(LIB_DIR, 'operator-credential.sh');
 
@@ -159,7 +159,7 @@ const BOTH = [PROFILE_LIB, CREDENTIAL_LIB];
 describe('the agreement check compares only when it has both halves', () => {
   it('says nothing and passes when only the AWS half is known', () => {
     const r = run(
-      `FOOTBAG_ACTING_AS_PERSON=${PERSON}; operator_identity_agreement_record; echo "rc=$?"`,
+      `FOOTBAG_ACTING_AS_PERSON=${PERSON}; dev_tester_identity_agreement_record; echo "rc=$?"`,
     );
     expect(r.stdout).toContain('rc=0');
     expect(r.stderr).toBe('');
@@ -167,7 +167,7 @@ describe('the agreement check compares only when it has both halves', () => {
 
   it('says nothing and passes when only the host half is known', () => {
     const r = run(
-      `FOOTBAG_ACTING_ON_HOST_AS=${PERSON}; operator_identity_agreement_record; echo "rc=$?"`,
+      `FOOTBAG_ACTING_ON_HOST_AS=${PERSON}; dev_tester_identity_agreement_record; echo "rc=$?"`,
     );
     expect(r.stdout).toContain('rc=0');
     expect(r.stderr).toBe('');
@@ -176,7 +176,7 @@ describe('the agreement check compares only when it has both halves', () => {
   it('agrees, out loud, when both name the same person', () => {
     const r = run(
       `FOOTBAG_ACTING_AS_PERSON=${PERSON}; FOOTBAG_ACTING_ON_HOST_AS=${PERSON};` +
-        ' operator_identity_agreement_record; echo "rc=$?"',
+        ' dev_tester_identity_agreement_record; echo "rc=$?"',
     );
     expect(r.stdout).toContain('rc=0');
     expect(r.stderr).toContain(`identities agree: ${PERSON}`);
@@ -185,7 +185,7 @@ describe('the agreement check compares only when it has both halves', () => {
   it('says what it found on a disagreement, naming both sides and their sources', () => {
     const r = run(
       `FOOTBAG_ACTING_AS_PERSON=${PERSON}; FOOTBAG_ACTING_ON_HOST_AS=footbag;` +
-        ' operator_identity_agreement_record; echo "rc=$?"',
+        ' dev_tester_identity_agreement_record; echo "rc=$?"',
     );
     // Recording never fails: a report has to be able to describe a workstation
     // whose halves disagree rather than die on it.
@@ -200,7 +200,7 @@ describe('the agreement check compares only when it has both halves', () => {
   it('refuses the same disagreement where a run is about to act', () => {
     const r = run(
       `FOOTBAG_ACTING_AS_PERSON=${PERSON}; FOOTBAG_ACTING_ON_HOST_AS=footbag;` +
-        ' operator_identity_agreement_require; echo "rc=$?"',
+        ' dev_tester_identity_agreement_require; echo "rc=$?"',
     );
     expect(r.stdout).toContain('rc=1');
   });
@@ -208,10 +208,10 @@ describe('the agreement check compares only when it has both halves', () => {
   it('lets a run act where the two agree, and where only one half is known', () => {
     const agreed = run(
       `FOOTBAG_ACTING_AS_PERSON=${PERSON}; FOOTBAG_ACTING_ON_HOST_AS=${PERSON};` +
-        ' operator_identity_agreement_require; echo "rc=$?"',
+        ' dev_tester_identity_agreement_require; echo "rc=$?"',
     );
     const oneSided = run(
-      `FOOTBAG_ACTING_AS_PERSON=${PERSON}; operator_identity_agreement_require; echo "rc=$?"`,
+      `FOOTBAG_ACTING_AS_PERSON=${PERSON}; dev_tester_identity_agreement_require; echo "rc=$?"`,
     );
     expect(agreed.stdout).toContain('rc=0');
     expect(oneSided.stdout).toContain('rc=0');
@@ -220,8 +220,8 @@ describe('the agreement check compares only when it has both halves', () => {
   it('reaches one verdict per run rather than one per call', () => {
     const r = run(
       `FOOTBAG_ACTING_AS_PERSON=${PERSON}; FOOTBAG_ACTING_ON_HOST_AS=${PERSON};` +
-        ' operator_identity_agreement_record; operator_identity_agreement_record;' +
-        ' operator_identity_agreement_record',
+        ' dev_tester_identity_agreement_record; dev_tester_identity_agreement_record;' +
+        ' dev_tester_identity_agreement_record',
     );
     expect(r.stderr.match(/identities agree/g)).toHaveLength(1);
   });
@@ -229,7 +229,7 @@ describe('the agreement check compares only when it has both halves', () => {
   it('cannot be satisfied by values exported into the shell', () => {
     // A guard an exported variable can answer is not a guard. Both names are
     // assigned unconditionally when the library is sourced.
-    const r = run('operator_identity_agreement_record; echo "rc=$?"', {
+    const r = run('dev_tester_identity_agreement_record; echo "rc=$?"', {
       env: { FOOTBAG_ACTING_AS_PERSON: 'somebody', FOOTBAG_ACTING_ON_HOST_AS: 'somebody' },
     });
     expect(r.stdout).toContain('rc=0');
@@ -240,11 +240,11 @@ describe('the agreement check compares only when it has both halves', () => {
 describe('the agreement check fires whichever half settles second', () => {
   const HOST_THEN_AWS =
     'operator_credential_select footbag-staging staging >/dev/null;' +
-    ' aws_profile_ensure >/dev/null; operator_identity_agreement_require; echo "rc=$?"';
+    ' aws_profile_ensure >/dev/null; dev_tester_identity_agreement_require; echo "rc=$?"';
   const AWS_THEN_HOST =
     'aws_profile_ensure >/dev/null;' +
     ' operator_credential_select footbag-staging staging >/dev/null;' +
-    ' operator_identity_agreement_require; echo "rc=$?"';
+    ' dev_tester_identity_agreement_require; echo "rc=$?"';
 
   it('fires when the AWS identity settles after the host account', () => {
     const r = run(HOST_THEN_AWS, { sources: BOTH, hostUser: 'footbag' });
@@ -284,8 +284,8 @@ describe('the agreement check fires whichever half settles second', () => {
     // require_operator_credential is what a host-touching run calls before it
     // opens the credential, so the refusal has to land there and not only in
     // the bare comparison.
-    writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'a-password\n', 'utf-8');
-    chmodSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 0o600);
+    writeFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'a-password\n', 'utf-8');
+    chmodSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 0o600);
     const r = run(
       'aws_profile_ensure >/dev/null;' +
         ' require_operator_credential footbag-staging staging; echo "rc=$?"',
@@ -316,7 +316,7 @@ describe('the agreement check forgets a verdict about an identity a run has left
   });
 
   it('does not carry the first identity verdict into the second', () => {
-    const r = run(`${SWITCH} operator_identity_agreement_require; echo "rc=$?"`, {
+    const r = run(`${SWITCH} dev_tester_identity_agreement_require; echo "rc=$?"`, {
       sources: BOTH,
       hostUser: 'footbag',
       arn: JOB_ROLE_SESSION,
@@ -333,7 +333,7 @@ describe('the deploy settles both halves before it ships', () => {
     return readFileSync(DEPLOY, 'utf-8')
       .split('\n')
       .filter((l) =>
-        /^(operator_credential_select |aws_profile_ensure |operator_identity_agreement_require)/.test(
+        /^(operator_credential_select |aws_profile_ensure |dev_tester_identity_agreement_require)/.test(
           l,
         ),
       )
@@ -380,7 +380,7 @@ describe('the agreement check holds only a person to a host account', () => {
     const r = run(
       'aws_profile_ensure >/dev/null;' +
         ' operator_credential_select footbag-staging staging >/dev/null;' +
-        ' operator_identity_agreement_require; echo "rc=$?"',
+        ' dev_tester_identity_agreement_require; echo "rc=$?"',
       { sources: BOTH, arn: SUPER_ADMIN, hostUser: PERSON },
     );
     expect(r.stdout).toContain('rc=0');
@@ -391,7 +391,7 @@ describe('the agreement check holds only a person to a host account', () => {
     const r = run(
       'aws_profile_ensure >/dev/null;' +
         ' operator_credential_select footbag-staging staging >/dev/null;' +
-        ' operator_identity_agreement_require; echo "rc=$?"',
+        ' dev_tester_identity_agreement_require; echo "rc=$?"',
       { sources: BOTH, arn: RUNTIME_ROLE, hostUser: PERSON },
     );
     expect(r.stdout).toContain('rc=0');
@@ -404,7 +404,7 @@ describe('the agreement check holds only a person to a host account', () => {
     const r = run(
       'aws_profile_ensure >/dev/null;' +
         ' operator_credential_select footbag-staging staging >/dev/null;' +
-        ' operator_identity_agreement_require; echo "rc=$?"',
+        ' dev_tester_identity_agreement_require; echo "rc=$?"',
       { sources: BOTH, hostUser: 'footbag' },
     );
     expect(r.stdout).toContain('rc=1');

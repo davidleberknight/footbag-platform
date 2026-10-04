@@ -32,7 +32,7 @@ each is a real one.
   by environment variable. The alias connects as the shared account by default and as a named
   account only for a command run through `scripts/as-dev-tester.sh --account <name>`, and the
   file follows whichever it is. Nothing falls back across the pairs: a file the rule selected and did not find is
-  refused by name, because a silent fallback attributes a named operator's work to the shared
+  refused by name, because a silent fallback attributes a dev-and-tester's work to the shared
   account and nothing anywhere says so. A mode that is not 600 or 400 is refused with a message
   saying to rotate, since a credential other accounts could read has already been exposed and
   fixing the mode does not undo that. Say on stderr which file the rule chose, on every run: the
@@ -89,7 +89,7 @@ Each of these was violated by a script in this repository, and each failure was 
    A workstation's AWS config file holds named profiles, each saying which key to sign with, or
    which role to assume with which key. A profile is not a principal: it holds no authority, it
    grants nothing, and AWS has never heard of it. So no script decides what a run may do,
-   reports whose machine it is on, or infers who an operator is, by testing which profile exists
+   reports whose machine it is on, or infers who is running it, by testing which profile exists
    or by matching a profile's name. A run that selects a profile still proves what it got.
 
    The names in this tree invite the opposite, because each profile is named for the principal

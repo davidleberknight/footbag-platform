@@ -123,21 +123,21 @@ describe('aws_identity_require_user', () => {
     expect(r.stdout).toContain('rc=1');
   });
 
-  it('accepts a named operator, whose ARN carries the IAM path it was created under', () => {
-    // Named operators are created under /footbag-operators/, and AWS puts the
+  it('accepts a named dev-and-tester, whose ARN carries the IAM path it was created under', () => {
+    // Named dev-and-testers are created under /footbag-dev-testers/, and AWS puts the
     // path in the user's ARN. A check that expected the name straight after
     // `user/` refused every one of them, so every real onboarding failed its
     // own proof and rolled itself back.
     const r = runIdentity('aws_identity_require_user p jane_doe; echo "rc=$?"', {
-      p: 'arn:aws:iam::111122223333:user/footbag-operators/jane_doe',
+      p: 'arn:aws:iam::111122223333:user/footbag-dev-testers/jane_doe',
     });
     expect(r.stdout).toContain('rc=0');
-    expect(r.stdout).toContain('user/footbag-operators/jane_doe');
+    expect(r.stdout).toContain('user/footbag-dev-testers/jane_doe');
   });
 
   it('does not match a path-qualified user whose name merely ends with the expected one', () => {
     const r = runIdentity('aws_identity_require_user p jane_doe; echo "rc=$?"', {
-      p: 'arn:aws:iam::111122223333:user/footbag-operators/not_jane_doe',
+      p: 'arn:aws:iam::111122223333:user/footbag-dev-testers/not_jane_doe',
     });
     expect(r.stdout).toContain('rc=1');
   });
@@ -145,9 +145,9 @@ describe('aws_identity_require_user', () => {
 
 /**
  * The same demand asked of the identity a run has already settled, rather than
- * of a profile name. Two callers need it: administering a human operator's
- * identity, and applying the tree that declares what a human operator may do.
- * Both are refused to every role, including the job role operators use for
+ * of a profile name. Two callers need it: administering a dev-and-tester's
+ * identity, and applying the tree that declares what a dev-and-tester may do.
+ * Both are refused to every role, including the job role dev-and-testers use for
  * everyday work, because a role is denied every write to its own definition —
  * so a run started that way fails partway through rather than at the door, and
  * leaves half a change behind.
@@ -306,7 +306,7 @@ describe('aws_identity_require_assumed_role', () => {
     // A named user can only assume the role, so a refusal that credited it with
     // the role's permissions and more would be false about the one principal
     // this branch is most likely to meet when a chain returns its source.
-    const r = probe('arn:aws:iam::111122223333:user/footbag-operators/david_leberknight');
+    const r = probe('arn:aws:iam::111122223333:user/footbag-dev-testers/david_leberknight');
     expect(r.stdout).toContain('rc=1');
     expect(r.stderr).toMatch(/not a session of FootbagDevTester at all/);
     expect(r.stderr).not.toMatch(/can do everything|a great\s+deal more/);

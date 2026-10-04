@@ -76,7 +76,7 @@ STANZA_MISSING=0
 CHECK=0
 TODO=0
 PRIVATE_REPO=""
-# The shared job role a named operator assumes, read out of a resolved ARN
+# The shared job role a dev-and-tester assumes, read out of a resolved ARN
 # rather than inferred from any profile name. Taken from the shared library so
 # there is one spelling of the role in the tree.
 DEV_TESTER_ROLE_NAME="$FOOTBAG_DEV_TESTER_ROLE"
@@ -176,7 +176,7 @@ declare -A TOOL_HINT=(
   [rsync]="rsync"
   [jq]="jq"
   [docker]="the container runtime install in the developer onboarding guide"
-  [aws]="bash scripts/setup-dev-workstation.sh --operator installs the pinned AWS CLI v2"
+  [aws]="bash scripts/setup-dev-workstation.sh --aws installs the pinned AWS CLI v2"
   [terraform]="bash scripts/setup-dev-workstation.sh installs the pinned version"
   [sqlite3]="sqlite3"
   [age]="age, which seals and opens a dev-and-tester's delivery (sudo apt install age)"
@@ -370,7 +370,7 @@ else
     note "no ${FOOTBAG_OPERATOR_PROFILE} profile here, which says nothing about whether you should hold that key"
   fi
 
-  # The job role a named operator assumes for everyday work, and the session
+  # The job role a dev-and-tester assumes for everyday work, and the session
   # name it carries. On a shared role the session name IS the attribution, so a
   # chain that resolves under the wrong name is worse than one that does not
   # resolve: it works, and it records this person's actions as somebody else's.
@@ -401,14 +401,14 @@ else
   # holds, and this script cannot know that: a profile's presence says nothing
   # about who owns the machine. It reports the absence and names both writers
   # rather than ruling on whether the absence is a gap. The onboarding writes
-  # the staging chain for a named operator, chained off the profile that assumes
+  # the staging chain for a dev-and-tester, chained off the profile that assumes
   # the job role; the key install writes both for the directly authenticated
-  # identity. There is no production chain for a named operator by design,
+  # identity. There is no production chain for a dev-and-tester by design,
   # because production's runtime role trusts that user and not the
   # ${DEV_TESTER_ROLE_NAME} role, and a profile that resolved and then could not
   # assume would read as a fault rather than as that boundary working.
   #
-  # Each chain that is present is proved on its own. A named operator's machine
+  # Each chain that is present is proved on its own. A dev-and-tester's machine
   # carries the staging chain and no production one, and that absence must not
   # stop the one chain they use from being checked.
   _runtime_present=()
@@ -416,7 +416,7 @@ else
     if aws_profile_exists "$rt"; then
       _runtime_present+=("$rt")
     else
-      note "$rt is not configured here. The onboarding writes the staging chain for a named operator; bash scripts/install-operator-key.sh writes both for the directly authenticated identity. Which of those applies is a fact about whose key this machine holds, not one this check can read"
+      note "$rt is not configured here. The onboarding writes the staging chain for a dev-and-tester; bash scripts/install-operator-key.sh writes both for the directly authenticated identity. Which of those applies is a fact about whose key this machine holds, not one this check can read"
     fi
   done
   if (( ${#_runtime_present[@]} == 2 )); then

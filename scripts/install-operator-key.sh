@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install-operator-key.sh
 #
-# Installs the human operator's AWS access key onto this workstation, from the
+# Installs the footbag-operator AWS access key onto this workstation, from the
 # vault into ~/.aws/credentials, by asking for the two values and pasting them
 # in for you.
 #

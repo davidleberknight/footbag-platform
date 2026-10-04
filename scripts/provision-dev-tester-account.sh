@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# provision-operator-account.sh
+# provision-dev-tester-account.sh
 #
-# Creates a named Linux account for an operator on a deployed host: one login,
+# Creates a named Linux account for a dev-and-tester on a deployed host: one login,
 # one public key, one sudo password, one set of sudo rights, all belonging to a
 # single named person.
 #
@@ -60,16 +60,16 @@
 # confirmations on the terminal, so it needs both the redirect and a real
 # terminal. scripts/onboard-dev-tester.sh runs it for you:
 #
-#   < ~/AWS/AWS_OPERATOR.txt OPACC_SEALED_OUT=<mode-600 empty file> \
-#     bash scripts/provision-operator-account.sh \
-#       --target staging --account robin_fielder --operator "Robin Fielder" \
+#   < ~/AWS/AWS_OPERATOR.txt DTACC_SEALED_OUT=<mode-600 empty file> \
+#     bash scripts/provision-dev-tester-account.sh \
+#       --target staging --account robin_fielder --full-name "Robin Fielder" \
 #       --key-line "ssh-ed25519 AAAAC3Nza... robin@example" --sealed
 #
 # Which file belongs on the left is not a guess and not a preference: it follows
 # the account the alias connects as, and each account has its own file:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR.txt
+#   your own named account:  ~/AWS/DEV_TESTER_HOST.txt
 #
 # A run started without the redirect names the one it needs.
 #
@@ -78,7 +78,7 @@
 #                                  on; required, never inherited from ambient
 #                                  state
 #   --account <name>               the Linux account name to create
-#   --operator "<Full Name>"       who the account belongs to, for the
+#   --full-name "<Full Name>"      who the account belongs to, for the
 #                                  account's comment field
 #   --key-line "<key>"             the account owner's SSH public key, pasted
 #                                  whole. Preferred, because
@@ -98,7 +98,7 @@
 #                                  displayed, and not expired, because its owner
 #                                  replaces it themselves when they accept the
 #                                  onboarding. It is handed back through
-#                                  OPACC_SEALED_OUT, a file the caller created
+#                                  DTACC_SEALED_OUT, a file the caller created
 #                                  empty at mode 600, once the account is
 #                                  proven. An account that already exists is
 #                                  decided here: one an offboard retired is
@@ -124,7 +124,7 @@
 #                                  ACCOUNT present|absent, then for one that is
 #                                  present LOCKED yes|no (the same test the
 #                                  reopen decision uses) and one KEY line per
-#                                  key it accepts. Takes no key, no operator
+#                                  key it accepts. Takes no key, no full
 #                                  name and no terminal. It exists so a finished
 #                                  onboarding's host account can be proved live
 #                                  before the onboarding is called done.
@@ -137,7 +137,7 @@ set -euo pipefail
 
 TARGET=""
 ACCOUNT=""
-OPERATOR=""
+FULL_NAME=""
 KEY_FILE=""
 KEY_LINE_ARG=""
 KEY_TMP=""
@@ -148,10 +148,10 @@ INSPECT_ONLY=0
 
 usage() {
   cat <<'EOF'
-Usage: < <the credential file your alias selects> bash scripts/provision-operator-account.sh \
-         --target staging --account <name> --operator "<Full Name>" \
+Usage: < <the credential file your alias selects> bash scripts/provision-dev-tester-account.sh \
+         --target staging --account <name> --full-name "<Full Name>" \
          --key-line "<ssh public key>" (--sealed | --offboard)
-       < <the credential file your alias selects> bash scripts/provision-operator-account.sh \
+       < <the credential file your alias selects> bash scripts/provision-dev-tester-account.sh \
          --target staging --account <name> --inspect
 
 Reads the sudo password from stdin (line 1), so the redirect is not optional, and
@@ -162,12 +162,12 @@ account. scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh run it
 
   --target staging               the only environment a named account exists on
   --account <name>               Linux account name to create
-  --operator "<Full Name>"       who it belongs to, for the account's comment field
+  --full-name "<Full Name>"      who it belongs to, for the account's comment field
   --key-line "<key>"             the account owner's public key, pasted whole (preferred)
   --key-file <path>              the same key as a .pub file, if it arrived as one
   --sealed                       create or re-issue the account: the password is
                                  never shown and is handed back through the
-                                 file named in OPACC_SEALED_OUT, to be sealed
+                                 file named in DTACC_SEALED_OUT, to be sealed
   --offboard                     disable the account and sweep the person's keys
                                  off every account on the host. Destructive.
   --inspect                      read the account and change nothing: whether it
@@ -185,9 +185,9 @@ while [[ $# -gt 0 ]]; do
       ACCOUNT="${2:-}"
       shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; }
       ;;
-    --operator)
-      OPERATOR="${2:-}"
-      shift 2 || { echo "ERROR: --operator requires an argument" >&2; exit 2; }
+    --full-name)
+      FULL_NAME="${2:-}"
+      shift 2 || { echo "ERROR: --full-name requires an argument" >&2; exit 2; }
       ;;
     --key-file)
       KEY_FILE="${2:-}"
@@ -236,14 +236,14 @@ if [[ "$INSPECT_ONLY" -eq 1 ]]; then
     echo "       with --sealed or --offboard." >&2
     exit 2
   fi
-  if [[ -n "$OPERATOR" || -n "$KEY_LINE_ARG" || -n "$KEY_FILE" ]]; then
+  if [[ -n "$FULL_NAME" || -n "$KEY_LINE_ARG" || -n "$KEY_FILE" ]]; then
     echo "ERROR: --inspect takes only --target and --account. Anything else given" >&2
     echo "       here would be silently ignored." >&2
     exit 2
   fi
 fi
-if [[ -z "$OPERATOR" && "$OFFBOARD" -ne 1 && "$INSPECT_ONLY" -ne 1 ]]; then
-  echo "ERROR: --operator is required. It is written into the account itself, so" >&2
+if [[ -z "$FULL_NAME" && "$OFFBOARD" -ne 1 && "$INSPECT_ONLY" -ne 1 ]]; then
+  echo "ERROR: --full-name is required. It is written into the account itself, so" >&2
   echo "       the host says whose login this is, and an unattributable login is" >&2
   echo "       the thing the named-account rule exists to prevent." >&2
   exit 2
@@ -257,7 +257,7 @@ fi
 # demanding the departing person's public key to withdraw their access would be
 # a requirement nobody can always meet.
 if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$KEY_LINE_ARG" && -z "$KEY_FILE" ]]; then
-  echo "ERROR: the operator's public key is required: --key-line \"<key>\" for a" >&2
+  echo "ERROR: the dev-and-tester's public key is required: --key-line \"<key>\" for a" >&2
   echo "       key you can paste, or --key-file <path> if it arrived as a file." >&2
   exit 2
 fi
@@ -284,29 +284,29 @@ fi
 # can register it for shredding before this run writes a byte into it; this
 # run refuses anything it could not be sure only that caller will read.
 if [[ "$SEALED" -eq 1 ]]; then
-  SEALED_OUT="${OPACC_SEALED_OUT:-}"
+  SEALED_OUT="${DTACC_SEALED_OUT:-}"
   if [[ -z "$SEALED_OUT" ]]; then
-    echo "ERROR: --sealed needs OPACC_SEALED_OUT naming the file the password is" >&2
+    echo "ERROR: --sealed needs DTACC_SEALED_OUT naming the file the password is" >&2
     echo "       handed back through. scripts/onboard-dev-tester.sh creates it." >&2
     exit 2
   fi
   if [[ -L "$SEALED_OUT" || ! -f "$SEALED_OUT" ]]; then
-    echo "ERROR: OPACC_SEALED_OUT '${SEALED_OUT}' is not a regular file. A link" >&2
+    echo "ERROR: DTACC_SEALED_OUT '${SEALED_OUT}' is not a regular file. A link" >&2
     echo "       would send the password wherever it points." >&2
     exit 2
   fi
   if [[ ! -O "$SEALED_OUT" ]]; then
-    echo "ERROR: OPACC_SEALED_OUT '${SEALED_OUT}' is not owned by you." >&2
+    echo "ERROR: DTACC_SEALED_OUT '${SEALED_OUT}' is not owned by you." >&2
     exit 2
   fi
   SEALED_OUT_MODE="$(stat -c '%a' "$SEALED_OUT" 2>/dev/null || stat -f '%Lp' "$SEALED_OUT" 2>/dev/null || true)"
   if [[ "$SEALED_OUT_MODE" != "600" ]]; then
-    echo "ERROR: OPACC_SEALED_OUT '${SEALED_OUT}' is mode '${SEALED_OUT_MODE}';" >&2
+    echo "ERROR: DTACC_SEALED_OUT '${SEALED_OUT}' is mode '${SEALED_OUT_MODE}';" >&2
     echo "       it must be mode 600 before a password is written into it." >&2
     exit 2
   fi
   if [[ -s "$SEALED_OUT" ]]; then
-    echo "ERROR: OPACC_SEALED_OUT '${SEALED_OUT}' is not empty. It is written" >&2
+    echo "ERROR: DTACC_SEALED_OUT '${SEALED_OUT}' is not empty. It is written" >&2
     echo "       whole by this run, and what is there now is not this run's." >&2
     exit 2
   fi
@@ -383,7 +383,7 @@ fi  # end of the key section, skipped when offboarding or inspecting
 # ── The operator's own credential ────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE="footbag-${TARGET}"
-REMOTE_HALF="${SCRIPT_DIR}/internal/provision-operator-account-remote.sh"
+REMOTE_HALF="${SCRIPT_DIR}/internal/provision-dev-tester-account-remote.sh"
 
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
@@ -427,7 +427,7 @@ fi
 # because the first consumer drains it, and the rollback path needs the
 # credential as much as the install does.
 require_operator_stdin \
-  "scripts/provision-operator-account.sh --target ${TARGET} --account ${ACCOUNT} ..." \
+  "scripts/provision-dev-tester-account.sh --target ${TARGET} --account ${ACCOUNT} ..." \
   "${REMOTE}" "${TARGET}" || {
   echo "" >&2
   usage >&2
@@ -455,7 +455,7 @@ require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 echo "==> Target host: $REMOTE  (${TARGET})"
-echo "==> Account:     $ACCOUNT  for ${OPERATOR}"
+echo "==> Account:     $ACCOUNT  for ${FULL_NAME}"
 [[ -n "$KEY_FINGERPRINT" ]] && echo "==> Key:         $KEY_FINGERPRINT"
 
 # Reachability, and that the host is the target, are proved before a credential
@@ -493,9 +493,9 @@ ACCOUNT_EXISTS="no"
 inspect_account() {
   INSPECT="$({
       printf '%s\n' "$SUDO_PASS"
-      printf 'OPACC_MODE=%q\n' "inspect"
-      printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
-      printf 'OPACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
+      printf 'DTACC_MODE=%q\n' "inspect"
+      printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
+      printf 'DTACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
       cat "$REMOTE_HALF"
     } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash')" || return 1
   INSPECT_SHELL="$(sed -n 's/^SHELL //p' <<<"$INSPECT")"
@@ -575,9 +575,9 @@ if [[ "$OFFBOARD" -eq 1 ]]; then
 
   {
     printf '%s\n' "$SUDO_PASS"
-    printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
-    printf 'OPACC_MODE=%q\n' "offboard"
-    printf 'OPACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
+    printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
+    printf 'DTACC_MODE=%q\n' "offboard"
+    printf 'DTACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
     cat "$REMOTE_HALF"
   } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
@@ -613,12 +613,12 @@ if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
       echo "  none recorded"
     fi
     echo ""
-    echo "If it was ${OPERATOR}'s, it is reopened for them under the same name: the"
+    echo "If it was ${FULL_NAME}'s, it is reopened for them under the same name: the"
     echo "login shell and the expiry are restored, it gets the new key alone and a"
     echo "fresh password sealed to that key, and a key it was retired with is"
     echo "refused. If it was not theirs, stop: a name is reused only by the person"
     echo "who held it."
-    if ! confirm_from_tty "Type 'APPLY' to reopen ${ACCOUNT} for ${OPERATOR}: " "APPLY"; then
+    if ! confirm_from_tty "Type 'APPLY' to reopen ${ACCOUNT} for ${FULL_NAME}: " "APPLY"; then
       echo "Not confirmed; ${ACCOUNT} is untouched." >&2
       exit 1
     fi
@@ -641,7 +641,7 @@ if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
       echo "re-issued. A lost or replaced key is offboarded, then re-onboarded under" >&2
       echo "the same name with a fresh pair:" >&2
       echo "  bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT}" >&2
-      echo "and if it is not ${OPERATOR}'s account at all, stop. Nothing changed." >&2
+      echo "and if it is not ${FULL_NAME}'s account at all, stop. Nothing changed." >&2
       exit 1
     fi
     echo "It holds exactly the key given to this run, so this is an onboarding that"
@@ -716,11 +716,11 @@ provision_cleanup() {
       echo "account just created is being removed: ${ACCOUNT} on ${REMOTE}." >&2
       if {
         printf '%s\n' "$SUDO_PASS"
-        printf 'OPACC_MODE=%q\n' "remove"
-        printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
-        printf 'OPACC_OPERATOR=%q\n' "$OPERATOR"
-        printf 'OPACC_KEY_LINE=%q\n' ""
-        printf 'OPACC_PASSWORD=%q\n' ""
+        printf 'DTACC_MODE=%q\n' "remove"
+        printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
+        printf 'DTACC_FULL_NAME=%q\n' "$FULL_NAME"
+        printf 'DTACC_KEY_LINE=%q\n' ""
+        printf 'DTACC_PASSWORD=%q\n' ""
         cat "$REMOTE_HALF"
       } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' >&2; then
         echo "Removed. Nothing was left behind." >&2
@@ -728,7 +728,7 @@ provision_cleanup() {
         echo "COULD NOT REMOVE IT. End its access before doing anything else; the" >&2
         echo "host offboard disables it through the same pinned connection:" >&2
         echo "  < <the credential file your alias selects> \\" >&2
-        echo "    bash scripts/provision-operator-account.sh --target ${TARGET} --account ${ACCOUNT} --offboard" >&2
+        echo "    bash scripts/provision-dev-tester-account.sh --target ${TARGET} --account ${ACCOUNT} --offboard" >&2
       fi
       ;;
     rotating)
@@ -778,7 +778,7 @@ trap provision_cleanup EXIT INT TERM
 # expired, because its owner replaces it by script when they accept the
 # onboarding rather than at a first login nobody can drive, and from then on it
 # is known to them alone. It is never vaulted: the vault is shared, and a
-# personal credential in it lets any custodian act as any operator.
+# personal credential in it lets any custodian act as any dev-and-tester.
 #
 # 24 bytes of base64 is 32 characters and no padding, so it survives a copy out
 # of a message and into a one-line file without a trailing character to argue
@@ -802,7 +802,7 @@ echo "==> Creating the account via cat-pipe (mode: ${MODE})..."
 # rather than reporting a phantom as unremovable.
 # Which of the two this run is decides what the cleanup may do, and conflating
 # them is destructive: setting this to "created" unconditionally means an
-# interrupted re-issue sends OPACC_MODE=remove for an account that PREDATED the
+# interrupted re-issue sends DTACC_MODE=remove for an account that PREDATED the
 # run. The remote half's remove is `userdel -r`: a person's account, home
 # directory, shell history and every file they owned, destroyed by an interrupt,
 # while stderr said "the account just created is being removed".
@@ -821,19 +821,19 @@ fi
 # argv on either hop.
 {
   printf '%s\n' "$SUDO_PASS"
-  printf 'OPACC_MODE=%q\n' "$MODE"
-  printf 'OPACC_ACCOUNT=%q\n' "$ACCOUNT"
-  printf 'OPACC_OPERATOR=%q\n' "$OPERATOR"
-  printf 'OPACC_KEY_LINE=%q\n' "$KEY_LINE"
-  printf 'OPACC_PASSWORD=%q\n' "$NEW_PASS"
-  printf 'OPACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
-  printf 'OPACC_REOPEN=%q\n' "$( (( REOPEN )) && echo yes || echo no )"
+  printf 'DTACC_MODE=%q\n' "$MODE"
+  printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
+  printf 'DTACC_FULL_NAME=%q\n' "$FULL_NAME"
+  printf 'DTACC_KEY_LINE=%q\n' "$KEY_LINE"
+  printf 'DTACC_PASSWORD=%q\n' "$NEW_PASS"
+  printf 'DTACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
+  printf 'DTACC_REOPEN=%q\n' "$( (( REOPEN )) && echo yes || echo no )"
   cat "$REMOTE_HALF"
 } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # This password is NOT vaulted, and that is the point rather than an omission.
 # The vault is shared between custodians, so a personal credential kept in it
-# lets any custodian act as any operator. Nor is any record of the account: the
+# lets any custodian act as any dev-and-tester. Nor is any record of the account: the
 # host lists its accounts and their key fingerprints, IAM lists the named users
 # under their path and tags, and the allow-list names its entries, while the
 # onboarding card records who approved them and when. A second, hand-kept copy
@@ -844,7 +844,7 @@ fi
   # it to the owner's public key; a screen would be the only other place it
   # had ever been.
   echo "A one-time password is set for ${ACCOUNT}. It is not shown here: it is"
-  echo "sealed to ${OPERATOR}'s own public key with the rest of their onboarding,"
+  echo "sealed to ${FULL_NAME}'s own public key with the rest of their onboarding,"
   echo "and they replace it with their own when they accept it. It is not"
   echo "expired, so that replacement can run through sudo."
   if [[ "$MODE" == "rotate" ]]; then
@@ -867,6 +867,6 @@ echo ""
 echo "Account ${ACCOUNT} is ready on ${REMOTE}."
 echo ""
 echo "The one-time password is in the file the calling script named, for it to"
-echo "seal. The proof that the account works runs when ${OPERATOR} accepts the"
+echo "seal. The proof that the account works runs when ${FULL_NAME} accepts the"
 echo "onboarding and replaces the password through sudo."
 exit 0

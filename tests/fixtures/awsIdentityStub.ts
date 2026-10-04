@@ -27,7 +27,7 @@ export const STUB_OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operato
  * one the shared library supplies when a shell carries no identity of its own.
  * A profile is a label naming a key to sign with or a role to assume; it is not
  * an identity, and its presence says nothing about whose machine this is. A
- * suite that needs a workstation carrying a named operator's own key, or the
+ * suite that needs a workstation carrying a named dev-and-tester's own key, or the
  * profile that assumes the role, names those itself, because one of them
  * differs per person.
  */

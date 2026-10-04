@@ -248,7 +248,7 @@ describe('authorize-operator-key.sh — what it says it is doing', () => {
   const source = readFileSync(SCRIPT, 'utf-8');
 
   it('creates no account and mints no password', () => {
-    // The distinction from provision-operator-account.sh. This grants a second
+    // The distinction from provision-dev-tester-account.sh. This grants a second
     // way into an identity that exists; it never grants a new identity.
     expect(source).not.toMatch(/useradd/);
     expect(source).not.toMatch(/chpasswd/);

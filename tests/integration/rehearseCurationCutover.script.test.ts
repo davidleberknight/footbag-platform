@@ -361,7 +361,7 @@ describe('rehearse-curation-cutover.sh preconditions', () => {
       env: { HOME: homeWith('AWS_OPERATOR.txt'), FAKE_SSH_USER: 'ada_lovelace' },
     });
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain('HOST_OPERATOR.txt is missing or unreadable');
+    expect(res.stderr).toContain('DEV_TESTER_HOST.txt is missing or unreadable');
   });
 });
 

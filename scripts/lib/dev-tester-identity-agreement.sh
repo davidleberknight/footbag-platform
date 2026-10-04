@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# operator-identity-agreement.sh — one run, one person.
+# dev-tester-identity-agreement.sh — one run, one person.
 #
 # WHAT THIS IS FOR.
 #
@@ -19,7 +19,7 @@
 # anybody notices on the day.
 #
 # The two names are the same string by convention: the house form is a lower
-# case first name, an underscore, and a last name, and an operator's host
+# case first name, an underscore, and a last name, and a dev-and-tester's host
 # account and their IAM user are both spelled that way. Holding them to it is
 # therefore free where the setup is right, and loud where it is not.
 #
@@ -78,7 +78,7 @@ _FOOTBAG_AGREEMENT_DISAGREED=""
 #
 # Some runs look this up in order to act on it, and some look it up in order to
 # describe the machine. The workstation report is the second kind, and it exists
-# precisely to be run where the setup is half finished: an operator who has just
+# precisely to be run where the setup is half finished: a dev-and-tester who has just
 # been onboarded, and whose SSH alias still connects as the shared account, is
 # exactly who needs to be told. Refusing there would deny them the report that
 # names the thing to fix, and it would report a perfectly good credential as one
@@ -87,11 +87,11 @@ _FOOTBAG_AGREEMENT_DISAGREED=""
 # So the comparison is made and said out loud wherever both halves become known,
 # and the refusal happens only where a run is about to act on an identity.
 
-# operator_identity_agreement_record
+# dev_tester_identity_agreement_record
 #
 # Makes the comparison, says what it found, and never fails. Silent where there
 # is nothing to compare, because most runs are one half or the other.
-operator_identity_agreement_record() {
+dev_tester_identity_agreement_record() {
   local person="$FOOTBAG_ACTING_AS_PERSON" account="$FOOTBAG_ACTING_ON_HOST_AS"
 
   [[ -n "$_FOOTBAG_AGREEMENT_SETTLED" ]] && return 0
@@ -125,17 +125,17 @@ operator_identity_agreement_record() {
   return 0
 }
 
-# operator_identity_agreement_require
+# dev_tester_identity_agreement_require
 #
 # For the paths where a run is about to act rather than to look. Returns
 # non-zero when the comparison has been made and the two names differ, and zero
 # in every other case, including the ordinary one where only one half is known.
-operator_identity_agreement_require() {
-  operator_identity_agreement_record
+dev_tester_identity_agreement_require() {
+  dev_tester_identity_agreement_record
   [[ -z "$_FOOTBAG_AGREEMENT_DISAGREED" ]]
 }
 
-# operator_identity_agreement_reset
+# dev_tester_identity_agreement_reset
 #
 # Forgets the verdict, for the one caller that deliberately puts a run on a
 # different identity part way through.
@@ -146,7 +146,7 @@ operator_identity_agreement_require() {
 # would carry an answer about one person into a comparison about another, which
 # is the same stale-value failure this file refuses to allow from the
 # environment.
-operator_identity_agreement_reset() {
+dev_tester_identity_agreement_reset() {
   _FOOTBAG_AGREEMENT_SETTLED=""
   _FOOTBAG_AGREEMENT_DISAGREED=""
 }

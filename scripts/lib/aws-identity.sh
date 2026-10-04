@@ -71,7 +71,7 @@ aws_identity_require_user() {
   fi
 
   # A user created under an IAM path carries that path in its ARN, as every
-  # named operator does under /footbag-operators/, so the name is matched as
+  # named dev-and-tester does under /footbag-dev-testers/, so the name is matched as
   # the last segment after `user/` whatever path sits between. The slash in
   # front of it is what stops a name that merely ends with the expected one
   # from matching.
@@ -98,8 +98,8 @@ aws_identity_require_user() {
 # profile name to hand that is guaranteed to be the thing that authenticated.
 #
 # It exists as one function rather than as a test each caller writes because the
-# invariant is the same invariant: administering a human operator, and applying
-# the tree that declares what a human operator may do, are both refused to every
+# invariant is the same invariant: administering a dev-and-tester, and applying
+# the tree that declares what a dev-and-tester may do, are both refused to every
 # assumed role, including the job role itself, which is denied every write to
 # its own definition. Two copies of that check is how one of them drifts.
 aws_identity_require_direct_user() {
@@ -116,7 +116,7 @@ aws_identity_require_direct_user() {
     *":assumed-role/"*)
       echo "ERROR: this run is authenticated as ${AWS_IDENTITY_ARN}," >&2
       echo "       which is an assumed role. This is refused to every role," >&2
-      echo "       including the job role operators use for everyday work: a" >&2
+      echo "       including the job role dev-and-testers use for everyday work: a" >&2
       echo "       role is denied every write to its own definition, so a run" >&2
       echo "       started this way would fail partway through rather than at" >&2
       echo "       the door, leaving half a change behind." >&2

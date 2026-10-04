@@ -98,13 +98,22 @@ case "$1 $2" in
   "iam get-user")
     [[ -e "$S/user" ]] || { echo "aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetUser operation: The user with name ${ACCOUNT} cannot be found." >&2; exit 254; }
     [[ -e "$S/foreign-path" ]] && { echo /; exit 0; }
-    echo /footbag-operators/ ;;
+    [[ -e "$S/legacy" && ! -e "$S/moved" ]] && { echo /footbag-operators/; exit 0; }
+    echo /footbag-dev-testers/ ;;
   "iam list-user-tags")
+    legacy_tags=0; [[ -e "$S/legacy" && ! -e "$S/retagged" ]] && legacy_tags=1
     case "$*" in
       *"Key=='Project'"*) echo footbag ;;
-      *"Key=='ManagedBy'"*) echo manage-human-operator.sh ;;
-      *"Key=='OperatorRole'"*) [[ -e "$S/partial-tags" ]] || echo dev_tester ;;
+      *"Key=='ManagedBy'"*) if (( legacy_tags )); then echo manage-human-operator.sh; else echo manage-dev-tester.sh; fi ;;
+      *"Key=='DevTesterRole'"*) [[ -e "$S/partial-tags" ]] || (( legacy_tags )) || echo dev_tester ;;
+      *"Key=='OperatorRole'"*)
+        if [[ -e "$S/legacy" && ! -e "$S/untagged" ]]; then
+          if [[ -e "$S/legacy-other-role" ]]; then echo administrator; else echo dev_tester; fi
+        fi ;;
     esac ;;
+  "iam update-user") touch "$S/moved" ;;
+  "iam tag-user") touch "$S/retagged" ;;
+  "iam untag-user") touch "$S/untagged" ;;
   "iam create-user") touch "$S/user" ;;
   "iam put-user-policy") [[ -e "$S/grant-lost" ]] || touch "$S/policy" ;;
   "iam delete-user-policy") rm -f "$S/policy" ;;
@@ -197,10 +206,10 @@ if [[ " $* " == *" --inspect "* ]]; then
   exit 0
 fi
 printf '%s\\n' "$*" > ${JSON.stringify(join(dir, 'provision.args'))}
-printf '%s\\n' "\${OPACC_SEALED_OUT:-}" > ${JSON.stringify(join(dir, 'provision.out'))}
+printf '%s\\n' "\${DTACC_SEALED_OUT:-}" > ${JSON.stringify(join(dir, 'provision.out'))}
 IFS= read -r sudo_line || true
 printf '%s\\n' "$sudo_line" > ${JSON.stringify(join(dir, 'provision.stdin'))}
-printf '%s\\n' ${JSON.stringify(ONE_TIME)} > "$OPACC_SEALED_OUT"`,
+printf '%s\\n' ${JSON.stringify(ONE_TIME)} > "$DTACC_SEALED_OUT"`,
   );
 }
 
@@ -294,7 +303,7 @@ function args(overrides: Partial<Record<string, string>> = {}, extra: string[] =
   const base: Record<string, string> = {
     '--target': 'staging',
     '--account': ACCOUNT,
-    '--operator': 'James Leberknight',
+    '--full-name': 'James Leberknight',
     '--public-key': pub,
     '--expect-fingerprint': pubSha,
     '--address': ADDRESS,
@@ -336,7 +345,7 @@ function calls(): string[] {
 
 function mutatingCalls(): string[] {
   return calls().filter((c) =>
-    /\b(create-user|delete-user|put-user-policy|delete-user-policy|create-access-key|update-access-key|delete-access-key|create-login-profile)\b/.test(c),
+    /\b(create-user|delete-user|update-user|tag-user|untag-user|put-user-policy|delete-user-policy|create-access-key|update-access-key|delete-access-key|create-login-profile)\b/.test(c),
   );
 }
 
@@ -385,9 +394,9 @@ describe('onboard-dev-tester.sh — refused before anything is read or reached',
   });
 
   it('refuses a missing full name', () => {
-    const r = runPiped(args({ '--operator': '' }));
+    const r = runPiped(args({ '--full-name': '' }));
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/--operator/);
+    expect(r.stderr).toMatch(/--full-name/);
   });
 
   it('refuses a missing address, since nothing else reaches them without it', () => {
@@ -638,10 +647,10 @@ describe('onboard-dev-tester.sh — the IAM identity it makes', () => {
     expect(r.status, r.out).toBe(0);
     const create = calls().find((c) => c.startsWith('iam create-user')) ?? '';
     expect(create).toContain(`--user-name ${ACCOUNT}`);
-    expect(create).toContain('--path /footbag-operators/');
+    expect(create).toContain('--path /footbag-dev-testers/');
     expect(create).toContain('Key=Project,Value=footbag');
-    expect(create).toContain('Key=ManagedBy,Value=manage-human-operator.sh');
-    expect(create).toContain('Key=OperatorRole,Value=dev_tester');
+    expect(create).toContain('Key=ManagedBy,Value=manage-dev-tester.sh');
+    expect(create).toContain('Key=DevTesterRole,Value=dev_tester');
   });
 
   it('grants one inline statement naming one role, and attaches nothing else', () => {
@@ -678,6 +687,49 @@ describe('onboard-dev-tester.sh — the IAM identity it makes', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/hand somebody else's identity/);
+    expect(mutatingCalls()).toEqual([]);
+  });
+
+  it('moves a retired user of its own from the legacy path and tags, then restores it', () => {
+    // Users created under the earlier names sit outside the path the role's
+    // trust now matches. Re-onboarding moves and retags one, scripted, so no
+    // one-off command is needed and the user keeps its id.
+    writeFileSync(join(dir, 'user'), '');
+    writeFileSync(join(dir, 'legacy'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/is moved to \/footbag-dev-testers\/ and its ownership tags/);
+    const c = calls();
+    expect(c.some((l) => l.startsWith('iam create-user'))).toBe(false);
+    expect(c).toContain(`iam update-user --user-name ${ACCOUNT} --new-path /footbag-dev-testers/`);
+    expect(c.some((l) => l.startsWith(`iam tag-user --user-name ${ACCOUNT}`) && l.includes('Key=ManagedBy,Value=manage-dev-tester.sh') && l.includes('Key=DevTesterRole,Value=dev_tester'))).toBe(true);
+    expect(c).toContain(`iam untag-user --user-name ${ACCOUNT} --tag-keys OperatorRole`);
+    // Moved before the grant is written, so the grant lands on the user the role trusts.
+    expect(c.findIndex((l) => l.startsWith('iam update-user'))).toBeLessThan(
+      c.findIndex((l) => l.startsWith(`iam put-user-policy --user-name ${ACCOUNT}`)),
+    );
+  });
+
+  it('finishes a move that stopped after the path changed and before the tags did', () => {
+    // Otherwise the user would sit at the new path with legacy tags, read as
+    // somebody else's, and need a hand-typed IAM fix.
+    writeFileSync(join(dir, 'user'), '');
+    writeFileSync(join(dir, 'legacy'), '');
+    writeFileSync(join(dir, 'moved'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status, r.out).toBe(0);
+    const c = calls();
+    expect(c.some((l) => l.startsWith(`iam tag-user --user-name ${ACCOUNT}`))).toBe(true);
+    expect(c).toContain(`iam untag-user --user-name ${ACCOUNT} --tag-keys OperatorRole`);
+  });
+
+  it('refuses a legacy-path user whose role tag is not a dev-tester\'s, and changes nothing', () => {
+    writeFileSync(join(dir, 'user'), '');
+    writeFileSync(join(dir, 'legacy'), '');
+    writeFileSync(join(dir, 'legacy-other-role'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/already exists and is not one/);
     expect(mutatingCalls()).toEqual([]);
   });
 
@@ -884,7 +936,7 @@ describe('onboard-dev-tester.sh — the key and the address it is given', () => 
     const r = runPiped(args({ '--public-key': '', '--expect-fingerprint': '' }));
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/no --public-key, and no .*id_ed25519_james_leberknight\.pub/);
-    expect(r.stderr).toMatch(/setup-dev-workstation\.sh --operator --account james_leberknight/);
+    expect(r.stderr).toMatch(/setup-dev-workstation\.sh --aws --account james_leberknight/);
   });
 
   it('refuses a range, since a dev-and-tester\'s address is one host', () => {

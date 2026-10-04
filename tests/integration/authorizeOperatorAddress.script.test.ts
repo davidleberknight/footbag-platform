@@ -737,9 +737,23 @@ describe('authorize-operator-address --dev-tester: a person\'s own address param
     const r = run({ args: addFor('jane_doe', NEW_ADDRESS), before: [EXISTING], after: [EXISTING, NEW_ADDRESS] });
     expect(r.status, r.stderr).toBe(0);
     expect(paramOf('jane_doe')).toBe(NEW_ADDRESS);
-    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe('--target staging --firewall-only');
+    // The apply is held to the one address this run adds, so a values file that
+    // disagrees with the live firewall cannot drop an administrator's entry.
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(
+      `--target staging --firewall-only --firewall-add ${NEW_ADDRESS}`,
+    );
     expect(values()).toBe(TFVARS_BEFORE);
     expect(r.stdout).toMatch(/proved against the firewall rather than the parameter/);
+  });
+
+  it('names both the old address and the new one when a person\'s address changes', () => {
+    // A moved address is one out and one in; the apply may change those two
+    // and nothing else.
+    const r = run({ args: addFor('jane_doe', NEW_ADDRESS), params: { jane_doe: '192.0.2.9/32' }, after: [EXISTING, NEW_ADDRESS] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(
+      `--target staging --firewall-only --firewall-add ${NEW_ADDRESS} --firewall-remove 192.0.2.9/32`,
+    );
   });
 
   it('refuses anything wider than one host, which the staging Terraform would silently drop', () => {
@@ -790,6 +804,9 @@ describe('authorize-operator-address --dev-tester: a person\'s own address param
     expect(paramOf('jane_doe')).toBeNull();
     expect(r.stdout).toMatch(/203\.0\.113\.7\/32 is no longer admitted on ports 22 2222/);
     expect(values()).toBe(TFVARS_BEFORE);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(
+      `--target staging --firewall-only --firewall-remove ${NEW_ADDRESS}`,
+    );
   });
 
   it('says already absent, and applies nothing, when the account has no parameter', () => {
@@ -873,7 +890,7 @@ describe('authorize-operator-address checks every port the operator list opens',
     // joined local, and the local itself must still contain the list.
     const operatorList: Record<string, RegExp> = {
       production: /cidrs\s*=\s*var\.operator_cidrs\b/,
-      staging: /cidrs\s*=\s*local\.operator_ssh_cidrs\b/,
+      staging: /cidrs\s*=\s*local\.ssh_cidrs\b/,
     };
     for (const tree of ['staging', 'production']) {
       const tf = readFileSync(join(process.cwd(), `terraform/${tree}/lightsail.tf`), 'utf-8');
@@ -885,7 +902,7 @@ describe('authorize-operator-address checks every port the operator list opens',
       expect(operatorPorts, `${tree} ports taking the operator list`).toEqual(ports);
     }
     const staging = readFileSync(join(process.cwd(), 'terraform/staging/lightsail.tf'), 'utf-8');
-    expect(staging).toMatch(/operator_ssh_cidrs\s*=\s*distinct\(concat\(var\.operator_cidrs,\s*local\.dev_tester_cidrs\)\)/);
+    expect(staging).toMatch(/\bssh_cidrs\s*=\s*distinct\(concat\(var\.operator_cidrs,\s*local\.dev_tester_cidrs\)\)/);
   });
 
   it('admits a dev-and-tester address only as a canonical single host, and never fails a plan over one', () => {

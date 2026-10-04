@@ -109,7 +109,7 @@ if [[ "$sub" == "assume-role" ]]; then
   ${opts.fresh === 'refused' ? 'echo "An error occurred (AccessDenied) when calling the AssumeRole operation: not authorized" >&2; exit 254' : 'echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/$session"; exit 0'}
 fi
 case "$profile" in
-  ${ACCOUNT}) echo "arn:aws:iam::000000000000:user/footbag-operators/${ACCOUNT}" ;;
+  ${ACCOUNT}) echo "arn:aws:iam::000000000000:user/footbag-dev-testers/${ACCOUNT}" ;;
   FootbagDevTester) echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${opts.session ?? ACCOUNT}" ;;
   footbag-staging-runtime) echo "arn:aws:sts::000000000000:assumed-role/${opts.runtimeRole ?? 'footbag-staging-app-runtime'}/botocore-session-1" ;;
   *) exit 255 ;;
@@ -191,7 +191,7 @@ function seal(overrides: Record<string, string> = {}, extraLine = '') {
   const values: Record<string, string> = {
     TARGET: 'staging',
     ACCOUNT,
-    OPERATOR: 'James Leberknight',
+    FULL_NAME: 'James Leberknight',
     HOST_PASSWORD: ONE_TIME,
     AWS_ACCESS_KEY_ID: KEY_ID,
     AWS_SECRET_ACCESS_KEY: SECRET,
@@ -258,7 +258,7 @@ function env(extra: Record<string, string> = {}): Record<string, string> {
     ACCEPT_AWS_BIN: awsStub(),
     ACCEPT_AGE_BIN: ageStub(),
     ACCEPT_SSH_BIN: hostSshStub(),
-    OSK_SSH_BIN: aliasSsh(),
+    DTSK_SSH_BIN: aliasSsh(),
     ACCEPT_PROPAGATION_POLL: '0',
     ACCEPT_PROPAGATION_TRIES: '2',
     ACCEPT_SETUP_CMD: setupStub(),
@@ -443,7 +443,7 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/a fresh session of FootbagDevTester, signed with your new key, was not/);
     expect(r.out).toMatch(/AccessDenied/);
-    expect(existsSync(join(home, 'AWS', 'HOST_OPERATOR.txt'))).toBe(false);
+    expect(existsSync(join(home, 'AWS', 'DEV_TESTER_HOST.txt'))).toBe(false);
   });
 
   it('refuses a session the job role names after somebody else', () => {
@@ -466,7 +466,7 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
     const r = runInTerminal(FIRST_RUN);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/refuses the one-time password/);
-    expect(existsSync(join(home, 'AWS', 'HOST_OPERATOR.txt'))).toBe(false);
+    expect(existsSync(join(home, 'AWS', 'DEV_TESTER_HOST.txt'))).toBe(false);
   });
 });
 
@@ -513,6 +513,9 @@ describe('accept-dev-tester-onboarding.sh — failures it must not misreport', (
 
 describe('accept-dev-tester-onboarding.sh — the pin file', () => {
   it('replaces only this host\'s lines, never a host whose name merely contains it', () => {
+    // On a dev-and-tester's own machine; an administrator's pins are never
+    // replaced, which the maintainer-machine cases cover.
+    devMachine();
     mkdirSync(join(home, 'AWS'), { recursive: true });
     const lookalike = `1${ADDRESS} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOtherHost`;
     const stale = `${ADDRESS} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIStaleKey`;
@@ -599,8 +602,8 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(ssh).toContain(`Match host footbag-staging exec "test x$AWS_PROFILE = xFootbagDevTester"\n  User ${ACCOUNT}`);
 
     expect(readFileSync(hostPassword, 'utf-8')).toBe(`${NEW_PASSWORD}\n`);
-    expect(read('AWS', 'HOST_OPERATOR.txt')).toBe(`${NEW_PASSWORD}\n`);
-    expect(statSync(join(home, 'AWS', 'HOST_OPERATOR.txt')).mode & 0o777).toBe(0o600);
+    expect(read('AWS', 'DEV_TESTER_HOST.txt')).toBe(`${NEW_PASSWORD}\n`);
+    expect(statSync(join(home, 'AWS', 'DEV_TESTER_HOST.txt')).mode & 0o777).toBe(0o600);
     expect(existsSync(sealed)).toBe(false);
   });
 
@@ -726,7 +729,7 @@ describe('accept-dev-tester-onboarding.sh — before anything is opened', () => 
     const r = runWith(args(), [], { ACCEPT_AWS_BIN: old });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(new RegExp(`the AWS CLI is not ${AWS_PIN.replace(/\./g, '\\.')}`));
-    expect(r.out).toMatch(/setup-dev-workstation\.sh --operator --account james_leberknight/);
+    expect(r.out).toMatch(/setup-dev-workstation\.sh --aws --account james_leberknight/);
     expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
   });
 
@@ -765,6 +768,44 @@ describe('accept-dev-tester-onboarding.sh on a maintainer\'s own machine', () =>
     expect(after['.aws/config']!.match(/\[profile footbag-staging-runtime\]/g)).toHaveLength(1);
     expect(stillHolds(home, '.ssh/config', ADMIN_STANZAS)).toBe(true);
     expect(after['.aws/credentials']).toContain(`[${ACCOUNT}]`);
+  });
+
+  it('refuses a delivery whose host keys disagree with the administrators\' pins, before writing any profile', () => {
+    // A stale delivery or a rebuilt host: replacing the pins would change what
+    // every administrator connection to staging trusts.
+    seedMaintainerMachine(home, [
+      `${ADDRESS} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOtherHostKey`,
+      `[${ADDRESS}]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOtherHostKey`,
+    ]);
+    const before = snapshotAdminFiles(home);
+    const r = runInTerminal(['APPLY', 'APPLY', 'APPLY', 'APPLY']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/already pins \S+ with a different key than\s+this delivery carries/);
+    expect(r.out).toMatch(/install-known-hosts\.sh --target staging/);
+    const after = snapshotAdminFiles(home);
+    expect(after['AWS/footbag_known_hosts']).toBe(before['AWS/footbag_known_hosts']);
+    expect(after['.aws/credentials']).toBe(before['.aws/credentials']);
+    expect(after['.aws/config']).toBe(before['.aws/config']);
+  });
+
+  it('still treats the machine as an administrator\'s when the CLI cannot list profiles, from the files themselves', () => {
+    // A CLI that fails on a malformed file must not read as "no footbag-operator
+    // here", or the job-role chain is written under the administrators' name.
+    const listFails = stub('aws-list-fails', `[[ "$1 $2" == "configure list-profiles" ]] && exit 255\nexec ${awsStub()} "$@"`);
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_AWS_BIN: listFails });
+    expect(r.status, r.out).toBe(0);
+    expect(read('.aws', 'config')).not.toMatch(/\[profile footbag-staging-runtime\]/);
+    expect(r.out).toMatch(/is the administrators' chain here and is not written by this run/);
+  });
+
+  it('refuses, writing no profile, when the CLI cannot list profiles and the files name no administrator', () => {
+    devMachine();
+    const listFails = stub('aws-list-fails', `[[ "$1 $2" == "configure list-profiles" ]] && exit 255\nexec ${awsStub()} "$@"`);
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_AWS_BIN: listFails });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/could not list this machine's profiles/);
+    expect(read('.aws', 'config')).toBe('');
+    expect(read('.aws', 'credentials')).toBe('');
   });
 });
 

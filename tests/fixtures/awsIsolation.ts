@@ -23,6 +23,10 @@
  * falls through to the instance metadata endpoint, which on a developer machine
  * is a slow timeout rather than a refusal, and on any AWS-hosted runner is a
  * live credential source.
+ *
+ * The web-identity and container sources are blanked for the same reason: a
+ * runner that exports a role ARN with a token file, or a container credentials
+ * endpoint, is a credential source the profile and key settings never touch.
  */
 export const NO_AWS_CREDENTIALS = {
   AWS_PROFILE: 'footbag-test-nonexistent-profile',
@@ -31,6 +35,11 @@ export const NO_AWS_CREDENTIALS = {
   AWS_ACCESS_KEY_ID: '',
   AWS_SECRET_ACCESS_KEY: '',
   AWS_SESSION_TOKEN: '',
+  AWS_WEB_IDENTITY_TOKEN_FILE: '',
+  AWS_ROLE_ARN: '',
+  AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '',
+  AWS_CONTAINER_CREDENTIALS_FULL_URI: '',
+  AWS_CONTAINER_AUTHORIZATION_TOKEN: '',
   AWS_EC2_METADATA_DISABLED: 'true',
   AWS_REGION: 'us-east-1',
 } as const;

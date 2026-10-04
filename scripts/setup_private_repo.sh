@@ -109,10 +109,10 @@ cd "$REPO_ROOT"
 # secrets links have fixed targets because they resolve through the root link;
 # only the two root links vary by machine.
 #
-# One of the four values links is not an environment: identity declares what a human operator
+# One of the four values links is not an environment: identity declares what a dev-and-tester
 # may do. It is here for the same reason the environment files are — a tree
 # whose values file is not wired cannot be planned, and nothing else would say
-# so. Who the operators ARE is deliberately not a values file, because onboarding
+# so. Who the dev-and-testers ARE is deliberately not a values file, because onboarding
 # and offboarding mint and revoke key material that must never enter Terraform
 # state; the lifecycle script owns that instead.
 VALUES_LINKS=(

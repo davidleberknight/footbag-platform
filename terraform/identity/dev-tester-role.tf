@@ -1,14 +1,14 @@
 # =============================================================================
-# The human operator job role — its DEFINITION
+# The dev-and-tester job role — its DEFINITION
 #
-# What a human operator may do. Who the operators are is not here, and not in
-# Terraform at all: onboarding mints an access key, and a secret Terraform
+# What a dev-and-tester may do. Who the dev-and-testers are is not here, and not
+# in Terraform at all: onboarding mints an access key, and a secret Terraform
 # creates is a secret held in its state, so the named users are created and
-# retired by scripts/manage-human-operator.sh instead.
+# retired by scripts/manage-dev-tester.sh instead.
 #
-# Each human operator has a named IAM user under one IAM path, carrying no
+# Each dev-and-tester has a named IAM user under one IAM path, carrying no
 # service permission of its own beyond the right to assume this one role. The
-# role models the job rather than the person, so operators doing the same job
+# role models the job rather than the person, so dev-and-testers doing the same job
 # assume the same role and one policy governs them all; two roles carrying the
 # same policy drift apart the first time only one of them is updated. Sharing it
 # costs no attribution, because the trust policy requires the role session to be
@@ -22,7 +22,7 @@
 # account is the management account, and a service control policy never applies
 # there, so the guardrail that would normally hold those denials is structurally
 # unavailable and they have to live inside the policy itself. That makes this the
-# one tree an operator cannot apply: it is applied by the directly authenticated
+# one tree a dev-and-tester cannot apply: it is applied by the directly authenticated
 # identity, which is the actor here rather than anything this tree changes.
 #
 # WHAT THIS TREE DOES NOT DO.
@@ -42,12 +42,12 @@ locals {
   # this role every write to it.
   super_admin_user_arn = "arn:aws:iam::${var.aws_account_id}:user/footbag-operator"
 
-  # Every named human operator lives under one IAM path, and the trust policy
+  # Every named dev-and-tester lives under one IAM path, and the trust policy
   # admits the path rather than a list of people. Onboarding therefore never
   # edits this role's trust policy, which is the one part of the lifecycle that
-  # would otherwise need the tree an operator cannot apply.
-  human_operator_path        = "/footbag-operators/"
-  human_operator_arn_pattern = "arn:aws:iam::${var.aws_account_id}:user${local.human_operator_path}*"
+  # would otherwise need the tree a dev-and-tester cannot apply.
+  dev_tester_path        = "/footbag-dev-testers/"
+  dev_tester_arn_pattern = "arn:aws:iam::${var.aws_account_id}:user${local.dev_tester_path}*"
 
   # Written out rather than read from the resource below, so the policy that
   # denies writes to this role does not depend on the role it is attached to.
@@ -117,7 +117,7 @@ locals {
     # only by onboarding and offboarding as the directly authenticated identity.
     # The staging plan reads them to build the SSH allow-list, so this role reads
     # them too. Outside /footbag/<env>/ on purpose: both runtime roles read their
-    # whole environment prefix, and an operator's home address is nothing the
+    # whole environment prefix, and a dev-and-tester's home address is nothing the
     # application should be able to see. The bare path is listed beside its
     # children because a by-path read is authorized against the path itself.
     dev_tester_addresses = [
@@ -147,15 +147,15 @@ locals {
   # resource type in the Terraform trees and every AWS call in the scripts tree,
   # which is the closest thing to an observed-usage input available before the
   # role has been used. The long-run rule is that it is derived from the observed
-  # usage of EVERY operator who assumes it, never from one person's history: a
-  # policy derived from one operator under-grants the others and surfaces as a
+  # usage of EVERY dev-and-tester who assumes it, never from one person's history: a
+  # policy derived from one dev-and-tester under-grants the others and surfaces as a
   # permission error mid-task, usually during something time-critical.
   #
   # Current: derived from the trees, the scripts, and four weeks of trail of the
-  # work operators did as footbag-operator; this role itself has never been used,
+  # work administrators did as footbag-operator; this role itself has never been used,
   # so there is no trail of its own.
   # Target: reconciled against an Access Analyzer generation from a month of
-  # this role's own use by every operator who assumes it.
+  # this role's own use by every dev-and-tester who assumes it.
   statements = {
 
     project_buckets = {
@@ -252,7 +252,7 @@ locals {
     # and its tags the same way. Each of those is listed here. Seizing or
     # destroying an existing key is not: PutKeyPolicy and ScheduleKeyDeletion
     # stay behind the alias, so a key this project never named is beyond an
-    # operator's reach, and an orphan left by an interrupted apply is cleaned
+    # dev-and-tester's reach, and an orphan left by an interrupted apply is cleaned
     # up by the directly authenticated identity rather than by a role.
     #
     # Two reads a staging refresh makes on every run are here because AWS
@@ -471,7 +471,7 @@ locals {
     # The trail records the role session name with every action this role takes,
     # and the trust policy requires that name to be the assuming user's own, so
     # the session identifies the person rather than only the job. Reading the
-    # trail back is how an operator answers "who did this" without leaving the
+    # trail back is how a dev-and-tester answers "who did this" without leaving the
     # role or opening a second identity.
     resolve_who_acted = {
       Sid      = "ResolveWhoActed"
@@ -552,16 +552,16 @@ locals {
     # Onboarding and offboarding a person are the directly authenticated
     # identity's work and nobody else's. The lifecycle script refuses to run
     # under this role, and this denial is what makes that refusal more than a
-    # convention: an operator who bypasses the wrapper and calls IAM directly is
+    # convention: a dev-and-tester who bypasses the wrapper and calls IAM directly is
     # refused by AWS rather than by a script they chose not to use. Both halves
     # matter equally, because revoking access must never be the slower half.
     #
     # Enumerated rather than inverted, unlike the two denials beside it, because
-    # an operator legitimately reads and simulates against their own user and
+    # a dev-and-tester legitimately reads and simulates against their own user and
     # against their colleagues': the inverted form would deny the reads the
     # workstation check and the lifecycle verifier both depend on.
-    never_administer_a_human_operator = {
-      Sid    = "NeverAdministerAHumanOperator"
+    never_administer_a_dev_tester = {
+      Sid    = "NeverAdministerADevTester"
       Effect = "Deny"
       # The second group is every other way a credential or an identifying
       # attribute reaches one of these users. They were missing, and because no
@@ -588,7 +588,7 @@ locals {
         "iam:UpdateServiceSpecificCredential",
       "iam:DeleteServiceSpecificCredential", "iam:ResetServiceSpecificCredential"]
       Resource = [
-        local.human_operator_arn_pattern,
+        local.dev_tester_arn_pattern,
         "arn:aws:iam::${var.aws_account_id}:mfa/*",
       ]
     }
@@ -597,7 +597,7 @@ locals {
     # above, and the shape is deliberately the same so the two are read as one
     # rule rather than as two that happen to differ. This role must not edit its
     # own definition or its trust policy — that is what makes this the one tree
-    # an operator cannot apply — but it does have to be readable, because a
+    # a dev-and-tester cannot apply — but it does have to be readable, because a
     # policy simulation against the role is how a grant is checked without
     # exercising it.
     never_touch_this_role = {
@@ -630,10 +630,14 @@ locals {
     # answer if this ever bites; it is not the answer today, because it spreads
     # the control across two trees and stops working the day a new staging
     # principal is declared without it.
+    #
+    # Assuming the role is exempt alongside the reads. The inversion matches
+    # every action on the role's ARN, sts:AssumeRole included, so without the
+    # exemption it would deny the one call this role exists to make.
     never_rewrite_a_role_we_can_assume = {
       Sid       = "NeverRewriteARoleWeCanAssume"
       Effect    = "Deny"
-      NotAction = ["iam:Get*", "iam:List*", "iam:Simulate*"]
+      NotAction = ["iam:Get*", "iam:List*", "iam:Simulate*", "sts:AssumeRole"]
       Resource  = local.scope.runtime_roles
     }
 
@@ -655,11 +659,18 @@ locals {
     # set Environment through default_tags and a key carries its tags from the
     # create call, so the alias that follows is evaluated against a tagged key.
     # Verified against the live account rather than assumed, on all four keys.
+    #
+    # Scoped to key ARNs. KMS authorises every alias call twice, once against
+    # the alias and once against each key it touches, and no condition key is
+    # evaluated where the resource is the alias, so the tag is always absent
+    # there. Over Resource "*" the negated match would then deny staging's own
+    # aliases too. The key side carries the tag, which is the whole of the
+    # check this statement needs.
     never_graft_an_alias_onto_production = {
       Sid      = "NeverGraftAnAliasOntoProduction"
       Effect   = "Deny"
       Action   = ["kms:CreateAlias", "kms:UpdateAlias", "kms:DeleteAlias"]
-      Resource = "*"
+      Resource = "arn:aws:kms:*:${var.aws_account_id}:key/*"
       Condition = {
         StringNotEquals = { "aws:ResourceTag/Environment" = "staging" }
       }
@@ -702,7 +713,7 @@ locals {
     # explicitDeny; guarded, allowed.
     #
     # TagResource and UntagResource are in the list because they are how the
-    # control would switch itself off: an operator who can strip Environment
+    # control would switch itself off: a dev-and-tester who can strip Environment
     # from the production distribution can then do anything else to it.
     #
     # WHAT THIS CANNOT COVER. Key groups, public keys, origin access controls,
@@ -752,11 +763,11 @@ locals {
 
     # This call mints the short-lived certificate that opens a shell on a host
     # as its default login account, which has passwordless sudo, with no key of
-    # the operator's own and no password. Whoever may make it holds root on the
+    # the caller's own and no password. Whoever may make it holds root on the
     # host, so the permission to make it is the whole control over that path,
     # and the job role is denied it on every instance, staging included.
     #
-    # Nothing an operator who can assume the job role does needs it. A dev-and-tester reaches staging
+    # Nothing a dev-and-tester does under the job role needs it. A dev-and-tester reaches staging
     # through their own named account, whose sudo they unlock with their own
     # password, which is attributable and ends when they are offboarded. A root
     # shell reached this way is neither, and it could undo a host offboarding
@@ -811,7 +822,7 @@ locals {
 
 resource "aws_iam_role" "dev_tester" {
   name        = "FootbagDevTester"
-  description = "The dev-and-tester operator job: staging, and the reads a deploy makes. Mints no host shell on any instance, may not reach the production host, its keys, its edge functions or its mail identity, may not widen a role it can assume, and may not administer another operator."
+  description = "The dev-and-tester job: staging, and the reads a deploy makes. Mints no host shell on any instance, may not reach the production host, its keys, its edge functions or its mail identity, may not widen a role it can assume, and may not administer another dev-and-tester."
 
   # Long enough that a deploy and the verification after it do not expire
   # mid-run, short enough that a session left open on a workstation is not a
@@ -819,7 +830,7 @@ resource "aws_iam_role" "dev_tester" {
   max_session_duration = 14400
 
   # The account itself is the principal, narrowed by condition to the one IAM
-  # path named human operators live under. Naming the account rather than each
+  # path named dev-and-testers live under. Naming the account rather than each
   # person is what keeps onboarding out of this tree: adding somebody is
   # creating a user under that path and granting them sts:AssumeRole, and
   # neither touches this policy. The condition is what stops the root principal
@@ -834,12 +845,12 @@ resource "aws_iam_role" "dev_tester" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid       = "NamedHumanOperatorsMayAssume"
+      Sid       = "NamedDevTestersMayAssume"
       Effect    = "Allow"
       Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
       Action    = "sts:AssumeRole"
       Condition = {
-        ArnLike      = { "aws:PrincipalArn" = local.human_operator_arn_pattern }
+        ArnLike      = { "aws:PrincipalArn" = local.dev_tester_arn_pattern }
         StringEquals = { "sts:RoleSessionName" = "$${aws:username}" }
       }
     }]
@@ -886,7 +897,7 @@ locals {
     Guardrails = [
       local.statements.no_self_elevation,
       local.statements.never_touch_super_admin_identity,
-      local.statements.never_administer_a_human_operator,
+      local.statements.never_administer_a_dev_tester,
       local.statements.never_touch_this_role,
       local.statements.never_rewrite_a_role_we_can_assume,
       local.statements.never_graft_an_alias_onto_production,

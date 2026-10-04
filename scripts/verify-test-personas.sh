@@ -62,7 +62,7 @@ SSH_ALIAS="footbag-$TARGET"
 # one shared rule: the account the alias connects as picks the pair, the
 # environment picks the file within it, and nothing else is read in its place.
 # Building the path here from $HOME would be a second copy of the rule, and a
-# second copy is what lets a named operator's run read the shared account's
+# second copy is what lets a dev-and-tester's run read the shared account's
 # password and fail at sudo on the host.
 if ! require_operator_credential "$SSH_ALIAS" "$TARGET"; then
   echo "This check runs on the operator workstation only; testers cannot (and need not) run it." >&2

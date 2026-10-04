@@ -27,11 +27,12 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 usage() {
   cat <<'USAGE'
 Usage: bash deploy_to_aws.sh [flags]                       (recommended)
-   or (staging only): < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-to-aws.sh [flags]
+   or (staging only): < ~/AWS/DEV_TESTER_HOST.txt bash scripts/deploy-to-aws.sh [flags]
 
-That file is your own named account's staging sudo password. An operator whose
-alias still connects as the shared footbag account reads ~/AWS/AWS_OPERATOR.txt
-instead; a run started without the redirect names the one it needs.
+That file is a dev-and-tester's own named account's staging sudo password. An
+administrator, whose alias connects as the shared footbag account, reads
+~/AWS/AWS_OPERATOR.txt instead; a run started without the redirect names the one
+it needs.
 
 A production deploy runs only through deploy_to_aws.sh, which asks for the typed
 confirmation and takes the host password at the terminal. The leaf scripts refuse

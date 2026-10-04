@@ -97,7 +97,7 @@ const PRODUCTION_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/footbag-prod
 // The shared job role, with a session named for the person holding it: the
 // trailing element is the whole of the attribution on a role several people
 // use, so a fixture that dropped it would leave that check unexercised.
-const DEV_TESTER_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/test_operator';
+const DEV_TESTER_ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/test_dev_tester';
 
 /**
  * An `aws` stub, on PATH and on both library seams at once.
@@ -327,7 +327,7 @@ describe('setup-operator-workstation.sh — it reports rather than aborting', ()
     // which is the one-file-two-meanings shape the four files exist to prevent.
     const r = run(['--target', 'staging', '--check'], stubSshOnPath(NAMED_ALIAS_LINES));
     const all = output(r);
-    expect(all).toMatch(/HOST_OPERATOR\.txt is missing/);
+    expect(all).toMatch(/DEV_TESTER_HOST\.txt is missing/);
     expect(all).not.toMatch(/AWS_OPERATOR\.txt is missing/);
   });
 
@@ -571,7 +571,7 @@ describe('a run acting as the shared job role', () => {
     for (const [rel, body] of Object.entries(seeded)) {
       expect(readFileSync(join(fakeHome, rel), 'utf-8'), `${rel} changed`).toBe(body);
     }
-    expect(existsSync(join(fakeHome, 'AWS', 'HOST_OPERATOR.txt')), 'no credential file was written').toBe(false);
+    expect(existsSync(join(fakeHome, 'AWS', 'DEV_TESTER_HOST.txt')), 'no credential file was written').toBe(false);
     expect(all).toMatch(/footbag-staging does not resolve; accepting your onboarding writes it/);
     expect(all).not.toMatch(/stanza written/);
   });
@@ -654,9 +654,9 @@ describe('the AWS identity is proved, not listed', () => {
   });
 
   it('proves the staging chain on a machine that carries no production chain', () => {
-    // A named operator's workstation has the staging chain and, by design, no
+    // A dev-and-tester's workstation has the staging chain and, by design, no
     // production one. That absence must not stop the staging chain from being
-    // proved, or the one chain a named operator uses is never checked at all.
+    // proved, or the one chain a dev-and-tester uses is never checked at all.
     const env = stubAwsOnPath({
       profiles: ['footbag-operator', 'footbag-staging-runtime'],
       identities: {
@@ -705,7 +705,7 @@ describe('the AWS identity is proved, not listed', () => {
     expect(all).toMatch(/assume-role permission on whichever principal it sources from/);
   });
 
-  // A machine carrying only a named operator's own key has no identity outside
+  // A machine carrying only a dev-and-tester's own key has no identity outside
   // the wrapper, which settles the run on the role-assuming profile by setting
   // it for the command. These cases run the check the way that machine runs
   // it: through the wrapper.
@@ -724,7 +724,7 @@ describe('the AWS identity is proved, not listed', () => {
   it('raises no verdict on a missing runtime chain, which it cannot rule on', () => {
     // Whether an absent chain is a gap follows from whose key the machine is
     // meant to hold, and nothing on the machine says that. There is no
-    // production chain for a named operator by design, because production's
+    // production chain for a dev-and-tester by design, because production's
     // runtime role trusts the directly authenticated user and not the job role.
     const env = stubAwsOnPath({
       profiles: ['FootbagDevTester'],
@@ -773,7 +773,7 @@ describe('the AWS identity is proved, not listed', () => {
     // The profile and the role carry the same name, so the line has to say
     // which of the two each one is. Without that it reads as a tautology.
     expect(all).toMatch(
-      /the FootbagDevTester profile assumes the FootbagDevTester role as test_operator/,
+      /the FootbagDevTester profile assumes the FootbagDevTester role as test_dev_tester/,
     );
   });
 
@@ -796,7 +796,7 @@ describe('the AWS identity is proved, not listed', () => {
     );
 
     expect(all).toMatch(
-      /the a-differently-named-profile profile assumes the FootbagDevTester role as test_operator/,
+      /the a-differently-named-profile profile assumes the FootbagDevTester role as test_dev_tester/,
     );
   });
 

@@ -50,7 +50,7 @@
 #
 # WHAT IT REFUSES TO DO.
 #
-#   - Create an account. That is provision-operator-account.sh, which mints a
+#   - Create an account. That is provision-dev-tester-account.sh, which mints a
 #     password and demands a vault record; this one does neither, because it
 #     grants no new identity, only a second way into an identity that exists.
 #   - Rewrite authorized_keys. It appends, and it verifies afterwards that every
@@ -71,7 +71,7 @@
 # are separate hosts with separate passwords:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR.txt  (staging only; none on production)
+#   your own named account:  ~/AWS/DEV_TESTER_HOST.txt  (staging only; none on production)
 #
 # A run started without the redirect names the one it needs.
 #
@@ -122,7 +122,7 @@ Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/authorize-operator-key.sh \
 
 The redirected file is the HOST sudo password for the account your SSH alias
 connects as, not an AWS credential. It differs per environment and per account:
-the AWS_OPERATOR pair belongs to the shared account, HOST_OPERATOR.txt to your
+the AWS_OPERATOR pair belongs to the shared account, DEV_TESTER_HOST.txt to your
 own named account, which exists on staging only. Redirecting the wrong one sends the wrong password to the right host.
 
 Adds one person's public key to an EXISTING account's authorized_keys, so a new

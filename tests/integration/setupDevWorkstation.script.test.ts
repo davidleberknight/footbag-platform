@@ -358,8 +358,8 @@ describe('setup-dev-workstation.sh — Python environments judged by whether the
   });
 });
 
-describe('setup-dev-workstation.sh — the operator AWS CLI', () => {
-  it('leaves the AWS CLI alone unless --operator is given', () => {
+describe('setup-dev-workstation.sh — the AWS CLI', () => {
+  it('leaves the AWS CLI alone unless --aws is given', () => {
     stubCompleteMachine();
     stub('aws', 'echo "aws-cli/2.10.0 Python/3.11"');
     const r = run(['--check']);
@@ -367,25 +367,25 @@ describe('setup-dev-workstation.sh — the operator AWS CLI', () => {
     expect(r.stdout).not.toContain('aws: install');
   });
 
-  it('plans the pinned AWS CLI under --operator when the installed one differs', () => {
+  it('plans the pinned AWS CLI under --aws when the installed one differs', () => {
     stubCompleteMachine();
     stub('aws', 'echo "aws-cli/2.10.0 Python/3.11"');
-    const r = run(['--check', '--operator']);
+    const r = run(['--check', '--aws']);
     expect(r.status).toBe(1);
     expect(r.stdout).toContain('aws: install AWS CLI 2.34.8');
   });
 
-  it('accepts the pinned AWS CLI under --operator', () => {
+  it('accepts the pinned AWS CLI under --aws', () => {
     stubCompleteMachine();
     stub('aws', 'echo "aws-cli/2.34.8 Python/3.13.11 Linux/6 exe/x86_64"');
-    const r = run(['--check', '--operator']);
+    const r = run(['--check', '--aws']);
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('refuses an installer whose checksum does not match, before unpacking it', () => {
     stubCompleteMachine();
     stub('aws', 'exit 1');
-    const r = run(['--yes', '--operator']);
+    const r = run(['--yes', '--aws']);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('awscli-exe-linux-x86_64-2.34.8.zip does not match its pinned checksum');
     expect(existsSync(join(home, '.local', 'aws-cli'))).toBe(false);
@@ -487,7 +487,7 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
    * keys without a passphrase (the real one asks on a terminal the suite does
    * not have), and a downloader that answers the address lookup.
    */
-  function operatorMachine() {
+  function awsMachine() {
     stubCompleteMachine();
     stub('aws', 'echo "aws-cli/2.34.8 Python/3.13.11 Linux/6 exe/x86_64"');
     const real = (spawnSync('bash', ['-c', 'command -v ssh-keygen'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
@@ -505,14 +505,14 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     return fingerprint(`${namedKey()}.pub`);
   }
 
-  it('refuses a named key without the operator tools it goes with', () => {
+  it('refuses a named key without the AWS CLI it goes with', () => {
     const r = run(['--check', '--account', ACCOUNT]);
     expect(r.status).toBe(2);
-    expect(r.stderr).toContain('--account goes with --operator');
+    expect(r.stderr).toContain('--account goes with --aws');
   });
 
   it('refuses a name the onboarding would refuse, so no key is made under the wrong spelling', () => {
-    const r = run(['--check', '--operator', '--account', 'Jane']);
+    const r = run(['--check', '--aws', '--account', 'Jane']);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('is not a usable account name');
   });
@@ -520,26 +520,26 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
   it('says why it stops on a pair ssh-keygen cannot read, rather than exiting silently', () => {
     // The read is a pipeline under pipefail, so its failure used to end the run
     // through errexit with no message at all.
-    operatorMachine();
+    awsMachine();
     mkdirSync(join(home, '.ssh'), { recursive: true });
     writeFileSync(namedKey(), 'not a key\n');
     writeFileSync(`${namedKey()}.pub`, 'not a public key\n');
-    const r = run(['--check', '--operator', '--account', ACCOUNT]);
+    const r = run(['--check', '--aws', '--account', ACCOUNT]);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`ssh-keygen cannot read ~/.ssh/id_ed25519_${ACCOUNT}.pub`);
   });
 
   it('plans the pair under --check and creates nothing', () => {
-    operatorMachine();
-    const r = run(['--check', '--operator', '--account', ACCOUNT]);
+    awsMachine();
+    const r = run(['--check', '--aws', '--account', ACCOUNT]);
     expect(r.status).toBe(1);
     expect(r.stdout).toContain(`ssh key: create ~/.ssh/id_ed25519_${ACCOUNT}`);
     expect(existsSync(namedKey())).toBe(false);
   });
 
   it('creates the pair where the acceptance looks, and prints what the holder needs', () => {
-    operatorMachine();
-    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    awsMachine();
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
     expect(r.status, r.stderr).toBe(0);
     const sha = fingerprint(`${namedKey()}.pub`);
     expect(sha).toMatch(/^SHA256:/);
@@ -549,25 +549,25 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
   });
 
   it('keeps an existing pair, which an onboarding may already be sealed to', () => {
-    operatorMachine();
+    awsMachine();
     const sha = makePair();
-    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
     expect(r.status, r.stderr).toBe(0);
     expect(fingerprint(`${namedKey()}.pub`)).toBe(sha);
     expect(r.stdout).toContain(`fingerprint:  ${sha}`);
   });
 
   it('replaces only the pair named by fingerprint, once, setting the old one aside', () => {
-    operatorMachine();
+    awsMachine();
     const old = makePair();
-    const first = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', old]);
+    const first = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', old]);
     expect(first.status, first.stderr).toBe(0);
     const fresh = fingerprint(`${namedKey()}.pub`);
     expect(fresh).not.toBe(old);
     const retired = readdirSync(join(home, '.ssh')).filter((f) => f.startsWith(`retired_${ACCOUNT}_`));
     expect(retired.some((f) => f.endsWith('.pub') && fingerprint(join(home, '.ssh', f)) === old)).toBe(true);
     // A re-run with the same flag finds a different pair there and keeps it.
-    const second = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', old]);
+    const second = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', old]);
     expect(second.status, second.stderr).toBe(0);
     expect(fingerprint(`${namedKey()}.pub`)).toBe(fresh);
     expect(second.stdout).toContain('already replaced, so it is kept');
@@ -582,10 +582,10 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     const retiredFiles = () => readdirSync(join(home, '.ssh')).filter((f) => f.startsWith(`retired_${ACCOUNT}_`));
 
     it('sets aside the pair the acceptance marker names, marker and all, and makes a fresh one', () => {
-      operatorMachine();
+      awsMachine();
       const old = makePair();
       writeFileSync(`${namedKey()}.onboarded`, `${old}\n`);
-      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired']);
+      const r = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', 'retired']);
       expect(r.status, r.stderr).toBe(0);
       expect(fingerprint(`${namedKey()}.pub`)).not.toBe(old);
       expect(existsSync(`${namedKey()}.onboarded`), 'the marker goes with its pair').toBe(false);
@@ -593,27 +593,27 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     });
 
     it('keeps a pair the marker does not name, which no onboarding accepted', () => {
-      operatorMachine();
+      awsMachine();
       const current = makePair();
       writeFileSync(`${namedKey()}.onboarded`, 'SHA256:somebodyElsesAcceptedPairFingerprint0000000\n');
-      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired']);
+      const r = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', 'retired']);
       expect(r.status, r.stderr).toBe(0);
       expect(fingerprint(`${namedKey()}.pub`)).toBe(current);
       expect(r.stdout).toMatch(/not the one accepted/);
     });
 
     it('asks for the profile when there is no marker, rather than guessing', () => {
-      operatorMachine();
+      awsMachine();
       makePair();
-      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired']);
+      const r = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', 'retired']);
       expect(r.status).toBe(2);
       expect(r.stderr).toMatch(/--replace-key retired --profile jane_doe/);
     });
 
     it('sets the pair aside without a marker once AWS refuses its key as invalid', () => {
-      operatorMachine();
+      awsMachine();
       const old = makePair();
-      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
+      const r = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
         awsSays('An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.'));
       expect(r.status, r.stderr).toBe(0);
       expect(fingerprint(`${namedKey()}.pub`)).not.toBe(old);
@@ -621,19 +621,19 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     });
 
     it('keeps the pair when its identity still works, since it is not retired', () => {
-      operatorMachine();
+      awsMachine();
       const current = makePair();
-      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
-        awsSays('arn:aws:iam::000000000000:user/footbag-operators/jane_doe'));
+      const r = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
+        awsSays('arn:aws:iam::000000000000:user/footbag-dev-testers/jane_doe'));
       expect(r.status).toBe(1);
       expect(r.stderr).toMatch(/still works/);
       expect(fingerprint(`${namedKey()}.pub`)).toBe(current);
     });
 
     it('keeps the pair when the proof cannot be made, a network failure included', () => {
-      operatorMachine();
+      awsMachine();
       const current = makePair();
-      const r = run(['--yes', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
+      const r = run(['--yes', '--aws', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', ACCOUNT],
         awsSays('Could not connect to the endpoint URL: "https://sts.amazonaws.com/"'));
       expect(r.status).toBe(1);
       expect(r.stderr).toMatch(/Only AWS refusing the key as invalid counts/);
@@ -641,17 +641,17 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     });
 
     it('refuses a profile other than the account\'s own', () => {
-      const r = run(['--check', '--operator', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', 'footbag-operator']);
+      const r = run(['--check', '--aws', '--account', ACCOUNT, '--replace-key', 'retired', '--profile', 'footbag-operator']);
       expect(r.status).toBe(2);
       expect(r.stderr).toMatch(/names the account's own profile/);
     });
   });
 
   it('refuses half a pair before anything is installed', () => {
-    operatorMachine();
+    awsMachine();
     makePair();
     rmSync(namedKey());
-    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('only one half of a key pair');
     expect(existsSync(`${namedKey()}.pub`)).toBe(true);
@@ -659,9 +659,9 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
   });
 
   it('fails rather than printing a guessed address when it cannot read one', () => {
-    operatorMachine();
+    awsMachine();
     file(join(root, 'fetch'), '#!/bin/bash\nexit 22\n', 0o755);
-    const r = run(['--yes', '--operator', '--account', ACCOUNT]);
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('could not read the address this machine connects from');
     expect(r.stdout).toContain('address:      unknown');

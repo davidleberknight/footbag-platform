@@ -2,7 +2,7 @@
  * scripts/wire-staging-runtime-trust.sh — telling staging's runtime role to
  * trust the shared job role, and proving afterwards that it does.
  *
- * Until this has run, onboarding a named operator writes them a staging runtime
+ * Until this has run, onboarding a named dev-and-tester writes them a staging runtime
  * profile whose chain cannot resolve. The failure is quiet: the profile exists,
  * it looks correct, and what is missing sits in an account-level trust policy.
  *

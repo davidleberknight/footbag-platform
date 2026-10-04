@@ -1,5 +1,5 @@
 /**
- * scripts/provision-operator-account.sh — the argument guards, the checks that
+ * scripts/provision-dev-tester-account.sh — the argument guards, the checks that
  * run before anything is created, and the refusal that protects an account
  * somebody is already using.
  *
@@ -27,8 +27,8 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 
-const SCRIPT = join(process.cwd(), 'scripts/provision-operator-account.sh');
-const REMOTE_HALF = join(process.cwd(), 'scripts/internal/provision-operator-account-remote.sh');
+const SCRIPT = join(process.cwd(), 'scripts/provision-dev-tester-account.sh');
+const REMOTE_HALF = join(process.cwd(), 'scripts/internal/provision-dev-tester-account-remote.sh');
 
 /** A syntactically valid ed25519 public key, generated once for this suite. */
 let VALID_KEY = '';
@@ -65,7 +65,7 @@ function sshStub(existingAccount: boolean): string {
       '# An inspection is answered with FAKE_INSPECT, the lines the remote half',
       '# prints, or fails when FAKE_INSPECT_FAILS is set.',
       'piped="$(cat)"',
-      'if [[ "$piped" == *"OPACC_MODE=inspect"* ]]; then',
+      'if [[ "$piped" == *"DTACC_MODE=inspect"* ]]; then',
       '  [[ -n "${FAKE_INSPECT_FAILS:-}" ]] && exit 1',
       '  printf "%s" "${FAKE_INSPECT:-}"',
       'fi',
@@ -98,7 +98,7 @@ function sshStub(existingAccount: boolean): string {
 let ALIAS_BIN = '';
 
 beforeAll(() => {
-  WORK_DIR = mkdtempSync(join(tmpdir(), 'footbag-test-opacc-'));
+  WORK_DIR = mkdtempSync(join(tmpdir(), 'footbag-test-dtacc-'));
 
   ALIAS_BIN = join(WORK_DIR, 'alias-bin');
   mkdirSync(ALIAS_BIN, { recursive: true });
@@ -132,7 +132,7 @@ beforeAll(() => {
     if (res.status !== 0) throw new Error(`ssh-keygen failed: ${res.stderr}`);
     return `${out}.pub`;
   };
-  VALID_KEY = keygen('operator-key');
+  VALID_KEY = keygen('dev-tester-key');
   SECOND_KEY = keygen('other-key');
 
   PIN = join(WORK_DIR, 'footbag_known_hosts');
@@ -186,7 +186,7 @@ function runScript(
       ...(resolvable ? { PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}` } : {}),
       FOOTBAG_PROVISION_SSH: sshStub(opts.existingAccount ?? false),
       FOOTBAG_KNOWN_HOSTS: PIN,
-      OPACC_SEALED_OUT: outFile(),
+      DTACC_SEALED_OUT: outFile(),
       ...(opts.env ?? {}),
     },
     ...SPAWN_GUARD,
@@ -203,7 +203,7 @@ function args(overrides: Partial<Record<string, string>> = {}): string[] {
   const base: Record<string, string> = {
     '--target': 'staging',
     '--account': 'robin_fielder',
-    '--operator': 'Robin Fielder',
+    '--full-name': 'Robin Fielder',
     '--key-file': VALID_KEY,
     ...overrides,
   };
@@ -224,7 +224,7 @@ function sealed(overrides: Partial<Record<string, string>> = {}): string[] {
  * person would lock every other holder out and leave the vault describing a
  * credential nobody can use.
  */
-describe('provision-operator-account.sh — the shared account', () => {
+describe('provision-dev-tester-account.sh — the shared account', () => {
   it('refuses to create it, before anything on the host is touched', () => {
     const r = runScript(sealed({ '--account': 'footbag' }));
     expect(r.exitCode).toBe(2);
@@ -250,7 +250,7 @@ describe('provision-operator-account.sh — the shared account', () => {
   });
 });
 
-describe('provision-operator-account.sh — invocation guards', () => {
+describe('provision-dev-tester-account.sh — invocation guards', () => {
   it('refuses to infer the environment, so a run never lands on an inherited target', () => {
     const result = runScript(args({ '--target': '' }));
     expect(result.exitCode).toBe(2);
@@ -300,10 +300,10 @@ describe('provision-operator-account.sh — invocation guards', () => {
     expect(result.stderr).toMatch(/human decision/);
   });
 
-  it('requires the operator name, so no account lands unattributable', () => {
-    const result = runScript(args({ '--operator': '' }));
+  it('requires the full name, so no account lands unattributable', () => {
+    const result = runScript(args({ '--full-name': '' }));
     expect(result.exitCode).toBe(2);
-    expect(result.stderr).toMatch(/--operator is required/);
+    expect(result.stderr).toMatch(/--full-name is required/);
     // The refusal names where the attribution goes: the account's own comment
     // field, so the host itself says whose login it is.
     expect(result.stderr).toMatch(/the host says whose login this is/);
@@ -371,12 +371,12 @@ describe('provision-operator-account.sh — invocation guards', () => {
       connectsAs: 'ada_lovelace',
     });
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/HOST_OPERATOR\.txt/);
+    expect(result.stderr).toMatch(/DEV_TESTER_HOST\.txt/);
     expect(result.stderr).not.toMatch(/AWS_OPERATOR\.txt/);
   });
 });
 
-describe('provision-operator-account.sh — what it accepts as a public key', () => {
+describe('provision-dev-tester-account.sh — what it accepts as a public key', () => {
   it('refuses a path that is not a regular file', () => {
     const result = runScript(sealed({ '--key-file': join(WORK_DIR, 'nonexistent.pub') }));
     expect(result.exitCode).toBe(1);
@@ -444,7 +444,7 @@ describe('provision-operator-account.sh — what it accepts as a public key', ()
   });
 });
 
-describe('provision-operator-account.sh — the pinned host key', () => {
+describe('provision-dev-tester-account.sh — the pinned host key', () => {
   it('refuses to connect without the pin, rather than accepting a key on trust', () => {
     const result = spawnSync('bash', [SCRIPT, ...sealed()], {
       cwd: process.cwd(),
@@ -458,7 +458,7 @@ describe('provision-operator-account.sh — the pinned host key', () => {
         PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: sshStub(false),
         FOOTBAG_KNOWN_HOSTS: join(WORK_DIR, 'no-such-pin'),
-        OPACC_SEALED_OUT: outFile(),
+        DTACC_SEALED_OUT: outFile(),
       },
       ...SPAWN_GUARD,
     });
@@ -482,7 +482,7 @@ describe('provision-operator-account.sh — the pinned host key', () => {
         PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: sshStub(false),
         FOOTBAG_KNOWN_HOSTS: loose,
-        OPACC_SEALED_OUT: outFile(),
+        DTACC_SEALED_OUT: outFile(),
       },
       ...SPAWN_GUARD,
     });
@@ -491,7 +491,7 @@ describe('provision-operator-account.sh — the pinned host key', () => {
   });
 });
 
-describe('provision-operator-account.sh — preconditions on the host', () => {
+describe('provision-dev-tester-account.sh — preconditions on the host', () => {
   it('announces the test seam, so a stubbed run is never mistaken for a real one', () => {
     const result = runScript(sealed());
     expect(result.stderr).toMatch(/SYNTHETIC: ssh=/);
@@ -510,7 +510,7 @@ describe('provision-operator-account.sh — preconditions on the host', () => {
   });
 });
 
-describe('provision-operator-account.sh — when the cleanup is armed', () => {
+describe('provision-dev-tester-account.sh — when the cleanup is armed', () => {
   // Found by the first real run of this script. The root-side body creates the
   // account and then verifies it, so a failed verification exits non-zero with
   // the account already on the host. With the state advanced after the pipe,
@@ -522,7 +522,7 @@ describe('provision-operator-account.sh — when the cleanup is armed', () => {
 
   it('arms the created state before the pipe that creates the account', () => {
     const armed = source.indexOf('PROVISION_STATE="created"');
-    const pipe = source.indexOf('printf \'OPACC_PASSWORD=%q\\n\' "$NEW_PASS"');
+    const pipe = source.indexOf('printf \'DTACC_PASSWORD=%q\\n\' "$NEW_PASS"');
     expect(armed).toBeGreaterThan(-1);
     expect(pipe).toBeGreaterThan(-1);
     expect(armed).toBeLessThan(pipe);
@@ -544,7 +544,7 @@ describe('provision-operator-account.sh — when the cleanup is armed', () => {
     const branch = source.slice(branchStart, branchEnd);
     expect(branch).toMatch(/id -u --/);
     // And it is consulted before the removal is attempted, not alongside it.
-    expect(branch.indexOf('id -u --')).toBeLessThan(branch.indexOf("OPACC_MODE=%q\\n' \"remove\""));
+    expect(branch.indexOf('id -u --')).toBeLessThan(branch.indexOf("DTACC_MODE=%q\\n' \"remove\""));
   });
 
   it('only an explicit ABSENT skips the removal, never an unreachable host', () => {
@@ -574,7 +574,7 @@ describe('provision-operator-account.sh — when the cleanup is armed', () => {
  * as the documented invocation does. The stubbed host records the first line of
  * every privileged session it receives.
  */
-describe('provision-operator-account.sh — the sudo password reaches the host', () => {
+describe('provision-dev-tester-account.sh — the sudo password reaches the host', () => {
   it('sends the credential line to sudo on the session that creates the account', () => {
     const record = join(WORK_DIR, 'sudo-lines');
     const cred = join(WORK_DIR, 'cred');
@@ -618,7 +618,7 @@ describe('provision-operator-account.sh — the sudo password reaches the host',
         PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: stub,
         FOOTBAG_KNOWN_HOSTS: PIN,
-        OPACC_SEALED_OUT: outFile(),
+        DTACC_SEALED_OUT: outFile(),
       },
       ...SPAWN_GUARD,
     });
@@ -647,7 +647,7 @@ describe('provision-operator-account.sh — the sudo password reaches the host',
         PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: sshStub(false),
         FOOTBAG_KNOWN_HOSTS: PIN,
-        OPACC_SEALED_OUT: outFile(),
+        DTACC_SEALED_OUT: outFile(),
       },
       ...SPAWN_GUARD,
     });
@@ -657,9 +657,9 @@ describe('provision-operator-account.sh — the sudo password reaches the host',
   });
 });
 
-describe('provision-operator-account.sh — a per-person password is neither vaulted nor expired', () => {
+describe('provision-dev-tester-account.sh — a per-person password is neither vaulted nor expired', () => {
   // The vault is shared between custodians. A personal credential kept there
-  // lets any custodian act as any operator, so a named account has no vault
+  // lets any custodian act as any dev-and-tester, so a named account has no vault
   // entry at all: who holds the access is read live from the host and IAM.
   //
   // The one-time password is not expired either. Its owner replaces it through
@@ -667,7 +667,7 @@ describe('provision-operator-account.sh — a per-person password is neither vau
   // that very sudo, leaving them an account they cannot finish setting up.
   const source = readFileSync(SCRIPT, 'utf-8');
   const half = readFileSync(
-    join(process.cwd(), 'scripts/internal/provision-operator-account-remote.sh'),
+    join(process.cwd(), 'scripts/internal/provision-dev-tester-account-remote.sh'),
     'utf-8',
   );
 
@@ -687,14 +687,14 @@ describe('provision-operator-account.sh — a per-person password is neither vau
   });
 });
 
-describe('provision-operator-account.sh — the password-status check', () => {
+describe('provision-dev-tester-account.sh — the password-status check', () => {
   // Found by the first real run, on a host of the family this project actually
   // deploys to. `passwd -S` reports a set password as P on Debian-family images
   // and PS on the RHEL family, which is what the Amazon Linux hosts here are.
   // Accepting only P made the check fail on every host it was written for, and
   // the freshly created account was then torn down as unready when it was fine.
   const half = readFileSync(
-    join(process.cwd(), 'scripts/internal/provision-operator-account-remote.sh'),
+    join(process.cwd(), 'scripts/internal/provision-dev-tester-account-remote.sh'),
     'utf-8',
   );
 
@@ -721,7 +721,7 @@ describe('provision-operator-account.sh — the password-status check', () => {
   });
 });
 
-describe('provision-operator-account.sh — the root-side password-auth refusal', () => {
+describe('provision-dev-tester-account.sh — the root-side password-auth refusal', () => {
   // This account's password is meant to unlock sudo and nothing else. Where
   // sshd accepts password authentication it also admits anyone who guesses it,
   // and the account still works, so nothing afterwards reports the extra way
@@ -732,7 +732,7 @@ describe('provision-operator-account.sh — the root-side password-auth refusal'
   // instead is that the refusal is present, that it reads the value sshd
   // actually reports, and that it sits ahead of the step that creates anything.
   const half = readFileSync(
-    join(process.cwd(), 'scripts/internal/provision-operator-account-remote.sh'),
+    join(process.cwd(), 'scripts/internal/provision-dev-tester-account-remote.sh'),
     'utf-8',
   );
 
@@ -790,12 +790,12 @@ describe('provision-operator-account.sh — the root-side password-auth refusal'
  * them answers no question anybody asks. So this disables instead, and the
  * refusals below are what stop it being used as a foot-gun.
  */
-describe('provision-operator-account.sh — offboarding', () => {
+describe('provision-dev-tester-account.sh — offboarding', () => {
   it('needs no public key, because it withdraws access rather than granting it', () => {
     // Requiring the departing person's key to remove their access would be a
     // precondition nobody can always meet.
     const r = runScript(
-      ['--target', 'staging', '--account', 'robin_fielder', '--operator', 'Robin Fielder', '--offboard'],
+      ['--target', 'staging', '--account', 'robin_fielder', '--full-name', 'Robin Fielder', '--offboard'],
       { existingAccount: true },
     );
     expect(r.stderr).not.toMatch(/public key is required/);
@@ -816,7 +816,7 @@ describe('provision-operator-account.sh — offboarding', () => {
       [
         '--target', 'staging',
         '--account', 'robin_fielder',
-        '--operator', 'Robin Fielder',
+        '--full-name', 'Robin Fielder',
         '--offboard',
         '--sealed',
       ],
@@ -830,7 +830,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     // Idempotent: an offboard re-run after the account is gone changes nothing
     // and says why, rather than failing the departure it is part of.
     const r = runScript(
-      ['--target', 'staging', '--account', 'gone_already', '--operator', 'Gone Already', '--offboard'],
+      ['--target', 'staging', '--account', 'gone_already', '--full-name', 'Gone Already', '--offboard'],
       { existingAccount: false },
     );
     expect(r.exitCode).toBe(0);
@@ -839,7 +839,7 @@ describe('provision-operator-account.sh — offboarding', () => {
 
   it('takes a typed confirmation, and touches nothing without one', () => {
     const r = runScript(
-      ['--target', 'staging', '--account', 'robin_fielder', '--operator', 'Robin Fielder', '--offboard'],
+      ['--target', 'staging', '--account', 'robin_fielder', '--full-name', 'Robin Fielder', '--offboard'],
       { existingAccount: true },
     );
     expect(r.exitCode).toBe(1);
@@ -850,7 +850,7 @@ describe('provision-operator-account.sh — offboarding', () => {
     // The operator has to know which of the two acts they are approving; they
     // are not interchangeable and only one is reversible.
     const r = runScript(
-      ['--target', 'staging', '--account', 'robin_fielder', '--operator', 'Robin Fielder', '--offboard'],
+      ['--target', 'staging', '--account', 'robin_fielder', '--full-name', 'Robin Fielder', '--offboard'],
       { existingAccount: true },
     );
     expect(r.stdout).toMatch(/disabled, not deleted/);
@@ -861,9 +861,9 @@ describe('provision-operator-account.sh — offboarding', () => {
 /**
  * A read of the account for a caller that has to prove the host side of an
  * onboarding before calling it done. It changes nothing, so it needs no key, no
- * operator name and no terminal, and it refuses anything it would ignore.
+ * full name and no terminal, and it refuses anything it would ignore.
  */
-describe('provision-operator-account.sh — inspecting', () => {
+describe('provision-dev-tester-account.sh — inspecting', () => {
   const INSPECT = ['--target', 'staging', '--account', 'robin_fielder', '--inspect'];
   const fp = () =>
     spawnSync('ssh-keygen', ['-l', '-f', VALID_KEY], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout.trim();
@@ -925,11 +925,11 @@ describe('provision-operator-account.sh — inspecting', () => {
     expect(r.stdout).not.toMatch(/^ACCOUNT present$/m);
   });
 
-  it('refuses a key or an operator name it would ignore', () => {
+  it('refuses a key or a full name it would ignore', () => {
     const r = runScript([...INSPECT, '--key-file', VALID_KEY], { existingAccount: true });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/--inspect takes only --target and --account/);
-    const n = runScript([...INSPECT, '--operator', 'Robin Fielder'], { existingAccount: true });
+    const n = runScript([...INSPECT, '--full-name', 'Robin Fielder'], { existingAccount: true });
     expect(n.exitCode).toBe(2);
   });
 
@@ -950,7 +950,7 @@ describe('provision-operator-account.sh — inspecting', () => {
  * no step is a hand-typed ssh to a deployed host, which would skip the pinned
  * host key every scripted connection carries.
  */
-describe('provision-operator-account.sh — what it tells an operator to do', () => {
+describe('provision-dev-tester-account.sh — what it tells an operator to do', () => {
   const source = readFileSync(SCRIPT, 'utf-8');
   const echoed = source
     .split('\n')
@@ -974,7 +974,7 @@ describe('provision-operator-account.sh — what it tells an operator to do', ()
  * Re-issuing a password to an existing account, or reopening a retired one,
  * runs the remote half in rotate mode. Marked as "created", a run that stopped
  * for any reason -- an interrupt, a verification that failed for an unrelated
- * reason -- would send OPACC_MODE=remove for an account that PREDATED it. The
+ * reason -- would send DTACC_MODE=remove for an account that PREDATED it. The
  * remote half's remove is `userdel -r`: the person's account, home directory,
  * shell history and every file they owned, destroyed by an interrupt, while
  * stderr said "the account just created is being removed".
@@ -999,7 +999,7 @@ describe('a re-issue never removes the account it is re-issuing', () => {
   it('has a cleanup branch for a re-issue that removes nothing', () => {
     const rotating = rotatingBranch();
     expect(rotating).toMatch(/NOT being/);
-    expect(rotating).not.toMatch(/OPACC_MODE=%q\\n' "remove"/);
+    expect(rotating).not.toMatch(/DTACC_MODE=%q\\n' "remove"/);
     expect(rotating).not.toMatch(/userdel/);
   });
 
@@ -1042,7 +1042,7 @@ describe('the offboarding half that runs on the host', () => {
   const remote = readFileSync(REMOTE_HALF, 'utf-8');
 
   it('refuses to disable the account the run arrived on', () => {
-    expect(remote).toMatch(/SUDO_USER.*==.*OPACC_ACCOUNT/);
+    expect(remote).toMatch(/SUDO_USER.*==.*DTACC_ACCOUNT/);
     expect(remote).toMatch(/locks you out part-way/);
   });
 
@@ -1063,7 +1063,7 @@ describe('the offboarding half that runs on the host', () => {
     // use without a password sudo will take. The shared service account in its
     // intended end state -- bootstrap keys withdrawn, account not yet deleted
     // -- passes a shell-and-group test exactly while admitting no one, so that
-    // weaker count lets the last real operator be offboarded into a host
+    // weaker count lets the last reachable sudo account be offboarded into a host
     // nobody can log in to: what this refusal exists to prevent.
     expect(remote).toMatch(/authorized_keys" \]\] \|\| continue/);
     expect(remote).toMatch(/passwd -S -- "\$name"/);
@@ -1103,7 +1103,7 @@ describe('the offboarding half that runs on the host', () => {
   });
 });
 
-describe('provision-operator-account.sh — every run names its operation', () => {
+describe('provision-dev-tester-account.sh — every run names its operation', () => {
   // There is one onboarding path for a named account, the sealed one, and one
   // way to end its access. A run is exactly one of the two, named on the
   // command line, so nothing about what it does is inferred from what it finds.
@@ -1138,7 +1138,7 @@ describe('provision-operator-account.sh — every run names its operation', () =
   });
 });
 
-describe('provision-operator-account.sh — a lost key is never patched in place', () => {
+describe('provision-dev-tester-account.sh — a lost key is never patched in place', () => {
   // A lost private key is a possible exposure, so the account is offboarded and
   // re-onboarded under the same name with a fresh pair, which refuses any key it
   // was retired with. There is no mode that swaps the key and keeps the rest.
@@ -1153,7 +1153,7 @@ describe('provision-operator-account.sh — a lost key is never patched in place
     // Every create and every rotation sets a password. A caller able to say
     // otherwise is a key swap by another name.
     const source = readFileSync(SCRIPT, 'utf-8');
-    expect(source).not.toMatch(/OPACC_SET_PASSWORD/);
+    expect(source).not.toMatch(/DTACC_SET_PASSWORD/);
   });
 });
 
@@ -1171,7 +1171,7 @@ describe('provision-operator-account.sh — a lost key is never patched in place
  * issued a fresh password, and a live one holding any other key is refused,
  * because a lost key is offboarded and re-onboarded rather than patched.
  */
-describe('provision-operator-account.sh — --sealed', () => {
+describe('provision-dev-tester-account.sh — --sealed', () => {
   let FINGERPRINT = '';
 
   beforeAll(() => {
@@ -1198,7 +1198,7 @@ describe('provision-operator-account.sh — --sealed', () => {
         '    *"sudo -k -S"*)',
         `      f=${JSON.stringify(sessions)}/session-$(date +%s%N)`,
         '      cat > "$f"',
-        `      grep -qx 'OPACC_MODE=inspect' "$f" && cat ${JSON.stringify(answer)}`,
+        `      grep -qx 'DTACC_MODE=inspect' "$f" && cat ${JSON.stringify(answer)}`,
         '      exit 0 ;;',
         '  esac',
         'done',
@@ -1219,7 +1219,7 @@ describe('provision-operator-account.sh — --sealed', () => {
   }
 
   const sealedArgs = (): string[] => [
-    ...args({ '--account': 'james_leberknight', '--operator': 'James Leberknight' }),
+    ...args({ '--account': 'james_leberknight', '--full-name': 'James Leberknight' }),
     '--sealed',
   ];
 
@@ -1245,7 +1245,7 @@ describe('provision-operator-account.sh — --sealed', () => {
         PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: stub,
         FOOTBAG_KNOWN_HOSTS: PIN,
-        OPACC_SEALED_OUT: out,
+        DTACC_SEALED_OUT: out,
       },
       ...SPAWN_GUARD,
     });
@@ -1262,7 +1262,7 @@ describe('provision-operator-account.sh — --sealed', () => {
         PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
         FOOTBAG_PROVISION_SSH: stub,
         FOOTBAG_KNOWN_HOSTS: PIN,
-        ...(out === undefined ? {} : { OPACC_SEALED_OUT: out }),
+        ...(out === undefined ? {} : { DTACC_SEALED_OUT: out }),
       },
       ...SPAWN_GUARD,
     });
@@ -1275,7 +1275,7 @@ describe('provision-operator-account.sh — --sealed', () => {
       {
         encoding: 'utf-8',
         input: 'fixture-sudo-password\n',
-        env: { ...process.env, ...NO_AWS_CREDENTIALS, OPACC_SEALED_OUT: outFile() },
+        env: { ...process.env, ...NO_AWS_CREDENTIALS, DTACC_SEALED_OUT: outFile() },
         ...SPAWN_GUARD,
       },
     );
@@ -1286,7 +1286,7 @@ describe('provision-operator-account.sh — --sealed', () => {
   it('is refused when no file was named to hand the password back through', () => {
     const r = runSealedPiped([], undefined);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/OPACC_SEALED_OUT/);
+    expect(r.stderr).toMatch(/DTACC_SEALED_OUT/);
   });
 
   it('is refused when that file is readable by anybody else', () => {
@@ -1320,15 +1320,15 @@ describe('provision-operator-account.sh — --sealed', () => {
     expect(r.status, r.stdout).toBe(0);
 
     const lines = sessionLines(sessions);
-    expect(lines).toContain('OPACC_MODE=create');
+    expect(lines).toContain('DTACC_MODE=create');
     // Nothing asks the host to expire it: the host half never expires a
     // password it sets, and fails its own verification if one is expired.
-    expect(lines.some((l) => l.startsWith('OPACC_EXPIRE_PASSWORD'))).toBe(false);
+    expect(lines.some((l) => l.startsWith('DTACC_EXPIRE_PASSWORD'))).toBe(false);
 
     const handed = readFileSync(out, 'utf-8');
     expect(handed).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
     const password = handed.trim();
-    expect(lines).toContain(`OPACC_PASSWORD=${password}`);
+    expect(lines).toContain(`DTACC_PASSWORD=${password}`);
     expect(r.stdout, 'the password reached the terminal').not.toContain(password);
     expect(r.stdout).toMatch(/Account james_leberknight is ready/);
   });
@@ -1364,7 +1364,7 @@ describe('provision-operator-account.sh — --sealed', () => {
     const out = outFile();
     const r = runSealedPiped([], out, stub);
     expect(r.status).toBe(1);
-    expect(sessionLines(sessions).filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect']);
+    expect(sessionLines(sessions).filter((l) => l.startsWith('DTACC_MODE='))).toEqual(['DTACC_MODE=inspect']);
     expect(r.stdout).toMatch(/james_leberknight is live on/);
     expect(r.stdout).toContain(FINGERPRINT);
     expect(r.stderr).toMatch(/is untouched/);
@@ -1380,11 +1380,11 @@ describe('provision-operator-account.sh — --sealed', () => {
     const out = outFile();
     const r = runSealed(stub, out, 'APPLY\n');
     const lines = sessionLines(sessions);
-    expect(lines.filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect', 'OPACC_MODE=rotate']);
+    expect(lines.filter((l) => l.startsWith('DTACC_MODE='))).toEqual(['DTACC_MODE=inspect', 'DTACC_MODE=rotate']);
     // A live account is re-issued, never reopened.
-    expect(lines).toContain('OPACC_REOPEN=no');
-    expect(lines).not.toContain('OPACC_REOPEN=yes');
-    expect(lines.some((l) => l.startsWith('OPACC_EXPIRE_PASSWORD'))).toBe(false);
+    expect(lines).toContain('DTACC_REOPEN=no');
+    expect(lines).not.toContain('DTACC_REOPEN=yes');
+    expect(lines.some((l) => l.startsWith('DTACC_EXPIRE_PASSWORD'))).toBe(false);
     expect(readFileSync(out, 'utf-8')).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
     expect(r.stdout).toMatch(/holds exactly the key given/);
   });
@@ -1396,7 +1396,7 @@ describe('provision-operator-account.sh — --sealed', () => {
     );
     const out = outFile();
     const r = runSealed(stub, out, 'no\n');
-    expect(sessionLines(sessions).filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect']);
+    expect(sessionLines(sessions).filter((l) => l.startsWith('DTACC_MODE='))).toEqual(['DTACC_MODE=inspect']);
     expect(readFileSync(out, 'utf-8')).toBe('');
     expect(r.stdout).toContain(FINGERPRINT);
     expect(r.stdout).toMatch(/is untouched/);
@@ -1411,7 +1411,7 @@ describe('provision-operator-account.sh — --sealed', () => {
     const out = outFile();
     const r = runSealed(stub, out, 'APPLY\n');
     expect(r.status).toBe(1);
-    expect(sessionLines(sessions).filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect']);
+    expect(sessionLines(sessions).filter((l) => l.startsWith('DTACC_MODE='))).toEqual(['DTACC_MODE=inspect']);
     expect(r.stdout).toContain(other);
     expect(r.stdout).toMatch(/offboarded, then re-onboarded/);
     expect(r.stdout).toMatch(/offboard-dev-tester\.sh --target staging --account james_leberknight/);
@@ -1429,7 +1429,7 @@ describe('provision-operator-account.sh — --sealed', () => {
     expect(r.stdout).toMatch(/was retired by an offboard/);
     expect(r.stdout).toContain(retired);
     expect(r.stdout).toMatch(/is untouched/);
-    expect(sessionLines(sessions).filter((l) => l.startsWith('OPACC_MODE='))).toEqual(['OPACC_MODE=inspect']);
+    expect(sessionLines(sessions).filter((l) => l.startsWith('DTACC_MODE='))).toEqual(['DTACC_MODE=inspect']);
     expect(readFileSync(out, 'utf-8')).toBe('');
   });
 
@@ -1443,9 +1443,9 @@ describe('provision-operator-account.sh — --sealed', () => {
     const r = runSealed(stub, out, 'APPLY\n');
     const lines = sessionLines(sessions);
     expect(r.stdout).toContain(retired);
-    expect(lines).toContain('OPACC_MODE=rotate');
-    expect(lines).toContain('OPACC_REOPEN=yes');
-    expect(lines.some((l) => l.startsWith('OPACC_EXPIRE_PASSWORD'))).toBe(false);
+    expect(lines).toContain('DTACC_MODE=rotate');
+    expect(lines).toContain('DTACC_REOPEN=yes');
+    expect(lines.some((l) => l.startsWith('DTACC_EXPIRE_PASSWORD'))).toBe(false);
     expect(readFileSync(out, 'utf-8')).toMatch(/^[A-Za-z0-9+/]{32}\n$/);
   });
 });
@@ -1474,7 +1474,7 @@ describe('provision-operator-account.sh — --sealed', () => {
  * and the lock proof. Those are usermod, chage, passwd -S and a real getent,
  * and stubbing them would leave the test asserting its own stubs' output.
  */
-describe('provision-operator-account-remote.sh — the cross-account key sweep', () => {
+describe('provision-dev-tester-account-remote.sh — the cross-account key sweep', () => {
   /** An account in the fixture estate. */
   interface FixtureAccount {
     name: string;
@@ -1519,7 +1519,7 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
     writeFailsFor?: string[];
   }): SweepRun {
     const remoteSource = readFileSync(REMOTE_HALF, 'utf-8');
-    const sweepStart = remoteSource.indexOf('  OPACC_SWEPT=0');
+    const sweepStart = remoteSource.indexOf('  DTACC_SWEPT=0');
     const sweepEnd = remoteSource.indexOf('  offboard_failed=0');
     const proofStart = remoteSource.indexOf(
       '  # The sweep is proved by re-reading every account',
@@ -1556,9 +1556,9 @@ describe('provision-operator-account-remote.sh — the cross-account key sweep',
       harness,
       [
         'set -euo pipefail',
-        'OPACC_TMPS=()',
-        `OPACC_ACCOUNT=${JSON.stringify(opts.departing)}`,
-        `OPACC_THEIR_FPS=${JSON.stringify(opts.theirFingerprints.join('\n'))}`,
+        'DTACC_TMPS=()',
+        `DTACC_ACCOUNT=${JSON.stringify(opts.departing)}`,
+        `DTACC_THEIR_FPS=${JSON.stringify(opts.theirFingerprints.join('\n'))}`,
         // The passwd database the sweep walks. Fixture rows only: an unstubbed
         // getent would point it at the real accounts on this machine.
         'getent() {',

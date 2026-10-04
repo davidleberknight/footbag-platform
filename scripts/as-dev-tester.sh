@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # as-dev-tester.sh
 #
-# Runs one command as the shared human-operator job role, under your own name,
+# Runs one command as the shared dev-and-tester job role, under your own name,
 # and proves that is what happened before the command starts.
 #
 # WHY THIS EXISTS.

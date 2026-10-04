@@ -1,12 +1,12 @@
 /**
- * scripts/staging_diagnostics.sh — the diagnostic toolkit an operator uploads
- * to the staging host and runs there.
+ * scripts/staging_diagnostics.sh — the diagnostic toolkit uploaded to the
+ * staging host and run there.
  *
  * The contract it has to keep is which installation it reads. The deploy
  * promotes a release into the live install and composes the running stack from
  * there, while the directory a release is uploaded to lives in the connecting
- * account's own home and is therefore a different path for every operator. A
- * diagnostic that names one operator's upload directory is either missing on
+ * account's own home and is therefore a different path for every connecting
+ * account. A diagnostic that names one account's upload directory is either missing on
  * everybody else's run or, worse, describes whatever that other account last
  * uploaded -- answering confidently about a stack the host is not running.
  *
@@ -100,7 +100,7 @@ describe('the diagnostics read the live install', () => {
   });
 });
 
-describe('no path belongs to one particular operator', () => {
+describe('no path belongs to one particular connecting account', () => {
   it('roots no path in a named home directory', () => {
     const source = readFileSync(SCRIPT, 'utf-8');
     const homeRooted = source

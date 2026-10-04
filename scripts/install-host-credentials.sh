@@ -45,7 +45,7 @@
 # are separate hosts with separate passwords:
 #
 #   shared footbag account:  ~/AWS/AWS_OPERATOR.txt   ~/AWS/AWS_OPERATOR_PRODUCTION.txt
-#   your own named account:  ~/AWS/HOST_OPERATOR.txt  (staging only; none on production)
+#   your own named account:  ~/AWS/DEV_TESTER_HOST.txt  (staging only; none on production)
 #
 # A run started without the redirect names the one it needs.
 #
@@ -91,7 +91,7 @@ AWS_PROFILE_ARG=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/install-host-credentials.sh --target staging <keys-file>
+Usage: < ~/AWS/DEV_TESTER_HOST.txt bash scripts/install-host-credentials.sh --target staging <keys-file>
    or: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-host-credentials.sh --target production <keys-file>
 
   --target <staging|production>   deployed environment to install onto.
@@ -195,9 +195,9 @@ fi
 if [[ "$ACTION" != "delete" && -t 0 ]]; then
   echo "ERROR: must receive the host sudo password on stdin." >&2
   # Named by the shared rule rather than guessed, so the line is pasteable by
-  # whoever is running it: an operator on a named account and one on the shared
-  # account need different files, and naming either outright is wrong for the
-  # other half of the operators.
+  # whoever is running it: a dev-and-tester on their named account and a
+  # footbag-operator holder on the shared account need different files, and
+  # naming either outright is wrong for the other.
   _cred="~/AWS/<your credential file>"
   operator_credential_select "$SSH_ALIAS" "$TARGET" 2>/dev/null \
     && _cred="$OPERATOR_CREDENTIAL_DISPLAY"

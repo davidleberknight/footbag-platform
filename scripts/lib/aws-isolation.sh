@@ -34,15 +34,17 @@
 # assignments apply to the child only, so a caller that legitimately needs the
 # operator's identity later in the same shell is unaffected.
 #
-# The six mechanisms mirror NO_AWS_CREDENTIALS in tests/fixtures/awsIsolation.ts
+# The mechanisms mirror NO_AWS_CREDENTIALS in tests/fixtures/awsIsolation.ts
 # and must stay in step with it: a profile name that resolves to nothing, both
 # credential-file paths aimed at /dev/null, the three environment key sources
-# blanked, the instance metadata endpoint disabled, and the region pinned.
+# blanked, the web-identity and container credential sources blanked, the
+# instance metadata endpoint disabled, and the region pinned.
 #
 # AWS_EC2_METADATA_DISABLED carries its own weight: without it the SDK falls
 # through to the instance metadata endpoint, which on a workstation is a slow
 # timeout rather than a refusal, and on any AWS-hosted runner is a live
-# credential source.
+# credential source. The web-identity and container sources are the same kind
+# of thing on a runner that exports them.
 aws_isolated_run() {
   env \
     AWS_PROFILE='footbag-test-nonexistent-profile' \
@@ -51,7 +53,41 @@ aws_isolated_run() {
     AWS_ACCESS_KEY_ID='' \
     AWS_SECRET_ACCESS_KEY='' \
     AWS_SESSION_TOKEN='' \
+    AWS_WEB_IDENTITY_TOKEN_FILE='' \
+    AWS_ROLE_ARN='' \
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI='' \
+    AWS_CONTAINER_CREDENTIALS_FULL_URI='' \
+    AWS_CONTAINER_AUTHORIZATION_TOKEN='' \
     AWS_EC2_METADATA_DISABLED='true' \
     AWS_REGION='us-east-1' \
     "$@"
+}
+
+# aws_isolate_self "$@"
+# For a script that must never reach AWS, as its first command: re-runs the
+# calling script under aws_isolated_run, so the whole run and everything it
+# starts has no credential source at all. Already isolated, it returns and the
+# script carries on.
+#
+# A script that does this first is one the AWS-reach guard can trust without
+# reading its body, which matters where the body names the aws CLI as data, as
+# the hook fixture suite does in every test case it feeds the guard.
+aws_isolate_self() {
+  if [[ "${AWS_PROFILE:-}" == 'footbag-test-nonexistent-profile' \
+        && "${AWS_CONFIG_FILE:-}" == '/dev/null' \
+        && "${AWS_SHARED_CREDENTIALS_FILE:-}" == '/dev/null' \
+        && -z "${AWS_ACCESS_KEY_ID:-}" \
+        && -z "${AWS_SECRET_ACCESS_KEY:-}" \
+        && -z "${AWS_SESSION_TOKEN:-}" \
+        && -z "${AWS_WEB_IDENTITY_TOKEN_FILE:-}" \
+        && -z "${AWS_ROLE_ARN:-}" \
+        && -z "${AWS_CONTAINER_CREDENTIALS_RELATIVE_URI:-}" \
+        && -z "${AWS_CONTAINER_CREDENTIALS_FULL_URI:-}" \
+        && -z "${AWS_CONTAINER_AUTHORIZATION_TOKEN:-}" \
+        && "${AWS_EC2_METADATA_DISABLED:-}" == 'true' ]]; then
+    return 0
+  fi
+  # One list of variables, in aws_isolated_run; the re-run's exit is the script's.
+  aws_isolated_run "$BASH" "${BASH_SOURCE[1]}" "$@"
+  exit $?
 }

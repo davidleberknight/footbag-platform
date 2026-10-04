@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # wire-staging-runtime-trust.sh
 #
-# Tells staging's application runtime role to trust the shared human-operator
+# Tells staging's application runtime role to trust the shared dev-and-tester
 # job role, and proves afterwards that it does.
 #
 # WHY THIS EXISTS.
 #
-# Until this runs, onboarding a named operator still writes a
+# Until this runs, onboarding a named dev-and-tester still writes a
 # footbag-staging-runtime profile onto their workstation, and the chain fails
 # the first time anybody uses it. That is a quiet failure rather than a loud
 # one: the profile is there, it looks right, and what is missing sits in an
@@ -291,8 +291,8 @@ fi
 
 echo "    ${RUNTIME_ROLE} trusts ${DEV_TESTER_ROLE_ARN}"
 echo ""
-echo "Done. A named operator's footbag-staging-runtime profile now has a chain"
-echo "that resolves. Proving it end to end is a separate run, at that operator's"
+echo "Done. A named dev-and-tester's footbag-staging-runtime profile now has a chain"
+echo "that resolves. Proving it end to end is a separate run, at that dev-and-tester's"
 echo "own workstation:"
 echo ""
 echo "  bash scripts/setup-operator-workstation.sh --target staging --check"

@@ -28,11 +28,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage (staging only): < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-rebuild.sh
+Usage (staging only): < ~/AWS/DEV_TESTER_HOST.txt bash scripts/deploy-rebuild.sh
 
-That file is your own named account's staging sudo password. An operator whose
-alias still connects as the shared footbag account reads ~/AWS/AWS_OPERATOR.txt
-instead; a run started without the redirect names the one it needs.
+That file is a dev-and-tester's own named account's staging sudo password. An
+administrator, whose alias connects as the shared footbag account, reads
+~/AWS/AWS_OPERATOR.txt instead; a run started without the redirect names the one
+it needs.
 
 A production run has no direct form. It goes through deploy_to_aws.sh, which asks
 for the typed confirmation and takes the host password at the terminal; this
@@ -241,20 +242,21 @@ if [[ -z "$HOST_IP" ]]; then
 fi
 
 # The staging directory lives in the connecting account's own home, so it is a
-# different path for every operator. Resolve it once here and use that one value for
+# different path for the shared account and for each dev-and-tester's named account.
+# Resolve it once here and use that one value for
 # the upload and for the root-side promotion, exactly as the code deploy does. The
 # root half cannot derive it: it runs as root, so a `~` there names root's home, and
 # a literal there names whichever account the literal was written for.
 #
 # This script used to carry that literal and refuse any connecting account but the
-# shared one, which stopped a destructive success at the cost of locking a named
-# operator out of the rebuild path entirely.
+# shared one, which stopped a destructive success at the cost of locking a
+# dev-and-tester out of the rebuild path entirely.
 #
 # Current: the staging tree lives in the connecting account's own home, so the
-#          path varies by operator and both halves are kept in step by passing
-#          the resolved value and by the release stamp below.
-# Target:  one fixed staging location outside every operator's home, group-owned,
-#          that every operator, script, runbook and diagnostic can name. The
+#          path varies by connecting account and both halves are kept in step by
+#          passing the resolved value and by the release stamp below.
+# Target:  one fixed staging location outside every account's home, group-owned,
+#          that every account, script, runbook and diagnostic can name. The
 #          stamp is already part of that design; the location is not built. Until
 #          it is, no script may name an account's home, which a conventions check
 #          enforces.

@@ -22,11 +22,11 @@
 # Reads sudo password from stdin (line 1). Run via:
 #   bash deploy_to_aws.sh -k
 # or, for STAGING only, invoke directly with stdin redirected:
-#   < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-code.sh
+#   < ~/AWS/DEV_TESTER_HOST.txt bash scripts/deploy-code.sh
 #
 # Which file holds that password follows the account the alias connects as: the
 # shared footbag account reads ~/AWS/AWS_OPERATOR.txt and your own named account
-# reads ~/AWS/HOST_OPERATOR.txt. A run started without the redirect names the one
+# reads ~/AWS/DEV_TESTER_HOST.txt. A run started without the redirect names the one
 # it needs. Neither has a production counterpart on this path, because a
 # production deploy takes the host password at the terminal instead.
 #
@@ -55,7 +55,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: bash deploy_to_aws.sh -k
-   or (staging only): < ~/AWS/HOST_OPERATOR.txt bash scripts/deploy-code.sh
+   or (staging only): < ~/AWS/DEV_TESTER_HOST.txt bash scripts/deploy-code.sh
 
 A production deploy runs only through deploy_to_aws.sh, which asks for the typed
 confirmation and takes the host password at the terminal. This script refuses a
@@ -223,7 +223,7 @@ require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 # resolvable alias regardless, so there is no case where carrying on is right.
 operator_credential_select "$REMOTE" "$FOOTBAG_ENV" || exit 1
 aws_profile_ensure || exit 1
-operator_identity_agreement_require || exit 1
+dev_tester_identity_agreement_require || exit 1
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
@@ -270,19 +270,20 @@ fi
 # ── Step 1: Prepare upload directory ─────────────────────────────────────────
 #
 # The staging directory lives in the connecting account's own home, so it is a
-# different path for every operator. Resolve it once here and use that one value
+# different path for the shared account and for each dev-and-tester's named
+# account. Resolve it once here and use that one value
 # for the upload, the transfer and the root-side promotion. The root half cannot
 # derive it: it runs as root, so a `~` there names root's home, and a literal
-# path there names whichever account the literal was written for. An operator
-# deploying from a named account then uploads to their own home while root
+# path there names whichever account the literal was written for. A
+# dev-and-tester deploying from their named account then uploads to their own home while root
 # promotes the shared account's -- shipping whatever that account last deployed,
 # and reporting success.
 #
 # Current: the staging tree lives in the connecting account's own home, so the
-#          path varies by operator and both halves are kept in step by passing
-#          the resolved value and by the release stamp below.
-# Target:  one fixed staging location outside every operator's home, group-owned,
-#          that every operator, script, runbook and diagnostic can name. The
+#          path varies by connecting account and both halves are kept in step by
+#          passing the resolved value and by the release stamp below.
+# Target:  one fixed staging location outside every account's home, group-owned,
+#          that every account, script, runbook and diagnostic can name. The
 #          stamp is already part of that design; the location is not built. Until
 #          it is, no script may name an account's home, which a conventions check
 #          enforces.

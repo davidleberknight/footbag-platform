@@ -15,6 +15,10 @@
 #                         suite as a gate of its own. The clean room does, and this is
 #                         what keeps a full local run executing that suite once.
 set -uo pipefail
+# Reaches no AWS, and is cut off from it before anything runs, the hook fixture
+# suite it starts included.
+source "$(dirname "$0")/../lib/aws-isolation.sh"
+aws_isolate_self "$@"
 cd "$(dirname "$0")/../.."
 
 SKIP_HOOK_FIXTURES=0

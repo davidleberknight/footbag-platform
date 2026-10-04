@@ -908,12 +908,12 @@ describe('deploy provenance is recorded by both deploy paths (static-text)', () 
 });
 
 // The staging directory sits in the connecting account's home, so it is a
-// different path for each operator. The half that fills it and the half that
+// different path for each connecting account. The half that fills it and the half that
 // promotes it must therefore name one resolved value rather than each deciding
-// for itself: root cannot expand the operator's `~`, and a literal names
+// for itself: root cannot expand the connecting account's `~`, and a literal names
 // whichever account it was written for. When they disagree the deploy promotes
 // whatever that other account last uploaded and reports success, so the
-// operator's own change is simply absent from a run that said it worked.
+// deployer's own change is simply absent from a run that said it worked.
 describe('the code deploy resolves one release directory and shares it (static-text)', () => {
   it('scripts/deploy-code.sh resolves the connecting account home and forwards it', () => {
     const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-code.sh'), 'utf8');

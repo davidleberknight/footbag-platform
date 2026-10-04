@@ -8,7 +8,7 @@
  * What is pinned here is the front half, which is all of it that runs on the
  * workstation: the argument guards, and the credential guard. The credential
  * guard is the part worth pinning, because this script's refusal used to name a
- * placeholder rather than a file. A named operator reading that placeholder
+ * placeholder rather than a file. A dev-and-tester reading that placeholder
  * reaches for the shared account's file, the connection succeeds on their key,
  * and sudo then fails with a message that reads as a broken account rather than
  * as the wrong password. Which file a run needs is a property of the account the
@@ -85,7 +85,7 @@ describe('diagnose-cwagent.sh — the credential it names', () => {
     // password into another's sudo.
     const result = runScript(['--target', 'staging'], connectingAs(NAMED_ACCOUNT));
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/~\/AWS\/HOST_OPERATOR\.txt/);
+    expect(result.stderr).toMatch(/~\/AWS\/DEV_TESTER_HOST\.txt/);
     expect(result.stderr).not.toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
   });
 
@@ -93,7 +93,7 @@ describe('diagnose-cwagent.sh — the credential it names', () => {
     const result = runScript(['--target', 'production'], connectingAs(NAMED_ACCOUNT));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/is a named account, and there is none on production/);
-    expect(result.stderr).not.toMatch(/HOST_OPERATOR_PRODUCTION/);
+    expect(result.stderr).not.toMatch(/DEV_TESTER_HOST_PRODUCTION/);
   });
 
   it('names the command to re-run, not only the file', () => {

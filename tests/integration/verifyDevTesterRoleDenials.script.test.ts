@@ -1,8 +1,8 @@
 /**
- * scripts/verify-operator-role-denials.sh — proving the job role is refused the
+ * scripts/verify-dev-tester-role-denials.sh — proving the job role is refused the
  * things it is meant to be refused.
  *
- * The role's policy denies the whole lifecycle of a human operator, every write
+ * The role's policy denies the whole lifecycle of a dev-and-tester, every write
  * to its own definition and to the directly authenticated identity, and every
  * mutation of a production edge surface. Those denials are what make the
  * lifecycle script's refusal more than a convention. Until this script existed
@@ -19,7 +19,7 @@
  *     weaker fact it is rather than counted as the denial holding;
  *   - the positive controls fail loudly. A tag-conditioned denial has a failure
  *     mode in each direction, and the one that denies staging too shows up as
- *     an operator who cannot work rather than as a security event, so a run
+ *     a dev-and-tester who cannot work rather than as a security event, so a run
  *     that only checked the production direction would pass against a policy
  *     that had locked everybody out.
  */
@@ -33,7 +33,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
-const SCRIPT = join(process.cwd(), 'scripts/verify-operator-role-denials.sh');
+const SCRIPT = join(process.cwd(), 'scripts/verify-dev-tester-role-denials.sh');
 
 interface Estate {
   /** Whether the identity tree has been applied at all. */
@@ -54,6 +54,8 @@ interface Estate {
   roleReadable?: boolean;
   /** The simulator answering nothing at all. */
   simulatorSilent?: boolean;
+  /** The simulator answering None, as the CLI prints an empty text answer. */
+  simulatorNone?: boolean;
   /** The regression where the host-access certificate is granted on staging. */
   stagingHostAccessAllowed?: boolean;
   /** The regression where the firewall and delete calls reach production. */
@@ -94,6 +96,14 @@ interface Estate {
   strayInline?: string | null;
   /** The regression where the role can rewrite its own managed policies. */
   ownPolicyWritable?: boolean;
+  /** The regression where the alias guard also takes staging's own aliases. */
+  stagingAliasDenied?: boolean;
+  /** Whether the staging runtime role's trust names the job role. */
+  runtimeTrustNamesJobRole?: boolean;
+  /** The staging runtime role's trust cannot be read at all. */
+  runtimeTrustUnreadable?: boolean;
+  /** Listing the role's inline policies fails, as a throttled call does. */
+  inlineUnlistable?: boolean;
 }
 
 const HEALTHY: Required<Estate> = {
@@ -106,6 +116,7 @@ const HEALTHY: Required<Estate> = {
   stagingStateReadable: true,
   roleReadable: true,
   simulatorSilent: false,
+  simulatorNone: false,
   stagingHostAccessAllowed: false,
   productionHostReachable: false,
   stagingHostDenied: false,
@@ -126,6 +137,10 @@ const HEALTHY: Required<Estate> = {
   jobPoliciesAttached: true,
   strayInline: null,
   ownPolicyWritable: false,
+  stagingAliasDenied: false,
+  runtimeTrustNamesJobRole: true,
+  runtimeTrustUnreadable: false,
+  inlineUnlistable: false,
 };
 
 let workDir: string;
@@ -158,19 +173,29 @@ function awsStub(estate: Estate): string {
       'sub="$2"; shift 2',
       'case "$sub" in',
       '  get-caller-identity) echo 111122223333; exit 0 ;;',
-      `  get-role) ${e.roleExists ? "printf '{}\\n'; exit 0" : 'exit 254'} ;;`,
+      // The job role's existence check, and the staging runtime role's trust,
+      // told apart by the role asked for.
+      '  get-role)',
+      '    if [[ " $* " == *" footbag-staging-app-runtime "* ]]; then',
+      `      ${e.runtimeTrustUnreadable ? 'exit 254' : `printf '%s\\n' ${JSON.stringify(JSON.stringify(e.runtimeTrustNamesJobRole ? { Statement: [{ Effect: 'Allow', Action: 'sts:AssumeRole', Principal: { AWS: ['arn:aws:iam::111122223333:user/footbag-operator', 'arn:aws:iam::111122223333:role/FootbagDevTester'] } }] } : { Statement: [{ Effect: 'Allow', Action: 'sts:AssumeRole', Principal: { AWS: ['arn:aws:iam::111122223333:user/footbag-operator'] } }] }))}; exit 0`}`,
+      '    fi',
+      `    ${e.roleExists ? "printf '{}\\n'; exit 0" : 'exit 254'} ;;`,
       '  simulate-principal-policy) ;;',
       e.jobPoliciesAttached
         ? `  list-attached-role-policies) printf 'FootbagDevTester-StagingServices\\tFootbagDevTester-EdgeAndIdentity\\tFootbagDevTester-Guardrails\\n'; exit 0 ;;`
         : `  list-attached-role-policies) printf 'FootbagDevTester-StagingServices\\n'; exit 0 ;;`,
-      `  list-role-policies) printf 'revoke-sessions-someone_gone%s\\n'; exit 0 ;;`.replace(
-        '%s',
-        e.strayInline ? `\\t${e.strayInline}` : '',
-      ),
+      e.inlineUnlistable
+        ? '  list-role-policies) echo "An error occurred (Throttling) when calling the ListRolePolicies operation: Rate exceeded" >&2; exit 254 ;;'
+        : `  list-role-policies) printf 'revoke-sessions-someone_gone%s\\n'; exit 0 ;;`.replace(
+            '%s',
+            e.strayInline ? `\\t${e.strayInline}` : '',
+          ),
       '  *) exit 0 ;;',
       'esac',
       '',
       e.simulatorSilent ? 'exit 0' : '',
+      // The CLI's text form prints None for an empty answer.
+      e.simulatorNone ? 'echo None; exit 0' : '',
       '',
       'actions=(); resource=""; ctx=""; single=0',
       'while (( $# )); do',
@@ -231,13 +256,16 @@ function awsStub(estate: Estate): string {
       '        echo explicitDeny',
       '      fi',
       '      return ;;',
-      '    kms:CreateAlias)',
-      '      if [[ "$ctx" == *production* ]]; then',
+      '    kms:CreateAlias|kms:DeleteAlias|kms:UpdateAlias)',
+      // The alias side carries no condition key, so it answers on the grant alone.
+      '      if [[ "$resource" == *:alias/* ]]; then',
+      `        ${e.stagingAliasDenied ? 'echo explicitDeny' : 'echo allowed'}`,
+      '      elif [[ "$ctx" == *production* ]]; then',
       `        ${e.productionAliasGraftable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      elif [[ -z "$ctx" ]]; then',
       `        ${e.untaggedAliasGraftable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      else',
-      '        echo implicitDeny',
+      `        ${e.stagingAliasDenied ? 'echo explicitDeny' : 'echo allowed'}`,
       '      fi',
       '      return ;;',
       `    iam:PassRole) ${e.budgetsPassable ? 'echo allowed' : 'echo explicitDeny'}; return ;;`,
@@ -312,7 +340,7 @@ function run(estate: Estate = {}, args: string[] = []) {
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
-describe('verify-operator-role-denials.sh — before the identity tree is applied', () => {
+describe('verify-dev-tester-role-denials.sh — before the identity tree is applied', () => {
   it('refuses by name rather than reporting an empty pass', () => {
     // The pre-apply state is the one every operator meets first. A run that
     // printed "no findings" here would be reporting that denials hold against a
@@ -332,7 +360,7 @@ describe('verify-operator-role-denials.sh — before the identity tree is applie
   });
 });
 
-describe('verify-operator-role-denials.sh — the denials hold', () => {
+describe('verify-dev-tester-role-denials.sh — the denials hold', () => {
   it('passes with no findings', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -344,7 +372,7 @@ describe('verify-operator-role-denials.sh — the denials hold', () => {
     // number, because the list is meant to grow and this test should not be the
     // reason somebody hesitates to add a denial.
     const r = run();
-    const m = r.stdout.match(/(\d+) action\(s\) drawn from NeverAdministerAHumanOperator/);
+    const m = r.stdout.match(/(\d+) action\(s\) drawn from NeverAdministerADevTester/);
     expect(m, r.stdout).toBeTruthy();
     expect(Number(m![1])).toBeGreaterThanOrEqual(34);
   });
@@ -358,7 +386,7 @@ describe('verify-operator-role-denials.sh — the denials hold', () => {
   });
 });
 
-describe('verify-operator-role-denials.sh — a denial that has stopped holding', () => {
+describe('verify-dev-tester-role-denials.sh — a denial that has stopped holding', () => {
   it('fails when a lifecycle action comes back allowed, and names it', () => {
     const r = run({ lifecycleAllowed: 'iam:CreateAccessKey' });
     expect(r.status).toBe(1);
@@ -380,12 +408,23 @@ describe('verify-operator-role-denials.sh — a denial that has stopped holding'
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/simulator returned nothing/);
   });
+
+  it('fails when the simulator answers None, which is no answer, at the absence checks', () => {
+    // Read as a decision, None passed the state-boundary, static-IP and IAM-write
+    // checks as "not granted".
+    const r = run({ simulatorNone: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/state boundary: the simulator returned nothing/);
+    expect(r.stderr).toMatch(/static IP: the simulator returned nothing/);
+    expect(r.stderr).toMatch(/IAM write: the simulator returned nothing/);
+    expect(r.stdout).not.toMatch(/not granted \(None\)|out of reach \(None\)/);
+  });
 });
 
-describe('verify-operator-role-denials.sh — the tag denial in both directions', () => {
+describe('verify-dev-tester-role-denials.sh — the tag denial in both directions', () => {
   it('fails when the denial swallows staging too, which is the naive guard', () => {
     // Without the Null existence guard a negated tag match denies every call
-    // whose resource tag is absent or unreadable. That locks the operator out
+    // whose resource tag is absent or unreadable. That locks the dev-and-tester out
     // of staging, and it surfaces as a broken credential rather than as a
     // policy error, which is why it has its own case.
     const r = run({ stagingEdgeDenied: true });
@@ -408,7 +447,7 @@ describe('verify-operator-role-denials.sh — the tag denial in both directions'
   });
 });
 
-describe('verify-operator-role-denials.sh — the host-access certificate', () => {
+describe('verify-dev-tester-role-denials.sh — the host-access certificate', () => {
   it('proves the denial on a staging-tagged instance as well as a production one', () => {
     const r = run();
     expect(r.status).toBe(0);
@@ -426,7 +465,7 @@ describe('verify-operator-role-denials.sh — the host-access certificate', () =
   });
 });
 
-describe('verify-operator-role-denials.sh — a host that is not staging', () => {
+describe('verify-dev-tester-role-denials.sh — a host that is not staging', () => {
   it('proves the firewall and delete calls denied on production and allowed on staging', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -448,7 +487,7 @@ describe('verify-operator-role-denials.sh — a host that is not staging', () =>
   });
 });
 
-describe('verify-operator-role-denials.sh — the static IP', () => {
+describe('verify-dev-tester-role-denials.sh — the static IP', () => {
   it('proves attaching, detaching and releasing a static IP are not granted', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -470,7 +509,7 @@ describe('verify-operator-role-denials.sh — the static IP', () => {
   });
 });
 
-describe('verify-operator-role-denials.sh — the account, the assumable role, aliases, functions, budgets', () => {
+describe('verify-dev-tester-role-denials.sh — the account, the assumable role, aliases, functions, budgets', () => {
   it('proves each of the five denials on a healthy role', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -520,7 +559,7 @@ describe('verify-operator-role-denials.sh — the account, the assumable role, a
   });
 });
 
-describe('verify-operator-role-denials.sh — IAM write, other roles, operator addresses', () => {
+describe('verify-dev-tester-role-denials.sh — IAM write, other roles, operator addresses', () => {
   it('proves every route from a staging-named principal to administrator is ungranted', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
@@ -551,6 +590,36 @@ describe('verify-operator-role-denials.sh — IAM write, other roles, operator a
     expect(r.stderr).toMatch(/chaining into the staging runtime role: sts:AssumeRole came back explicitDeny/);
   });
 
+  it('fails when the runtime role\'s own trust does not name the job role', () => {
+    // The simulation reads only the job role's policy; a trust that does not
+    // admit it refuses the chain however that policy reads.
+    const r = run({ runtimeTrustNamesJobRole: false });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/trust does not name FootbagDevTester/);
+  });
+
+  it('fails, rather than passing, when the runtime role\'s trust cannot be read', () => {
+    const r = run({ runtimeTrustUnreadable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/trust could not be read, so the chain is unproven/);
+  });
+
+  it('fails when the alias guard also refuses staging\'s own alias changes', () => {
+    // KMS evaluates no condition key on the alias side, so a guard over every
+    // resource denies staging's aliases and a role-run apply stops with an
+    // unnamed key behind it.
+    const r = run({ stagingAliasDenied: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/staging alias, alias side: kms:CreateAlias came back explicitDeny/);
+  });
+
+  it('fails, naming what AWS said, when the inline policies cannot be listed', () => {
+    // An unreadable listing read as empty passed the very check it exists for.
+    const r = run({ inlineUnlistable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/inline policies could not be listed, so what they hold is unproven \(AWS said: .*Throttling/);
+  });
+
   it('fails when an operator address can be written', () => {
     // A holder who could write one could admit any address to staging SSH, or
     // drop a colleague's.
@@ -566,7 +635,7 @@ describe('verify-operator-role-denials.sh — IAM write, other roles, operator a
   });
 });
 
-describe('verify-operator-role-denials.sh — the terraform state boundary', () => {
+describe('verify-dev-tester-role-denials.sh — the terraform state boundary', () => {
   it('fails when the role can read another tree state', () => {
     const r = run({ sharedStateReadable: true });
     expect(r.status).toBe(1);
@@ -589,7 +658,7 @@ describe('verify-operator-role-denials.sh — the terraform state boundary', () 
   });
 });
 
-describe('verify-operator-role-denials.sh — the reads that must survive', () => {
+describe('verify-dev-tester-role-denials.sh — the reads that must survive', () => {
   it('fails when the role can no longer read its own definition', () => {
     // A policy simulation against the role is how a grant is checked without
     // exercising it, and this script is that simulation. Denying the read
@@ -600,7 +669,7 @@ describe('verify-operator-role-denials.sh — the reads that must survive', () =
   });
 });
 
-describe('verify-operator-role-denials.sh — the job policies and the staging plan', () => {
+describe('verify-dev-tester-role-denials.sh — the job policies and the staging plan', () => {
   it('fails when a read a staging refresh makes is denied, naming it', () => {
     // One denied read fails the whole plan, so each is its own finding. These
     // four are the reads that are authorized on no resource or on a region-less
@@ -638,7 +707,7 @@ describe('verify-operator-role-denials.sh — the job policies and the staging p
   });
 });
 
-describe('verify-operator-role-denials.sh — the operating contract', () => {
+describe('verify-dev-tester-role-denials.sh — the operating contract', () => {
   it('prints only failures under --quiet', () => {
     const r = run({ lifecycleAllowed: 'iam:DeleteUser' }, ['--quiet']);
     expect(r.stdout).not.toMatch(/PASS/);
@@ -655,8 +724,8 @@ describe('verify-operator-role-denials.sh — the operating contract', () => {
     expect(r.stderr).toMatch(/unknown argument/);
   });
 
-  it('refuses --operator with no value', () => {
-    const r = run({}, ['--operator']);
+  it('refuses --dev-tester with no value', () => {
+    const r = run({}, ['--dev-tester']);
     expect(r.status).toBe(2);
   });
 });

@@ -155,7 +155,7 @@ describe('install-backup-timer.sh — credential handling', () => {
     // broken account rather than as the wrong file.
     const result = runScript(['--target', 'staging'], connectingAs(NAMED_ACCOUNT));
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/~\/AWS\/HOST_OPERATOR\.txt/);
+    expect(result.stderr).toMatch(/~\/AWS\/DEV_TESTER_HOST\.txt/);
     expect(result.stderr).not.toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
   });
 });

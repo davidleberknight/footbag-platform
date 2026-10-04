@@ -20,7 +20,7 @@
 
 DELIVERY_FORMAT="footbag-dev-tester-delivery-1"
 # Every single-valued key, in the order the writer emits them.
-DELIVERY_KEYS=(TARGET ACCOUNT OPERATOR HOST_PASSWORD AWS_ACCESS_KEY_ID
+DELIVERY_KEYS=(TARGET ACCOUNT FULL_NAME HOST_PASSWORD AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY AWS_ACCOUNT_ID DEV_TESTER_ROLE_ARN
   STAGING_RUNTIME_ROLE_ARN HOST_ADDRESS HOST_PORT)
 
@@ -57,7 +57,7 @@ delivery_require_tools() {
         ;;
       terraform|jq|rsync|sqlite3)
         echo "  - ${name}, which the staging deploy and tests use:" >&2
-        echo "      bash scripts/setup-dev-workstation.sh --operator installs it" >&2
+        echo "      bash scripts/setup-dev-workstation.sh --aws installs it" >&2
         ;;
       docker)
         echo "  - docker, which builds what the staging deploy ships: the container" >&2

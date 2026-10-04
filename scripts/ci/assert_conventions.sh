@@ -1086,9 +1086,16 @@ if ! grep -q "RUN_STAGING_SMOKE !== '1'" tests/setup-env.ts; then
   echo "  FAIL: the AWS isolation in tests/setup-env.ts must be conditional on the smoke opt-in only" >&2
   violations=$((violations + 1))
 fi
-for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_METADATA_DISABLED; do
+for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_METADATA_DISABLED \
+    AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN AWS_CONTAINER_CREDENTIALS_RELATIVE_URI \
+    AWS_CONTAINER_CREDENTIALS_FULL_URI AWS_CONTAINER_AUTHORIZATION_TOKEN; do
   if ! grep -q "$_aws_var" tests/fixtures/awsIsolation.ts; then
     echo "  FAIL: tests/fixtures/awsIsolation.ts no longer neutralises $_aws_var" >&2
+    violations=$((violations + 1))
+  fi
+  # The shell isolation the runner's offline gates use must blank the same set.
+  if ! grep -q "${_aws_var}=" scripts/lib/aws-isolation.sh; then
+    echo "  FAIL: scripts/lib/aws-isolation.sh no longer neutralises $_aws_var" >&2
     violations=$((violations + 1))
   fi
 done
@@ -1777,10 +1784,10 @@ delegate "every CI job and invoked command has a local gate or a recorded reason
 # of the continuous-integration parity rule above, which had passed, sending the
 # reader to a rule with nothing wrong with it.
 check "no superseded operator-identity model in tracked files"
-# The human-operator model was IAM Identity Center federation, and it is gone:
-# no permission sets, no directory roster, no generated reserved-SSO roles, no
-# second profile name holding a key. What replaced it is a named IAM user per
-# person assuming one ordinary shared role.
+# IAM Identity Center federation is not the identity model: no permission sets,
+# no directory roster, no generated reserved-SSO roles, no second profile name
+# holding a key. A dev-and-tester is a named IAM user assuming one ordinary
+# shared role.
 #
 # This exists because that model was removed from roughly forty files at once,
 # and the failure mode of a straggler is not a broken build. It is a runbook
@@ -1815,7 +1822,7 @@ OLD_MODEL_RE='standup-identity-center\.sh|install-operator-sso-profile\.sh|footb
 OLD_MODEL_ADMITTED_RE='"(sso:ListInstances|sso:ListPermissionSets|identitystore:ListUsers)"'
 old_model_hits=$(git grep -nE "$OLD_MODEL_RE" -- . \
   | grep -v 'scripts/ci/assert_conventions\.sh' \
-  | grep -v '^tests/unit/operator-job-role-policy\.test\.ts:' \
+  | grep -v '^tests/unit/dev-tester-role-policy\.test\.ts:' \
   | grep -v '^tests/unit/operator-runtime-trust\.test\.ts:' \
   | sed -E "s/${OLD_MODEL_ADMITTED_RE}//g" \
   | grep -E "$OLD_MODEL_RE" \

@@ -58,7 +58,7 @@ function writeCredential(
   who: 'shared' | 'named' = 'shared',
 ): void {
   mkdirSync(join(fakeHome, 'AWS'), { recursive: true });
-  const pair = who === 'shared' ? 'AWS_OPERATOR' : 'HOST_OPERATOR';
+  const pair = who === 'shared' ? 'AWS_OPERATOR' : 'DEV_TESTER_HOST';
   const name = target === 'production' ? `${pair}_PRODUCTION.txt` : `${pair}.txt`;
   const path = join(fakeHome, 'AWS', name);
   writeFileSync(path, contents, 'utf-8');
@@ -131,7 +131,7 @@ describe('host-diagnostics.sh — what it refuses before connecting', () => {
     writeCredential('staging', 'pw\n', 'shared');
     const r = run(['--target', 'staging'], { FAKE_SSH_USER: NAMED_ACCOUNT });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/HOST_OPERATOR\.txt is missing or unreadable/);
+    expect(r.stderr).toMatch(/DEV_TESTER_HOST\.txt is missing or unreadable/);
     expect(r.stderr).toMatch(/Nothing else is read in its place/);
   });
 

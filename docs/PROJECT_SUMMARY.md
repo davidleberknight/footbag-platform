@@ -791,7 +791,7 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 - Lightsail instance configuration (size, OS image, networking, static IP).
 - S3 buckets with complete configuration (versioning, lifecycle policies, CORS rules, public access blocks, backup bucket for SQLite snapshots).
 - CloudFront distributions (origins, cache behaviors, TLS certificates, custom domain).
-- IAM roles and policies for human operators, Lightsail firewall restrictions and any documented bootstrap inputs required by the SSH access model, and application runtime assumed roles, plus the documented runtime credential mechanism for deployed hosts and operators.
+- The dev-and-testers' job role and its policies, Lightsail firewall restrictions and any documented bootstrap inputs required by the SSH access model, and application runtime assumed roles, plus the documented runtime credential mechanism for deployed hosts and operators.
 - Parameter Store structure (paths, types, encryption configuration).
 - CloudWatch log groups and metric alarms.
 - Route53 DNS records.

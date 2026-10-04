@@ -1,5 +1,5 @@
 /**
- * scripts/internal/provision-operator-account-remote.sh — the offboard branch,
+ * scripts/internal/provision-dev-tester-account-remote.sh — the offboard branch,
  * run for real against a fake host.
  *
  * The root-side half is what actually ends a person's access, and a text match
@@ -32,7 +32,7 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
 
-const REMOTE_HALF = join(process.cwd(), 'scripts/internal/provision-operator-account-remote.sh');
+const REMOTE_HALF = join(process.cwd(), 'scripts/internal/provision-dev-tester-account-remote.sh');
 const ROOT_GUARD = 'if [[ $EUID -ne 0 ]]; then';
 const LEAVER = 'leaver_one';
 
@@ -126,9 +126,9 @@ function runOffboard(sudoUser = '', opts: { account?: string; shared?: string } 
       ...process.env,
       PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
       FAKE: host,
-      OPACC_MODE: 'offboard',
-      OPACC_ACCOUNT: opts.account ?? LEAVER,
-      OPACC_SHARED_ACCOUNT: opts.shared ?? 'footbag',
+      DTACC_MODE: 'offboard',
+      DTACC_ACCOUNT: opts.account ?? LEAVER,
+      DTACC_SHARED_ACCOUNT: opts.shared ?? 'footbag',
       SUDO_USER: sudoUser,
     },
     ...SPAWN_GUARD,
@@ -154,11 +154,11 @@ function runProvision(
       ...process.env,
       PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
       FAKE: host,
-      OPACC_MODE: mode,
-      OPACC_ACCOUNT: account,
-      OPACC_KEY_LINE: keyLine,
-      OPACC_PASSWORD: pw.password ?? 'unused-by-these-tests',
-      OPACC_SHARED_ACCOUNT: shared,
+      DTACC_MODE: mode,
+      DTACC_ACCOUNT: account,
+      DTACC_KEY_LINE: keyLine,
+      DTACC_PASSWORD: pw.password ?? 'unused-by-these-tests',
+      DTACC_SHARED_ACCOUNT: shared,
       ...pw.extraEnv,
     },
     ...SPAWN_GUARD,
@@ -438,7 +438,7 @@ describe('every create and rotation sets a password', () => {
 
     const r = runProvision('rotate', 'named_op', keys.leaver, 'footbag', {
       password: '',
-      extraEnv: { OPACC_SET_PASSWORD: 'no' },
+      extraEnv: { DTACC_SET_PASSWORD: 'no' },
     });
 
     expect(r.status).toBe(2);
@@ -457,7 +457,7 @@ describe('every create and rotation sets a password', () => {
     // The skip is the key swap by another name. Read from the body, because
     // the setting commands are real host writes this suite does not reach.
     const source = readFileSync(REMOTE_HALF, 'utf-8');
-    expect(source).not.toMatch(/OPACC_SET_PASSWORD/);
+    expect(source).not.toMatch(/DTACC_SET_PASSWORD/);
   });
 });
 
@@ -474,8 +474,8 @@ describe('the inspection of an existing account', () => {
         ...process.env,
         PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
         FAKE: host,
-        OPACC_MODE: 'inspect',
-        OPACC_ACCOUNT: account,
+        DTACC_MODE: 'inspect',
+        DTACC_ACCOUNT: account,
       },
       ...SPAWN_GUARD,
     });
@@ -535,9 +535,9 @@ describe('the inspection of an existing account', () => {
         ...process.env,
         PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
         FAKE: host,
-        OPACC_MODE: 'inspect',
-        OPACC_ACCOUNT: LEAVER,
-        OPACC_SHARED_ACCOUNT: 'footbag',
+        DTACC_MODE: 'inspect',
+        DTACC_ACCOUNT: LEAVER,
+        DTACC_SHARED_ACCOUNT: 'footbag',
       },
       ...SPAWN_GUARD,
     });
@@ -581,12 +581,12 @@ describe('reopening a retired account', () => {
         ...process.env,
         PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
         FAKE: host,
-        OPACC_MODE: mode,
-        OPACC_ACCOUNT: LEAVER,
-        OPACC_KEY_LINE: keyLine,
-        OPACC_PASSWORD: 'unused-by-these-tests',
-        OPACC_SHARED_ACCOUNT: 'footbag',
-        OPACC_REOPEN: 'yes',
+        DTACC_MODE: mode,
+        DTACC_ACCOUNT: LEAVER,
+        DTACC_KEY_LINE: keyLine,
+        DTACC_PASSWORD: 'unused-by-these-tests',
+        DTACC_SHARED_ACCOUNT: 'footbag',
+        DTACC_REOPEN: 'yes',
       },
       ...SPAWN_GUARD,
     });

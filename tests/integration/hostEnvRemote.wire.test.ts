@@ -418,7 +418,7 @@ describe('the credential guard', () => {
  * The rule is mechanical and the operator chooses nothing: the account the ssh
  * alias connects as picks the pair, the environment picks the file within it,
  * and each file holds one credential permanently. The failure it exists to
- * prevent is quiet — a named operator's run reading the shared account's
+ * prevent is quiet — a dev-and-tester's run reading the shared account's
  * password succeeds at the connection and fails at sudo, which reads as a broken
  * account or a mistyped password and is neither.
  *
@@ -446,7 +446,7 @@ describe('the credential file follows the account the alias connects as', () => 
 
   it('reads the personal file when the alias connects as a named account', () => {
     expect(select('ada_lovelace', 'staging').stdout.trim()).toBe(
-      'HOST_OPERATOR.txt|ada_lovelace',
+      'DEV_TESTER_HOST.txt|ada_lovelace',
     );
   });
 
@@ -505,7 +505,7 @@ describe('the naming rule also answers about an account the caller already knows
 
   it('names the personal file for anybody else, on staging', () => {
     expect(fileFor('ada_lovelace', 'staging').stdout.trim()).toBe(
-      'HOST_OPERATOR.txt|ada_lovelace',
+      'DEV_TESTER_HOST.txt|ada_lovelace',
     );
   });
 
@@ -576,10 +576,10 @@ describe('the credential file is refused by name, never swapped for the other pa
   }
 
   it('accepts the selected file at mode 600 and says which one it read', () => {
-    writeCredential('HOST_OPERATOR.txt', 0o600);
+    writeCredential('DEV_TESTER_HOST.txt', 0o600);
     const r = require_('ada_lovelace', 'staging');
     expect(r.exitCode).toBe(0);
-    expect(r.stderr).toContain('~/AWS/HOST_OPERATOR.txt');
+    expect(r.stderr).toContain('~/AWS/DEV_TESTER_HOST.txt');
     expect(r.stderr).toContain('ada_lovelace');
   });
 
@@ -606,13 +606,13 @@ describe('the credential file is refused by name, never swapped for the other pa
     writeCredential('AWS_OPERATOR.txt', 0o600);
     const r = require_('ada_lovelace', 'staging');
     expect(r.exitCode).not.toBe(0);
-    expect(r.stderr).toContain('~/AWS/HOST_OPERATOR.txt');
+    expect(r.stderr).toContain('~/AWS/DEV_TESTER_HOST.txt');
     expect(r.stderr).toMatch(/Nothing else is read in its place/);
     expect(r.stderr).not.toContain('AWS_OPERATOR.txt (');
   });
 
   it('refuses the shared file when the alias connects as the shared account and it is absent', () => {
-    writeCredential('HOST_OPERATOR.txt', 0o600);
+    writeCredential('DEV_TESTER_HOST.txt', 0o600);
     const r = require_('footbag', 'staging');
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr).toContain('~/AWS/AWS_OPERATOR.txt');
@@ -628,7 +628,7 @@ describe('the stdin guard names the file it expects and does not claim to have c
       FAKE_SSH_USER: 'ada_lovelace',
     });
     expect(r.exitCode).toBe(0);
-    expect(r.stderr).toContain('~/AWS/HOST_OPERATOR.txt');
+    expect(r.stderr).toContain('~/AWS/DEV_TESTER_HOST.txt');
     expect(r.stderr).toMatch(/not checked against it/);
   });
 

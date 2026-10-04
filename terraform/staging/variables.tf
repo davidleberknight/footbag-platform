@@ -31,7 +31,7 @@ variable "aws_account_id" {
   type        = string
 }
 
-# The shared job role a named human operator assumes, declared in the identity
+# The shared job role a named dev-and-tester assumes, declared in the identity
 # tree. It exists in this tree and deliberately not in production's: the job is
 # staging and the reads a deploy makes, so it chains into this environment's
 # runtime role and no other. Production carries no equivalent variable at all,
@@ -51,7 +51,7 @@ variable "dev_tester_role_arn" {
 
   validation {
     condition     = var.dev_tester_role_arn == "" || can(regex("^arn:aws:iam::[0-9]{12}:role/FootbagDevTester$", var.dev_tester_role_arn))
-    error_message = "dev_tester_role_arn must be an ordinary IAM role ARN ending in exactly role/FootbagDevTester. A path-prefixed or differently named role is a different principal and trusting it grants the operators nothing."
+    error_message = "dev_tester_role_arn must be an ordinary IAM role ARN ending in exactly role/FootbagDevTester. A path-prefixed or differently named role is a different principal and trusting it grants the dev-and-testers nothing."
   }
 }
 
@@ -112,7 +112,7 @@ variable "ssh_public_key" {
   description = <<-EOT
     SSH public key for operator access to the Lightsail instance.
     # TODO: Paste the contents of your operator's ~/.ssh/id_ed25519.pub (or similar).
-    Each operator needs a named account.
+    This is the administrators' bootstrap key for the shared account.
   EOT
   type        = string
 }

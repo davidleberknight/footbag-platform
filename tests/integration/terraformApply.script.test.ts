@@ -78,7 +78,13 @@ function writeTerraformStub(
      * only way to drive it: the gate refuses on what the plan CONTAINS, not on
      * which environment the run named.
      */
-    planResourceChanges?: Array<{ type: string; address: string; actions: string[] }>;
+    planResourceChanges?: Array<{
+      type: string;
+      address: string;
+      actions: string[];
+      before?: unknown;
+      after?: unknown;
+    }>;
     /**
      * Make `terraform show -json <plan>` fail. The gate reads the plan through
      * that call, so this is the only way to reach the branch where it cannot
@@ -177,7 +183,7 @@ function writeTerraformStub(
         resource_changes: (opts.planResourceChanges ?? []).map((rc) => ({
           address: rc.address,
           type: rc.type,
-          change: { actions: rc.actions },
+          change: { actions: rc.actions, before: rc.before ?? null, after: rc.after ?? null },
         })),
       }),
       'PLANJSON',
@@ -282,7 +288,7 @@ describe('terraform-apply.sh: argument handling', () => {
   });
 
   it('asks for the typed word on the identity tree', () => {
-    // Its plan is what every human operator in the account may do, and it is
+    // Its plan is what every dev-and-tester in the account may do, and it is
     // the one tree whose plan cannot be sanity-checked against a running
     // system afterwards: a policy that is too broad looks exactly like a
     // correct one until somebody uses it.
@@ -291,7 +297,7 @@ describe('terraform-apply.sh: argument handling', () => {
   });
 
   it('no longer knows the roster tree, which is not a tree any more', () => {
-    // Who the operators are mints and revokes key material, and a secret must
+    // Who the dev-and-testers are mints and revokes key material, and a secret must
     // never enter Terraform state, so that lifecycle belongs to a script.
     const res = run(['--target', 'operators', '--dry-run'], false);
     expect(res.exitCode).toBe(2);
@@ -390,7 +396,7 @@ describe('terraform-apply.sh: argument handling', () => {
       // at once, which is why this is refused rather than merely discouraged.
       //
       // The identity tree belongs in this list for the same reason it takes a
-      // typed APPLY: its state is the record of what every human operator may
+      // typed APPLY: its state is the record of what every dev-and-tester may
       // do, so two runs writing it at once can leave a grant standing that was
       // being removed. Staging is the only tree whose lock --yes still answers for,
       // because its data is disposable and its state is shared with nothing that
@@ -443,8 +449,34 @@ describe('terraform-apply.sh: a job-role session', () => {
     });
     const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toMatch(/this plan changes IAM, which the job role may not do/);
+    expect(res.stderr).toMatch(/this plan changes what the job role may not apply/);
     expect(res.stderr).toContain('aws_iam_role_policy.runtime');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('refuses a replication change, which needs a role passed that the job role is never granted', () => {
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_s3_bucket_replication_configuration', address: 'aws_s3_bucket_replication_configuration.media', actions: ['update'] },
+      ],
+    });
+    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('aws_s3_bucket_replication_configuration.media');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('refuses any change to the staging firewall, whose addresses are not a dev-and-tester\'s to decide', () => {
+    // A stale or edited values file on a dev-and-tester's machine would
+    // otherwise rewrite the administrators' SSH addresses.
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_lightsail_instance_public_ports', address: 'aws_lightsail_instance_public_ports.web', actions: ['delete', 'create'] },
+      ],
+    });
+    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('aws_lightsail_instance_public_ports.web');
     expect(calls()).not.toMatch(/ apply \//);
   });
 
@@ -479,14 +511,66 @@ describe('terraform-apply.sh: a job-role session', () => {
 });
 
 describe('terraform-apply.sh: a caller that knows what the plan may contain', () => {
-  const FIREWALL = { type: 'aws_lightsail_instance_public_ports', address: 'aws_lightsail_instance_public_ports.web', actions: ['delete', 'create'] };
+  // The firewall's port list as the plan JSON carries it: the two SSH ports
+  // admit the administrators' address, and the change adds one dev-and-tester.
+  const ADMIN = '198.51.100.4/32';
+  const ADDED = '203.0.113.7/32';
+  const ports = (sshCidrs: string[]) => ({
+    port_info: [
+      { from_port: 22, to_port: 22, protocol: 'tcp', cidrs: sshCidrs },
+      { from_port: 2222, to_port: 2222, protocol: 'tcp', cidrs: sshCidrs },
+      { from_port: 80, to_port: 80, protocol: 'tcp', cidrs: [] },
+    ],
+  });
+  const FIREWALL = {
+    type: 'aws_lightsail_instance_public_ports',
+    address: 'aws_lightsail_instance_public_ports.web',
+    actions: ['delete', 'create'],
+    before: ports([ADMIN]),
+    after: ports([ADMIN, ADDED]),
+  };
+  const ADD = ['--target', 'staging', '--firewall-only', '--firewall-add', ADDED];
 
   it('applies a firewall-only plan, saying first that every staging port blinks', () => {
     writeTerraformStub({ planResourceChanges: [FIREWALL] });
-    const res = run(['--target', 'staging', '--firewall-only']);
+    const res = run(ADD);
     expect(res.exitCode, res.stderr).toBe(0);
     expect(res.stdout).toMatch(/Every staging port, SSH and the site alike, closes for a few seconds/);
     expect(calls()).toMatch(/ apply \//);
+  });
+
+  it('refuses a firewall-only apply that would drop an address it was not asked to', () => {
+    // A stale values file on the onboarding machine plans the administrators'
+    // list without an address another holder added. The resource is the whole
+    // change, so only comparing the addresses catches it.
+    writeTerraformStub({ planResourceChanges: [{ ...FIREWALL, after: ports([ADDED]) }] });
+    const res = run(ADD);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would change SSH addresses it was not asked to:\n\s+removed 198\.51\.100\.4\/32/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('refuses a firewall-only apply whose after-state the plan does not know, as every address lost', () => {
+    writeTerraformStub({ planResourceChanges: [{ ...FIREWALL, after: undefined }] });
+    const res = run(ADD);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/removed 198\.51\.100\.4\/32/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('applies a removal that takes out exactly the address it names', () => {
+    writeTerraformStub({ planResourceChanges: [{ ...FIREWALL, before: ports([ADMIN, ADDED]), after: ports([ADMIN]) }] });
+    const res = run(['--target', 'staging', '--firewall-only', '--firewall-remove', ADDED]);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toMatch(/ apply \//);
+  });
+
+  it('refuses a firewall-only apply that names no address, before terraform runs', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--firewall-only']);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/--firewall-only needs --firewall-add <cidr>, --firewall-remove <cidr>, or both/);
+    expect(calls()).toBe('');
   });
 
   it('refuses a firewall-only apply that would carry other drift with it', () => {
@@ -494,7 +578,7 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     writeTerraformStub({
       planResourceChanges: [FIREWALL, { type: 'aws_s3_bucket', address: 'aws_s3_bucket.media', actions: ['update'] }],
     });
-    const res = run(['--target', 'staging', '--firewall-only']);
+    const res = run(ADD);
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/would also change:\n\s+aws_s3_bucket\.media/);
     expect(res.stderr).not.toContain('  aws_lightsail_instance_public_ports.web');
@@ -503,7 +587,7 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
 
   it('applies nothing when the firewall already matches', () => {
     writeTerraformStub({ planResourceChanges: [{ ...FIREWALL, actions: ['no-op'] }] });
-    const res = run(['--target', 'staging', '--firewall-only']);
+    const res = run(ADD);
     expect(res.exitCode, res.stderr).toBe(0);
     expect(res.stdout).toMatch(/already admits exactly these addresses/);
     expect(calls()).not.toMatch(/ apply \//);

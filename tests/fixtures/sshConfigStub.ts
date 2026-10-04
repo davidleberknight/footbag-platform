@@ -64,5 +64,5 @@ export function connectingAs(user: string, parent?: string): NodeJS.ProcessEnv {
 /** The shared host account, spelled once so a suite never has to guess it. */
 export const SHARED_ACCOUNT = 'footbag';
 
-/** A named operator account, which is any account that is not the shared one. */
+/** A dev-and-tester's named account, which is any account that is not the shared one. */
 export const NAMED_ACCOUNT = 'ada_lovelace';

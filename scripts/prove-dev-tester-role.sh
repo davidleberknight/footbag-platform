@@ -18,7 +18,9 @@
 # and names where to resume.
 #
 # WHAT IT DOES, in order:
-#   1  as the role: a staging Terraform plan that must be empty, applying nothing
+#   1  as the role: assume the staging runtime role directly, which proves the
+#      job role's own chain into it on any machine, this one included; then a
+#      staging Terraform plan that must be empty, applying nothing
 #      (terraform-apply.sh --require-empty-plan). Pending drift is refused here,
 #      because this run did not come to apply it
 #   2  as the role: a code-only staging deploy (deploy_to_aws.sh)
@@ -26,7 +28,7 @@
 #      (run_all_tests.sh --quick --staging), which rewrites the staging pass
 #      receipt this machine keeps
 #   4  as footbag-operator: the job role's denials, simulated
-#      (verify-operator-role-denials.sh)
+#      (verify-dev-tester-role-denials.sh)
 #   5  as footbag-operator: the account's protected facts against a baseline
 #      saved before the onboarding (verify-account-baseline.sh --compare), with
 #      only this account's own key left out
@@ -53,16 +55,18 @@
 # Flags:
 #   --account <first_last>   the named dev-and-tester to prove
 #   --baseline <file>        the saved baseline to compare with; default the
-#                            newest ~/AWS/baseline-*.txt
+#                            newest one verify-account-baseline.sh --save wrote,
+#                            in ${TMPDIR:-/tmp}/footbag-baseline-<uid>/
 #   --from-step <1-6>        resume a run that stopped part way
 #
 # Exit: 0 everything proved, 1 a step failed, 2 usage error, 3 the onboarding is
 # in place but its acceptance is not yet visible in CloudTrail (re-run step 6).
 #
 # Test seams (CI only; operators never set these): PROVE_WRAP_CMD replaces the
-# as-dev-tester.sh wrapper, and PROVE_APPLY_CMD, PROVE_DEPLOY_CMD,
-# PROVE_RUNNER_CMD, PROVE_DENIALS_CMD, PROVE_BASELINE_CMD and PROVE_VERIFY_CMD
-# replace each step's script. A run using any of them says so.
+# as-dev-tester.sh wrapper, PROVE_AWS_BIN the aws CLI the chain is proved with,
+# and PROVE_APPLY_CMD, PROVE_DEPLOY_CMD, PROVE_RUNNER_CMD, PROVE_DENIALS_CMD,
+# PROVE_BASELINE_CMD and PROVE_VERIFY_CMD replace each step's script. A run using
+# any of them says so.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,10 +80,11 @@ source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 source "${SCRIPT_DIR}/lib/terminal.sh"
 
 WRAP_CMD="${PROVE_WRAP_CMD:-${SCRIPT_DIR}/as-dev-tester.sh}"
+AWS_CMD="${PROVE_AWS_BIN:-aws}"
 APPLY_CMD="${PROVE_APPLY_CMD:-${SCRIPT_DIR}/terraform-apply.sh}"
 DEPLOY_ENTRY="${PROVE_DEPLOY_CMD:-${REPO_ROOT}/deploy_to_aws.sh}"
 RUNNER_CMD="${PROVE_RUNNER_CMD:-${REPO_ROOT}/run_all_tests.sh}"
-DENIALS_CMD="${PROVE_DENIALS_CMD:-${SCRIPT_DIR}/verify-operator-role-denials.sh}"
+DENIALS_CMD="${PROVE_DENIALS_CMD:-${SCRIPT_DIR}/verify-dev-tester-role-denials.sh}"
 BASELINE_CMD="${PROVE_BASELINE_CMD:-${SCRIPT_DIR}/verify-account-baseline.sh}"
 VERIFY_CMD="${PROVE_VERIFY_CMD:-${SCRIPT_DIR}/onboard-dev-tester.sh}"
 
@@ -118,20 +123,21 @@ fi
 # The baseline: named, or the one saved most recently on this machine, by the
 # time it was written. Not by name: a second save on one day is named with a
 # counter, and "-2" sorts before ".txt", so the name order picks the older file.
+BASELINE_DIR="${TMPDIR:-/tmp}/footbag-baseline-$(id -u)"
 if [[ -z "$BASELINE" ]]; then
-  BASELINE="$(find "${HOME}/AWS" -maxdepth 1 -name 'baseline-*.txt' -printf '%T@ %p\n' 2>/dev/null \
+  BASELINE="$(find "$BASELINE_DIR" -maxdepth 1 -name 'baseline-*.txt' -printf '%T@ %p\n' 2>/dev/null \
     | LC_ALL=C sort -n | tail -1 | cut -d' ' -f2- || true)"
 fi
 if [[ -z "$BASELINE" || ! -r "$BASELINE" ]]; then
   echo "ERROR: no saved baseline to compare with, so this run could not show that" >&2
   echo "       footbag-operator and both runtime trusts are unchanged. Save one now," >&2
   echo "       before anything else changes, and pass it with --baseline if it is" >&2
-  echo "       not in ~/AWS:" >&2
+  echo "       not in ${BASELINE_DIR}:" >&2
   echo "         bash scripts/verify-account-baseline.sh --save" >&2
   exit 2
 fi
 
-for seam in PROVE_WRAP_CMD PROVE_APPLY_CMD PROVE_DEPLOY_CMD PROVE_RUNNER_CMD \
+for seam in PROVE_WRAP_CMD PROVE_AWS_BIN PROVE_APPLY_CMD PROVE_DEPLOY_CMD PROVE_RUNNER_CMD \
             PROVE_DENIALS_CMD PROVE_BASELINE_CMD PROVE_VERIFY_CMD; do
   [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam}='${!seam}' -- this run proves nothing about the estate." >&2
 done
@@ -157,7 +163,8 @@ if [[ -z "$SUDO_PASS" ]]; then
 fi
 
 echo "Proving ${ACCOUNT} through the FootbagDevTester role on staging, against ${BASELINE}:"
-echo "  1. as the role: a staging plan that must be empty"
+echo "  1. as the role: the chain into the staging runtime role, then a staging"
+echo "     plan that must be empty"
 echo "  2. as the role: a code-only deploy to staging, replacing what staging runs"
 echo "  3. as the role: the quick test gate with the staging rows, which rewrites"
 echo "     this machine's staging pass receipt"
@@ -181,7 +188,22 @@ as_role() { bash "$WRAP_CMD" --account "$ACCOUNT" "$@" </dev/null; }
 
 if (( FROM_STEP <= 1 )); then
   echo ""
-  echo "== 1. A staging plan as ${ACCOUNT}, which must be empty"
+  echo "== 1. The chain into the staging runtime role as ${ACCOUNT}, then a staging plan that must be empty"
+  # Assumed directly from the job-role session rather than through a workstation
+  # profile, so the proof does not depend on which profile this machine names
+  # footbag-staging-runtime: on an administrator's machine that one chains from
+  # footbag-operator. Only the session's ARN is asked for; its credentials are
+  # never printed and are discarded with the call.
+  PROVE_ACCOUNT_ID="$(as_role "$AWS_CMD" sts get-caller-identity --query Account --output text)" \
+    || stop 1 "the job role's identity could not be read"
+  RUNTIME_ARN="arn:aws:iam::${PROVE_ACCOUNT_ID}:role/footbag-staging-app-runtime"
+  CHAINED="$(as_role "$AWS_CMD" sts assume-role --role-arn "$RUNTIME_ARN" \
+    --role-session-name "$ACCOUNT" --duration-seconds 900 \
+    --query 'AssumedRoleUser.Arn' --output text)" \
+    || stop 1 "the job role could not assume the staging runtime role"
+  [[ "$CHAINED" == "arn:aws:sts::${PROVE_ACCOUNT_ID}:assumed-role/footbag-staging-app-runtime/${ACCOUNT}" ]] \
+    || stop 1 "the chain landed on ${CHAINED:-nothing}, not footbag-staging-app-runtime"
+  echo "    chained into ${CHAINED}"
   as_role bash "$APPLY_CMD" --target staging --require-empty-plan \
     || stop 1 "the job role could not plan staging, or the plan was not empty"
 fi
@@ -230,12 +252,6 @@ case "$VERIFY_RC" in
 esac
 
 echo ""
-echo "PROVED: ${ACCOUNT} planned, deployed and tested staging through the role, the"
-echo "role's denials hold, and footbag-operator and both runtime trusts are exactly"
-echo "as they were in ${BASELINE}."
-echo ""
-echo "One thing this machine cannot prove: on a machine that also holds"
-echo "footbag-operator, the staging runtime profile is the administrators' chain,"
-echo "so the staging rows above reached the runtime role through footbag-operator,"
-echo "not through the job role. The job role's own chain into the runtime role is"
-echo "first exercised by a dev-and-tester on a machine without footbag-operator."
+echo "PROVED: ${ACCOUNT} chained into the staging runtime role, planned, deployed and"
+echo "tested staging through the role, the role's denials hold, and footbag-operator"
+echo "and both runtime trusts are exactly as they were in ${BASELINE}."

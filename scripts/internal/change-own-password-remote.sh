@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Root-side body of the password step in scripts/accept-dev-tester-onboarding.sh:
-# a named operator replacing the one-time password of their own host account
+# a dev-and-tester replacing the one-time password of their own host account
 # with one they chose.
 #
 # Invoked via, as the named account itself, with its own key:

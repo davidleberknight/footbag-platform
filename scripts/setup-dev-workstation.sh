@@ -34,7 +34,8 @@
 #   7. Playwright's Chromium with its system libraries.
 #   8. The two Python environments, each through its own builder.
 #   9. The repository's git hooks.
-#   10. With --operator only: the AWS CLI v2, which only operators use.
+#   10. With --aws only: the AWS CLI v2, which only the administrators and
+#       dev-and-testers use.
 #   11. With --account only: the named key pair a dev-and-tester is onboarded
 #       with, at ~/.ssh/id_ed25519_<account>, where the acceptance looks for it.
 #   Then it checks every tool again and exits non-zero if anything is missing.
@@ -61,19 +62,20 @@
 # Usage:
 #   bash scripts/setup-dev-workstation.sh
 #   bash scripts/setup-dev-workstation.sh --check
-#   bash scripts/setup-dev-workstation.sh --operator --account <first_last>
-#   bash scripts/setup-dev-workstation.sh --operator --account <first_last> \
+#   bash scripts/setup-dev-workstation.sh --aws --account <first_last>
+#   bash scripts/setup-dev-workstation.sh --aws --account <first_last> \
 #     --replace-key <SHA256 fingerprint of the pair to retire>
-#   bash scripts/setup-dev-workstation.sh --operator --account <first_last> \
+#   bash scripts/setup-dev-workstation.sh --aws --account <first_last> \
 #     --replace-key retired [--profile <first_last>]
 #
 # Flags:
 #   --check     Report what would be installed and exit: 0 when nothing is
 #               needed, 1 otherwise. Changes nothing and takes no confirmation.
-#   --operator  Also install the AWS CLI v2 at the pinned version, verified
-#               against its pinned checksum. For operators and dev-testers.
+#   --aws       Also install the AWS CLI v2 at the pinned version, verified
+#               against its pinned checksum. For the administrators and
+#               dev-and-testers.
 #   --account <first_last>
-#               With --operator: make sure this dev-and-tester's named key pair
+#               With --aws: make sure this dev-and-tester's named key pair
 #               exists, creating it if not, and end by printing what to post for
 #               the holder who onboards them.
 #   --replace-key <SHA256:...|retired>
@@ -113,14 +115,14 @@ source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
 source "${REPO_ROOT}/scripts/lib/npm-deps.sh"
 
 CHECK_ONLY=0
-OPERATOR=0
+WITH_AWS=0
 ACCOUNT=""
 REPLACE_KEY=""
 DEAD_PROFILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK_ONLY=1; shift ;;
-    --operator) OPERATOR=1; shift ;;
+    --aws) WITH_AWS=1; shift ;;
     --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
     --replace-key) REPLACE_KEY="${2:-}"; shift 2 || { echo "ERROR: --replace-key requires an argument" >&2; exit 2; } ;;
     --profile) DEAD_PROFILE="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
@@ -134,9 +136,9 @@ done
 # their IAM user and the role session name, so a key made under another
 # spelling is one the acceptance never finds.
 if [[ -n "$ACCOUNT" ]]; then
-  if (( ! OPERATOR )); then
-    echo "ERROR: --account goes with --operator: a named key pair is for a" >&2
-    echo "       dev-and-tester, who also needs the operator tools." >&2
+  if (( ! WITH_AWS )); then
+    echo "ERROR: --account goes with --aws: a named key pair is for a" >&2
+    echo "       dev-and-tester, who also needs the AWS CLI." >&2
     exit 2
   fi
   if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
@@ -365,7 +367,7 @@ chromium_ok || PLAN+=("playwright: install Chromium with its system libraries")
 legacy_env_ok || PLAN+=("python env: build or repair the legacy pipeline environment")
 seeder_env_ok || PLAN+=("python env: build or repair the seeder environment")
 [[ "$(git rev-parse --git-path hooks 2>/dev/null)" == *.githooks ]] || PLAN+=("git: activate the repository's hooks")
-(( OPERATOR )) && ! aws_ok && PLAN+=("aws: install AWS CLI ${AWS_CLI_VERSION} into ${BIN_DIR}")
+(( WITH_AWS )) && ! aws_ok && PLAN+=("aws: install AWS CLI ${AWS_CLI_VERSION} into ${BIN_DIR}")
 [[ "$KEY_ACTION" == "create" ]] && PLAN+=("ssh key: create ${NAMED_KEY_TILDE} for ${ACCOUNT} (ssh-keygen asks for a passphrase)")
 [[ "$KEY_ACTION" == "replace" ]] && PLAN+=("ssh key: set ${NAMED_KEY_TILDE} (${REPLACE_KEY}) aside as ~/.ssh/retired_${ACCOUNT}_<time>, then create a fresh pair")
 
@@ -493,8 +495,8 @@ seeder_env_ensure "$REPO_ROOT"
 # ── 9. Git hooks ─────────────────────────────────────────────────────────────
 bash scripts/install-git-hooks.sh
 
-# ── 10. AWS CLI, operators only ──────────────────────────────────────────────
-if (( OPERATOR )) && ! aws_ok; then
+# ── 10. AWS CLI, with --aws only ─────────────────────────────────────────────
+if (( WITH_AWS )) && ! aws_ok; then
   echo "==> AWS CLI ${AWS_CLI_VERSION}"
   fetch_verified "$AWS_CLI_URL" "$AWS_CLI_SHA256" "$WORK/awscli.zip"
   unzip -o -q "$WORK/awscli.zip" -d "$WORK"
@@ -532,7 +534,7 @@ python_ok || { echo "  still missing: CPython ${PYTHON_VERSION}" >&2; remaining=
 node_ok || { echo "  still missing: Node ${want_node} (open a new shell so nvm is on PATH, then re-run)" >&2; remaining=1; }
 npm_deps_current "$REPO_ROOT" || { echo "  still missing: npm dependencies at the lockfile's versions" >&2; remaining=1; }
 chromium_ok || { echo "  still missing: Playwright's Chromium" >&2; remaining=1; }
-if (( OPERATOR )) && ! aws_ok; then
+if (( WITH_AWS )) && ! aws_ok; then
   echo "  still missing: AWS CLI ${AWS_CLI_VERSION} (an older one earlier on PATH shadows ${BIN_DIR}/aws)" >&2
   remaining=1
 fi

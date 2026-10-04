@@ -64,13 +64,13 @@
 #   Somebody else, with what they posted:
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh \
 #     --target staging --account james_leberknight \
-#     --operator "James Leberknight" --public-key "ssh-ed25519 AAAA... james" \
+#     --full-name "James Leberknight" --public-key "ssh-ed25519 AAAA... james" \
 #     --expect-fingerprint SHA256:<as they posted it> --address 203.0.113.7/32
 #
 #   Yourself, on your own machine, after setup-dev-workstation.sh --account
 #   made your pair: the key, its fingerprint and your address are all derived.
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh \
-#     --target staging --account david_leberknight --operator "David Leberknight"
+#     --target staging --account david_leberknight --full-name "David Leberknight"
 #
 #   Proving an accepted onboarding, read-only, with one verdict:
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh --verify \
@@ -80,7 +80,7 @@
 #   --target staging           the only environment a dev-and-tester reaches;
 #                              required rather than defaulted
 #   --account <first_last>     the name of their host account and IAM user
-#   --operator "<Full Name>"   who they are, for their host account and the
+#   --full-name "<Full Name>"  who they are, for their host account and the
 #                              sealed file. Nobody named has a vault entry: who
 #                              holds access is read live from the host and IAM,
 #                              and the onboarding card records who approved it
@@ -138,8 +138,8 @@ source "${SCRIPT_DIR}/lib/aws-profile.sh"
 source "${SCRIPT_DIR}/lib/aws-identity.sh"
 # shellcheck source=lib/iam-access-key.sh
 source "${SCRIPT_DIR}/lib/iam-access-key.sh"
-# shellcheck source=lib/iam-operator-user.sh
-source "${SCRIPT_DIR}/lib/iam-operator-user.sh"
+# shellcheck source=lib/iam-dev-tester-user.sh
+source "${SCRIPT_DIR}/lib/iam-dev-tester-user.sh"
 # shellcheck source=lib/terraform-output.sh
 source "${SCRIPT_DIR}/lib/terraform-output.sh"
 # shellcheck source=lib/ssh-known-hosts.sh
@@ -158,9 +158,9 @@ source "${SCRIPT_DIR}/lib/dev-tester-delivery.sh"
 AWS_BIN="${ONBOARD_DEV_TESTER_AWS_BIN:-aws}"
 IAM_KEY_AWS_BIN="$AWS_BIN"
 AWS_IDENTITY_BIN="$AWS_BIN"
-IAM_OPERATOR_AWS_BIN="$AWS_BIN"
+IAM_DEV_TESTER_AWS_BIN="$AWS_BIN"
 AGE_BIN="${ONBOARD_DEV_TESTER_AGE_BIN:-age}"
-PROVISION_CMD="${ONBOARD_DEV_TESTER_PROVISION_CMD:-${SCRIPT_DIR}/provision-operator-account.sh}"
+PROVISION_CMD="${ONBOARD_DEV_TESTER_PROVISION_CMD:-${SCRIPT_DIR}/provision-dev-tester-account.sh}"
 ADDRESS_CMD="${ONBOARD_DEV_TESTER_ADDRESS_CMD:-${SCRIPT_DIR}/authorize-operator-address.sh}"
 FETCH_CMD="${ONBOARD_DEV_TESTER_FETCH:-}"
 POLL_SECONDS="${ONBOARD_DEV_TESTER_POLL_SECONDS:-30}"
@@ -169,14 +169,14 @@ POLL_TRIES="${ONBOARD_DEV_TESTER_POLL_TRIES:-30}"
 # writes it.
 DEV_TESTER_PATH="/footbag-ops/staging/dev-testers"
 
-# Spelled as literals, as in manage-human-operator.sh: a check that reads the
+# Spelled as literals, as in manage-dev-tester.sh: a check that reads the
 # name from the place the credential came from is not a check.
 FOOTBAG_OPERATOR_USER="footbag-operator"
 SHARED_HOST_ACCOUNT="footbag"
 
 TARGET=""
 ACCOUNT=""
-OPERATOR=""
+FULL_NAME=""
 PUBLIC_KEY=""
 EXPECT_FINGERPRINT=""
 ADDRESS=""
@@ -195,7 +195,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
     --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
-    --operator) OPERATOR="${2:-}"; shift 2 || { echo "ERROR: --operator requires an argument" >&2; exit 2; } ;;
+    --full-name) FULL_NAME="${2:-}"; shift 2 || { echo "ERROR: --full-name requires an argument" >&2; exit 2; } ;;
     --public-key) PUBLIC_KEY="${2:-}"; shift 2 || { echo "ERROR: --public-key requires an argument" >&2; exit 2; } ;;
     --expect-fingerprint) EXPECT_FINGERPRINT="${2:-}"; shift 2 || { echo "ERROR: --expect-fingerprint requires an argument" >&2; exit 2; } ;;
     --address) ADDRESS="${2:-}"; shift 2 || { echo "ERROR: --address requires an argument" >&2; exit 2; } ;;
@@ -230,13 +230,13 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   exit 2
 fi
 if (( VERIFY )); then
-  if (( REISSUE )) || [[ -n "$OPERATOR$PUBLIC_KEY$ADDRESS$LOCATION" ]]; then
+  if (( REISSUE )) || [[ -n "$FULL_NAME$PUBLIC_KEY$ADDRESS$LOCATION" ]]; then
     echo "ERROR: --verify changes nothing and takes only --target, --account and" >&2
     echo "       --expect-fingerprint." >&2
     exit 2
   fi
-elif [[ -z "$OPERATOR" || "$OPERATOR" == *$'\n'* ]]; then
-  echo "ERROR: --operator \"<Full Name>\" is required, on one line: it names whose" >&2
+elif [[ -z "$FULL_NAME" || "$FULL_NAME" == *$'\n'* ]]; then
+  echo "ERROR: --full-name \"<Full Name>\" is required, on one line: it names whose" >&2
   echo "       host account this is, on the host itself." >&2
   exit 2
 fi
@@ -264,7 +264,7 @@ elif [[ -z "$PUBLIC_KEY" ]]; then
     echo "       Onboarding somebody else, pass the key line they sent with" >&2
     echo "       --public-key and its fingerprint with --expect-fingerprint." >&2
     echo "       Onboarding yourself, make your pair first:" >&2
-    echo "         bash scripts/setup-dev-workstation.sh --operator --account ${ACCOUNT}" >&2
+    echo "         bash scripts/setup-dev-workstation.sh --aws --account ${ACCOUNT}" >&2
     exit 2
   fi
   KEY_LINE="$(grep -m1 . "$PUBLIC_KEY_SOURCE" || true)"
@@ -437,10 +437,14 @@ fi
 # A user IAM could not be read is neither absent nor ours. Read as absent, a
 # finished onboarding would skip the check below and go on to re-issue a live
 # host password before the create failed.
-iam_operator_state "$ACCOUNT" || exit 1
-case "$IAM_OPERATOR_STATE" in
-  foreign) iam_operator_refuse_foreign "$ACCOUNT"; exit 1 ;;
+iam_dev_tester_state "$ACCOUNT" || exit 1
+# A legacy user is ours under the earlier names; it is moved and retagged after
+# the confirmation, then treated as the existing user it is.
+IAM_ADOPT_LEGACY=0
+case "$IAM_DEV_TESTER_STATE" in
+  foreign) iam_dev_tester_refuse_foreign "$ACCOUNT"; exit 1 ;;
   ours) IAM_USER_EXISTS=1 ;;
+  legacy) IAM_USER_EXISTS=1; IAM_ADOPT_LEGACY=1 ;;
   *) IAM_USER_EXISTS=0 ;;
 esac
 
@@ -475,17 +479,17 @@ if (( VERIFY )); then
   # IAM: ours, the one grant, exactly one active key.
   VERIFY_AKID=""
   VERIFY_CREATED=""
-  if [[ "$IAM_OPERATOR_STATE" != "ours" ]]; then
-    vfail "IAM user ${ACCOUNT} reads as ${IAM_OPERATOR_STATE}, not one of ours"
+  if [[ "$IAM_DEV_TESTER_STATE" != "ours" ]]; then
+    vfail "IAM user ${ACCOUNT} reads as ${IAM_DEV_TESTER_STATE}, not one of ours"
   else
-    vpass "IAM user ours, at ${IAM_OPERATOR_FOUND_PATH}, all three ownership tags"
-    V_POLICY="$(iam_operator_policy_state "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
+    vpass "IAM user ours, at ${IAM_DEV_TESTER_FOUND_PATH}, all three ownership tags"
+    V_POLICY="$(iam_dev_tester_policy_state "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
     if [[ "$V_POLICY" == "present" ]]; then
-      vpass "grant ${IAM_OPERATOR_POLICY_NAME}"
+      vpass "grant ${IAM_DEV_TESTER_POLICY_NAME}"
     else
-      vfail "no ${IAM_OPERATOR_POLICY_NAME} grant, so the user reaches nothing"
+      vfail "no ${IAM_DEV_TESTER_POLICY_NAME} grant, so the user reaches nothing"
     fi
-    V_KEYS="$(iam_operator_keys "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
+    V_KEYS="$(iam_dev_tester_keys "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
     V_ACTIVE="$(printf '%s\n' "$V_KEYS" | awk -F'\t' '$2=="Active"')"
     V_COUNT="$(grep -c . <<<"$V_ACTIVE" || true)"
     if [[ "$V_COUNT" == "1" ]]; then
@@ -615,19 +619,19 @@ onboard_readback() {
   local want_key="${1:-}" policy keys active
   echo ""
   echo "==> Reading ${ACCOUNT} back from IAM"
-  if ! iam_operator_state "$ACCOUNT"; then
+  if ! iam_dev_tester_state "$ACCOUNT"; then
     onboard_readback_failed "IAM could not be read."
   fi
-  if [[ "$IAM_OPERATOR_STATE" != "ours" ]]; then
-    onboard_readback_failed "the user reads back as ${IAM_OPERATOR_STATE}, not as one of ours at ${IAM_OPERATOR_PATH} with all three ownership tags."
+  if [[ "$IAM_DEV_TESTER_STATE" != "ours" ]]; then
+    onboard_readback_failed "the user reads back as ${IAM_DEV_TESTER_STATE}, not as one of ours at ${IAM_DEV_TESTER_PATH} with all three ownership tags."
   fi
-  echo "    user:    ours, at ${IAM_OPERATOR_FOUND_PATH}, all three ownership tags"
-  policy="$(iam_operator_policy_state "$ACCOUNT")" || onboard_readback_failed "IAM could not be read."
+  echo "    user:    ours, at ${IAM_DEV_TESTER_FOUND_PATH}, all three ownership tags"
+  policy="$(iam_dev_tester_policy_state "$ACCOUNT")" || onboard_readback_failed "IAM could not be read."
   if [[ "$policy" != "present" ]]; then
-    onboard_readback_failed "it does not hold ${IAM_OPERATOR_POLICY_NAME}, so it reaches nothing."
+    onboard_readback_failed "it does not hold ${IAM_DEV_TESTER_POLICY_NAME}, so it reaches nothing."
   fi
-  echo "    grant:   ${IAM_OPERATOR_POLICY_NAME}"
-  keys="$(iam_operator_keys "$ACCOUNT")" || onboard_readback_failed "IAM could not be read."
+  echo "    grant:   ${IAM_DEV_TESTER_POLICY_NAME}"
+  keys="$(iam_dev_tester_keys "$ACCOUNT")" || onboard_readback_failed "IAM could not be read."
   active="$(printf '%s\n' "$keys" | awk -F'\t' '$2=="Active"{print $1}')"
   if [[ -n "$want_key" ]]; then
     if ! grep -qxF -- "$want_key" <<<"$active"; then
@@ -696,9 +700,9 @@ onboard_host_finished() {
 # active key is one whose file was made; re-issuing it would replace the key
 # and the password its owner may already be using.
 ACTIVE_KEYS=""
-if (( IAM_USER_EXISTS )); then
-  POLICY_NOW="$(iam_operator_policy_state "$ACCOUNT")" || exit 1
-  KEYS_NOW="$(iam_operator_keys "$ACCOUNT")" || exit 1
+if (( IAM_USER_EXISTS && ! IAM_ADOPT_LEGACY )); then
+  POLICY_NOW="$(iam_dev_tester_policy_state "$ACCOUNT")" || exit 1
+  KEYS_NOW="$(iam_dev_tester_keys "$ACCOUNT")" || exit 1
   ACTIVE_KEYS="$(printf '%s\n' "$KEYS_NOW" | awk -F'\t' '$2=="Active"{print $1}' | tr '\n' ' ')"
   if [[ "$POLICY_NOW" == "present" && -n "${ACTIVE_KEYS// /}" ]] && (( ! REISSUE )); then
     onboard_host_finished
@@ -729,7 +733,7 @@ PRE_RETIRED="$(sed -n 's/^RETIRED //p' <<<"$PRE_HOST" | awk '{print $2}')"
 if grep -qxF -- "$KEY_SHA" <<<"$PRE_RETIRED"; then
   echo "REFUSING: ${KEY_SHA} is a key ${ACCOUNT} was retired with. Reinstating it would" >&2
   echo "          let back in whoever still holds its private half. Make a fresh pair:" >&2
-  echo "            bash scripts/setup-dev-workstation.sh --operator --account ${ACCOUNT} \\" >&2
+  echo "            bash scripts/setup-dev-workstation.sh --aws --account ${ACCOUNT} \\" >&2
   echo "              --replace-key retired --profile ${ACCOUNT}" >&2
   echo "          (--profile proves the old identity dead where no acceptance marker" >&2
   echo "          sits beside the pair; with one, it is not needed)" >&2
@@ -753,17 +757,21 @@ OUT_FILE="${OUT_DIR}/${ACCOUNT}-${TARGET}.onboarding.age"
 # ── What this run will do ────────────────────────────────────────────────────
 
 echo ""
-echo "Onboarding ${OPERATOR} as ${ACCOUNT} on ${TARGET}, sealed to:"
+echo "Onboarding ${FULL_NAME} as ${ACCOUNT} on ${TARGET}, sealed to:"
 echo "  ${KEY_FINGERPRINT}"
 echo ""
 echo "  host account  ${ACCOUNT} on footbag-${TARGET}-web, with a one-time password"
 echo "                that is never shown (an existing one is read first and"
 echo "                decided with you)"
-if (( IAM_USER_EXISTS )); then
+if (( IAM_ADOPT_LEGACY )); then
+  echo "  IAM user      ${ACCOUNT} exists and is ours under ${IAM_DEV_TESTER_LEGACY_PATH};"
+  echo "                it is moved to ${IAM_DEV_TESTER_PATH} and its ownership tags"
+  echo "                rewritten, its keys are retired and one fresh key is minted"
+elif (( IAM_USER_EXISTS )); then
   echo "  IAM user      ${ACCOUNT} exists and is ours; its keys are retired and one"
   echo "                fresh key is minted"
 else
-  echo "  IAM user      ${ACCOUNT} is created under ${IAM_OPERATOR_PATH}, granted"
+  echo "  IAM user      ${ACCOUNT} is created under ${IAM_DEV_TESTER_PATH}, granted"
   echo "                sts:AssumeRole on ${FOOTBAG_DEV_TESTER_ROLE} and nothing else"
 fi
 echo "  pin lines     ${KNOWN_HOSTS_PIN_COUNT} for ${KNOWN_HOSTS_PIN_IP}"
@@ -789,7 +797,7 @@ SEAL_TMP=""
 onboard_cleanup() {
   (( SEALED_DONE )) && { secret_file_sweep; return 0; }
   iam_key_cleanup
-  iam_operator_undo
+  iam_dev_tester_undo
   [[ -n "$SEAL_TMP" ]] && rm -f -- "$SEAL_TMP"
   SEAL_TMP=""
   secret_file_sweep
@@ -811,8 +819,8 @@ trap onboard_cleanup EXIT INT TERM
 # shred.
 PASS_FILE="$(umask 077 && mktemp)"
 secret_file_register "$PASS_FILE"
-printf '%s\n' "$SUDO_PASS" | OPACC_SEALED_OUT="$PASS_FILE" bash "$PROVISION_CMD" --target "$TARGET" \
-  --account "$ACCOUNT" --operator "$OPERATOR" --key-line "$KEY_LINE" --sealed || {
+printf '%s\n' "$SUDO_PASS" | DTACC_SEALED_OUT="$PASS_FILE" bash "$PROVISION_CMD" --target "$TARGET" \
+  --account "$ACCOUNT" --full-name "$FULL_NAME" --key-line "$KEY_LINE" --sealed || {
   echo "ERROR: the host step did not finish; nothing else was started." >&2
   exit 1
 }
@@ -827,7 +835,10 @@ fi
 
 # ── The IAM identity ─────────────────────────────────────────────────────────
 
-iam_operator_ensure "$ACCOUNT" "$IAM_USER_EXISTS" "$DEV_TESTER_ROLE_ARN" || exit 1
+if (( IAM_ADOPT_LEGACY )); then
+  iam_dev_tester_adopt_legacy "$ACCOUNT" || exit 1
+fi
+iam_dev_tester_ensure "$ACCOUNT" "$IAM_USER_EXISTS" "$DEV_TESTER_ROLE_ARN" || exit 1
 IAM_KEY_DELIVERY="install"
 IAM_KEY_AWS_ARGS=()
 iam_key_provision "$ACCOUNT" "" 1 || exit 1
@@ -836,7 +847,7 @@ iam_key_provision "$ACCOUNT" "" 1 || exit 1
 
 DELIVERY_TARGET="$TARGET"
 DELIVERY_ACCOUNT="$ACCOUNT"
-DELIVERY_OPERATOR="$OPERATOR"
+DELIVERY_FULL_NAME="$FULL_NAME"
 DELIVERY_AWS_ACCESS_KEY_ID="$IAM_KEY_AKID"
 DELIVERY_AWS_SECRET_ACCESS_KEY="$IAM_KEY_SAK"
 DELIVERY_AWS_ACCOUNT_ID="$ACCOUNT_ID"
@@ -888,7 +899,7 @@ onboard_readback "$IAM_KEY_AKID"
 onboard_evidence "$IAM_KEY_AKID" "$ADDRESS" "not yet: seen once they accept, by --verify"
 
 echo ""
-echo "1. Get that file to ${OPERATOR} by any channel. It is useless to anybody else."
+echo "1. Get that file to ${FULL_NAME} by any channel. It is useless to anybody else."
 echo "   Onboarding yourself, it is already where it needs to be."
 echo ""
 echo "2. They pull the public repository and run, on their own computer (on this one,"

@@ -105,8 +105,8 @@ archive_platform_url         = ""
 # url_screening_armed = "armed"
 # reachability_armed  = "armed"
 
-# ── Human operator job role ───────────────────────────────────────────────────
-# The shared role a named human operator assumes, declared in the identity tree.
+# ── Dev-and-tester job role ───────────────────────────────────────────────────
+# The shared role a named dev-and-tester assumes, declared in the identity tree.
 # Its ARN is predictable from the account id and the role name, so it is written
 # here directly once that tree has been applied rather than read back from IAM.
 # Left unset the tree still applies: the trust policy carries only the host

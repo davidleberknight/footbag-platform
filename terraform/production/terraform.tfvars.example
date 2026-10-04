@@ -282,9 +282,9 @@ enable_archive_custom_domain = false
 # url_screening_armed = "armed"
 # reachability_armed  = "armed"
 
-# ── Human operator job role ───────────────────────────────────────────────────
+# ── Dev-and-tester job role ───────────────────────────────────────────────────
 # There is deliberately nothing to set here. Staging carries a dev_tester_role_arn
-# for the shared job role a named human operator assumes; production does not,
+# for the shared job role a named dev-and-tester assumes; production does not,
 # because that role reaches no production resource, and having no line to fill in
 # is what enforces it rather than anyone remembering.
 #

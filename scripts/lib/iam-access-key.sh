@@ -5,7 +5,7 @@
 #
 # Several identities in this estate authenticate with long-lived access keys,
 # because a Lightsail instance carries no instance role: the monitoring agent's
-# publisher user, each environment's source-profile user, and the human operator
+# publisher user, each environment's source-profile user, and the footbag-operator
 # identity. Somebody therefore has to mint a credential, record it, install it,
 # and later retire its predecessor. The previous shape of that was hand-typed
 # commands around an installer: create the key into a temp file, remember to
@@ -80,7 +80,7 @@ IAM_KEY_VAULT_NOTES=""
 #            there is nothing to show and nothing to confirm, and the terminal
 #            requirement below drops with them: that requirement exists because
 #            a secret is about to be displayed, and here none is. The
-#            human-operator lifecycle is the only caller, by design — a human's
+#            dev-and-tester lifecycle is the only caller, by design — a human's
 #            own access key is deliberately never copied into the shared vault,
 #            so a vault prompt here would be asking the operator to break the
 #            custody rule.

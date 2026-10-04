@@ -111,8 +111,8 @@ source "${SCRIPT_DIR}/lib/aws-identity.sh"
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
 # shellcheck source=lib/ssh-alias.sh
 source "${SCRIPT_DIR}/lib/ssh-alias.sh"
-# shellcheck source=lib/operator-ssh-key.sh
-source "${SCRIPT_DIR}/lib/operator-ssh-key.sh"
+# shellcheck source=lib/dev-tester-ssh-key.sh
+source "${SCRIPT_DIR}/lib/dev-tester-ssh-key.sh"
 # shellcheck source=lib/operator-credential.sh
 source "${SCRIPT_DIR}/lib/operator-credential.sh"
 # shellcheck source=lib/vendor-secret.sh
@@ -180,7 +180,7 @@ if (( ${#WRONG_VERSIONS[@]} )); then
   echo "ERROR: the right tools are here, at the wrong versions:" >&2
   printf '  - %s\n' "${WRONG_VERSIONS[@]}" >&2
   echo "Nothing was changed on this machine. Install the pinned versions with:" >&2
-  echo "  bash scripts/setup-dev-workstation.sh --operator --account ${ACCOUNT}" >&2
+  echo "  bash scripts/setup-dev-workstation.sh --aws --account ${ACCOUNT}" >&2
   echo "then run this again." >&2
   exit 1
 fi
@@ -414,9 +414,47 @@ aws_config_has_profile "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" && RT_PRESENT=1
 # through the job role under that name would quietly change what every
 # administrator run on this machine acts as. This decides only whether to write
 # a file entry, never who anybody is; the profile list is the CLI's own answer.
+#
+# Fails closed. The files are read directly as well as through the CLI, and a CLI
+# that cannot list profiles stops the run: reading that failure as "no
+# footbag-operator here" would write a job-role chain over the administrators'
+# name on exactly the machine this check protects.
 OPERATOR_PROFILE_HERE=0
-if grep -qx 'footbag-operator' <<<"$("$AWS_BIN" configure list-profiles 2>/dev/null || true)"; then
+if aws_cred_has_section "$CRED_FILE" footbag-operator \
+   || aws_config_has_profile "$CONFIG_FILE" footbag-operator; then
   OPERATOR_PROFILE_HERE=1
+elif ! LISTED_PROFILES="$("$AWS_BIN" configure list-profiles 2>/dev/null)"; then
+  echo "ERROR: the AWS CLI could not list this machine's profiles, so whether it" >&2
+  echo "       carries the footbag-operator profile cannot be told. No profile was" >&2
+  echo "       written. Check ${CONFIG_FILE} and ${CRED_FILE} parse, then run this again." >&2
+  exit 1
+elif grep -qx 'footbag-operator' <<<"$LISTED_PROFILES"; then
+  OPERATOR_PROFILE_HERE=1
+fi
+
+# On that same machine the pin file is the administrators' too. A delivery whose
+# host keys disagree with lines already pinned there is a stale delivery or a
+# rebuilt host, and either way not this run's to settle: replacing the pins would
+# change what every administrator connection trusts. Checked here, before any
+# file is written, so a refusal leaves the machine exactly as it was. A file with
+# no line for the host at all is only missing a pin, and step 5 adds it.
+if (( OPERATOR_PROFILE_HERE )); then
+  _admin_pins="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
+  for _pin in "${DELIVERY_PINS[@]}"; do
+    _pin_host="${_pin%% *}"
+    _pin_key="$(cut -d' ' -f2,3 <<<"$_pin")"
+    _pinned="$(ssh-keygen -F "$_pin_host" -f "$_admin_pins" 2>/dev/null | grep -v '^#' || true)"
+    if [[ -n "$_pinned" ]] && ! grep -qF -- "$_pin_key" <<<"$_pinned"; then
+      echo "ERROR: ${_admin_pins} already pins ${_pin_host} with a different key than" >&2
+      echo "       this delivery carries. On a machine holding the footbag-operator" >&2
+      echo "       profile those pins are the administrators', and this run does not" >&2
+      echo "       replace them. No profile or pin was written. If the host was rebuilt," >&2
+      echo "       re-pin it as footbag-operator first, then run this again:" >&2
+      echo "         bash scripts/install-known-hosts.sh --target ${TARGET}" >&2
+      exit 1
+    fi
+  done
+  unset _admin_pins _pin _pin_host _pin_key _pinned
 fi
 WRITE_RT=0
 (( ! RT_PRESENT && ! OPERATOR_PROFILE_HERE )) && WRITE_RT=1
@@ -651,7 +689,7 @@ case "$_rc" in
     cat "$STANZA_TMP" > "$SSH_CONFIG"
     ;;
   2)
-    _host="$("$OSK_SSH_BIN" -G "$ALIAS" </dev/null 2>/dev/null | awk '/^hostname /{print $2}' | tail -1)"
+    _host="$("$DTSK_SSH_BIN" -G "$ALIAS" </dev/null 2>/dev/null | awk '/^hostname /{print $2}' | tail -1)"
     if [[ "$_host" != "$DELIVERY_HOST_ADDRESS" ]]; then
       echo "ERROR: your ${ALIAS} stanza points at '${_host}', not ${DELIVERY_HOST_ADDRESS}." >&2
       echo "       It is yours and is not edited here. Correct its Hostname and re-run." >&2
@@ -664,7 +702,7 @@ case "$_rc" in
     exit 1
     ;;
 esac
-osk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" || exit 1
+dtsk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" || exit 1
 
 # ── 7. Your own sudo password ────────────────────────────────────────────────
 #

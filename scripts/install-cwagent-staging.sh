@@ -52,7 +52,7 @@
 # reads the file below. A run started without the redirect names the one it
 # needs. Production is its own script, with its own pair of files.
 #
-#   < ~/AWS/HOST_OPERATOR.txt bash scripts/install-cwagent-staging.sh
+#   < ~/AWS/DEV_TESTER_HOST.txt bash scripts/install-cwagent-staging.sh
 #
 # The retire and delete runs touch no host and take no password, so they are run
 # plainly:
@@ -82,7 +82,7 @@ OLD_KEY=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/HOST_OPERATOR.txt bash scripts/install-cwagent-staging.sh [--rotate] [--profile <p>]
+Usage: < ~/AWS/DEV_TESTER_HOST.txt bash scripts/install-cwagent-staging.sh [--rotate] [--profile <p>]
    or: bash scripts/install-cwagent-staging.sh --retire <old-key-id> [--profile <p>]
    or: bash scripts/install-cwagent-staging.sh --delete <old-key-id> [--profile <p>]
 
@@ -137,9 +137,9 @@ REMOTE="footbag-staging"
 # has no use for one, which is how a password ends up answering a prompt.
 #
 # The file it names comes from the shared rule, so the line is pasteable by
-# whoever is actually running it: an operator on a named account and one on the
-# shared account need different files, and a message that named either one
-# outright would be wrong for the other half of the operators.
+# whoever is actually running it: a dev-and-tester on their named account and a
+# footbag-operator holder on the shared account need different files, and a
+# message that named either one outright would be wrong for the other.
 if [[ "$ACTION" == "install" && -t 0 ]]; then
   # shellcheck source=lib/operator-credential.sh
   source "${SCRIPT_DIR}/lib/operator-credential.sh"

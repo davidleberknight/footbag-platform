@@ -6,7 +6,7 @@
  * to, so a fresh terminal has no AWS identity at all and the first command
  * needing one fails with the SDK's words about locating credentials. A
  * workstation carries the section holding the directly authenticated user's
- * key, or the section holding a named operator's own key with a role-assuming
+ * key, or the section holding a dev-and-tester's own key with a role-assuming
  * section beside it, or all of them on a machine whose owner is both.
  * Asking the operator to
  * export a variable in every new shell puts a step in a person's head that has
@@ -234,8 +234,8 @@ describe('aws_profile_ensure fills a vacuum', () => {
     // A named identity is chosen by the wrapper's switch and never
     // automatically. The wrapper is also what makes the host half follow, so a
     // run reaching the role without it would act as the person on AWS and as
-    // the shared account on the host. On a machine carrying only a named
-    // operator's own key the run has no identity, and the refusal names the
+    // the shared account on the host. On a machine carrying only a
+    // dev-and-tester's own key the run has no identity, and the refusal names the
     // switch rather than an installer.
     const r = withLib('aws_profile_ensure; echo "rc=$? profile=${AWS_PROFILE:-none}"', {
       ...stubEnv(['someone', 'FootbagDevTester']),
@@ -343,7 +343,7 @@ describe('aws_profile_ensure refuses rather than guessing', () => {
     expect(r.stderr).not.toMatch(/not yet built/);
   });
 
-  it('says a named operator cannot reinstall their own key, because no copy exists', () => {
+  it('says a dev-and-tester cannot reinstall their own key, because no copy exists', () => {
     // Their key is sealed to them alone and deliberately never copied into the
     // shared vault, so there is nowhere for them to fetch it from and telling
     // them to look is worse than saying nothing.
@@ -402,7 +402,7 @@ describe('what the run says about itself', () => {
 
 describe('the job role is a fixed name', () => {
   it('ignores an exported role name, so onboarding cannot be pointed at another role', () => {
-    // The role's name decides what onboarding grants a new operator permission
+    // The role's name decides what onboarding grants a new dev-and-tester permission
     // to assume. An exported value choosing it would let ambient state in an
     // operator's shell grant a person some other role entirely.
     const r = withLib('echo "role=$FOOTBAG_DEV_TESTER_ROLE"', {
@@ -469,7 +469,7 @@ describe('aws_profile_use settles the run on one named identity', () => {
   });
 
   it('never sends somebody to the vault for a key the vault deliberately lacks', () => {
-    // A named operator's key exists in exactly one place, their own machine.
+    // A dev-and-tester's key exists in exactly one place, their own machine.
     // Pointing them at a vault entry is an instruction to hunt for something
     // that was deliberately never put there, arriving from the tooling itself.
     const r = withLib('aws_profile_use FootbagDevTester "why."', {
@@ -490,7 +490,7 @@ describe('aws_profile_use settles the run on one named identity', () => {
     });
     expect(r.stderr).toContain('bash scripts/install-operator-key.sh');
     expect(r.stderr).toContain('bash scripts/accept-dev-tester-onboarding.sh --target staging');
-    expect(r.stderr).not.toContain('manage-human-operator.sh --onboard');
+    expect(r.stderr).not.toContain('manage-dev-tester.sh --onboard');
     expect(r.stderr).toMatch(/chained runtime section/);
   });
 

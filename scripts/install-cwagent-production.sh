@@ -134,10 +134,9 @@ REMOTE="footbag-production"
 # retire runs would make the operator point a password file at a command that
 # has no use for one, which is how a password ends up answering a prompt.
 #
-# The file it names comes from the shared rule, so the line is pasteable by
-# whoever is actually running it: an operator on a named account and one on the
-# shared account need different files, and a message that named either one
-# outright would be wrong for the other half of the operators.
+# The file it names comes from the shared rule, which picks it from the account
+# the alias connects as, so the line stays right if that ever changes rather
+# than naming a file outright.
 if [[ "$ACTION" == "install" && -t 0 ]]; then
   # shellcheck source=lib/operator-credential.sh
   source "${SCRIPT_DIR}/lib/operator-credential.sh"

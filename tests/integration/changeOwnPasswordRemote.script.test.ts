@@ -1,5 +1,5 @@
 /**
- * scripts/internal/change-own-password-remote.sh — a named operator replacing the
+ * scripts/internal/change-own-password-remote.sh — a dev-and-tester replacing the
  * one-time password of their own host account, run for real against stub tools.
  *
  * Whose password changes is decided by sudo, not by the caller: it is the

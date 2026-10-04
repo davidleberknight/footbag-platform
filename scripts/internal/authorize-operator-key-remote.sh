@@ -86,7 +86,7 @@ if ! id -u -- "$AUTHKEY_ACCOUNT" >/dev/null 2>&1; then
   echo "ERROR: account ${AUTHKEY_ACCOUNT} does not exist on this host." >&2
   echo "       This script authorizes a key on an account that already exists;" >&2
   echo "       it never creates one. Creating an account is" >&2
-  echo "       provision-operator-account.sh, which is a different operation" >&2
+  echo "       provision-dev-tester-account.sh, which is a different operation" >&2
   echo "       with a different record." >&2
   exit 1
 fi

@@ -45,10 +45,15 @@ TF_AWS_SUBCOMMANDS='init|plan|apply|destroy|output|refresh|import|taint|untaint|
 # call: `grep -rn aws src/` and a comment mentioning the CLI must not prompt,
 # or the guard becomes noise and gets clicked through.
 CMD_START='(^|[;&|`({]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
+# Words that run the command after them rather than being the command: `env`
+# with its options and assignments, `sudo`, `command`, `exec`, `nohup`, `time`
+# and `xargs` with their flags. `env -i aws ...` is an aws call, and without
+# these the guard read it as an argument and stayed silent.
+WRAPPERS='((env([[:space:]]+(-[A-Za-z-]*([[:space:]]+[A-Za-z_][A-Za-z0-9_]*)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*))*|sudo([[:space:]]+-[A-Za-z]+)*|command|exec([[:space:]]+-[A-Za-z]+)*|nohup|time|xargs([[:space:]]+-[A-Za-z0-9]+)*)[[:space:]]+)*'
 
 aws_reaching_text() {
-  printf '%s' "$1" | grep -Eq "${CMD_START}aws([[:space:]]|$)" && return 0
-  printf '%s' "$1" | grep -Eq "${CMD_START}terraform([[:space:]]+-[^[:space:]]+)*[[:space:]]+($TF_AWS_SUBCOMMANDS)([[:space:]]|$)" && return 0
+  printf '%s' "$1" | grep -Eq "${CMD_START}${WRAPPERS}aws([[:space:]]|$)" && return 0
+  printf '%s' "$1" | grep -Eq "${CMD_START}${WRAPPERS}terraform([[:space:]]+-[^[:space:]]+)*[[:space:]]+($TF_AWS_SUBCOMMANDS)([[:space:]]|$)" && return 0
   return 1
 }
 
@@ -71,12 +76,58 @@ collect_npm_script_bodies() {
   done
 }
 
+# A script whose first command cuts it off from AWS cannot reach it, whatever
+# its text names: `aws_isolate_self "$@"` from scripts/lib/aws-isolation.sh
+# re-runs it with every credential source broken, and everything it starts
+# inherits that. Such a script is trusted without reading its body, which is
+# what keeps the hook fixture suite, whose fixtures name the aws CLI as data,
+# from prompting. Only the code counts: comments and blank lines are skipped,
+# and the only commands allowed ahead of the call are `set` and the sourcing of
+# that library. A script that later exports, unsets or reassigns an AWS_
+# variable, or runs `env -i` / `env -u`, could undo the isolation, so it is read
+# as usual.
+script_is_aws_isolated() {
+  local code line
+  code="$(printf '%s\n' "$1" | sed -e 's/^[[:space:]]*//' | grep -v -e '^#' -e '^$' || true)"
+  # Anything that could put a credential source back: a statement naming an
+  # AWS_ variable at command position (assignment, export, unset, declare,
+  # readonly, with or without option flags, at line start or after a
+  # separator), an `env` that empties or edits the environment, `exec -c`, or
+  # `sudo`, whose environment reset hands back the target user's credentials.
+  local sep='(^|[;&|(`{][[:space:]]*)'
+  if printf '%s\n' "$code" | grep -Eq \
+      -e "${sep}((export|unset|declare|typeset|local|readonly)([[:space:]]+-[A-Za-z-]*)*[[:space:]]+)?AWS_[A-Z_]*(=|[[:space:]]|\$)" \
+      -e "${sep}env([[:space:]]+[^[:space:]]+)*[[:space:]]+(-|-[A-Za-z]*[iu][A-Za-z]*|--unset(=[^[:space:]]*)?|--ignore-environment)([[:space:]]|\$)" \
+      -e "${sep}exec[[:space:]]+-[A-Za-z]*c" \
+      -e "${sep}sudo([[:space:]]|\$)"; then
+    return 1
+  fi
+  # Only plain setup may precede the call, each in one exact form: a `set` line
+  # of option flags, or the sourcing of the isolation library by one of its two
+  # fixed spellings. Anything else, a substitution or separator included, could
+  # hide a command, so it ends the trust.
+  while IFS= read -r line; do
+    if printf '%s\n' "$line" | grep -Eq '^set( [-+][a-zA-Z]+( [a-z]+)?)+$'; then
+      continue
+    fi
+    case "$line" in
+      'source "$(dirname "$0")/../lib/aws-isolation.sh"'|'source scripts/lib/aws-isolation.sh') continue ;;
+      'aws_isolate_self "$@"') return 0 ;;
+      *) return 1 ;;
+    esac
+  done <<EOF
+$code
+EOF
+  return 1
+}
+
 scan_script() {
   local path="$1" depth="$2" body nested
   [ -f "$path" ] || return 1
   [ "$depth" -gt 2 ] && return 1
   body="$(cat "$path" 2>/dev/null || true)"
   [ -n "$body" ] || return 1
+  script_is_aws_isolated "$body" && return 1
   aws_reaching_text "$body" && return 0
 
   # Follow npm scripts named inside this script, then the .sh files either the

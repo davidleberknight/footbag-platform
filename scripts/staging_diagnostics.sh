@@ -29,8 +29,9 @@
 # remote step in this tree never drives an interactive sudo prompt.
 #
 # The destination is the connecting account's own home, written as ~, never a
-# literal path: every operator connects as themselves, so a literal names one
-# person's home and fails or writes to the wrong place for everybody else.
+# literal path: administrators connect as the shared account and each
+# dev-and-tester as their own named account, so a literal names one account's
+# home and fails or writes to the wrong place for everybody else.
 #
 # Upload it each time rather than reaching for a copy already on the host. The
 # deploy carries only the scripts the host itself invokes, so this file is not
@@ -57,10 +58,10 @@ set -euo pipefail
 # Everything below reads the LIVE install, /srv/footbag, which is where the
 # deploy promotes a release to and where it composes the running stack from.
 #
-# It deliberately does not read an operator's upload directory. That directory
+# It deliberately does not read anyone's upload directory. That directory
 # lives in the connecting account's own home and is therefore a different path
-# for every operator, so a literal one names whichever account it was written
-# for: on any other operator's run it is either missing, or it is somebody
+# for every connecting account, so a literal one names whichever account it was
+# written for: on any other account's run it is either missing, or it is somebody
 # else's staging copy of whatever they last uploaded. Diagnostics that read a
 # different definition from the one the host is running are worse than no
 # diagnostics, because they answer confidently.
@@ -116,7 +117,7 @@ cmd_git_sha() {
   # artifact, so uncommitted edits are part of what is running and a commit
   # alone does not describe it. The record carries the commit, how many paths
   # were uncommitted, and which. A git tree in somebody's upload directory
-  # carries none of that, and belongs to whichever operator deployed last.
+  # carries none of that, and belongs to whichever account deployed last.
   if [[ -r "${LIVE_DIR}/deployed-from" ]]; then
     cat "${LIVE_DIR}/deployed-from"
   else
@@ -335,7 +336,7 @@ cmd_systemd() { banner "systemctl status footbag.service"; sudo systemctl status
 #
 # Four sections, because each has produced a failure that read as one of the
 # others. sshd's effective settings come first and matter most: creating a
-# named operator account while password authentication is on produces a
+# dev-and-tester's named account while password authentication is on produces a
 # password-loginable login whose password also unlocks sudo, and nothing in the
 # provisioning path notices. The settings are taken from `sshd -T` because an
 # Include directive means the file on disk is not the configuration in force.
@@ -916,10 +917,11 @@ cmd_previous_release() {
   sudo ls -ld "$LIVE_DIR" 2>/dev/null || true
   banner "What it was deployed from"
   sudo cat "${LIVE_DIR}/deployed-from" 2>/dev/null || echo "(no deploy record)"
-  banner "Upload directories, one per operator who has deployed"
-  # Every operator uploads into their own home before the promotion, so this is
-  # a glob rather than a path: there is no single release directory any more,
-  # and naming one would name whichever operator it was written for.
+  banner "Upload directories, one per account that has deployed"
+  # Every deploy uploads into the connecting account's home before the
+  # promotion, the shared account's or a dev-and-tester's named one, so this is
+  # a glob rather than a path, and naming one would name whichever account it
+  # was written for.
   sudo ls -ld /home/*/footbag-release 2>/dev/null || echo "(none)"
 }
 

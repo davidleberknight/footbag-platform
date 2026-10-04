@@ -10,7 +10,7 @@
 #     cat scripts/internal/host-env-read-remote.sh;
 #   } | ssh REMOTE 'sudo -k -S -p "" bash'
 #
-# /srv/footbag/env is root:root 0600, so the operator's own account cannot read
+# /srv/footbag/env is root:root 0600, so the connecting account cannot read
 # it and something has to run as root to hand it over. This body does that and
 # nothing else: it writes no file anywhere on the host, so there is no staged
 # copy of the secret set to shred afterwards and no cleanup step that a crash,

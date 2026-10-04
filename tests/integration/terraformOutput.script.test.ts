@@ -202,11 +202,11 @@ describe('tf_output_explain', () => {
     expect(r.stderr).toMatch(/no operator profile is set up on this machine/);
     // A remedy is named for each, and the one for a dead credential points at
     // the check that says WHICH of the two it is rather than at either fix: a
-    // named operator's key and the directly authenticated one are reinstalled
+    // named dev-and-tester's key and the directly authenticated one are reinstalled
     // by different people through different commands, and guessing wrong here
     // sends somebody looking for a vault entry that deliberately does not
     // exist.
-    expect(r.stderr).toContain('bash scripts/manage-human-operator.sh');
+    expect(r.stderr).toContain('bash scripts/manage-dev-tester.sh');
     expect(r.stderr).toContain('bash scripts/setup-operator-workstation.sh');
     // And terraform's own sentence, which is the one that distinguishes them.
     expect(r.stderr).toContain('Error: nope');

@@ -1,5 +1,5 @@
 /**
- * The shared human-operator job role, and the properties of it whose failure
+ * The shared dev-and-tester job role, and the properties of it whose failure
  * mode is silence.
  *
  * Every defect here surfaces for the first time as an AccessDenied partway
@@ -31,7 +31,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const ROLE_TF = resolve(__dirname, '../../terraform/identity/human-operator-role.tf');
+const ROLE_TF = resolve(__dirname, '../../terraform/identity/dev-tester-role.tf');
 const source = readFileSync(ROLE_TF, 'utf-8');
 
 /**
@@ -111,7 +111,7 @@ function scopeBlock(): string {
 describe('the job role carries exactly the statements it is meant to', () => {
   it('assembles three named lists, and adding or dropping one is a change here too', () => {
     // The exact sets, in order. A statement added to the locals block and wired
-    // into a policy is a real widening of what every operator may do, and it
+    // into a policy is a real widening of what every dev-and-tester may do, and it
     // should not be possible to land one without this line changing.
     expect(assembled()).toEqual({
       StagingServices: [
@@ -137,7 +137,7 @@ describe('the job role carries exactly the statements it is meant to', () => {
       Guardrails: [
         'no_self_elevation',
         'never_touch_super_admin_identity',
-        'never_administer_a_human_operator',
+        'never_administer_a_dev_tester',
         'never_touch_this_role',
         'never_rewrite_a_role_we_can_assume',
         'never_graft_an_alias_onto_production',
@@ -253,8 +253,8 @@ describe('the job role grants what a terraform plan actually calls', () => {
     // conditioned on an alias a key does not carry until its own alias resource
     // exists, so the calls terraform makes in that window must be here —
     // rotation always is, since every key in both trees enables it. And
-    // widening this far enough to cover a key's whole lifecycle would let an
-    // operator seize or schedule the deletion of any key in the account,
+    // widening this far enough to cover a key's whole lifecycle would let a
+    // dev-and-tester seize or schedule the deletion of any key in the account,
     // including one this project never named.
     const list = actions('CallsThatCarryNoResource');
     expect(list).toEqual([
@@ -356,7 +356,7 @@ describe('the job role grants what a terraform plan actually calls', () => {
   });
 
   it('grants the reads the operator scripts make, and only the reads', () => {
-    // Three scripts an operator runs through this role failed on these:
+    // Three scripts a dev-and-tester runs through this role failed on these:
     // verify-account-baseline.sh on the account controls and the dormant
     // Identity Center instance, dns-ttl-preflight.sh and verify-zone-mirror.sh
     // on the zone's records. A refused read reads as a broken credential rather
@@ -446,14 +446,14 @@ describe('the job role cannot become an administrator', () => {
     expect(s).toContain('Resource  = local.dev_tester_role_arn');
   });
 
-  it('cannot administer a human operator, and the list is enumerated for a reason', () => {
-    // Enumerated rather than inverted, unlike the two beside it, because an
-    // operator legitimately reads and simulates against their own user and
+  it('cannot administer a dev-and-tester, and the list is enumerated for a reason', () => {
+    // Enumerated rather than inverted, unlike the two beside it, because a
+    // dev-and-tester legitimately reads and simulates against their own user and
     // their colleagues': the inverted form would deny the reads the workstation
     // check and the lifecycle verifier both depend on. That makes the exactness
     // of this list the whole of the protection against any IAM grant the role
     // gains later, since anything not named here would then be permitted.
-    expect(actions('NeverAdministerAHumanOperator')).toEqual([
+    expect(actions('NeverAdministerADevTester')).toEqual([
       'iam:CreateUser',
       'iam:DeleteUser',
       'iam:UpdateUser',
@@ -496,8 +496,8 @@ describe('the job role cannot become an administrator', () => {
       'iam:DeleteServiceSpecificCredential',
       'iam:ResetServiceSpecificCredential',
     ]);
-    const s = statement('NeverAdministerAHumanOperator');
-    expect(s).toContain('local.human_operator_arn_pattern');
+    const s = statement('NeverAdministerADevTester');
+    expect(s).toContain('local.dev_tester_arn_pattern');
     expect(s).toContain(':mfa/*"');
   });
 
@@ -524,10 +524,19 @@ describe('the job role cannot become an administrator', () => {
     // Inverted rather than enumerated, like the two denials it sits beside, so
     // an IAM action added later is denied by default. Reads stay, because a
     // policy simulation against the role is how a grant is checked.
+    //
+    // sts:AssumeRole is exempt too: the inversion matches every action on the
+    // runtime role's ARN, so leaving it out denies the chain into that role and
+    // every staging deploy and check run as a dev-and-tester fails.
     const s = statement('NeverRewriteARoleWeCanAssume');
     expect(s).toContain('Effect');
     expect(s).toContain('"Deny"');
-    expect(s).toContain('NotAction = ["iam:Get*", "iam:List*", "iam:Simulate*"]');
+    expect(actions('NeverRewriteARoleWeCanAssume', 'NotAction')).toEqual([
+      'iam:Get*',
+      'iam:List*',
+      'iam:Simulate*',
+      'sts:AssumeRole',
+    ]);
     expect(s).toContain('local.scope.runtime_roles');
   });
 
@@ -547,6 +556,13 @@ describe('the job role cannot become an administrator', () => {
     // production covers only what is already labelled production.
     expect(statement('NeverGraftAnAliasOntoProduction')).toContain(
       'StringNotEquals = { "aws:ResourceTag/Environment" = "staging" }',
+    );
+    // Scoped to key ARNs. KMS authorises an alias call against the alias as
+    // well as the key, and evaluates no condition key where the resource is
+    // the alias, so over "*" the absent tag satisfies the negated match and
+    // staging's own alias changes are denied partway through an apply.
+    expect(statement('NeverGraftAnAliasOntoProduction')).toMatch(
+      /\n\s+Resource\s+= "arn:aws:kms:\*:\$\{var\.aws_account_id\}:key\/\*"/,
     );
   });
 
@@ -600,7 +616,7 @@ describe('the job role cannot become an administrator', () => {
 
   it('is denied the host-access certificate on every instance, staging included', () => {
     // The certificate opens a root shell as the default login account with no
-    // key or password of the operator's own. The permission to mint it is the
+    // key or password of the caller's own. The permission to mint it is the
     // whole control over that path, and nothing a job-role holder does needs
     // it: a dev-and-tester's sudo comes through their own named account.
     const s = statement('NeverMintHostAccessDetails');
@@ -735,39 +751,113 @@ describe('the job role reaches staging and nothing else', () => {
 });
 
 describe('the trust policy is what makes attribution real on a shared role', () => {
-  it('admits only IAM users under the operator path', () => {
+  it('admits only IAM users under the dev-tester path', () => {
     // The condition, not the principal, is what narrows this. The principal is
     // the account root, which on its own would admit every identity in the
     // account; the ArnLike is the whole of the restriction, so its absence
     // would be a silent opening of the role to anybody.
-    const at = source.indexOf('Sid       = "NamedHumanOperatorsMayAssume"');
+    const at = source.indexOf('Sid       = "NamedDevTestersMayAssume"');
     expect(at).toBeGreaterThanOrEqual(0);
     const block = source.slice(at, at + 900);
-    expect(block).toContain('"aws:PrincipalArn" = local.human_operator_arn_pattern');
+    expect(block).toContain('"aws:PrincipalArn" = local.dev_tester_arn_pattern');
     expect(block).toContain('ArnLike');
   });
 
   it('binds the session name to the assuming user, as a literal policy variable', () => {
     // Setting the session name in the workstation profile is client-side and
-    // an operator can edit it. As a trust condition it is binding, and that is
+    // a dev-and-tester can edit it. As a trust condition it is binding, and that is
     // the whole of what makes a shared role attributable to a person.
     //
     // The HCL escape matters as much as the condition: written with one dollar
     // sign, Terraform would interpolate it at plan time and emit an empty
     // string, which no session name can equal, and the role would admit nobody.
-    const at = source.indexOf('Sid       = "NamedHumanOperatorsMayAssume"');
+    const at = source.indexOf('Sid       = "NamedDevTestersMayAssume"');
     const block = source.slice(at, at + 900);
     expect(block).toContain('"sts:RoleSessionName" = "$${aws:username}"');
     expect(block).toContain('StringEquals');
   });
 
   it('admits neither the directly authenticated identity nor any role', () => {
-    // Neither `user/footbag-operator` nor any role ARN matches the operator
+    // Neither `user/footbag-operator` nor any role ARN matches the dev-tester
     // path pattern, so the break-glass identity reaches the estate as itself
     // rather than through this role, and no role can chain into it.
-    const at = source.indexOf('Sid       = "NamedHumanOperatorsMayAssume"');
+    const at = source.indexOf('Sid       = "NamedDevTestersMayAssume"');
     const block = source.slice(at, at + 900);
     expect(block).not.toContain('local.super_admin_user_arn');
     expect(block).not.toMatch(/:role\//);
+  });
+});
+
+/**
+ * The ARN patterns a statement's Resource expression names, with the account
+ * id left as written. Only the shapes the role file uses are resolved: a quoted
+ * ARN, a `local.scope.<key>` entry, or a top-level `local.<name>`. A list
+ * resource returns whichever of its entries resolve.
+ */
+function resourcePatterns(sid: string): string[] {
+  const s = statement(sid);
+  const at = s.search(/\n\s+Resource\s+=/);
+  if (at < 0) return [];
+  const rest = s.slice(at).replace(/^\n\s+Resource\s+=\s*/, '');
+  const expr = rest.startsWith('[') ? rest.slice(1, rest.search(/\n\s*\]/)) : rest.split('\n')[0];
+  const scope = scopeBlock();
+  const out: string[] = [];
+  for (const m of expr.matchAll(/"([^"]+)"|local\.scope\.(\w+)|local\.(\w+)/g)) {
+    if (m[1]) out.push(m[1]);
+    else if (m[2]) {
+      const entry = scope.match(new RegExp(`\\n\\s+${m[2]}\\s+= (\\[[\\s\\S]*?\\]|"[^"]+")`));
+      expect(entry, `scope has no ${m[2]}`).toBeTruthy();
+      out.push(...[...entry![1].matchAll(/"([^"]+)"/g)].map((e) => e[1]));
+    } else if (m[3]) {
+      const def = source.match(new RegExp(`\\n\\s+${m[3]}\\s+= "([^"]+)"`));
+      expect(def, `no local ${m[3]}`).toBeTruthy();
+      out.push(def![1]);
+    }
+  }
+  return out;
+}
+
+/** An IAM wildcard pattern as an anchored regex: `*` spans anything, colons included. */
+function globToRegex(pattern: string): RegExp {
+  return new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
+}
+
+describe('no deny silently cancels a grant the job role holds', () => {
+  it('exempts from every inverted deny each action an allow grants inside its scope', () => {
+    // An inverted deny (NotAction) matches every action of every service on its
+    // resource except the ones it lists, so an allow aimed inside that resource
+    // is cancelled unless each of its actions is listed. That is how the deny
+    // guarding the staging runtime role against rewrites also refused
+    // sts:AssumeRole on it, and no dev-and-tester could chain into the runtime
+    // role at all. Checked across every pair rather than per statement, so an
+    // action added to an allow, or a new inverted deny, is caught here.
+    const sids = [...source.matchAll(/\n\s+Sid\s+= "(\w+)"/g)].map((m) => m[1]);
+    const effect = (sid: string) => statement(sid).match(/\n\s+Effect\s+= "(\w+)"/)![1];
+    const inverted = sids.filter(
+      (sid) => effect(sid) === 'Deny' && /\n\s+NotAction\s+=/.test(statement(sid)),
+    );
+    const allows = sids.filter((sid) => effect(sid) === 'Allow');
+    expect(inverted.length, 'no inverted deny found, so the check is reading nothing').toBeGreaterThan(2);
+
+    const cancelled: string[] = [];
+    let pairs = 0;
+    for (const deny of inverted) {
+      const denyScope = resourcePatterns(deny).map(globToRegex);
+      const exempt = actions(deny, 'NotAction').map(globToRegex);
+      for (const allow of allows) {
+        const inside = resourcePatterns(allow).filter((r) => r !== '*' && denyScope.some((d) => d.test(r)));
+        if (inside.length === 0) continue;
+        pairs += 1;
+        for (const action of actions(allow)) {
+          if (!exempt.some((e) => e.test(action))) {
+            cancelled.push(`${deny} cancels ${action} granted by ${allow} on ${inside.join(', ')}`);
+          }
+        }
+      }
+    }
+    // The two pairs the role depends on: the chain into the runtime role, and
+    // the read of the dev-and-tester addresses the staging plan makes.
+    expect(pairs, 'no allow falls inside an inverted deny, so nothing was compared').toBeGreaterThanOrEqual(2);
+    expect(cancelled).toEqual([]);
   });
 });

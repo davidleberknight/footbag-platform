@@ -20,7 +20,7 @@ resource "aws_iam_role" "app_runtime" {
   #     the operator-workstation chained-AssumeRole path used by
   #     tests/smoke/staging-readiness.test.ts via
   #     AWS_PROFILE=footbag-staging-runtime)
-  #   - the shared job role a named human operator assumes, once the identity
+  #   - the shared job role a named dev-and-tester assumes, once the identity
   #     tree has been applied
   #
   # All three entries stay. The super-admin identity's ARN is what lets a
@@ -166,7 +166,7 @@ resource "aws_iam_role_policy" "app_s3_media" {
 # the two SES send actions; staging's grants none. On staging, email is the
 # adapter stub and nothing else: the deploy forces the stub onto every
 # non-production host, and nothing that runs as this role sends. A send grant
-# here would also be reachable by every operator who can assume the shared job
+# here would also be reachable by every dev-and-tester who can assume the shared job
 # role, since that role chains into this one, so withholding it keeps staging
 # from mailing anybody as the project. Real sending is first exercised on
 # production. The resource name keeps its jwt-ses form so the address matches

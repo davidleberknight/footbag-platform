@@ -70,7 +70,7 @@
 #   --profile <name>   AWS CLI profile to act through. Required, no default:
 #                      which credentials a rotation runs on is the operator's
 #                      decision and not one this script may make quietly.
-#   --user <name>      The IAM user. Defaults to the single human operator
+#   --user <name>      The IAM user. Defaults to the single footbag-operator
 #                      identity, because there is exactly one and naming it
 #                      here is what makes a typo impossible.
 #   --issue            Mint the replacement.
@@ -173,7 +173,7 @@ fi
 
 case "$ACTION" in
   issue)
-    IAM_KEY_VAULT_NOTES="Long-lived IAM access key for the human operator identity, used from an
+    IAM_KEY_VAULT_NOTES="Long-lived IAM access key for the footbag-operator identity, used from an
 operator workstation for AWS CLI and terraform work. It is also the
 source identity every chained runtime profile assumes from, so both
 runtime roles name this user in their trust policies.

@@ -157,7 +157,7 @@ function workstationHeldIt(): void {
   writeFileSync(namedKey, 'private', 'utf-8');
   writeFileSync(`${namedKey}.pub`, 'ssh-ed25519 AAAA jane_doe\n', 'utf-8');
   mkdirSync(join(workDir, 'AWS'), { recursive: true });
-  writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'their-password\n', 'utf-8');
+  writeFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'their-password\n', 'utf-8');
   writeFileSync(awsCred, `${OPERATOR_CRED}\n${NAMED_CRED}`, 'utf-8');
   writeFileSync(awsConfig, `${OPERATOR_CONFIG}\n${NAMED_CONFIG}`, 'utf-8');
 }
@@ -206,7 +206,7 @@ function addressStub(removeExit: number): string {
 function getUserAnswer(iamUser: IamUser): string[] {
   switch (iamUser) {
     case 'present':
-      return ["  printf '%s\\n' /footbag-operators/", '  exit 0'];
+      return ["  printf '%s\\n' /footbag-dev-testers/", '  exit 0'];
     case 'absent':
       return [
         '  echo "An error occurred (NoSuchEntity) when calling the GetUser operation: The user with name jane_doe cannot be found." >&2',
@@ -364,7 +364,7 @@ describe('offboard-dev-tester on a maintainer\'s own machine', () => {
     mkdirSync(join(workDir, 'AWS'), { recursive: true });
     writeFileSync(join(workDir, 'AWS', 'AWS_OPERATOR.txt'), ADMIN_FILES['AWS/AWS_OPERATOR.txt']);
     writeFileSync(join(workDir, 'AWS', 'AWS_OPERATOR_PRODUCTION.txt'), ADMIN_FILES['AWS/AWS_OPERATOR_PRODUCTION.txt']);
-    writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'their-password\n');
+    writeFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'their-password\n');
     mkdirSync(join(workDir, '.ssh'), { recursive: true });
     writeFileSync(namedKey, 'private');
     writeFileSync(`${namedKey}.pub`, 'ssh-ed25519 AAAA jane_doe\n');
@@ -381,7 +381,7 @@ describe('offboard-dev-tester on a maintainer\'s own machine', () => {
     expect(readFileSync(sshConfig, 'utf-8')).toBe(ADMIN_STANZAS);
     expect(readFileSync(join(workDir, 'AWS', 'AWS_OPERATOR.txt'), 'utf-8')).toBe(ADMIN_FILES['AWS/AWS_OPERATOR.txt']);
     expect(readFileSync(join(workDir, 'AWS', 'AWS_OPERATOR_PRODUCTION.txt'), 'utf-8')).toBe(ADMIN_FILES['AWS/AWS_OPERATOR_PRODUCTION.txt']);
-    expect(existsSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'))).toBe(false);
+    expect(existsSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'))).toBe(false);
     expect(existsSync(`${namedKey}.onboarded`), 'the acceptance marker goes with the pair').toBe(false);
     expect(r.stdout).toMatch(/acceptance marker: removed/);
   });
@@ -414,7 +414,7 @@ describe('offboard-dev-tester offboards the named identity this machine accepted
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(namedKey)).toBe(false);
     expect(existsSync(`${namedKey}.pub`)).toBe(false);
-    expect(existsSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'))).toBe(false);
+    expect(existsSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'))).toBe(false);
     expect(readFileSync(sshConfig, 'utf-8')).not.toContain(ACCOUNT);
     expect(readFileSync(awsCred, 'utf-8')).not.toContain(`[${ACCOUNT}]`);
     expect(readFileSync(awsConfig, 'utf-8')).not.toContain('FootbagDevTester');
@@ -487,13 +487,13 @@ describe('offboard-dev-tester offboarding somebody else from your workstation', 
     // This machine's own named account has its block and password file here,
     // and neither is the departing person's.
     mkdirSync(join(workDir, 'AWS'), { recursive: true });
-    writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'the-holders-password\n', 'utf-8');
+    writeFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'the-holders-password\n', 'utf-8');
     writeFileSync(sshConfig, blockFor('david_leberknight') + stanza('footbag'), 'utf-8');
     const before = readFileSync(sshConfig, 'utf-8');
     const r = run({ keepConfig: true });
     expect(r.status, r.stderr).toBe(0);
     expect(readFileSync(sshConfig, 'utf-8')).toBe(before);
-    expect(readFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'utf-8')).toBe('the-holders-password\n');
+    expect(readFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'utf-8')).toBe('the-holders-password\n');
     expect(r.stdout).toMatch(/nothing of jane_doe's is on this machine/);
   });
 
@@ -502,14 +502,14 @@ describe('offboard-dev-tester offboarding somebody else from your workstation', 
     // the one password file here belongs to the named account the Match block
     // connects as, which is yours.
     mkdirSync(join(workDir, 'AWS'), { recursive: true });
-    writeFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'the-holders-password\n', 'utf-8');
+    writeFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'the-holders-password\n', 'utf-8');
     writeFileSync(sshConfig, blockFor('david_leberknight') + stanza('footbag'), 'utf-8');
     mkdirSync(join(workDir, '.ssh'), { recursive: true });
     writeFileSync(namedKey, 'private', 'utf-8');
     writeFileSync(`${namedKey}.pub`, 'ssh-ed25519 AAAA jane_doe\n', 'utf-8');
     const r = run({ keepConfig: true });
     expect(r.status, r.stderr).toBe(0);
-    expect(readFileSync(join(workDir, 'AWS', 'HOST_OPERATOR.txt'), 'utf-8')).toBe('the-holders-password\n');
+    expect(readFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'utf-8')).toBe('the-holders-password\n');
     expect(r.stdout).toMatch(/left alone, because this machine's named account\s+is david_leberknight/);
     expect(existsSync(namedKey)).toBe(false);
   });
@@ -694,8 +694,8 @@ describe('offboard-dev-tester resumes a run that stopped after the host step', (
  * that needs a host or an account.
  */
 describe('offboard-dev-tester.sh — the real children accept what the parent sends them', () => {
-  const HOST_CHILD = join(process.cwd(), 'scripts/provision-operator-account.sh');
-  const AWS_CHILD = join(process.cwd(), 'scripts/manage-human-operator.sh');
+  const HOST_CHILD = join(process.cwd(), 'scripts/provision-dev-tester-account.sh');
+  const AWS_CHILD = join(process.cwd(), 'scripts/manage-dev-tester.sh');
 
   const spawnChild = (child: string, args: string[]) =>
     spawnSync('bash', [child, ...args], {
@@ -706,13 +706,13 @@ describe('offboard-dev-tester.sh — the real children accept what the parent se
       ...SPAWN_GUARD,
     });
 
-  it('the host child accepts a retirement with no operator name, which is all the parent has', () => {
+  it('the host child accepts a retirement with no full name, which is all the parent has', () => {
     const r = spawnChild(HOST_CHILD, ['--target', 'staging', '--account', ACCOUNT, '--offboard']);
-    expect(r.stderr ?? '').not.toMatch(/--operator is required/);
+    expect(r.stderr ?? '').not.toMatch(/--full-name is required/);
     expect(r.status).not.toBe(2);
   });
 
-  it('the host child still demands the operator name when it is creating an account', () => {
+  it('the host child still demands the full name when it is creating an account', () => {
     // The guard is scoped, not removed. A creation writes the name into the
     // account's comment field, so an account nobody can attribute is still
     // refused.
@@ -720,7 +720,7 @@ describe('offboard-dev-tester.sh — the real children accept what the parent se
       '--target', 'staging', '--account', ACCOUNT, '--key-line', 'ssh-ed25519 AAAA test', '--sealed',
     ]);
     expect(r.status).toBe(2);
-    expect(r.stderr ?? '').toMatch(/--operator is required/);
+    expect(r.stderr ?? '').toMatch(/--full-name is required/);
   });
 
   it('the AWS child accepts the flag that says the parent is driving it', () => {

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# operator-ssh-key.sh — the Match block that lets one command reach the host as
+# dev-tester-ssh-key.sh — the Match block that lets one command reach the host as
 # a named account, on the workstation that accepted that account's onboarding.
 #
 # The alias itself is the default and is never edited here: it connects as the
@@ -8,29 +8,29 @@
 # command acts as the named person only when run through
 # scripts/as-dev-tester.sh --account <name>.
 #
-# Callers set OSK_SSH_BIN to replace the client in tests, and must have sourced
+# Callers set DTSK_SSH_BIN to replace the client in tests, and must have sourced
 # host-env-remote.sh (for the typed confirmation) and ssh-alias.sh.
 
-OSK_SSH_BIN="${OSK_SSH_BIN:-ssh}"
-OSK_SHARED_ACCOUNT="footbag"
+DTSK_SSH_BIN="${DTSK_SSH_BIN:-ssh}"
+DTSK_SHARED_ACCOUNT="footbag"
 
-# osk_resolved_user <alias> [<aws-profile>]
+# dtsk_resolved_user <alias> [<aws-profile>]
 # The account ssh resolves the alias as, with AWS_PROFILE set to the given
 # profile or, with none given, cleared.
-osk_resolved_user() {
+dtsk_resolved_user() {
   local alias_name="$1" profile="${2:-}"
   if [[ -n "$profile" ]]; then
-    AWS_PROFILE="$profile" "$OSK_SSH_BIN" -G "$alias_name" </dev/null 2>/dev/null | awk '/^user /{print $2}' | tail -1
+    AWS_PROFILE="$profile" "$DTSK_SSH_BIN" -G "$alias_name" </dev/null 2>/dev/null | awk '/^user /{print $2}' | tail -1
   else
-    env -u AWS_PROFILE "$OSK_SSH_BIN" -G "$alias_name" </dev/null 2>/dev/null | awk '/^user /{print $2}' | tail -1
+    env -u AWS_PROFILE "$DTSK_SSH_BIN" -G "$alias_name" </dev/null 2>/dev/null | awk '/^user /{print $2}' | tail -1
   fi
 }
 
-# osk_ensure_match_block <config-file> <alias> <account> <profile>
+# dtsk_ensure_match_block <config-file> <alias> <account> <profile>
 # Adds the named account's Match block above the alias, after a diff and a
 # typed APPLY, and proves both outcomes the way every run resolves the alias:
 # the shared account by default, the named account under the job role's profile.
-osk_ensure_match_block() {
+dtsk_ensure_match_block() {
   local config="$1" alias_name="$2" account="$3" profile="$4" tmp rc=0 got
   if [[ ! -f "$config" ]]; then
     echo "ERROR: ${config} does not exist, so there is no ${alias_name} stanza to add beside." >&2
@@ -74,18 +74,18 @@ osk_ensure_match_block() {
   esac
   rm -f -- "$tmp"
 
-  got="$(osk_resolved_user "$alias_name")"
-  if [[ "$got" != "$OSK_SHARED_ACCOUNT" ]]; then
-    echo "ERROR: by default ${alias_name} now resolves as '${got:-nothing}', not ${OSK_SHARED_ACCOUNT}." >&2
+  got="$(dtsk_resolved_user "$alias_name")"
+  if [[ "$got" != "$DTSK_SHARED_ACCOUNT" ]]; then
+    echo "ERROR: by default ${alias_name} now resolves as '${got:-nothing}', not ${DTSK_SHARED_ACCOUNT}." >&2
     return 1
   fi
-  got="$(osk_resolved_user "$alias_name" "$profile")"
+  got="$(dtsk_resolved_user "$alias_name" "$profile")"
   if [[ "$got" != "$account" ]]; then
     echo "ERROR: under AWS_PROFILE=${profile}, ${alias_name} resolves as '${got:-nothing}'," >&2
     echo "       not ${account}. An earlier Host pattern or an included file sets User" >&2
     echo "       first and wins. Fix that and re-run." >&2
     return 1
   fi
-  echo "  ${alias_name} connects as ${OSK_SHARED_ACCOUNT} by default, and as ${account} only"
+  echo "  ${alias_name} connects as ${DTSK_SHARED_ACCOUNT} by default, and as ${account} only"
   echo "  for a command run through scripts/as-dev-tester.sh --account ${account}"
 }

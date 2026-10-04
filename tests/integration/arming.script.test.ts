@@ -667,7 +667,7 @@ describe('arming.sh — the email switch', () => {
     const out = result.stdout ?? '';
     expect(out).toMatch(/Host env file NOT read: no credential file could be chosen/);
     expect(out).toMatch(/named account on production, where none exists/);
-    expect(out).not.toMatch(/HOST_OPERATOR_PRODUCTION\.txt/);
+    expect(out).not.toMatch(/DEV_TESTER_HOST_PRODUCTION\.txt/);
     expect(out).not.toMatch(/AWS_OPERATOR_PRODUCTION\.txt is missing/);
   });
 

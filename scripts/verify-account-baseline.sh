@@ -43,7 +43,7 @@
 # Usage:
 #   bash scripts/verify-account-baseline.sh --profile <p>
 #   bash scripts/verify-account-baseline.sh --save
-#   bash scripts/verify-account-baseline.sh --compare ~/AWS/baseline-<date>.txt \
+#   bash scripts/verify-account-baseline.sh --compare <the file --save printed> \
 #     [--ignore-user <name>]...
 #
 # Flags:
@@ -54,8 +54,9 @@
 #                   key and its status, its attached and inline policies, its MFA
 #                   device, whether it has a console sign-in, and its tags; every
 #                   user's keys and their status; and both runtime trust
-#                   documents, canonical JSON. Written to ~/AWS/baseline-<date>.txt,
-#                   mode 600, never over an existing file.
+#                   documents, canonical JSON. Written to
+#                   ${TMPDIR:-/tmp}/footbag-baseline-<uid>/baseline-<date>.txt,
+#                   mode 600 in a mode-700 directory, never over an existing file.
 #   --compare <file>
 #                   instead of the report, read the same facts and compare them
 #                   with a saved file, printing every difference.
@@ -85,7 +86,7 @@ FOOTBAG_OPERATOR_USER="footbag-operator"
 STAGING_RUNTIME_ROLE="footbag-staging-app-runtime"
 PRODUCTION_RUNTIME_ROLE="footbag-production-app-runtime"
 RUNTIME_ROLES=("$STAGING_RUNTIME_ROLE" "$PRODUCTION_RUNTIME_ROLE")
-# The shared job role every named human operator assumes. An ordinary IAM role
+# The shared job role every named dev-and-tester assumes. An ordinary IAM role
 # with a name this project chose, so its ARN is predictable from the account id
 # and nothing has to read it back to find out what it is called.
 #
@@ -203,9 +204,16 @@ baseline_facts() {
   facts_fail() { echo "ERROR: could not read ${1}; nothing was saved or compared." >&2; exit 1; }
 
   out="$(aws_q iam get-user --user-name "$FOOTBAG_OPERATOR_USER" \
-    --query 'User.[UserId,Arn]' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}"
+    --query 'User.[UserId,Arn,PermissionsBoundary.PermissionsBoundaryArn]' --output text)" \
+    || facts_fail "${FOOTBAG_OPERATOR_USER}"
   printf 'operator.id\t%s\n' "$(cut -f1 <<<"$out")"
   printf 'operator.arn\t%s\n' "$(cut -f2 <<<"$out")"
+  # A permissions boundary caps AdministratorAccess without touching the policy
+  # list, so it is a fact of its own. The CLI prints None when there is none.
+  local boundary
+  boundary="$(cut -f3 <<<"$out")"
+  [[ -z "$boundary" || "$boundary" == None ]] && boundary="none"
+  printf 'operator.boundary\t%s\n' "$boundary"
   rows="$(aws_q iam list-access-keys --user-name "$FOOTBAG_OPERATOR_USER" \
     --query 'AccessKeyMetadata[].[AccessKeyId,Status]' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s keys"
   while IFS=$'\t' read -r akid status; do
@@ -247,6 +255,25 @@ baseline_facts() {
   while IFS=$'\t' read -r k v; do
     [[ -n "$k" ]] && printf 'operator.tag\t%s=%s\n' "$k" "$v"
   done <<<"$tags"
+  # The other ways in or out of the identity: a group grants or denies outside
+  # the user's own policy list, and SSH keys, signing certificates and
+  # service-specific credentials are credentials beside the access keys.
+  rows="$(aws_q iam list-groups-for-user --user-name "$FOOTBAG_OPERATOR_USER" \
+    --query 'Groups[].GroupName' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s groups"
+  for p in $rows; do [[ "$p" == None ]] || printf 'operator.group\t%s\n' "$p"; done
+  local kind query
+  for kind in ssh-public-keys signing-certificates service-specific-credentials; do
+    case "$kind" in
+      ssh-public-keys) query='SSHPublicKeys[].[SSHPublicKeyId,Status]' ;;
+      signing-certificates) query='Certificates[].[CertificateId,Status]' ;;
+      service-specific-credentials) query='ServiceSpecificCredentials[].[ServiceSpecificCredentialId,Status]' ;;
+    esac
+    rows="$(aws_q iam "list-${kind}" --user-name "$FOOTBAG_OPERATOR_USER" \
+      --query "$query" --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s ${kind}"
+    while IFS=$'\t' read -r cid status; do
+      [[ -n "$cid" && "$cid" != None ]] && printf 'operator.%s\t%s %s\n' "$kind" "$cid" "$status"
+    done <<<"$rows"
+  done
 
   rows="$(aws_q iam list-users --query 'Users[].UserName' --output text)" || facts_fail "the IAM users"
   for user in $rows; do
@@ -272,12 +299,22 @@ if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
   command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is needed to read the trust policies." >&2; exit 1; }
   FACTS="$(baseline_facts | LC_ALL=C sort)"
   if [[ "$MODE" == "save" ]]; then
-    SAVE_DIR="${HOME}/AWS"
+    # A baseline is working state for one onboarding cycle, not a credential,
+    # so it lives in a private temp directory rather than beside the credential
+    # files in ~/AWS. Per user, and refused unless it is a real directory this
+    # user owns with no access for anybody else, because a shared temp directory
+    # is a place somebody else could have created it first.
+    SAVE_DIR="${TMPDIR:-/tmp}/footbag-baseline-$(id -u)"
+    mkdir -p -m 700 -- "$SAVE_DIR"
+    if [[ -L "$SAVE_DIR" || ! -d "$SAVE_DIR" || ! -O "$SAVE_DIR" \
+          || "$(stat -c '%a' "$SAVE_DIR" 2>/dev/null || stat -f '%Lp' "$SAVE_DIR")" != 700 ]]; then
+      echo "ERROR: ${SAVE_DIR} is not a directory of yours at mode 700; nothing was saved." >&2
+      exit 1
+    fi
     SAVE_BASE="${SAVE_DIR}/baseline-$(date -u +%Y-%m-%d)"
     SAVE_PATH="${SAVE_BASE}.txt"
     n=2
     while [[ -e "$SAVE_PATH" ]]; do SAVE_PATH="${SAVE_BASE}-${n}.txt"; n=$(( n + 1 )); done
-    mkdir -p -m 700 -- "$SAVE_DIR"
     ( umask 077 && printf '%s\n' "$FACTS" > "$SAVE_PATH" )
     echo "Saved $(grep -c . <<<"$FACTS") facts for account ${ACCOUNT_ID} to ${SAVE_PATH}"
     exit 0
@@ -450,7 +487,7 @@ fi
 # The design retains this IAM user permanently as the directly authenticated
 # identity: the one directly authenticated way in, deliberately reached without assuming
 # anything, so that whatever breaks the job role cannot take the normal route
-# and the way back in down together. Every named operator's path is added
+# and the way back in down together. Every named dev-and-tester's path is added
 # beside it, never in place of it. So a run that finds no active key here has
 # found that fallback gone.
 #
@@ -511,7 +548,7 @@ done
 # says so rather than failing. The role's absence is the current state of the
 # estate, not a finding.
 echo ""
-echo "Human operator job role"
+echo "Dev-and-tester job role"
 
 DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${DEV_TESTER_ROLE}"
 DEV_TESTER_PRESENT=0
@@ -520,7 +557,7 @@ if aws_q iam get-role --role-name "$DEV_TESTER_ROLE" >/dev/null 2>&1; then
   pass "${DEV_TESTER_ROLE}: ${DEV_TESTER_ROLE_ARN}"
 else
   note "no ${DEV_TESTER_ROLE} role yet: the account-level identity tree has not"
-  note "been applied, so no named operator can act as anything but themselves."
+  note "been applied, so no named dev-and-tester can act as anything but themselves."
   note "Nothing to compare against the runtime trust policies until it has."
 fi
 
@@ -540,7 +577,7 @@ if (( DEV_TESTER_PRESENT )); then
     pass "${STAGING_RUNTIME_ROLE} trusts ${DEV_TESTER_ROLE}"
   else
     fail "${STAGING_RUNTIME_ROLE} does not name ${DEV_TESTER_ROLE_ARN}"
-    note "a named operator can authenticate and reach nothing a deploy needs, which"
+    note "a named dev-and-tester can authenticate and reach nothing a deploy needs, which"
     note "reads as a broken account rather than as a missing principal"
     note "set dev_tester_role_arn to the ARN above and apply staging"
   fi
