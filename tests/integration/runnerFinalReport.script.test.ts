@@ -178,6 +178,17 @@ describe('the final report, driven through run_gate with stub gates', () => {
   it('installs the interrupt handler for both INT and TERM', () => {
     expect(RUNNER_TEXT).toMatch(/^trap on_interrupt INT TERM$/m);
   });
+
+  // Defect caught: a Ctrl-C or a CI cancel landing while the runner sets up a
+  // gate's two-process pipeline leaves the runner spinning forever in its signal
+  // handler, the report never printed and the gate never reaped. The window is a
+  // race no test can hit on demand, so the shape that removes it is held: the
+  // shell that holds the trap waits on one child, the pipeline's own subshell.
+  it('runs each gate pipeline inside a single subshell', () => {
+    const runGate = RUNNER_TEXT.slice(RUNNER_TEXT.indexOf('run_gate() {'), RUNNER_TEXT.indexOf('\n}\n', RUNNER_TEXT.indexOf('run_gate() {')));
+    expect(runGate).toContain('( "$@" 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" )');
+    expect(runGate).not.toMatch(/^\s*"\$@" 2>&1 \| tee "\$log"$/m);
+  });
 });
 
 /** What the clean room writes with --results: a pass, a failed coverage run, and a gate it could not run. */
@@ -197,8 +208,8 @@ const FAILED_ROOM = [
 
 const summaryOf = (out: string) => out.slice(out.indexOf('run_all_tests.sh — summary'));
 
-describe('each test runs once under --full', () => {
-  it('leaves a gate the clean room carries to the room under --full, adding no checkout row', () => {
+describe('each test runs once in the bare run', () => {
+  it('leaves a gate the clean room carries to the room in the bare run, adding no checkout row', () => {
     const r = drive('FULL=1\nran_it() { echo "CHECKOUT-RAN-BUILD"; }\ncheckout_gate build ran_it\nsummarize');
     expect(r.out).not.toContain('CHECKOUT-RAN-BUILD');
     expect(r.out).toContain('[build] left to the clean room');
@@ -211,7 +222,7 @@ describe('each test runs once under --full', () => {
     expect(summaryOf(r.out)).toMatch(/^\s+build\s+PASS \[\d+s\]$/m);
   });
 
-  it('runs a gate the room does not carry in the checkout even under --full', () => {
+  it('runs a gate the room does not carry in the checkout even in the bare run', () => {
     const r = drive('FULL=1\nran_it() { echo "CHECKOUT-RAN-AUDIT"; }\ncheckout_gate audit ran_it\nsummarize');
     expect(r.out).toContain('CHECKOUT-RAN-AUDIT');
   });
@@ -290,12 +301,12 @@ describe('the legacy-mirror gate, run only by name', () => {
   });
 });
 
-/** The block that says what --full implies, which the conventions gate also reads. */
+/** The block that says what the bare run implies, which the conventions gate also reads. */
 const FULL_BLOCK_AT = RUNNER_TEXT.indexOf('if (( FULL == 1 )); then\n  PENTEST=1');
 
-describe('what --full turns on, read from the script', () => {
+describe('what the bare run turns on, read from the script', () => {
   const fullBlock = RUNNER_TEXT.slice(FULL_BLOCK_AT);
-  it('has a block saying what --full implies', () => expect(FULL_BLOCK_AT).toBeGreaterThan(-1));
+  it('has a block saying what the bare run implies', () => expect(FULL_BLOCK_AT).toBeGreaterThan(-1));
   const fullImplies = fullBlock.slice(0, fullBlock.indexOf('\nfi\n'));
 
   // Defect caught: the thorough local run leaves out the local real-data checks
@@ -311,15 +322,12 @@ describe('what --full turns on, read from the script', () => {
     expect(RUNNER_TEXT).not.toContain('gate_member_data_audits');
   });
 
-  // Defect caught: --full quietly drops half of itself when combined with a
-  // narrowing flag, and still reports on the half that ran.
-  it('refuses to be combined with a flag that narrows it', () => {
-    const quick = spawnSync('bash', [RUNNER, '--full', '--quick'], { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
-    expect(quick.status).toBe(1);
-    expect(quick.stderr).toContain('--full cannot be combined with --quick or --skip-secret-scan');
-    const noScan = spawnSync('bash', [RUNNER, '--full', '--skip-secret-scan'], { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
+  // Defect caught: the bare run quietly drops the secret scan when given the
+  // --quick-only switch, and still reports on what ran as the whole gate.
+  it('refuses a switch that would narrow it', () => {
+    const noScan = spawnSync('bash', [RUNNER, '--skip-secret-scan'], { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
     expect(noScan.status).toBe(1);
-    expect(noScan.stderr).toContain('--full cannot be combined with --quick or --skip-secret-scan');
+    expect(noScan.stderr).toContain('--skip-secret-scan is a --quick switch: the bare run is the whole gate');
   });
 
   // Defect caught: a machine without the tools runs forty minutes of gates
@@ -344,7 +352,7 @@ describe('what --full turns on, read from the script', () => {
   });
 
   it('names each opt-in gate in every run that did not schedule it, with its switch', () => {
-    for (const optIn of ['"persona-crawl:--with-persona-crawl"', '"realdata-invariants:--with-realdata-invariants"', '"strong-hash:--full"']) {
+    for (const optIn of ['"persona-crawl:--with-persona-crawl"', '"realdata-invariants:--with-realdata-invariants"', '"strong-hash:the bare run"']) {
       expect(RUNNER_TEXT).toContain(optIn);
     }
   });
@@ -543,13 +551,13 @@ describe('the verdict and the two pass receipts', () => {
 
   // Defect caught: the fast loop exits non-zero for the gates it never meant to
   // run, so the pre-commit script it now stands behind fails every time.
-  it('ends a --quick run that passed with success, naming what only --full runs', () => {
+  it('ends a --quick run that passed with success, naming what only the bare run runs', () => {
     const quick = ['build', 'lint', 'conventions', 'harness', 'generated-content', 'secret-scan', 'unit', 'integration']
       .map((g) => `run_gate ${g} pass`).join('\n');
     const r = finish(quick, { full: false });
     expect(r.status, r.out).toBe(0);
     expect(r.fullReceipt).toBeNull();
-    expect(r.out).toContain('--full runs');
+    expect(r.out).toContain('which the bare run runs');
   });
 });
 
@@ -627,7 +635,7 @@ describe('every test that did not run is named, on every exit that reports', () 
   });
 
   // Defect caught: an upstream advisory, or an unreachable registry, turns a run red
-  // (or drops the --full receipt through a SKIP row) on a commit that changed nothing.
+  // (or drops the bare run's receipt through a SKIP row) on a commit that changed nothing.
   it('passes the audit gate on an advisory or an unreachable registry, and surfaces a warning', () => {
     const auditFn = spawnSync('sed', ['-n', '/^gate_audit() {/,/^}/p', RUNNER], { encoding: 'utf8', ...SPAWN_GUARD }).stdout;
     const cases = [
@@ -646,7 +654,7 @@ describe('the switches that decide what runs, read from the script', () => {
   const fullBlock = RUNNER_TEXT.slice(FULL_BLOCK_AT);
   const fullImplies = fullBlock.slice(0, fullBlock.indexOf('\nfi\n'));
 
-  it('never lets --full imply the legacy-mirror suite, and lists it with its switch when it did not run', () => {
+  it('never lets the bare run imply the legacy-mirror suite, and lists it with its switch when it did not run', () => {
     expect(fullImplies).toContain('PENTEST=1');
     expect(fullImplies).not.toContain('WITH_LEGACY_MIRROR');
     expect(RUNNER_TEXT).toContain('"legacy-mirror:--with-legacy-mirror"');
@@ -667,7 +675,7 @@ describe('the switches that decide what runs, read from the script', () => {
   });
 
   it('says a gate the room carries was not reached, rather than pointing at a room row that does not exist', () => {
-    expect(RUNNER_TEXT).toContain('(not reached: the run stopped before the clean room, which runs it under --full)');
+    expect(RUNNER_TEXT).toContain('(not reached: the run stopped before the clean room, which runs it in the bare run)');
   });
 
   it('hands the clean room a results file, and leaves the tiers it runs to it', () => {

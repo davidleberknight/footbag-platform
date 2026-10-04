@@ -4637,7 +4637,7 @@ Impact:
 
 Decision:
 
-A production release ships only a proven tree: committed, on the canonical repository's main, green in CI, passed by the complete local test run on that exact tree, already running on staging, and passed there by the read-only staging checks. Every path that ships code to production enforces this before it touches a host, and no verification or safety step can be switched off for production. Staging is held to none of it, because staging is where uncommitted work is tried.
+Only `footbag-operator` deploys production, and that administrator decides when: a tree need not be committed, pushed or freshly tested to ship. A proven tree is committed, on the canonical repository's main, green in CI, passed by the complete local test run on that exact tree, already running on staging, and passed there by the read-only staging checks. Every path that ships code to production checks those rules before it touches a host. It stops on a real problem: a verification or safety step switched off, a test seam set, a repository other than the canonical one, or CI finished red for the commit. Every other unmet rule is reported as a warning before the typed production confirmation. The standalone check holds a tree to every rule. Staging is held to none of it, because staging is where uncommitted work is tried.
 
 Rationale:
 
@@ -4649,10 +4649,10 @@ Rationale:
 Requirements:
 
 - One sourced library holds the rules. A standalone check runs them on request, and the production deploy entry point and each script it hands off to run them before touching a host, so a script reached some other way is held to the same rules.
-- The gate refuses a working tree that is not clean; an origin other than the canonical repository; a HEAD that is not the canonical main; a commit whose CI aggregate check is not green on every run; a missing local pass receipt for that exact tree; a staging host running a different commit or one deployed from a dirty tree; and a missing staging pass receipt for the commit staging runs.
+- A production deploy refuses a test seam, an origin other than the canonical repository, and a commit whose CI aggregate check finished red on any run. It warns, and goes on, for a working tree that is not clean, a HEAD that is not the canonical main, a CI check not yet finished or unreadable, a missing or stale local pass receipt, a staging host running a different commit or one deployed from a dirty tree, and a missing staging pass receipt. The standalone check refuses on every one of them.
 - Each receipt is readable only by its owner and records the runner that wrote it; a receipt from a different runner, or owned by another account, does not count.
 - A production deploy refuses `SKIP_SMOKE`, `SKIP_TESTS`, `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`, and refuses the gate's own test seams.
-- A question the gate cannot answer, such as an unreadable CI status or an unreachable staging host, is a refusal.
+- A question the gate cannot answer, such as an unreadable CI status or an unreachable staging host, is a warning on a deploy and a refusal in the standalone check.
 - No test writes to a deployed environment. The staging checks are read-only, and the check after a production deploy is an operator-run browser pass that signs in as nobody and submits nothing.
 - The OWASP ZAP scan of the local stack runs before a production deploy, not in every local run: it is report-only and slow, and the blocking security probes that run every time cover the same ground. It is an operator step the gate does not enforce, and a scan stopped at its time limit reports NOT RUN, which is not a clean scan. The dependency audit is the same kind of check, report-only and read from the live registry, so it too runs before a production deploy rather than in every local run; CI reports it on every push.
 

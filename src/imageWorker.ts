@@ -140,6 +140,9 @@ export interface ImageWorkerOptions {
   // so semaphore-busy and error paths can be exercised without flake.
   processAvatarImpl?: (data: Buffer) => Promise<ProcessedImage>;
   processPhotoImpl?: (data: Buffer) => Promise<ProcessedImage>;
+  // Test seam: told each time an image request starts waiting for a slot, so a
+  // queueing test acts on that event instead of a delay.
+  onImageSlotWait?: () => void;
   // Test seam: substitute the ffmpeg pipeline so video-route tests run
   // without invoking real ffmpeg.
   transcodeVideoImpl?: (data: Buffer, tuning?: VideoTranscodeTuning) => Promise<TranscodedVideo>;
@@ -222,7 +225,7 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   const fetchImpl = opts.fetchImpl ?? fetch;
   const internalSecret =
     opts.internalSecret !== undefined ? opts.internalSecret : process.env.INTERNAL_EVENT_SECRET;
-  const semaphore = new Semaphore(maxConcurrent, semaphoreWaitMs);
+  const semaphore = new Semaphore(maxConcurrent, semaphoreWaitMs, opts.onImageSlotWait);
   const videoSemaphore = new Semaphore(videoMaxConcurrent, videoSemaphoreWaitMs);
 
   // 503 when the secret is unconfigured (graceful misconfig signal, the

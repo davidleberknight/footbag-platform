@@ -3,20 +3,21 @@
 #
 # Sourced, never run. Two receipts, each with two readers that must agree on it.
 #
-# The --full receipt: ./run_all_tests.sh removes it when a --full run starts and
+# The local receipt: ./run_all_tests.sh removes it when a bare run starts and
 # writes it only when that run's local gates end GREEN; the production release
-# gate accepts a production deploy of exactly the tree it describes.
+# rules count it as proof for exactly the tree it describes.
 #
 # The --staging receipt: ./run_all_tests.sh removes it when a --staging run
 # starts and writes it only when every staging row passed, keyed to the commit
-# the staging host reported it was running; the production release gate accepts
+# the staging host reported it was running; the production release rules count
 # it only for the commit staging runs when the deploy is attempted. It is
-# independent of the --full receipt: a staging failure never voids the proof
+# independent of the local receipt: a staging failure never voids the proof
 # about the local tree, and a local failure never voids the proof about staging.
 #
 # One fixed path per account under /tmp, deliberately not under TMPDIR: the shell
 # that ran the tests and the shell that deploys need not share a TMPDIR, and a
-# proof the gate cannot find is a refused deploy. They are transient by design; a
+# proof the rules cannot find is a warning on a deploy and a refusal in the
+# standalone check. They are transient by design; a
 # reboot clears them and the next run writes them again. Because /tmp is shared,
 # the gate trusts a receipt only when this account owns it and nobody else can
 # write it.

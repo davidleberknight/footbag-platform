@@ -306,7 +306,7 @@ assert_plaintext_refused() {
   # bucket outside this region all made the old form print "refuses plaintext"
   # while proving nothing. An invariant this script exists to establish cannot be
   # asserted by a check that passes on every error.
-  if ! printf '%s' "$err" | grep -qiE 'AccessDenied|403|Forbidden'; then
+  if ! grep -qiE 'AccessDenied|403|Forbidden' <<< "$err"; then
     echo "  FAIL: ${bucket} did not accept plaintext, but not because it was denied." >&2
     echo "        The check cannot tell a working deny from an unrelated failure." >&2
     printf '        aws said: %s\n' "$err" | head -5 >&2
@@ -331,7 +331,7 @@ for s in doc.get("Statement", []):
         print(s["Sid"])
 '
   )" || sids=""
-  if ! printf '%s\n' "$sids" | grep -q '^DenyPlaintextAccess$'; then
+  if ! grep -q '^DenyPlaintextAccess$' <<< "$sids"; then
     echo "  FAIL: ${bucket} has no DenyPlaintextAccess statement." >&2
     return 1
   fi

@@ -398,7 +398,6 @@ A test may carry zero or more tags. Tags are how gates select within the suite (
 - `@security`. Security regression sub-class.
 - `@a11y`. Accessibility regression via axe-core against business-critical surfaces; runs in CI on every push and in the full local suite (`./run_all_tests.sh`).
 - `@migration`. Migration and onboarding regression. May live in integration or e2e; cuts across.
-- `@quarantined`. Time-bounded flake quarantine; see §11.3.
 
 ### 6.4 Artifact privacy
 
@@ -870,18 +869,18 @@ The db-load smoke gate runs the loader pipeline against fixed fixtures on every 
 ### 11.2 Selection mechanisms within a gate
 
 - *Test impact analysis* for the local fast loop. `vitest --related` over the git-diff file list. The fast loop runs only tests that touch changed code paths.
-- *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`) drives which tests run at each gate.
+- *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`) drives which tests run at each gate.
 - *Risk-severity-based selection* for the on-demand deep audits. Catastrophic and high surfaces (per §3) run in CI on every push. Medium and low surfaces run when the surface changes; a periodic sweep is optional future depth on top of the on-push gate.
 - *Parallel workers* where the test runner supports it. Vitest workers for unit and integration; Playwright runs one worker, constrained by SQLite WAL serialization.
 - *Skip-on-unchanged-inputs* where tooling supports it. Layers whose inputs have not changed since the last green can be skipped.
 
 ### 11.3 Flake discipline
 
-Tests that fail intermittently are quarantined, not ignored. The quarantine mechanism:
+No test may be flaky. A test whose verdict can change with machine load, scheduling, the clock, file order, parallelism, the network or randomness is a defect, even before it first fails, and it is fixed at its root or deleted, never quarantined, retried, or re-run until green.
 
-- A flaky test in the browser suite is tagged `@quarantined` with a comment giving the reason and a tracking issue in the maintainers' private tracker (per §4.5 gap-tracking format). The browser-suite config excludes the tag from every default run, so a quarantined test runs only when selected by name. The main suite has no quarantine mechanism: a flaky test there is fixed or deleted.
-- A quarantine is temporary by intent, and the tracking issue is what carries the deadline. Quarantine count is a health signal the maintainer reads off those issues; sustained growth means the suite or the surface is decaying.
-- `.skip`, `.todo`, and `xit` remain forbidden per `.claude/rules/testing.md`. Quarantine is the only legitimate skip path, and it is time-bounded.
+- Wait on the event itself: a promise the code resolves, a test seam the code calls, a child's own exit. Never on a fixed delay. The conventions gate refuses a promise that resolves on a fixed timeout, Playwright's `waitForTimeout`, and a shell `sleep` inside a stub; the one allowed form is `exec sleep`, a child that never finishes on its own.
+- Set the clock instead of waiting for it (`vi.useFakeTimers({ toFake: ['Date'] })` with `setSystemTime`), and never let a wall-clock measurement decide pass or fail in the default suite.
+- `.skip`, `.todo`, and `xit` remain forbidden per `.claude/rules/testing.md`, and there is no quarantine path.
 - Test retries to mask flake are not used. A test that needs retries to pass is a test that does not deserve to pass.
 - Vitest shuffles the order of test files on every run (never the cases inside a file), so a file that depends on another file having run first is found on a workstation instead of on the push. Each run prints its seed; `VITEST_SEED=<seed>` replays that order to reproduce a failure, and is never a way to switch the shuffle off.
 - *Why a network-bound suite runs one file at a time.* A per-test timeout is calibrated against a file running alone; concurrent files contend for the same egress and remote throttles, so a generous budget becomes a coin toss that reads as a slow test asking for a bigger number.
@@ -890,7 +889,7 @@ Tests that fail intermittently are quarantined, not ignored. The quarantine mech
 
 - *CI on PR* blocks merge.
 - Nothing blocks except a real and serious problem; anything else is a test that simply fails. The dependency audit, the pull-request dependency review, a tool at a different version from the one CI records, and three advisory test-style convention scans (vacuous assertion forms, tool-gated skips, a `cachedGet` suite that writes inside a case) report as warnings and never fail a run. In CI a missing tool fails its job; on a workstation a push-gate check whose tool is absent skips with a warning, because CI runs it on every push (§11.7).
-- *The production release gate* blocks a production deploy until both pass receipts and a green CI run stand for the commit staging runs (§11.7).
+- *The production release gate* blocks a production deploy only on a real problem: a safety switch, a test seam, a non-canonical origin, or CI finished red. Missing pass receipts and an unproven tree are warnings, and the standalone check holds a tree to every rule (§11.7).
 - *Post-deploy smoke gate* blocks deploy promotion (the production deploy script first runs the same gate against the staging deployment and aborts on failure).
 - *On-demand deep audits* report only. A failing audit does not block in-flight PRs but does block the next intentional production deploy until investigated.
 - *On-demand heavyweight pentest* reports only. Findings produce regression tests (§9.6).
@@ -929,9 +928,9 @@ This section owns what each tier of `./run_all_tests.sh` proves and what a produ
 
 Three tiers, one per environment:
 
-- *Dev, local.* `./run_all_tests.sh --quick`, which `npm run test:quick` runs, is the commit loop: build, test type-check, lint, conventions, harness self-check, generated-content, the secret scan, and the unit and integration tiers. It ends QUICK PASS and names what only the bare run adds. The bare `./run_all_tests.sh` (`--full` is a synonym) is the push and pull-request gate: every CI job that is safe on a workstation, each test once, with the build, lint, conventions, generated-content and unit and integration tiers run inside the clean room (§2.5); plus e2e with its accessibility specs, terraform validation, the blocking security probes against a throwaway local stack, the pentest harness's blocking scriptable probes, the production-strength password hash, and the two real-data rows (§8.5). It contacts no deployed environment and needs no AWS identity or role. The OWASP ZAP scan is not part of it: `--zap` adds it to the pentest harness, and it runs before a production deploy (`./run_all_tests.sh --zap` or `npm run test:pentest:heavy`). Each ZAP scan has a hard time limit, and a scan stopped at it reports NOT RUN.
+- *Dev, local.* `./run_all_tests.sh --quick`, which `npm run test:quick` runs, is the commit loop: build, test type-check, lint, conventions, harness self-check, generated-content, the secret scan, and the unit and integration tiers. It ends QUICK PASS and names what only the bare run adds. The bare `./run_all_tests.sh` is the push and pull-request gate: every CI job that is safe on a workstation, each test once, with the build, lint, conventions, generated-content and unit and integration tiers run inside the clean room (§2.5); plus e2e with its accessibility specs, terraform validation, the blocking security probes against a throwaway local stack, the pentest harness's blocking scriptable probes, the production-strength password hash, and the two real-data rows (§8.5). It contacts no deployed environment and needs no AWS identity or role. The OWASP ZAP scan is not part of it: `--zap` adds it to the pentest harness, and it runs before a production deploy (`./run_all_tests.sh --zap` or `npm run test:pentest:heavy`). Each ZAP scan has a hard time limit, and a scan stopped at it reports NOT RUN.
 - *Staging, opt-in.* `--staging` adds four read-only rows to either mode, run through the dev-tester role (`scripts/as-dev-tester.sh`): the staging AWS adapter smoke (§5.4), the whole-population real-data invariants on the staging host (counts and PASS/FAIL only), route smoke GETs against the staging site, and the anonymous browser check. They run first, after a preflight that names any missing role, wiring or site at the start; a row whose needs are missing fails without running and names the fix, and the local rows still run. Nothing is written to staging, and production is never a target.
-- *Production, strict.* No runner mode touches production. A production deploy passes the production release gate below, and after it the operator runs the anonymous, submit-nothing browser check `npm run test:deployed -- --target production`.
+- *Production, strict.* No runner mode touches production. A production deploy runs the production release gate below, and after it the operator runs the anonymous, submit-nothing browser check `npm run test:deployed -- --target production`.
 
 **The verdict.** Before any gate the bare run refuses only when a tool every gate needs (`sqlite3`, `curl`) is missing. A push-gate check whose own tool this machine lacks (the secret scanner with no running Docker to supply it, or Terraform) skips itself; CI runs it on every push and the release gate requires CI green for the commit, so the skip does not hold the verdict back, and the run prints a warning that this machine lacks a tool the project uses, naming each skipped check and pointing at `bash scripts/setup-dev-workstation.sh`. A bare run ends GREEN when everything it scheduled passed; `--quick` ends QUICK PASS. A run ends INCOMPLETE when a check standing for a push-gate job produced no result at all (the clean room stopped before reporting it, or `--skip-secret-scan` left the scan out), and VOID when the tree changed while the run was in flight, because the gates then read different sources; the VOID report names each file whose content changed, including one that was already modified when the run started. A failing staging row fails the run without taking back the local verdict.
 
@@ -940,9 +939,9 @@ Three tiers, one per environment:
 - *The local receipt.* A GREEN bare run writes it for the exact tree: commit, tree fingerprint, and whether the tree was clean. A skipped row withholds it, except a push-gate check CI runs and a real-data row on a machine without the authoritative member load.
 - *The staging receipt.* A run whose four staging rows all pass writes it, keyed to the commit staging runs as read from the host. `scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging` is the command that writes it.
 
-**Production readiness.** `scripts/verify-production-release.sh` asks the question on its own, and `deploy_to_aws.sh`, `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` run the same gate before they touch a production host. It requires a clean working tree whose HEAD is the canonical repository's main; CI's aggregate check green on every run for that commit; the local receipt for that tree; staging running that commit, deployed from a clean tree; and the staging receipt for that commit. It refuses `SKIP_SMOKE` and `SKIP_TESTS`, and the three escape hatches `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`. A question it cannot answer is a refusal. Staging is held to none of this: it is where uncommitted work is tried.
+**Production readiness.** `scripts/verify-production-release.sh` asks the question on its own and holds a tree to every rule: a clean working tree whose HEAD is the canonical repository's main; CI's aggregate check green on every run for that commit; the local receipt for that tree; staging running that commit, deployed from a clean tree; and the staging receipt for that commit. It refuses `SKIP_SMOKE` and `SKIP_TESTS`, the three escape hatches `FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK`, `FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT` and `FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS`, and a question it cannot answer. `deploy_to_aws.sh`, `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` check the same rules before they touch a production host, but stop only on a real problem: a safety switch or escape hatch, a test seam, an origin other than the canonical repository, or CI finished red. The rest are warnings, because only `footbag-operator` deploys production and that administrator decides at the typed confirmation. Staging is held to none of this: it is where uncommitted work is tried.
 
-The release order that follows: commit and push to main with CI green; the bare run on that tree; deploy staging; the staging checks as a dev-tester; the ZAP scan; `scripts/verify-production-release.sh`; the production deploy; the production browser check.
+The proven release order, which the warnings measure a deploy against: commit and push to main with CI green; the bare run on that tree; deploy staging; the staging checks as a dev-tester; the ZAP scan; `scripts/verify-production-release.sh`; the production deploy; the production browser check.
 
 ---
 
@@ -953,8 +952,6 @@ The release order that follows: commit and push to main with CI green; the bare 
 Coverage thresholds set in `vitest.config.ts` are floors per `.claude/rules/testing.md`. They are a leading indicator of test absence, not of test quality. A surface at one hundred percent line coverage with no adversarial tests is still under-tested.
 
 Overall coverage is an aspirational, best-effort goal, not a fixed percentage; the floor that a drop trips lives in `vitest.config.ts` and is enforced by the CI coverage job. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are verified by inspection of the tests themselves rather than by a per-surface percentage, since a percentage is satisfied by any test that executes the line. For general code, 100% is not a blanket target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
-
-Quarantine count (§11.3) is a separate signal; sustained growth is a maintenance issue.
 
 Uncovered branches are also a read-targeting signal: they are where both the test suite and a review pass go blind, so they are the priority surface for the next adversarial review.
 

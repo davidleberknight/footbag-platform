@@ -327,7 +327,7 @@ for role in "${RUNTIME_ROLES[@]}"; do
     --query 'Role.AssumeRolePolicyDocument' --output json || true)"
   if [[ -z "$TRUST" ]]; then
     fail "${role}: could not read the trust policy"
-  elif printf '%s' "$TRUST" | grep -qF ":user/${FOOTBAG_OPERATOR_USER}"; then
+  elif grep -qF ":user/${FOOTBAG_OPERATOR_USER}" <<< "$TRUST"; then
     pass "${role} still trusts ${FOOTBAG_OPERATOR_USER}"
   else
     fail "${role} no longer names ${FOOTBAG_OPERATOR_USER} in its trust policy"
@@ -373,7 +373,7 @@ if (( DEV_TESTER_PRESENT )); then
   STAGING_TRUST="$(read_trust "$STAGING_RUNTIME_ROLE")"
   if [[ -z "$STAGING_TRUST" ]]; then
     fail "${STAGING_RUNTIME_ROLE}: could not read the trust policy to compare the job role"
-  elif printf '%s' "$STAGING_TRUST" | grep -qF "$DEV_TESTER_ROLE_ARN"; then
+  elif grep -qF "$DEV_TESTER_ROLE_ARN" <<< "$STAGING_TRUST"; then
     pass "${STAGING_RUNTIME_ROLE} trusts ${DEV_TESTER_ROLE}"
   else
     fail "${STAGING_RUNTIME_ROLE} does not name ${DEV_TESTER_ROLE_ARN}"
@@ -388,7 +388,7 @@ if (( DEV_TESTER_PRESENT )); then
   PRODUCTION_TRUST="$(read_trust "$PRODUCTION_RUNTIME_ROLE")"
   if [[ -z "$PRODUCTION_TRUST" ]]; then
     fail "${PRODUCTION_RUNTIME_ROLE}: could not read the trust policy to check the job role is absent"
-  elif printf '%s' "$PRODUCTION_TRUST" | grep -qF "$DEV_TESTER_ROLE_ARN"; then
+  elif grep -qF "$DEV_TESTER_ROLE_ARN" <<< "$PRODUCTION_TRUST"; then
     fail "${PRODUCTION_RUNTIME_ROLE} names ${DEV_TESTER_ROLE}"
     note "that role's job is staging, and this grant is the one thing the boundary"
     note "between the two environments exists to prevent. Nothing in production's"

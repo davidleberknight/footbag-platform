@@ -235,7 +235,7 @@ describe('the real-data rows without a local load', () => {
   });
 });
 
-describe('the --full preflight', () => {
+describe('the bare run preflight', () => {
   // Defect caught: the local gate's preflight asks AWS who the caller is, opens
   // an ssh session to the staging host, or curls the staging site.
   it('calls no ssh, no curl, no aws and no terraform, and needs no dev-tester role', () => {

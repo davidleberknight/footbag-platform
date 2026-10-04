@@ -157,7 +157,7 @@ MIGRATION_SQL="$(cat "$MIGRATION_FILE")"
 # restricted rather than escaped: a migration filename has no reason to contain
 # anything else, and a rejected name is a better outcome than a quoted one.
 MIGRATION_NAME="$(basename "$MIGRATION_FILE")"
-if ! printf '%s' "$MIGRATION_NAME" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+if ! grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$' <<< "$MIGRATION_NAME"; then
   die "migration filename '${MIGRATION_NAME}' must contain only letters, digits, dot, dash and underscore"
 fi
 
@@ -170,7 +170,7 @@ MIGRATION_CHECKSUM="$(sha256sum "$MIGRATION_FILE" | cut -d' ' -f1)"
 # opens its own leaves a transaction inside a transaction and SQLite refuses it.
 # Caught here, where the operator can fix the file, rather than on the host with
 # the service already stopped.
-if printf '%s' "$MIGRATION_SQL" | grep -qiE '^[[:space:]]*(BEGIN|COMMIT|ROLLBACK)\b'; then
+if grep -qiE '^[[:space:]]*(BEGIN|COMMIT|ROLLBACK)\b' <<< "$MIGRATION_SQL"; then
   die "migration file must not manage its own transaction: the deploy wraps it in one"
 fi
 

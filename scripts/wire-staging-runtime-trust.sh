@@ -136,7 +136,9 @@ trusted_principals() {
 }
 
 trust_names_the_role() {
-  printf '%s\n' "$(trusted_principals)" | tr '\t' '\n' | grep -Fxq -- "$DEV_TESTER_ROLE_ARN"
+  local principals
+  principals="$(trusted_principals | tr '\t' '\n')"
+  grep -Fxq -- "$DEV_TESTER_ROLE_ARN" <<< "$principals"
 }
 
 echo "-- staging runtime trust --"

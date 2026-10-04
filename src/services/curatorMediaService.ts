@@ -227,7 +227,13 @@ export const CAPTION_MAX_LEN = 500;
 // (512 MB total, undersized vs DD §1.8 production target). Wait timeout is
 // generous because legitimate transcode takes 1-3 min.
 const TRANSCODE_WAIT_MS = 10 * 60 * 1000;
-const transcodeBound = new Semaphore(1, TRANSCODE_WAIT_MS);
+// Test seam: told when an upload starts waiting for the transcode slot, so a
+// serialization test acts on that event rather than on a delay.
+let transcodeWaitObserverForTests: (() => void) | null = null;
+export function setTranscodeWaitObserverForTests(fn: (() => void) | null): void {
+  transcodeWaitObserverForTests = fn;
+}
+const transcodeBound = new Semaphore(1, TRANSCODE_WAIT_MS, () => transcodeWaitObserverForTests?.());
 
 // Test seam: integration tests inject a fake URL verifier so the suite
 // runs without hitting real youtube.com/vimeo.com oEmbed endpoints.

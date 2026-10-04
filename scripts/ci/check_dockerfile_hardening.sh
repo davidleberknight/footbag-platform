@@ -33,7 +33,7 @@ for df in "${dockerfiles[@]}"; do
       builder|runtime) continue ;;
     esac
     after="${ref##*@}"
-    if [ "$after" = "$ref" ] || ! printf '%s' "$after" | grep -qE '^sha256:[0-9a-f]{64}$'; then
+    if [ "$after" = "$ref" ] || ! grep -qE '^sha256:[0-9a-f]{64}$' <<< "$after"; then
       note "${df}: FROM ${ref} is not pinned by @sha256 digest"
     else
       digests="${digests}${after}\n"
@@ -147,7 +147,7 @@ else
   while IFS= read -r img; do
     ref=$(printf '%s\n' "$img" | sed -E 's/^[[:space:]]*image:[[:space:]]*//; s/[[:space:]]*#.*$//; s/[[:space:]]*$//')
     after="${ref##*@}"
-    if [ "$after" = "$ref" ] || ! printf '%s' "$after" | grep -qE '^sha256:[0-9a-f]{64}$'; then
+    if [ "$after" = "$ref" ] || ! grep -qE '^sha256:[0-9a-f]{64}$' <<< "$after"; then
       note "${COMPOSE}: image ${ref} is not pinned by @sha256 digest"
     fi
   done < <(grep -E '^[[:space:]]*image:[[:space:]]' "$COMPOSE" || true)

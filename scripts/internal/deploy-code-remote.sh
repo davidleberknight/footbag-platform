@@ -629,7 +629,7 @@ ensure_swapfile() {
     production) size="2G"; size_mb=2048 ;;
     *)          size="1G"; size_mb=1024 ;;
   esac
-  if swapon --show=NAME --noheadings | grep -qx /swapfile; then
+  if grep -qx /swapfile <<< "$(swapon --show=NAME --noheadings)"; then
     echo "==> Swapfile already active"
   else
     echo "==> Provisioning ${size} disk swapfile..."
@@ -1433,13 +1433,13 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # sender: a migration filename and a hex checksum have no reason to hold anything
   # else, and a refusal is a better outcome than a quoted injection.
   if [[ -n "${MIGRATION_NAME:-}" ]] \
-     && ! printf '%s' "$MIGRATION_NAME" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+     && ! grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$' <<< "$MIGRATION_NAME"; then
     echo "ERROR: migration name '${MIGRATION_NAME}' contains characters this host will" >&2
     echo "       not put into SQL. Letters, digits, dot, dash and underscore only." >&2
     exit 1
   fi
   if [[ -n "${MIGRATION_CHECKSUM:-}" ]] \
-     && ! printf '%s' "$MIGRATION_CHECKSUM" | grep -qE '^[A-Fa-f0-9]+$'; then
+     && ! grep -qE '^[A-Fa-f0-9]+$' <<< "$MIGRATION_CHECKSUM"; then
     echo "ERROR: migration checksum is not hexadecimal; refusing to record it." >&2
     exit 1
   fi

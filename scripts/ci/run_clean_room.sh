@@ -40,7 +40,7 @@
 #
 # Four more have a local form that this room does not run: the secret scan,
 # terraform, the browser suite and the security probes.
-# They belong to `./run_all_tests.sh --full`, which is the command that stands
+# They belong to the bare `./run_all_tests.sh`, which is the command that stands
 # for the push gate; this room is the isolation gate inside it and its value is
 # the empty home and a tree with nothing gitignored in it, not breadth. The distinction
 # matters because this script used to close by saying the runner saw the same
@@ -483,7 +483,7 @@ echo "    codeql              static analysis, GitHub-hosted"
 echo "    dependency-review   pull-request only, GitHub-hosted"
 echo "    dependency-audit    reads registry state at push time, not now"
 echo ""
-echo "  Carried by ./run_all_tests.sh --full, not by this room:"
+echo "  Carried by the bare ./run_all_tests.sh, not by this room:"
 echo "    secret-scan  terraform  e2e  security-probes"
 if (( QUICK )); then
   echo "  Not run by --quick: coverage, lint, conventions, generated-content, harness,"

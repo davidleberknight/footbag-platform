@@ -442,7 +442,7 @@ if (( (DB_REBUILD_INVOLVED == 1) || (MODE_REUSE == 1) )) && command -v lsof >/de
       # Common case: local dev server (`tsx watch src/server.ts`) is running.
       _is_dev_server=0
       if pgrep -af 'tsx watch.*src/server\.ts' >/dev/null 2>&1 \
-         || printf '%s\n' "$_lock_holders" | grep -qE '(tsx|src/server\.ts)'; then
+         || grep -qE '(tsx|src/server\.ts)' <<< "$_lock_holders"; then
         _is_dev_server=1
         echo "" >&2
         echo "Likely cause: local dev server is running (\`tsx watch src/server.ts\`)." >&2
@@ -545,7 +545,7 @@ if (( MODE_REUSE == 1 )) \
     # First pass: report items in schema.sql that are missing from the live DB.
     while IFS= read -r _t; do
       [[ -z "$_t" ]] && continue
-      if ! printf '%s\n' "${_live_tables}" | grep -qx "$_t"; then
+      if ! grep -qx "$_t" <<< "${_live_tables}"; then
         _drift_lines+=("  missing table: ${_t}")
         continue
       fi
@@ -566,7 +566,7 @@ if (( MODE_REUSE == 1 )) \
     # here gives the operator a chance to reset before pushing.
     while IFS= read -r _t; do
       [[ -z "$_t" ]] && continue
-      if ! printf '%s\n' "${_expected_tables}" | grep -qx "$_t"; then
+      if ! grep -qx "$_t" <<< "${_expected_tables}"; then
         _drift_lines+=("  extra table not in schema.sql: ${_t}")
         continue
       fi

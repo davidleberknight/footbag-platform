@@ -3,7 +3,7 @@
 #
 # Two local modes, --staging, and the add-on and skip flags listed under Usage:
 #
-#   ./run_all_tests.sh (or --full)  The thorough local gate, run before a push and
+#   ./run_all_tests.sh              The thorough local gate, run before a push and
 #       before a staging deploy: every CI gate that is safe on a workstation (the
 #       type-checks, lint, convention gate, harness self-check,
 #       generated-content check, secret scan, e2e, terraform validation, the
@@ -27,7 +27,7 @@
 #       staging pass receipt, keyed to the commit staging runs.
 #
 # Prints a per-gate summary with each gate's elapsed seconds and exits non-zero
-# if any gate fails. Under --full the set of gates matches CI, save for the two
+# if any gate fails. In the bare run the set of gates matches CI, save for the two
 # GitHub-hosted jobs listed below that cannot run here, and the report-only
 # dependency audit, which reads the package registry at the moment it runs and
 # so runs on request (--audit) before a production deploy.
@@ -73,10 +73,10 @@
 # drift apart.
 #
 # Usage:
-#   ./run_all_tests.sh                    # the thorough local gate (same as --full)
+#   ./run_all_tests.sh                    # the thorough local gate
 #   ./run_all_tests.sh --quick            # the fast pre-commit loop (npm run test:quick)
 #   scripts/as-dev-tester.sh --account <you> ./run_all_tests.sh --staging
-#                                         # --full plus the read-only staging checks
+#                                         # the bare run plus the read-only staging checks
 #   ./run_all_tests.sh --plan             # print what a mode would run, and exit
 #   ./run_all_tests.sh --help
 
@@ -89,7 +89,6 @@ cd "$(dirname "$0")"
 source scripts/lib/aws-isolation.sh
 
 QUICK=0
-FULL_FLAG=0
 STAGING=0
 PLAN=0
 PENTEST=0
@@ -97,7 +96,7 @@ ZAP=0
 AUDIT=0
 WITH_PERSONA_CRAWL=0
 WITH_REALDATA_INVARIANTS=0
-# The password-hash suite at production argon2 cost. Implied by --full only.
+# The password-hash suite at production argon2 cost. Implied by the bare run only.
 WITH_STRONG_HASH=0
 # The legacy-mirror suite covers code that is retired at go-live and takes long
 # enough to matter, and the push gate never runs it, so no other flag implies it.
@@ -105,7 +104,7 @@ WITH_LEGACY_MIRROR=0
 # Leaves the secret scan out of a --quick run. The push gate still runs it, so a
 # run that used this ends INCOMPLETE rather than passing and says why.
 SKIP_SECRET_SCAN=0
-# Leaves every Python gate out of a --full run, the clean room's included. The
+# Leaves every Python gate out of the bare run, the clean room's included. The
 # push gate still runs them, so the run ends INCOMPLETE and writes no receipt.
 SKIP_PY=0
 A11Y=0
@@ -113,7 +112,9 @@ FAIL_FAST=0
 for arg in "$@"; do
   case "$arg" in
     --quick)              QUICK=1 ;;
-    --full)               FULL_FLAG=1 ;;
+    --full)
+      echo "ERROR: --full is retired. The bare ./run_all_tests.sh is the thorough local gate; run it with no mode." >&2
+      exit 1 ;;
     --staging)            STAGING=1 ;;
     --plan)               PLAN=1 ;;
     --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
@@ -128,7 +129,7 @@ for arg in "$@"; do
     --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--full | --quick] [--staging] [--plan] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--staging] [--plan] [--fail-fast]
                           [--with-persona-crawl] [--with-realdata-invariants]
                           [--with-legacy-mirror] [--a11y] [--pentest] [--zap] [--audit]
                           [--skip-secret-scan] [--skip-py]
@@ -137,8 +138,7 @@ Canonical local test runner. Runs the CI gates that are safe on a workstation
 and summarizes the results, with each gate's elapsed seconds.
 
 Modes:
-  (no mode), --full
-                The thorough local gate, before a push and before a staging
+  (no mode)     The thorough local gate, before a push and before a staging
                 deploy. Every CI gate that is safe on a workstation: build and
                 test type-check, lint, conventions, the harness self-check, generated-content, the
                 secret scan, e2e (it takes ports 3000 and 4001), terraform
@@ -161,7 +161,7 @@ Modes:
                 runs: build and test type-check, lint, conventions, harness,
                 generated-content, the secret scan (passing when no scanner is
                 installed), and the unit and integration tiers. Ends with success
-                when all of that passed, naming what only --full runs.
+                when all of that passed, naming what only the bare run runs.
 
 Switches:
   --staging     Adds four read-only rows against staging to either mode, run
@@ -183,7 +183,7 @@ Switches:
                 exit before anything else happens.
   --fail-fast   Stop at the first failing gate instead of running them all.
 
-Additions to --quick (each is already part of --full):
+Additions to --quick (each is already part of the bare run):
   --with-persona-crawl
                 The real-claim crawl: builds a claimed account for a real
                 migrated record through /dev/build-claim and crawls its surfaces,
@@ -200,7 +200,7 @@ Additions to --quick (each is already part of --full):
                 Without the load the row reports "not required"; --staging runs
                 the same checks against staging's copy.
   --a11y        The axe WCAG 2.1 AA scan of the high-traffic public pages, on
-                its own throwaway browser stack (under --full, e2e carries it).
+                its own throwaway browser stack (in the bare run, e2e carries it).
   --pentest     The heavyweight pentest harness (npm run test:pentest:heavy):
                 boots a throwaway stack and runs its blocking probes. It leaves
                 out the ZAP scan unless --zap is also given.
@@ -214,7 +214,7 @@ Additions to --quick (each is already part of --full):
                 Leave the secret scan out of a --quick run. The push gate still
                 runs it, so the run ends INCOMPLETE and names it.
 
-Subtractions from --full:
+Subtractions from the bare run:
   --skip-py     Leave out every gate that runs the legacy-data and freestyle
                 pipelines' Python, all of it pre-go-live migration tooling, in
                 the checkout and in the clean room: the Python-driven integration
@@ -246,20 +246,19 @@ USAGE
   esac
 done
 
-# The bare command is --full: the thorough local gate is the default, and the
-# fast loop is the one a reader has to ask for. --staging adds to either mode and
-# implies neither.
-if (( FULL_FLAG == 1 && QUICK == 1 )) || (( QUICK == 0 && SKIP_SECRET_SCAN == 1 )); then
-  echo "ERROR: --full cannot be combined with --quick or --skip-secret-scan: it is the whole gate (and the default)." >&2
+# The bare command is the thorough local gate, and the fast loop is the one a
+# reader has to ask for. --staging adds to either mode and implies neither.
+if (( QUICK == 0 && SKIP_SECRET_SCAN == 1 )); then
+  echo "ERROR: --skip-secret-scan is a --quick switch: the bare run is the whole gate." >&2
   exit 1
 fi
 if (( SKIP_PY == 1 && (QUICK == 1 || WITH_LEGACY_MIRROR == 1) )); then
-  echo "ERROR: --skip-py is a --full switch, and cannot be combined with --quick or --with-legacy-mirror." >&2
+  echo "ERROR: --skip-py is a switch of the bare run, and cannot be combined with --quick or --with-legacy-mirror." >&2
   exit 1
 fi
 FULL=$(( QUICK == 0 ? 1 : 0 ))
 
-# --full implies these; the staging rows are never among them.
+# The bare run implies these; the staging rows are never among them.
 if (( FULL == 1 )); then
   PENTEST=1
   A11Y=1
@@ -303,7 +302,7 @@ QUICK_GATES="build lint conventions harness generated-content secret-scan unit i
 # not required, and their skip does not void the pass receipt.
 REALDATA_ROWS="persona-crawl realdata-invariants"
 
-# Each test runs once. Under --full the clean room runs these against exactly what
+# Each test runs once. In the bare run the clean room runs these against exactly what
 # the next push would carry, in the runner's own conditions, so the checkout does
 # not run them a second time. The unit and integration tiers run there once, as
 # the coverage run. Everything that needs this machine stays in the checkout.
@@ -313,8 +312,8 @@ room_carries() {
   (( FULL == 1 )) && [[ " ${ROOM_CARRIES_UNDER_FULL} " == *" $1 "* ]]
 }
 
-# in_mode <gate> — whether this mode schedules a base gate: all of them under
-# --full, the quick set under --quick.
+# in_mode <gate> — whether this mode schedules a base gate: all of them in the
+# bare run, the quick set under --quick.
 in_mode() {
   (( FULL == 1 )) || [[ " ${QUICK_GATES} " == *" $1 "* ]]
 }
@@ -344,7 +343,7 @@ staging_sequence() {
 # =============================================================================
 # THE LOCAL GATE SEQUENCE — ADD NEW SUITES HERE.
 # Each line is one gate: `run_gate <label> <command...>`, or `checkout_gate` for
-# one the clean room carries under --full. To extend coverage as new test suites
+# one the clean room carries in the bare run. To extend coverage as new test suites
 # land, add a line (or a gate_* function below for compound gates) in the right
 # place. Keep every gate SAFE: it must write only to os.tmpdir()/mktemp, never
 # to legacy_data/ or curated/, and reach nothing beyond this machine.
@@ -365,7 +364,7 @@ local_sequence() {
     checkout_gate conventions bash scripts/ci/assert_conventions.sh
   fi
   # The harness self-check's one machine-local check reads the gitignored
-  # per-developer settings file, which the clean room cannot see, so under --full
+  # per-developer settings file, which the clean room cannot see, so in the bare run
   # the checkout still runs it, leaving the hook fixture suite to the room.
   if (( FULL == 1 )); then
     run_gate harness-local bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures
@@ -560,7 +559,7 @@ realdata_probe_value() {
 }
 
 # -----------------------------------------------------------------------------
-# --full preflight. The tools a gate cannot work without, checked before the
+# The bare run's preflight. The tools a gate cannot work without, checked before the
 # first gate, so a missing one is named now rather than as a failure forty
 # minutes in. Only a real need refuses the run: a tool whose gate already copes
 # without it is not checked here (the secret scan falls back to the pinned
@@ -577,11 +576,11 @@ full_preflight() {
 
   if (( ${#problems[@]} > 0 )); then
     echo "" >&2
-    echo "ERROR: --full cannot run on this machine as it stands. Nothing has run yet." >&2
+    echo "ERROR: the bare run cannot run on this machine as it stands. Nothing has run yet." >&2
     printf '  - %s\n' "${problems[@]}" >&2
     return 1
   fi
-  echo "→ --full preflight: the tools every local gate needs are present; real-data source: ${REALDATA_SOURCE:-not needed}."
+  echo "→ preflight: the tools every local gate needs are present; real-data source: ${REALDATA_SOURCE:-not needed}."
 }
 
 # -----------------------------------------------------------------------------
@@ -1012,9 +1011,15 @@ run_gate() {
   # tee keeps the live output while capturing it; PIPESTATUS[0] is the gate's
   # own exit code (not tee's). Toggle set -e so a failing gate does not abort
   # the whole pipeline before we record its result.
+  #
+  # The pipeline runs inside one subshell, so this shell, which holds the
+  # interrupt trap, waits on a single foreground child. An interrupt that landed
+  # while this shell was still setting up a two-process pipeline left it
+  # spinning in its signal handler for good, with the trap never run and both
+  # children never reaped; with one child there is no such window.
   set +e
-  "$@" 2>&1 | tee "$log"
-  rc=${PIPESTATUS[0]}
+  ( "$@" 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" )
+  rc=$?
   set -e
   took=$(( SECONDS - started ))
   CURRENT_GATE=""
@@ -1100,17 +1105,17 @@ print_not_checked() {
   # A gate this mode never scheduled is as unchecked as one that tried and could
   # not run, and counting only the second is how a --quick run once came to
   # announce that everything the push gate runs had passed here. Under --quick
-  # they are named as what it leaves out, and its verdict says --full runs them.
+  # they are named as what it leaves out, and its verdict says the bare run runs them.
   for _equivalent in $PUSH_GATE_EQUIVALENTS; do
     grep -qx "$_equivalent" <<< "$names" && continue
     if (( FULL == 1 )) && grep -qx clean-room <<< "$names"; then
-      # Under --full every one of these is scheduled, in the checkout or in the
+      # In the bare run every one of these is scheduled, in the checkout or in the
       # clean room, so a missing row means the room stopped before reporting it.
-      SKIPPED_PREDICTIVE+=("${_equivalent} (the clean room runs it under --full and reported no result; see the clean-room row)")
+      SKIPPED_PREDICTIVE+=("${_equivalent} (the clean room runs it in the bare run and reported no result; see the clean-room row)")
     elif (( FULL == 1 )); then
-      SKIPPED_PREDICTIVE+=("${_equivalent} (not reached: the run stopped before the clean room, which runs it under --full)")
+      SKIPPED_PREDICTIVE+=("${_equivalent} (not reached: the run stopped before the clean room, which runs it in the bare run)")
     else
-      NOT_SCHEDULED_QUICK+=("${_equivalent} (left out by --quick; --full runs it)")
+      NOT_SCHEDULED_QUICK+=("${_equivalent} (left out by --quick; the bare run runs it)")
     fi
   done
 
@@ -1121,7 +1126,7 @@ print_not_checked() {
   for _opt_in in \
     "persona-crawl:--with-persona-crawl" \
     "realdata-invariants:--with-realdata-invariants" \
-    "strong-hash:--full" \
+    "strong-hash:the bare run" \
     "a11y:--a11y" \
     "pentest:--pentest" \
     "legacy-mirror:--with-legacy-mirror"; do
@@ -1183,8 +1188,8 @@ print_not_checked() {
   echo "=============================================="
 }
 
-# run_gate for a gate the clean room carries under --full: runs it in every other
-# mode, and under --full leaves it to the room, whose own row replaces it.
+# run_gate for a gate the clean room carries in the bare run: runs it in every other
+# mode, and in the bare run leaves it to the room, whose own row replaces it.
 checkout_gate() {
   if room_carries "$1"; then
     echo ""
@@ -1371,7 +1376,7 @@ final_verdict() {
     write_full_pass_receipt
   else
     echo "→ run_all_tests.sh: QUICK PASS. Everything --quick schedules passed. The push"
-    echo "  gate also runs the gates named above, which --full runs."
+    echo "  gate also runs the gates named above, which the bare run runs."
   fi
 
   if (( STAGING_ANY_FAIL == 1 )); then
@@ -1661,7 +1666,7 @@ gate_realdata_invariants() {
 # checks' own status.
 realdata_invariants_verdict() {
   local out="$1" rc="$2" mirror_only="$3" advice="$4"
-  if printf '%s' "${out}" | grep -q '@'; then
+  if grep -q '@' <<< "${out}"; then
     echo "ERROR: real-data invariant output contains an '@' (possible PII leak); withholding it and refusing to pass." >&2
     return 1
   fi
@@ -1745,7 +1750,7 @@ gate_audit() {
   # Registry-unreachable signatures: audit-ci surfaces a failed/empty registry
   # response as "code undefined", and npm's own fetch errors carry the endpoint
   # or connection messages. None of these strings appear in a real advisory report.
-  if printf '%s' "$out" | grep -qiE 'code undefined|audit endpoint returned an error|security/audits/[a-z]+ failed|request to .*registry.* failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|fetch failed'; then
+  if grep -qiE 'code undefined|audit endpoint returned an error|security/audits/[a-z]+ failed|request to .*registry.* failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|fetch failed' <<< "$out"; then
     echo "WARNING: dependency audit not checked: the npm registry audit endpoint was unreachable."
   else
     echo "WARNING: dependency audit reports advisories (above); report-only, patch on your own schedule."

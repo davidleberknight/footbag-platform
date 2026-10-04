@@ -2,8 +2,9 @@
  * What each mode of the local runner schedules, and where each row points.
  *
  * Contract: the runner has two local modes and one additive switch. The bare
- * command and --full are the same thorough run, and it reaches no deployed
- * environment at all: no staging row, no staging or production target. --quick is
+ * command is the thorough run, and it reaches no deployed environment at all:
+ * no staging row, no staging or production target. The retired --full flag is
+ * refused, naming the bare command. --quick is
  * exactly the fast pre-commit loop, and `npm run test:quick` is that mode, so the
  * list has one home. --staging adds exactly four read-only rows, every one of them
  * pointed at staging, whatever the operator's shell exports.
@@ -48,22 +49,26 @@ function plan(args: string[], extraEnv: Record<string, string> = {}): Plan {
   return { status: res.status, out, rows };
 }
 
-describe('the default run and --full', () => {
+describe('the bare run', () => {
   // Defect caught: a developer's thorough local run contacts staging, reading
-  // from or writing to a deployed host, or the bare command quietly runs
-  // something other than --full.
-  it('schedule the same rows, none of them a staging row or a deployed target', () => {
+  // from or writing to a deployed host, or drops one of the push gate's rows.
+  it('schedules the thorough rows, none of them a staging row or a deployed target', () => {
     const bare = plan([]);
-    const full = plan(['--full']);
     expect(bare.status, bare.out).toBe(0);
-    expect(full.status, full.out).toBe(0);
     expect(bare.rows.length).toBeGreaterThan(10);
-    expect(bare.rows).toEqual(full.rows);
-    for (const row of full.rows) {
+    for (const row of bare.rows) {
       expect(row.name.startsWith('staging-'), row.name).toBe(false);
       expect(row.target, row.name).not.toMatch(/staging|production/);
     }
-    expect(full.rows.map((r) => r.name)).toEqual(expect.arrayContaining(['e2e', 'terraform', 'security-probes', 'clean-room']));
+    expect(bare.rows.map((r) => r.name)).toEqual(expect.arrayContaining(['e2e', 'terraform', 'security-probes', 'clean-room']));
+  });
+
+  // Defect caught: the retired flag is quietly accepted, so instructions naming
+  // it keep circulating, or it is refused without saying what to run instead.
+  it('refuses the retired --full flag, naming the bare command', () => {
+    const res = plan(['--full']);
+    expect(res.status).toBe(1);
+    expect(res.out).toContain('--full is retired. The bare ./run_all_tests.sh is the thorough local gate');
   });
 
   // Defect caught: --plan does its planning after the runner has already
@@ -72,7 +77,7 @@ describe('the default run and --full', () => {
     const lastRun = join(scratch, 'footbag-run-all-last');
     mkdirSync(lastRun, { recursive: true });
     writeFileSync(join(lastRun, 'marker.log'), 'from the previous run\n');
-    const res = plan(['--full']);
+    const res = plan([]);
     expect(res.status, res.out).toBe(0);
     expect(existsSync(join(lastRun, 'marker.log'))).toBe(true);
     expect(res.out).not.toContain('preflight');
@@ -145,11 +150,11 @@ describe('the ZAP scan', () => {
 });
 
 describe('--skip-py', () => {
-  // Defect caught: the switch drops rows from --full beyond the Python gates,
-  // or never reaches the clean room, where every Python gate of a full run lives.
-  it('keeps every --full row and hands the switch to the clean room', () => {
-    const full = plan(['--full']);
-    const noPy = plan(['--full', '--skip-py']);
+  // Defect caught: the switch drops rows from the bare run beyond the Python
+  // gates, or never reaches the clean room, where every Python gate of a full run lives.
+  it('keeps every row of the bare run and hands the switch to the clean room', () => {
+    const full = plan([]);
+    const noPy = plan(['--skip-py']);
     expect(noPy.status, noPy.out).toBe(0);
     expect(noPy.rows.map((r) => r.name)).toEqual(full.rows.map((r) => r.name));
     expect(noPy.rows.find((r) => r.name === 'clean-room')?.target).toContain('--skip-py');
@@ -164,7 +169,7 @@ describe('--skip-py', () => {
     for (const other of ['--quick', '--with-legacy-mirror']) {
       const res = plan(['--skip-py', other]);
       expect(res.status, res.out).toBe(1);
-      expect(res.out).toContain('--skip-py is a --full switch');
+      expect(res.out).toContain('--skip-py is a switch of the bare run');
     }
   });
 });
@@ -173,8 +178,8 @@ describe('--staging', () => {
   // Defect caught: the staging switch adds a row that writes, points one at a
   // different environment, or changes what the local rows do.
   it('adds exactly the four read-only staging rows, every one pointed at staging', () => {
-    const full = plan(['--full']);
-    const staged = plan(['--full', '--staging']);
+    const full = plan([]);
+    const staged = plan(['--staging']);
     expect(staged.status, staged.out).toBe(0);
     const added = staged.rows.filter((r) => !full.rows.some((f) => f.name === r.name));
     expect(added.map((r) => r.name).sort()).toEqual([...STAGING_ROWS].sort());

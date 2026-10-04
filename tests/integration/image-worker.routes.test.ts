@@ -161,13 +161,29 @@ describe('POST /process/avatar', () => {
   it('admits up to maxConcurrent requests in parallel without queueing', async () => {
     let inFlightPeak = 0;
     let inFlight = 0;
+    let waited = 0;
+    // A barrier, not a delay: each call holds its slot until both have entered,
+    // so the peak is decided by the cap and not by how fast the second request
+    // happened to arrive. A cap that queued the second would make it wait for a
+    // slot instead, which the wait seam counts.
+    let bothIn!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      bothIn = resolve;
+    });
     const app = createImageWorkerApp({
       maxConcurrent: 2,
-      semaphoreWaitMs: 200,
+      semaphoreWaitMs: 5000,
+      onImageSlotWait: () => {
+        // A queued second request lifts the barrier too, so a cap that is too
+        // low fails on the assertions below rather than by timing out.
+        waited++;
+        bothIn();
+      },
       processAvatarImpl: async (data) => {
         inFlight++;
         if (inFlight > inFlightPeak) inFlightPeak = inFlight;
-        await new Promise((r) => setTimeout(r, 30));
+        if (inFlight === 2) bothIn();
+        await barrier;
         try {
           return await processAvatar(data);
         } finally {
@@ -188,6 +204,7 @@ describe('POST /process/avatar', () => {
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);
     expect(inFlightPeak).toBe(2);
+    expect(waited).toBe(0);
   });
 
   it('queued requests acquire the slot when a holder releases before timeout', async () => {
@@ -200,10 +217,17 @@ describe('POST /process/avatar', () => {
       release = resolve;
     });
 
+    // The second request is released only once it is actually waiting for the
+    // slot, so the case always exercises the hand-off it is named for.
+    let secondWaiting!: () => void;
+    const queued = new Promise<void>((resolve) => {
+      secondWaiting = resolve;
+    });
     let callCount = 0;
     const app = createImageWorkerApp({
       maxConcurrent: 1,
-      semaphoreWaitMs: 1000,
+      semaphoreWaitMs: 5000,
+      onImageSlotWait: () => secondWaiting(),
       processAvatarImpl: async (data) => {
         callCount++;
         if (callCount === 1) {
@@ -230,7 +254,7 @@ describe('POST /process/avatar', () => {
       .send(jpeg)
       .then((r) => r);
 
-    await new Promise((r) => setTimeout(r, 50));
+    await queued;
     release();
 
     const [firstRes, secondRes] = await Promise.all([firstP, secondP]);
@@ -297,10 +321,16 @@ describe('POST /process/avatar', () => {
       release = resolve;
     });
 
+    // Released only once the second request is waiting for the slot.
+    let secondWaiting!: () => void;
+    const queued = new Promise<void>((resolve) => {
+      secondWaiting = resolve;
+    });
     let callCount = 0;
     const app = createImageWorkerApp({
       maxConcurrent: 1,
-      semaphoreWaitMs: 1000,
+      semaphoreWaitMs: 5000,
+      onImageSlotWait: () => secondWaiting(),
       processAvatarImpl: async (data) => {
         callCount++;
         if (callCount === 1) {
@@ -327,7 +357,7 @@ describe('POST /process/avatar', () => {
       .set('x-internal-secret', TEST_SECRET)
       .send(jpeg)
       .then((r) => r);
-    await new Promise((r) => setTimeout(r, 50));
+    await queued;
 
     release();
 

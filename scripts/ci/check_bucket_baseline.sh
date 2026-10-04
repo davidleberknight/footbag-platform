@@ -81,7 +81,7 @@ for tree in terraform/*/; do
   )"
 
   for label in $bucket_labels; do
-    if ! printf '%s\n' "$covered" | grep -qx "$label"; then
+    if ! grep -qx "$label" <<< "$covered"; then
       violations="${violations}\n  ${tree}: bucket '${label}' is named by no DenyPlaintextAccess statement, so it still accepts plaintext"
     fi
   done

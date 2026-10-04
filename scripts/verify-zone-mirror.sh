@@ -374,7 +374,7 @@ answer_records() {
 # serving, so this refuses the whole class rather than the one address somebody
 # happened to type.
 probe="$(query "$APEX" SOA)" || probe=""
-if ! printf '%s\n' "$probe" | grep -qE '^;; flags:[^;]* aa[ ;]'; then
+if ! grep -qE '^;; flags:[^;]* aa[ ;]' <<< "$probe"; then
   echo "ERROR: ${NAMESERVER} did not answer authoritatively for ${APEX}." >&2
   echo "       This compares against the zone's own servers on purpose. A" >&2
   echo "       resolver answers from cache, which during a repoint is whichever" >&2
@@ -457,7 +457,7 @@ while IFS=$'\t' read -r name rtype; do
   # the mirror does not is exactly the difference this script exists to report.
   lookup_failed() {
     [[ "$1" == "__UNREADABLE__" ]] && return 0
-    printf '%s' "$1" | grep -qiE 'timed out|communications error|no servers could be reached|connection refused' && return 0
+    grep -qiE 'timed out|communications error|no servers could be reached|connection refused' <<< "$1" && return 0
     local st
     st="$(response_status "$1")"
     [[ -z "$st" ]] && return 0
@@ -548,7 +548,7 @@ while IFS=$'\t' read -r name rtype; do
   if [[ "$name" == "www.${APEX}" && ( "$rtype" == "A" || "$rtype" == "AAAA" ) ]]; then
     continue
   fi
-  if printf '%s\n' "$CAPTURE_KEYS" | grep -qxF "${name}"$'\t'"${rtype}"; then
+  if grep -qxF "${name}"$'\t'"${rtype}" <<< "$CAPTURE_KEYS"; then
     continue
   fi
   mirror_only=$((mirror_only + 1))
@@ -583,8 +583,8 @@ fi
 # because from delegation it is the only bound on which authority may issue for
 # a footbag.org name. So it gets an explicit check of the values it must carry.
 apex_caa="$("$DIG_BIN" +noall +answer +tries=3 +time=3 "@${NAMESERVER}" "${APEX}" CAA 2>&1 | grep -vE '^[[:space:]]*;' || true)"
-if printf '%s\n' "$apex_caa" | grep -qF '0 issue "amazon.com"' \
-   && printf '%s\n' "$apex_caa" | grep -qF '0 issuewild ";"'; then
+if grep -qF '0 issue "amazon.com"' <<< "$apex_caa" \
+   && grep -qF '0 issuewild ";"' <<< "$apex_caa"; then
   add_line "CHECKED   ${APEX} CAA permits only Amazon's authority and refuses wildcards"
 else
   differing=$((differing + 1))

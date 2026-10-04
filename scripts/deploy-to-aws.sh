@@ -154,12 +154,13 @@ ALWAYS-ON
 Code + docker images ship every deploy. The post-deploy smoke check runs every
 deploy, and a production deploy additionally runs the route smoke and security
 probes against staging first and refuses if either fails. A production deploy
-first passes the release gate (scripts/verify-production-release.sh): a clean
-tree on origin/main, CI green for that commit, a ./run_all_tests.sh --full pass
-for that exact tree, staging already running it, a ./run_all_tests.sh --staging
-pass against that deploy, and no SKIP_SMOKE, SKIP_TESTS, schema-drift or
-lock-holder override. A staging deploy runs no tests: the local --full run is
-the gate before it. The curator seed step (seed_fh_curator.py against
+first checks the release rules (scripts/verify-production-release.sh holds a
+tree to all of them): it stops on a SKIP_SMOKE, SKIP_TESTS, schema-drift or
+lock-holder override, a test seam, a non-canonical origin, or CI finished red,
+and warns about an uncommitted or unpushed tree, a missing ./run_all_tests.sh
+pass, staging running another commit, or a missing ./run_all_tests.sh --staging
+pass. A staging deploy runs no tests: the local ./run_all_tests.sh run is the
+gate before it. The curator seed step (seed_fh_curator.py against
 /curated/**/*.meta.json sidecars) runs unconditionally before any DB ships to
 staging.
 

@@ -476,9 +476,9 @@ echo ""
 MISSING=""
 DISABLED=""
 for rule_id in "${TIER_RULE_IDS[@]}"; do
-  if ! printf '%s' "$LIFECYCLE" | grep -q "^${rule_id}\b"; then
+  if ! grep -q "^${rule_id}\b" <<< "$LIFECYCLE"; then
     MISSING="${MISSING} ${rule_id}"
-  elif ! printf '%s\n' "$LIFECYCLE" | grep -qE "^${rule_id}[[:space:]]+Enabled([[:space:]]|$)"; then
+  elif ! grep -qE "^${rule_id}[[:space:]]+Enabled([[:space:]]|$)" <<< "$LIFECYCLE"; then
     DISABLED="${DISABLED} ${rule_id}"
   fi
 done

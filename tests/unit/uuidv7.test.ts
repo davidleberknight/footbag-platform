@@ -12,7 +12,7 @@
  * tiebreaker must remain consistent across processes — the previous
  * per-process counter scheme did not.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { uuidv7Hex } from '../../src/services/uuidv7';
 
 describe('uuidv7Hex', () => {
@@ -34,14 +34,23 @@ describe('uuidv7Hex', () => {
     expect([0x8, 0x9, 0xa, 0xb]).toContain(byte8Hi);
   });
 
-  it('lex-sorts in time order across calls separated by setTimeout', async () => {
-    const a = uuidv7Hex();
-    await new Promise<void>((resolve) => setTimeout(resolve, 2));
-    const b = uuidv7Hex();
-    await new Promise<void>((resolve) => setTimeout(resolve, 2));
-    const c = uuidv7Hex();
-    expect(a < b).toBe(true);
-    expect(b < c).toBe(true);
+  // The clock is set, not waited on: each id gets its own millisecond because the
+  // test says so, not because a delay happened to cross a millisecond boundary.
+  it('lex-sorts in time order across calls in successive milliseconds', () => {
+    const start = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(start);
+      const a = uuidv7Hex();
+      vi.setSystemTime(start + 2);
+      const b = uuidv7Hex();
+      vi.setSystemTime(start + 4);
+      const c = uuidv7Hex();
+      expect(a < b).toBe(true);
+      expect(b < c).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('lex-sorts in insertion order for rapid-fire calls within the same ms (RFC 9562 method-2 monotonicity)', () => {

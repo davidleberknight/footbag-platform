@@ -45,8 +45,6 @@ export default defineConfig({
   // A focused test left in a spec narrows the whole browser tier to that test,
   // and the push gate would report a pass for everything it skipped.
   forbidOnly: !!process.env.CI,
-  // Quarantined tests never run by default; select explicitly with --grep @quarantined.
-  grepInvert: /@quarantined/,
   timeout: budget(90_000),
   expect: { timeout: budget(10_000) },
   outputDir: path.resolve(__dirname, 'test-results'),

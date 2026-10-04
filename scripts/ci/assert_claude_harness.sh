@@ -115,8 +115,8 @@ bad_invocation=""
 for f in .claude/skills/*/SKILL.md; do
   [ -f "$f" ] || continue
   fm=$(awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f{print}' "$f")
-  if printf '%s' "$fm" | grep -qiE 'invoke only|only when the (user|human) explicitly|only on explicit'; then
-    if ! printf '%s' "$fm" | grep -qE '^disable-model-invocation:[[:space:]]*true'; then
+  if grep -qiE 'invoke only|only when the (user|human) explicitly|only on explicit' <<< "$fm"; then
+    if ! grep -qE '^disable-model-invocation:[[:space:]]*true' <<< "$fm"; then
       bad_invocation="${bad_invocation}  ${f}"$'\n'
     fi
   fi
@@ -328,7 +328,7 @@ for f in .claude/agents/*.md; do
       agent_bad="${agent_bad}  ${f}: hook missing or not executable: ${path}"$'\n'
     fi
   done <<<"$cmds"
-  if printf '%s\n' "$fm" | grep -qE '^[[:space:]]*-[[:space:]]*Bash[[:space:]]*$|^tools:.*[[:space:],]Bash([[:space:],]|$)'; then
+  if grep -qE '^[[:space:]]*-[[:space:]]*Bash[[:space:]]*$|^tools:.*[[:space:],]Bash([[:space:],]|$)' <<< "$fm"; then
     agent_chain=$(printf '%s\n' "$cmds" | sed 's#.*/##')
     if [ "$agent_chain" != "$settings_chain" ]; then
       agent_bad="${agent_bad}  ${f}: frontmatter Bash hook chain differs from the settings.json Bash chain"$'\n'

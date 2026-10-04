@@ -10,7 +10,8 @@
  * change and the Active Player expiry correction, including a correction that
  * shortens a standing; and that a correction changing nothing writes nothing.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { isoDaysFromNow, SECOND_MS } from '../fixtures/clock';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -417,24 +418,39 @@ describe('the tier change', () => {
 
 describe('the Active Player expiry correction', () => {
   it('sets an expiry, then shortens it, which no other pathway may do', async () => {
-    const grant = await request(createApp())
-      .post(`/admin/members/${AP_ID}/active-player/confirm`)
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ expires_on: '2027-06-30', reason: 'error correction' });
-    expect(grant.status).toBe(303);
+    // Dates relative to today, so the shortened standing is still live whenever
+    // this runs. The ledger's current row is the latest by created_at, and two
+    // corrections in one millisecond would tie and fall back to the random id,
+    // so the clock (Date only, no timers) gives each write its own instant, both
+    // in the past so any later case's real-time write is newer still.
+    const longer = isoDaysFromNow(300).slice(0, 10);
+    const shorter = isoDaysFromNow(30).slice(0, 10);
+    const start = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(start - 2 * SECOND_MS);
+      const grant = await request(createApp())
+        .post(`/admin/members/${AP_ID}/active-player/confirm`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ expires_on: longer, reason: 'error correction' });
+      expect(grant.status).toBe(303);
 
-    const shorten = await request(createApp())
-      .post(`/admin/members/${AP_ID}/active-player/confirm`)
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ expires_on: '2026-09-30', reason: 'granted in error' });
-    expect(shorten.status).toBe(303);
+      vi.setSystemTime(start - SECOND_MS);
+      const shorten = await request(createApp())
+        .post(`/admin/members/${AP_ID}/active-player/confirm`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ expires_on: shorter, reason: 'granted in error' });
+      expect(shorten.status).toBe(303);
+    } finally {
+      vi.useRealTimers();
+    }
 
     const current = db((conn) => conn.prepare(
       `SELECT active_player_expires_at FROM member_active_player_current WHERE member_id = ?`,
     ).get(AP_ID)) as { active_player_expires_at: string | null } | undefined;
-    expect(current?.active_player_expires_at?.slice(0, 10)).toBe('2026-09-30');
+    expect(current?.active_player_expires_at?.slice(0, 10)).toBe(shorter);
     expect(readAudit('active_player.admin_correction', AP_ID)).toHaveLength(2);
   });
 

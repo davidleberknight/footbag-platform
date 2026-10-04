@@ -10,7 +10,13 @@ export class Semaphore {
   private inFlight = 0;
   private waiters: Array<{ resolve: () => void; reject: (e: Error) => void; timer: NodeJS.Timeout }> = [];
 
-  constructor(private readonly max: number, private readonly waitTimeoutMs: number) {}
+  // onWait is told each time a caller starts waiting for a slot, so a test can
+  // act on that event rather than on a delay that only hopes it has happened.
+  constructor(
+    private readonly max: number,
+    private readonly waitTimeoutMs: number,
+    private readonly onWait?: () => void,
+  ) {}
 
   async acquire(): Promise<void> {
     if (this.inFlight < this.max) {
@@ -24,6 +30,7 @@ export class Semaphore {
         reject(new Error('semaphore wait timeout'));
       }, this.waitTimeoutMs);
       this.waiters.push({ resolve, reject, timer });
+      this.onWait?.();
     });
   }
 

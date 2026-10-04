@@ -133,7 +133,7 @@ if SENDER_STATUS="$("${SENDER_CALL[@]}" 2>/dev/null)" \
     exit 1
   fi
   echo "Sender identity: $SENDER (verified)"
-elif printf '%s' "$SENDER_STATUS" | grep -qiE 'accessdenied|not authorized'; then
+elif grep -qiE 'accessdenied|not authorized' <<< "$SENDER_STATUS"; then
   echo "Sender identity: $SENDER (status not readable by this profile; sending anyway)"
   echo "  The send principal grants sending only, so it cannot read an identity."
   echo "  If a send below fails as though unauthorized, confirm the identity with"
@@ -184,7 +184,7 @@ if MAIL_FROM_STATUS="$("${MAIL_FROM_CALL[@]}" 2>/dev/null)" \
       echo "  setup fail. SES retries detection for 72 hours before giving up."
       ;;
   esac
-elif printf '%s' "$MAIL_FROM_STATUS" | grep -qiE 'accessdenied|not authorized'; then
+elif grep -qiE 'accessdenied|not authorized' <<< "$MAIL_FROM_STATUS"; then
   echo "Custom bounce domain: status not readable by this profile"
 else
   echo "Custom bounce domain: status could not be read"

@@ -460,10 +460,15 @@ describe('curatorMediaService.uploadVideo', () => {
     const firstStartedP = new Promise<void>((r) => { firstStarted = r; });
     let release!: () => void;
     const blocker = new Promise<void>((r) => { release = r; });
+    // Settled when the second upload either waits for the transcode slot (the
+    // bound working) or starts transcoding past it (the bound broken).
+    let secondReady!: () => void;
+    const secondReadyP = new Promise<void>((r) => { secondReady = r; });
 
     const slowTranscoder = (label: string): VideoTranscodingAdapter => ({
       transcode: async () => {
         order.push(`start:${label}`);
+        if (label === 'second') secondReady();
         if (label === 'first') {
           firstStarted();
           await blocker;
@@ -489,15 +494,19 @@ describe('curatorMediaService.uploadVideo', () => {
     });
     await firstStartedP;
 
-    // Kick off second; it must wait at the semaphore.
+    // Kick off second; it must wait at the semaphore. The first is released only
+    // once the second is waiting for the slot, or has started transcoding past a
+    // broken bound; either way the order below decides, with no delay involved.
+    svcModule.setTranscodeWaitObserverForTests(() => secondReady());
     const secondP = svcSecond.uploadVideo({
       adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: nextSourceFilename('mp4'), caption: null, tags: [],
     });
 
-    // Give the second a moment to potentially start (it should not).
-    await new Promise((r) => setTimeout(r, 50));
-    expect(order).toEqual(['start:first']);
-
+    try {
+      await secondReadyP;
+    } finally {
+      svcModule.setTranscodeWaitObserverForTests(null);
+    }
     release();
     await Promise.all([firstP, secondP]);
 

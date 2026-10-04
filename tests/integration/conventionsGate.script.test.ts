@@ -89,6 +89,100 @@ function expectCheckRan(res: RunResult, name: string): void {
   expect(res.stdout).not.toContain(`check: ${name} -- DID NOT RUN`);
 }
 
+describe('the convention gate: tests wait on events, not fixed delays', () => {
+  const NAME = 'tests wait on events, not on fixed delays';
+  const FAIL = 'a test waits a fixed time instead of on the event it needs';
+  // Each refused form is assembled from parts, so it exists only in the fixture
+  // repository and this file stays clean under the very rule it tests.
+  const TIMER = 'set' + 'Timeout';
+  const SLEEP = 'sl' + 'eep';
+  const WAIT = 'waitFor' + 'Timeout';
+
+  // Defect caught: a test resolves a promise on a timer and assumes the thing it
+  // needs has happened by then, so its verdict moves with the machine's load.
+  it('refuses a promise that resolves on a fixed timeout', () => {
+    const res = inFixtureRepo({
+      'tests/unit/waits.test.ts': `await new Promise((r) => ${TIMER}(r, 50));\n`,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain(FAIL);
+    expect(res.stderr).toContain('tests/unit/waits.test.ts:1');
+  });
+
+  // Defect caught: a stub signals the test's own shell and sleeps, hoping the
+  // handler has run by then; this shape hung a CI run outright.
+  it('refuses a shell sleep inside a stub', () => {
+    const res = inFixtureRepo({
+      'tests/integration/stub.script.test.ts': `const gate = 'g() { kill -INT $$; ${SLEEP} 0.3; return 0; }';\n`,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('tests/integration/stub.script.test.ts:1');
+  });
+
+  it('refuses a browser test that waits a fixed time', () => {
+    const res = inFixtureRepo({
+      'tests/e2e/page.spec.ts': `await page.${WAIT}(500);\n`,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('tests/e2e/page.spec.ts:1');
+  });
+
+  // Defect caught: the rule refuses the one legitimate use, a child that never
+  // finishes on its own so a code timeout has something to cut off.
+  it('accepts a never-ending child started with exec sleep, and a delay named in a comment', () => {
+    const res = inFixtureRepo({
+      'tests/unit/timeout.test.ts': "const ffmpeg = 'exec sleep 30';\n// a sleep 1 here once made this flaky\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain(FAIL);
+    expectCheckRan(res, NAME);
+  });
+});
+
+describe('the convention gate: no pipe into a quitting grep', () => {
+  const NAME = 'no pipe into a quitting grep';
+  const FAIL = 'a script pipes a command into grep -q';
+  // Assembled from parts, so the refused shape exists only in the fixture.
+  const PIPE_QUIET = '| grep -' + 'q';
+
+  // Defect caught: grep -q exits at its first match, the writer dies of a broken
+  // pipe, and under pipefail a match reads as a failure on some runs only.
+  it('refuses a command piped into grep -q', () => {
+    const res = inFixtureRepo({
+      'scripts/thing.sh': `#!/usr/bin/env bash\nset -euo pipefail\nif printf '%s\\n' "$x" ${PIPE_QUIET} y; then :; fi\n`,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain(FAIL);
+    expect(res.stderr).toContain('scripts/thing.sh:3');
+  });
+
+  it('refuses the quiet flag given after another flag', () => {
+    const res = inFixtureRepo({
+      'scripts/thing.sh': `#!/usr/bin/env bash\nids | grep -F -${'q'} -- "$id"\n`,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('scripts/thing.sh:2');
+  });
+
+  // Defect caught: the rule refuses the safe forms it tells the author to use,
+  // or an `||` that is not a pipe at all.
+  it('accepts a here-string, a grep that reads everything, an || alternative and a comment', () => {
+    const res = inFixtureRepo({
+      'scripts/thing.sh': [
+        '#!/usr/bin/env bash',
+        'grep -q y <<< "$x"',
+        'ids | grep y >/dev/null',
+        'a || grep -q y <<< "$x"',
+        `# never write: cmd ${PIPE_QUIET} y`,
+        '',
+      ].join('\n'),
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain(FAIL);
+    expectCheckRan(res, NAME);
+  });
+});
+
 describe('the convention gate: rules about src/', () => {
   it('refuses SQL compiled outside the database layer', () => {
     const res = inFixtureRepo({
@@ -1027,11 +1121,11 @@ describe('the convention gate: where the local runner may reach', () => {
   });
 
   // Defect caught: the thorough local run quietly turns a staging leg back on.
-  it('refuses a --full block that turns on a staging flag', () => {
+  it('refuses a bare-run block that turns on a staging flag', () => {
     for (const flag of ['WITH_SMOKE=1', 'STAGING=1']) {
       const res = inFixtureRepo(runner(plant('  PENTEST=1', `  PENTEST=1\n  ${flag}`)));
       expect(res.exitCode, flag).toBe(1);
-      expect(res.stderr, flag).toContain('the --full block turns on a staging leg');
+      expect(res.stderr, flag).toContain("the bare run's block turns on a staging leg");
     }
   });
 

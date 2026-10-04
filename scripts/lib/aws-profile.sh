@@ -443,5 +443,5 @@ aws_profile_use() {
 aws_profile_exists() {
   local want="$1" listed
   listed="$("$AWS_PROFILE_BIN" configure list-profiles 2>/dev/null)" || return 1
-  printf '%s\n' "$listed" | grep -Fxq -- "$want"
+  grep -Fxq -- "$want" <<< "$listed"
 }

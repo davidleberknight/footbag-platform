@@ -235,6 +235,17 @@ describe('the credential gate: what it must refuse', () => {
     expect(res.stderr).toMatch(/no terminal guard/);
   });
 
+  // Defect caught: a quoted here-string (`<<< "$x"`) also contains `<< "$x"`
+  // one character in, which the normalizer took for a heredoc, so every line
+  // after it was read as data: a terminal guard below it went unseen and the
+  // file's guarded prompt was refused as unguarded.
+  it('still sees a terminal guard that follows a quoted here-string', () => {
+    const res = inFixtureRepo(script(
+      'grep -q x <<< "$text" || true\nif [[ ! -t 0 ]]; then echo "refusing" >&2; exit 1; fi\nread -r answer',
+    ));
+    expect(res.exitCode, res.stderr).toBe(0);
+  });
+
   it('accepts a prompt read that names the terminal as its source', () => {
     const res = inFixtureRepo(script('read -r answer < /dev/tty'));
     expect(res.exitCode, res.stderr).toBe(0);

@@ -256,10 +256,10 @@ describe('vendor-secret.sh — the value never reaches argv', () => {
     // Bash defers a trap until the foreground command it is running returns, so
     // the signal is raised and the stub then exits: the handler fires with the
     // call still in flight from the function's point of view, which is where an
-    // operator's Ctrl-C lands.
+    // operator's Ctrl-C lands. No sleep: the deferral, not timing, orders it.
     writeFileSync(
       park,
-      ['#!/usr/bin/env bash', 'kill -INT "$PPID"', 'sleep 1', 'exit 130'].join('\n') + '\n',
+      ['#!/usr/bin/env bash', 'kill -INT "$PPID"', 'exit 130'].join('\n') + '\n',
     );
     chmodSync(park, 0o755);
 
@@ -273,7 +273,9 @@ describe('vendor-secret.sh — the value never reaches argv', () => {
       },
       ...SPAWN_GUARD,
     });
-    expect(res.status).not.toBe(0);
+    // 130 exactly: the handler ran and ended the run. A hang killed by the spawn
+    // bound reads as null, which a bare "not 0" would have passed.
+    expect(res.status, res.stderr).toBe(130);
 
     const holders = readdirSync(workDir)
       .filter((name) => name !== 'interrupt.sh')

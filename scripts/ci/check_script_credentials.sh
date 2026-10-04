@@ -160,14 +160,18 @@ normalize_shell_source() {
       next
     }
     {
-      if (match($0, /<<-?[ \t]*"[^"]+"/) || match($0, /<<-?[ \t]*'"'"'[^'"'"']+'"'"'/) \
-          || match($0, /<<-?[ \t]*[A-Za-z_][A-Za-z0-9_]*/)) {
-        tag = substr($0, RSTART, RLENGTH)
+      # `<<<` is a here-string: one line of data, not a block, and the line it
+      # sits on is still code. It is set aside before looking for a heredoc,
+      # because `<<< "$x"` also contains `<< "$x"` one character in, which
+      # would otherwise open a heredoc that swallows the rest of the file.
+      probe = $0
+      gsub(/<<</, "   ", probe)
+      if (match(probe, /<<-?[ \t]*"[^"]+"/) || match(probe, /<<-?[ \t]*'"'"'[^'"'"']+'"'"'/) \
+          || match(probe, /<<-?[ \t]*[A-Za-z_][A-Za-z0-9_]*/)) {
+        tag = substr(probe, RSTART, RLENGTH)
         sub(/^<<-?[ \t]*/, "", tag)
         gsub(/["'"'"']/, "", tag)
-        # `<<<` is a here-string: one line of data, not a block, and the line it
-        # sits on is still code.
-        if (substr($0, RSTART, 3) != "<<<") { heredoc = tag }
+        heredoc = tag
       }
       out = ""
       n = length($0)

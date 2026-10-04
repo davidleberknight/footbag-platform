@@ -484,8 +484,8 @@ else
   chmod 600 "$PIN_TMP"
   mv -f -- "$PIN_TMP" "$PIN"
 fi
-if ! ssh-keygen -F "$DELIVERY_HOST_ADDRESS" -f "$PIN" 2>/dev/null | grep -q '^[^#]' \
-   || ! ssh-keygen -F "[${DELIVERY_HOST_ADDRESS}]:${DELIVERY_HOST_PORT}" -f "$PIN" 2>/dev/null | grep -q '^[^#]'; then
+if ! grep -q '^[^#]' <<< "$(ssh-keygen -F "$DELIVERY_HOST_ADDRESS" -f "$PIN" 2>/dev/null)" \
+   || ! grep -q '^[^#]' <<< "$(ssh-keygen -F "[${DELIVERY_HOST_ADDRESS}]:${DELIVERY_HOST_PORT}" -f "$PIN" 2>/dev/null)"; then
   echo "ERROR: ${PIN} does not verify for ${DELIVERY_HOST_ADDRESS} on both ports." >&2
   exit 1
 fi

@@ -39,12 +39,12 @@ beforeAll(() => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function run(): { stdout: string; status: number } {
-  const r = spawnSync('npx', ['tsx', SCRIPT, '--db', dbPath], {
+  // The project's own tsx binary, never `npx`: npx resolves the package first
+  // and can reach the registry, which makes the run depend on the network. Under
+  // the shared bound, which sits below the test timeout.
+  const r = spawnSync(path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx'), [SCRIPT, '--db', dbPath], {
     cwd: REPO_ROOT, encoding: 'utf8',
     ...SPAWN_GUARD,
-    // A cold `npx tsx` compiles the script before it runs, which outlasts the
-    // shared bound on a loaded machine. The kill signal stays the guard's.
-    timeout: 120_000,
   });
   return { stdout: r.stdout ?? '', status: r.status ?? -1 };
 }

@@ -1150,7 +1150,7 @@ expect_q() {
   jq -cn --arg t "$text" '{type:"assistant",message:{content:[{type:"text",text:$t}]}}' > "$tr"
   ev="$(jq -cn --arg p "$tr" '{transcript_path:$p,stop_hook_active:false}')"
   out="$(printf '%s' "$ev" | ".claude/hooks/$Q")"
-  if printf '%s' "$out" | grep -q '"block"'; then got=block; else got=defer; fi
+  if grep -q '"block"' <<< "$out"; then got=block; else got=defer; fi
   rm -f "$tr"
   if [ "$got" != "$want" ]; then
     echo "[hooks] FAIL ($Q): want $want, got $got: $text" >&2

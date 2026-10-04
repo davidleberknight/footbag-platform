@@ -542,7 +542,7 @@ if [[ -z "$ASSUME_SOURCE" ]]; then
   echo "      evidence and it can only be produced on a machine holding the"
   echo "      retired key."
 elif [[ -z "$ASSUME_KEY_ID" ]] \
-     || ! printf '%s\n' "$RETIRED_KEY_IDS" | grep -qxF -- "$ASSUME_KEY_ID"; then
+     || ! grep -qxF -- "$ASSUME_KEY_ID" <<< "$RETIRED_KEY_IDS"; then
   echo "    a real role session: not attempted here, because [profile"
   echo "      ${DEV_TESTER_PROFILE}] on this machine chains from [${ASSUME_SOURCE}],"
   echo "      signing with ${ASSUME_KEY_ID:-no key recorded here}, which is not one of"

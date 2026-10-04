@@ -21,7 +21,7 @@ for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
     after="${ref##*@}"
     if [ "$after" = "$ref" ]; then
       violations="${violations}${wf}: ${ref} (no @<sha>)\n"
-    elif ! printf '%s' "$after" | grep -qE '^[0-9a-f]{40}$'; then
+    elif ! grep -qE '^[0-9a-f]{40}$' <<< "$after"; then
       violations="${violations}${wf}: ${ref} (ref after @ is not a 40-char SHA)\n"
     fi
   done < <(grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]' "$wf" || true)

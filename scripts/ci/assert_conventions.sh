@@ -221,6 +221,93 @@ if [ -n "$insert_out" ]; then
 fi
 fi
 
+# Rule: tests wait on the event itself, never on a fixed delay.
+# Reason: a test that sleeps and then assumes something has happened gives a
+# verdict that moves with machine load, so it passes on an idle workstation and
+# fails, or worse passes vacuously, on a loaded CI runner. A signal sent to a
+# test's own shell followed by a short sleep hung a CI run outright. Three forms
+# are refused in tests/**/*.ts: a promise that resolves on a fixed setTimeout,
+# Playwright's waitForTimeout, and a shell `sleep <n>` inside a stub. The one
+# allowed sleep is `exec sleep <n>`, a child that never finishes on its own, which
+# a test uses to give a code timeout something to cut off.
+#
+# The scan reports how many files it read and fails closed when it reads none.
+if check "tests wait on events, not on fixed delays" tests; then
+delay_out=$(python3 - <<'PYEOF'
+import re, pathlib, sys
+
+promise_sleep = re.compile(r'new Promise[^;\n]*setTimeout\(\s*\w+\s*,\s*[0-9_]+\s*\)')
+wait_for_timeout = re.compile(r'\bwaitForTimeout\(')
+shell_sleep = re.compile(r'(?<![\w-])sleep\s+[0-9.]+')
+exec_sleep = re.compile(r'\bexec\s+sleep\s+[0-9.]+')
+
+scanned = 0
+for path in sorted(pathlib.Path('tests').rglob('*.ts')):
+    scanned += 1
+    for i, line in enumerate(path.read_text(encoding='utf-8', errors='replace').splitlines()):
+        code = line.split('//', 1)[0] if not line.lstrip().startswith('*') else ''
+        if not code.strip():
+            continue
+        hit = promise_sleep.search(code) or wait_for_timeout.search(code)
+        if not hit:
+            stripped = exec_sleep.sub('', code)
+            hit = shell_sleep.search(stripped)
+        if hit:
+            print(f"{path}:{i + 1}: {line.strip()[:100]}")
+
+if scanned == 0:
+    print('scanned no files: the tests/**/*.ts scope matched nothing', file=sys.stderr)
+    sys.exit(2)
+print(f"[conventions]   scanned {scanned} test files", file=sys.stderr)
+PYEOF
+)
+if [ -n "$delay_out" ]; then
+  echo "$delay_out" >&2
+  echo "  FAIL: a test waits a fixed time instead of on the event it needs; await the event (a promise the code resolves, a test seam, the child's own exit), or set the clock with fake timers" >&2
+  violations=$((violations + 1))
+fi
+fi
+
+# Rule: no script pipes a command into a quitting grep (`grep -q`).
+# Reason: `grep -q` exits at its first match. Whatever is still writing into the
+# pipe then dies of a broken pipe, and under `pipefail` that turns a match into a
+# failed condition, so the verdict depends on how fast the two processes run. It
+# made a CI check fail on some runs and pass on others. Feed grep from a
+# here-string instead (`grep -q PATTERN <<< "$text"`, or `<<< "$(command)"`),
+# or let a grep that reads everything decide (`command | grep PATTERN >/dev/null`).
+#
+# Scope: every shell script under scripts/, plus the deploy entry point and the
+# test runner. A `||` is not a pipe and is not matched.
+if check "no pipe into a quitting grep" scripts; then
+quitting_grep_out=$(python3 - <<'PYEOF'
+import re, pathlib, sys
+
+pipe_into_quiet_grep = re.compile(r'(?:^|[^|])\|\s*grep\s+(?:-[A-Za-z]*q[A-Za-z]*|(?:-[A-Za-z]+\s+)+-[A-Za-z]*q[A-Za-z]*)\b')
+paths = sorted(pathlib.Path('scripts').rglob('*.sh'))
+paths += [p for p in (pathlib.Path('deploy_to_aws.sh'), pathlib.Path('run_all_tests.sh')) if p.exists()]
+
+scanned = 0
+for path in paths:
+    scanned += 1
+    for i, line in enumerate(path.read_text(encoding='utf-8', errors='replace').splitlines()):
+        if line.lstrip().startswith('#'):
+            continue
+        if pipe_into_quiet_grep.search(line):
+            print(f"{path}:{i + 1}: {line.strip()[:100]}")
+
+if scanned == 0:
+    print('scanned no files: the scripts/**/*.sh scope matched nothing', file=sys.stderr)
+    sys.exit(2)
+print(f"[conventions]   scanned {scanned} shell scripts", file=sys.stderr)
+PYEOF
+)
+if [ -n "$quitting_grep_out" ]; then
+  echo "$quitting_grep_out" >&2
+  echo "  FAIL: a script pipes a command into grep -q, whose early exit kills the writer and, under pipefail, turns a match into a failure; use grep -q PATTERN <<< \"\$text\" instead" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: work_queue_items inserts go only through src/services/workQueueService.ts.
 # Reason: Every work-queue item must fan out its admin-alerts notification in the
 # same step (USER_STORIES global rule: any task added to the work queue notifies
@@ -1089,14 +1176,14 @@ unset _gate _gate_names _body _calls _unisolated
 # that, -backend=false silently reuses the operator's initialized S3 backend,
 # which is the specific defect, and isolation alone would turn it into a hard
 # failure rather than preventing it.
-if ! sed -n '/^gate_terraform()/,/^}/p' run_all_tests.sh | sed 's/#.*//' | grep -q 'TF_DATA_DIR'; then
+if ! grep -q 'TF_DATA_DIR' <<< "$(sed -n '/^gate_terraform()/,/^}/p' run_all_tests.sh | sed 's/#.*//')"; then
   echo "  FAIL: gate_terraform must init into a throwaway TF_DATA_DIR; -backend=false alone reuses the operator's initialized S3 backend" >&2
   violations=$((violations + 1))
 fi
 fi
 
 # Rule: the local runner reaches staging only from its staging preflight and its
-# gate_staging_* gates, --full turns on no staging leg, and no line of the runner
+# gate_staging_* gates, the bare run turns on no staging leg, and no line of the runner
 # names a production target.
 # Reason: tests are local. The thorough local run once grew staging legs, one of
 # which registered and claimed an account on the staging site on every run, and
@@ -1118,17 +1205,17 @@ if [[ -n "$_staging_hits" ]]; then
   printf '    run_all_tests.sh:%s\n' "$_staging_hits" >&2
   violations=$((violations + 1))
 fi
-# The block that says what --full implies: the one `if (( FULL == 1 ))` block
+# The block that says what the bare run implies: the one `if (( FULL == 1 ))` block
 # that turns on the pentest.
 _full_block="$(awk '
   /^if \(\( FULL == 1 \)\); then$/ { inblk = 1; body = ""; next }
   inblk && /^fi$/ { if (body ~ /PENTEST=1/) { printf "%s", body; exit } inblk = 0; next }
   inblk { body = body $0 "\n" }' run_all_tests.sh | sed 's/#.*//')"
 if [[ -z "$_full_block" ]]; then
-  echo "  FAIL: no block in run_all_tests.sh says what --full implies (an if (( FULL == 1 )) block setting PENTEST=1); this check has stopped scanning" >&2
+  echo "  FAIL: no block in run_all_tests.sh says what the bare run implies (an if (( FULL == 1 )) block setting PENTEST=1); this check has stopped scanning" >&2
   violations=$((violations + 1))
 elif grep -qE '(^|[^A-Za-z0-9_])(STAGING|WITH_SMOKE|WITH_STAGING[A-Z_]*)=' <<<"$_full_block"; then
-  echo "  FAIL: the --full block turns on a staging leg; the local run reaches no deployed environment, and staging is --staging's alone" >&2
+  echo "  FAIL: the bare run's block turns on a staging leg; the local run reaches no deployed environment, and staging is --staging's alone" >&2
   violations=$((violations + 1))
 fi
 _prod_hits="$(sed 's/#.*//' run_all_tests.sh | grep -nE 'SMOKE_TARGET_ENV=production|SMOKE_ENV=production|test:smoke -- --target production|test-deployed\.sh (--target )?production|terraform/production|footbag-production' || true)"

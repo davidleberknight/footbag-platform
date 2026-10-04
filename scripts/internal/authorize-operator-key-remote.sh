@@ -112,7 +112,7 @@ fi
 BEFORE_LIST="$(fingerprints_of "$AUTH_FILE")"
 BEFORE_COUNT="$(printf '%s\n' "$BEFORE_LIST" | grep -c . || true)"
 PRESENT="no"
-printf '%s\n' "$BEFORE_LIST" | grep -qx -- "$AUTHKEY_FINGERPRINT" && PRESENT="yes"
+grep -qx -- "$AUTHKEY_FINGERPRINT" <<< "$BEFORE_LIST" && PRESENT="yes"
 
 echo "  ${AUTHKEY_ACCOUNT} on this host currently authorizes ${BEFORE_COUNT} key(s)."
 
@@ -171,7 +171,7 @@ FAILED=0
 AFTER_LIST="$(fingerprints_of "$AUTH_FILE")"
 AFTER_COUNT="$(printf '%s\n' "$AFTER_LIST" | grep -c . || true)"
 AFTER_PRESENT="no"
-printf '%s\n' "$AFTER_LIST" | grep -qx -- "$AUTHKEY_FINGERPRINT" && AFTER_PRESENT="yes"
+grep -qx -- "$AUTHKEY_FINGERPRINT" <<< "$AFTER_LIST" && AFTER_PRESENT="yes"
 
 if [[ "$AUTHKEY_MODE" == "add" ]]; then
   if [[ "$AFTER_PRESENT" == "yes" ]]; then
@@ -208,7 +208,7 @@ SURVIVED=1
 while IFS= read -r fp; do
   [[ -z "$fp" ]] && continue
   [[ "$fp" == "$AUTHKEY_FINGERPRINT" ]] && continue
-  if ! printf '%s\n' "$AFTER_LIST" | grep -qx -- "$fp"; then
+  if ! grep -qx -- "$fp" <<< "$AFTER_LIST"; then
     echo "  FAIL a pre-existing key is gone: ${fp}" >&2
     SURVIVED=0
     FAILED=1

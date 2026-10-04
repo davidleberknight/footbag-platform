@@ -168,7 +168,7 @@ ask() {
     echo "FAIL: ${name} ${rtype} could not be asked of ${server} (dig exit ${status})." >&2
     return 1
   fi
-  if [[ "$server" == "$NAMESERVER" ]] && ! printf '%s\n' "$out" | grep -qE 'flags:[^;]* aa'; then
+  if [[ "$server" == "$NAMESERVER" ]] && ! grep -qE 'flags:[^;]* aa' <<< "$out"; then
     echo "FAIL: ${server} did not answer ${name} ${rtype} authoritatively; name a Route 53 nameserver for ${APEX}." >&2
     return 1
   fi
@@ -220,7 +220,7 @@ judge_apex_txt() {
   spf="$(printf '%s\n' "$1" | join_txt_lines | grep -c '^v=spf1' || true)"
   token="$(printf '%s\n' "$1" | join_txt_lines | grep -c '^google-site-verification=' || true)"
   [[ "$spf" -eq 1 ]] \
-    && printf '%s\n' "$1" | join_txt_lines | grep -qxF 'v=spf1 include:amazonses.com include:_spf.google.com ~all' \
+    && grep -qxF 'v=spf1 include:amazonses.com include:_spf.google.com ~all' <<< "$(printf '%s\n' "$1" | join_txt_lines)" \
     && [[ "$token" -ge 1 ]]
 }
 judge_dmarc() {
@@ -238,7 +238,7 @@ judge_rollback_txt() {
   spf="$(printf '%s\n' "$1" | join_txt_lines | grep -c '^v=spf1' || true)"
   token="$(printf '%s\n' "$1" | join_txt_lines | grep -c '^google-site-verification=' || true)"
   [[ "$spf" -eq 1 ]] \
-    && printf '%s\n' "$1" | join_txt_lines | grep -qxF "$EXPECTED_LEGACY_SPF" \
+    && grep -qxF "$EXPECTED_LEGACY_SPF" <<< "$(printf '%s\n' "$1" | join_txt_lines)" \
     && [[ "$token" -ge 1 ]]
 }
 judge_bounce_mx() {

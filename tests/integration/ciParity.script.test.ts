@@ -128,8 +128,8 @@ describe('a job the local runners do not cover', () => {
   });
 });
 
-describe('the jobs only the clean room runs under --full', () => {
-  // Under --full the coverage run and the legacy Python suite run only in the
+describe('the jobs only the clean room runs in the bare run', () => {
+  // In the bare run the coverage run and the legacy Python suite run only in the
   // clean room, so the room dropping either gate must fail.
   it('refuses a clean room that stops running the coverage gate', () => {
     const res = inFixtureRepo({
@@ -152,7 +152,7 @@ describe('the jobs only the clean room runs under --full', () => {
       'run_all_tests.sh': replaceOnce('ROOM_CARRIES_UNDER_FULL="build ', 'ROOM_CARRIES_UNDER_FULL="ghost-gate build '),
     });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain("leaves 'ghost-gate' to the clean room under --full");
+    expect(res.stderr).toContain("leaves 'ghost-gate' to the clean room in the bare run");
   });
 
   it('refuses a runner that no longer says which gates it leaves to the clean room', () => {

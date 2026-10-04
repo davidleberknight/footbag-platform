@@ -87,7 +87,7 @@ compile scripts/requirements.in scripts/requirements.txt "${COMPILE_ARGS[@]}"
 
 # Verify the outcome: each compiled file pins every line and hashes every package.
 for lock in scripts/requirements-tools.txt legacy_data/requirements.txt scripts/requirements.txt; do
-  if grep -E '^[A-Za-z0-9]' "$lock" | grep -vq '=='; then
+  if grep -E '^[A-Za-z0-9]' "$lock" | grep -v '==' >/dev/null; then
     echo "ERROR: ${lock} carries a requirement without an exact version." >&2
     exit 1
   fi

@@ -351,14 +351,13 @@ if [[ ! -f "$LOCAL_DB" ]]; then
 fi
 
 echo "==> Verifying rebuilt local DB..."
-sqlite3 "$LOCAL_DB" 'PRAGMA integrity_check;' | grep -qx 'ok' || {
+grep -qx 'ok' <<< "$(sqlite3 "$LOCAL_DB" 'PRAGMA integrity_check;')" || {
   echo "ERROR: local rebuilt DB failed integrity_check" >&2
   exit 1
 }
 
-sqlite3 "$LOCAL_DB" \
-  "SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_person_club_affiliations';" \
-  | grep -qx '1' || {
+grep -qx '1' <<< "$(sqlite3 "$LOCAL_DB" \
+  "SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_person_club_affiliations';")" || {
   echo "ERROR: local rebuilt DB is missing table legacy_person_club_affiliations" >&2
   exit 1
 }

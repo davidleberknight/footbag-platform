@@ -2,7 +2,7 @@
 # scripts/lib/source-tree-state.sh -- one fingerprint for "this exact tree".
 #
 # Sourced, never run. Two readers must agree on it byte for byte: the local
-# runner, which stamps it into the pass receipt a GREEN --full run writes, and the
+# runner, which stamps it into the pass receipt a GREEN bare run writes, and the
 # production release gate, which refuses a receipt whose fingerprint differs from
 # the tree about to ship. A second copy of the recipe would let the two drift, and
 # the gate would then refuse every receipt, or accept one for a different tree.

@@ -347,7 +347,7 @@ if ! system_python_ok; then
   fi
   # --set only chooses among registered alternatives; a python3 repointed by
   # hand, or one never registered, has none, so register Ubuntu's own first.
-  if ! $ALTERNATIVES --list python3 2>/dev/null | grep -qxF "$distro_py"; then
+  if ! grep -qxF "$distro_py" <<< "$($ALTERNATIVES --list python3 2>/dev/null)"; then
     $ALTERNATIVES --install "$SYSTEM_PYTHON3" python3 "$distro_py" 1
   fi
   $ALTERNATIVES --set python3 "$distro_py"

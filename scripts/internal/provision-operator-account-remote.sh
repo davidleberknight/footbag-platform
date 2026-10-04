@@ -249,7 +249,7 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
     opacc_overlap=""
     while IFS= read -r their_fp; do
       [[ -z "$their_fp" ]] && continue
-      if printf '%s\n' "$opacc_shared_fps" | grep -qxF -- "$their_fp"; then
+      if grep -qxF -- "$their_fp" <<< "$opacc_shared_fps"; then
         opacc_overlap+="${their_fp}"$'\n'
       fi
     done <<< "$OPACC_THEIR_FPS"
@@ -293,12 +293,12 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
   while IFS=: read -r name _ _ gid _ home shell; do
     [[ "$name" == "$OPACC_ACCOUNT" ]] && continue
     case "$shell" in */nologin|*/false|"") continue ;; esac
-    id -nG "$name" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$SUDO_GROUP" || continue
+    grep -qx -- "$SUDO_GROUP" <<< "$(id -nG "$name" 2>/dev/null | tr ' ' '\n')" || continue
     [[ -n "$home" && -s "${home}/.ssh/authorized_keys" ]] || continue
     kept_key=0
     while IFS= read -r candidate_fp; do
       [[ -z "$candidate_fp" ]] && continue
-      if ! printf '%s\n' "$OPACC_THEIR_FPS" | grep -qx -- "$candidate_fp"; then
+      if ! grep -qx -- "$candidate_fp" <<< "$OPACC_THEIR_FPS"; then
         kept_key=1
         break
       fi
@@ -345,7 +345,7 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
   OPACC_PRIVILEGED_GROUPS=("$SUDO_GROUP")
   getent group docker >/dev/null 2>&1 && OPACC_PRIVILEGED_GROUPS+=(docker)
   for priv_group in "${OPACC_PRIVILEGED_GROUPS[@]}"; do
-    if id -nG "$OPACC_ACCOUNT" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$priv_group"; then
+    if grep -qx -- "$priv_group" <<< "$(id -nG "$OPACC_ACCOUNT" 2>/dev/null | tr ' ' '\n')"; then
       gpasswd -d "$OPACC_ACCOUNT" "$priv_group" >/dev/null || true
     fi
   done
@@ -408,7 +408,7 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
         fi
         sweep_fp="$(printf '%s\n' "$sweep_line" \
           | ssh-keygen -l -f /dev/stdin 2>/dev/null | awk '{print $2}' || true)"
-        if [[ -n "$sweep_fp" ]] && printf '%s\n' "$OPACC_THEIR_FPS" | grep -qx -- "$sweep_fp"; then
+        if [[ -n "$sweep_fp" ]] && grep -qx -- "$sweep_fp" <<< "$OPACC_THEIR_FPS"; then
           sweep_hit=1
           echo "  REMOVED their key from ${sweep_name}: ${sweep_fp}"
           continue
@@ -448,7 +448,7 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
   esac
 
   for priv_group in "${OPACC_PRIVILEGED_GROUPS[@]}"; do
-    if id -nG "$OPACC_ACCOUNT" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$priv_group"; then
+    if grep -qx -- "$priv_group" <<< "$(id -nG "$OPACC_ACCOUNT" 2>/dev/null | tr ' ' '\n')"; then
       echo "  FAIL still a member of ${priv_group}, so that grant stands" >&2
       offboard_failed=1
     else
@@ -490,7 +490,7 @@ if [[ "$OPACC_MODE" == "offboard" ]]; then
       [[ -f "$check_ak" ]] || continue
       while IFS= read -r check_fp; do
         [[ -z "$check_fp" ]] && continue
-        if printf '%s\n' "$OPACC_THEIR_FPS" | grep -qx -- "$check_fp"; then
+        if grep -qx -- "$check_fp" <<< "$OPACC_THEIR_FPS"; then
           echo "  FAIL ${check_name} still authorizes their key: ${check_fp}" >&2
           leftover=1
         fi
@@ -551,7 +551,7 @@ if [[ "$OPACC_ACCOUNT" != "$OPACC_SHARED_ACCOUNT" ]]; then
   printf '%s\n' "$OPACC_KEY_LINE" > "$opacc_key_tmp"
   opacc_new_fp="$(ssh-keygen -l -f "$opacc_key_tmp" 2>/dev/null | awk '{print $2}' || true)"
   if [[ -n "$opacc_new_fp" ]] \
-      && opacc_shared_fingerprints | grep -qxF -- "$opacc_new_fp"; then
+      && grep -qxF -- "$opacc_new_fp" <<< "$(opacc_shared_fingerprints)"; then
     echo "REFUSING: the key offered for ${OPACC_ACCOUNT} (${opacc_new_fp}) is already" >&2
     echo "       authorized on the shared account ${OPACC_SHARED_ACCOUNT}. A named account" >&2
     echo "       needs a key pair of its own: retiring ${OPACC_ACCOUNT} later sweeps its" >&2
@@ -575,8 +575,8 @@ if [[ "${OPACC_REOPEN:-no}" == "yes" ]]; then
   reopen_home="$(getent passwd "$OPACC_ACCOUNT" | cut -d: -f6 || true)"
   for reopen_retired in "${reopen_home}"/.ssh/authorized_keys.offboarded-*; do
     [[ -f "$reopen_retired" ]] || continue
-    if ssh-keygen -l -f "$reopen_retired" 2>/dev/null | awk '{print $2}' \
-        | grep -qxF -- "${opacc_new_fp:-}"; then
+    if [[ -n "${opacc_new_fp:-}" ]] && grep -qxF -- "$opacc_new_fp" \
+        <<< "$(ssh-keygen -l -f "$reopen_retired" 2>/dev/null | awk '{print $2}')"; then
       echo "REFUSING: ${opacc_new_fp} is a key ${OPACC_ACCOUNT} was retired with." >&2
       echo "       A re-onboarding takes a key pair made fresh for it. Nothing done." >&2
       exit 1
@@ -613,12 +613,12 @@ else
   allow_groups="$(printf '%s\n' "$SSHD_EFFECTIVE" | sed -n 's/^allowgroups //p')"
   deny_users="$(printf '%s\n' "$SSHD_EFFECTIVE" | sed -n 's/^denyusers //p')"
 
-  if [[ -n "$deny_users" ]] && printf '%s\n' $deny_users | grep -qx -- "$OPACC_ACCOUNT"; then
+  if [[ -n "$deny_users" ]] && grep -qx -- "$OPACC_ACCOUNT" <<< "$(printf '%s\n' $deny_users)"; then
     echo "ERROR: sshd's DenyUsers names ${OPACC_ACCOUNT}, so it could not log in." >&2
     echo "       Nothing done." >&2
     exit 1
   fi
-  if [[ -n "$allow_users" ]] && ! printf '%s\n' $allow_users | grep -qx -- "$OPACC_ACCOUNT"; then
+  if [[ -n "$allow_users" ]] && ! grep -qx -- "$OPACC_ACCOUNT" <<< "$(printf '%s\n' $allow_users)"; then
     echo "ERROR: sshd has an AllowUsers list and ${OPACC_ACCOUNT} is not on it:" >&2
     echo "         ${allow_users}" >&2
     echo "       The account would be created and then refused at login, which" >&2
@@ -626,7 +626,7 @@ else
     echo "       /etc/ssh/sshd_config, reload sshd, then re-run. Nothing done." >&2
     exit 1
   fi
-  if [[ -n "$allow_groups" ]] && ! printf '%s\n' $allow_groups | grep -qx -- "$SUDO_GROUP"; then
+  if [[ -n "$allow_groups" ]] && ! grep -qx -- "$SUDO_GROUP" <<< "$(printf '%s\n' $allow_groups)"; then
     echo "ERROR: sshd has an AllowGroups list that does not carry '${SUDO_GROUP}':" >&2
     echo "         ${allow_groups}" >&2
     echo "       The new account's groups would not satisfy it and the login" >&2
@@ -726,7 +726,7 @@ echo
 echo "  === Verification ==="
 FAILED=0
 
-if id -nG -- "$OPACC_ACCOUNT" | tr ' ' '\n' | grep -qx -- "$SUDO_GROUP"; then
+if grep -qx -- "$SUDO_GROUP" <<< "$(id -nG -- "$OPACC_ACCOUNT" | tr ' ' '\n')"; then
   echo "  OK   member of ${SUDO_GROUP}"
 else
   echo "  FAIL not a member of ${SUDO_GROUP}" >&2

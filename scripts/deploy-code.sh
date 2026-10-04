@@ -10,9 +10,10 @@
 #   - ~/.ssh/config alias "footbag-staging" configured with User footbag.
 #     Nothing below passes a login user, a key or a hostname on the command
 #     line, so that alias is the only place the connection is defined.
-#   - for staging, ./run_all_tests.sh --full passed on this tree;
-#     for production, the release gate (scripts/verify-production-release.sh),
-#     which this script runs again itself before it touches the host
+#   - for staging, ./run_all_tests.sh passed on this tree;
+#     for production, the release rules (scripts/verify-production-release.sh),
+#     which this script checks again itself before it touches the host, stopping
+#     only on a real problem
 #   - The target host already provisioned and serving. This deploy promotes code
 #     and images onto a host that is already standing; it creates no instance,
 #     no bucket and no credential, so a first-time environment must be built

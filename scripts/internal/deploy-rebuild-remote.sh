@@ -1277,7 +1277,7 @@ ensure_swapfile() {
     production) size="2G"; size_mb=2048 ;;
     *)          size="1G"; size_mb=1024 ;;
   esac
-  if swapon --show=NAME --noheadings | grep -qx /swapfile; then
+  if grep -qx /swapfile <<< "$(swapon --show=NAME --noheadings)"; then
     echo "==> Swapfile already active"
   else
     echo "==> Provisioning ${size} disk swapfile..."
@@ -1343,7 +1343,7 @@ if ! test -f "$DB_PATH"; then
 fi
 
 echo "    Verifying copied DB on host..."
-sqlite3 "$DB_PATH" 'PRAGMA integrity_check;' | grep -qx 'ok' || {
+grep -qx 'ok' <<< "$(sqlite3 "$DB_PATH" 'PRAGMA integrity_check;')" || {
   echo "Copied DB failed integrity_check on host" >&2
   exit 1
 }

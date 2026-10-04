@@ -93,7 +93,7 @@ JOBS_LIST="$(printf '%s\n' "${JOBS[@]}")"
 # that names it is not evidence of anything.
 #
 # The runner registers a gate with run_gate, or with checkout_gate for one the
-# clean room takes over under --full; both schedule it in every other mode.
+# clean room takes over in the bare run; both schedule it in every other mode.
 RUNNER_GATE_RE='^\s*(run_gate|checkout_gate) +[a-z0-9-]+'
 ROOM_GATES="$(grep -oE '^\s*gate +[a-z0-9-]+' "$CLEAN_ROOM" | awk '{print $2}')"
 LOCAL_GATES="$(grep -oE "$RUNNER_GATE_RE" "$RUNNER" | awk '{print $2}'; printf '%s\n' "$ROOM_GATES")"
@@ -293,14 +293,14 @@ while IFS= read -r listed; do
 done <<<"$RUNNER_EQUIVALENTS"
 
 # =============================================================================
-# What the runner leaves to the clean room under --full.
+# What the runner leaves to the clean room in the bare run.
 #
-# Under --full the runner does not run the gates on ROOM_CARRIES_UNDER_FULL in
+# In the bare run the runner does not run the gates on ROOM_CARRIES_UNDER_FULL in
 # the checkout, because the clean room runs them. A label on that list the room
 # does not register is a gate a full run executes nowhere at all, and it would
 # still show up green: the runner no longer runs it and nothing reports its
 # absence until the push. The unit and integration tiers are registered by the
-# room's quick path; under --full it runs them as the coverage gate, which the
+# room's quick path; in the bare run it runs them as the coverage gate, which the
 # job table above already holds to the room.
 # =============================================================================
 
@@ -312,7 +312,7 @@ if [[ -z "$CARRIES_LINE" ]]; then
 else
   for carried in $(sed -E 's/^ROOM_CARRIES_UNDER_FULL="([^"]*)".*/\1/' <<<"$CARRIES_LINE"); do
     if ! grep -qx "$carried" <<<"$ROOM_GATES"; then
-      echo "  FAIL: run_all_tests.sh leaves '${carried}' to the clean room under --full, but the" >&2
+      echo "  FAIL: run_all_tests.sh leaves '${carried}' to the clean room in the bare run, but the" >&2
       echo "        clean room registers no such gate, so a full run executes it nowhere." >&2
       violations=$((violations + 1))
     fi

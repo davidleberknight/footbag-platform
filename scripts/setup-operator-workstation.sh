@@ -465,7 +465,7 @@ if command -v ssh >/dev/null 2>&1; then
     fi
     # IdentitiesOnly matters: without it ssh offers every key the agent holds and
     # the server can refuse the lot before reaching hers.
-    if ! printf '%s\n' "$SSH_G" | grep -qi '^identitiesonly yes'; then
+    if ! grep -qi '^identitiesonly yes' <<< "$SSH_G"; then
       todo "${ALIAS} does not set 'IdentitiesOnly yes'; without it ssh offers every key your agent holds and the host can refuse them all before reaching yours"
     fi
 

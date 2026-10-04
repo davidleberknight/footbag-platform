@@ -394,7 +394,7 @@ The suite includes a migration-testing cluster under `tests/integration/` that e
 
 ```bash
 ./run_all_tests.sh --quick    # before a commit (what npm run test:quick runs)
-./run_all_tests.sh            # before a push or PR: the complete local suite (--full is a synonym)
+./run_all_tests.sh            # before a push or PR: the complete local suite
 ./run_all_tests.sh --plan     # print the rows a run would schedule, and run nothing
 ./run_all_tests.sh --skip-py  # the full run minus the pre-go-live Python gates; ends INCOMPLETE, no pass receipt
                               # (the default flips to skipping them once that Python is declared done)
