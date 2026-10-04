@@ -174,18 +174,27 @@ check_assets "/"
 # ── Deployed environments only ────────────────────────────────────────────────
 if [ "$SMOKE_ENV" != "development" ]; then
   # Curated media is served from the bucket through the edge, a path no local
-  # stack exercises. One image from the media hub must arrive as an image.
+  # stack exercises. The media hub is cards of text that link the galleries, so
+  # the image is taken from the first gallery it links, and it must arrive as an
+  # image rather than as a page.
   media_body="${WORK_DIR}/media"
   fetch "/media" "$media_body" >/dev/null
-  media_ref=$(grep -oE '/media-store/[^"?]+\.(jpg|jpeg|png|webp)' "$media_body" | head -n 1 || true)
-  if [ -z "$media_ref" ]; then
-    bad "curated media image on /media — no /media-store/ image linked"
+  gallery_ref=$(grep -oE 'href="/media/gallery_[A-Za-z0-9_-]+"' "$media_body" | head -n 1 | sed 's/^href="//; s/"$//' || true)
+  if [ -z "$gallery_ref" ]; then
+    bad "curated media image — /media links no gallery to take one from"
   else
-    out=$(fetch "$media_ref" /dev/null)
-    if [ "${out%% *}" = "200" ] && [[ "${out#* }" == image/* ]]; then
-      ok "curated media image served (${media_ref})"
+    gallery_body="${WORK_DIR}/gallery"
+    fetch "$gallery_ref" "$gallery_body" >/dev/null
+    media_ref=$(grep -oE '/media-store/[^"?]+\.(jpg|jpeg|png|webp)' "$gallery_body" | head -n 1 || true)
+    if [ -z "$media_ref" ]; then
+      bad "curated media image on ${gallery_ref} — no /media-store/ image linked"
     else
-      bad "curated media image ${media_ref} — got ${out}"
+      out=$(fetch "$media_ref" /dev/null)
+      if [ "${out%% *}" = "200" ] && [[ "${out#* }" == image/* ]]; then
+        ok "curated media image served (${media_ref})"
+      else
+        bad "curated media image ${media_ref} — got ${out}"
+      fi
     fi
   fi
 fi

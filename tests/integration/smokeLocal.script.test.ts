@@ -106,7 +106,9 @@ describe('smoke-local.sh against the real application', () => {
 //   missing-css    the stylesheet the home page links answers 404
 //   js-as-text     the script the home page links is served as text/plain
 //   no-assets      the home page links no stylesheet or script at all
-//   no-media       the media hub links no curated image
+//   no-gallery     the media hub links no gallery
+//   no-media       the gallery the hub links carries no curated image
+//   media-as-page  the curated image answers 200 with an HTML page
 //   webhook-open   the payment webhook is not reachable (403 from the edge)
 //   test-sitekey   the sign-in page carries a Cloudflare test key
 const STUB = `
@@ -122,7 +124,8 @@ const pages = {
   '/freestyle/history': '<h1>History</h1>',
   '/freestyle/sets': '<a href="/freestyle/sets/x">x</a>',
   '/freestyle/tricks': '<a href="/freestyle/tricks/x">x</a>',
-  '/media': '<img src="/media-store/a-display.jpg">',
+  '/media': '<a href="/media/browse">Browse</a><a href="/media/gallery_demo">Demo</a>',
+  '/media/gallery_demo': '<img src="/media-store/a-display.jpg">',
   '/login': '<div class="cf-turnstile" data-sitekey="0x4AAAAAAAlivekey"></div>',
 };
 http.createServer((req, res) => {
@@ -139,12 +142,16 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': mode === 'js-as-text' ? 'text/plain' : 'application/javascript' });
     return res.end('');
   }
-  if (url.startsWith('/media-store/')) { res.writeHead(200, { 'content-type': 'image/jpeg' }); return res.end('x'); }
+  if (url.startsWith('/media-store/')) {
+    res.writeHead(200, { 'content-type': mode === 'media-as-page' ? 'text/html' : 'image/jpeg' });
+    return res.end('x');
+  }
   let body = pages[url];
   if (body === undefined) { res.writeHead(404); return res.end(); }
   if (mode === 'error-page' && url === '/') body = '<div class="error-page"><a href="/events">x</a></div>';
   if (mode === 'no-assets' && url === '/') body = '<html><body><a href="/events">Events</a></body></html>';
-  if (mode === 'no-media' && url === '/media') body = '<p>nothing yet</p>';
+  if (mode === 'no-gallery' && url === '/media') body = '<a href="/media/browse">Browse</a>';
+  if (mode === 'no-media' && url === '/media/gallery_demo') body = '<p>nothing yet</p>';
   if (mode === 'test-sitekey' && url === '/login') body = '<div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div>';
   res.writeHead(200, { 'content-type': 'text/html' });
   res.end(body);
@@ -199,10 +206,28 @@ describe('smoke-local.sh refuses what a status code alone would pass', () => {
     expect(res.out).toContain('contains a quote, backslash or line break');
   });
 
-  it('fails a deployed environment serving no curated image', async () => {
+  // Defect caught: the media check passes having found no gallery to take an
+  // image from, so a hub that lost its gallery links goes unnoticed.
+  it('fails a deployed environment whose media hub links no gallery', async () => {
+    const res = runSmoke(await stubTarget('no-gallery'), { SMOKE_ENV: 'staging' });
+    expect(res.status).toBe(1);
+    expect(res.out).toContain('/media links no gallery to take one from');
+  });
+
+  // Defect caught: a gallery renders with no curated image, so bucket-served
+  // media is never exercised.
+  it('fails a deployed environment whose gallery serves no curated image', async () => {
     const res = runSmoke(await stubTarget('no-media'), { SMOKE_ENV: 'staging' });
     expect(res.status).toBe(1);
-    expect(res.out).toContain('no /media-store/ image linked');
+    expect(res.out).toContain('on /media/gallery_demo — no /media-store/ image linked');
+  });
+
+  // Defect caught: the edge routes the media path to the app, which answers
+  // 200 with a page, so members see broken images while a status check passes.
+  it('fails a curated image that arrives as a page', async () => {
+    const res = runSmoke(await stubTarget('media-as-page'), { SMOKE_ENV: 'staging' });
+    expect(res.status).toBe(1);
+    expect(res.out).toContain('curated media image /media-store/a-display.jpg — got 200 text/html');
   });
 
   it('fails production when the payment webhook does not reach the app', async () => {

@@ -39,7 +39,13 @@ the human's instruction as given.
     `| grep doctrine | grep -v blocked`).
   - Active work: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`
     (add `--label <lane>`, `--assignee <handle>`, `--milestone <name>` to narrow).
-  - Detail: `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO"`.
+  - Detail, the whole card in one read (body and every comment, in order):
+    `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO" --json number,title,state,labels,assignees,body,comments
+    --jq '"#\(.number) [\(.state)] \(.title)\nLabels: \([.labels[].name]|join(", "))  Assignees:
+    \([.assignees[].login]|join(", "))\n\n\(.body)\n" + ([.comments[] | "\n--- comment
+    \(.author.login) \(.createdAt)\n\(.body)"] | join(""))'`.
+    Never the plain form or `--comments` alone: outside a terminal the first omits the comments
+    and the second omits the body.
   - "Is this tracked / in scope?": search titles and bodies with
     `gh search issues --repo "$FOOTBAG_PRIVATE_REPO" "<terms>"` or list open issues and match.
     An open issue covering the work is the scope record; its absence for significant new work is
@@ -58,6 +64,13 @@ the human's instruction as given.
   from `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --json assignees`; fully unwired -> ask the
   human for the handle. Never hard-code a handle in this file.
 - Non-mutating `gh api` GETs are fine; the `gh` read forms auto-approve, run them freely.
+- **Reading a card.** Read the body and every comment before saying anything about the card. The
+  body is the baseline and the comments are its change log, read in order: a comment that says it
+  supersedes, rewrites, corrects or rules on something overrides what it names, and a later
+  "body corrected" or "rewritten" comment puts the body back on top of the comments before it.
+  Report the card's merged current state, and name any conflict the card leaves unresolved rather
+  than picking a side. A card rewrite folds the live comment content into the body, so the body
+  alone tells the truth again.
 
 ## Drafting
 

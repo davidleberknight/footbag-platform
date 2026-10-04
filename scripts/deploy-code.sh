@@ -570,7 +570,7 @@ else
   echo "==> Running smoke check against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     echo "ERROR: post-deploy smoke check failed against $smoke_url" >&2
-    echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
+    echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
   # Blocking security probes (auth gates, anti-enumeration equivalence, the
@@ -579,7 +579,7 @@ else
   echo "==> Running security smoke probes against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     echo "ERROR: security smoke probes failed against $smoke_url" >&2
-    echo "Recommendation: ssh $REMOTE 'sudo journalctl -u footbag -n 200 --no-pager' to inspect host logs." >&2
+    echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
 fi
