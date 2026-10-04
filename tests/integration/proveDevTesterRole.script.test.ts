@@ -242,3 +242,53 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
     expect(log().split('\n').filter(Boolean)).toEqual([`verify --verify --target staging --account ${ACCOUNT} | stdin=${PASSWORD}`]);
   });
 });
+
+describe('prove-dev-tester-role.sh --checks-only — the denials and the baseline alone', () => {
+  /** No terminal and nothing on stdin: the checks are reads and need neither. */
+  function checks(argv: string[], exits: Partial<Record<string, number>> = {}, extra: Record<string, string> = {}) {
+    const r = spawnSync('bash', [SCRIPT, '--checks-only', ...argv], {
+      encoding: 'utf-8',
+      input: '',
+      env: { ...process.env, ...env(exits), ...extra },
+      ...SPAWN_GUARD,
+    });
+    return { status: r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
+  }
+
+  it('with no account, runs only the two read-only checks and leaves no user\'s key out', () => {
+    const r = checks([]);
+    expect(r.status, r.out + r.err).toBe(0);
+    expect(r.out).toMatch(/CHECKED/);
+    expect(log().split('\n').filter(Boolean)).toEqual(['denials  | stdin=', `baseline --compare ${baseline} | stdin=`]);
+  });
+
+  it('with an account, leaves out that account\'s own key and nothing else', () => {
+    const r = checks(['--account', ACCOUNT]);
+    expect(r.status, r.out + r.err).toBe(0);
+    expect(log().split('\n').filter(Boolean)).toEqual(['denials  | stdin=', `baseline --compare ${baseline} --ignore-user ${ACCOUNT} | stdin=`]);
+  });
+
+  it('fails when a denial does not hold, comparing nothing after it', () => {
+    const r = checks([], { denials: 1 });
+    expect(r.status).toBe(1);
+    expect(r.err).toMatch(/a denial the role must carry did not hold/);
+    expect(log()).not.toMatch(/^baseline/m);
+  });
+
+  it('fails and says so when something administrative changed since the baseline', () => {
+    const r = checks([], { baseline: 3 });
+    expect(r.status).toBe(1);
+    expect(r.err).toMatch(/something administrative CHANGED since the baseline/);
+    expect(r.out).not.toMatch(/CHECKED/);
+  });
+
+  it('refuses a resume point, a malformed account and a missing baseline, running nothing', () => {
+    expect(checks(['--from-step', '4']).status).toBe(2);
+    expect(checks(['--account', 'David']).status).toBe(2);
+    expect(checks(['--account', 'footbag-operator']).status).toBe(2);
+    const none = checks([], {}, { TMPDIR: join(dir, 'empty-tmp') });
+    expect(none.status).toBe(2);
+    expect(none.err).toMatch(/verify-account-baseline\.sh --save/);
+    expect(log()).toBe('');
+  });
+});

@@ -36,6 +36,13 @@
 #      (onboard-dev-tester.sh --verify), the one step given the shared sudo
 #      password
 #
+# With --checks-only it runs steps 4 and 5 alone, read-only, with no typed
+# word and no password: the check after an identity apply, before anybody is
+# onboarded, and the check after an offboarding. Without --account it leaves
+# no user's key out of the comparison; with one, it leaves out that account's
+# own key, the one change its lifecycle is expected to make. Either way the
+# baseline is found as below, so nobody carries its path between commands.
+#
 # WHAT IT REFUSES TO DO.
 #
 #   - Prove footbag-operator or the shared account. Neither is a named identity.
@@ -52,15 +59,23 @@
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/prove-dev-tester-role.sh \
 #     --account david_leberknight
 #
+# The checks alone, from any terminal, with nothing redirected:
+#   bash scripts/prove-dev-tester-role.sh --checks-only
+#   bash scripts/prove-dev-tester-role.sh --checks-only --account david_leberknight
+#
 # Flags:
-#   --account <first_last>   the named dev-and-tester to prove
+#   --account <first_last>   the named dev-and-tester to prove; optional with
+#                            --checks-only, where it names the key left out
+#   --checks-only            steps 4 and 5 only, as footbag-operator, read-only
 #   --baseline <file>        the saved baseline to compare with; default the
 #                            newest one verify-account-baseline.sh --save wrote,
 #                            in ${TMPDIR:-/tmp}/footbag-baseline-<uid>/
-#   --from-step <1-6>        resume a run that stopped part way
+#   --from-step <1-6>        resume a run that stopped part way; not with
+#                            --checks-only, which is re-run whole
 #
 # Exit: 0 everything proved, 1 a step failed, 2 usage error, 3 the onboarding is
 # in place but its acceptance is not yet visible in CloudTrail (re-run step 6).
+# With --checks-only: 0 both checks passed, 1 one failed, 2 usage error.
 #
 # Test seams (CI only; operators never set these): PROVE_WRAP_CMD replaces the
 # as-dev-tester.sh wrapper, PROVE_AWS_BIN the aws CLI the chain is proved with,
@@ -91,6 +106,8 @@ VERIFY_CMD="${PROVE_VERIFY_CMD:-${SCRIPT_DIR}/onboard-dev-tester.sh}"
 ACCOUNT=""
 BASELINE=""
 FROM_STEP=1
+FROM_STEP_GIVEN=0
+CHECKS_ONLY=0
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
@@ -101,7 +118,8 @@ while (( $# )); do
   case "$1" in
     --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires a name" >&2; exit 2; } ;;
     --baseline) BASELINE="${2:-}"; shift 2 || { echo "ERROR: --baseline requires a file" >&2; exit 2; } ;;
-    --from-step) FROM_STEP="${2:-}"; shift 2 || { echo "ERROR: --from-step requires a step" >&2; exit 2; } ;;
+    --from-step) FROM_STEP="${2:-}"; FROM_STEP_GIVEN=1; shift 2 || { echo "ERROR: --from-step requires a step" >&2; exit 2; } ;;
+    --checks-only) CHECKS_ONLY=1; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
   esac
@@ -111,8 +129,16 @@ if [[ "$ACCOUNT" == "footbag-operator" || "$ACCOUNT" == "footbag" ]]; then
   echo "ERROR: '${ACCOUNT}' is not a named identity; there is no role use of it to prove." >&2
   exit 2
 fi
-if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
-  echo "ERROR: --account names the dev-and-tester to prove, firstname_lastname." >&2
+# Required for the whole proof; optional for the checks alone, but never
+# malformed when given.
+if [[ -n "$ACCOUNT" ]] || (( ! CHECKS_ONLY )); then
+  if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
+    echo "ERROR: --account names the dev-and-tester to prove, firstname_lastname." >&2
+    exit 2
+  fi
+fi
+if (( CHECKS_ONLY && FROM_STEP_GIVEN )); then
+  echo "ERROR: --checks-only runs two read-only checks and is re-run whole; it takes no --from-step." >&2
   exit 2
 fi
 if [[ ! "$FROM_STEP" =~ ^[1-6]$ ]]; then
@@ -141,6 +167,50 @@ for seam in PROVE_WRAP_CMD PROVE_AWS_BIN PROVE_APPLY_CMD PROVE_DEPLOY_CMD PROVE_
             PROVE_DENIALS_CMD PROVE_BASELINE_CMD PROVE_VERIFY_CMD; do
   [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam}='${!seam}' -- this run proves nothing about the estate." >&2
 done
+
+# Steps 4 and 5, shared by the whole proof and the checks alone. Both read only,
+# with stdin closed. The comparison leaves out the named account's own key, and
+# nothing when no account is named.
+run_denials() { bash "$DENIALS_CMD" </dev/null; }
+compare_baseline() {
+  local -a ignore=()
+  [[ -n "$ACCOUNT" ]] && ignore=(--ignore-user "$ACCOUNT")
+  bash "$BASELINE_CMD" --compare "$BASELINE" "${ignore[@]}" </dev/null
+}
+
+if (( CHECKS_ONLY )); then
+  echo "Checking, as footbag-operator and read-only, against ${BASELINE}:"
+  echo "  the job role's denials, then footbag-operator and both runtime trusts"
+  if [[ -n "$ACCOUNT" ]]; then
+    echo "  with ${ACCOUNT}'s own key left out"
+  else
+    echo "  with no user's key left out"
+  fi
+  check_failed() {
+    echo "" >&2
+    echo "FAILED: ${1}. Re-run once fixed:" >&2
+    echo "  bash scripts/prove-dev-tester-role.sh --checks-only${ACCOUNT:+ --account ${ACCOUNT}}" >&2
+    exit 1
+  }
+  echo ""
+  echo "== The job role's denials, as footbag-operator"
+  run_denials || check_failed "a denial the role must carry did not hold"
+  echo ""
+  echo "== footbag-operator and both runtime trusts, against ${BASELINE}"
+  BASE_RC=0
+  compare_baseline || BASE_RC=$?
+  case "$BASE_RC" in
+    0) ;;
+    3) check_failed "something administrative CHANGED since the baseline; the lines above say what" ;;
+    *) check_failed "the protected facts could not be read" ;;
+  esac
+  echo ""
+  ASIDE=""
+  [[ -n "$ACCOUNT" ]] && ASIDE=", ${ACCOUNT}'s own key aside"
+  echo "CHECKED: the role's denials hold, and footbag-operator and both runtime trusts"
+  echo "are exactly as they were in ${BASELINE}${ASIDE}."
+  exit 0
+fi
 
 if [[ -t 0 ]]; then
   echo "ERROR: stdin is a terminal. The last step reads the shared account's sudo" >&2
@@ -220,13 +290,13 @@ fi
 if (( FROM_STEP <= 4 )); then
   echo ""
   echo "== 4. The job role's denials, as footbag-operator"
-  bash "$DENIALS_CMD" </dev/null || stop 4 "a denial the role must carry did not hold"
+  run_denials || stop 4 "a denial the role must carry did not hold"
 fi
 if (( FROM_STEP <= 5 )); then
   echo ""
   echo "== 5. footbag-operator and both runtime trusts, against ${BASELINE}"
   BASE_RC=0
-  bash "$BASELINE_CMD" --compare "$BASELINE" --ignore-user "$ACCOUNT" </dev/null || BASE_RC=$?
+  compare_baseline || BASE_RC=$?
   case "$BASE_RC" in
     0) ;;
     3) stop 5 "something administrative CHANGED since the baseline; the lines above say what" ;;

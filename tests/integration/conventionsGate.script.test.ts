@@ -183,6 +183,21 @@ describe('the convention gate: no pipe into a quitting grep', () => {
   });
 });
 
+/** The role and container credential sources, each of which can authenticate a spawned child on its own. */
+const ROLE_AND_CONTAINER_SOURCES = [
+  'AWS_WEB_IDENTITY_TOKEN_FILE',
+  'AWS_ROLE_ARN',
+  'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
+  'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+  'AWS_CONTAINER_AUTHORIZATION_TOKEN',
+];
+
+/** Every credential source the test setup must neutralise, as object-literal entries. */
+const ALL_TEST_SETUP_SOURCES =
+  "AWS_PROFILE: '', AWS_CONFIG_FILE: '/dev/null', AWS_SHARED_CREDENTIALS_FILE: '/dev/null', " +
+  ROLE_AND_CONTAINER_SOURCES.map((v) => `${v}: '', `).join('') +
+  "AWS_EC2_METADATA_DISABLED: 'true'";
+
 describe('the convention gate: rules about src/', () => {
   it('refuses SQL compiled outside the database layer', () => {
     const res = inFixtureRepo({
@@ -255,10 +270,29 @@ describe('the convention gate: rules about src/', () => {
         "import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';\n" +
         "if (process.env.RUN_STAGING_SMOKE !== '1') Object.assign(process.env, NO_AWS_CREDENTIALS);\n",
       'tests/fixtures/awsIsolation.ts':
-        "export const NO_AWS_CREDENTIALS = { AWS_PROFILE: '', AWS_CONFIG_FILE: '/dev/null', AWS_SHARED_CREDENTIALS_FILE: '/dev/null', AWS_EC2_METADATA_DISABLED: 'true' };\n",
+        `export const NO_AWS_CREDENTIALS = { ${ALL_TEST_SETUP_SOURCES} };\n`,
     });
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, 'the test setup isolates AWS credentials');
+  });
+
+  // Defect caught: the declaration stops blanking a role or container credential
+  // source, and a test spawning an operator script is authenticated again through
+  // a web identity token or a container credential endpoint.
+  it('refuses a test setup that has stopped neutralising a role or container credential source', () => {
+    for (const dropped of ROLE_AND_CONTAINER_SOURCES) {
+      const sources = ALL_TEST_SETUP_SOURCES.replace(`${dropped}: '', `, '');
+      // The drop landed, so a case cannot pass by removing nothing.
+      expect(sources, dropped).not.toContain(dropped);
+      const res = inFixtureRepo({
+        'tests/setup-env.ts':
+          "import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';\n" +
+          "if (process.env.RUN_STAGING_SMOKE !== '1') Object.assign(process.env, NO_AWS_CREDENTIALS);\n",
+        'tests/fixtures/awsIsolation.ts': `export const NO_AWS_CREDENTIALS = { ${sources} };\n`,
+      });
+      expect(res.exitCode, dropped).toBe(1);
+      expect(res.stderr, dropped).toContain(`tests/fixtures/awsIsolation.ts no longer neutralises ${dropped}`);
+    }
   });
 
   it('refuses a machine declaration that has stopped denying the SSH client', () => {
@@ -1067,7 +1101,8 @@ describe('the convention gate: where the local runner may reach', () => {
   const ISOLATION_LIB = [
     'aws_isolated_run() {',
     '  env AWS_PROFILE=x AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \\',
-    '    AWS_ACCESS_KEY_ID= AWS_SECRET_ACCESS_KEY= AWS_SESSION_TOKEN= AWS_EC2_METADATA_DISABLED=true "$@"',
+    '    AWS_ACCESS_KEY_ID= AWS_SECRET_ACCESS_KEY= AWS_SESSION_TOKEN= AWS_EC2_METADATA_DISABLED=true \\',
+    `    ${ROLE_AND_CONTAINER_SOURCES.map((v) => `${v}=`).join(' ')} "$@"`,
     '}',
     '',
   ].join('\n');
@@ -1123,6 +1158,21 @@ describe('the convention gate: where the local runner may reach', () => {
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, ISOLATION_RULE);
     expectCheckRan(res, STAGING_RULE);
+  });
+
+  // Defect caught: the isolation the runner's offline gates use stops blanking a
+  // role or container credential source, so a gate declared offline reaches AWS
+  // wherever that source is set.
+  it('refuses an isolation library that has stopped neutralising a role or container credential source', () => {
+    for (const dropped of ROLE_AND_CONTAINER_SOURCES) {
+      const files = runner();
+      const lib = files['scripts/lib/aws-isolation.sh'].replace(`${dropped}= `, '').replace(` ${dropped}=`, '');
+      // The drop landed, so a case cannot pass by removing nothing.
+      expect(lib, dropped).not.toContain(dropped);
+      const res = inFixtureRepo({ ...files, 'scripts/lib/aws-isolation.sh': lib });
+      expect(res.exitCode, dropped).toBe(1);
+      expect(res.stderr, dropped).toContain(`scripts/lib/aws-isolation.sh no longer neutralises ${dropped}`);
+    }
   });
 
   // Defect caught: a local gate starts reading staging's dataset or site, and a

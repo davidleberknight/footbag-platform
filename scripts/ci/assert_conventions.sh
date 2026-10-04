@@ -1093,11 +1093,6 @@ for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_
     echo "  FAIL: tests/fixtures/awsIsolation.ts no longer neutralises $_aws_var" >&2
     violations=$((violations + 1))
   fi
-  # The shell isolation the runner's offline gates use must blank the same set.
-  if ! grep -q "${_aws_var}=" scripts/lib/aws-isolation.sh; then
-    echo "  FAIL: scripts/lib/aws-isolation.sh no longer neutralises $_aws_var" >&2
-    violations=$((violations + 1))
-  fi
 done
 unset _aws_var
 fi
@@ -1136,8 +1131,12 @@ if ! grep -q 'source scripts/lib/aws-isolation.sh' run_all_tests.sh; then
   echo "  FAIL: run_all_tests.sh must source scripts/lib/aws-isolation.sh" >&2
   violations=$((violations + 1))
 fi
+# The shell isolation must blank the same sources the test setup does, plus the
+# key variables a shell inherits directly.
 for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_ACCESS_KEY_ID \
-                AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_EC2_METADATA_DISABLED; do
+                AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_EC2_METADATA_DISABLED \
+                AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN AWS_CONTAINER_CREDENTIALS_RELATIVE_URI \
+                AWS_CONTAINER_CREDENTIALS_FULL_URI AWS_CONTAINER_AUTHORIZATION_TOKEN; do
   if ! grep -q "$_aws_var" scripts/lib/aws-isolation.sh; then
     echo "  FAIL: scripts/lib/aws-isolation.sh no longer neutralises $_aws_var" >&2
     violations=$((violations + 1))
