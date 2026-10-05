@@ -8,8 +8,9 @@
  *   - The three tasks: personal_details, legacy_claim, and club_affiliations. ALL THREE are
  *     required to become a full member, and each completes only by a recorded explicit answer,
  *     never by a bare page render: personal_details by saving its fields, legacy_claim by the
- *     claim decision (a claim, or continue-without-linking with the never-had-an-account
- *     affirmation), and club_affiliations by a written club affiliation or the explicit no-club
+ *     claim decision (a claim, or one of the two continue-without-linking answers: never had
+ *     an old-site account, or had one and cannot find it), and club_affiliations by a written
+ *     club affiliation or the explicit no-club
  *     answer, which also declines every remaining suggestion card in the same transaction. The
  *     club task also invites optional free-text insight about the club on the member's last card,
  *     or about clubs in their area on the wrap-up landing, stored as admin-only evidence for the
@@ -55,7 +56,7 @@
  *     request alike, so a member cannot rewrite the personal details the claim task has
  *     already matched on. It is not a blanket freeze: the claim and club tasks still render
  *     and still take card-level actions in their completed state, for the reasons their
- *     render exceptions record (an open cross-source candidate, a linkage still missing, a
+ *     render exceptions record (an open candidate card, a linkage still missing, a
  *     cap-hit answer that must be read beside the step that produced it).
  *   - A membership card whose club has no live clubs row yet promotes its candidate on
  *     confirmation, which creates the club. Where that club's country writes its
@@ -65,12 +66,26 @@
  *     candidate that already carries a state keeps it; that value descends from the
  *     curated club seed and outranks an answer supplied now.
  *   - The personal_details task precedes and gates the legacy_claim task: no resolving
- *     action (confirm, search, token confirm, direct record claim, or the continue-without-
- *     linking decision) runs until personal_details is completed, so the required personal
- *     details including date of birth are on file before any matching. The gate is task-
- *     level only and never applies to the admin link-help apply path. Date of birth is
- *     collected only in personal_details, not the claim task; the continue-without-linking
- *     decision additionally requires the member to affirm they never had an old-site account.
+ *     action (confirm, decline, direct record claim, anchor addition, or the
+ *     continue-without-linking decision) runs until personal_details is
+ *     completed, so the required personal details including date of birth are on file
+ *     before any matching. The gate is task-level only and never applies to the admin
+ *     link-help apply path. Date of birth is collected only in personal_details, not the
+ *     claim task; the continue-without-linking decision additionally requires the member to
+ *     choose which of its two answers is true (never had an old-site account, or had one and
+ *     cannot find it), and each is recorded as given, on the task's audit row and on every
+ *     card it declines.
+ *   - The claim step is answered only when its task is completed and no answerable card in
+ *     it is still open. This governs sequencing only: isOnboardingComplete reads the task
+ *     rows alone, so an open row never takes membership away from a member who has already
+ *     finished.
+ *   - A claim confirmation records the evidence tier the member's anchor proves at that
+ *     moment, re-derived from the live match when it still names the same person; the
+ *     confidence band never sets it. An old email address is a matching key only: a match
+ *     through one confirms like any other, at the declared-anchor tier.
+ *   - Claim confirmations share the direct record claim's rate-limit bucket. A confirmation
+ *     repeated after it already landed reports the success it already had rather than a
+ *     refusal.
  *   - State-changing wizard POSTs are subject to the global Origin-pin CSRF middleware; a wizard
  *     POST is never added to that middleware's exemption list.
  *   - Every task page renders through the shared wizard layout primitive so all tasks present the
@@ -114,10 +129,9 @@ import {
   type StructuralSignals,
   type ContextModifiers,
 } from './clubBootstrapClassificationService';
-import {
-  identityAccessService, SurnameMismatchError, readEvidenceStrength,
-  type EvidenceStrength,
-} from './identityAccessService';
+import { identityAccessService, type ClaimTarget } from './identityAccessService';
+import { readIntConfig } from './configReader';
+import { type Candidate } from './legacyMatchingService';
 import {
   ConflictError,
   NotFoundError,
@@ -380,14 +394,21 @@ function isOutstandingState(state: string): boolean {
   return state !== 'completed';
 }
 
+// Whether a step is fully answered, for sequencing: once it is completed. The
+// claim step answers in one pass, so nothing in it stays open after it
+// completes.
+function isTaskAnswered(_memberId: string, _taskType: OnboardingTaskType, state: string): boolean {
+  return !isOutstandingState(state);
+}
+
 // The next task to send a still-onboarding member to: the lowest-index task
-// not yet completed. Residual non-pending states count as outstanding here so
+// not yet answered. Residual non-pending states count as outstanding here so
 // a member carrying one is routed back into the task, where entry repairs the
 // row to pending. Returns null only when nothing is outstanding.
 function nextOutstandingTaskType(memberId: string): OnboardingTaskType | null {
   const outstanding = (memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[])
     .filter((r) => (r.task_type as OnboardingTaskType) in TASK_TYPE_INDEX)
-    .filter((r) => isOutstandingState(r.state))
+    .filter((r) => !isTaskAnswered(memberId, r.task_type as OnboardingTaskType, r.state))
     .map((r) => r.task_type as OnboardingTaskType)
     .sort((a, b) => TASK_TYPE_INDEX[a] - TASK_TYPE_INDEX[b]);
   return outstanding[0] ?? null;
@@ -448,7 +469,7 @@ function prerequisiteTaskFor(
 ): OnboardingTaskType | null {
   for (const earlier of TASK_CATALOG) {
     if (earlier === taskType) return null;
-    if (getTaskState(memberId, earlier) !== 'completed') return earlier;
+    if (!isTaskAnswered(memberId, earlier, getTaskState(memberId, earlier) ?? 'pending')) return earlier;
   }
   return null;
 }
@@ -547,21 +568,6 @@ function ensureLegacyClaimReflectsState(memberId: string): boolean {
   return false;
 }
 
-/**
- * Whether the member still lacks a legacy-account or historical-person link.
- * A completed claim task keeps rendering while either linkage is missing, so a
- * registrant who answered "continue without linking" can come back to it before
- * signing up is finished. That window closes with the wizard: once onboarding
- * completes the task is refused on every verb, and a link still wanted is asked
- * for through the identity-link category of the contact form.
- */
-function legacyClaimLinkageIncomplete(memberId: string): boolean {
-  const links = account.findLegacyAndHpIdsById.get(memberId) as
-    | { legacy_member_id: string | null; historical_person_id: string | null }
-    | undefined;
-  if (!links) return false;
-  return !links.legacy_member_id || !links.historical_person_id;
-}
 
 /**
  * Auto-complete `club_affiliations` when the member already holds a current
@@ -1289,11 +1295,6 @@ function submitTaskResponse(memberId: string, taskType: string, response: unknow
 
 export type WizardFlash =
   | {
-      kind: 'WIZARD_LEGACY_CLAIM_RESULT';
-      payload: { hpPersonId: string | null };
-    }
-  | { kind: 'WIZARD_AUTO_LINK_DRIFT' }
-  | {
       kind: 'WIZARD_CLUB_CARD_RESOLVED';
       payload: { clubName: string; decision: 'confirm' | 'correct' | 'decline' };
     }
@@ -1308,11 +1309,6 @@ export type WizardFlash =
 // of `WizardActionResult`. Typed per-method so controllers pass through
 // to the template without `as` casts.
 
-export type LegacyClaimSubmitFormState = { identifier: string };
-export type LegacyClaimAutoLinkConfirmFormState =
-  | { personId: string; personName: string; confidence: 'high' | 'medium' }
-  | null;
-export type LegacyClaimTokenConfirmFormState = null;
 export type PersonalDetailsFormState = { city: string; region: string; country: string; birthDay: string; birthMonth: string; birthYear: string; gender: string; yearValue: string; showCompetitiveResults: boolean };
 
 // Per-arm types so the discriminant union's non-formState arms can be
@@ -1358,284 +1354,190 @@ function legacyClaimPrerequisiteUnmet(memberId: string): boolean {
   return prerequisiteTaskFor(memberId, 'legacy_claim') !== null;
 }
 
-async function processLegacyClaimSubmit(
-  memberId: string,
-  identifier: string,
-  ip: string,
-): Promise<WizardActionResult<LegacyClaimSubmitFormState>> {
-  if (legacyClaimPrerequisiteUnmet(memberId)) {
-    return { kind: 'retry_same', flash: null };
-  }
-  if (!identifier) {
-    return {
-      kind: 'validation_error',
-      formState: { identifier: '' },
-      message: 'Enter an identifier to search.',
-    };
-  }
+// Claim confirmations are rate-limited per member, per source address and per
+// target record, on the same buckets and settings as the direct record claim.
+function claimConfirmRateLimited(memberId: string, ip: string, targetId?: string): WizardRateLimitedArm | null {
   try {
-    const outcome = identityAccessService.initiateLegacyClaim(memberId, identifier, ip);
-    if (outcome.kind === 'auto_linked') {
-      // initiateLegacyClaim commits the email-equality link inside its own
-      // transaction, which cannot nest, so completing the task is a separate
-      // write. A crash in the gap leaves the member linked with the task still
-      // pending; the next legacy_claim GET reconciles it through
-      // ensureLegacyClaimReflectsState, so the end state self-corrects.
-      completeTask(memberId, 'legacy_claim');
-      return advanceOrOfferCrossSource(memberId);
-    }
-    startTaskList(memberId);
-    if (outcome.kind === 'enqueued') {
-      return {
-        kind: 'retry_same',
-        flash: {
-          kind: 'WIZARD_LEGACY_CLAIM_RESULT',
-          payload: { hpPersonId: null },
-        },
-      };
-    }
-    const hp = identityAccessService.findHistoricalPersonForLinkSubmit(identifier);
-    return {
-      kind: 'retry_same',
-      flash: {
-        kind: 'WIZARD_LEGACY_CLAIM_RESULT',
-        payload: { hpPersonId: hp ? hp.person_id : null },
-      },
-    };
+    identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip, targetId);
+    return null;
   } catch (err) {
     if (err instanceof RateLimitedError) {
-      return {
-        kind: 'rate_limited',
-        retryAfterSeconds: err.retryAfterSeconds ?? 60,
-      };
-    }
-    // ConflictError = a concurrent claimant won the race after the
-    // pre-check; same user-readable inline message as the synchronous path.
-    if (err instanceof ValidationError || err instanceof ConflictError) {
-      return {
-        kind: 'validation_error',
-        formState: { identifier },
-        message: err.message,
-      };
+      return { kind: 'rate_limited', retryAfterSeconds: err.retryAfterSeconds ?? 60 };
     }
     throw err;
   }
 }
 
+// The one refusal every claim the re-check turns away receives, whatever the
+// reason: a forged id, a stale card, or a candidate the member's evidence no
+// longer makes claimable all read the same, so the response reveals nothing.
+const CLAIM_NO_LONGER_AVAILABLE = 'This record is no longer available to claim.';
 
-// After a claim completes on one source, a cross-source offer for the other
-// source may stage; staying on the task renders the offer card immediately,
-// otherwise the wizard advances as usual.
-function advanceOrOfferCrossSource(memberId: string): WizardActionResult<never> {
-  const offer = identityAccessService.offerCrossSourceCandidate(memberId);
-  if (offer.offered) {
+/** Reads the candidate a claim-step form names. Empty fields read as absent. */
+export function readClaimTarget(body: { accountId?: unknown; recordId?: unknown } | undefined): ClaimTarget {
+  const read = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+  return { accountId: read(body?.accountId), recordId: read(body?.recordId) };
+}
+
+/**
+ * Whether the claim step still takes card answers: while its task is pending,
+ * and on the completed step only during the one last attempt that answering
+ * "I had one but cannot find it" opens. The attempt closes once the member
+ * holds an account or a record.
+ */
+function claimStepTakesAnswers(memberId: string): boolean {
+  if (getTaskState(memberId, 'legacy_claim') !== 'completed') return true;
+  return lastAttemptOpen(memberId);
+}
+
+function memberHoldsTarget(memberId: string, target: ClaimTarget): boolean {
+  const links = account.findLegacyAndHpIdsById.get(memberId) as
+    | { legacy_member_id: string | null; historical_person_id: string | null } | undefined;
+  return (target.accountId !== null && links?.legacy_member_id === target.accountId)
+    || (target.recordId !== null && links?.historical_person_id === target.recordId);
+}
+
+function lastAttemptOpen(memberId: string): boolean {
+  const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
+    | { last_attempt_opened_at: string | null } | undefined;
+  if (!counters?.last_attempt_opened_at) return false;
+  const links = account.findLegacyAndHpIdsById.get(memberId) as
+    | { legacy_member_id: string | null; historical_person_id: string | null } | undefined;
+  return !links?.legacy_member_id && !links?.historical_person_id;
+}
+
+/**
+ * A claim from a card ("This Is Me, Link My History"), or with the surname the
+ * card's candidate carries ("This is me, I used the surname X"). One
+ * transaction holds the re-check, the claim and the task completion, so nothing
+ * lands without the others; a refusal is recorded after its rollback.
+ */
+function processClaimCandidate(
+  memberId: string,
+  target: ClaimTarget,
+  ip: string,
+  withSurname: boolean,
+): WizardActionResult<null> {
+  if (legacyClaimPrerequisiteUnmet(memberId)) {
     return { kind: 'retry_same', flash: null };
+  }
+  // A repeat of a claim that already landed (a double click, a back-button
+  // re-post) reports the success it had and writes nothing.
+  if (memberHoldsTarget(memberId, target)) return advanceAfter(memberId, 'legacy_claim');
+  if (!claimStepTakesAnswers(memberId)) {
+    return { kind: 'retry_same', flash: null };
+  }
+  if (!target.accountId && !target.recordId) {
+    return { kind: 'validation_error', formState: null, message: CLAIM_NO_LONGER_AVAILABLE };
+  }
+  const limited = claimConfirmRateLimited(memberId, ip, target.recordId ?? target.accountId ?? undefined);
+  if (limited) return limited;
+  let refused: { candidate: Candidate | null } | null = null;
+  try {
+    transaction(() => {
+      const outcome = withSurname
+        ? identityAccessService.claimWithFormerSurnameInTx(memberId, target)
+        : identityAccessService.claimCandidateInTx(memberId, target);
+      if (outcome.status === 'refused') {
+        refused = { candidate: outcome.candidate };
+        throw new ClaimRefusedSignal();
+      }
+      if (outcome.status === 'claimed') completeTaskIfOutstanding(memberId, 'legacy_claim');
+    });
+  } catch (err) {
+    if (err instanceof ClaimRefusedSignal && refused) {
+      identityAccessService.recordClaimRefused(memberId, target, (refused as { candidate: Candidate | null }).candidate);
+      return { kind: 'validation_error', formState: null, message: CLAIM_NO_LONGER_AVAILABLE };
+    }
+    // A concurrent claimant won the conditional update after the re-check
+    // passed: the member was just shown a claimable card, so they are told
+    // plainly it is someone else's, and nothing partial persists.
+    if (err instanceof ConflictError || err instanceof ValidationError) {
+      return { kind: 'validation_error', formState: null, message: err.message };
+    }
+    throw err;
   }
   return advanceAfter(memberId, 'legacy_claim');
 }
 
-function parseMatchedAnchors(json: string): string[] {
-  try {
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? (parsed as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function processLegacyClaimAutoLinkConfirm(
-  memberId: string,
-  personId: string,
-): WizardActionResult<LegacyClaimAutoLinkConfirmFormState> {
-  if (legacyClaimPrerequisiteUnmet(memberId)) {
-    return { kind: 'retry_same', flash: null };
-  }
-  if (!personId) {
-    return {
-      kind: 'validation_error',
-      formState: null,
-      message: 'Invalid claim request.',
-    };
-  }
-  // An open staged row for this member/person is itself authorization to
-  // confirm (the staging pass computed the match); otherwise the view-time
-  // classifier must produce the same person, or the card has drifted.
-  const stagedRow = identityAccessService
-    .listOpenStagedCandidates(memberId)
-    .find((r) => r.historical_person_id === personId);
-  let personName: string;
-  let evidenceStrength: EvidenceStrength;
-  let confidence: 'high' | 'medium';
-  // A match anchored on a declared old email the member has not proven control
-  // of cannot confirm a claim: the mailbox round-trip is mandatory for an
-  // old-email anchor. The verified form ('declared_old_email_verified') and the
-  // login-email and name anchors are unaffected.
-  let matchedViaUnverifiedOldEmail = false;
-  if (stagedRow) {
-    confidence = stagedRow.confidence;
-    personName = '';
-    // The staging pass already derived the evidence tier from the matched
-    // anchor set; the confirmation carries it through unchanged. Collapsing
-    // anything above the floor down to the floor would permanently understate
-    // proven mailbox control in the ledger a disputed claim is judged from, and
-    // the round-trip that proves it is the strongest evidence a member can
-    // supply short of an administrator vetting them by hand.
-    evidenceStrength = readEvidenceStrength(stagedRow.proposed_evidence_strength);
-    // Re-derive the member's current best anchor rather than trusting the frozen
-    // staged row: verifying the old email after the card was staged flips the
-    // anchor to the verified form and must unblock this card. The frozen staged
-    // value is a conservative fallback only when the current match is
-    // inconclusive.
-    const current = identityAccessService.getAutoLinkClassificationForMember(memberId);
-    const currentAnchor =
-      current.confidence === 'high' || current.confidence === 'medium'
-        ? current.anchorSource
-        : undefined;
-    matchedViaUnverifiedOldEmail =
-      currentAnchor === 'declared_old_email'
-        ? true
-        : currentAnchor === undefined
-          ? parseMatchedAnchors(stagedRow.matched_anchors_json).includes('declared_old_email')
-          : false;
-  } else {
-    const classification = identityAccessService.getAutoLinkClassificationForMember(memberId);
-    if (classification.confidence !== 'high' && classification.confidence !== 'medium') {
-      return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
-    }
-    if (classification.personId !== personId) {
-      return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
-    }
-    confidence = classification.confidence;
-    personName = classification.personName;
-    // High confidence anchored on the verified login email carries the
-    // email-control tier. An old email the member has proven they can still
-    // read carries the mailbox-control tier, which is what the round-trip was
-    // for. A declared-but-unproven old email or a name-variant match carries
-    // only the asserted-identity floor tier.
-    evidenceStrength =
-      classification.anchorSource === 'declared_old_email_verified'
-        ? 'mailbox_control_via_link_click'
-        : classification.confidence === 'high' && classification.anchorSource === 'login_email'
-          ? 'currently_controls_modern_email_matching_legacy'
-          : 'declared_anchor_only';
-    matchedViaUnverifiedOldEmail = classification.anchorSource === 'declared_old_email';
-  }
-  if (matchedViaUnverifiedOldEmail) {
-    return {
-      kind: 'validation_error',
-      formState: null,
-      message: 'We matched this record to an old email address you have not confirmed yet. Open the verification link we sent to that address, then come back to confirm this match. If you can no longer reach that mailbox, use a different match, or finish signing up and then ask an IFPA administrator to link it for you.',
-    };
-  }
-  try {
-    // Merge and the wizard task transition run in one transaction: a partial
-    // failure cannot leave the member claimed but the task still pending.
-    // The claim resolves any matching staged candidate to 'confirmed' and
-    // emits the confirmed audit event inside the same transaction.
-    transaction(() => {
-      identityAccessService.claimHistoricalPersonInTx(memberId, personId, evidenceStrength);
-      completeTask(memberId, 'legacy_claim');
-    });
-    return advanceOrOfferCrossSource(memberId);
-  } catch (err) {
-    if (err instanceof SurnameMismatchError) {
-      // Recorded after the rollback so the refusal survives the failed claim.
-      // What it is recorded as depends on the evidence beside the name; the
-      // recorder weighs that.
-      identityAccessService.recordHistoricalPersonClaimBlocked(memberId, err);
-    }
-    if (err instanceof ValidationError || err instanceof ConflictError) {
-      return {
-        kind: 'validation_error',
-        formState: {
-          personId,
-          personName,
-          confidence,
-        },
-        message: err.message,
-      };
-    }
-    throw err;
-  }
-}
-
 /**
- * Member confirms a cross-source LEGACY offer card: the staged offer's
- * legacy account is claimed with the offer's evidence tier; the offer row
- * resolves with the cross-source confirmed event inside the claim
- * transaction.
+ * A date-of-birth correction made on the claim step while onboarding. The date
+ * is the strongest key the matching holds, so the number of changes before
+ * onboarding completes is capped, which stops it being used to probe old
+ * accounts. Re-entering the date already on file is a confirmation, not a
+ * change, and is not counted. The change and its count commit together.
  */
-function processCrossSourceLegacyConfirm(
+function processLegacyClaimBirthDate(
   memberId: string,
-  candidateId: string,
+  slug: string,
+  parts: BirthDateParts,
 ): WizardActionResult<null> {
-  if (!candidateId) {
-    return { kind: 'validation_error', formState: null, message: 'Invalid request.' };
+  if (legacyClaimPrerequisiteUnmet(memberId) || !claimStepTakesAnswers(memberId)) {
+    return { kind: 'retry_same', flash: null };
+  }
+  const max = readIntConfig('onboarding_birth_date_change_max', 3);
+  const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
+    | { birth_date_changes: number | null } | undefined;
+  if ((counters?.birth_date_changes ?? 0) >= max) {
+    return {
+      kind: 'validation_error',
+      formState: null,
+      message: 'Your date of birth cannot be changed again while you are signing up. You can correct it from your profile once you have finished.',
+    };
   }
   try {
-    const result = identityAccessService.confirmCrossSourceLegacyCandidate(memberId, candidateId);
-    if (result.status === 'not_found') {
-      // Already resolved or foreign id: re-render whatever cards remain
-      // (same non-revealing UX as decline).
-      return { kind: 'retry_same', flash: null };
-    }
-    return { kind: 'retry_same', flash: null };
+    transaction(() => {
+      if (memberService.correctOwnBirthDateInTx(slug, parts)) {
+        memberOnboarding.incrementBirthDateChanges.run(new Date().toISOString(), memberId, memberId);
+      }
+    });
   } catch (err) {
-    if (err instanceof ValidationError || err instanceof ConflictError) {
+    if (err instanceof ValidationError) {
       return { kind: 'validation_error', formState: null, message: err.message };
     }
     throw err;
   }
+  return { kind: 'retry_same', flash: null, query: 'birth_date=saved' };
 }
 
 /**
- * Member declines a staged auto-link candidate from the wizard card. The
- * decline is terminal for that member/target pair; the wizard re-renders
- * without the card.
+ * A former surname or an old email address added on the claim step. Add-only
+ * and audited; the next render re-runs the match on it. The saved notice reads
+ * the same whether or not anything matched.
  */
-function processLegacyClaimAutoLinkDecline(
-  memberId: string,
-  candidateId: string,
-  personId: string,
-): WizardActionResult<null> {
-  if (candidateId) {
-    identityAccessService.declineStagedCandidate(memberId, candidateId);
-    // Both outcomes re-render the task: 'declined' drops the card; 'not_found'
-    // (already resolved or foreign id) renders whatever cards remain, which is
-    // the same non-revealing UX.
+function processAddAnchor(memberId: string, anchorType: string, anchorValue: string): WizardActionResult<null> {
+  if (legacyClaimPrerequisiteUnmet(memberId) || !claimStepTakesAnswers(memberId)) {
     return { kind: 'retry_same', flash: null };
-  }
-  if (personId) {
-    // A classifier-produced card has no staged row yet; the decline is made
-    // just as durable by staging the pair and resolving it declined. Either
-    // outcome re-renders the task without the card.
-    identityAccessService.declineClassifierCandidate(memberId, personId);
-    return { kind: 'retry_same', flash: null };
-  }
-  return { kind: 'validation_error', formState: null, message: 'Invalid request.' };
-}
-
-function processLegacyClaimTokenConfirm(
-  memberId: string,
-  token: string,
-): WizardActionResult<LegacyClaimTokenConfirmFormState> {
-  if (!token) {
-    return { kind: 'validation_error', formState: null, message: '' };
   }
   try {
-    // One transaction so the token consume, the claim merge, and the wizard
-    // task transition commit together; none lands without the others.
-    transaction(() => {
-      identityAccessService.consumeAndClaimLegacyInTx(memberId, token);
-      completeTask(memberId, 'legacy_claim');
-    });
-    return advanceOrOfferCrossSource(memberId);
+    identityAccessService.declareAnchor(memberId, anchorType, anchorValue);
   } catch (err) {
-    if (err instanceof ValidationError || err instanceof ConflictError) {
+    if (err instanceof RateLimitedError) {
+      return { kind: 'rate_limited', retryAfterSeconds: err.retryAfterSeconds ?? 60 };
+    }
+    if (err instanceof ValidationError) {
       return { kind: 'validation_error', formState: null, message: err.message };
     }
     throw err;
   }
+  return { kind: 'retry_same', flash: null, query: 'anchor=saved' };
+}
+
+// Thrown inside a claim transaction to roll back an anchor the surname claim
+// added before its re-check refused; caught at once by the caller.
+class ClaimRefusedSignal extends Error {}
+
+/**
+ * "This Is Not Me": the member's standing answer for one card. The step
+ * re-renders without it; a target the step does not show records nothing and
+ * re-renders the same, so the response reveals nothing.
+ */
+function processDeclineCandidate(memberId: string, target: ClaimTarget): WizardActionResult<null> {
+  if (legacyClaimPrerequisiteUnmet(memberId) || !claimStepTakesAnswers(memberId)) {
+    return { kind: 'retry_same', flash: null };
+  }
+  identityAccessService.declineCandidate(memberId, target);
+  return { kind: 'retry_same', flash: null };
 }
 
 function processPersonalDetailsSubmit(
@@ -1730,17 +1632,15 @@ function recordNoLinkAnswer(memberId: string, answer: NoLinkAnswer): void {
  * two explicit negative answers, gated on the personal-details prerequisite
  * like every other resolution of the task.
  *
- * Either answer resolves every candidate card still open for the member in the
- * same transaction that completes the task, so the task can never finish with a
- * card left open: a completed claim task keeps rendering while open candidates
- * remain, which would otherwise go on offering records to someone who has just
- * said none of them are theirs. Which answer was given is recorded in that same
- * transaction, so the member's stated fact and everything it settles commit
- * together or not at all.
+ * Neither answer declines anything: a card the member leaves on screen stays
+ * undeclined, and the answer records which cards were shown alongside it, with
+ * the claim evidence block, so an administrator later sees what the member
+ * passed over. Which answer was given is recorded in the same transaction that
+ * completes the task.
  *
- * The cannot-find-it answer additionally opens one last attempt at the match.
- * That attempt gates nothing, because completion has already happened by the
- * time it is offered.
+ * The cannot-find-it answer additionally opens the one last attempt at the
+ * match. That attempt gates nothing, because completion has already happened
+ * by the time it is offered.
  */
 function processContinueWithoutLinking(
   memberId: string,
@@ -1761,9 +1661,13 @@ function processContinueWithoutLinking(
     };
   }
   transaction(() => {
-    identityAccessService.declineOpenStagedCandidatesOnAttestationInTx(memberId);
     recordNoLinkAnswer(memberId, answer);
+    identityAccessService.recordClaimStepAnswered(memberId, answer);
     completeTask(memberId, 'legacy_claim');
+    if (answer === 'cannot_find_it') {
+      const now = new Date().toISOString();
+      memberOnboarding.markLastAttemptOpened.run(now, now, memberId, memberId);
+    }
   });
   if (answer === 'cannot_find_it') {
     // Back to the same step for the last attempt, rather than on to the next
@@ -1899,17 +1803,28 @@ function claimHistoricalPersonAndCompleteTask(
   if (legacyClaimPrerequisiteUnmet(memberId)) {
     throw new Error('personal_details must be complete before a historical-person claim');
   }
-  identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip);
+  const target: ClaimTarget = { accountId: null, recordId: personId };
+  // A repeat of a confirmation that already landed reports that success.
+  if (memberHoldsTarget(memberId, target)) return;
+  if (!claimStepTakesAnswers(memberId)) {
+    throw new ValidationError(CLAIM_NO_LONGER_AVAILABLE);
+  }
+  identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip, personId);
+  let refused: Candidate | null | undefined;
   try {
     transaction(() => {
-      identityAccessService.claimHistoricalPersonInTx(memberId, personId);
-      completeTaskIfOutstanding(memberId, 'legacy_claim');
+      const outcome = identityAccessService.claimCandidateInTx(memberId, target);
+      if (outcome.status === 'refused') {
+        refused = outcome.candidate;
+        throw new ClaimRefusedSignal();
+      }
+      if (outcome.status === 'claimed') completeTaskIfOutstanding(memberId, 'legacy_claim');
     });
-    identityAccessService.offerCrossSourceCandidate(memberId);
   } catch (err) {
-    if (err instanceof SurnameMismatchError) {
+    if (err instanceof ClaimRefusedSignal) {
       // Recorded after the rollback so the refusal survives the failed claim.
-      identityAccessService.recordHistoricalPersonClaimBlocked(memberId, err);
+      identityAccessService.recordClaimRefused(memberId, target, refused ?? null);
+      throw new ValidationError(CLAIM_NO_LONGER_AVAILABLE);
     }
     throw err;
   }
@@ -2035,6 +1950,12 @@ async function processClubAffiliationsSubmit(
   memberId: string,
   body: Record<string, unknown>,
 ): Promise<WizardActionResult<ClubAffiliationsFormState>> {
+  // The step order holds on every request: a club answer posted directly while
+  // an earlier step is still owed (personal details, or a card still open in
+  // the claim step) would otherwise finish signing up past it.
+  if (prerequisiteTaskFor(memberId, 'club_affiliations')) {
+    return { kind: 'retry_same', flash: null };
+  }
   const kindRaw = typeof body.kind === 'string' ? body.kind : '';
 
   if (kindRaw === 'disambiguation') {
@@ -2228,7 +2149,6 @@ export const memberOnboardingService = {
   completeTask,
   completeTaskIfOutstanding,
   ensureLegacyClaimReflectsState,
-  legacyClaimLinkageIncomplete,
   ensureClubAffiliationsReflectsState,
   memberHadClubSuggestionMaterial,
   buildClubCapHitNoticeMessage,
@@ -2240,11 +2160,12 @@ export const memberOnboardingService = {
   processClubAffiliationsSubmit,
   listWizardCardsForMember,
   processPersonalDetailsSubmit,
-  processLegacyClaimSubmit,
-  processLegacyClaimAutoLinkConfirm,
-  processLegacyClaimAutoLinkDecline,
-  processCrossSourceLegacyConfirm,
-  processLegacyClaimTokenConfirm,
+  processClaimCandidate,
+  processDeclineCandidate,
+  processLegacyClaimBirthDate,
+  processAddAnchor,
+  lastAttemptOpen,
+  claimStepTakesAnswers,
   processContinueWithoutLinking,
   readNoLinkAnswer,
   processNoClubsAnswer,

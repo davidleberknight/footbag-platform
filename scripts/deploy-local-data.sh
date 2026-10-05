@@ -180,8 +180,8 @@ run_soup_to_nuts() {
   echo "    Mirror present: $mirror_dir"
   # Three phases so loader 08's canonical reseed runs on an empty slate: an
   # in-place reseed over a populated DB aborts on net_* foreign keys (and the
-  # foreign-owned freestyle_records / auto_link_staged_candidates that no
-  # pipeline rebuilds).
+  # foreign-owned freestyle_records / legacy_claim_declines that no pipeline
+  # rebuilds).
   #   1. reset-local-db.sh --slate: drop the DB file, reapply schema, seed
   #      legacy_members (the one FK prerequisite loader 08 needs).
   #   2. run_pipeline.sh full: regenerate canonical_input from the mirror and

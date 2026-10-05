@@ -39,7 +39,7 @@ const FIXTURE_SCHEMA = `
   CREATE TABLE historical_persons (id TEXT PRIMARY KEY);
   CREATE TABLE clubs (id TEXT PRIMARY KEY);
   CREATE TABLE audit_entries (id TEXT PRIMARY KEY);
-  CREATE TABLE auto_link_staged_candidates (id TEXT PRIMARY KEY);
+  CREATE TABLE legacy_claim_declines (id TEXT PRIMARY KEY);
 `;
 
 let workDir: string;

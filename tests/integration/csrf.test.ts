@@ -98,8 +98,8 @@ describe('CSRF — cross-site POST without session cookie is blocked', () => {
   const protectedPosts: Array<[string, string, Record<string, string>]> = [
     ['profile edit',      `/members/${MEMBER_SLUG}/edit`,           { displayName: 'Hacked' }],
     ['password change',   `/members/${MEMBER_SLUG}/edit/password`,  { oldPassword: 'x', newPassword: 'y', confirmPassword: 'y' }],
-    ['claim lookup',      `/register/wizard/legacy_claim/find`,            { identifier: 'LM-1' }],
-    ['claim confirm',     `/register/wizard/legacy_claim/claim/confirm`,   { token: 'x' }],
+    ['anchor add',        `/register/wizard/legacy_claim/anchors/add`,        { anchorType: 'old_email', anchorValue: 'x@example.com' }],
+    ['claim confirm',     `/register/wizard/legacy_claim/claim`,              { accountId: 'lm-1', recordId: 'hp-1' }],
   ];
 
   for (const [name, path, body] of protectedPosts) {

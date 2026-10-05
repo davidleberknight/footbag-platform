@@ -1,7 +1,8 @@
 /**
  * Onboarding-wizard copy and affordance contract:
- *  - adding or removing a declared anchor confirms the save with a
- *    state-independent banner that never leaks whether anything matched;
+ *  - adding a declared anchor confirms the save with a state-independent
+ *    banner that never leaks whether anything matched, and a declared anchor
+ *    offers no control to withdraw it;
  *  - a name-coincidence competition-record card frames the possibility of a
  *    same-name stranger before its claim button;
  *  - the no-confident-match banner speaks to members who never had an old
@@ -15,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertClub, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertClub, insertOnboardingTask, insertMemberDeclaredAnchor, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3211');
 
@@ -84,7 +85,7 @@ describe('personal-details region marker', () => {
   });
 });
 
-describe('anchor add/remove feedback banners', () => {
+describe('anchor add feedback banner', () => {
   it('adding an anchor redirects with the saved banner; the banner is state-independent', async () => {
     const add = await request(createApp())
       .post('/register/wizard/legacy_claim/anchors/add')
@@ -103,33 +104,28 @@ describe('anchor add/remove feedback banners', () => {
     expect(page.text).toContain('Saved. We re-checked for matches with your updated details.');
   });
 
-  it('removing an anchor redirects with the removed banner', async () => {
-    const anchor = db.prepare(
-      "SELECT id FROM member_declared_anchors WHERE member_id = 'copy-member' LIMIT 1",
-    ).get() as { id: string } | undefined;
-    expect(anchor).toBeDefined();
-
-    const remove = await request(createApp())
-      .post('/register/wizard/legacy_claim/anchors/remove')
-      .set('Cookie', cookie())
-      .type('form')
-      .send({ anchorId: anchor!.id });
-    expect(remove.status).toBe(303);
-    expect(remove.headers.location).toBe('/register/wizard/legacy_claim?anchor=removed');
-
-    const page = await request(createApp())
-      .get('/register/wizard/legacy_claim?anchor=removed')
-      .set('Cookie', cookie());
-    expect(page.status).toBe(200);
-    expect(page.text).toContain('Removed. We re-checked for matches with your updated details.');
+  it('a garbage anchor query value renders no banner, and the retired removed value is garbage', async () => {
+    // Declared anchors are add-only, so no action produces a removed notice;
+    // a hand-typed query must not draw one either.
+    for (const value of ['bogus', 'removed']) {
+      const page = await request(createApp())
+        .get(`/register/wizard/legacy_claim?anchor=${value}`)
+        .set('Cookie', cookie());
+      expect(page.status, value).toBe(200);
+      expect(page.text, value).not.toContain('We re-checked for matches');
+    }
   });
 
-  it('a garbage anchor query value renders no banner', async () => {
+  it('a declared anchor is listed with no control to remove it', async () => {
+    insertMemberDeclaredAnchor(db, {
+      member_id: 'copy-member', anchor_type: 'former_surname', anchor_value: 'Listedonly',
+    });
     const page = await request(createApp())
-      .get('/register/wizard/legacy_claim?anchor=bogus')
+      .get('/register/wizard/legacy_claim')
       .set('Cookie', cookie());
     expect(page.status).toBe(200);
-    expect(page.text).not.toContain('We re-checked for matches');
+    expect(page.text).toContain('Listedonly');
+    expect(page.text).not.toContain('/register/wizard/legacy_claim/anchors/remove');
   });
 });
 

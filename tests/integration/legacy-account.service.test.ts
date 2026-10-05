@@ -206,7 +206,8 @@ describe('claimLegacyAccount', () => {
   it('marks legacy_members claimed, transfers fields, and sets historical_person_id when HP matches', () => {
     const MEMBER_CLAIM_HP = 'member-claim-hp';
     const db = new BetterSqlite3(dbPath);
-    insertMember(db, { id: MEMBER_CLAIM_HP, slug: 'claim_hp', login_email: 'claimhp@example.com' });
+    // Shares the account's surname, so the claim passes the surname rule.
+    insertMember(db, { id: MEMBER_CLAIM_HP, slug: 'claim_hp', login_email: 'claimhp@example.com', real_name: 'Casey Linked' });
     db.close();
 
     svc.claimLegacyAccount(MEMBER_CLAIM_HP, LEGACY_WITH_HP);

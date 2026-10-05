@@ -88,8 +88,8 @@ describe('what the sweep deletes', () => {
 
   it('covers every token type, not only the two the job was first written for', async () => {
     insertToken({ id: 'tok_a_export', tokenType: 'data_export', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
-    insertToken({ id: 'tok_b_claim', tokenType: 'account_claim', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
-    insertToken({ id: 'tok_c_mailbox', tokenType: 'mailbox_link', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
+    insertToken({ id: 'tok_b_verify', tokenType: 'email_verify', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
+    insertToken({ id: 'tok_c_reset', tokenType: 'password_reset', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(3);
     expect(remainingIds()).toEqual([]);

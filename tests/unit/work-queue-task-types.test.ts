@@ -96,7 +96,7 @@ describe('work-queue task-type declarations', () => {
   it('looks an action up by its key and answers null for one the type does not have', () => {
     expect(workQueueActionFor('member_contact_request', 'resolve')?.kind).toBe('decide');
     expect(workQueueActionFor('member_contact_request', 'dismiss')).toBeNull();
-    expect(workQueueActionFor('auto_link_match', 'dismiss')?.kind).toBe('close');
+    expect(workQueueActionFor('admin_loss_recruitment', 'dismiss')?.kind).toBe('close');
     expect(workQueueActionFor('not_a_task_type', 'resolve')).toBeNull();
   });
 

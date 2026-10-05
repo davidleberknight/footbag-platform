@@ -1,176 +1,21 @@
 /**
- * Core onboarding wizard flow: task sequencing, the explicit answer that
- * completes a task and advances, form submission with DB verification, reload
- * resilience, anti-enumeration, and the completion page. Every task is
- * required; the only way past one is to answer it.
+ * Core onboarding wizard flow in a real browser: every task answered in order
+ * through its own form, the completion page and its way onward, and the one
+ * personal-details input whose handling only the browser round trip shows.
+ * Every task is required; the only way past one is to answer it.
  */
 import { test, expect } from '@playwright/test';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberMidWizard, seedTier0Member, getTaskState, getMemberField, isLegacyClaimed, countTierGrants, raiseClaimRateLimits, completePersonalDetails } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedMemberMidWizard, getTaskState, getMemberField, raiseClaimRateLimits } from './helpers/onboarding';
+import { WizardPage } from './pages/wizard.page';
 
 test.beforeAll(() => {
   const db = openLiveDb();
   raiseClaimRateLimits(db);
   db.close();
 });
-import { WizardPage } from './pages/wizard.page';
 
-test('brand-new player sees legacy_claim with search form, no candidate cards, sensible text', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `w_new_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await expect(wizard.heading).toBeVisible();
-  await expect(wizard.identifierInput).toBeVisible();
-  await expect(wizard.findButton).toBeVisible();
-  await expect(wizard.neverHadOldAccountButton).toBeVisible();
-
-  const body = await page.textContent('body');
-  expect(body).not.toMatch(/we found|match found|candidate/i);
-
-  await ctx.close();
-});
-
-test('legacy_claim continue without linking: completes the task, advances', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `w_cwl_${Date.now()}` });
-  const { memberId } = persona;
-  completePersonalDetails(db, memberId);
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await wizard.answerCurrentTask();
-
-  await expect(wizard.heading).toBeVisible();
-  expect(page.url()).not.toContain('legacy_claim');
-
-  // The "nothing to claim" decision is an explicit completion, not a skip.
-  const db2 = openLiveDb();
-  expect(getTaskState(db2, memberId, 'legacy_claim')).toBe('completed');
-  db2.close();
-
-  await ctx.close();
-});
-
-test('auto-link fast path: email match links member, sets HP, writes tier grant', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberWithAutoLinkCandidate(db, { slug: `w_al_${Date.now()}` });
-  const { memberId, legacyMemberId } = persona;
-  completePersonalDetails(db, memberId);
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  const loginEmail = await page.evaluate(() =>
-    document.querySelector('#identifier')?.getAttribute('placeholder') ?? '',
-  );
-
-  const db2 = openLiveDb();
-  const email = (db2.prepare('SELECT login_email FROM members WHERE id = ?').get(memberId) as { login_email: string }).login_email;
-  db2.close();
-
-  await wizard.submitIdentifier(email);
-  expect(page.url()).not.toContain('legacy_claim');
-
-  const db3 = openLiveDb();
-  expect(getMemberField(db3, memberId, 'legacy_member_id')).toBe(legacyMemberId);
-  expect(getMemberField(db3, memberId, 'historical_person_id')).toBeTruthy();
-  expect(isLegacyClaimed(db3, legacyMemberId)).toBe(true);
-  expect(countTierGrants(db3, memberId, 'legacy.claim_tier_grant')).toBeGreaterThanOrEqual(1);
-  expect(getTaskState(db3, memberId, 'legacy_claim')).toBe('completed');
-  db3.close();
-
-  await ctx.close();
-});
-
-test('no-match search: renders guidance banner (no candidate count or identity leak)', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `w_ae_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await wizard.submitIdentifier(`garbage-${Date.now()}`);
-
-  const body = await page.textContent('body') ?? '';
-  expect(body).not.toMatch(/\d+ (match|record|candidate)/i);
-  expect(body).not.toMatch(/found \d/i);
-
-  await ctx.close();
-});
-
-test('personal_details: valid year saves to DB', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberMidWizard(db, { slug: `w_yr_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('personal_details');
-  await page.locator('#city').fill('Portland');
-  await wizard.selectCountry('United States', 'OR');
-  await wizard.fillBirthDate();
-  await wizard.submitYear('2005');
-
-  // club_affiliations is still pending (universal task), so completing
-  // personal_details advances to the club task, not the completion page.
-  expect(page.url()).toContain('club_affiliations');
-
-  const db2 = openLiveDb();
-  expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBe(2005);
-  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('completed');
-  db2.close();
-
-  await ctx.close();
-});
-
-test('personal_details: out-of-range year blocked by browser validation, stays on page', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberMidWizard(db, { slug: `w_byr_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('personal_details');
-  await wizard.yearInput.fill('1900');
-  await wizard.saveButton.click();
-
-  expect(page.url()).toContain('personal_details');
-
-  const validationMessage = await wizard.yearInput.evaluate(
-    (el: HTMLInputElement) => el.validationMessage,
-  );
-  expect(validationMessage).toBeTruthy();
-
-  const db2 = openLiveDb();
-  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('pending');
-  db2.close();
-
-  await ctx.close();
-});
-
-test('personal_details: empty year accepted, clears field', async ({ browser, baseURL }) => {
+test('personal_details: an empty first-competition year is accepted and stored as none', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `w_eyr_${Date.now()}` });
   db.close();
@@ -180,14 +25,7 @@ test('personal_details: empty year accepted, clears field', async ({ browser, ba
   const wizard = new WizardPage(page);
 
   await wizard.goto('personal_details');
-  await page.locator('#city').fill('Portland');
-  await wizard.selectCountry('United States', 'OR');
-  await wizard.fillBirthDate();
-  await wizard.yearInput.fill('');
-  await wizard.saveButton.click();
-  await page.waitForURL(/\/register\/wizard\//);
-
-  expect(page.url()).toContain('club_affiliations');
+  await wizard.fillPersonalDetailsAndSave(/\/register\/wizard\/club_affiliations$/, { year: '' });
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBeNull();
@@ -197,33 +35,7 @@ test('personal_details: empty year accepted, clears field', async ({ browser, ba
   await ctx.close();
 });
 
-test('completion page: text correct, profile link works', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `w_comp_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  // Reach completion by answering each task in order: personal_details is
-  // filled and saved, legacy_claim is answered by the continue-without-linking
-  // decision, and club_affiliations by the explicit no-club answer.
-  await wizard.goto('personal_details');
-  await wizard.fillPersonalDetailsAndSave();
-  await wizard.answerCurrentTask();
-  await wizard.answerCurrentTask();
-  await page.waitForURL(/\/register\/wizard\/complete/);
-
-  await expect(wizard.completionMessage).toBeVisible();
-  await expect(wizard.profileLink).toBeVisible();
-  await wizard.profileLink.click();
-  expect(page.url()).toContain(`/members/${persona.slug}`);
-
-  await ctx.close();
-});
-
-test('answer all three tasks end-to-end -> every task completed', async ({ browser, baseURL }) => {
+test('answering all three tasks in order reaches the completion page, every task is completed, and the profile link works', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_all_${Date.now()}` });
   db.close();
@@ -233,10 +45,9 @@ test('answer all three tasks end-to-end -> every task completed', async ({ brows
   const wizard = new WizardPage(page);
 
   await wizard.goto('personal_details');
-  await wizard.fillPersonalDetailsAndSave();
-  await wizard.answerCurrentTask();
-  await wizard.answerCurrentTask();
-  await page.waitForURL(/\/register\/wizard\/complete/);
+  await wizard.fillPersonalDetailsAndSave(/\/register\/wizard\/legacy_claim$/);
+  await wizard.answerCurrentTask(/\/register\/wizard\/club_affiliations$/);
+  await wizard.answerCurrentTask(/\/register\/wizard\/complete$/);
 
   await expect(wizard.completionMessage).toBeVisible();
 
@@ -248,26 +59,8 @@ test('answer all three tasks end-to-end -> every task completed', async ({ brows
   expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toBe('completed');
   db2.close();
 
-  await ctx.close();
-});
-
-test('browser reload mid-wizard preserves state', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `w_rel_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await wizard.answerCurrentTask();
-
-  const urlBeforeReload = page.url();
-  await page.reload();
-  expect(page.url()).toBe(urlBeforeReload);
-  await expect(wizard.heading).toBeVisible();
+  await wizard.profileLink.click();
+  await expect(page).toHaveURL(new RegExp(`/members/${persona.slug}$`));
 
   await ctx.close();
 });

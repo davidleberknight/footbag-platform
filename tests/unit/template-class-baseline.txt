@@ -94,7 +94,6 @@ by-numbers-grid
 by-numbers-title
 candidate-card
 candidate-card-action
-candidate-card-linked
 candidate-card-meta
 candidate-card-name
 candidate-card-provenance
@@ -214,7 +213,6 @@ compression-card-equivalence
 compression-card-eyebrow
 compression-card-head
 compression-card-title
-confirm-summary
 confusion-card
 consecutive-milestones-table
 consecutive-progression-table

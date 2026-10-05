@@ -1,11 +1,10 @@
 /**
  * A legacy record freed by a PII purge is fully re-claimable by a different
- * member end to end through the claim route. After the first claimant purges
- * their account, the legacy_members snapshot returns to the claimable pool; a
- * second member whose verified login email matches the legacy address then
- * drives the claim through POST /register/wizard/legacy_claim/find and lands
- * the claim: the record points at the second member, the tier grant applies,
- * the claim is audited, and no residue points back at the purged first member.
+ * member. After the first claimant purges their account, the legacy_members
+ * snapshot returns to the claimable pool; a second member whose verified login
+ * email matches the legacy address then claims it: the record points at the
+ * second member, the tier grant applies, the claim is audited, and no residue
+ * points back at the purged first member.
  *
  * An honoree's record is the exception and is never freed: a Hall of Fame or Big
  * Add Posse honor is for life, so erasure keeps their claim and their archival
@@ -13,7 +12,6 @@
  * shares the name.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -21,7 +19,6 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   insertOnboardingTask,
-  createTestSessionJwt,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3094');
@@ -36,7 +33,6 @@ const HONOREE_LEGACY_EMAIL = 'honoree@legacy.example.com';
 const MEMBER_HONOREE = 'reclaim-honoree';
 const MEMBER_C = 'reclaim-c';
 
-let createApp: Awaited<ReturnType<typeof importApp>>;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let memberService: typeof import('../../src/services/memberService').memberService;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -54,9 +50,9 @@ beforeAll(async () => {
     person_id: 'HP-reclaim', person_name: 'Reclaim Tester', legacy_member_id: LEGACY_ID,
   });
   // Member A claims the record, then purges. Member B is verified with the
-  // legacy address as its login email, so B qualifies for the email-equality
-  // fast path; personal_details is completed so the legacy_claim prerequisite
-  // is met.
+  // legacy address as its login email, so B's claim rests on the modern-email
+  // tier; personal_details is completed so the legacy_claim prerequisite is
+  // met.
   insertMember(db, {
     id: MEMBER_A, slug: 'reclaim_a', login_email: 'reclaim-a@example.com',
     real_name: 'Reclaim Tester', display_name: 'Reclaim Tester',
@@ -91,7 +87,7 @@ beforeAll(async () => {
   insertOnboardingTask(db, MEMBER_C, 'personal_details', 'completed');
   db.close();
 
-  createApp = await importApp();
+  await importApp();
   memberService = (await import('../../src/services/memberService')).memberService;
   identityAccessService = (await import('../../src/services/identityAccessService')).identityAccessService;
 
@@ -104,23 +100,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-function cookie(memberId: string): string {
-  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
-}
-
 function readDb(): BetterSqlite3.Database {
   return new BetterSqlite3(dbPath, { readonly: true });
 }
 
-describe('re-claiming a purge-freed legacy record through the claim route', () => {
-  it('a second member claims the freed record, gets the tier grant, and leaves no residue for the purged member', async () => {
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookie(MEMBER_B))
-      .type('form')
-      .send({ identifier: LEGACY_EMAIL, 'cf-turnstile-response': 'stub-ok' });
-    // The email-equality fast path auto-links and advances the wizard.
-    expect(res.status).toBe(303);
+describe('re-claiming a purge-freed legacy record', () => {
+  it('a second member claims the freed record, gets the tier grant, and leaves no residue for the purged member', () => {
+    identityAccessService.claimLegacyAccount(
+      MEMBER_B, LEGACY_ID, 'currently_controls_modern_email_matching_legacy',
+    );
 
     const d = readDb();
     try {
@@ -160,12 +148,12 @@ describe('re-claiming a purge-freed legacy record through the claim route', () =
   // An honor is for life, so erasure never hands an honoree's old-site identity
   // back to the pool. Otherwise the next person with the same name inherits the
   // record, and with it the honor that made the record permanent.
-  it('leaves an honoree record claimed, so nobody else can take their identity', async () => {
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookie(MEMBER_C))
-      .type('form')
-      .send({ identifier: HONOREE_LEGACY_EMAIL, 'cf-turnstile-response': 'stub-ok' });
+  it('leaves an honoree record claimed, so nobody else can take their identity', () => {
+    // Member C's verified login email is the honoree's old address, the
+    // strongest key a self-serve claim has, and it still does not free the record.
+    expect(() => identityAccessService.claimLegacyAccount(
+      MEMBER_C, HONOREE_LEGACY_ID, 'currently_controls_modern_email_matching_legacy',
+    )).toThrow();
 
     const d = readDb();
     try {
@@ -188,9 +176,5 @@ describe('re-claiming a purge-freed legacy record through the claim route', () =
     } finally {
       d.close();
     }
-
-    // The route answers uniformly whether or not a record matched, so a held
-    // record is not distinguishable from an absent one by the response alone.
-    expect(res.status).toBe(303);
   });
 });

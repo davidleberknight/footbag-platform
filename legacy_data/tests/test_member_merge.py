@@ -4,7 +4,7 @@ Real in-memory SQLite with the referencing tables and their unique indexes:
 
   * build-time pipeline references (historical_persons, club affiliations,
     club bootstrap leaders) remap loser -> survivor;
-  * live-entity references (members, account_tokens, auto_link_staged_candidates,
+  * live-entity references (members, legacy_claim_declines,
     an existing legacy_members row, a claimed bootstrap leadership) hard-abort
     before any mutation;
   * a uniqueness collision that is an exact duplicate is deduplicated, one that
@@ -36,11 +36,7 @@ CREATE TABLE members (
   id TEXT PRIMARY KEY,
   legacy_member_id TEXT
 );
-CREATE TABLE account_tokens (
-  id TEXT PRIMARY KEY,
-  target_legacy_member_id TEXT
-);
-CREATE TABLE auto_link_staged_candidates (
+CREATE TABLE legacy_claim_declines (
   id TEXT PRIMARY KEY,
   legacy_member_id TEXT
 );
@@ -135,8 +131,7 @@ def test_pipeline_references_remap_to_survivor():
     lambda cur: _ins(cur, "legacy_members", legacy_member_id="200",
                      import_source="legacy_site_data"),
     lambda cur: _ins(cur, "members", id="m1", legacy_member_id="200"),
-    lambda cur: _ins(cur, "account_tokens", id="t1", target_legacy_member_id="200"),
-    lambda cur: _ins(cur, "auto_link_staged_candidates", id="s1", legacy_member_id="200"),
+    lambda cur: _ins(cur, "legacy_claim_declines", id="d1", legacy_member_id="200"),
     lambda cur: _ins(cur, "club_bootstrap_leaders", id="b1", club_id="cl1",
                      legacy_member_id="200", role="leader", claimed_member_id="m9"),
 ])
@@ -297,7 +292,7 @@ def test_abort_inside_transaction_rolls_everything_back():
 
 def test_verify_flags_a_dangling_loser():
     conn = _db(); cur = conn.cursor()
-    _ins(cur, "auto_link_staged_candidates", id="s1", legacy_member_id="200")
+    _ins(cur, "legacy_claim_declines", id="d1", legacy_member_id="200")
     with pytest.raises(mm.MergeAbort):
         mm.verify_no_loser_remains(cur, {"200"})
 
@@ -377,8 +372,7 @@ def test_synthetic_final_apply_leaves_no_dangling_loser(tmp_path):
         ("legacy_person_club_affiliations", "legacy_member_id"),
         ("club_bootstrap_leaders", "legacy_member_id"),
         ("members", "legacy_member_id"),
-        ("account_tokens", "target_legacy_member_id"),
-        ("auto_link_staged_candidates", "legacy_member_id"),
+        ("legacy_claim_declines", "legacy_member_id"),
     ])
     con.close()
     assert dangling == 0

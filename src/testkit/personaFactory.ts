@@ -8,15 +8,18 @@
  *
  * Supported spec dimensions: tier grant + governance tier3, payment history,
  * onboarding progress (a full member by default, or per-task pending state for
- * a persona modelling a pending registrant), legacy-claim linkage (linked vs
- * unlinked, optional
- * legacy_email for the email-equality fast path), graded auto-link confidence
- * (high/medium/low on the single-candidate path), club affiliation + bootstrap
+ * a persona modelling a pending registrant, with the claim step's
+ * date-of-birth change count and last-attempt marker), the shape of the old
+ * records the claim step can reach (an old account and the record the pipeline
+ * linked to it, either alone, an unlinked split of the two, same-name
+ * namesakes, a second account sharing the login address), what the member's
+ * own evidence carries (login address on the account, declared anchors, a date
+ * of birth, a nickname pair), a standing decline, club affiliation + bootstrap
  * leadership, additional plain club memberships (current/former), legacy-club-
  * candidate cards (pending/declined/resolved/junk), a recently-expired (or
- * active) Active Player grant, and mailing-list subscription state. The
- * exhaustive auto-link branch matrix (every low sub-reason) lives at the test
- * layer in tests/fixtures/autoLinkScenarios.ts.
+ * active) Active Player grant, and mailing-list subscription state. Every
+ * matching rule is tested on its own at the test layer; a persona seeds one
+ * coherent journey through them.
  *
  * Detection markers (grep-able evidence a row originated from the harness;
  * the cutover audit confirms these are zero-residue in any production DB,
@@ -52,7 +55,9 @@ import {
   insertAuditEntry,
   insertWorkQueueItem,
   insertMemberMessage,
-  insertNameVariant,
+  insertGivenNameVariant,
+  insertMemberDeclaredAnchor,
+  insertLegacyClaimDecline,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertPersonaNamedGallery,
@@ -83,48 +88,6 @@ export const TEST_PERSONA_BIO_PREFIX =
 
 export type PersonaTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
 
-/** Graded auto-link confidence bucket a persona instantiates. */
-export type PersonaAutoLinkConfidence = 'high' | 'medium' | 'low';
-
-/**
- * Normalize a name the way the auto-link classifier does for the matrix that
- * matters here: lowercase, strip combining diacritics, collapse whitespace.
- * Used only to write name_variants rows for the `medium` bucket; the persona's
- * classification is asserted against the real classifier in the coverage test,
- * which fails the build if this drifts from the service normalizer.
- */
-export function normalizeNameForVariant(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * The historical_persons.person_name to seed so the classifier resolves the
- * requested bucket against the member's real_name (single-candidate path):
- *   - high   → exact match (same name)
- *   - medium → same surname, an inserted middle token, linked by a
- *              name_variants row (the caller writes that row)
- *   - low    → an unrelated provenance name so no name candidate is found
- */
-function autoLinkHpName(
-  conf: PersonaAutoLinkConfidence,
-  memberRealName: string,
-  slug: string,
-): string {
-  if (conf === 'high') return memberRealName;
-  if (conf === 'medium') {
-    const parts = memberRealName.split(/\s+/);
-    return parts.length > 1
-      ? `${parts[0]} Middle ${parts.slice(1).join(' ')}`
-      : `${memberRealName} Middle`;
-  }
-  return `Unmatched Provenance ${slug}`;
-}
-
 export interface PersonaPaymentSpec {
   type?: 'membership' | 'donation' | 'event_registration';
   status?: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
@@ -138,61 +101,77 @@ export interface PersonaPaymentSpec {
   stripeSubscriptionId?: string;
 }
 
+/**
+ * The old records a persona's claim step can reach, and what the member's own
+ * evidence carries against them. Every id is deterministic per slug, so the
+ * refresh runner finds every row a persona seeded:
+ *   - the old account:                 legmem_persona_<slug>
+ *   - a second account (shared login): legmem_persona_<slug>_twin
+ *   - a record with no account behind: person_persona_<slug>_rec
+ *   - same-name namesake records:      person_persona_<slug>_alt_<n>
+ */
 export interface PersonaLegacySpec {
-  /** Display name on the legacy_members / historical_persons rows. */
+  /** The name on the old account and its record. Defaults to the member's real name. */
   realName?: string;
   /**
-   * When true, member.legacy_member_id is set and the legacy row is claimed by
-   * this member (a completed claim). When false/omitted, the legacy match
-   * exists but is unlinked (claim available to confirm).
+   * The name on the record when it differs from the account's, as a record
+   * found through a nickname carries the long form of a first name.
+   */
+  recordName?: string;
+  /**
+   * What exists in the archive: an old account and the record the pipeline
+   * linked to it (`pair`, the default), an old account with no record, or a
+   * record with no account behind it.
+   */
+  shape?: 'pair' | 'account_only' | 'record_only';
+  /**
+   * When true, the member already holds the account and its linked record (a
+   * completed claim, which takes both). When false/omitted the records are
+   * unclaimed and the claim step can reach them.
    */
   linked?: boolean;
-  /**
-   * Seeds legacy_members.legacy_email. With an email present, the unlinked
-   * persona exercises the email-equality claim fast path (and the
-   * /claim/confirm/:token flow via the simulated-email card); null-email stubs
-   * remain claimable through the historical-person card-confirm path.
-   */
+  /** An address in the account's first email slot (an old address). */
   legacyEmail?: string;
   /**
-   * Seed the rows so the auto-link classifier resolves this (unlinked) persona
-   * into the named confidence bucket on the single-candidate path: `high`
-   * (exact name match), `medium` (same-surname variant via a name_variants
-   * row), or `low` (no name candidate). Forces legacy_email to equal the
-   * member's login email (the classifier's anchor) and seeds the historical_
-   * persons provenance accordingly. Mutually exclusive with `linked` (an
-   * already-claimed account is never re-offered). The exhaustive branch matrix
-   * — including every low sub-reason — lives at the test layer in
-   * tests/fixtures/autoLinkScenarios.ts.
+   * Put the member's own login address in the account's first email slot, so
+   * the verified sign-in address reaches it and corroborates it.
    */
-  autoLinkConfidence?: PersonaAutoLinkConfidence;
+  legacyEmailIsLogin?: boolean;
   /**
-   * Seed this many extra historical_persons rows sharing the member's real_name
-   * (no legacy back-link), on top of the provenance person. With the email
-   * anchor in place the auto-link candidate query then returns more than one
-   * match, so the classifier routes to the multiple-candidate review path the
-   * onboarding wizard disambiguates. Pairs with autoLinkConfidence 'high' (whose
-   * provenance person carries the exact member name), which supplies the anchor.
+   * Seed a second old account carrying the member's login address in its second
+   * slot. An address that reaches two accounts is no key at all, so neither is
+   * reached through it, and the administrator sees the ambiguity.
    */
-  competingNameCandidates?: number;
+  ambiguousLoginEmailTwin?: boolean;
   /**
-   * Seeds the same date of birth on the member row and the legacy_members row,
-   * so the auto-link classifier's date-of-birth tie-breaker fires. Paired with
-   * competingNameCandidates, a matching birth date narrows a tied same-name
-   * candidate set down to the provenance person (resolving what would otherwise
-   * be a multiple-candidate review). The classifier compares member against
-   * legacy only; historical_persons carries no birth date.
+   * The member's date of birth, written to the member row and, unless
+   * legacyBirthDate overrides it, to the old account. An identical date
+   * corroborates the account.
    */
   birthDate?: string;
   /**
-   * Seeds a DIFFERENT date of birth on the legacy_members row than the member
-   * carries (the member keeps birthDate). Confirming the claim links the account
-   * anyway — a date that does not match simply fails to corroborate, and never
-   * blocks, weakens, or flags a claim — while the claim's audit metadata records
-   * the mismatch. Requires birthDate (the member side) to be set too, or there
-   * is nothing to compare.
+   * A different date on the old account than the member carries. A date that
+   * does not match fails to corroborate and never counts against the member.
    */
   legacyBirthDate?: string;
+  /**
+   * Seed a record with the same name and no account link alongside an
+   * account-only shape: the member's account and record the pipeline left
+   * unlinked, of which the claim step offers both and the member claims one.
+   */
+  separateRecord?: boolean;
+  /** Same-name records with no account behind them, beside the persona's own. */
+  namesakeRecords?: number;
+  /**
+   * A curated nickname pair to seed, tying the member's first name (short) to
+   * the record's (long). Persona-owned: the refresh runner removes it.
+   */
+  nicknamePair?: { short: string; long: string };
+  /**
+   * The member has already said "This Is Not Me" to this candidate: a standing
+   * decline naming the account and its record.
+   */
+  declined?: boolean;
   /**
    * Sets legacy_members.legacy_is_admin=1 on this persona's legacy row. With
    * `linked: true` it seeds the claimed-legacy-admin case: the legacy admin flag
@@ -396,6 +375,15 @@ export interface PersonaSpec {
    * absent, which the wizard reads as pending.
    */
   onboardingTasks?: Partial<Record<OnboardingTaskType, OnboardingTaskState>>;
+  /**
+   * The claim step's own markers on the legacy_claim task row: date-of-birth
+   * changes already made while onboarding, and whether the "I had one but cannot
+   * find it" answer has already opened the one last attempt. Requires
+   * onboardingTasks to name legacy_claim.
+   */
+  legacyClaimTask?: { birthDateChanges?: number; lastAttemptOpened?: boolean };
+  /** Former surnames and old email addresses the member has already declared. */
+  declaredAnchors?: Array<{ type: 'former_surname' | 'old_email'; value: string }>;
   payments?: PersonaPaymentSpec[];
   legacy?: PersonaLegacySpec;
   club?: PersonaClubSpec;
@@ -490,53 +478,60 @@ export function seedPersona(
   let personId: string | undefined;
   let legacyDisplayName: string | undefined;
 
-  // Legacy match rows first (without the claim) so the member can FK-link to
-  // them on insert. The claim back-reference (legacy_members.claimed_by_member_id
-  // → members.id) is applied after the member row exists.
+  // Old records first (without the claim) so the member can FK-link to them on
+  // insert. The claim back-reference (legacy_members.claimed_by_member_id →
+  // members.id) is applied after the member row exists.
   if (spec.legacy) {
-    const conf = spec.legacy.autoLinkConfidence;
-    if (conf && spec.legacy.linked) {
-      throw new Error(
-        `persona '${spec.slug}': autoLinkConfidence requires an unlinked legacy match (omit linked)`,
-      );
-    }
-    legacyMemberId = `legmem_persona_${spec.slug}`;
-    // For a graded-confidence persona the HP provenance name is derived from
-    // the bucket and the legacy email must equal the member's login email (the
-    // classifier's anchor); otherwise both come straight from the spec.
-    legacyDisplayName = conf
-      ? autoLinkHpName(conf, memberRealName, spec.slug)
-      : (spec.legacy.realName ?? memberRealName);
-    const legacyEmail = conf ? memberLoginEmail : spec.legacy.legacyEmail;
-    insertLegacyMember(db, {
-      legacy_member_id: legacyMemberId,
-      real_name: legacyDisplayName,
-      ...(legacyEmail ? { legacy_email: legacyEmail } : {}),
-      ...((spec.legacy.legacyBirthDate ?? spec.legacy.birthDate)
-        ? { birth_date: spec.legacy.legacyBirthDate ?? spec.legacy.birthDate }
-        : {}),
-      ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
-    });
-    personId = insertHistoricalPerson(db, {
-      legacy_member_id: legacyMemberId,
-      person_name: legacyDisplayName,
-    });
-    if (conf === 'medium') {
-      // Link the member's real_name to the HP's middle-token form so the
-      // classifier resolves a same-surname variant (not an exact) candidate.
-      insertNameVariant(db, {
-        canonical_normalized: normalizeNameForVariant(legacyDisplayName),
-        variant_normalized: normalizeNameForVariant(memberRealName),
+    const shape = spec.legacy.shape ?? 'pair';
+    legacyDisplayName = spec.legacy.realName ?? memberRealName;
+    const recordName = spec.legacy.recordName ?? legacyDisplayName;
+    if (shape !== 'record_only') {
+      legacyMemberId = `legmem_persona_${spec.slug}`;
+      const legacyEmail = spec.legacy.legacyEmailIsLogin ? memberLoginEmail : spec.legacy.legacyEmail;
+      const accountBirthDate = spec.legacy.legacyBirthDate ?? spec.legacy.birthDate;
+      insertLegacyMember(db, {
+        legacy_member_id: legacyMemberId,
+        real_name: legacyDisplayName,
+        ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
+        ...(accountBirthDate ? { birth_date: accountBirthDate } : {}),
+        ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
       });
     }
-    // Extra same-name historical_persons with no legacy back-link turn the
-    // single candidate into a competing set, so the candidate query returns more
-    // than one match and the classifier hands the member a disambiguation choice.
-    const competing = spec.legacy.competingNameCandidates ?? 0;
-    for (let i = 0; i < competing; i++) {
+    if (shape === 'pair') {
+      personId = insertHistoricalPerson(db, {
+        legacy_member_id: legacyMemberId,
+        person_name: recordName,
+      });
+    } else if (shape === 'record_only' || spec.legacy.separateRecord) {
+      // A record with no account behind it: the persona's own record, or the
+      // half of a split pair the pipeline never linked to its account.
+      const recordId = insertHistoricalPerson(db, {
+        person_id: `person_persona_${spec.slug}_rec`,
+        person_name: recordName,
+      });
+      if (shape === 'record_only') personId = recordId;
+    }
+    if (spec.legacy.ambiguousLoginEmailTwin) {
+      // Another person's old account carrying the same address as a secondary,
+      // so the login address reaches two accounts and neither through it.
+      insertLegacyMember(db, {
+        legacy_member_id: `legmem_persona_${spec.slug}_twin`,
+        real_name: `Other ${spec.slug.replace(/[^a-z]/gi, '')}`,
+        legacy_email2: memberLoginEmail.toLowerCase(),
+      });
+    }
+    // Same-name records with no account behind them: namesakes the claim step
+    // shows beside the persona's own, strongest first.
+    for (let i = 0; i < (spec.legacy.namesakeRecords ?? 0); i++) {
       insertHistoricalPerson(db, {
         person_id: `person_persona_${spec.slug}_alt_${i + 1}`,
-        person_name: legacyDisplayName,
+        person_name: recordName,
+      });
+    }
+    if (spec.legacy.nicknamePair) {
+      insertGivenNameVariant(db, {
+        short_form_normalized: spec.legacy.nicknamePair.short,
+        long_form_normalized: spec.legacy.nicknamePair.long,
       });
     }
   }
@@ -594,19 +589,39 @@ export function seedPersona(
     // member would ever meet. Personas that exercise the matching anchor set
     // their own; the rest get a plausible default.
     birth_date: spec.legacy?.birthDate ?? '1985-07-21',
-    ...(spec.legacy?.linked ? { legacy_member_id: legacyMemberId } : {}),
+    // A real claim takes the account and the record the pipeline linked to it
+    // together, so a linked persona holds both.
+    ...(spec.legacy?.linked && legacyMemberId ? { legacy_member_id: legacyMemberId } : {}),
+    ...(spec.legacy?.linked && personId ? { historical_person_id: personId } : {}),
   });
 
-  // Complete the claim now that the member exists (upsert updates the existing
-  // legacy_members row in place).
-  if (spec.legacy?.linked) {
+  // Complete the account claim now that the member exists (upsert updates the
+  // existing legacy_members row in place).
+  if (spec.legacy?.linked && legacyMemberId) {
+    const legacyEmail = spec.legacy.legacyEmailIsLogin ? memberLoginEmail : spec.legacy.legacyEmail;
     insertLegacyMember(db, {
-      legacy_member_id: legacyMemberId!,
+      legacy_member_id: legacyMemberId,
       real_name: legacyDisplayName,
-      ...(spec.legacy.legacyEmail ? { legacy_email: spec.legacy.legacyEmail } : {}),
+      ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
       ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
       claimed_by_member_id: memberId,
       claimed_at: '2025-01-01T00:00:00.000Z',
+    });
+  }
+
+  for (const anchor of spec.declaredAnchors ?? []) {
+    insertMemberDeclaredAnchor(db, {
+      member_id: memberId,
+      anchor_type: anchor.type,
+      anchor_value: anchor.type === 'old_email' ? anchor.value.toLowerCase() : anchor.value,
+    });
+  }
+
+  if (spec.legacy?.declined) {
+    insertLegacyClaimDecline(db, {
+      member_id: memberId,
+      legacy_member_id: legacyMemberId ?? null,
+      historical_person_id: personId ?? null,
     });
   }
 
@@ -652,12 +667,21 @@ export function seedPersona(
   // every other persona completes onboarding, because a pending account has no
   // profile page and reaches no member capability, which would invalidate the
   // persona's own purpose.
+  if (spec.legacyClaimTask && !spec.onboardingTasks?.legacy_claim) {
+    throw new Error(`persona '${spec.slug}': legacyClaimTask requires onboardingTasks to name legacy_claim`);
+  }
   if (spec.onboardingTasks) {
     for (const [taskType, state] of Object.entries(spec.onboardingTasks) as [
       OnboardingTaskType,
       OnboardingTaskState,
     ][]) {
-      insertOnboardingTask(db, memberId, taskType, state);
+      const claimMarkers = taskType === 'legacy_claim' && spec.legacyClaimTask
+        ? {
+          birth_date_changes: spec.legacyClaimTask.birthDateChanges ?? null,
+          last_attempt_opened_at: spec.legacyClaimTask.lastAttemptOpened ? '2026-01-01T00:00:00.000Z' : null,
+        }
+        : {};
+      insertOnboardingTask(db, memberId, taskType, state, claimMarkers);
     }
   } else {
     completeOnboarding(db, memberId);

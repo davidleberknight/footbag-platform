@@ -6,6 +6,8 @@
  *   - The `members.is_deceased` write and its timestamp
  *   - The cascade to a linked `historical_persons` row
  *   - Withdrawal from events that have not yet happened
+ *   - Withdrawal of the member's open suggested matches, which they can no
+ *     longer answer (IdentityAccessService performs it, in this transaction)
  *   - The same flag on an unlinked historical record, set or unset
  *
  * Does not own:
@@ -15,6 +17,10 @@
  *     of which this touches: the marking preserves a member's contributions and
  *     changes only what the platform will do on their behalf from now on
  *   - Page shaping for the surface it is reached from (AdminMemberService)
+ *   - Clearing a flag this service cascaded onto a historical record when the
+ *     claim that linked that record is later reverted (IdentityAccessService,
+ *     inside the revert transaction): the record was never the member's, so the
+ *     cascaded flag goes with the link
  *
  * Required patterns:
  *   - Every consumer of the flag already exists and reads it directly, so this

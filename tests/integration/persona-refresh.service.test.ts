@@ -31,6 +31,7 @@ import {
   insertActivePlayerReminderSent,
   insertCandidateCleanupResolution,
   insertClubCleanupClaim,
+  insertLegacyClaimDecline,
 } from '../../src/testkit/personaRowBuilders';
 import {
   insertOutboxEmail,
@@ -99,13 +100,44 @@ describe('refreshAllPersonas', () => {
     expect(grants.some((g) => g.created_at === '2026-01-01T00:00:00.000Z')).toBe(false);
   });
 
-  it('rebuilds persona-owned rows including legacy identity and name variants', () => {
-    // Linked legacy persona keeps its deterministic legacy root.
+  // Defect caught: a refresh drops a persona's old records, nickname pair or
+  // standing decline, so the claim journey it exists for no longer reproduces.
+  it('rebuilds persona-owned claim rows: accounts, records, nickname pairs and declines', () => {
     expect(count(`SELECT COUNT(*) AS n FROM legacy_members WHERE legacy_member_id = ?`, 'legmem_persona_legacy_linked')).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, 'member_persona_legacy_linked')).toBe(1);
-    // The medium auto-link persona seeds a name_variants row.
-    expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE legacy_member_id = ?`, 'legmem_persona_autolink_medium')).toBe(1);
-    expect(count(`SELECT COUNT(*) AS n FROM name_variants`)).toBeGreaterThan(0);
+    expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE person_id = ?`, 'person_persona_claim_record_only_rec')).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE person_id = ?`, 'person_persona_claim_namesakes_alt_1')).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM legacy_members WHERE legacy_member_id = ?`, 'legmem_persona_claim_shared_email_twin')).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM given_name_variants WHERE short_form_normalized = 'lulo'`)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?`, 'member_persona_claim_declined')).toBe(1);
+  });
+
+  // Defect caught: a real member's decline of a persona record blocks the
+  // record's delete, so the whole refresh rolls back and personas cannot be
+  // reset after a tester said "This Is Not Me" to one.
+  it('clears a real member\'s decline of a persona record so the refresh still converges', () => {
+    insertMember(db, { id: 'member-outsider-decliner', slug: 'outsider_decliner' });
+    insertLegacyClaimDecline(db, {
+      member_id: 'member-outsider-decliner',
+      historical_person_id: 'person_persona_claim_record_only_rec',
+    });
+    expect(() => refreshAllPersonas(db)).not.toThrow();
+    expect(count(`SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = 'member-outsider-decliner'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = 'member-outsider-decliner'`)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE person_id = ?`, 'person_persona_claim_record_only_rec')).toBe(1);
+  });
+
+  // Defect caught: a real member who claimed a persona namesake record keeps a
+  // link to it, so the record delete fails and the refresh rolls back.
+  it('detaches a real member from a persona namesake record they claimed', () => {
+    insertMember(db, {
+      id: 'member-outsider-namesake', slug: 'outsider_namesake',
+      historical_person_id: 'person_persona_claim_namesakes_alt_1',
+    });
+    expect(() => refreshAllPersonas(db)).not.toThrow();
+    const row = db.prepare(`SELECT historical_person_id FROM members WHERE id = 'member-outsider-namesake'`)
+      .get() as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
   });
 
   it('leaves non-persona data untouched', () => {
@@ -170,8 +202,8 @@ describe('refreshAllPersonas', () => {
       activity_signal: 'active',
     });
 
-    // Auth and identity flows: reset token, declared anchor, the anchor's
-    // mailbox-link token, and a notification email.
+    // Auth and identity flows: reset token, declared anchor, a data-export
+    // token, and a notification email.
     insertAccountToken(db, T1, {
       id: 'tok-persona-1', token_type: 'password_reset', token_hash: 'hash-1',
       issued_at: TS, expires_at: TS,
@@ -181,8 +213,8 @@ describe('refreshAllPersonas', () => {
       anchor_type: 'old_email', anchor_value: 'old@example.com',
     });
     insertAccountToken(db, T1, {
-      id: 'tok-persona-2', target_anchor_id: 'anchor-persona-1',
-      token_type: 'mailbox_link', token_hash: 'hash-2',
+      id: 'tok-persona-2',
+      token_type: 'data_export', token_hash: 'hash-2',
       issued_at: TS, expires_at: TS,
     });
     insertOutboxEmail(db, { id: 'out-persona-1', recipient_member_id: T1, subject: 'Welcome' });

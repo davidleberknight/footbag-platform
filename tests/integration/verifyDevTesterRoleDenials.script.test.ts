@@ -25,7 +25,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,6 +34,19 @@ import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/verify-dev-tester-role-denials.sh');
+
+/**
+ * Every condition key the role's policy tests, read from the same Terraform the
+ * script reads. A key is written `"service:Name" =` and an action never is, so
+ * this cannot pick up an action.
+ */
+const CONDITION_KEYS = [
+  ...new Set(
+    [...readFileSync(join(process.cwd(), 'terraform/identity/dev-tester-role.tf'), 'utf-8').matchAll(/"([a-z0-9-]+:[A-Za-z0-9]+)"\s*=/g)].map(
+      (m) => m[1],
+    ),
+  ),
+];
 
 interface Estate {
   /** Whether the identity tree has been applied at all. */
@@ -210,6 +223,12 @@ function awsStub(estate: Estate): string {
       '    *) shift ;;',
       '  esac',
       'done',
+      '',
+      // As AWS does: a condition key asked about as though it were an action
+      // fails the whole call, with no results, rather than being answered.
+      `for a in "\${actions[@]}"; do case " ${CONDITION_KEYS.join(' ')} " in *" $a "*)`,
+      '  echo "An error occurred (InvalidInput) when calling the SimulatePrincipalPolicy operation: Invalid action name" >&2',
+      '  exit 254 ;; esac; done',
       '',
       'decide() {',
       '  local a="$1"',

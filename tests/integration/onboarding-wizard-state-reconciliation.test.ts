@@ -275,24 +275,3 @@ describe('membership is granted only when all three tasks are completed', () => 
     expect(svc.nextOutstandingTaskType(memberId)).toBeNull();
   });
 });
-
-describe('D4: legacy_claim search surfaces the validation message inline', () => {
-  it('POST /register/wizard/legacy_claim/find with empty identifier renders the validation message', async () => {
-    const stamp = Date.now();
-    const memberId = insertMember(testDb, { onboarding: 'none',
-      slug: `state_d4_${stamp}`,
-      login_email: `state-d4-${stamp}@example.com`,
-      birth_date:  '1980-01-01',
-    });
-    svc.startTaskList(memberId);
-    // The manual search runs only once personal details are on file.
-    svc.completeTask(memberId, 'personal_details');
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: '' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Enter an identifier');
-  });
-});

@@ -21,6 +21,7 @@ import {
 } from 'node:fs';
 import {
   run,
+  parseArgs,
   stageFile,
   EXIT_OK,
   EXIT_PUBLICATION_FAILURE,
@@ -1055,5 +1056,44 @@ describe('verify-seed-urls: determinism', () => {
     expect(readdirSync(path.join(fx.root, 'curated', 'galleries')).sort())
       .toEqual(['g1.json', 'url_verdicts.json']);
     expect(statSync(fx.galleryVerdicts).isFile()).toBe(true);
+  });
+});
+
+// ── which stored key a live run uses ─────────────────────────────────────────
+
+describe('verify-seed-urls: stored Safe Browsing key selection', () => {
+  it('carries the named environment into the plan, and none without the flag', () => {
+    const fx = makeRepo();
+    for (const env of ['staging', 'production'] as const) {
+      const parsed = parseArgs(['--clubs-only', '--safe-browsing-key-from', env], fx.root);
+      expect(parsed.ok && parsed.plan.safeBrowsingKeyFrom, env).toBe(env);
+    }
+    const plain = parseArgs(['--clubs-only'], fx.root);
+    expect(plain.ok && plain.plan.safeBrowsingKeyFrom).toBeNull();
+  });
+
+  it('refuses a missing or unknown environment before the validator is built', async () => {
+    const fx = makeRepo();
+    for (const argv of [
+      ['--clubs-only', '--safe-browsing-key-from'],
+      ['--safe-browsing-key-from', '--clubs-only'],
+      ['--clubs-only', '--safe-browsing-key-from', 'prod'],
+      ['--clubs-only', '--safe-browsing-key-from', 'development'],
+    ]) {
+      let built = false;
+      const c = capture();
+      const code = await run(argv, fx.root, {
+        now: () => FIXED_NOW,
+        log: c.deps.log,
+        logError: c.deps.logError,
+        createValidator: async () => {
+          built = true;
+          throw new Error('should never be reached');
+        },
+      });
+      expect(code, argv.join(' ')).toBe(EXIT_INVALID_INVOCATION);
+      expect(built, argv.join(' ')).toBe(false);
+      expect(existsSync(fx.clubsVerdicts), argv.join(' ')).toBe(false);
+    }
   });
 });

@@ -9,7 +9,11 @@
  * main content and without horizontal document overflow. Assertions stay
  * structural; no screenshots.
  *
- * A second spec covers the two authenticated pages whose tables carry controls
+ * A second spec drives every onboarding step at phone width, asserting each
+ * step's answer controls sit inside the screen so a registrant on a phone can
+ * finish signing up.
+ *
+ * A third spec covers the two authenticated pages whose tables carry controls
  * in their rightmost columns: the member payment history and the gallery
  * editor. There the contract is stronger than "no overflow" — the table has to
  * scroll inside its own container, because a clipped table leaves the cancel
@@ -24,6 +28,14 @@ import {
 } from '../../src/testkit/personaRowBuilders';
 import { authenticateContext } from './helpers/wizard-auth';
 import { openLiveDb } from './helpers/liveDb';
+import {
+  seedMemberMidWizard,
+  seedMemberWithEveryCardKind,
+  seedMemberWithClubCards,
+  seedTier0Member as seedPendingTier0,
+  completeThroughLegacyClaim,
+} from './helpers/onboarding';
+import type { Persona } from '../fixtures/personas';
 
 const PHONE = { width: 390, height: 844 };
 
@@ -98,6 +110,48 @@ test('freestyle public pages render at phone width without horizontal overflow',
   }
   await context.close();
   expect(overflows.join('\n'), `horizontal document overflow at phone width:\n${overflows.join('\n')}`).toBe('');
+});
+
+test('every onboarding step is usable at phone width with its submit control reachable', async ({ browser, baseURL }) => {
+  // A registrant on a phone has to be able to finish signing up: every step's
+  // answer control must sit inside the screen, and no step may scroll sideways.
+  const db = openLiveDb();
+  const details = seedMemberMidWizard(db, { slug: `e2e_mob_pd_${Date.now()}` });
+  const claim = seedMemberWithEveryCardKind(db);
+  const club = seedMemberWithClubCards(db, { clubCount: 1 });
+  const wrap = seedPendingTier0(db, { slug: `e2e_mob_wrap_${Date.now()}` });
+  completeThroughLegacyClaim(db, wrap.memberId);
+  db.close();
+
+  const steps: Array<[Persona, string, RegExp]> = [
+    [details, '/register/wizard/personal_details', /Save and (Continue|Complete) Onboarding/],
+    [claim, '/register/wizard/legacy_claim', /This Is Me, Link My History|Claim This Record|This Is Me, I Used the Surname|This Is Not Me|I Never Had an Old Account|I Had One but Cannot Find It|Add Old Email|Add Former Name/],
+    [club, '/register/wizard/club_affiliations', /Save Answers/],
+    [wrap, '/register/wizard/club_affiliations', /Finish Without a Club/],
+  ];
+  const problems: string[] = [];
+  for (const [persona, stepPath, controls] of steps) {
+    const context = await browser.newContext({ viewport: PHONE, baseURL: baseURL! });
+    await authenticateContext(context, baseURL!, persona);
+    const page = await context.newPage();
+    await page.goto(stepPath);
+    await expect(page, `${stepPath} renders where requested`).toHaveURL(new RegExp(`${stepPath}$`));
+
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    if (scrollWidth > PHONE.width + 1) problems.push(`${stepPath}: scrollWidth ${scrollWidth} > ${PHONE.width}`);
+
+    const buttons = page.locator('main button, main a.btn').filter({ hasText: controls });
+    const count = await buttons.count();
+    if (count === 0) problems.push(`${stepPath}: no answer control rendered`);
+    for (let i = 0; i < count; i++) {
+      const box = await buttons.nth(i).boundingBox();
+      if (!box || box.x < 0 || box.x + box.width > PHONE.width + 1) {
+        problems.push(`${stepPath}: "${(await buttons.nth(i).textContent())?.trim()}" lies outside the screen`);
+      }
+    }
+    await context.close();
+  }
+  expect(problems.join('\n'), `onboarding steps at phone width:\n${problems.join('\n')}`).toBe('');
 });
 
 test('member payment history and gallery editor render at phone width with their controls reachable', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {

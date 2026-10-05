@@ -1339,7 +1339,7 @@ Registration collects the legal name as two recorded parts, `family_name` (requi
 
 Rationale:
 
-- Claim matching and auto-link depend on a reliable surname signal on live accounts; an unconstrained display name would break the primary non-email anchor.
+- Claim matching depends on a reliable surname signal on live accounts; an unconstrained display name would break the primary non-email anchor.
 - The community expects real identities on member profiles, while a display name allows preferred forms (diminutives, alternate spellings) without severing the surname link between the two fields.
 - Legacy data predates the model; an imported `real_name` is the best-available name from the export and may be a display name or a username. Retrofitting the constraint onto imports would fabricate data.
 - A slug the member cannot change keeps inbound links and person-link dispatch stable; the administrator correction is the deliberate, reasoned and audited exception to that stability.
@@ -1361,7 +1361,7 @@ Trade-offs:
 Impact:
 
 - Registration and `M_Edit_Profile` enforce the constraint; the user stories own the acceptance criteria and copy.
-- Auto-link and claim flows match on the current real-name surname plus declared former surnames.
+- The claim step matches on the member's recorded surname and middle names plus declared former surnames.
 - Imported rows carry a name-quality asymmetry that claim-candidate surfaces present as-is.
 
 ## 2.11 Competition History Fields
@@ -1895,7 +1895,7 @@ Export: because the raw token is never persisted, the GDPR data export (M_Downlo
 
 Decision:
 
-Email verification tokens, password reset tokens, personal data export download-link tokens, and legacy account claim tokens are cryptographically random, single-use tokens, not JWTs. Tokens are generated with crypto.randomBytes(32) providing 256 bits of cryptographic randomness, encoded for URLs, and hashed before storage using SHA-256 so that the database never stores a usable raw token. This prevents account takeover if the database is compromised.
+Email verification tokens, password reset tokens, and personal data export download-link tokens are cryptographically random, single-use tokens, not JWTs. Tokens are generated with crypto.randomBytes(32) providing 256 bits of cryptographic randomness, encoded for URLs, and hashed before storage using SHA-256 so that the database never stores a usable raw token. This prevents account takeover if the database is compromised.
 
 Semantics:
 
@@ -1903,17 +1903,15 @@ Semantics:
 
 - Password reset token TTL: one hour.
 
-- Legacy account claim token TTL: 24 hours (configurable via `account_claim_expiry_hours`). The claim token carries a dual binding: `member_id` (the requesting authenticated account) and `target_legacy_member_id` (the `legacy_members` row being claimed). A claim token may only be consumed while authenticated as the same `member_id` that initiated the request; consuming while authenticated as a different account is rejected. `target_legacy_member_id` uses `ON DELETE NO ACTION`; `legacy_members` rows are never deleted in normal flow (they are marked claimed, not removed, per the three-table design).
-
 - Tokens are single-use: on successful consumption, the token record is marked consumed (timestamp) and cannot be reused.
 
 - Multiple outstanding tokens are allowed, but consumption invalidates only the consumed token; rate limiting prevents spam.
 
-- Rate limiting: Password reset requests limited to five per email per hour, applied regardless of whether email exists in system to prevent enumeration attacks. Claim initiation and resend are rate-limited per requesting account, per target imported row, and per session/IP to prevent abuse of legacy mailboxes and limit side-channel enumeration.
+- Rate limiting: Password reset requests limited to five per email per hour, applied regardless of whether email exists in system to prevent enumeration attacks. Verify-email resend is rate-limited per email address.
 
 - Rate limiting is in-process only; state is not persisted and resets on restart (acceptable for single-instance deployment).
 
-Storage format: Store token_hash, member_id, token_type (email_verify, password_reset, data_export, account_claim), target_legacy_member_id (nullable; account_claim only), created_at, expires_at, used_at (nullable). Index on token_hash (unique) and on expires_at for cleanup.
+Storage format: Store token_hash, member_id, token_type (email_verify, password_reset, data_export), created_at, expires_at, used_at (nullable). Index on token_hash (unique) and on expires_at for cleanup.
 
 Validation: A presented token is hashed and compared to stored hashes; validation requires used_at IS NULL and now \< expires_at. If hashes match and token is not expired or consumed, verification succeeds. Otherwise, verification fails with a generic error message that does not reveal whether the token was invalid, expired, or already used.
 
@@ -1921,7 +1919,7 @@ Cleanup: A background cleanup job runs daily to delete expired or consumed token
 
 Requirements:
 
-- URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, data-export, account-claim, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
+- URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, data-export, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
 
 Impact: Token generation/validation logic is centralized in the `identityAccessService` helper to avoid copy/paste drift across flows (verification, reset, onboarding).
 
@@ -1958,13 +1956,14 @@ No auth-bypass toggles: environment variables must not gate route-level authoriz
 Legacy migration security rules:
 
 - Legacy passwords are never imported, stored, or used.
-- `legacy_email` is migration metadata, not a login credential. When a member's claim rests on a declared old email — asserting they controlled an address a legacy account carried — that email confirms the claim only after the member proves control of it through a mailbox-control round-trip (recording the `mailbox_control_via_link_click` evidence tier); a claim resting on a name or surname anchor does not require it.
-- Auto-link sends no notification emails. The wizard's confirmation card (post-stage, at first sign-in) is the only post-link member-facing surface. Effects (tier upgrade, attribution, badges) apply only after the member explicitly confirms.
-- Member-confirmation of a wizard card whose evidence is a name or surname anchor is sufficient proof for a claim to take effect; a card whose evidence is a declared old email additionally requires the mailbox-control round-trip.
+- `legacy_email` is migration metadata, not a login credential. An old email address, the primary or either secondary on an old account, is a matching key only: the platform never mails it and never asks the member to prove they can still read it, because an old address may be long dead and the member's current login email, proven at registration, is the only address the platform proves. Accepted exposure: someone who knows a person's old address can see that account's name in the claim step and claim it; the administrator dispute path is the remedy, which is why every claim records exactly which evidence it rested on.
+- Matching sends no notification emails and applies nothing on its own; every effect follows an explicit member claim.
+- **Corroboration.** A self-serve claim of an old account needs the member's own evidence on that account (an email address or an exact date of birth), because a name is the easiest thing to assert and an old account carries tier standing. Where the claim needs it is specified by `M_Claim_Legacy_Account`.
 - Member-declared identity anchors (former surnames, declared old emails) are always private: visible only to the member themselves and to admin. They participate in claim matching but never appear on public surfaces, member search, or any cross-member listing.
-- Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. A name-anchored legacy claim takes effect on wizard-card confirmation without any email round-trip (a claim resting on a declared old email requires the round-trip, per `M_Claim_Legacy_Account`), so a stub `legacy_members` row with no `legacy_email` remains claimable through the historical-person card-confirm path. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically, so the admin↔Tier 2 invariant holds by construction. The var carries a boot-time fail-fast guard and refuses to start in production (it is permitted in development and staging); the runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
+- Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically, so the admin↔Tier 2 invariant holds by construction. The var carries a boot-time fail-fast guard and refuses to start in production (it is permitted in development and staging); the runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
 - Imported `legacy_members` rows cannot log in, are not searchable, and do not receive any member communications.
-- **Surname matching across claim paths.** Both the wizard-confirmed candidate flow and the direct historical-record claim path match against the member's recorded family name, or the last word of their full name for a row written before that part existed, OR any declared former surname (see member-declared anchors above). The record on the other side carries one name string and is never split, so the comparison asks whether that name ends with the member's family name; comparing last word to last word would refuse every member whose family name is more than one word. A declared former surname is compared the same way and folded the same way, since it is self-asserted free text standing in for the recorded name. A mismatch is a match failure, not an accusation: names change, an archived record carries whatever partial or stale name the old site held, and an honest mistake is indistinguishable from an attempt when the name is all that is examined.
+- **One matching component.** Every matching rule (the keys, the surname rule, corroboration, confidence, and what is offered) lives in one service component, and no other code decides a match, so the claim step's cards, the server-side re-check inside each claim transaction, the administrator's candidate view and the audit writer cannot disagree. The rules themselves are specified by `M_Claim_Legacy_Account`. A matching email never stands in for the surname rule: a family's shared address sits on one member's old account, and claiming that account takes its competition record, honours and tier with it. Only an administrator's vetted evidence on an applied link stands in for the rule.
+- **Claim evidence in the audit ledger.** Every claim, decline and refused claim records the evidence it rested on, because the administrator dispute path is the remedy for a wrong claim and is judged on that record. The ledger is immutable and erasure cannot reach it, so it holds email addresses only as keyed hashes (an HMAC under a key derived from the session signing secret with a fixed purpose label, so no new secret is provisioned) and declared anchors by identifier, never a name or a date of birth; the administrator's surfaces read those live.
 - **Cookie domain scope.** The session cookie is host-only: it returns only to the host that issued it and reaches no subdomain. Only the archive's three CloudFront signed cookies carry the parent-domain scope (`Domain=.footbag.org`), which CloudFront requires for a cookie minted on the platform host to be presented at `archive.footbag.org` (§6.4). A parent-domain cookie carrying `Secure` is returned to any `footbag.org` subdomain that answers over HTTPS, including a name still served by another operator, so the widened credential is deliberately confined to the signed cookies, whose policy binds them to the archive distribution and whose disclosure grants nothing elsewhere. The session cookie's `__Host-` name prefix (§3.2) is what makes its host-only scope browser-enforced rather than merely intended, so no other `footbag.org` name can set a cookie of that name at all. The CSRF Origin-pin middleware (§3.3) is the cross-subdomain defense against a malicious form on the archive subdomain.
 - **Historical-person claim races are resolved by partial UNIQUE index + service-layer error mapping.** Concurrent claims to the same `historical_persons` row both pass the in-controller "already claimed" check; the partial UNIQUE index `ux_members_historical_person_id` catches the loser at insert. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError` so the controller renders the same user-readable "already claimed by another member" 422 it renders on the synchronous check path. Raw SQL errors must not leak to the response.
 
@@ -3047,7 +3046,7 @@ Trade-offs:
 
 - Two sending streams mean two reputations to watch rather than one, and a deliverability question now starts with which stream the message rode.
 
-- Transport security to the receiving server is opportunistic, not required. Both configuration sets leave the SES TLS policy at its default, so SES negotiates STARTTLS where the receiving server offers it and delivers in the clear where it does not. Requiring it was considered and declined: a required policy bounces mail to any member whose provider cannot negotiate TLS, and the transactional stream is the one carrying password-reset, email-verification, data-export and legacy-claim links, so the failure mode is a member locked out of their own account and unable to request another link. Against a general membership on whatever mail providers they happen to use, that is both likelier and worse than the interception it would prevent. The residual risk is accepted and stated rather than left implicit: a single-use token in transit to a server with no STARTTLS is readable on the path, for the lifetime of that token.
+- Transport security to the receiving server is opportunistic, not required. Both configuration sets leave the SES TLS policy at its default, so SES negotiates STARTTLS where the receiving server offers it and delivers in the clear where it does not. Requiring it was considered and declined: a required policy bounces mail to any member whose provider cannot negotiate TLS, and the transactional stream is the one carrying password-reset, email-verification and data-export links, so the failure mode is a member locked out of their own account and unable to request another link. Against a general membership on whatever mail providers they happen to use, that is both likelier and worse than the interception it would prevent. The residual risk is accepted and stated rather than left implicit: a single-use token in transit to a server with no STARTTLS is readable on the path, for the lifetime of that token.
 
 - Email delivery is not instantaneous; there can be a delay due to polling and retries.
 
@@ -3175,8 +3174,7 @@ captured mail, driven by the email adapter (SES_ADAPTER=stub in dev
 and staging; live in production only, where no card exists). The card
 shows the captured messages for the flow the visitor is completing,
 with subject, body, and the actionable link, so registration
-verification, password reset, verify-resend, legacy-claim
-confirmation, and mailbox-control confirmation each complete on the
+verification, password reset, and verify-resend each complete on the
 page itself, with no navigation to the outbox viewer. GET /dev/outbox
 remains the catch-all for captured notifications that have no host
 page (tier changes, vouches, receipts). The shared service
@@ -3191,8 +3189,8 @@ page (tier changes, vouches, receipts). The shared service
 Rationale:
 
 - Paid testers and maintainers exercise email-gated flows
-  (registration verification, password reset, verify-resend, legacy
-  claim, mailbox control) on both dev and staging. An in-page card at
+  (registration verification, password reset, verify-resend) on both
+  dev and staging. An in-page card at
   the exact page where the flow says "check your email" lets the
   tester click the captured link immediately, without inbox delivery
   and without navigating away from the flow.
@@ -3700,13 +3698,11 @@ The platform absorbs legacy data from two sources before or at production go-liv
 
 The two sources share the same identity key (`legacy_member_id`) and converge via FK: `historical_persons.legacy_member_id` and `legacy_members.legacy_member_id` point at the same namespace, and a modern `members` row links into both at claim time via `members.legacy_member_id` and `members.historical_person_id`.
 
-**Self-serve claim flow (umbrella).** The member's experience of claiming pre-existing identity (an old website account, a competition record, or both) is a single act composed of several mechanisms: card confirmations (auto-link candidates surfaced by the wizard, cross-source candidate prompts, registration-time conflict prompts), declared-anchor entry (optional former surnames and optional declared old emails, both member-and-admin private), a mailbox-control round-trip via a confirmation link to a declared old email (required before a declared old email can confirm a claim), and a direct historical-record claim affordance opened from the wizard's own name-matched record card. The wizard's claim task is the sole entry surface for a legacy claim; no page outside it carries a claim control, and once onboarding is complete the profile routes the member to the administrator request instead. Auto-link sends no notification emails. Card-at-login is the only post-link member-facing surface; effects (tier upgrade, attribution, badges) apply only after the member explicitly confirms a card. Every confirmed claim transaction carries an evidence-strength tag on its audit row, set by the anchor the match came through. Match confidence is the separate axis and decides only how far the platform goes on its own before it asks the member, so the anchor sets the tag and never moves the band. Cross-account email collisions are resolved a priori during legacy-data validation rather than at match time. The umbrella story and case-by-case mechanics live in the `M_Claim_Legacy_Account` user story.
+**Identity matching.** Matching is computed live, in the onboarding wizard's claim step only, by one matching component over the two archival tables (see the legacy migration security rules). It stages nothing, runs no background or batch pass and sends no mail; every effect follows an explicit member claim. Duplicate old accounts and record-to-account links are settled upstream in the pipeline before load, and cross-account email collisions during legacy-data validation, so the platform never adjudicates them at match time. The behaviour is specified by `M_Claim_Legacy_Account`.
 
 **Tier handling.** At claim, a member receives one membership-tier grant for the standing their legacy account held, written as a single `member_tier_grants` ledger row (`reason_code = 'legacy.claim_tier_grant'`) under the IFPA-approved blanket policy that maps each legacy standing (honors, paid history) to its 2026 equivalent, annual to lifetime. The per-standing mapping is the success criteria of `M_Claim_Legacy_Account`; a record showing only honors is granted on that basis as one outcome of that mapping, not a separate mode. Unclaimed `legacy_members` rows have no ledger row. No tier cache columns exist on `members`; membership-tier reads go through `MembershipTieringService.getTierStatus(memberId)`; Active Player reads go through `ActivePlayerService.getStatus(memberId)`.
 
 **Operational sequencing.** The archive capture completes first: the top-up crawl runs and the mirror freezes with it, because the crawler reaches the legacy site only by name and nothing after the record switch can. Then the legacy site enters write freeze; the records switch to the platform, which serves the migration notice from that moment (the notice mechanism is described under how the namespace is served, §6.11); the production database is built soup-to-nuts from the frozen mirror and the committed schema; the final export is imported; clubs are bootstrapped; the notice is withdrawn and the platform goes live. Preview serves the real site on the real database throughout the window, which is what lets administrators seat themselves and test through the front door before launch. Rollback lever before the records switch: abort and retry. Rollback lever afterwards: fix-forward, or a platform restore from the pre-flip snapshot, with any DNS change operator-made on the low-TTL zone. No automated rollback is provided once the records have moved.
-
-**Auto-link cutover surface.** Every account on the launched platform is created after launch, so the wizard's claim task is where matching happens: it runs the classifier as the task renders and offers what it finds, and the staged rows a live platform holds come from the cross-source offer that follows a member's own confirmed claim. The batch auto-link pass, which stages a candidate row per matched live member without mutating live tables, has the seeded test load for its environment, where personas wait at the claim step and a run puts staged cards in front of them. No notification emails are sent. Nothing applies until the member confirms a card, per the umbrella claim flow. Trustworthiness rests on the identity-link matching rule, on a-priori validation of the imported honor flags against the authoritative public rosters before go-live, and on the admin dispute-revert path for any wrong claim. Members who cannot resolve their identity through the platform's self-serve surfaces use the member-initiated admin help request affordance (`A_Review_Member_Link_Help_Requests`); admin reviews, communicates as needed, and approves or rejects.
 
 **Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`). Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row regardless of classification strength and regardless of registrant tier; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Decline transitions the bootstrap row to `'rejected'`. Claim eligibility is independent of club status; a successful claim returns an inactive or archived club to `'active'`, audit-logged as a revival. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
 
@@ -3715,10 +3711,10 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 Rationale:
 
 - Separating the historical pipeline from the legacy member import allows historical content and clubs to proceed independently, reducing go-live risk.
-- The imported-row model preserves legacy identity without granting premature access. Mailbox verification is the minimal proof step that is both secure and feasible given the data available.
+- The imported-row model preserves legacy identity without granting premature access.
 - Club bootstrap ensures clubs are present on day one. Leaders can manage clubs once they register.
 - Ledger-only tier handling carries no cache to keep in sync, and makes imported-row tier state auditable from day one.
-- Stage-and-confirm auto-link with no notification emails balances throughput and trust: nothing applies silently, so a wrong candidate match never produces an unnoticed wrong link; the member's wizard confirmation is the gate. Honors-bearing direct claims do not need a separate admin pre-screen gate because the identity-link matching rules already gate them (a surname match plus the declared email and date-of-birth anchors), backed by member self-confirmation, the registration-time name-collision prompt, a-priori validation of the honor flags against the public rosters, and the member-initiated dispute-revert path; a suspected fraudulent claim is raised to the admins and reverted. Members who cannot resolve their identity self-serve use the admin help-request path; admin involvement is reactive, not gating.
+- Live matching with no staging, no mail and no background pass: nothing applies silently, no queue of suggestions exists to drain, withdraw or reconcile, and the member's explicit claim is the gate. Settling duplicates and links upstream keeps identity resolution with the curated human decisions that own it. Honors-bearing claims need no separate administrator pre-screen, because corroboration and the surname rule gate them, backed by a-priori validation of the honor flags against the public rosters and the dispute-revert path; administrator involvement is reactive, not gating.
 - Combination gates for bootstrap classification were preferred over a weighted score because audit transparency matters more for migration-time identity work than tunability. An admin reviewing a weak-classified case reads which signal combinations fired, not an opaque scalar; a wrong gate is debugged by inspecting the rule, not by retuning a weight.
 
 Requirements:
@@ -3729,11 +3725,12 @@ Requirements:
 
 Trade-offs:
 
-- Members must take an active step to claim their legacy identity (cannot be auto-matched without mailbox verification).
-- Members without access to their legacy email address must contact an admin for manual recovery.
+- Members must take an active step to claim their legacy identity; nothing is linked for them.
+- Treating an old address as a key without proof means anyone who knows a person's old address can claim that person's old account; the evidence recorded on every claim and the administrator dispute path are the remedy.
+- A person whose account and record the pipeline left unlinked claims one half self-serve and asks an administrator for the other.
 - Club bootstrap depends on mirror-derived data quality; clubs with ambiguous or low-confidence leader data require admin review.
 - No automated rollback after the records switch; recovery is fix-forward or an operator-run platform restore from the pre-flip snapshot.
-- Stage-and-confirm with no notification emails means a member who never signs in to the new platform never has effects applied. Pre-existing identity stays unclaimed for never-signed-in members; passive members get nothing automatically. The trade-off favors correctness (no silent grants) over coverage (some legitimate members go unconfirmed).
+- Matching only on an explicit claim, with no notification emails, means a member who never signs in to the new platform never has effects applied. Pre-existing identity stays unclaimed for never-signed-in members; passive members get nothing automatically. The trade-off favors correctness (no silent grants) over coverage (some legitimate members go unconfirmed).
 - Adjusting bootstrap gate rules requires a code revision rather than a data update.
 
 ## 6.5a Sealed Legacy Email Archive
@@ -4698,7 +4695,7 @@ Impact:
 
 - Troubleshooting relies on CloudWatch Insights queries.
 
-- Logs MUST redact tokens, JWTs, cookies, Stripe secrets, webhook signatures, AWS access key IDs and secret access keys, the value of `SESSION_SECRET`, raw JWT cookie values, and any §3.8 single-use account-security token (email verify, password reset, data export, legacy claim) regardless of whether the token appears in URL path, query string, or request body; use allowlist logging; never log raw email or full message subjects. KMS key ARNs are not secrets but should not be logged at request scope.
+- Logs MUST redact tokens, JWTs, cookies, Stripe secrets, webhook signatures, AWS access key IDs and secret access keys, the value of `SESSION_SECRET`, raw JWT cookie values, and any §3.8 single-use account-security token (email verify, password reset, data export) regardless of whether the token appears in URL path, query string, or request body; use allowlist logging; never log raw email or full message subjects. KMS key ARNs are not secrets but should not be logged at request scope.
 
 Requirements:
 
@@ -4785,7 +4782,7 @@ Impact:
 
 - In-process counters of operations per member are memory-only.
 
-- Turnstile site key rendered server-side into the six protected forms; secret key held in Parameter Store (read at boot, never logged); siteverify called server-side from the route handler before any DB read. The sixth is the legacy-claim lookup inside the registration wizard, which is authenticated rather than anonymous and renders its widget inline rather than through the shared partial; it gates an enumeration surface against the legacy membership records.
+- Turnstile site key rendered server-side into the protected forms; secret key held in Parameter Store (read at boot, never logged); siteverify called server-side from the route handler before any DB read.
 
 - CloudWatch origin-spike alarm fires to the existing operator SNS topic per §28.2 baseline.
 

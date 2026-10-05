@@ -121,7 +121,7 @@ counts_for() {
         || ' historical_persons=' || (SELECT COUNT(*) FROM historical_persons)
         || ' clubs=' || (SELECT COUNT(*) FROM clubs)
         || ' audit_entries=' || (SELECT COUNT(*) FROM audit_entries)
-        || ' auto_link_staged_candidates=' || (SELECT COUNT(*) FROM auto_link_staged_candidates);
+        || ' legacy_claim_declines=' || (SELECT COUNT(*) FROM legacy_claim_declines);
   " 2>/dev/null || echo '(counts unavailable)'
 }
 

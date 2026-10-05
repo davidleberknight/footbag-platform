@@ -70,12 +70,16 @@ function seedClaimedMember(id: string, opts: { isHof?: 0 | 1 } = {}): { legacyId
   d.prepare(`
     UPDATE members SET
       bio = 'a bio', city = 'Boulder', region = 'CO', country = 'US',
-      birth_date = '1980-01-01', street_address = '1 Main St', postal_code = '80301',
-      deleted_at = '2026-01-01T00:00:00.000Z', deleted_by = ?
+      birth_date = '1980-01-01', street_address = '1 Main St', postal_code = '80301'
     WHERE id = ?
-  `).run(id, id);
+  `).run(id);
   d.close();
+  // Claimed while the account was live; the soft delete that makes it purgeable
+  // comes after.
   identityAccessService.claimLegacyAccount(id, legacyId);
+  const dDel = db();
+  dDel.prepare(`UPDATE members SET deleted_at = '2026-01-01T00:00:00.000Z', deleted_by = ? WHERE id = ?`).run(id, id);
+  dDel.close();
   // Declared anchors that must vanish on purge.
   d.close;
   const d2 = db();
@@ -296,12 +300,12 @@ describe('memberService.purgeAccountPII', () => {
     workQueueService.enqueue({
       actorId:       'purge-queue',
       queueCategory: 'membership',
-      taskType:      'auto_link_match',
+      taskType:      'member_contact_request',
       entityType:    'member',
       entityId:      'purge-queue',
       priority:      5,
-      reasonText:    'A low-confidence match to legacy account LM-x was found for review.',
-      detailText:    'Candidate legacy account LM-x, matched on the name Dana Example.',
+      reasonText:    'A question about legacy account LM-x from Dana Example.',
+      detailText:    'Dana Example asked whether legacy account LM-x is theirs.',
     });
     identityAccessService.submitLinkHelpRequest('purge-queue', {
       statement: 'I believe record HP-x is mine.',

@@ -203,9 +203,8 @@ If moving off legacy markup, find the old assertions for that view, most likely 
 - `npm run build`: clean.
 - The view's own suite, the shared row-contract guard, and the cross-view rendering suite, named
   explicitly.
-- The importers of the row partial and the row view-model, named explicitly, since both are shared; the
-  runner is the gate, run only with approval as a background job (the long-runs rule in
-  `.claude/rules/testing.md`).
+- The importers of the row partial and the row view-model, as `scripts/test-targets.sh` lists them,
+  per the Verification default in root `CLAUDE.md`.
 - Every new assertion demonstrated red before it goes green.
 - A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
   view at desktop and at 480px, confirming row rhythm, heading weight, count-chip treatment and the

@@ -1,9 +1,10 @@
 /**
- * Integration tests for onboarding wizard legacy-claim side effects,
- * merge rules, tier grants, and idempotency. Exercises the email-equality
- * fast path (login email == legacy_email), the token-based claim path,
- * merge-rule field copying (COALESCE, OR-merge, fill-if-empty, active wins),
- * tier grant mapping, claim idempotency, and transitive HP claim (Case E).
+ * Integration tests for legacy-account claim side effects, merge rules, tier
+ * grants, and idempotency, plus declared-anchor matching in the wizard claim
+ * step. The claim runs at the login-email tier (the member's verified login
+ * email matches an address on the old account) and exercises merge-rule field
+ * copying (COALESCE, OR-merge, fill-if-empty, active wins), tier grant mapping,
+ * claim idempotency, and the transitive competition-record claim.
  *
  * User story anchors: M_Claim_Legacy_Account, M_Complete_Onboarding_Wizard.
  */
@@ -17,17 +18,18 @@ import {
   insertHistoricalPerson,
   insertOnboardingTask,
   createTestSessionJwt,
-  insertMemberTierGrant,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3210');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+let identity: typeof import('../../src/services/identityAccessService');
 let db: BetterSqlite3.Database;
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
   createApp = await importApp();
+  identity = await import('../../src/services/identityAccessService');
 });
 
 afterAll(() => {
@@ -47,6 +49,14 @@ function insertMemberReady(dbh: BetterSqlite3.Database, o: Parameters<typeof ins
   return id;
 }
 
+// The member's verified login email matches an address on the old account,
+// so the claim carries the modern-email tier.
+function claimAtLoginEmailTier(memberId: string, legacyMemberId: string): void {
+  identity.identityAccessService.claimLegacyAccount(
+    memberId, legacyMemberId, 'currently_controls_modern_email_matching_legacy',
+  );
+}
+
 function getMember(memberId: string) {
   return db.prepare('SELECT * FROM members WHERE id = ?').get(memberId) as Record<string, unknown> | undefined;
 }
@@ -61,61 +71,16 @@ function getTierGrants(memberId: string) {
   ).all(memberId) as Array<Record<string, unknown>>;
 }
 
-function getTaskState(memberId: string, taskType: string): string | null {
-  const row = db.prepare(
-    'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
-  ).get(memberId, taskType) as { state: string } | undefined;
-  return row?.state ?? null;
-}
-
 function countAuditEntries(memberId: string, actionType: string): number {
   return (db.prepare(
     "SELECT COUNT(*) AS c FROM audit_entries WHERE actor_member_id = ? AND action_type = ?",
   ).get(memberId, actionType) as { c: number }).c;
 }
 
-// ── Captcha gate on claim initiation ─────────────────────────────────────────
+// ── Legacy-account claim at the login-email tier ─────────────────────────────
 
-describe('captcha gate on legacy_claim/find', () => {
-  it('rejects with a generic 422 and performs no lookup when the captcha token is invalid', async () => {
-    // Imported lazily: a top-level import of captchaAdapter would load
-    // src/config/env before setTestEnv runs, pinning the wrong origin.
-    const { STUB_CAPTCHA_FAIL_TOKEN } = await import('../../src/adapters/captchaAdapter');
-    const stamp = Date.now();
-    const email = `captcha-${stamp}@example.com`;
-    const legacyId = insertLegacyMember(db, {
-      legacy_member_id: `LM-CAP-${stamp}`,
-      legacy_email: email,
-      real_name: 'Captcha Probe',
-    });
-    const memberId = insertMemberReady(db, {
-      slug: `cap_${stamp}`,
-      birth_date: '1980-01-01',
-      login_email: email,
-      real_name: 'Captcha Probe',
-    });
-
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email, 'cf-turnstile-response': STUB_CAPTCHA_FAIL_TOKEN });
-
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('verification');
-    // Anti-enumeration: a failed challenge runs no lookup, so the matching legacy
-    // account is neither linked nor claimed (identical to a no-result).
-    expect(getMember(memberId)!.legacy_member_id).toBeNull();
-    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBeNull();
-    expect(getTaskState(memberId, 'legacy_claim')).not.toBe('completed');
-  });
-});
-
-// ── Email-equality fast path ─────────────────────────────────────────────────
-
-describe('email-equality fast path (login email == legacy_email)', () => {
-  it('auto-links, sets legacy_member_id, marks legacy row claimed, completes task', async () => {
+describe('legacy-account claim (login email matches an old address)', () => {
+  it('sets legacy_member_id and marks the legacy row claimed', () => {
     const stamp = Date.now();
     const email = `fast-${stamp}@example.com`;
     const legacyId = insertLegacyMember(db, {
@@ -134,15 +99,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       country: null,
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
-
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    claimAtLoginEmailTier(memberId, legacyId);
 
     const member = getMember(memberId)!;
     expect(member.legacy_member_id).toBe(legacyId);
@@ -150,76 +107,12 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     const lm = getLegacyMember(legacyId)!;
     expect(lm.claimed_by_member_id).toBe(memberId);
     expect(lm.claimed_at).toBeTruthy();
-
-    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
   });
 
-  it('auto-links when the login email matches the legacy secondary email (legacy_email2)', async () => {
-    const stamp = Date.now();
-    const primary   = `primary2-${stamp}@example.com`;
-    const secondary = `secondary2-${stamp}@example.com`;
-    const legacyId = insertLegacyMember(db, {
-      legacy_member_id: `LM-FAST2-${stamp}`,
-      legacy_email: primary,
-      legacy_email2: secondary,
-      real_name: 'Fast Two',
-    });
-    const memberId = insertMemberReady(db, {
-      slug: `fast2_${stamp}`,
-      birth_date: '1980-01-01',
-      login_email: secondary,
-      real_name: 'Fast Two',
-    });
-
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: secondary });
-
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
-    expect(getMember(memberId)!.legacy_member_id).toBe(legacyId);
-    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBe(memberId);
-    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
-  });
-
-  it('auto-links when the login email matches the legacy tertiary email (legacy_email3)', async () => {
-    const stamp = Date.now();
-    const primary  = `primary3-${stamp}@example.com`;
-    const tertiary = `tertiary3-${stamp}@example.com`;
-    const legacyId = insertLegacyMember(db, {
-      legacy_member_id: `LM-FAST3-${stamp}`,
-      legacy_email: primary,
-      legacy_email3: tertiary,
-      real_name: 'Fast Three',
-    });
-    const memberId = insertMemberReady(db, {
-      slug: `fast3_${stamp}`,
-      birth_date: '1980-01-01',
-      login_email: tertiary,
-      real_name: 'Fast Three',
-    });
-
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: tertiary });
-
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
-    expect(getMember(memberId)!.legacy_member_id).toBe(legacyId);
-    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBe(memberId);
-    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
-  });
-
-  it('merge: fill-if-empty bio from legacy', async () => {
+  it('merge: fill-if-empty bio from legacy', () => {
     const stamp = Date.now();
     const email = `merge-bio-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-BIO-${stamp}`,
       legacy_email: email,
       real_name: 'Bio Merge',
@@ -233,21 +126,15 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       bio: '',
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
-    const member = getMember(memberId)!;
-    expect(member.bio).toBe('legacy bio content');
+    expect(getMember(memberId)!.bio).toBe('legacy bio content');
   });
 
-  it('merge: active account wins for real_name', async () => {
+  it('merge: active account wins for real_name', () => {
     const stamp = Date.now();
     const email = `merge-name-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-NAME-${stamp}`,
       legacy_email: email,
       real_name: 'Legacy Name',
@@ -259,21 +146,15 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Active Name',
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
-    const member = getMember(memberId)!;
-    expect(member.real_name).toBe('Active Name');
+    expect(getMember(memberId)!.real_name).toBe('Active Name');
   });
 
-  it('merge: fill-if-empty country from legacy', async () => {
+  it('merge: fill-if-empty country from legacy', () => {
     const stamp = Date.now();
     const email = `merge-country-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-COUNTRY-${stamp}`,
       legacy_email: email,
       real_name: 'Country Merge',
@@ -287,24 +168,18 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       country: null,
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
-    const member = getMember(memberId)!;
     // The claim merge holds imported location to the same rules the member's
     // own forms apply, so the legacy record's ISO code lands as the one name
     // the picker offers for that country.
-    expect(member.country).toBe('France');
+    expect(getMember(memberId)!.country).toBe('France');
   });
 
-  it('merge: OR semantics for is_hof (legacy=1 member=0 -> 1)', async () => {
+  it('merge: OR semantics for is_hof (legacy=1 member=0 -> 1)', () => {
     const stamp = Date.now();
     const email = `merge-hof-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-HOF-${stamp}`,
       legacy_email: email,
       real_name: 'Hof Merge',
@@ -318,21 +193,15 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       is_hof: 0,
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
-    const member = getMember(memberId)!;
-    expect(member.is_hof).toBe(1);
+    expect(getMember(memberId)!.is_hof).toBe(1);
   });
 
-  it('merge: OR semantics for is_bap (legacy=1 member=0 -> 1)', async () => {
+  it('merge: OR semantics for is_bap (legacy=1 member=0 -> 1)', () => {
     const stamp = Date.now();
     const email = `merge-bap-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-BAP-${stamp}`,
       legacy_email: email,
       real_name: 'Bap Merge',
@@ -346,21 +215,15 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       is_bap: 0,
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
-    const member = getMember(memberId)!;
-    expect(member.is_bap).toBe(1);
+    expect(getMember(memberId)!.is_bap).toBe(1);
   });
 
-  it('tier grant: writes legacy.claim_tier_grant row', async () => {
+  it('tier grant: writes legacy.claim_tier_grant row', () => {
     const stamp = Date.now();
     const email = `tier-grant-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-TG-${stamp}`,
       legacy_email: email,
       real_name: 'Tier Grant',
@@ -374,12 +237,7 @@ describe('email-equality fast path (login email == legacy_email)', () => {
 
     const grantsBefore = getTierGrants(memberId);
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
     const grantsAfter = getTierGrants(memberId);
     expect(grantsAfter.length).toBe(grantsBefore.length + 1);
@@ -388,10 +246,10 @@ describe('email-equality fast path (login email == legacy_email)', () => {
     expect(newGrant.change_type).toBe('grant');
   });
 
-  it('tier grant: HoF legacy -> tier2 grant', async () => {
+  it('tier grant: HoF legacy -> tier2 grant', () => {
     const stamp = Date.now();
     const email = `tier-hof-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-TH-${stamp}`,
       legacy_email: email,
       real_name: 'Tier Hof',
@@ -404,24 +262,18 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       real_name: 'Tier Hof',
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
-    const grants = getTierGrants(memberId);
-    const claimGrant = grants.find((g) => g.reason_code === 'legacy.claim_tier_grant');
+    const claimGrant = getTierGrants(memberId).find((g) => g.reason_code === 'legacy.claim_tier_grant');
     expect(claimGrant).toBeDefined();
     expect(claimGrant!.new_tier_status).toBe('tier2');
   });
 });
 
-// ── Transitive HP claim (Case E) ─────────────────────────────────────────────
+// ── Transitive competition-record claim ──────────────────────────────────────
 
-describe('transitive HP claim through legacy back-link (Case E)', () => {
-  it('claiming legacy row that back-links to HP sets both members.legacy_member_id and members.historical_person_id', async () => {
+describe('transitive competition-record claim through the legacy back-link', () => {
+  it('claiming a legacy row that back-links to a record sets both members.legacy_member_id and members.historical_person_id', () => {
     const stamp = Date.now();
     const email = `trans-${stamp}@example.com`;
     const legacyId = `LM-TRANS-${stamp}`;
@@ -446,19 +298,14 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
       real_name: 'Trans Claim',
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
     const member = getMember(memberId)!;
     expect(member.legacy_member_id).toBe(legacyId);
     expect(member.historical_person_id).toBe(personId);
   });
 
-  it('HP-sourced fields merge onto member (country fill-if-empty, first_competition_year COALESCE)', async () => {
+  it('record-sourced fields merge onto the member (country fill-if-empty, first_competition_year COALESCE)', () => {
     const stamp = Date.now();
     const email = `hp-merge-${stamp}@example.com`;
     const legacyId = `LM-HPM-${stamp}`;
@@ -485,12 +332,7 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
       is_hof: 0,
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
     const member = getMember(memberId)!;
     expect(member.country).toBe('Japan');
@@ -502,10 +344,10 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
 // ── Claim idempotency ────────────────────────────────────────────────────────
 
 describe('claim idempotency', () => {
-  it('re-submitting after a completed claim does not duplicate links or tier grants', async () => {
+  it('a second claim after a completed one is refused and duplicates no links or tier grants', () => {
     const stamp = Date.now();
     const email = `idemp-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-IDEMP-${stamp}`,
       legacy_email: email,
       real_name: 'Idemp Claim',
@@ -517,38 +359,21 @@ describe('claim idempotency', () => {
       real_name: 'Idemp Claim',
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-
-    // First claim
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
-
+    claimAtLoginEmailTier(memberId, legacyId);
     const grantsAfterFirst = getTierGrants(memberId);
     const memberAfterFirst = getMember(memberId)!;
 
-    // Second attempt
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    expect(() => claimAtLoginEmailTier(memberId, legacyId)).toThrow(/already linked/);
 
-    expect(res.status).toBe(303);
-    const grantsAfterSecond = getTierGrants(memberId);
-    const memberAfterSecond = getMember(memberId)!;
-
-    expect(grantsAfterSecond.length).toBe(grantsAfterFirst.length);
-    expect(memberAfterSecond.legacy_member_id).toBe(memberAfterFirst.legacy_member_id);
+    expect(getTierGrants(memberId).length).toBe(grantsAfterFirst.length);
+    expect(getMember(memberId)!.legacy_member_id).toBe(memberAfterFirst.legacy_member_id);
   });
 });
 
-// ── Back-linked legacy already claimed by another member ─────────────────────
+// ── Legacy row already claimed by another member ─────────────────────────────
 
-describe('back-linked legacy already claimed', () => {
-  it('fast-path claim on already-claimed legacy row returns 303 (non-revealing) and writes no new linkage', async () => {
+describe('legacy row already claimed', () => {
+  it('a claim of an account another member holds is refused and writes no new linkage', () => {
     const stamp = Date.now();
     const email = `clash-${stamp}@example.com`;
     const legacyId = `LM-CLASH-${stamp}`;
@@ -572,27 +397,20 @@ describe('back-linked legacy already claimed', () => {
       real_name: 'Clash Legacy',
     });
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(secondMemberId));
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(secondMemberId))
-      .type('form')
-      .send({ identifier: email });
+    expect(() => claimAtLoginEmailTier(secondMemberId, legacyId)).toThrow(/already been claimed/);
 
-    expect(res.status).toBe(303);
-
-    const member = getMember(secondMemberId)!;
-    expect(member.legacy_member_id).toBeNull();
+    expect(getMember(secondMemberId)!.legacy_member_id).toBeNull();
+    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBe(firstMemberId);
   });
 });
 
 // ── Audit entries ────────────────────────────────────────────────────────────
 
 describe('claim audit trail', () => {
-  it('fast-path claim emits a claim.legacy_account audit entry', async () => {
+  it('a legacy-account claim emits a claim.legacy_account audit entry', () => {
     const stamp = Date.now();
     const email = `audit-${stamp}@example.com`;
-    insertLegacyMember(db, {
+    const legacyId = insertLegacyMember(db, {
       legacy_member_id: `LM-AUDIT-${stamp}`,
       legacy_email: email,
       real_name: 'Audit Claim',
@@ -606,12 +424,7 @@ describe('claim audit trail', () => {
 
     const before = countAuditEntries(memberId, 'claim.legacy_account');
 
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: email });
+    claimAtLoginEmailTier(memberId, legacyId);
 
     expect(countAuditEntries(memberId, 'claim.legacy_account')).toBe(before + 1);
   });
@@ -645,7 +458,9 @@ describe('declared-anchor matching in the wizard claim task', () => {
     const page = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    expect(page.text).toContain('Matched via declared old email.');
+    // The card says what kind of evidence found it, never the address itself.
+    expect(page.text).toContain('found through an email address');
+    expect(page.text).not.toContain(`anchor.case-${stamp}@example.com</div>`);
     expect(page.text).toContain(`Anchor Email ${stamp}`);
   });
 
@@ -657,9 +472,10 @@ describe('declared-anchor matching in the wizard claim task', () => {
       legacy_email: collide,
       real_name: `Ambiguous Email ${stamp}`,
     });
+    // The same address on a second account, in a secondary slot.
     insertLegacyMember(db, {
       legacy_member_id: `LM-AMBIG-U-${stamp}`,
-      legacy_user_id: collide,
+      legacy_email2: collide,
       real_name: `Ambiguous User ${stamp}`,
     });
     const memberId = insertMemberReady(db, {
@@ -683,14 +499,14 @@ describe('declared-anchor matching in the wizard claim task', () => {
     expect(page.text).not.toContain(`Ambiguous User ${stamp}`);
   });
 
-  it('de-duplicates a legacy-only row reachable from two declared anchors', async () => {
+  it('de-duplicates an account reachable from two declared anchors', async () => {
     const stamp = Date.now();
     const email = `dup-${stamp}@example.com`;
-    const username = `dupuser-${stamp}`;
+    const email2 = `dup2-${stamp}@example.com`;
     insertLegacyMember(db, {
       legacy_member_id: `LM-DUP-${stamp}`,
       legacy_email: email,
-      legacy_user_id: username,
+      legacy_email2: email2,
       real_name: `Dup Person ${stamp}`,
     });
     const memberId = insertMemberReady(db, {
@@ -700,7 +516,7 @@ describe('declared-anchor matching in the wizard claim task', () => {
     });
 
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
-    for (const value of [email, username]) {
+    for (const value of [email, email2]) {
       await request(createApp())
         .post('/register/wizard/legacy_claim/anchors/add')
         .set('Cookie', cookieFor(memberId))
@@ -711,7 +527,7 @@ describe('declared-anchor matching in the wizard claim task', () => {
     const page = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    const occurrences = page.text.split(`Dup Person ${stamp}`).length - 1;
+    const occurrences = page.text.split(`<div class="candidate-card-name">Dup Person ${stamp}</div>`).length - 1;
     expect(occurrences).toBe(1);
   });
 });

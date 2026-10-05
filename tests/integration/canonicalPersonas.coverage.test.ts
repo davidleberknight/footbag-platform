@@ -215,8 +215,14 @@ describe('canonical persona catalog', () => {
   it('every backed persona is exercised: its seeded state matches its declared spec', () => {
     const m = db.prepare(
       `SELECT display_name, is_admin, is_hof, is_bap, is_board, is_deceased,
-              email_verified_at, deleted_at, legacy_member_id, birth_date
+              email_verified_at, deleted_at, legacy_member_id, historical_person_id, birth_date
          FROM members WHERE id = ?`,
+    );
+    const anchorN = db.prepare(`SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?`);
+    const declineN = db.prepare(`SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?`);
+    const claimMarkersOf = db.prepare(
+      `SELECT birth_date_changes, last_attempt_opened_at FROM member_onboarding_tasks
+        WHERE member_id = ? AND task_type = 'legacy_claim'`,
     );
     const tierOf = db.prepare(`SELECT tier_status FROM member_tier_current WHERE member_id = ?`);
     const apOf = db.prepare(
@@ -255,6 +261,7 @@ describe('canonical persona catalog', () => {
       email_verified_at: string | null;
       deleted_at: string | null;
       legacy_member_id: string | null;
+      historical_person_id: string | null;
       birth_date: string | null;
     };
     const countN = (stmt: ReturnType<typeof db.prepare>, id: string): number =>
@@ -292,6 +299,24 @@ describe('canonical persona catalog', () => {
       if (spec.deletionState) expect(member!.deleted_at, `${spec.slug} soft-deleted`).not.toBeNull();
       if (spec.legacy?.linked) {
         expect(member!.legacy_member_id, `${spec.slug} legacy linked`).not.toBeNull();
+        // A real claim takes the account and its linked record together, so a
+        // linked pair persona holding only the account is a state no claim
+        // produces.
+        if ((spec.legacy.shape ?? 'pair') === 'pair') {
+          expect(member!.historical_person_id, `${spec.slug} linked record held too`).not.toBeNull();
+        }
+      }
+      if (spec.declaredAnchors) {
+        expect(countN(anchorN, id), `${spec.slug} declared anchors`).toBe(spec.declaredAnchors.length);
+      }
+      expect(countN(declineN, id), `${spec.slug} standing declines`).toBe(spec.legacy?.declined ? 1 : 0);
+      if (spec.legacyClaimTask) {
+        const markers = claimMarkersOf.get(id) as
+          { birth_date_changes: number | null; last_attempt_opened_at: string | null } | undefined;
+        expect(markers?.birth_date_changes ?? 0, `${spec.slug} date-of-birth changes`)
+          .toBe(spec.legacyClaimTask.birthDateChanges ?? 0);
+        expect(markers?.last_attempt_opened_at != null, `${spec.slug} last attempt opened`)
+          .toBe(spec.legacyClaimTask.lastAttemptOpened === true);
       }
       if (spec.adminQuestion) {
         // The persona exists so both sides of the question channel are

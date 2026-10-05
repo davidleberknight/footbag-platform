@@ -419,8 +419,8 @@ Always check these project-specific risks.
 
 ### Identity and onboarding
 
-Legacy member id namespace; historical person linking; self-serve claim; mailbox-control
-proof; former surnames; old emails; email invalid/opt-out fields; anti-enumeration
+Legacy member id namespace; historical person linking; self-serve claim; one matching
+component; corroboration of old accounts; former surnames; old emails as keys only; email invalid/opt-out fields; anti-enumeration
 messages; dispute/revert; admin escalation; no legacy credentials imported; no legacy
 admin auto-promotion; member-declared anchors privacy; tier grant from claim; onboarding
 skip/resume/detour; audit trail.

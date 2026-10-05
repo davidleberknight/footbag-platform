@@ -19,14 +19,17 @@
  * DDL back and the triggers are restored — the guard is never left off.
  *
  * Scope is persona-owned rows: members whose id matches member_persona_%, their
- * deterministic legacy roots (legmem_persona_<slug> and the club-leader fallback
- * legmem_persona_<slug>_club), the random-id rows reachable only by FK from
- * those roots (seeded clubs, tags, candidates, affiliations, bootstrap
- * leaders/signals, name variants), and every row a tester session can mint as a
- * persona through deployed flows: account tokens, declared anchors, outbox
- * emails, audit rows the persona acted in, media items, galleries, payments and
- * their status transitions, work-queue items about the persona, media jobs,
- * and expiry-reminder rows. Work-queue items a persona RESOLVED about other
+ * deterministic legacy roots (legmem_persona_<slug>, the shared-address second
+ * account legmem_persona_<slug>_twin, and the club-leader fallback
+ * legmem_persona_<slug>_club), their deterministic record-only and namesake
+ * records (person_persona_<slug>_*), the random-id rows reachable only by FK
+ * from those roots (seeded clubs, tags, candidates, affiliations, bootstrap
+ * leaders/signals), the nickname pairs the catalog seeds, and every row a
+ * tester session can mint as a persona through deployed flows: account tokens,
+ * declared anchors, claim-step declines (including a real member's decline of a
+ * persona record), outbox emails, audit rows the persona acted in, media items,
+ * galleries, payments and their status transitions, work-queue items about the
+ * persona, media jobs, and expiry-reminder rows. Work-queue items a persona RESOLVED about other
  * entities keep their decision history and only lose the resolver reference.
  * Claim flows converge in both directions: a real legacy account a persona
  * claimed is released (claimable again), and a real member who claimed a
@@ -56,7 +59,6 @@ import BetterSqlite3 from 'better-sqlite3';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import {
   seedPersona,
-  normalizeNameForVariant,
   PERSONA_SEED_CREATED_BY,
   PERSONA_SWITCH_AUDIT_ACTION_TYPE,
 } from './personaFactory';
@@ -169,10 +171,11 @@ export function refreshAllPersonas(
       .prepare(`SELECT id, slug FROM members WHERE id LIKE 'member_persona_%'`)
       .all() as { id: string; slug: string }[];
     const memberIds = memberRows.map((r) => r.id);
-    // Two deterministic legacy roots per slug: the legacy-claim identity and the
-    // club-leader fallback identity (personaFactory seeds one or the other).
+    // Deterministic legacy roots per slug: the legacy-claim identity, the second
+    // account sharing the login address, and the club-leader fallback identity.
     const legacyRoots = memberRows.flatMap((r) => [
       `legmem_persona_${r.slug}`,
+      `legmem_persona_${r.slug}_twin`,
       `legmem_persona_${r.slug}_club`,
     ]);
 
@@ -185,13 +188,22 @@ export function refreshAllPersonas(
     let tagIds: string[] = [];
     let personaPaymentIds: string[] = [];
     let personHpIds: string[] = [];
-    const nameVariantKeys: Array<[string, string]> = [];
 
     if (memberIds.length > 0) {
-      personHpIds = col(
-        `SELECT person_id FROM historical_persons WHERE legacy_member_id IN (${placeholders(legacyRoots.length)})`,
-        legacyRoots,
-      );
+      // A persona's records: the ones linked to its legacy roots, and the
+      // record-only and namesake ones it seeds under its own id prefix, which
+      // carry no account link. GLOB so the literal underscores are not
+      // single-character wildcards.
+      personHpIds = unique([
+        ...col(
+          `SELECT person_id FROM historical_persons WHERE legacy_member_id IN (${placeholders(legacyRoots.length)})`,
+          legacyRoots,
+        ),
+        ...memberRows.flatMap((r) => col(
+          `SELECT person_id FROM historical_persons WHERE person_id GLOB ?`,
+          [`person_persona_${r.slug}_*`],
+        )),
+      ]);
 
       // Legacy person↔club affiliations owned by these personas, reached via a
       // legacy root or a persona historical person.
@@ -282,28 +294,6 @@ export function refreshAllPersonas(
           )
         : [];
       tagIds = unique([...clubTagIds, ...galleryTagIds]);
-
-      // name_variants are written only for a `medium` auto-link persona, linking
-      // its member real_name to the historical-person middle-token name. The row
-      // has no id and no FK to the persona, so it is identified by recomputing the
-      // (canonical, variant) normalized-name key from the persona's own DB rows.
-      // Persona names are synthetic, so an exact-key collision with a real
-      // name_variants row is negligible. Non-medium personas have no such row, so
-      // these deletes are no-ops for them.
-      for (const { id, slug } of memberRows) {
-        const member = db.prepare(`SELECT real_name FROM members WHERE id = ?`).get(id) as
-          | { real_name: string }
-          | undefined;
-        const hp = db
-          .prepare(`SELECT person_name FROM historical_persons WHERE legacy_member_id = ?`)
-          .get(`legmem_persona_${slug}`) as { person_name: string } | undefined;
-        if (member && hp) {
-          nameVariantKeys.push([
-            normalizeNameForVariant(hp.person_name),
-            normalizeNameForVariant(member.real_name),
-          ]);
-        }
-      }
     }
 
     // 3. Capture the append-only DELETE triggers so they can be restored.
@@ -327,10 +317,15 @@ export function refreshAllPersonas(
     delIn('club_bootstrap_leader_signals', 'bootstrap_leader_id', leaderIds);
     delIn('club_bootstrap_leaders', 'id', leaderIds);
     delIn('legacy_person_club_affiliations', 'id', lpcaIds);
-    // Tokens go before the audit rows, anchors, and legacy roots their target_*
-    // columns reference, so no token is ever left pointing at a deleted row.
-    delIn2('account_tokens', 'member_id', memberIds, 'target_legacy_member_id', legacyRoots);
+    // Tokens go before the audit rows their target column references, so no
+    // token is ever left pointing at a deleted row.
+    delIn('account_tokens', 'member_id', memberIds);
     delIn('member_declared_anchors', 'member_id', memberIds);
+    // Claim-step declines go before the members, accounts and records they name:
+    // a persona's own, and a real member's decline of a persona record, which
+    // would otherwise block that record's delete.
+    delIn('legacy_claim_declines', 'member_id', memberIds);
+    delIn2('legacy_claim_declines', 'legacy_member_id', legacyRoots, 'historical_person_id', personHpIds);
     delIn2('outbox_emails', 'recipient_member_id', memberIds, 'sender_member_id', memberIds);
     // An administrator's questions go before the queue items and the members
     // they both reference, so neither delete is left blocked by a message
@@ -474,21 +469,20 @@ export function refreshAllPersonas(
     delIn('member_gallery_exclude_tags', 'tag_id', tagIds);
     delIn('tag_stats', 'tag_id', tagIds);
     delIn('tags', 'id', tagIds);
+    // Linked records go by their legacy root; record-only and namesake ones,
+    // which carry no account link, by the id set captured above.
     delIn('historical_persons', 'legacy_member_id', legacyRoots);
-    // Competing same-name candidate persons carry no legacy back-link (that is
-    // what makes the candidate query return more than one match), so the
-    // legacy-root delete above misses them; remove them by their deterministic
-    // per-slug id. GLOB so the literal underscores are not single-char wildcards.
-    for (const r of memberRows) {
-      db.prepare(`DELETE FROM historical_persons WHERE person_id GLOB ?`).run(
-        `person_persona_${r.slug}_alt_*`,
-      );
-    }
+    delIn('historical_persons', 'person_id', personHpIds);
     delIn('legacy_members', 'legacy_member_id', legacyRoots);
-    for (const [canonical, variant] of nameVariantKeys) {
+    // Nickname pairs the catalog seeds have no id and no FK to a persona; they
+    // are identified by the pair each spec declares. Persona nicknames are
+    // synthetic, so a collision with a curated pair is not a concern.
+    for (const spec of specs) {
+      const pair = spec.legacy?.nicknamePair;
+      if (!pair) continue;
       db.prepare(
-        `DELETE FROM name_variants WHERE canonical_normalized = ? AND variant_normalized = ?`,
-      ).run(canonical, variant);
+        `DELETE FROM given_name_variants WHERE short_form_normalized = ? AND long_form_normalized = ?`,
+      ).run(pair.short, pair.long);
     }
 
     for (const { sql } of triggerRows) {

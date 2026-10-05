@@ -100,7 +100,9 @@ function setupScenario(opts: ScenarioOpts): ScenarioFixture {
 
   insertHistoricalPerson(db, {
     person_id: hpId,
-    person_name: 'Test HP',
+    // Shares the member's surname (the factory default 'Test User'), so the
+    // claim passes the surname rule and each case tests only the merge.
+    person_name: 'Merge User',
     legacy_member_id: legacyId,
     country: opts.hpCountry === undefined ? 'US' : opts.hpCountry,
     hof_member: opts.hpHofMember ?? 0,
@@ -271,7 +273,7 @@ describe('claimLegacyAccount — HP-field carry-forward', () => {
       is_bap: 0,
     });
     // Legacy has no HP back-link; insertLegacyMember without hp creates standalone row.
-    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Standalone Legacy', country: null });
+    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Standalone User', country: null });
     db.close();
 
     svc.claimLegacyAccount(memberId, legacyId);
@@ -434,7 +436,7 @@ describe('claimLegacyAccount — stale HP link guard', () => {
     // Prior direct-HP claim left historical_person_id set, legacy_member_id NULL.
     insertHistoricalPerson(db, {
       person_id: priorHpId,
-      person_name: 'Prior HP',
+      person_name: 'Prior User',
       legacy_member_id: priorLegacyId,
     });
     db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
@@ -442,7 +444,7 @@ describe('claimLegacyAccount — stale HP link guard', () => {
     // Target legacy account carries its own HP back-link.
     insertHistoricalPerson(db, {
       person_id: targetHpId,
-      person_name: 'Target HP',
+      person_name: 'Target User',
       legacy_member_id: targetLegacyId,
     });
     db.close();
@@ -488,7 +490,7 @@ describe('claimLegacyAccount — deceased historical record is not claimable', (
     // point is that none of it lands.
     insertHistoricalPerson(db, {
       person_id: hpId,
-      person_name: 'Deceased HP',
+      person_name: 'Deceased User',
       legacy_member_id: legacyId,
       hof_member: 1,
       hof_induction_year: 1999,
@@ -530,7 +532,7 @@ describe('claimLegacyAccount — deceased historical record is not claimable', (
     });
     insertHistoricalPerson(db, {
       person_id: hpId,
-      person_name: 'Living HP',
+      person_name: 'Living User',
       legacy_member_id: legacyId,
       hof_member: 1,
       hof_induction_year: 1999,
@@ -543,64 +545,6 @@ describe('claimLegacyAccount — deceased historical record is not claimable', (
     const m = memberRow(memberId);
     expect(m.historical_person_id).toBe(hpId);
     expect(m.is_hof).toBe(1);
-  });
-});
-
-// ─── Token atomicity ─────────────────────────────────────────────────────────
-//
-// consumeAndClaimLegacy must consume the token AND run the merge in ONE
-// transaction. If the merge throws, the token consume must roll back so the
-// user can retry the same email link. `used_at` stays NULL after a failed
-// merge (the token is not burned).
-
-describe('consumeAndClaimLegacy — token-consume atomicity with merge', () => {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  let tokenSvc: typeof import('../../src/services/accountTokenService');
-
-  beforeAll(async () => {
-    tokenSvc = await import('../../src/services/accountTokenService');
-  });
-
-  it('failed merge un-consumes the token (used_at stays NULL via rollback)', async () => {
-    // Setup: a member with an existing legacy link, plus a legacy row with
-    // a token issued to claim it. The merge will throw "already linked"
-    // because the requesting member already has a legacy_member_id.
-    const memberId = nextId('mem');
-    const legacyId = nextId('legmem');
-    const existingLegacyId = nextId('legmem');
-
-    const db = new BetterSqlite3(dbPath);
-    insertMember(db, {
-      id: memberId,
-      slug: `slug_${memberId}`,
-      login_email: `${memberId}@example.com`,
-    });
-    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Target' });
-    insertLegacyMember(db, { legacy_member_id: existingLegacyId, real_name: 'Existing' });
-    // Pre-link the member to an unrelated legacy row so claimLegacyAccount
-    // throws ValidationError('Your account is already linked...').
-    db.prepare(`UPDATE members SET legacy_member_id = ? WHERE id = ?`)
-      .run(existingLegacyId, memberId);
-    db.close();
-
-    const issued = tokenSvc.accountTokenService.issueToken({
-      memberId,
-      tokenType: 'account_claim',
-      ttlHours: 24,
-      targetLegacyMemberId: legacyId,
-    });
-
-    // The merge should throw, and the token row's used_at should still be
-    // NULL because the throw rolled back the transaction.
-    expect(() => svc.consumeAndClaimLegacy(memberId, issued.rawToken))
-      .toThrow();
-
-    const checkDb = new BetterSqlite3(dbPath, { readonly: true });
-    const tokenRow = checkDb.prepare(
-      `SELECT used_at FROM account_tokens WHERE id = ?`,
-    ).get(issued.tokenRowId) as { used_at: string | null };
-    checkDb.close();
-    expect(tokenRow.used_at).toBeNull();
   });
 });
 
@@ -625,7 +569,7 @@ describe('claimLegacyAccount — admin authority is never inherited', () => {
     });
     insertLegacyMember(db, {
       legacy_member_id: legacyId,
-      real_name: 'Legacy Administrator',
+      real_name: 'Legacy User',
       legacy_is_admin: 1,
     });
     db.close();

@@ -90,7 +90,7 @@ export type WorkQueueEvidence =
   | { kind: 'member_message' }
   /** A payload the queue service builds for this type; the row's reason text
    *  holds JSON or a bare code and is never printed raw. */
-  | { kind: 'structured'; payload: 'link_help' | 'auto_link' };
+  | { kind: 'structured'; payload: 'link_help' };
 
 /**
  * What an administrator can do with an item.
@@ -330,29 +330,6 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
         hint: 'The item leaves the working queue, the digest and the escalation sweep, and comes back on its own when the member answers a question on it.',
       },
     ],
-  },
-
-  auto_link_match: {
-    label:            'Auto-link match',
-    queueCategory:    'membership',
-    entityTypes:      ['member'],
-    urgentAdminAlert: null,
-    evidence:         { kind: 'structured', payload: 'auto_link' },
-    actions: [{
-      kind:            'close',
-      key:             'dismiss',
-      label:           'Mark Reviewed',
-      style:           'outline',
-      note:            REVIEW_NOTE,
-      auditActionType: 'legacy.auto_link_match_reviewed',
-      auditCategory:   'identity',
-      auditReasonText: 'Low-confidence auto-link match reviewed; no link applied.',
-      // The old wording sent an administrator to a path they cannot start: a
-      // link-help request is raised by the member, and no administrator action
-      // creates one. Saying so, and naming the control that does reach them,
-      // is the difference between a hint and a dead end.
-      hint:            'No link was applied, so there is nothing to undo. A link is applied through a member link-help request, which the member raises from the contact form; use Ask the member above if you need to prompt them.',
-    }],
   },
 
   admin_loss_recruitment: {

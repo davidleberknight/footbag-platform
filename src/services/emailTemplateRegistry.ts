@@ -92,8 +92,6 @@ export const TEMPLATE_VARIANTS = {
   // concern a date of birth, which is owner-and-admin private and never leaves
   // the application. No merge fields, and deliberately no link.
   member_question_waiting:         v('internal',     []),
-  legacy_claim_confirm:            v('restricted',   ['confirmUrl', 'ttlPhrase']),
-  mailbox_link_confirm:            v('restricted',   ['verifyUrl', 'ttlPhrase']),
   vouch_confirmation:              v('confidential', ['voucherName', 'expiryDate']),
   honor_congratulation_hof:        v('internal',     []),
   honor_congratulation_hof_tier3:  v('internal',     []),
@@ -201,14 +199,6 @@ const SHAPERS = {
   member_question_waiting: (_p: Empty): ShapedEmail => ({
     variant: 'member_question_waiting',
     merge: {},
-  }),
-  legacy_claim_confirm: (p: { confirmUrl: string; ttlHours: number }): ShapedEmail => ({
-    variant: 'legacy_claim_confirm',
-    merge: { confirmUrl: p.confirmUrl, ttlPhrase: hourPhrase(p.ttlHours) },
-  }),
-  mailbox_link_confirm: (p: { verifyUrl: string; ttlHours: number }): ShapedEmail => ({
-    variant: 'mailbox_link_confirm',
-    merge: { verifyUrl: p.verifyUrl, ttlPhrase: hourPhrase(p.ttlHours) },
   }),
   vouch_confirmation: (p: { voucherName: string; expiryDate: string }): ShapedEmail => ({
     variant: 'vouch_confirmation',

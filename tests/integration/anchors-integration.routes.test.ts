@@ -1,24 +1,22 @@
 /**
  * Declared-anchor integration across the claim machinery:
- *  - the batch staging pass matches on declared old emails (not just the
- *    login email) and proposes only the asserted-identity floor tier for
- *    declared-anchor matches;
+ *  - the matching reaches old accounts through declared old emails (not just
+ *    the login email) and proposes only the asserted-identity floor tier for
+ *    them;
  *  - the direct historical-person claim's surname rule accepts a declared
  *    former surname;
- *  - anchor declare/remove is rate-limited per member;
+ *  - a match through a declared old email confirms like any other, at the
+ *    floor tier, because an old email address is a matching key only;
+ *  - anchor declarations are rate-limited per member;
  *  - registration against a surname already claimed records the conflict
  *    event, the wizard renders the "is one of these you?" prompt, and the
- *    dispute affordance files a help request with the disputed event;
- *  - after a one-source claim, a cross-source offer stages for the other
- *    source with the offered event; confirming applies the second claim
- *    with the cross-source confirmed event; declining is terminal.
+ *    dispute affordance files a help request with the disputed event.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
-import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3088');
 
@@ -27,15 +25,15 @@ let db: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let identity: typeof import('../../src/services/identityAccessService');
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let ops: typeof import('../../src/services/operationsPlatformService');
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let onboarding: typeof import('../../src/services/memberOnboardingService');
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let matching: typeof import('../../src/services/legacyMatchingService').legacyMatchingService;
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
   createApp = await importApp();
+  matching = (await import('../../src/services/legacyMatchingService')).legacyMatchingService;
   identity = await import('../../src/services/identityAccessService');
-  ops = await import('../../src/services/operationsPlatformService');
   onboarding = await import('../../src/services/memberOnboardingService');
 });
 
@@ -48,6 +46,11 @@ function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
+function candidateHolding(memberId: string, recordId: string) {
+  const evidence = matching.readMemberEvidence(memberId);
+  return matching.match(evidence!).candidates.find((c) => c.recordId === recordId);
+}
+
 function declareOldEmail(memberId: string, email: string): void {
   identity.identityAccessService.declareAnchor(memberId, 'old_email', email);
 }
@@ -58,14 +61,8 @@ function audits(memberId: string, actionType: string): Array<Record<string, unkn
   ).all(memberId, actionType) as Array<Record<string, unknown>>;
 }
 
-function stagedRows(memberId: string): Array<Record<string, unknown>> {
-  return db.prepare(
-    `SELECT * FROM auto_link_staged_candidates WHERE member_id = ? ORDER BY created_at, id`,
-  ).all(memberId) as Array<Record<string, unknown>>;
-}
-
-describe('declared old email feeds the batch classifier', () => {
-  it('stages a candidate matched via a declared old email with the floor evidence tier', async () => {
+describe('declared old email feeds the classifier', () => {
+  it('matches through a declared old email and proposes the floor evidence tier', () => {
     insertLegacyMember(db, {
       legacy_member_id: 'LM-anchor-batch', legacy_email: 'old-self@old.example.com',
       real_name: 'Anchor Batcher', display_name: 'Anchor Batcher',
@@ -80,22 +77,18 @@ describe('declared old email feeds the batch classifier', () => {
     });
     declareOldEmail(memberId, 'old-self@old.example.com');
 
-    await ops.operationsPlatformService.runBatchAutoLink();
-
-    const rows = stagedRows(memberId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].confidence).toBe('high');
+    const candidate = candidateHolding(memberId, 'HP-anchor-batch');
+    expect(candidate).toMatchObject({ status: 'claimable', confidence: 'high', accountId: 'LM-anchor-batch' });
+    expect(candidate!.hits.some((h) => h.key === 'email' && h.address.kind === 'old')).toBe(true);
     // Declared anchors are asserted, not proven: floor tier despite the
     // high-confidence match.
-    expect(rows[0].proposed_evidence_strength).toBe('declared_anchor_only');
-    const meta = JSON.parse(String((audits(memberId, 'legacy.auto_link_candidate_staged'))[0].metadata_json)) as Record<string, unknown>;
-    expect(meta.matched_anchors).toContain('declared_old_email');
+    expect(matching.evidenceTier(candidate!)).toBe('declared_anchor_only');
   });
 
-  it('matches a mixed-case declared old email against a lowercase-stored legacy email', async () => {
+  it('matches a mixed-case declared old email against a lowercase-stored legacy email', () => {
     // Legacy emails are stored lowercase and the declared old email is
     // lowercased on the way in, so a member who types their old address in a
-    // different case than it was stored still matches at batch time.
+    // different case than it was stored still matches.
     insertLegacyMember(db, {
       legacy_member_id: 'LM-anchor-case', legacy_email: 'old-case@old.example.com',
       real_name: 'Case Batcher', display_name: 'Case Batcher',
@@ -110,17 +103,14 @@ describe('declared old email feeds the batch classifier', () => {
     });
     declareOldEmail(memberId, 'OLD-Case@Old.Example.com');
 
-    await ops.operationsPlatformService.runBatchAutoLink();
-
-    const rows = stagedRows(memberId);
-    expect(rows).toHaveLength(1);
-    const meta = JSON.parse(String((audits(memberId, 'legacy.auto_link_candidate_staged'))[0].metadata_json)) as Record<string, unknown>;
-    expect(meta.matched_anchors).toContain('declared_old_email');
+    const candidate = candidateHolding(memberId, 'HP-anchor-case');
+    expect(candidate?.status).toBe('claimable');
+    expect(candidate!.hits.some((h) => h.key === 'email' && h.address.kind === 'old')).toBe(true);
   });
 });
 
-describe('mandatory old-email proof: an unverified old-email match cannot confirm a claim', () => {
-  it('refuses the auto-link confirm until the old email is proven, then allows it', async () => {
+describe('an old email address is a matching key only', () => {
+  it('a match through a declared old email confirms at once, at the floor evidence tier', () => {
     insertLegacyMember(db, {
       legacy_member_id: 'LM-oldproof', legacy_email: 'proof-old@old.example.com',
       real_name: 'Proof Person', display_name: 'Proof Person',
@@ -132,37 +122,33 @@ describe('mandatory old-email proof: an unverified old-email match cannot confir
       id: 'mem-oldproof', slug: 'mem_oldproof',
       login_email: 'proof-new@example.com',
       real_name: 'Proof Person', display_name: 'Proof Person',
-      birth_date: '1980-01-01',
+      birth_date: '1980-01-01', onboarding: 'none',
     });
     // The legacy-claim resolving actions run only once personal details are on file.
     insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     declareOldEmail(memberId, 'proof-old@old.example.com');
-    await ops.operationsPlatformService.runBatchAutoLink();
 
     const linkedId = () =>
       (db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as
         { historical_person_id: string | null }).historical_person_id;
 
-    // The card is staged, but the old email is only asserted: confirming is refused.
-    const refused = onboarding.memberOnboardingService.processLegacyClaimAutoLinkConfirm(memberId, 'HP-oldproof');
-    expect(refused.kind).toBe('validation_error');
-    expect(String((refused as { message: string }).message).toLowerCase()).toContain('old email');
-    expect(linkedId()).toBeNull();
-
-    // Prove control of the old email (the mailbox link-click round-trip), then
-    // the same confirm succeeds.
-    db.prepare(
-      `UPDATE member_declared_anchors SET verified_via_link_click_at = '2026-01-01T00:00:00.000Z'
-         WHERE member_id = ? AND anchor_type = 'old_email'`,
-    ).run(memberId);
-    const ok = onboarding.memberOnboardingService.processLegacyClaimAutoLinkConfirm(memberId, 'HP-oldproof');
-    expect(ok.kind).not.toBe('validation_error');
+    // No mailbox proof exists or is asked for: a member whose own old address
+    // finds their record is not sent to confirm a mailbox they may have lost.
+    const ok = onboarding.memberOnboardingService.processClaimCandidate(
+      memberId, { accountId: 'LM-oldproof', recordId: 'HP-oldproof' }, '203.0.113.7', false,
+    );
+    expect(ok.kind).toBe('advance');
     expect(linkedId()).toBe('HP-oldproof');
+
+    // The address was asserted, not proven, so the claim is recorded at the
+    // floor tier an administrator weighs a dispute against.
+    const claim = JSON.parse(String(audits(memberId, 'claim.legacy_account')[0].metadata_json)) as Record<string, unknown>;
+    expect(claim.evidence_strength).toBe('declared_anchor_only');
   });
 });
 
 describe('former surname on the direct historical-person claim', () => {
-  it('a declared former surname passes the surname rule; no blocked event is recorded', () => {
+  it('a declared former surname passes the surname rule; no refusal is recorded', () => {
     insertHistoricalPerson(db, { person_id: 'HP-former-1', person_name: 'Frida Maidenname' });
     const memberId = insertMember(db, {
       id: 'mem-former-1', slug: 'mem_former_1',
@@ -175,7 +161,7 @@ describe('former surname on the direct historical-person claim', () => {
 
     const m = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
     expect(m.historical_person_id).toBe('HP-former-1');
-    expect(audits(memberId, 'claim.historical_person_blocked')).toHaveLength(0);
+    expect(audits(memberId, 'claim.refused')).toHaveLength(0);
     const claim = JSON.parse(String(audits(memberId, 'claim.historical_person')[0].metadata_json)) as Record<string, unknown>;
     expect(claim.evidence_strength).toBe('declared_anchor_only');
   });
@@ -401,165 +387,6 @@ describe('registration-time conflict prompt', () => {
     expect(handlePage.status).toBe(200);
     expect(handlePage.text).toContain('Greta Showhandle');
     expect(handlePage.text).not.toContain('Greta Hiddenlegal');
-  });
-});
-
-describe('cross-source offer after a one-source claim', () => {
-  function seedHpAndLegacy(
-    tag: string,
-    opts: { memberCountry?: string | null; legacyCountry?: string | null } = {},
-  ): { memberId: string } {
-    insertHistoricalPerson(db, { person_id: `HP-xs-${tag}`, person_name: `Xavier Source${tag}` });
-    insertLegacyMember(db, {
-      legacy_member_id: `LM-xs-${tag}`, legacy_email: `xs-${tag}@example.com`,
-      real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
-      country: opts.legacyCountry ?? null,
-    });
-    // Still signing up: the claim task belongs to the wizard, which is closed to
-    // a member who has finished.
-    const memberId = insertMember(db, {
-      id: `mem-xs-${tag}`, slug: `mem_xs_${tag}`,
-      login_email: `xs-${tag}@example.com`,
-      real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
-      country: opts.memberCountry ?? 'US',
-      birth_date: '1980-01-01',
-      onboarding: 'none',
-    });
-    // The direct historical-record claim runs only once personal details are on
-    // file, and completing that step also lets the legacy_claim GET render the
-    // cross-source offer instead of routing to the next outstanding task.
-    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
-    return { memberId };
-  }
-
-  function offeredMeta(memberId: string): Record<string, unknown> {
-    return JSON.parse(
-      String(audits(memberId, 'legacy.cross_source_candidate_offered')[0].metadata_json),
-    ) as Record<string, unknown>;
-  }
-
-  it('claiming the HP stages a legacy offer; confirming applies the legacy claim with the cross-source event', async () => {
-    const { memberId } = seedHpAndLegacy('a');
-    // Direct historical-record claim (the HP has no legacy back-link, so the
-    // claim covers one source only); the post-confirm offer hook runs here.
-    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-a', '198.51.100.1');
-
-    const m1 = db.prepare('SELECT historical_person_id, legacy_member_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
-    expect(m1.historical_person_id).toBe('HP-xs-a');
-    expect(m1.legacy_member_id).toBeNull();
-
-    const offers = stagedRows(memberId).filter((r) => r.source_pass === 'cross_source');
-    expect(offers).toHaveLength(1);
-    expect(offers[0].legacy_member_id).toBe('LM-xs-a');
-    expect(offers[0].historical_person_id).toBeNull();
-    // The offer was found through the member's verified login email, so it
-    // proposes the modern-email evidence tier, not the asserted-only floor.
-    expect(offers[0].proposed_evidence_strength).toBe('currently_controls_modern_email_matching_legacy');
-    expect(audits(memberId, 'legacy.cross_source_candidate_offered')).toHaveLength(1);
-
-    const page = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(memberId));
-    expect(page.text).toContain('Yes, This Is Also Me');
-
-    const confirm = await request(createApp())
-      .post('/register/wizard/legacy_claim/cross-source/confirm')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ candidateId: String(offers[0].id) });
-    expect(confirm.status).toBe(303);
-
-    const m2 = db.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
-    expect(m2.legacy_member_id).toBe('LM-xs-a');
-    expect(audits(memberId, 'legacy.cross_source_candidate_confirmed')).toHaveLength(1);
-    const resolved = stagedRows(memberId).filter((r) => r.source_pass === 'cross_source');
-    expect(resolved[0].status).toBe('confirmed');
-  });
-
-  it('declining the offer is terminal and emits the cross-source declined event', async () => {
-    const { memberId } = seedHpAndLegacy('b');
-    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-b', '198.51.100.1');
-    const offer = stagedRows(memberId).find((r) => r.source_pass === 'cross_source')!;
-
-    const decline = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/decline')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ candidateId: String(offer.id) });
-    expect(decline.status).toBe(303);
-    expect(audits(memberId, 'legacy.cross_source_candidate_declined')).toHaveLength(1);
-
-    // The pair never re-offers.
-    const again = identity.identityAccessService.offerCrossSourceCandidate(memberId);
-    expect(again.offered).toBe(false);
-  });
-
-  it('a country difference still offers (a member may have moved) but records the mismatch as a negative signal', () => {
-    const { memberId } = seedHpAndLegacy('mismatch', { memberCountry: 'US', legacyCountry: 'Canada' });
-    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-mismatch', '198.51.100.1');
-
-    const offers = stagedRows(memberId).filter((r) => r.source_pass === 'cross_source');
-    // Country is not a gate: the offer still stages so a member who moved is
-    // never silently denied. The mismatch is captured as a negative signal.
-    expect(offers).toHaveLength(1);
-    expect(JSON.parse(String(offers[0].matched_anchors_json))).not.toContain('country_agreement');
-    expect(offeredMeta(memberId).country_signal).toBe('mismatch');
-  });
-
-  it('a matching country records the positive country signal on the offer', () => {
-    const { memberId } = seedHpAndLegacy('agree', { memberCountry: 'US', legacyCountry: 'US' });
-    onboarding.memberOnboardingService.claimHistoricalPersonAndCompleteTask(memberId, 'HP-xs-agree', '198.51.100.1');
-
-    const offers = stagedRows(memberId).filter((r) => r.source_pass === 'cross_source');
-    expect(offers).toHaveLength(1);
-    expect(JSON.parse(String(offers[0].matched_anchors_json))).toContain('country_agreement');
-    expect(offeredMeta(memberId).country_signal).toBe('agree');
-  });
-});
-
-describe('mailbox-control verification email enqueue failure', () => {
-  it('records an operational audit row carrying the committed token id, then rethrows', async () => {
-    // The token row commits before the email enqueue; a lost enqueue must
-    // leave an operator-visible trail that correlates with the orphaned
-    // token when the member reports the missing email.
-    expectLoggedError('audit: legacy.mailbox_link_email_enqueue_failed');
-    const memberId = insertMember(db, {
-      id: 'mem-anchor-enq', slug: 'mem_anchor_enq', login_email: 'anchor-enq@example.com',
-    });
-    declareOldEmail(memberId, 'anchor-enq-old@old.example.com');
-    const anchor = db.prepare(
-      'SELECT id FROM member_declared_anchors WHERE member_id = ?',
-    ).get(memberId) as { id: string };
-
-    const commsMod = await import('../../src/services/communicationService');
-    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
-    commsMod.setCommunicationServiceForTests({
-      enqueue: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure for mailbox-control email');
-      },
-      processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
-        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
-      }),
-    });
-    try {
-      expect(() =>
-        identity.identityAccessService.requestAnchorMailboxVerification(memberId, anchor.id, '10.0.0.9'),
-      ).toThrow('synthetic enqueue failure for mailbox-control email');
-    } finally {
-      commsMod.resetCommunicationServiceForTests();
-    }
-
-    const rows = audits(memberId, 'legacy.mailbox_link_email_enqueue_failed');
-    expect(rows).toHaveLength(1);
-    const meta = JSON.parse(String(rows[0].metadata_json)) as Record<string, unknown>;
-    expect(meta.anchor_id).toBe(anchor.id);
-    expect(String(meta.token_row_id)).not.toBe('');
-    const token = db.prepare(
-      'SELECT used_at FROM account_tokens WHERE id = ?',
-    ).get(String(meta.token_row_id)) as { used_at: string | null } | undefined;
-    expect(token).toBeTruthy();
-    expect(token!.used_at).toBeNull();
   });
 });
 

@@ -16,7 +16,6 @@ import BetterSqlite3 from 'better-sqlite3';
 import {
   insertOnboardingTask,
   insertMember,
-  insertLegacyMember,
   insertHistoricalPerson,
   insertClub,
   insertLegacyClubCandidate,
@@ -149,62 +148,6 @@ export function seedBrandNewPlayer(
     cookieHeader: cookieFor(memberId, 'member'),
     tier: 'tier0',
     isAdmin: false,
-  };
-}
-
-/**
- * Member with a staged auto-link candidate. Login email matches
- * legacy_members.legacy_email, and the legacy row back-links to a
- * historical_persons row. The auto-link classifier returns high
- * confidence for this setup.
- */
-export function seedMemberWithAutoLinkCandidate(
-  db: BetterSqlite3.Database,
-  opts: {
-    slug?: string;
-    personName?: string;
-    overrides?: Omit<MemberOverrides, 'id' | 'slug' | 'legacy_member_id'>;
-  } = {},
-): Persona & { legacyMemberId: string; personId: string } {
-  const memberId = `al-${rand()}`;
-  const slug = opts.slug ?? `autolink_${rand()}`;
-  const legacyMemberId = `LM-AL-${rand().toUpperCase()}`;
-  const loginEmail = `test-autolink-${rand()}@example.com`;
-  const personName = opts.personName ?? 'Test Autolink';
-
-  insertLegacyMember(db, {
-    legacy_member_id: legacyMemberId,
-    legacy_email: loginEmail,
-    real_name: personName,
-    country: 'US',
-  });
-
-  const personId = insertHistoricalPerson(db, {
-    legacy_member_id: legacyMemberId,
-    person_name: personName,
-    country: 'US',
-    first_year: 2005,
-  });
-
-  createMemberAtTier(db, {
-    id: memberId,
-    slug,
-    tier: 'tier0',
-    memberOverrides: {
-      login_email: loginEmail,
-      real_name: personName,
-      ...(opts.overrides ?? {}),
-    },
-  });
-
-  return {
-    memberId,
-    slug,
-    cookieHeader: cookieFor(memberId, 'member'),
-    tier: 'tier0',
-    isAdmin: false,
-    legacyMemberId,
-    personId,
   };
 }
 

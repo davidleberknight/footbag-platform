@@ -7,8 +7,8 @@
  * routes the member back to personal_details.
  *
  * The date of birth only ever helps a member. An identical date corroborates a
- * match and narrows a tie between same-name candidates; a date that does not
- * match simply fails to corroborate. It never blocks a claim, never weakens one,
+ * match on an old account; a date that does not match simply fails to
+ * corroborate. It never blocks a claim, never weakens one,
  * and never raises work for an administrator, on either the legacy-account claim
  * path or the direct historical-person claim path.
  *
@@ -38,12 +38,15 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let svc: typeof import('../../src/services/identityAccessService').identityAccessService;
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let matching: typeof import('../../src/services/legacyMatchingService').legacyMatchingService;
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'bda_admin', login_email: 'bda-admin@example.com', is_admin: 1 });
   createApp = await importApp();
   svc = (await import('../../src/services/identityAccessService')).identityAccessService;
+  matching = (await import('../../src/services/legacyMatchingService')).legacyMatchingService;
 });
 
 afterAll(() => {
@@ -161,30 +164,8 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
     expect(after.status).toBe(200);
-    expect(after.text).toContain('action="/register/wizard/legacy_claim/find"');
+    expect(after.text).toContain('action="/register/wizard/legacy_claim/anchors/add"');
     expect(memberBirthDate(memberId)).toBe('1984-11-13');
-  });
-
-  it('a manual search does not run until personal_details is completed', async () => {
-    const memberId = insertMember(db, { onboarding: 'none',
-      slug: `slug_${nextId('gate')}`,
-      login_email: `${nextId('gate')}@example.com`,
-      real_name: 'Gate Search',
-    });
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ identifier: 'someone', 'cf-turnstile-response': 'stub-pass' });
-    // The action is a no-op that bounces back to the legacy-claim step, which in
-    // turn routes the member to personal_details.
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
-    const bounce = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(memberId));
-    expect(bounce.status).toBe(303);
-    expect(bounce.headers.location).toBe('/register/wizard/personal_details');
   });
 
   it('the continue-without-linking decision does not resolve until personal_details is completed', async () => {
@@ -217,10 +198,10 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       real_name: 'Gate Confirm',
     });
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ personId: 'hp_whatever' });
+      .send({ recordId: 'hp_whatever' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     const bounce = await request(createApp())
@@ -228,6 +209,56 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       .set('Cookie', cookieFor(memberId));
     expect(bounce.status).toBe(303);
     expect(bounce.headers.location).toBe('/register/wizard/personal_details');
+  });
+
+  it('declining a suggested match does not run until personal_details is completed', async () => {
+    const { memberId, legacyId, hpId } = claimFixture({ realName: 'Gate Decline' });
+
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/decline')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ accountId: legacyId, recordId: hpId });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    // A decline is a standing decision that is never re-offered; one recorded
+    // before the matcher's anchors exist would lose the member their record.
+    const row = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?')
+      .get(memberId) as { c: number };
+    expect(row.c).toBe(0);
+  });
+
+  it('the competition-record claim page and its confirm send an early registrant to personal_details, not a 500', async () => {
+    const stamp = nextId('hpgate');
+    const name = `Casey ${stamp}`;
+    const memberId = insertMember(db, { onboarding: 'none',
+      id: `${stamp}_member`, slug: `slug_${stamp}`, login_email: `${stamp}@example.com`, real_name: name,
+    });
+    insertHistoricalPerson(db, { person_id: `${stamp}_hp`, person_name: name });
+
+    // Both bounce to the claim step, which in turn routes the registrant to the
+    // personal details they still owe.
+    const page = await request(createApp())
+      .get(`/history/${stamp}_hp/claim`)
+      .set('Cookie', cookieFor(memberId));
+    expect(page.status).toBe(303);
+    expect(page.headers.location).toBe('/register/wizard/legacy_claim');
+
+    const confirm = await request(createApp())
+      .post(`/history/${stamp}_hp/claim/confirm`)
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({});
+    expect(confirm.status).toBe(303);
+    expect(confirm.headers.location).toBe('/register/wizard/legacy_claim');
+
+    const bounce = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(bounce.headers.location).toBe('/register/wizard/personal_details');
+    const member = db.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(memberId) as { historical_person_id: string | null };
+    expect(member.historical_person_id).toBeNull();
   });
 });
 
@@ -367,7 +398,7 @@ describe('historical-record claim records the comparison and raises nothing', ()
   });
 });
 
-describe('a corroborating date strengthens a name-variant match', () => {
+describe('a corroborating date strengthens a name match on an old account', () => {
   function variantFixture(memberDob: string | null, recordDob: string | null): string {
     const stamp = nextId('variant');
     const email = `${stamp}@example.com`;
@@ -389,8 +420,11 @@ describe('a corroborating date strengthens a name-variant match', () => {
       canonical_normalized: `rené varianto${stamp}`.toLowerCase(),
       variant_normalized:   `rene varianto${stamp}`.toLowerCase(),
     });
-    db.prepare('UPDATE legacy_members SET legacy_email = ?, real_name = ? WHERE legacy_member_id = ?')
-      .run(email, `René Varianto${stamp}`, `${stamp}_leg`);
+    // No address on the old account: the name variant is the only key, so the
+    // date is all that can corroborate the account.
+    db.prepare('UPDATE legacy_members SET legacy_email = NULL, real_name = ? WHERE legacy_member_id = ?')
+      .run(`René Varianto${stamp}`, `${stamp}_leg`);
+    void email;
     if (recordDob) {
       db.prepare('UPDATE legacy_members SET birth_date = ? WHERE legacy_member_id = ?')
         .run(recordDob, `${stamp}_leg`);
@@ -398,27 +432,28 @@ describe('a corroborating date strengthens a name-variant match', () => {
     return memberId;
   }
 
-  it('lifts a variant match to high when the date agrees', () => {
-    // The date is the strongest signal the platform holds and the governance
-    // document says it corroborates a claim, not merely that it separates tied
-    // ones. Leaving a variant match weak while the best evidence available says
-    // it is right was the gap.
-    const memberId = variantFixture('1977-02-02', '1977-02-02');
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    expect(c.confidence).toBe('high');
-    // Raising the confidence must not lose how the match was found.
-    expect(c.confidence === 'high' && c.matchedVariantNormalized).toBeTruthy();
+  function candidateFor(memberId: string) {
+    const evidence = matching.readMemberEvidence(memberId)!;
+    return matching.match(evidence).candidates.find((c) => c.recordId?.endsWith('_hp'));
+  }
+
+  it('an agreeing date corroborates the account and lifts the match to strong', () => {
+    // The date is the strongest signal the platform holds: it corroborates a
+    // claim, not merely separates tied ones.
+    const c = candidateFor(variantFixture('1977-02-02', '1977-02-02'));
+    expect(c).toMatchObject({ status: 'claimable', confidence: 'high', corroborated: true, dob: 'identical' });
   });
 
-  it('leaves a variant match where the name put it when the date does not agree', () => {
+  it('a date that does not agree leaves the confidence where the name put it', () => {
     // Never downward. A date that disagrees fails to corroborate and does
     // nothing else; it must not cost the member the confidence the name earned.
-    const mismatched = svc.getAutoLinkClassificationForMember(variantFixture('1977-02-02', '1961-09-09'));
-    expect(mismatched.confidence).toBe('medium');
-    const recordSilent = svc.getAutoLinkClassificationForMember(variantFixture('1977-02-02', null));
-    expect(recordSilent.confidence).toBe('medium');
-    const memberSilent = svc.getAutoLinkClassificationForMember(variantFixture(null, '1977-02-02'));
-    expect(memberSilent.confidence).toBe('medium');
+    const silent = candidateFor(variantFixture('1977-02-02', null));
+    const mismatched = candidateFor(variantFixture('1977-02-02', '1961-09-09'));
+    const memberSilent = candidateFor(variantFixture(null, '1977-02-02'));
+    expect(mismatched!.confidence).toBe(silent!.confidence);
+    expect(memberSilent!.confidence).toBe(silent!.confidence);
+    // Nothing corroborates the account, so it waits for an administrator.
+    expect(mismatched!.status).toBe('needs_admin');
   });
 });
 
@@ -453,40 +488,33 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     return memberId;
   }
 
-  it('no birth date on file: tied candidates stay low confidence', () => {
-    const memberId = tiedFixture(null, '1985-07-10');
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    expect(c.confidence).toBe('low');
+  function shown(memberId: string) {
+    const evidence = matching.readMemberEvidence(memberId)!;
+    return matching.shownCandidates(matching.match(evidence));
+  }
+
+  it('every namesake is shown; only an identical date corroborates, and nearness buys nothing', () => {
+    const stampOf = (m: string) => m.replace(/_member$/, '');
+    for (const [memberDob, corroborates] of [
+      ['1985-07-10', true], ['1985-07-09', false], ['1962-01-28', false], [null, false],
+    ] as const) {
+      const memberId = tiedFixture(memberDob, '1985-07-10');
+      const stamp = stampOf(memberId);
+      const cards = shown(memberId);
+      const a = cards.find((c) => c.recordId === `${stamp}_hp_a`);
+      const b = cards.find((c) => c.recordId === `${stamp}_hp_b`);
+      // The account the email reached is claimable whatever the date says.
+      expect(a?.status, `${memberDob}`).toBe('claimable');
+      expect(a?.dob === 'identical', `${memberDob}`).toBe(corroborates);
+      // The namesake is offered too, and claimable only where its own account
+      // carries something of the member's: here it carries nothing.
+      expect(b?.status, `${memberDob}`).toBe('needs_admin');
+    }
   });
 
-  it('identical birth date narrows the tie at high confidence', () => {
-    const memberId = tiedFixture('1985-07-10', '1985-07-10');
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    expect(c.confidence).toBe('high');
-  });
-
-  it('a date one day out does not narrow the tie', () => {
-    const memberId = tiedFixture('1985-07-09', '1985-07-10');
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    // Only an identical date corroborates a tied same-name candidate. Nearness
-    // buys nothing: a date one day out is treated exactly like an unrelated one,
-    // so the tie stays low and the member is never auto-sent to a candidate the
-    // date argues against.
-    expect(c.confidence).toBe('low');
-  });
-
-  it('a hard mismatch does not narrow the tie', () => {
-    const memberId = tiedFixture('1962-01-28', '1985-07-10');
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    expect(c.confidence).toBe('low');
-  });
-
-  it('narrows to the candidate whose own date agrees, not the one provenance points at', () => {
-    // Comparing the member's date against the single account they were found
-    // through says the same thing about every tied candidate, so it cannot tell
-    // them apart. Only each candidate's own date can. Here the found-through
-    // account carries a different date, and the tie is settled by the other
-    // candidate's date agreeing.
+  it('a namesake who shares the member\'s date is corroborated by it, and the email-reached account keeps its tier', async () => {
+    // Twins or a namesake with the same date: the date corroborates them, the
+    // card names them, and the member declines the one that is not theirs.
     const stamp = nextId('percand');
     const name = `Percand ${stamp}`;
     const email = `${stamp}@example.com`;
@@ -507,12 +535,64 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     db.prepare('UPDATE legacy_members SET birth_date = ? WHERE legacy_member_id = ?')
       .run('1979-03-04', `${stamp}_leg_b`);
 
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    expect(c.confidence).toBe('high');
-    expect(c.confidence === 'high' && c.personId).toBe(`${stamp}_hp_b`);
+    const cards = shown(memberId);
+    const a = cards.find((c) => c.accountId === `${stamp}_leg_a`);
+    const b = cards.find((c) => c.accountId === `${stamp}_leg_b`);
+    expect(a?.status).toBe('claimable');
+    expect(b?.status).toBe('claimable');
+    // Email evidence is never recorded for a record the email said nothing about.
+    expect(matching.evidenceTier(a!)).toBe('currently_controls_modern_email_matching_legacy');
+    expect(matching.evidenceTier(b!)).toBe('declared_anchor_only');
+    const view = await svc.getLinkHistoryViewForWizard(memberId);
+    expect(view!.candidates.map((card) => card.accountId)).toEqual(
+      expect.arrayContaining([`${stamp}_leg_a`, `${stamp}_leg_b`]),
+    );
   });
 
-  it('leaves the tie alone when two candidates carry the same date', () => {
+  it('a deceased namesake is never offered and does not stand in the member\'s way', () => {
+    // A deceased record can never be claimed, so it is never offered, and the
+    // member's own record is offered as if it were alone.
+    const stamp = nextId('deadtie');
+    const name = `Deadtie ${stamp}`;
+    const email = `${stamp}@example.com`;
+    const memberId = insertMember(db, { onboarding: 'none',
+      id: `${stamp}_member`, slug: `slug_${stamp}`, login_email: email, real_name: name,
+    });
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_a`, person_name: name, legacy_member_id: `${stamp}_leg_a`,
+    });
+    db.prepare('UPDATE legacy_members SET legacy_email = ? WHERE legacy_member_id = ?')
+      .run(email, `${stamp}_leg_a`);
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_b`, person_name: name, legacy_member_id: `${stamp}_leg_b`, is_deceased: 1,
+    });
+
+    const cards = shown(memberId);
+    expect(cards.find((c) => c.recordId === `${stamp}_hp_a`)?.status).toBe('claimable');
+    expect(cards.find((c) => c.recordId === `${stamp}_hp_b`)).toBeUndefined();
+  });
+
+  it('an email whose own record is deceased suggests nothing and raises nothing', () => {
+    const stamp = nextId('deadprov');
+    const name = `Deadprov ${stamp}`;
+    const email = `${stamp}@example.com`;
+    const memberId = insertMember(db, { onboarding: 'none',
+      id: `${stamp}_member`, slug: `slug_${stamp}`, login_email: email, real_name: name,
+    });
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_a`, person_name: name, legacy_member_id: `${stamp}_leg_a`, is_deceased: 1,
+    });
+    db.prepare('UPDATE legacy_members SET legacy_email = ? WHERE legacy_member_id = ?')
+      .run(email, `${stamp}_leg_a`);
+
+    // A living member cannot claim a deceased person's identity, so no card is
+    // offered; nor is an administrator asked to resolve it, since a member who
+    // believes the flag is wrong uses the help request.
+    expect(shown(memberId).find((c) => c.accountId === `${stamp}_leg_a`)).toBeUndefined();
+    expect(queueItemsFor(memberId)).toHaveLength(0);
+  });
+
+  it('two namesakes carrying the member\'s date are both shown; neither is picked for them', () => {
     // Two agreeing is no narrower than none, and picking one would be a guess.
     const stamp = nextId('twoagree');
     const name = `Twoagree ${stamp}`;
@@ -533,24 +613,20 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     db.prepare('UPDATE legacy_members SET birth_date = ? WHERE legacy_member_id = ?')
       .run('1981-05-05', `${stamp}_leg_b`);
 
-    // The older provenance test still settles it, because the found-through
-    // account's date agrees; what must not happen is picking between the two on
-    // the strength of a date they both carry.
-    const c = svc.getAutoLinkClassificationForMember(memberId);
-    expect(c.confidence === 'high' && c.personId).toBe(`${stamp}_hp_a`);
+    const cards = shown(memberId);
+    const ids = cards.map((c) => c.recordId);
+    expect(ids).toEqual(expect.arrayContaining([`${stamp}_hp_a`, `${stamp}_hp_b`]));
+    // The email-reached one, carrying more agreeing evidence, is shown first.
+    // ordering-is-the-contract: the strongest card leads.
+    expect(cards[0].recordId).toBe(`${stamp}_hp_a`);
   });
 
-  it('a tie the date cannot narrow still leaves the member a self-serve path', async () => {
-    // Failing to narrow must not strand anyone: the email-anchored legacy card
-    // is composed independently of the classifier, so a member whose date does
-    // not corroborate still has a card to act on and never waits on an
-    // administrator. Losing that is what would make a non-matching date costly.
+  it('a namesake the date cannot settle still leaves the member a self-serve path', async () => {
+    // A member whose date does not corroborate still has the card their own
+    // email reached to act on, and never waits on an administrator.
     const memberId = tiedFixture('1962-01-28', '1985-07-10');
-    const view = await svc.getLinkHistoryViewForWizard(memberId, {
-      submitted: false, hpPersonId: null, autoLinkDrift: false,
-    });
-    expect(view).toBeTruthy();
-    expect(view!.candidates.some((c) => c.claimMode === 'legacy_claim')).toBe(true);
+    const view = await svc.getLinkHistoryViewForWizard(memberId);
+    expect(view!.candidates.some((c) => c.cardKind === 'claim')).toBe(true);
   });
 });
 

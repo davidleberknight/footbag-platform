@@ -184,12 +184,15 @@ statement_block() {
 }
 
 # Every action a statement lists, one per line. Bounded to the Action list
-# rather than the whole statement, so the Resource ARNs below it, which also
-# contain colons, cannot arrive as actions. Anchored so that asking for Action
-# does not match NotAction.
+# rather than the whole statement, so the Resource ARNs and Condition keys below
+# it, which also contain colons, cannot arrive as actions. The list ends at its
+# first `]`, on the opening line too: a range would only look for the end from
+# the next line on, and a one-line list would run on into the Condition, where
+# a key such as iam:PassedToService reads as an action and AWS refuses the whole
+# simulation. Anchored so that asking for Action does not match NotAction.
 statement_actions() {
   statement_block "$1" \
-    | sed -n "/^[[:space:]]*${2:-Action}[[:space:]]*=/,/]/p" \
+    | sed -n "/^[[:space:]]*${2:-Action}[[:space:]]*=/{:a;/]/!{N;ba};p}" \
     | grep -oE '"[a-zA-Z0-9-]+:[A-Za-z0-9*]+"' \
     | tr -d '"'
 }

@@ -70,10 +70,12 @@ describe('legacy-account claim race loser', () => {
       legacy_member_id: 'LM-race-1', legacy_email: 'race-dup@legacy.example.com',
       real_name: 'Race Target', display_name: 'Race Target',
     });
+    // The loser shares the account's surname, so only the unique value can stop
+    // its claim.
     insertMember(d, {
       id: 'race-legacy-loser', slug: 'race_legacy_loser',
       login_email: 'race-legacy-loser@example.com',
-      real_name: 'Race Loser', display_name: 'Race Loser',
+      real_name: 'Loser Target', display_name: 'Loser Target',
     });
     d.close();
 

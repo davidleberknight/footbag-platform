@@ -9,13 +9,9 @@
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
  *     drain, notification-feed drain (the bounce/complaint and alarm queues),
- *     Active Player expiry, staged-candidate expiry, batch auto-link,
- *     PII purge scan, hashtag-stats rebuild, administrator-loss sweep, payment
+ *     Active Player expiry, PII purge scan, hashtag-stats rebuild, administrator-loss sweep, payment
  *     reconciliation, its digest and the resolved-issue purge (self-gated:
  *     reconciliation to once per UTC day, the digest to its configured interval)
- *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
- *     high/medium-confidence candidates, queue low-confidence ones with an
- *     admin alert
  *   - PII purge eligibility: which members' grace windows have expired and
  *     which erasure shape applies (full purge for soft-deleted accounts,
  *     contact scrub for deceased ones), plus anonymizing payments past the
@@ -24,8 +20,7 @@
  *     deleting delivered outbox copies past the outbound-copy retention window
  *
  * Does not own:
- *   - The delegated job bodies (ActivePlayerExpiryService,
- *     IdentityAccessService classification/staging, CommunicationService drain,
+ *   - The delegated job bodies (ActivePlayerExpiryService, CommunicationService drain,
  *     MembershipTieringService administrator-loss sweep)
  *   - Outbox row mechanics (CommunicationService)
  *   - Row-level PII erasure (MemberService primitives)
@@ -37,14 +32,11 @@
  *     with distinct grace configs (member_cleanup_grace_days,
  *     deceased_cleanup_grace_days) read at runtime; the two grace rules are
  *     never collapsed.
- *   - Batch auto-link is idempotent per member: already-linked, already-staged,
- *     and declined candidates are skipped on re-run; each low-confidence
- *     work-queue insert + admin-alert enqueue commits in one transaction.
  *   - Interval getters clamp config floors so a bad value cannot hot-loop a
  *     worker.
  *
  * Persistence:
- *   system_job_runs, work_queue_items, outbox_emails (backlog read +
+ *   system_job_runs, outbox_emails (backlog read +
  *   mailing-list enqueue + retention delete of delivered copies), members
  *   (purge-eligibility read), payments (compliance-retention read + anonymize
  *   write), health (read), system_config (the declared payment mode observed
@@ -55,12 +47,9 @@
  *   - system_config append (`payments_declared_mode`, only when the deployment's
  *     declared arming state differs from the last one recorded, so the admin
  *     payments-health page can say since when the declared mode has held)
- *   - work_queue_items insert (auto_link_match, low confidence)
- *   - outbox_emails enqueue (admin-alerts fan-out)
  *   - outbox_emails delete (delivered copies past the retention window)
  *   - payments anonymize-write (compliance-retention cleanup)
- *   - audit_entries append (legacy.auto_link_candidate_failed,
- *     pii_erasure_failed, payment.compliance_anonymize_failed, and
+ *   - audit_entries append (pii_erasure_failed, payment.compliance_anonymize_failed, and
  *     email.outbox_retention_cleanup_failed operational errors; the per-row
  *     erasure audit rows belong to MemberService)
  *   - logger.error on job failure (drives the CloudWatch alarm)
@@ -70,7 +59,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { accountTokens, health, systemJobRuns, systemConfig, workQueue, batchAutoLink, memberPurge, outbox, payments, transaction } from '../db/db';
+import { accountTokens, health, systemJobRuns, systemConfig, memberPurge, outbox, payments } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
@@ -93,7 +82,6 @@ import {
   type RunDailyPassResult,
   type RunOpts as ActivePlayerExpiryRunOpts,
 } from './activePlayerExpiryService';
-import { identityAccessService } from './identityAccessService';
 import { runAdminLossSweep } from './membershipTieringService';
 
 export interface PiiPurgeScanResult {
@@ -624,184 +612,6 @@ export class OperationsPlatformService {
     const seconds = readIntConfig('active_player_expiry_check_interval_seconds', 86400);
     const clamped = Math.max(60, seconds);
     return clamped * 1000;
-  }
-
-  /**
-   * SYS_Batch_Auto_Link job (stage-and-confirm). Scans every Tier 0
-   * unlinked member with a verified email and runs the auto-link classifier:
-   *
-   *   - high / medium → stage a candidate row in auto_link_staged_candidates
-   *     plus a `legacy.auto_link_candidate_staged` audit event. NO live-table
-   *     mutation, NO email. The member confirms or declines the candidate
-   *     from the wizard card at next sign-in.
-   *   - low  → admin work queue (`auto_link_match`), silently: that task type
-   *     declares no urgent alert, so the queue is the only route and no mail
-   *     is sent. An administrator resolves the case there.
-   *   - none / error → counter-only skip.
-   *
-   * Idempotent. Members already linked are skipped via the candidate-scan
-   * filter; on re-run, an existing open staged row for the same member/target
-   * pair is a unique-constraint no-op (`skipped_already_staged`), and a pair
-   * the member declined is never re-staged.
-   *
-   * Run against a seeded environment once its legacy data is loaded: the
-   * staging test load, whose personas wait at the wizard's claim step, so the
-   * staged rows this writes are rendered to them on the next draw. On the
-   * launched platform the wizard's claim task matches each member live as it
-   * renders, and the staged rows there come from the cross-source offer that
-   * follows a confirmed claim.
-   * Wrapped by recordJobRun for `system_job_runs` lifecycle visibility.
-   */
-  async runBatchAutoLink(): Promise<{
-    scanned:                 number;
-    staged_high:             number;
-    staged_medium:           number;
-    queued_low:              number;
-    skipped_low_already_queued: number;
-    skipped_already_staged:  number;
-    skipped_previously_declined: number;
-    skipped_already_linked:  number;
-    skipped_no_legacy_for_hp: number;
-    skipped_legacy_claimed_by_other: number;
-    skipped_none:            number;
-    skipped_error:           number;
-  }> {
-    return this.recordJobRun('SYS_Batch_Auto_Link', () => {
-      const result = {
-        scanned: 0,
-        staged_high: 0,
-        staged_medium: 0,
-        queued_low: 0,
-        skipped_low_already_queued: 0,
-        skipped_already_staged: 0,
-        skipped_previously_declined: 0,
-        skipped_already_linked: 0,
-        skipped_no_legacy_for_hp: 0,
-        skipped_legacy_claimed_by_other: 0,
-        skipped_none: 0,
-        skipped_error: 0,
-      };
-      const candidates = batchAutoLink.listCandidates.all() as Array<{ id: string }>;
-      result.scanned = candidates.length;
-      for (const c of candidates) {
-        let classification;
-        try {
-          classification = identityAccessService.getAutoLinkClassificationForMember(c.id);
-        } catch (err) {
-          recordOperationalError({
-            actionType: 'legacy.auto_link_candidate_failed',
-            category:   'identity',
-            entityType: 'member',
-            entityId:   c.id,
-            reasonText: 'Batch auto-link: classifying a candidate threw',
-            cause:      err,
-          });
-          result.skipped_error += 1;
-          continue;
-        }
-        if (classification.confidence === 'none') {
-          result.skipped_none += 1;
-          continue;
-        }
-        if (classification.confidence === 'low') {
-          // Low-confidence cases route to admin review via work queue with
-          // an admin-alerts fan-out. Idempotent: re-runs collapse onto the
-          // existing open work_queue_items row.
-          const existing = workQueue.findOpenByEntity.get('auto_link_match', 'member', c.id) as
-            | { id: string }
-            | undefined;
-          if (existing) {
-            result.skipped_low_already_queued += 1;
-            continue;
-          }
-          transaction(() => {
-            workQueueService.enqueue({
-              actorId:       'system',
-              queueCategory: 'membership',
-              taskType:      'auto_link_match',
-              entityType:    'member',
-              entityId:      c.id,
-              priority:      5,
-              // Why the match could not be made, kept on the row rather than
-              // only in the application log. Two of these reasons ask an
-              // administrator for opposite things -- choose between namesakes,
-              // or accept that there is nothing to link -- and a card saying
-              // only that a match was weak tells them neither.
-              reasonText:    JSON.stringify({ reason: classification.reason }),
-              detailText:    null,
-            });
-          });
-          result.queued_low += 1;
-          continue;
-        }
-
-        // High or medium: stage a candidate for member confirmation.
-        let outcome;
-        try {
-          outcome = identityAccessService.stageAutoLinkCandidate(
-            c.id,
-            {
-              confidence:   classification.confidence,
-              personId:     classification.personId,
-              personName:   classification.personName,
-              anchorSource: classification.anchorSource,
-              ...(classification.confidence === 'medium'
-                ? { matchedVariantNormalized: classification.matchedVariantNormalized }
-                : {}),
-            },
-            'batch',
-          );
-        } catch (err) {
-          recordOperationalError({
-            actionType: 'legacy.auto_link_candidate_failed',
-            category:   'identity',
-            entityType: 'member',
-            entityId:   c.id,
-            reasonText: 'Batch auto-link: staging a candidate threw',
-            cause:      err,
-          });
-          result.skipped_error += 1;
-          continue;
-        }
-
-        switch (outcome.status) {
-          case 'staged':
-            if (outcome.confidence === 'high') result.staged_high += 1;
-            else result.staged_medium += 1;
-            break;
-          case 'already_staged':
-            result.skipped_already_staged += 1;
-            break;
-          case 'skipped_previously_declined':
-            result.skipped_previously_declined += 1;
-            break;
-          case 'skipped_already_linked':
-            result.skipped_already_linked += 1;
-            break;
-          case 'skipped_no_legacy_for_hp':
-            result.skipped_no_legacy_for_hp += 1;
-            break;
-          case 'skipped_legacy_claimed_by_other':
-            result.skipped_legacy_claimed_by_other += 1;
-            break;
-        }
-      }
-      logger.info('SYS_Batch_Auto_Link run', result);
-      return result;
-    });
-  }
-
-  /**
-   * SYS_Staged_Candidate_Expiry sweep. Marks open auto-link staged
-   * candidates whose expiry window has passed as 'expired', emitting one
-   * `legacy.auto_link_candidate_expired` audit event per row. Idempotent:
-   * the terminal-status guard makes re-sweeping a no-op. Runs on the worker
-   * daily tick alongside the other daily jobs.
-   */
-  async runStagedCandidateExpiry(): Promise<{ expired: number }> {
-    return this.recordJobRun('SYS_Staged_Candidate_Expiry', () =>
-      identityAccessService.expireStagedCandidates(),
-    );
   }
 
   /**

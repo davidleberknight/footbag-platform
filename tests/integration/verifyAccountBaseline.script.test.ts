@@ -766,6 +766,27 @@ describe('verify-account-baseline.sh --save / --compare', () => {
     expect(r.stdout).toMatch(/Unchanged since/);
   });
 
+  // Defect caught: AWS writes a trust's principals back in no fixed order, so an
+  // untouched account reads as CHANGED and the onboarding proof stops on a
+  // difference that is not one.
+  it('reports a trust whose principals come back in another order as the same, against old and new saves alike', () => {
+    const principals = STAGING_TRUST.Statement[0].Principal.AWS;
+    const reversed = { ...STAGING_TRUST, Statement: [{ ...STAGING_TRUST.Statement[0], Principal: { AWS: [...principals].reverse() } }] };
+    const file = saved();
+    const fresh = runFacts({ stagingTrust: reversed }, ['--compare', file]);
+    expect(fresh.status, fresh.stderr).toBe(0);
+    expect(fresh.stdout).toMatch(/Unchanged since/);
+    // A baseline saved before arrays were sorted holds the order AWS gave then.
+    const old = readFileSync(file, 'utf-8').replace(
+      /^trust\.footbag-staging-app-runtime\t.*$/m,
+      `trust.footbag-staging-app-runtime\t${JSON.stringify(STAGING_TRUST)}`,
+    );
+    expect(old, 'the saved trust line was rewritten').toContain(JSON.stringify(STAGING_TRUST));
+    writeFileSync(file, old, { mode: 0o600 });
+    const againstOld = runFacts({ stagingTrust: reversed }, ['--compare', file]);
+    expect(againstOld.status, againstOld.stderr).toBe(0);
+  });
+
   it.each([
     ['a new access key on footbag-operator', { operatorKeys: 'AKIAEXAMPLE\tActive\nAKIASECONDKEY\tActive' }, /now: operator\.key\tAKIASECONDKEY Active/],
     ['its key made inactive', { operatorKeys: 'AKIAEXAMPLE\tInactive' }, /now: operator\.key\tAKIAEXAMPLE Inactive/],

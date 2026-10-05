@@ -78,7 +78,7 @@
  *   - audit_entries append (support.contact_request_submitted on submit, plus the
  *     event the acting action names: support.contact_request_resolved,
  *     payment.queue_item_resolved, or the dismissal event each internal-review
- *     type names for itself, such as legacy.auto_link_match_reviewed)
+ *     type names for itself)
  *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
  *     notification only where the acting action says the member is answered;
  *     NONE on a payments-task resolution or a review dismissal)
@@ -89,7 +89,7 @@
 import { workQueue, memberMessages, account, payments, transaction } from '../db/db';
 import {
   enforceWorkQueueResolveLimit, identityAccessService,
-  type ClaimEvidence, type AutoLinkLowReason,
+  type ClaimEvidence,
 } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
@@ -310,8 +310,6 @@ export interface WorkQueueEvidenceView {
   isMemberMessage: boolean;
   /** A member's request to be linked to a record, with what they have tried. */
   isLinkHelp: boolean;
-  /** A match the batch classifier could not make on its own. */
-  isAutoLink: boolean;
   reasonText: string | null;
   detailText: string | null;
   linkHelp: {
@@ -331,13 +329,13 @@ export interface WorkQueueEvidenceView {
   /** The records the platform can already see for this member, on the card that
    *  asks an administrator to name one. Null where the type does not ask that. */
   candidates: LinkCandidatesView | null;
-  autoLink: AutoLinkEvidenceView | null;
 }
 
 /**
- * What the platform can see behind a member asking to be linked: the old
- * accounts their own anchors reach, and the competition records under their
- * name, each with the id the approve form takes.
+ * What the platform can see behind a member asking to be linked: every old
+ * account and competition record the claim-step matching reaches for them,
+ * each with the id the approve form takes and what the claim step does with
+ * it, a held one naming its holder as a conflict rather than a candidate.
  */
 export interface LinkCandidatesView {
   legacyAccounts: Array<{
@@ -360,34 +358,6 @@ export interface LinkCandidatesView {
   hasAny: boolean;
   /** Where an administrator goes when none of this is enough. */
   lookupHref: string;
-}
-
-/**
- * A match the batch classifier could not make, as the administrator needs to see
- * it: why it stopped, the old account it reached, and the competition records it
- * could not choose between.
- *
- * The records are read at render time rather than copied onto the row when the
- * item was raised, because the pass runs once at cutover and a record can change
- * hands afterwards; the stored reason is the historical fact, the records are
- * the current one.
- */
-export interface AutoLinkEvidenceView {
-  /** Why the classifier stopped, in words. */
-  reasonLabel: string;
-  /** What the administrator is being asked to do about it. */
-  actionLabel: string;
-  legacyAccount: {
-    legacyMemberId: string;
-    displayName: string | null;
-    country: string | null;
-    birthDate: string | null;
-  } | null;
-  candidates: Array<{ personId: string; personName: string }>;
-  hasCandidates: boolean;
-  /** The member has been linked since this was raised, so there is nothing left
-   *  to judge and the item is only waiting to be closed. */
-  settledSince: boolean;
 }
 
 /** The two records a link-help approval is about to bind, shown before it is. */
@@ -683,90 +653,6 @@ function shapeActions(
 }
 
 /**
- * Why a batch auto-link match stopped where it did, in words an administrator
- * can act on, and what each reason actually asks of them.
- *
- * Deliberately says nothing about confidence: what the classifier's bands mean
- * is an open question in its own right, and the administrator's decision does
- * not wait on it. What they need is the obstacle and the next move.
- */
-const AUTO_LINK_REASONS: Record<AutoLinkLowReason, { reason: string; action: string }> = {
-  no_hp_for_legacy_account: {
-    reason: 'The old account was found, but it has no competition record attached to it.',
-    action: 'There is nothing to link it to, so this is usually closed as reviewed.',
-  },
-  no_name_candidate: {
-    reason: 'The old account was found, but no competition record carries this name.',
-    action: 'There is nothing to link it to, so this is usually closed as reviewed.',
-  },
-  multiple_name_candidates: {
-    reason: 'More than one competition record carries this name, and nothing on file chose between them.',
-    action: 'Compare the records below with the member before anything is linked.',
-  },
-  hp_mismatch: {
-    reason: 'The competition record the old account points at is filed under a different surname from this member.',
-    action: 'Check whether the two are the same person before anything is linked.',
-  },
-  ambiguous_email_anchor: {
-    reason: 'The email address on file matches more than one old account, so none of them can be taken as theirs.',
-    action: 'Ask the member which address was theirs before anything is linked.',
-  },
-};
-
-/** Whether this member already holds a legacy account or a competition record. */
-function hasIdentityLink(memberId: string): boolean {
-  const links = account.findIdentityLinks.get(memberId) as
-    | { legacy_member_id: string | null; historical_person_id: string | null }
-    | undefined;
-  return Boolean(links?.legacy_member_id || links?.historical_person_id);
-}
-
-/** The reason code stored on the row when the item was raised. */
-function parseAutoLinkReason(reasonText: string | null): AutoLinkLowReason | null {
-  if (!reasonText) return null;
-  try {
-    const parsed = JSON.parse(reasonText) as { reason?: unknown };
-    const reason = typeof parsed.reason === 'string' ? parsed.reason : null;
-    return reason && reason in AUTO_LINK_REASONS ? reason as AutoLinkLowReason : null;
-  } catch {
-    // A row raised before the reason was recorded, or one erasure has scrubbed.
-    return null;
-  }
-}
-
-function shapeAutoLinkEvidence(raw: ContactRequestRow): AutoLinkEvidenceView {
-  const live = identityAccessService.getAutoLinkClassificationForMember(raw.entityId);
-  const storedReason = parseAutoLinkReason(raw.reasonText);
-  const reason = storedReason ?? (live.confidence === 'low' ? live.reason : null);
-  const words = reason ? AUTO_LINK_REASONS[reason] : null;
-  const lowNow = live.confidence === 'low' ? live : null;
-  return {
-    reasonLabel: words?.reason
-      ?? 'This match was raised before the reason was recorded, so why it stopped is not on file.',
-    actionLabel: words?.action
-      ?? 'Judge it from the member record and the competition records under their name.',
-    legacyAccount: lowNow?.legacyMatch
-      ? {
-        legacyMemberId: lowNow.legacyMatch.legacyMemberId,
-        displayName:    lowNow.legacyMatch.displayName,
-        country:        lowNow.legacyMatch.country,
-        birthDate:      lowNow.legacyMatch.birthDate,
-      }
-      : null,
-    candidates: (lowNow?.candidates ?? []).map((c) => ({
-      personId:   c.personId,
-      personName: c.personName,
-    })),
-    hasCandidates: (lowNow?.candidates?.length ?? 0) > 0,
-    // Read from the member's own links rather than inferred from the classifier
-    // falling silent: it also falls silent for a member who simply has no
-    // anchors to match on, and telling an administrator that member was linked
-    // would be a plain untruth on the card they are deciding from.
-    settledSince: hasIdentityLink(raw.entityId),
-  };
-}
-
-/**
  * The records the platform can already see for this member, as the card shows
  * them: each with the id the approve form takes, so the administrator never has
  * to go and find an identifier the page could have handed them.
@@ -776,14 +662,15 @@ function shapeLinkCandidates(memberId: string): LinkCandidatesView {
   const legacyAccounts = found.legacyAccounts.map((a) => ({
     legacyMemberId: a.legacyMemberId,
     displayName:    a.displayName ?? a.legacyMemberId,
-    facts: [a.legacyMemberId, a.country, `Found through ${a.anchorLabel}`]
+    facts: [a.legacyMemberId, a.country, a.anchorLabel ? `Found through ${a.anchorLabel}` : null, a.statusLabel]
       .filter((f): f is string => Boolean(f)),
     birthDate: a.birthDate,
   }));
   const historicalPersons = found.historicalPersons.map((p) => ({
     personId:   p.personId,
     personName: p.personName,
-    matchNote:  p.isVariantMatch ? 'Matched through a recorded name variant' : null,
+    matchNote:  [p.isVariantMatch ? 'Matched through a recorded name variant.' : null, p.statusLabel]
+      .filter((f): f is string => Boolean(f)).join(' '),
   }));
   const ambiguousNotes = found.ambiguousAnchors.map(
     (label) => `More than one old account carries ${label}, so none of them can be taken as theirs.`,
@@ -804,19 +691,16 @@ function shapeLinkCandidates(memberId: string): LinkCandidatesView {
 function shapeEvidence(raw: ContactRequestRow): WorkQueueEvidenceView {
   const evidence = workQueueDescriptorFor(raw.taskType)?.evidence ?? { kind: 'reason_text' as const };
   const isLinkHelp = evidence.kind === 'structured' && evidence.payload === 'link_help';
-  const isAutoLink = evidence.kind === 'structured' && evidence.payload === 'auto_link';
   return {
     isReasonText:    evidence.kind === 'reason_text',
     isMemberMessage: evidence.kind === 'member_message',
     isLinkHelp,
-    isAutoLink,
     // A structured payload holds JSON in the same column, so the raw text is
     // withheld there rather than printed as noise.
     reasonText: evidence.kind === 'structured' ? null : raw.reasonText,
     detailText: evidence.kind === 'structured' ? null : raw.detailText,
     linkHelp:   isLinkHelp ? parseLinkHelpPayload(raw.reasonText) : null,
     candidates: isLinkHelp ? shapeLinkCandidates(raw.entityId) : null,
-    autoLink:   isAutoLink ? shapeAutoLinkEvidence(raw) : null,
     // The evidence an identity decision is actually made on. Offered only on the
     // matters that ask an administrator to judge one, because everywhere else it
     // is a member's claim history shown for no reason.

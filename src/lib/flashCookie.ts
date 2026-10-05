@@ -14,8 +14,6 @@ export const FLASH_KIND = {
   LOGIN: 'login',
   LOGOUT: 'logout',
   AVATAR_UPLOADED: 'avatar_uploaded',
-  WIZARD_LEGACY_CLAIM_RESULT: 'wizard_legacy_claim_result',
-  WIZARD_AUTO_LINK_DRIFT: 'wizard_auto_link_drift',
   WIZARD_CLUB_CARD_RESOLVED: 'wizard_club_card_resolved',
   WIZARD_CLUB_CAP_HIT: 'wizard_club_cap_hit',
   MEDIA_SAVED: 'media_saved',

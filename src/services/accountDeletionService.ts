@@ -5,7 +5,9 @@
  * Owns:
  *   - The deletion request itself: the administrator refusal, the recurring-gift
  *     decision, the hard deletion of the member's media and galleries, the
- *     withdrawal from upcoming events, the stopping of queued mail, the
+ *     withdrawal from upcoming events, the withdrawal of open suggested matches
+ *     (performed by IdentityAccessService in the same transaction), the
+ *     stopping of queued mail, the
  *     work-queue item for an event left with no organizer, the soft-delete write
  *     and its audit row, and the one message that tells the member what was
  *     deleted and how long their personal details are held before erasure.

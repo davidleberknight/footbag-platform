@@ -13,7 +13,9 @@
 // untouched (no callout); a row whose URL changed, or a new row, is re-verified.
 // Real verdicts require the live Safe Browsing adapter + key in the environment
 // running this; with the dev stub everything is "safe" except the canonical
-// malware test URL.
+// malware test URL. On a workstation, --safe-browsing-key-from reads a deployed
+// environment's stored key straight from Parameter Store, because the app config
+// only reaches that store when it is running as a deployed environment.
 // `dotenv` and the app config are loaded lazily, inside the default validator
 // factory, so argument validation, prerequisite checks, --help and any run with
 // an injected transport work with no .env file and no credentials present.
@@ -66,6 +68,12 @@ Options:
                             the committed default.
   --gallery-verdicts FILE   Read and write the gallery verdicts at FILE instead
                             of the committed default.
+  --safe-browsing-key-from ENV
+                            Use the live Safe Browsing adapter with the key
+                            stored in Parameter Store for ENV (staging or
+                            production), read with the caller's AWS
+                            credentials. The key is checked once before any
+                            URL is judged.
   -h, --help                Show this message.
 
 Each verdict flag names both the cache the run reads and the file it publishes,
@@ -318,7 +326,10 @@ export interface RunPlan {
   galleryVerdicts: string;
   redirected: boolean;
   clubsSeedSelected: boolean;
+  safeBrowsingKeyFrom: KeyEnvironment | null;
 }
+
+export type KeyEnvironment = 'staging' | 'production';
 
 export type ParseResult =
   | { ok: true; plan: RunPlan }
@@ -334,6 +345,7 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
   let clubsFlag: string | null = null;
   let galleryFlag: string | null = null;
   let clubsSeedFlag: string | null = null;
+  let keyFrom: KeyEnvironment | null = null;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -349,6 +361,12 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
       if (arg === '--clubs-verdicts') clubsFlag = value;
       else if (arg === '--clubs-seed') clubsSeedFlag = value;
       else galleryFlag = value;
+    } else if (arg === '--safe-browsing-key-from') {
+      const value = argv[++i];
+      if (value !== 'staging' && value !== 'production') {
+        return { ok: false, message: `${arg} needs staging or production` };
+      }
+      keyFrom = value;
     } else {
       return { ok: false, message: `unknown argument: ${arg}` };
     }
@@ -419,6 +437,7 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
       galleryVerdicts,
       redirected: clubsFlag !== null || galleryFlag !== null,
       clubsSeedSelected: clubsSeedFlag !== null,
+      safeBrowsingKeyFrom: keyFrom,
     },
   };
 }
@@ -515,10 +534,32 @@ export interface RunDeps {
 // The real validator and everything it needs are constructed only when no
 // transport was injected, which is what keeps argument handling, prerequisite
 // checks and the whole test suite free of the environment contract.
-async function defaultValidator(dryRun: boolean): Promise<ValidatorBundle> {
+async function defaultValidator(
+  dryRun: boolean,
+  keyFrom: KeyEnvironment | null,
+): Promise<ValidatorBundle> {
   await import('dotenv/config');
   const { validateExternalUrl } = await import('../src/lib/externalUrlValidator');
   const { config } = await import('../src/config/env');
+  if (keyFrom !== null) {
+    const { createLiveSecretsAdapter } = await import('../src/adapters/secretsAdapter');
+    const { createLiveSafeBrowsingAdapter } = await import('../src/adapters/safeBrowsingAdapter');
+    const ssmPrefix = `/footbag/${keyFrom}`;
+    const safeBrowsing = createLiveSafeBrowsingAdapter({
+      secrets: createLiveSecretsAdapter({ ssmPrefix }),
+    });
+    // One lookup before any URL is judged. Each URL's validator error is
+    // recorded as that URL's quarantine reason, so a key that cannot be read or
+    // is refused would otherwise be written out as a quarantine on every row.
+    await safeBrowsing.lookup('https://www.google.com/');
+    return {
+      validate: (url) => validateExternalUrl(url, { safeBrowsing }),
+      describe:
+        `safeBrowsing=live (key from ${ssmPrefix}), ` +
+        `reachability=${config.httpReachabilityAdapter}`,
+      refuseToWrite: null,
+    };
+  }
   // A verdict is worth no more than the adapters that produced it, and the
   // development defaults produce nothing worth committing: the stub Safe Browsing
   // adapter calls every URL safe apart from one canonical test address, and a
@@ -608,7 +649,7 @@ export async function run(
   } else {
     let bundle: ValidatorBundle;
     try {
-      bundle = await (deps.createValidator ?? (() => defaultValidator(plan.dryRun)))();
+      bundle = await (deps.createValidator ?? (() => defaultValidator(plan.dryRun, plan.safeBrowsingKeyFrom)))();
     } catch (err) {
       logError(
         'verify-seed-urls: could not initialise the URL validator: ' +

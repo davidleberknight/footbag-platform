@@ -1,13 +1,12 @@
 /**
- * Anti-enumeration wall-clock equivalence for the two token-issuance endpoints
- * that must not leak account existence: the password-reset request and the
- * legacy-claim lookup. Both run the same work whether or not a record matches
- * (the password-reset absent branch burns an equivalent token-issuance cost;
- * the claim lookup returns the same neutral outcome), so the exists and
- * not-exists branches must complete in the same order of magnitude.
+ * Anti-enumeration wall-clock equivalence for the token-issuance endpoint that
+ * must not leak account existence: the password-reset request. It runs the same
+ * work whether or not an account matches (the absent branch burns an equivalent
+ * token-issuance cost), so the exists and not-exists branches must complete in
+ * the same order of magnitude.
  *
- * Unlike the login endpoint, neither path runs argon2, so there is no ~30 ms
- * floor to assert; these paths are millisecond-scale. The load-bearing check is
+ * Unlike the login endpoint, the path runs no argon2, so there is no ~30 ms
+ * floor to assert; it is millisecond-scale. The load-bearing check is
  * therefore that the two branches do not diverge by more than identical work
  * diverges from itself, which would mean one branch performs heavy work the
  * other skips. That noise floor is measured in the same sampling window rather
@@ -19,58 +18,31 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember,
-  insertLegacyMember,
-  insertOnboardingTask,
   insertSystemConfig,
-  createTestSessionJwt,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3095');
 
 const RESET_KNOWN_EMAIL = 'timing-reset-known@example.com';
 const RESET_ABSENT_EMAIL = 'timing-reset-absent@example.com';
-const CLAIM_MEMBER = 'timing-claim-member';
-const CLAIM_LEGACY_ID = 'LM-timing';
-const CLAIM_LEGACY_EMAIL = 'timing-legacy@legacy.example.com';
-const CLAIM_ABSENT_IDENTIFIER = 'timing-claim-absent@example.com';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  // Raise every relevant cap far above the sample count so no branch is silently
+  // Raise the cap far above the sample count so no branch is silently
   // rate-limited mid-run, which would poison the medians.
   insertSystemConfig(db, { config_key: 'password_reset_rate_limit_max_attempts', value_json: '100000' });
-  insertSystemConfig(db, { config_key: 'legacy_claim_init_rate_limit_max_per_member', value_json: '100000' });
-  insertSystemConfig(db, { config_key: 'legacy_claim_init_rate_limit_max_per_ip', value_json: '100000' });
-  insertSystemConfig(db, { config_key: 'legacy_claim_init_rate_limit_max_per_target', value_json: '100000' });
 
   insertMember(db, {
     id: 'timing-reset-known', slug: 'timing_reset_known',
     login_email: RESET_KNOWN_EMAIL, display_name: 'Reset Known',
   });
-  // Claim lookup: a legacy record whose address does NOT match the member's
-  // login email, so the present branch takes the token-issuance path rather than
-  // the email-equality fast path; personal_details is completed so the lookup
-  // prerequisite is met.
-  insertLegacyMember(db, {
-    legacy_member_id: CLAIM_LEGACY_ID, legacy_email: CLAIM_LEGACY_EMAIL,
-    real_name: 'Timing Legacy', display_name: 'Timing Legacy',
-  });
-  insertMember(db, {
-    id: CLAIM_MEMBER, slug: 'timing_claim_member',
-    login_email: 'timing-claim-member@example.com', display_name: 'Timing Claim',
-  });
-  insertOnboardingTask(db, CLAIM_MEMBER, 'personal_details', 'completed');
   db.close();
   createApp = await importApp();
 }, 30000);
 
 afterAll(() => cleanupTestDb(dbPath));
-
-function claimCookie(): string {
-  return `__Host-footbag_session=${createTestSessionJwt({ memberId: CLAIM_MEMBER })}`;
-}
 
 // Monotonic, and sub-millisecond. Date.now() was both wrong here: it is a wall
 // clock, so a host that steps its time mid-interval hands back a short or
@@ -84,16 +56,6 @@ function elapsedMsSince(start: number): number {
 async function timePasswordForgot(email: string): Promise<number> {
   const start = performance.now();
   await request(createApp()).post('/password/forgot').type('form').send({ email });
-  return elapsedMsSince(start);
-}
-
-async function timeClaimFind(identifier: string): Promise<number> {
-  const start = performance.now();
-  await request(createApp())
-    .post('/register/wizard/legacy_claim/find')
-    .set('Cookie', claimCookie())
-    .type('form')
-    .send({ identifier, 'cf-turnstile-response': 'stub-ok' });
   return elapsedMsSince(start);
 }
 
@@ -160,19 +122,6 @@ describe('token-issuance wall-clock equivalence (anti-enumeration)', () => {
     for (let i = 0; i < N; i += 1) {
       present.push(await timePasswordForgot(RESET_KNOWN_EMAIL));
       absent.push(await timePasswordForgot(RESET_ABSENT_EMAIL));
-    }
-    expectEquivalent(present, absent);
-  });
-
-  it('legacy-claim lookup is equivalent for a matching vs non-matching identifier', async () => {
-    await timeClaimFind(CLAIM_LEGACY_EMAIL);
-    await timeClaimFind(CLAIM_ABSENT_IDENTIFIER);
-
-    const present: number[] = [];
-    const absent: number[] = [];
-    for (let i = 0; i < N; i += 1) {
-      present.push(await timeClaimFind(CLAIM_LEGACY_EMAIL));
-      absent.push(await timeClaimFind(CLAIM_ABSENT_IDENTIFIER));
     }
     expectEquivalent(present, absent);
   });

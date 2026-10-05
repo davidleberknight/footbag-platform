@@ -4,9 +4,9 @@
  * Builds a claimed account for ANY real migrated legacy record by driving the
  * REAL application use-cases in order against the loaded real dataset (never
  * seeded): register → recover the verify link from the stub-SES outbox → verify
- * (which activates the account) → claim that legacy record directly by its id →
- * complete onboarding (personal details, then confirm any pending club
- * membership the legacy link surfaces) → volunteer to co-lead each joined club
+ * (which activates the account) → personal details → link that legacy record by
+ * its id, as an administrator applies a vetted link → confirm any pending club
+ * membership the legacy link surfaces → volunteer to co-lead each joined club
  * where the account is eligible. The claim grants whatever tier the record earns
  * (Hall-of-Fame or paid history), so co-lead eligibility follows the real data.
  *
@@ -177,18 +177,12 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
   if (!memberRow) throw new Error(`buildRealClaimJourney: no members row for verified member ${memberId}`);
   const slug = memberRow.slug;
 
-  // 4. Claim the real legacy record directly by its id. The claim grants whatever
-  //    tier the record earns and links its historical-person record; that legacy
-  //    link is what surfaces any pending club membership candidate below.
-  identityAccessService.claimLegacyAccount(memberId, id, 'admin_vetted_evidence');
-  memberOnboardingService.completeTaskIfOutstanding(memberId, 'legacy_claim');
-
-  // 5. Personal details: synthetic, obviously-test values (the claimed record's
-  //    own migrated data is what the crawl verifies, not these). Completing the
-  //    task lets the wizard advance to the club-affiliations step. The city
-  //    carries the obviously-synthetic signal; the country has to be a real one
-  //    because the location rules hold a changed country to the canonical set,
-  //    and a country with no state or province list keeps the region blank.
+  // 4. Personal details first, as the wizard orders the steps: synthetic,
+  //    obviously-test values (the claimed record's own migrated data is what the
+  //    crawl verifies, not these). The city carries the obviously-synthetic
+  //    signal; the country has to be a real one because the location rules hold
+  //    a changed country to the canonical set, and a country with no state or
+  //    province list keeps the region blank.
   memberService.setPersonalDetails(memberId, {
     city: 'Testville',
     region: '',
@@ -201,6 +195,15 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
     showCompetitiveResults: true,
   });
   memberOnboardingService.completeTaskIfOutstanding(memberId, 'personal_details');
+
+  // 5. Link the real legacy record by its id, as an administrator does when
+  //    applying a link on vetted evidence: a synthetic login address reaches no
+  //    real record through the claim step's own matching, so the link is applied
+  //    the way the administrator's path applies it. The claim grants whatever
+  //    tier the record earns and links its historical-person record; that legacy
+  //    link is what surfaces any pending club membership candidate below.
+  identityAccessService.claimLegacyAccount(memberId, id, 'admin_vetted_evidence');
+  memberOnboardingService.completeTaskIfOutstanding(memberId, 'legacy_claim');
 
   // 6. Confirm any pending club membership candidate the legacy link surfaced,
   //    then advance the step. Records with no club affiliation simply have no

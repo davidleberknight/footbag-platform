@@ -7,15 +7,20 @@
 
 <div class="wrapper">
   <section>
-    <p>Link your account to your history on the old footbag.org so your past results show on your profile. Do one of these: pick a suggested match below, add an email or surname you used on the old site to sharpen the matches, or search by your old footbag.org member ID.</p>
+    <p>Link your account to your history on the old footbag.org so your past results show on your profile. Do one of these: pick a suggested match below, or add an email or surname you used on the old site to find more matches.</p>
 
     {{! Two honest answers, both of which finish this step. A registrant who did
         hold an old account is never asked to say they did not in order to get
         past it, and is never pushed into claiming a record that may not be
-        theirs. Offered only while the step still needs an answer. }}
+        theirs. Neither answer declines a card; the cards still on screen are
+        named so the member sees what they leave. Offered only while the step
+        still needs an answer. }}
     {{#if content.showNoLinkAnswers}}
       <form method="POST" action="/register/wizard/legacy_claim/continue-without-linking" class="card card-static mb-4">
         <p>If nothing here is yours, tell us which of these is true and carry on.</p>
+        {{#if content.unansweredCardNames.length}}
+          <p class="text-muted fs-sm">These suggestions stay unanswered: {{#each content.unansweredCardNames}}{{#if @index}}, {{/if}}{{this}}{{/each}}.</p>
+        {{/if}}
         <button type="submit" name="no_link_answer" value="never_had_one" class="btn btn-outline">I Never Had an Old Account</button>
         <button type="submit" name="no_link_answer" value="cannot_find_it" class="btn btn-outline">I Had One but Cannot Find It</button>
       </form>
@@ -23,20 +28,16 @@
 
     {{! The last attempt, offered once the step is already finished. Nothing here
         gates anything: the member can leave at any point. }}
+    {{! The date can be changed only here, so its saved notice sits inside this
+        block, and the correction form renders once. }}
     {{#if content.sharpenNotice}}
       <div class="card card-static mb-4">
         <div class="card-title">One more look for your old account</div>
+        {{#if content.birthDateSavedNotice}}
+          <p class="form-success-banner" role="status">Saved. We checked again for matches with your updated date of birth.</p>
+        {{/if}}
         <p>That step is done, so you can carry on whenever you like. While you are here: your date of birth is what we match on, so it is worth checking. Further down you can also add a surname or an email address you used on the old site.</p>
         <p class="text-muted fs-sm">We look again every time you change one of them.</p>
-        {{> wizard-birth-date-correction content}}
-        <p class="mt-2"><a href="{{content.continueHref}}">Carry on with signing up</a></p>
-      </div>
-    {{/if}}
-
-    {{#if content.birthDateSavedNotice}}
-      <div class="card card-static mb-4">
-        <div class="card-title">Date of birth saved</div>
-        <p class="form-success-banner" role="status">Saved. We checked again for matches with your updated date of birth.</p>
         {{> wizard-birth-date-correction content}}
         <p class="mt-2"><a href="{{content.continueHref}}">Carry on with signing up</a></p>
       </div>
@@ -48,19 +49,6 @@
 
     {{#if (eq content.anchorSavedNotice 'saved')}}
       <p class="form-success-banner" role="status">Saved. We re-checked for matches with your updated details.</p>
-    {{else if (eq content.anchorSavedNotice 'removed')}}
-      <p class="form-success-banner" role="status">Removed. We re-checked for matches with your updated details.</p>
-    {{/if}}
-
-    {{#if (eq content.anchorVerificationNotice 'sent')}}
-      <p class="form-success-banner" role="status">If that address can receive mail, a confirmation link is on its way. Open it while signed in to this account.</p>
-      {{#if content.emailPreview}}
-        {{> simulated-email-card content.emailPreview}}
-      {{/if}}
-    {{else if (eq content.anchorVerificationNotice 'verified')}}
-      <p class="form-success-banner" role="status">Mailbox confirmed. Matches found through this address are treated as a stronger link to your old account.</p>
-    {{else if (eq content.anchorVerificationNotice 'invalid')}}
-      <p class="form-error-banner" role="alert">That confirmation link is no longer valid. You can request a fresh one below.</p>
     {{/if}}
 
     {{#if content.conflictPrompt}}
@@ -83,23 +71,7 @@
     {{#if content.lowConfidenceBanner}}
       {{! The closing sentence points at the answer controls, so it is dropped
           for a reader who has already answered and no longer sees them. }}
-      <p class="form-notice" role="status">We didn't find a confident match for your name. If you had an account on the old footbag.org, try searching below by your old member ID, username, or email.{{#if content.showNoLinkAnswers}} If you never had one, you can continue without linking.{{/if}}</p>
-    {{/if}}
-
-    {{#if content.autoLinkDriftNotice}}
-      <p class="form-notice" role="status">Your suggested match is no longer applicable. Pick a candidate below or search by id.</p>
-    {{/if}}
-
-    {{#if content.sentNotice.show}}
-      <div class="form-success-banner" role="status">
-        If an eligible legacy record was found, a confirmation link has been sent to the email address on the old account. Open that link in this same browser, while you are still signed in, to complete the claim. The link expires in 24 hours.
-      </div>
-      {{#if content.sentNotice.outcomeNote}}
-        <p class="form-notice" role="status">{{content.sentNotice.outcomeNote}}</p>
-      {{/if}}
-      {{#if content.emailPreview}}
-        {{> simulated-email-card content.emailPreview}}
-      {{/if}}
+      <p class="form-notice" role="status">We didn't find a match for you. If you had an account on the old footbag.org, add an email address or a surname you used there below.{{#if content.showNoLinkAnswers}} If you never had one, you can continue without linking.{{/if}}</p>
     {{/if}}
 
     {{#if content.candidates.length}}
@@ -109,8 +81,8 @@
           <li class="candidate-card">
             <div class="candidate-card-name">{{this.displayName}}</div>
             <div class="candidate-card-provenance">{{this.provenanceLabel}}</div>
-            {{#if this.aliasesLabel}}<div class="candidate-card-meta">{{this.aliasesLabel}}</div>{{/if}}
             {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
+            {{#if this.firstYear}}<div class="candidate-card-meta">First competed: {{this.firstYear}}</div>{{/if}}
             {{#if this.clubAffiliations.length}}
               <div class="candidate-card-meta text-muted fs-sm">Clubs: {{#each this.clubAffiliations}}{{#if @index}}, {{/if}}{{this}}{{/each}}</div>
             {{/if}}
@@ -120,61 +92,40 @@
             {{#if this.bioExcerpt}}<div class="candidate-card-meta text-muted fs-sm">{{this.bioExcerpt}}</div>{{/if}}
             {{#if this.isHof}}<div class="candidate-card-meta">Hall of Fame</div>{{/if}}
             {{#if this.isBap}}<div class="candidate-card-meta">Big Add Posse</div>{{/if}}
-            {{#if (eq this.claimMode 'auto_link_confirm')}}
-              <form method="POST" action="/register/wizard/legacy_claim/auto-link/confirm" class="candidate-card-action">
-                <input type="hidden" name="personId" value="{{this.personId}}" />
+            {{! Every card has two answers. The first depends on what the
+                member's own evidence allows; "This Is Not Me" is on every card
+                and is a standing answer. }}
+            {{#if (eq this.cardKind 'claim')}}
+              <form method="POST" action="/register/wizard/legacy_claim/claim" class="candidate-card-action">
+                <input type="hidden" name="accountId" value="{{this.accountId}}" />
+                <input type="hidden" name="recordId" value="{{this.recordId}}" />
                 <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
               </form>
-              <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
-                {{#if this.stagedCandidateId}}
-                <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
-                {{else}}
-                <input type="hidden" name="personId" value="{{this.personId}}" />
-                {{/if}}
-                <button type="submit" class="btn btn-outline">This Is Not Me</button>
+            {{else if (eq this.cardKind 'claim_record_page')}}
+              <p class="text-muted fs-sm">This record was found by name match, and same-name coincidences happen. Only claim it if these results are really yours.</p>
+              <p class="candidate-card-action"><a href="{{this.claimRecordHref}}" class="btn btn-primary">Claim This Record</a></p>
+            {{else if (eq this.cardKind 'claim_with_surname')}}
+              <p class="text-muted fs-sm">The surname on this record is {{this.differingSurname}}, not the one on your account.</p>
+              <form method="POST" action="/register/wizard/legacy_claim/claim-with-surname" class="candidate-card-action">
+                <input type="hidden" name="accountId" value="{{this.accountId}}" />
+                <input type="hidden" name="recordId" value="{{this.recordId}}" />
+                <button type="submit" class="btn btn-primary">This Is Me, I Used the Surname {{this.differingSurname}}</button>
               </form>
-            {{else if (eq this.claimMode 'cross_source_legacy')}}
-              <form method="POST" action="/register/wizard/legacy_claim/cross-source/confirm" class="candidate-card-action">
-                <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
-                <button type="submit" class="btn btn-primary">Yes, This Is Also Me</button>
-              </form>
-              <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
-                <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
-                <button type="submit" class="btn btn-outline">This Is Not Me</button>
-              </form>
-            {{else if (eq this.claimMode 'legacy_claim')}}
-              <form method="POST" action="/register/wizard/legacy_claim/find" class="candidate-card-action">
-                <input type="hidden" name="identifier" value="{{this.legacyMemberId}}" />
-                {{#if @root.content.turnstileSiteKey}}
-                  <div class="cf-turnstile" data-sitekey="{{@root.content.turnstileSiteKey}}"></div>
-                {{/if}}
-                <button type="submit" class="btn btn-primary">Search for This Account</button>
-              </form>
-            {{else if (eq this.claimMode 'hp_review_page')}}
-              {{! Two honest actions. A record whose surname will not pass the
-                  gate cannot be claimed yet, so it is not offered a control that
-                  would be refused. The record itself stays visible either way:
-                  hiding it would hide a registrant's own history from them at
-                  the moment their name has changed. }}
-              {{#if this.claimNeedsAnchor}}
-                <p class="text-muted fs-sm">This could be yours, but the surname on it is not the one on your account. If you used a different surname or a different email address on the old site, add it below and we will look again.</p>
-                <p class="candidate-card-action"><a href="#anchors" class="btn btn-outline">Add a Former Surname or Old Email</a></p>
-              {{else}}
-                <p class="text-muted fs-sm">This record was found by name match, and same-name coincidences happen. Only claim it if these results are really yours.</p>
-                <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Claim This Record</a></p>
-              {{/if}}
-            {{else if (eq this.claimMode 'already_linked')}}
-              {{#if this.alreadyLinkedSinceDisplay}}
-                <p class="candidate-card-linked">Linked {{this.alreadyLinkedSinceDisplay}}.</p>
-              {{/if}}
+            {{else if (eq this.cardKind 'needs_admin')}}
+              <p class="text-muted fs-sm">We found this old account by name only, so it cannot be linked from here. If it is yours, add an email address you used on the old site below, or finish signing up and then ask an IFPA administrator to link it.</p>
             {{/if}}
+            <form method="POST" action="/register/wizard/legacy_claim/decline" class="candidate-card-action">
+              <input type="hidden" name="accountId" value="{{this.accountId}}" />
+              <input type="hidden" name="recordId" value="{{this.recordId}}" />
+              <button type="submit" class="btn btn-outline">This Is Not Me</button>
+            </form>
           </li>
         {{/each}}
       </ul>
     {{/if}}
 
-    {{! A card whose surname will not pass the claim gate points here, because
-        this is where the two remedies that would let it pass are entered. }}
+    {{! The standing invitation to add a former surname or an old email, shown
+        on every render because either helps find a member's history. }}
     <div class="section-heading mt-6" id="anchors"><h2>Help Us Find Your Record</h2></div>
     <p class="text-muted fs-sm">If you used a different email address or surname on footbag.org, tell us here and we'll look for matching records.</p>
 
@@ -183,17 +134,6 @@
         {{#each content.declaredAnchors}}
           <li class="mb-2">
             <span class="badge">{{this.anchorTypeLabel}}</span> {{this.anchorValue}}
-            {{#if this.verified}}<span class="badge">Mailbox verified</span>{{/if}}
-            {{#if this.canRequestVerification}}
-            <form method="POST" action="/register/wizard/legacy_claim/anchors/send-verification" class="inline-form">
-              <input type="hidden" name="anchorId" value="{{this.id}}" />
-              <button type="submit" class="btn-link fs-sm">Verify This Mailbox</button>
-            </form>
-            {{/if}}
-            <form method="POST" action="/register/wizard/legacy_claim/anchors/remove" class="inline-form">
-              <input type="hidden" name="anchorId" value="{{this.id}}" />
-              <button type="submit" class="btn-link text-muted fs-sm">Remove</button>
-            </form>
           </li>
         {{/each}}
       </ul>
@@ -219,20 +159,5 @@
       <button type="submit" class="btn btn-outline">Add Former Name</button>
     </form>
 
-    <div class="section-heading mt-6"><h2>Search for Your Old Account or Competition Record</h2></div>
-    <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
-      <div class="form-field">
-        <label for="identifier">Old footbag.org member ID, username, or email, or competition-record ID</label>
-        <input type="text" id="identifier" name="identifier" required />
-      </div>
-      {{#if content.turnstileSiteKey}}
-        <div class="cf-turnstile" data-sitekey="{{content.turnstileSiteKey}}"></div>
-      {{/if}}
-      <button type="submit" class="btn btn-outline">Find</button>
-    </form>
-
   </section>
 </div>
-{{#if content.turnstileSiteKey}}
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
-{{/if}}

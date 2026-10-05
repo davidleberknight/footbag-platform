@@ -3,8 +3,7 @@
  *
  *   1. Strip single-use token segments from token-bearing routes so a
  *      leaked debug log cannot replay the token and take over the
- *      associated account, password change, legacy-claim merge, or
- *      anchor mailbox verification.
+ *      associated account or password change.
  *
  *   2. Strip PII-bearing query-string values so member-search terms and
  *      similar free-text inputs do not persist in CloudWatch logs (per
@@ -22,15 +21,7 @@ const PII_QUERY_PARAMS = ['q', 'key'] as const;
 export function redactTokenPaths(url: string): string {
   let out = url
     .replace(/^\/verify\/[^/?#]+/, '/verify/[redacted]')
-    .replace(/^\/password\/reset\/[^/?#]+/, '/password/reset/[redacted]')
-    .replace(
-      /^\/register\/wizard\/legacy_claim\/claim\/confirm\/[^/?#]+/,
-      '/register/wizard/legacy_claim/claim/confirm/[redacted]',
-    )
-    .replace(
-      /^\/register\/wizard\/legacy_claim\/anchors\/verify\/[^/?#]+/,
-      '/register/wizard/legacy_claim/anchors/verify/[redacted]',
-    );
+    .replace(/^\/password\/reset\/[^/?#]+/, '/password/reset/[redacted]');
   for (const key of PII_QUERY_PARAMS) {
     // Match `?<key>=...` or `&<key>=...` up to the next `&` or `#`.
     out = out.replace(

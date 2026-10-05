@@ -5,7 +5,7 @@
  *   1. Email-outbox polling loop: drains transactional emails. Polling is
  *      fine here because outbound email is not a foreground UX.
  *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
- *      expiry ledger rows), the staged-candidate expiry sweep, the PII
+ *      expiry ledger rows), the PII
  *      purge-eligibility scan, payment reconciliation against the payment
  *      provider, and the purge of long-resolved reconciliation issues. One
  *      system_job_runs row per job per pass. A job needing a
@@ -127,16 +127,6 @@ async function activePlayerExpiryLoop(): Promise<void> {
       await operationsPlatformService.runActivePlayerExpiryCheck();
     } catch (err) {
       logger.error('worker: AP expiry unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // Staged auto-link candidates expire on the same daily cadence; the
-    // sweep is cheap and idempotent, so it rides the AP-expiry tick rather
-    // than owning a loop.
-    try {
-      await operationsPlatformService.runStagedCandidateExpiry();
-    } catch (err) {
-      logger.error('worker: staged-candidate expiry unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

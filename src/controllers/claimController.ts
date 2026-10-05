@@ -4,7 +4,7 @@ import {
   ClaimHpConfirmContent,
 } from '../services/identityAccessService';
 import { memberOnboardingService } from '../services/memberOnboardingService';
-import { RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { ConflictError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 
@@ -53,6 +53,17 @@ function redirectToAdminLinkRequest(req: Request, res: Response): void {
   res.redirect(303, `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`);
 }
 
+// The wizard's step order holds on every request, so no claim runs before the
+// personal details (the date of birth the matcher needs) are on file. A
+// registrant arriving here early is sent to the claim step, which routes them
+// on to the step they still owe, the same bounce the wizard's own claim
+// actions give.
+function redirectIfClaimStepNotReached(req: Request, res: Response): boolean {
+  if (!memberOnboardingService.prerequisiteTaskFor(req.user!.userId, 'legacy_claim')) return false;
+  res.redirect(303, '/register/wizard/legacy_claim');
+  return true;
+}
+
 export const claimController = {
   /**
    * GET /history/:personId/claim, render the HP-claim confirmation page
@@ -67,6 +78,7 @@ export const claimController = {
         redirectToAdminLinkRequest(req, res);
         return;
       }
+      if (redirectIfClaimStepNotReached(req, res)) return;
       const lookupResult = identityAccessService.lookupHistoricalPersonForClaim(
         req.user!.userId,
         personId,
@@ -156,6 +168,7 @@ export const claimController = {
       redirectToAdminLinkRequest(req, res);
       return;
     }
+    if (redirectIfClaimStepNotReached(req, res)) return;
     if (!personId) {
       res.status(422).render('history/claim-hp-confirm', {
         ...HP_FORM_VM,
@@ -180,7 +193,9 @@ export const claimController = {
           } satisfies PageViewModel<ClaimHpConfirmContent>);
         return;
       }
-      if (err instanceof ValidationError) {
+      // A concurrent claim caught by the unique index answers exactly as the
+      // synchronous already-claimed check does.
+      if (err instanceof ValidationError || err instanceof ConflictError) {
         res.status(422).render('history/claim-hp-confirm', {
           ...HP_FORM_VM,
           content: {

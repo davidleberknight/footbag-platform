@@ -1,214 +1,369 @@
 /**
- * Legacy claim paths: auto-link candidate cards, manual search with
- * enqueued token, token confirm/consume, direct HP claim, and
- * anti-enumeration equivalence.
+ * The onboarding claim step as a member uses it in a real browser: each kind of
+ * card answered through its own control, the decline that stands, the two
+ * non-claiming answers, the last attempt, and the cases only a browser shows
+ * (a second tab, the back button, a double submit). Every matching rule is
+ * proven in the integration suite; these journeys prove the forms, redirects
+ * and session chain carry a member through them.
  */
-import { test, expect } from '@playwright/test';
-import { insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import { test, expect, type Page } from '@playwright/test';
+import type BetterSqlite3 from 'better-sqlite3';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberWithLegacyDiffEmail, seedMemberWithHpMatch, getMemberField, getTaskState, raiseClaimRateLimits, legacyClaimConfirmUrlFromCard, completePersonalDetails } from './helpers/onboarding';
+import {
+  seedMemberWithEmailMatchedPair,
+  seedMemberWithRecordOnly,
+  seedMemberWithSurnameDifferingAccount,
+  seedMemberWithNameOnlyAccount,
+  seedMemberWithMisdatedAccount,
+  getTaskState,
+  getMemberField,
+  isLegacyClaimed,
+  raiseClaimRateLimits,
+  completePersonalDetails,
+} from './helpers/onboarding';
+import { WizardPage } from './pages/wizard.page';
+
+const CLUB_STEP = /\/register\/wizard\/club_affiliations$/;
+const CLAIM_STEP = /\/register\/wizard\/legacy_claim(\?.*)?$/;
 
 test.beforeAll(() => {
   const db = openLiveDb();
   raiseClaimRateLimits(db);
   db.close();
 });
-import { WizardPage } from './pages/wizard.page';
 
-test('auto-link candidate card visible for high-confidence member', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+function countAudit(db: BetterSqlite3.Database, actionType: string, memberId: string): number {
+  return (db.prepare(
+    "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = ? AND entity_type = 'member' AND entity_id = ?",
+  ).get(actionType, memberId) as { c: number }).c;
+}
+
+function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
   const db = openLiveDb();
-  const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_al_${Date.now()}`, personName: 'Autolink Person' });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
+  try {
+    return fn(db);
+  } finally {
+    db.close();
+  }
+}
 
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
+async function openClaimStep(page: Page): Promise<WizardPage> {
   const wizard = new WizardPage(page);
-
   await wizard.goto('legacy_claim');
-  const body = await page.textContent('body');
-  expect(body).toContain('Autolink Person');
+  await expect(page).toHaveURL(CLAIM_STEP);
+  return wizard;
+}
 
-  const linkButton = page.getByRole('button', { name: /this is me/i });
-  await expect(linkButton).toBeVisible();
-
-  await ctx.close();
-});
-
-test('auto-link confirm advances to next task', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_ac_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
+test('an old account the member\'s own email reaches is claimed whole from its card, and the member goes straight on to the club step', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => {
+    const p = seedMemberWithEmailMatchedPair(db);
+    completePersonalDetails(db, p.memberId);
+    return p;
+  });
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
   const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
+  const wizard = await openClaimStep(page);
 
+  await expect(wizard.cards).toHaveCount(1);
+  await wizard.claimButton(wizard.cards.first()).click();
+  await expect(page).toHaveURL(CLUB_STEP);
+
+  withDb((db) => {
+    expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBe(persona.legacyMemberId);
+    expect(getMemberField(db, persona.memberId, 'historical_person_id')).toBe(persona.personId);
+    expect(isLegacyClaimed(db, persona.legacyMemberId)).toBe(true);
+    expect(getTaskState(db, persona.memberId, 'legacy_claim')).toBe('completed');
+  });
+
+  // One pass: the step does not come back to offer anything further.
   await wizard.goto('legacy_claim');
-
-  const linkButton = page.getByRole('button', { name: /this is me/i });
-  await linkButton.click();
-  await page.waitForURL(/\/register\/wizard\//);
-
-  expect(page.url()).not.toContain('legacy_claim');
-
-  const db2 = openLiveDb();
-  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('completed');
-  db2.close();
+  await expect(page).toHaveURL(CLUB_STEP);
 
   await ctx.close();
 });
 
-test('manual search: enqueued path shows the banner and the dev confirm card', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_enq_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
+test('a competition record with no old account is claimed through its confirmation page', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithRecordOnly(db));
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
   const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
+  const wizard = await openClaimStep(page);
 
-  await wizard.goto('legacy_claim');
-  await wizard.submitIdentifier(persona.legacyEmail);
+  await wizard.recordClaimLink(wizard.card(persona.personName)).click();
+  await expect(page).toHaveURL(new RegExp(`/history/${persona.personId}/claim$`));
+  await page.getByRole('button', { name: /Yes, This Is Me: Link the Record/i }).click();
+  await expect(page).toHaveURL(CLUB_STEP);
 
-  const sentBanner = page.locator('.form-success-banner');
-  await expect(sentBanner).toBeVisible();
-  const bannerText = await sentBanner.textContent();
-  expect(bannerText).toMatch(/confirmation link has been sent/i);
-
-  // Under the stub SES adapter (dev and e2e) the simulated-email card shows the
-  // enqueued confirmation link so a tester finishes on the page; production
-  // renders no card, which the live-adapter suites pin. The banner text is the
-  // same whether or not a record matched (anti-enumeration), covered separately.
-  await expect(page.locator('.sec-card-dev')).toHaveCount(1);
-  const confirmUrl = await legacyClaimConfirmUrlFromCard(page, persona.legacyEmail);
-  expect(confirmUrl).toMatch(/\/claim\/confirm\//);
+  withDb((db) => {
+    expect(getMemberField(db, persona.memberId, 'historical_person_id')).toBe(persona.personId);
+  });
 
   await ctx.close();
 });
 
-test('token confirm page shows record details and confirm button', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_tok_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
+test('a card whose surname differs is claimed in one step by naming the surname used before', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithSurnameDifferingAccount(db));
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
   const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
+  const wizard = await openClaimStep(page);
 
-  await wizard.goto('legacy_claim');
-  await wizard.submitIdentifier(persona.legacyEmail);
+  const card = wizard.cards.first();
+  await expect(wizard.claimButton(card)).toHaveCount(0);
+  const button = wizard.surnameClaimButton(card);
+  await expect(button).toContainText(persona.oldSurname);
+  await button.click();
+  await expect(page).toHaveURL(CLUB_STEP);
 
-  const tokenHref = await legacyClaimConfirmUrlFromCard(page, persona.legacyEmail);
-
-  await page.goto(tokenHref);
-
-  const body = await page.textContent('body');
-  expect(body).toContain('Enqueued Claim');
-
-  const confirmButton = page.getByRole('button', { name: /confirm and link/i });
-  await expect(confirmButton).toBeVisible();
+  withDb((db) => {
+    expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBe(persona.legacyMemberId);
+    const anchor = db.prepare(
+      "SELECT anchor_value FROM member_declared_anchors WHERE member_id = ? AND anchor_type = 'former_surname'",
+    ).get(persona.memberId) as { anchor_value: string } | undefined;
+    expect(anchor?.anchor_value).toBe(persona.oldSurname);
+  });
 
   await ctx.close();
 });
 
-test('token consume advances wizard and links member', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_con_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
+test('an old account found by name alone shows no claim control until the member adds an old email it carried', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithNameOnlyAccount(db));
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
   const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
+  const wizard = await openClaimStep(page);
 
-  await wizard.goto('legacy_claim');
-  await wizard.submitIdentifier(persona.legacyEmail);
+  const card = wizard.card(persona.accountName);
+  await expect(card).toHaveCount(1);
+  await expect(wizard.claimButton(card)).toHaveCount(0);
+  await expect(wizard.declineButton(card)).toBeVisible();
 
-  const tokenHref = await legacyClaimConfirmUrlFromCard(page, persona.legacyEmail);
-  await page.goto(tokenHref);
+  await wizard.oldEmailInput.fill(persona.oldEmail);
+  await wizard.addOldEmailButton.click();
+  await expect(page).toHaveURL(/\/register\/wizard\/legacy_claim\?anchor=saved$/);
+  await expect(wizard.successBanner.first()).toBeVisible();
 
-  const confirmButton = page.getByRole('button', { name: /confirm and link/i });
-  await confirmButton.click();
-  await page.waitForURL(/\/register\/wizard\//);
+  // Add-only: the address is listed and nothing offers to take it back.
+  await expect(page.locator('ul.mb-4 li').filter({ hasText: persona.oldEmail })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /^Remove$/ })).toHaveCount(0);
 
-  expect(page.url()).not.toContain('legacy_claim');
-
-  const db2 = openLiveDb();
-  expect(getMemberField(db2, persona.memberId, 'legacy_member_id')).toBe(persona.legacyMemberId);
-  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('completed');
-  db2.close();
+  await wizard.claimButton(wizard.card(persona.accountName)).click();
+  await expect(page).toHaveURL(CLUB_STEP);
+  withDb((db) => {
+    expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBe(persona.legacyMemberId);
+  });
 
   await ctx.close();
 });
 
-test('direct HP claim: surname match shows confirm page with name', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberWithHpMatch(db, { slug: `lc_hp_${Date.now()}` });
-  db.close();
+test('This Is Not Me removes the card for good', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithNameOnlyAccount(db));
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
   const page = await ctx.newPage();
+  const wizard = await openClaimStep(page);
 
-  await page.goto(`/history/${persona.personId}/claim`);
-  const body = await page.textContent('body');
-  expect(body).toContain('Robert Testplayer');
+  await wizard.declineButton(wizard.card(persona.accountName)).click();
+  await expect(page).toHaveURL(CLAIM_STEP);
+  await expect(wizard.card(persona.accountName)).toHaveCount(0);
 
-  const claimButton = page.getByRole('button', { name: /yes.*this is me|link the record/i });
-  await expect(claimButton).toBeVisible();
+  await page.reload();
+  await expect(wizard.card(persona.accountName)).toHaveCount(0);
 
+  // Adding the account's own old address would reach it again; the decline
+  // still stands, and the step still needs its answer.
+  await wizard.oldEmailInput.fill(persona.oldEmail);
+  await wizard.addOldEmailButton.click();
+  await expect(page).toHaveURL(/anchor=saved$/);
+  await expect(wizard.card(persona.accountName)).toHaveCount(0);
+  await expect(wizard.neverHadOldAccountButton).toBeVisible();
   await ctx.close();
-});
 
-test('HP claim surname mismatch: claim-unavailable page (anti-enum safe)', { tag: ['@migration', '@security'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const personId = insertHistoricalPerson(db, { person_name: 'Totally Different' });
-  const persona = seedBrandNewPlayer(db, { slug: `lc_mm_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-
-  const res = await page.goto(`/history/${personId}/claim`);
-  expect(res?.status()).toBe(200);
-
-  const body = await page.textContent('body');
-  expect(body).toMatch(/unavailable|cannot.*link/i);
-  expect(body).not.toContain('Totally Different');
-
-  await ctx.close();
-});
-
-test('anti-enum: no-match and match searches show identical banner text', { tag: ['@migration', '@security'] }, async ({ browser, baseURL }) => {
-  const stamp = Date.now();
-
-  const db = openLiveDb();
-  const noMatchPersona = seedBrandNewPlayer(db, { slug: `lc_ae1_${stamp}` });
-  const legacyEmail = `ae-match-${stamp}@oldsite.example`;
-  insertLegacyMember(db, { legacy_member_id: `LM-AE-${stamp}`, legacy_email: legacyEmail, real_name: 'AE Match' });
-  const matchPersona = seedBrandNewPlayer(db, { slug: `lc_ae2_${stamp}` });
-  completePersonalDetails(db, noMatchPersona.memberId);
-  completePersonalDetails(db, matchPersona.memberId);
-  db.close();
-
-  const ctx1 = await createAuthenticatedContext(browser, baseURL!, noMatchPersona);
-  const page1 = await ctx1.newPage();
-  const w1 = new WizardPage(page1);
-  await w1.goto('legacy_claim');
-  await w1.submitIdentifier(`garbage-${stamp}`);
-  const noMatchBanner = await page1.textContent('[role="status"], .form-success-banner') ?? '';
-  await ctx1.close();
-
-  const ctx2 = await createAuthenticatedContext(browser, baseURL!, matchPersona);
+  // A fresh session sees the same.
+  const ctx2 = await createAuthenticatedContext(browser, baseURL!, persona);
   const page2 = await ctx2.newPage();
-  const w2 = new WizardPage(page2);
-  await w2.goto('legacy_claim');
-  await w2.submitIdentifier(legacyEmail);
-  const matchBanner = await page2.textContent('[role="status"], .form-success-banner') ?? '';
+  const wizard2 = await openClaimStep(page2);
+  await expect(wizard2.card(persona.accountName)).toHaveCount(0);
   await ctx2.close();
+});
 
-  expect(noMatchBanner.trim()).toBe(matchBanner.trim());
+test('the cannot-find-it answer finishes the claim step and opens one last attempt, where a corrected date of birth turns up a claimable card', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithMisdatedAccount(db));
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = await openClaimStep(page);
+
+  const card = wizard.card(persona.accountName);
+  await expect(wizard.claimButton(card)).toHaveCount(0);
+  // The answer names the card it leaves on screen before it is given.
+  await expect(page.locator('form[action$="continue-without-linking"]')).toContainText(persona.accountName);
+  await wizard.cannotFindOldAccountButton.click();
+  await expect(page).toHaveURL(CLAIM_STEP);
+  await expect(wizard.sharpenBirthDateForm).toBeVisible();
+  withDb((db) => expect(getTaskState(db, persona.memberId, 'legacy_claim')).toBe('completed'));
+
+  await page.locator('#sharpenBirthDay').fill('9');
+  await page.locator('#sharpenBirthMonth').selectOption('3');
+  await page.locator('#sharpenBirthYear').fill('1984');
+  await page.getByRole('button', { name: 'Save Date of Birth' }).click();
+  await expect(page).toHaveURL(/birth_date=saved$/);
+
+  await wizard.claimButton(wizard.card(persona.accountName)).click();
+  await expect(page).toHaveURL(CLUB_STEP);
+  withDb((db) => {
+    expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBe(persona.legacyMemberId);
+  });
+
+  // The attempt closed with the claim; the step does not render again.
+  await wizard.goto('legacy_claim');
+  await expect(page).toHaveURL(CLUB_STEP);
+
+  await ctx.close();
+});
+
+test('I Never Had an Old Account with a card on screen names that card, completes the step and declines nothing', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => {
+    const p = seedMemberWithEmailMatchedPair(db);
+    completePersonalDetails(db, p.memberId);
+    return p;
+  });
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = await openClaimStep(page);
+
+  const cardName = (await wizard.cards.first().locator('.candidate-card-name').textContent())!.trim();
+  await expect(page.locator('form[action$="continue-without-linking"]')).toContainText(cardName);
+  await wizard.answerCurrentTask(CLUB_STEP);
+
+  withDb((db) => {
+    expect(getTaskState(db, persona.memberId, 'legacy_claim')).toBe('completed');
+    expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBeNull();
+    const declines = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?')
+      .get(persona.memberId) as { c: number };
+    expect(declines.c).toBe(0);
+  });
+
+  await ctx.close();
+});
+
+test('a double-submitted card claim lands on the first outcome, never an error page', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => {
+    const p = seedMemberWithEmailMatchedPair(db);
+    completePersonalDetails(db, p.memberId);
+    return p;
+  });
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const first = await ctx.newPage();
+  const second = await ctx.newPage();
+  const w1 = await openClaimStep(first);
+  const w2 = await openClaimStep(second);
+
+  await w1.claimButton(w1.cards.first()).click();
+  await expect(first).toHaveURL(CLUB_STEP);
+  // The second tab still holds the form the first one already answered.
+  await w2.claimButton(w2.cards.first()).click();
+  await expect(second).toHaveURL(CLUB_STEP);
+
+  withDb((db) => expect(countAudit(db, 'claim.legacy_account', persona.memberId)).toBe(1));
+  await ctx.close();
+});
+
+test('a double-submitted record confirmation lands on the first outcome, never an error page', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithRecordOnly(db));
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const first = await ctx.newPage();
+  const second = await ctx.newPage();
+  for (const p of [first, second]) await p.goto(`/history/${persona.personId}/claim`);
+
+  const confirm = (p: Page) => p.getByRole('button', { name: /Yes, This Is Me: Link the Record/i });
+  await confirm(first).click();
+  await expect(first).toHaveURL(CLUB_STEP);
+  await confirm(second).click();
+  await expect(second).toHaveURL(CLUB_STEP);
+
+  withDb((db) => expect(countAudit(db, 'claim.historical_person', persona.memberId)).toBe(1));
+  await ctx.close();
+});
+
+test('a double-submitted anchor add lands on the first outcome, never an error page', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithNameOnlyAccount(db));
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const first = await ctx.newPage();
+  const second = await ctx.newPage();
+  const w1 = await openClaimStep(first);
+  const w2 = await openClaimStep(second);
+
+  for (const [page, wizard] of [[first, w1], [second, w2]] as const) {
+    await wizard.oldEmailInput.fill(persona.oldEmail);
+    await wizard.addOldEmailButton.click();
+    await expect(page).toHaveURL(/anchor=saved$/);
+    await expect(wizard.inlineError).toHaveCount(0);
+  }
+
+  withDb((db) => {
+    const rows = db.prepare(
+      "SELECT COUNT(*) AS c FROM member_declared_anchors WHERE member_id = ? AND anchor_type = 'old_email'",
+    ).get(persona.memberId) as { c: number };
+    expect(rows.c).toBe(1);
+  });
+  await ctx.close();
+});
+
+test('a wizard form sent from a tab left open after signing up finished goes to the identity-link request and claims nothing', { tag: ['@migration', '@security'] }, async ({ browser, baseURL }) => {
+  const persona = withDb((db) => {
+    const p = seedMemberWithEmailMatchedPair(db);
+    completePersonalDetails(db, p.memberId);
+    return p;
+  });
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const stale = await ctx.newPage();
+  const staleWizard = await openClaimStep(stale);
+
+  const live = await ctx.newPage();
+  const liveWizard = await openClaimStep(live);
+  await liveWizard.answerCurrentTask(CLUB_STEP);
+  await liveWizard.answerCurrentTask(/\/register\/wizard\/complete$/);
+
+  await staleWizard.claimButton(staleWizard.cards.first()).click();
+  await expect(stale).toHaveURL(
+    new RegExp(`/members/${persona.slug}/contact-admin\\?category=identity_link_issue$`),
+  );
+  withDb((db) => expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBeNull());
+
+  await ctx.close();
+});
+
+test('going back to the claim step after answering it offers no answer controls, and the member still reaches the step they owe', async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithNameOnlyAccount(db));
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = await openClaimStep(page);
+  await wizard.answerCurrentTask(CLUB_STEP);
+
+  await page.goBack();
+  await expect(page).toHaveURL(CLUB_STEP);
+  await expect(wizard.neverHadOldAccountButton).toHaveCount(0);
+  await expect(wizard.noClubsButton).toBeVisible();
+
+  await ctx.close();
+});
+
+test('a registrant who opens a competition-record claim link before giving personal details lands on the personal details form', async ({ browser, baseURL }) => {
+  const persona = withDb((db) => seedMemberWithRecordOnly(db, { personalDetailsDone: false }));
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  await page.goto(`/history/${persona.personId}/claim`);
+  await expect(page).toHaveURL(/\/register\/wizard\/personal_details$/);
+  withDb((db) => expect(getMemberField(db, persona.memberId, 'historical_person_id')).toBeNull());
+
+  await ctx.close();
 });

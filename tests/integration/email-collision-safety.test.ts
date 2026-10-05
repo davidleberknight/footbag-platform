@@ -2,10 +2,9 @@
  * Integration tests for pre-dump email-collision safety.
  *
  * Verifies that duplicate legacy_email rows never produce a silent
- * mis-claim. The service returns `{ kind: 'ambiguous_email' }` and the
- * verify-time classification degrades to
- * `tier3 / ambiguous_email_anchor`. The manual claim form surfaces a
- * helpful message instead of picking an arbitrary row.
+ * mis-claim. The lookup returns `{ kind: 'ambiguous_email' }`, and in the
+ * claim step an address reaching two accounts reaches neither, and is
+ * reported to the administrator instead.
  *
  * Also asserts existing 0-match and 1-match behavior is unchanged, and
  * that no DB rows are mutated during any of these paths.
@@ -141,12 +140,13 @@ beforeAll(async () => {
   // and a secondary on row B.
   insertLegacyMember(db, { legacy_member_id: LM_XCOL_A, legacy_email: XCOL_EMAIL });
   insertLegacyMember(db, { legacy_member_id: LM_XCOL_B, legacy_email2: XCOL_EMAIL });
+  // Verified, so the address is a matching key in the claim step.
   insertMember(db, {
     id: MEM_XCOL,
     slug: 'mem_xcol',
     login_email: XCOL_EMAIL,
     real_name: 'Cross Column',
-    email_verified_at: null,
+    onboarding: 'none',
   });
 
   db.close();
@@ -218,28 +218,18 @@ describe('lookupLegacyAccount — union shape', () => {
   });
 });
 
-describe('verifyEmailByToken — ambiguous-email classification', () => {
-  it('classifies ambiguous email as low/ambiguous_email_anchor with legacyMatch=null', async () => {
-    const token = issueVerifyToken(MEM_AMBIG);
-    const result = await identitySvc.identityAccessService.verifyEmailByToken(token);
-    expect(result).not.toBeNull();
-    expect(result!.legacyMatch).toBeNull();
-    expect(result!.autoLinkClassification).toEqual({
-      confidence: 'low',
-      reason: 'ambiguous_email_anchor',
-    });
-  });
-
-  it('still classifies a clean single-match member as high confidence (regression check)', async () => {
-    const token = issueVerifyToken(MEM_SINGLE);
-    const result = await identitySvc.identityAccessService.verifyEmailByToken(token);
-    expect(result!.autoLinkClassification.confidence).toBe('high');
-  });
-
-  it('still classifies no-anchor member as none (regression check)', async () => {
-    const token = issueVerifyToken(MEM_NONE);
-    const result = await identitySvc.identityAccessService.verifyEmailByToken(token);
-    expect(result!.autoLinkClassification).toEqual({ confidence: 'none' });
+describe('claim step — an address two old accounts share', () => {
+  // Defect caught: an address that slipped the legacy-data validation hands the
+  // member one of two accounts, or the administrator is not told why neither
+  // can be assumed theirs.
+  it('reaches neither account and reports the address to the administrator', async () => {
+    const matching = (await import('../../src/services/legacyMatchingService')).legacyMatchingService;
+    const evidence = matching.readMemberEvidence(MEM_XCOL)!;
+    const result = matching.match(evidence);
+    expect(result.candidates.filter((c) => c.accountId === LM_XCOL_A || c.accountId === LM_XCOL_B)).toEqual([]);
+    expect(result.ambiguousAddresses).toEqual([{ address: { kind: 'login' }, accountCount: 2 }]);
+    expect(identitySvc.identityAccessService.getLinkCandidatesForAdmin(MEM_XCOL).ambiguousAnchors)
+      .toEqual(['their sign-in address']);
   });
 });
 
@@ -249,42 +239,6 @@ describe('verify → routing for ambiguous email', () => {
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/personal_details');
-  });
-});
-
-describe('manual claim form — non-revealing on ambiguous email', () => {
-  it('renders the SAME "sent" banner as a match or miss (no leak of ambiguity)', async () => {
-    // The legacy-claim resolving actions run only once personal details are on
-    // file, so complete that step before exercising the manual search.
-    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
-    const agent = request.agent(createApp());
-    await agent
-      .post('/register/wizard/personal_details/submit')
-      .set('Cookie', cookie)
-      .type('form')
-      .send({ city: 'Portland', region: 'OR', country: 'US', birthDay: '1', birthMonth: '1', birthYear: '1980' });
-    const postRes = await agent
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookie)
-      .type('form')
-      .send({ identifier: AMBIG_EMAIL });
-    expect(postRes.status).toBe(303);
-    expect(postRes.headers.location).toBe('/register/wizard/legacy_claim');
-    const getRes = await agent
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookie);
-    expect(getRes.status).toBe(200);
-    expect(getRes.text).toMatch(/confirmation link has been sent/);
-  });
-
-  it('does NOT render the confirm page on ambiguous email', async () => {
-    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookie)
-      .type('form')
-      .send({ identifier: AMBIG_EMAIL });
-    expect(res.text).not.toContain('Confirm Legacy Account Link');
   });
 });
 
@@ -304,14 +258,15 @@ describe('no-write invariant — no legacy_members or members row changes during
     before.close();
 
     const app = createApp();
-    // Exercise all three paths without ever submitting a claim confirm.
+    // Exercise all three paths without ever submitting a claim confirm, then
+    // render the claim step for the ambiguous member: drawing the candidates
+    // must write nothing.
     for (const id of [MEM_AMBIG, MEM_SINGLE, MEM_NONE]) {
       const token = issueVerifyToken(id);
       await request(app).get(`/verify/${token}`);
     }
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
-    await request(app).post('/register/wizard/legacy_claim/find').set('Cookie', cookie)
-      .type('form').send({ identifier: AMBIG_EMAIL });
+    await request(app).get('/register/wizard/legacy_claim').set('Cookie', cookie);
 
     const after = new BetterSqlite3(dbPath, { readonly: true });
     const counts2 = {

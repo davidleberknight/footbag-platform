@@ -1,15 +1,10 @@
 /**
- * Auto-link candidate generation from the `name_variants` table.
+ * Curated name-variant lookups for the claim step's name key.
  *
- * Read-only helper. Given a member's real_name, returns the set of
- * historical_persons whose canonical name matches either:
- *   - the input directly (exact canonical hit), or
- *   - a canonical form reached through the symmetric `name_variants` table
- *     (variant hit).
- *
- * The service does NOT auto-link. It does not create, modify, or persist
- * any relationship. The caller composes this with the email-anchor check
- * and tier classifier to decide what, if anything, to do.
+ * Read-only helpers over the two curated tables: `name_variants`, whose rows tie
+ * one whole name to another, and `given_name_variants`, whose rows tie a
+ * nickname to the first name it shortens. The matching module composes them;
+ * nothing here decides a match or links anything.
  *
  * HIGH-only enforcement lives at load time (see
  * `legacy_data/scripts/load_name_variants_seed.py`). Rows present in the
@@ -17,15 +12,6 @@
  * invariant and does not re-filter.
  */
 import { nameVariants as nameVariantsDb } from '../db/db';
-
-export interface AutoLinkCandidate {
-  personId: string;
-  personName: string;
-  matchKind: 'exact' | 'variant';
-  matchedCanonicalNormalized: string;
-  /** Present only when matchKind === 'variant'. */
-  matchedVariantNormalized?: string;
-}
 
 /**
  * NFKC + lowercase + trim + collapse-internal-whitespace.
@@ -51,89 +37,34 @@ interface GivenNameVariantRow {
   long_form_normalized: string;
 }
 
-interface HistoricalPersonRow {
-  person_id: string;
-  person_name: string;
+/**
+ * The first names a curated nickname pair ties to this one, in either
+ * direction ("bob" reaches "robert" and back). The input is a folded first
+ * name; the result never includes it.
+ */
+export function nicknameAlternates(firstName: string): string[] {
+  if (!firstName) return [];
+  const rows = nameVariantsDb.findGivenNameAlternates.all(firstName, firstName) as GivenNameVariantRow[];
+  const out = new Set<string>();
+  for (const row of rows) {
+    const other = row.short_form_normalized === firstName ? row.long_form_normalized : row.short_form_normalized;
+    if (other && other !== firstName) out.add(other);
+  }
+  return [...out];
 }
 
 /**
- * Return historical-person auto-link candidates for a given real_name.
- *
- * Semantics:
- *   - Empty or whitespace-only input returns `[]`.
- *   - An HP reachable both directly (exact) and via a variant is reported
- *     once with `matchKind='exact'` (exact wins).
- *   - Multiple HPs reachable through the same canonical form are all
- *     returned; the caller decides how to present (Tier 3 admin review
- *     when ambiguity remains at the email step).
- *   - Results are sorted by `personId` for stable ordering.
+ * The whole names a curated name-variant row ties to this one, in either
+ * direction. Rows apply to whole names only, so the input is a full name in
+ * the `normalizeForMatch` form the rows are stored in.
  */
-export function findAutoLinkCandidates(realName: string): AutoLinkCandidate[] {
-  const input = normalizeForMatch(realName);
-  if (!input) return [];
-
-  // The normalized input is itself the first canonical form to try.
-  // Symmetric lookups contribute additional canonical forms.
-  const canonicalForms = new Map<string, string | undefined>();
-  canonicalForms.set(input, undefined); // exact hit, no variant row involved
-
-  const variantRows = nameVariantsDb.findByEitherColumn.all(
-    input,
-    input,
-  ) as NameVariantRow[];
-  for (const row of variantRows) {
-    const other =
-      row.canonical_normalized === input
-        ? row.variant_normalized
-        : row.canonical_normalized;
-    // Preserve an existing entry: if `other` was already reached exactly
-    // (e.g. input == other somehow), keep `undefined` so it's classified exact.
-    if (!canonicalForms.has(other)) {
-      canonicalForms.set(other, row.variant_normalized);
-    }
+export function wholeNameVariants(normalizedName: string): string[] {
+  if (!normalizedName) return [];
+  const rows = nameVariantsDb.findByEitherColumn.all(normalizedName, normalizedName) as NameVariantRow[];
+  const out = new Set<string>();
+  for (const row of rows) {
+    const other = row.canonical_normalized === normalizedName ? row.variant_normalized : row.canonical_normalized;
+    if (other && other !== normalizedName) out.add(other);
   }
-
-  // Nickname expansion: swap the first token using given_name_variants.
-  const inputTokens = input.split(' ');
-  if (inputTokens.length >= 2) {
-    const firstToken = inputTokens[0];
-    const nicknameRows = nameVariantsDb.findGivenNameAlternates.all(
-      firstToken,
-      firstToken,
-    ) as GivenNameVariantRow[];
-    for (const row of nicknameRows) {
-      const altFirst = row.short_form_normalized === firstToken
-        ? row.long_form_normalized
-        : row.short_form_normalized;
-      const altName = [altFirst, ...inputTokens.slice(1)].join(' ');
-      if (!canonicalForms.has(altName)) {
-        canonicalForms.set(altName, input);
-      }
-    }
-  }
-
-  const byPerson = new Map<string, AutoLinkCandidate>();
-  for (const [canonical, matchedVariantNormalized] of canonicalForms) {
-    const hpRows = nameVariantsDb.findHistoricalPersonsByNormalizedName.all(
-      canonical,
-    ) as HistoricalPersonRow[];
-    const isExact = canonical === input;
-    for (const hp of hpRows) {
-      const existing = byPerson.get(hp.person_id);
-      if (existing && existing.matchKind === 'exact') {
-        continue; // exact wins over variant
-      }
-      byPerson.set(hp.person_id, {
-        personId: hp.person_id,
-        personName: hp.person_name,
-        matchKind: isExact ? 'exact' : 'variant',
-        matchedCanonicalNormalized: canonical,
-        ...(isExact ? {} : { matchedVariantNormalized }),
-      });
-    }
-  }
-
-  return [...byPerson.values()].sort((a, b) =>
-    a.personId < b.personId ? -1 : a.personId > b.personId ? 1 : 0,
-  );
+  return [...out];
 }

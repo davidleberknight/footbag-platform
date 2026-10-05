@@ -113,8 +113,9 @@ function setupClaimed(opts: { withHpBackLink: boolean; hpHasMatchingLegacyId?: b
   const legacyId = nextId('legmem');
 
   const db = open();
-  insertMember(db, { id: memberId, login_email: `${memberId}@example.com` });
-  insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'X Player' });
+  // The member shares the records' surname, so the claim passes the surname rule.
+  insertMember(db, { id: memberId, login_email: `${memberId}@example.com`, real_name: 'Casey Player' });
+  insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Xan Player' });
 
   let hpId: string | undefined;
   if (opts.withHpBackLink) {
@@ -122,7 +123,7 @@ function setupClaimed(opts: { withHpBackLink: boolean; hpHasMatchingLegacyId?: b
     const hpLegacyId = opts.hpHasMatchingLegacyId === false ? nextId('other-legmem') : legacyId;
     insertHistoricalPerson(db, {
       person_id: hpId,
-      person_name: 'X Player',
+      person_name: 'Xan Player',
       legacy_member_id: hpLegacyId,
     });
   }
@@ -719,5 +720,96 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     db2.close();
 
     expect(task.state).toBe('completed');
+  });
+
+  it('binds a dispute revert to the claim that took the disputed record, not the member\'s latest claim', () => {
+    seedAdmin();
+    // The member claimed an old account, and then a separate competition record.
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
+    const laterHpId = nextId('hp');
+    const db = open();
+    insertHistoricalPerson(db, { person_id: laterHpId, person_name: 'Yan Player' });
+    db.close();
+    svc.claimHistoricalPerson(memberId, laterHpId);
+
+    const db1 = open();
+    const accountClaimRow = db1.prepare(
+      `SELECT id FROM audit_entries WHERE action_type = 'claim.legacy_account' AND entity_id = ?`,
+    ).get(memberId) as { id: string };
+    db1.close();
+    const requesterId = nextId('req');
+    const db2 = open();
+    insertMember(db2, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db2.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true, disputedLegacyMemberIds: [legacyId] });
+
+    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'upheld');
+
+    // The forensic trail must point at the account claim being undone; pointing
+    // at the record claim would tell a later reviewer the wrong claim was reverted.
+    expect(result.status).toBe('reverted');
+    expect(result.status === 'reverted' && result.originalClaimAuditId).toBe(accountClaimRow.id);
+  });
+
+  it('records an administrator-applied link as the administrator\'s act on every row it writes', () => {
+    seedAdmin();
+    const requesterId = nextId('req');
+    const legacyId = nextId('legmem');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Unrelated Surname' });
+    db.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: false });
+
+    svc.approveLinkHelpRequest(ADMIN_ID, itemId, { legacyMemberId: legacyId });
+
+    // A ledger that names the member as the actor would read as the member
+    // claiming the account themselves, which is not what happened.
+    const db2 = open();
+    const claimRow = db2.prepare(
+      `SELECT actor_type, actor_member_id FROM audit_entries WHERE action_type = 'claim.legacy_account' AND entity_id = ?`,
+    ).get(requesterId) as { actor_type: string; actor_member_id: string };
+    db2.close();
+    expect(claimRow).toEqual({ actor_type: 'admin', actor_member_id: ADMIN_ID });
+  });
+
+  it('the approve preview refuses what the apply step would refuse', () => {
+    seedAdmin();
+    // A member who already holds a competition record cannot be given another.
+    const { memberId } = setupClaimed({ withHpBackLink: true });
+    const otherHp = nextId('hp');
+    const deadLegacy = nextId('legmem');
+    const deadHp = nextId('hp');
+    const freshMember = nextId('req');
+    const db = open();
+    insertHistoricalPerson(db, { person_id: otherHp, person_name: 'Other Player' });
+    insertHistoricalPerson(db, { person_id: deadHp, person_name: 'Dead Player', legacy_member_id: deadLegacy, is_deceased: 1 });
+    insertMember(db, { id: freshMember, login_email: `${freshMember}@example.com` });
+    db.close();
+
+    const heldItem = insertQueueItem({ entityId: memberId, isDispute: false });
+    expect(() => svc.previewLinkHelpApproval(ADMIN_ID, heldItem, { historicalPersonId: otherHp }))
+      .toThrow(/already holds a competition record/);
+
+    // An account whose linked record is marked deceased cannot be linked.
+    const freshItem = insertQueueItem({ entityId: freshMember, isDispute: false });
+    expect(() => svc.previewLinkHelpApproval(ADMIN_ID, freshItem, { legacyMemberId: deadLegacy }))
+      .toThrow(/marked deceased/);
+  });
+
+  it('a reverted claim takes with it the deceased flag the member\'s marking cascaded onto the record', async () => {
+    seedAdmin();
+    const { memberId, hpId } = setupClaimed({ withHpBackLink: true });
+    const { deceasedMarkingService } = await import('../../src/services/deceasedMarkingService');
+    deceasedMarkingService.markDeceased(ADMIN_ID, memberId);
+    const flag = () => (open().prepare('SELECT is_deceased FROM historical_persons WHERE person_id = ?')
+      .get(hpId!) as { is_deceased: number }).is_deceased;
+    expect(flag()).toBe(1);
+
+    svc.revertAutoLink(memberId, 'audit-cascade', { actorType: 'admin', actorMemberId: ADMIN_ID });
+
+    // The record was never this member's, so its real owner must be able to
+    // claim it; left flagged it would be unclaimable for good.
+    expect(flag()).toBe(0);
   });
 });

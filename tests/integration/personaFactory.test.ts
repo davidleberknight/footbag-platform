@@ -157,7 +157,7 @@ describe('seedPersona — composition by dimension', () => {
   it('legacy spec with legacyEmail seeds the legacy_members email anchor', () => {
     const p = seedPersona(db, {
       slug: 'fac_legemail', displayName: 'Fac LegEmail', tier: 'tier0',
-      legacy: { linked: false, legacyEmail: 'anchor@legacy.test' }, testingUsage: 'Factory composition check.', coverageNotes: ['email fast path'],
+      legacy: { linked: false, legacyEmail: 'anchor@legacy.test' }, testingUsage: 'Factory composition check.', coverageNotes: ['old address as a matching key'],
     });
     const legacy = db.prepare(`SELECT legacy_email FROM legacy_members WHERE legacy_member_id = ?`).get(p.legacyMemberId!) as { legacy_email: string | null };
     expect(legacy.legacy_email).toBe('anchor@legacy.test');

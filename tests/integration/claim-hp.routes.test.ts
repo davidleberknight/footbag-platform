@@ -18,6 +18,8 @@ import {
   insertHistoricalPerson,
   insertOnboardingTask,
   insertErasureLog,
+  insertMemberDeclaredAnchor,
+  insertGivenNameVariant,
   createTestSessionJwt,
   completeOnboarding,
 } from '../fixtures/factories';
@@ -46,9 +48,11 @@ const OTHER_NAME   = 'Unrelated Smith';
 // millisecond-resolution and its id is random, so no ordering separates them.
 const blockedClaimAudit = rowPin(
   'audit_entries',
-  `action_type = 'claim.historical_person_blocked' AND actor_member_id = ?`,
+  `action_type = 'claim.refused' AND actor_member_id = ?`,
   [OTHER_ID],
 );
+
+const NO_LONGER_AVAILABLE = 'This record is no longer available to claim.';
 
 // HP with no legacy_member_id back-link (scenario D).
 const HP_NO_LEGACY = 'hp-d-scenario-001';
@@ -253,7 +257,7 @@ describe('GET /history/:personId/claim', () => {
     await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
     const count = testDb.prepare(
       `SELECT COUNT(*) AS c FROM audit_entries
-        WHERE action_type = 'claim.historical_person_blocked'
+        WHERE action_type = 'claim.refused'
           AND actor_member_id = ?`,
     ).get(OTHER_ID) as { c: number };
     expect(count.c).toBe(0);
@@ -393,6 +397,11 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
       birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, scenarioEClaimerId, 'personal_details', 'completed');
+    // A record with an old account behind it needs the member's own evidence
+    // on that account, not a name alone: here, the old address it carried.
+    insertMemberDeclaredAnchor(testDb, {
+      member_id: scenarioEClaimerId, anchor_type: 'old_email', anchor_value: 'e@oldsite.test',
+    });
     const scenarioECookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
 
     const app = createApp();
@@ -467,7 +476,9 @@ describe('POST /history/:personId/claim/confirm — tier grant invariant', () =>
 // ── Adversarial ──────────────────────────────────────────────────────────────
 
 describe('POST /history/:personId/claim/confirm — adversarial', () => {
-  it('second claim on the same HP is rejected by partial UNIQUE index', async () => {
+  // Defect caught: a record another member already holds is taken over, or the
+  // refusal reveals that it is held rather than reading like any other.
+  it('a claim of a record another member holds is refused uniformly and links nothing', async () => {
     // CLAIMER already owns HP_NO_LEGACY from earlier. A fresh member with
     // matching surname attempts a second claim.
     const secondClaimerId = insertMember(testDb, {
@@ -482,7 +493,11 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
       .set('Cookie', secondCookie).type('form').send({});
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already been claimed');
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
+    expect(res.text).not.toContain('already been claimed');
+    const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(secondClaimerId) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
   });
 
   it('surname-mismatch member cannot POST-confirm even if they bypass the form', async () => {
@@ -497,20 +512,20 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       .post(`/history/${surnameMismatchHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
-    expect(res.text).toContain('does not match');
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
 
     // An actual attempt IS recorded, but classified on the evidence beside it
     // rather than as an impersonation attempt on the strength of a name. This
     // record carries no legacy account, so there is no date to weigh and
-    // nothing is settled either way.
+    // nothing is settled either way. The member's evidence never reached it.
     const row = oneRowAddedSince<{ metadata_json: string }>(
       testDb,
       blockedClaimAudit,
       before,
     );
     const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.person_id).toBe(surnameMismatchHp);
-    expect(meta.reason).toBe('surname_mismatch');
+    expect(meta.record_id).toBe(surnameMismatchHp);
+    expect(meta.refusal).toBe('not_reached');
     expect(meta.dob_comparison).toBe('no_legacy_account');
     expect(meta.assessment).toBe('unevidenced');
   });
@@ -543,7 +558,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       before,
     );
     const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.person_id).toBe(corroboratedHp);
+    expect(meta.record_id).toBe(corroboratedHp);
     expect(meta.dob_comparison).toBe('identical');
     expect(meta.assessment).toBe('corroborated');
   });
@@ -573,7 +588,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       before,
     );
     const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.person_id).toBe(contradictedHp);
+    expect(meta.record_id).toBe(contradictedHp);
     expect(meta.dob_comparison).toBe('mismatch');
     expect(meta.assessment).toBe('contradicted');
   });
@@ -629,6 +644,8 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
       slug: 'hpc_dec_claimant_get', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
       login_email: 'hpc-dec-get@example.com', onboarding: 'none',
     });
+    // In the claim step, where the record page's claim link is reached from.
+    insertOnboardingTask(testDb, claimantId, 'personal_details', 'completed');
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();
     const res = await request(app).get(`/history/${heldHp}/claim`).set('Cookie', cookie);
@@ -652,7 +669,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
       .post(`/history/${heldHp}/claim/confirm`)
       .set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already been claimed');
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
 
     const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
       .get(claimantId) as { historical_person_id: string | null };
@@ -686,6 +703,8 @@ describe('claim of a record held by an erased honoree', () => {
       slug: 'hpc_hon_claimant_get', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
       login_email: 'hpc-hon-get@example.com', onboarding: 'none',
     });
+    // In the claim step, where the record page's claim link is reached from.
+    insertOnboardingTask(testDb, claimantId, 'personal_details', 'completed');
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();
     const res = await request(app).get(`/history/${heldHp}/claim`).set('Cookie', cookie);
@@ -709,7 +728,7 @@ describe('claim of a record held by an erased honoree', () => {
       .post(`/history/${heldHp}/claim/confirm`)
       .set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already been claimed');
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
 
     const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
       .get(claimantId) as { historical_person_id: string | null };
@@ -761,6 +780,9 @@ describe('POST /history/:personId/claim/confirm — claim audit metadata', () =>
 
   it('records the name difference when the claimant confirms under another form of the first name', async () => {
     const hp = 'hp-audit-variant-name';
+    // A record reached by name needs the first names to agree, exactly or as a
+    // curated nickname pair.
+    insertGivenNameVariant(testDb, { short_form_normalized: 'fred', long_form_normalized: 'frederick' });
     const memberId = seedClaimant(hp, 'Frederick Mockingbird', 'Fred Mockingbird', 'hpc_audit_variant');
     const res = await request(createApp())
       .post(`/history/${hp}/claim/confirm`)

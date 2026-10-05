@@ -11,7 +11,7 @@
  * and pins them against a lifetime that is deliberately not the seeded default:
  * a hard-coded window passes a default-valued test whatever it reads.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -110,15 +110,22 @@ describe('session lifetime from the configured value', () => {
     // The Max-Age above governs only whether the browser keeps sending the
     // cookie. The policy inside it is what the edge enforces, so a policy that
     // outlived the session would still open the archive to a replayed cookie.
-    const before = Math.floor(Date.now() / 1000);
-    const cookies = await issueFreshSession();
-    const after = Math.floor(Date.now() / 1000);
+    // The clock is frozen because a wall-clock bracket around the request fails
+    // whenever the host steps its clock backwards mid-request.
+    const issuedAtSeconds = Math.floor(Date.now() / 1000);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    let cookies: string[];
+    try {
+      vi.setSystemTime(issuedAtSeconds * 1000 + 500);
+      cookies = await issueFreshSession();
+    } finally {
+      vi.useRealTimers();
+    }
     const policyCookie = cookies.find((c) => c.startsWith('CloudFront-Policy='))!;
     const value = policyCookie.split(';')[0].split('=').slice(1).join('=');
     const base64 = value.replace(/-/g, '+').replace(/_/g, '=').replace(/~/g, '/');
     const policy = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
     const expiry = policy.Statement[0].Condition.DateLessThan['AWS:EpochTime'];
-    expect(expiry).toBeGreaterThanOrEqual(before + CONFIGURED_SECONDS);
-    expect(expiry).toBeLessThanOrEqual(after + CONFIGURED_SECONDS);
+    expect(expiry).toBe(issuedAtSeconds + CONFIGURED_SECONDS);
   });
 });

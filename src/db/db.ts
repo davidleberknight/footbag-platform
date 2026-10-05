@@ -5288,9 +5288,7 @@ export interface OutboxRow {
 export interface AccountTokenRow {
   id: string;
   member_id: string;
-  target_legacy_member_id: string | null;
   target_audit_entry_id: string | null;
-  target_anchor_id: string | null;
   token_type: string;
   expires_at: string;
   used_at: string | null;
@@ -5304,7 +5302,7 @@ export const accountTokens = {
   // still be answered from the row.
   //
   // Every type is covered, not only the two the story names: a data-export link
-  // and a claim token age out on exactly the same terms, and a sweep that knew
+  // ages out on exactly the same terms, and a sweep that knew
   // about some types and not others would quietly hoard the rest.
   get deleteSpentOlderThan() { return db.prepare(`
     DELETE FROM account_tokens
@@ -5321,17 +5319,17 @@ export const accountTokens = {
   get insert() { return db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, target_legacy_member_id, target_audit_entry_id, target_anchor_id, token_type,
+      member_id, target_audit_entry_id, token_type,
       token_hash, token_hash_version,
       issued_at, expires_at
     ) VALUES (?, ?, 'system', ?, 'system', 1,
-      ?, ?, ?, ?, ?,
+      ?, ?, ?,
       ?, 1,
       ?, ?)
   `); },
 
   get findByHash() { return db.prepare(`
-    SELECT id, member_id, target_legacy_member_id, target_audit_entry_id, target_anchor_id,
+    SELECT id, member_id, target_audit_entry_id,
            token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
@@ -5371,13 +5369,17 @@ export const auditEntries = {
       ?)
   `); },
 
-  // Every claim this member has attempted, for the evidence block an
-  // administrator adjudicates a disputed or doubtful link from. The ledger is
-  // the only place the outcome of a past attempt survives: the claim itself may
-  // have been reverted, and a refused one wrote no other row at all.
+  // Everything this member did in the claim step and everything done to their
+  // links since, for the evidence an administrator adjudicates a disputed or
+  // doubtful link from: claims, declines, refused claims, non-claiming answers,
+  // anchor additions and reverts. The ledger is the only place a past attempt
+  // survives: a claim may have been reverted, and a refused one wrote no other
+  // row at all.
   //
   // Newest first, because a dispute is almost always about the most recent
-  // attempt, and capped because a queue card is a summary rather than a history.
+  // attempt. Uncapped: an administrator weighing a doubtful link needs all of
+  // it, and one member's claim step produces a handful of rows. Unpaginated,
+  // so the id tiebreak only fixes the order of rows sharing a timestamp.
   get listClaimEvidenceForMember() { return db.prepare(`
     SELECT occurred_at, action_type, metadata_json, data_origin
     FROM audit_entries
@@ -5386,10 +5388,13 @@ export const auditEntries = {
       AND action_type IN (
         'claim.legacy_account',
         'claim.historical_person',
-        'claim.historical_person_blocked'
+        'claim.refused',
+        'legacy.claim_candidate_declined',
+        'legacy.claim_step_answered',
+        'legacy.anchor_declared',
+        'legacy.auto_link_revert'
       )
     ORDER BY occurred_at DESC, id DESC
-    LIMIT 10
   `); },
 };
 
@@ -7915,12 +7920,14 @@ export const legacyClaim = {
     LIMIT 1
   `); },
 
-  get findHistoricalPersonByAlias() { return db.prepare(`
+  // Records whose alias list contains the text anywhere; the service keeps only
+  // a whole-alias match. Unpaginated, so no tiebreaker is needed.
+  get listHistoricalPersonsByAliasText() { return db.prepare(`
     SELECT person_id, person_name, aliases, legacy_member_id, country,
            hof_member, bap_member, hof_induction_year, bap_induction_year, first_year, is_deceased
     FROM historical_persons
     WHERE aliases LIKE '%' || ? || '%' ESCAPE '\\'
-    LIMIT 1
+    ORDER BY person_id
   `); },
 
   get checkLegacyIdAlreadyClaimed() { return db.prepare(`
@@ -8018,12 +8025,37 @@ export const legacyClaim = {
   // live member already owns this HP. The partial UNIQUE index on
   // members.historical_person_id ultimately enforces this at write time; this
   // read is for a friendly error rather than a raw constraint failure.
-  // Latest completed-claim audit row for a member; the dispute revert binds
-  // its forensic events to this id.
-  get findLatestClaimAuditForMember() { return db.prepare(`
+  // Whether marking this member deceased cascaded the flag onto this record.
+  // Parameters: member id, record id.
+  get findDeceasedCascadeOntoRecord() { return db.prepare(`
+    SELECT id FROM audit_entries
+    WHERE action_type = 'member.deceased_marked'
+      AND entity_type = 'member' AND entity_id = ?
+      AND json_extract(metadata_json, '$.cascaded_to_historical_person') = 1
+      AND json_extract(metadata_json, '$.historical_person_id') = ?
+    LIMIT 1
+  `); },
+
+  get clearDeceasedFlagOnRecord() { return db.prepare(`
+    UPDATE historical_persons SET is_deceased = 0 WHERE person_id = ? AND is_deceased = 1
+  `); },
+
+  // The member's completed-claim audit row that took one record, directly or
+  // transitively; the dispute revert binds its forensic events to this id. A
+  // member who claimed an account and a record separately holds two such rows,
+  // so the row is chosen by the record, never by recency alone. Parameters:
+  // member id, then the record id four times.
+  get findClaimAuditForRecord() { return db.prepare(`
     SELECT id FROM audit_entries
     WHERE entity_type = 'member' AND entity_id = ?
-      AND action_type IN ('claim.legacy_account', 'claim.historical_person')
+      AND (
+        (action_type = 'claim.legacy_account'
+          AND (json_extract(metadata_json, '$.legacy_member_id') = ?
+            OR json_extract(metadata_json, '$.transitive_hp_id') = ?))
+        OR (action_type = 'claim.historical_person'
+          AND (json_extract(metadata_json, '$.person_id') = ?
+            OR json_extract(metadata_json, '$.transitive_legacy_id') = ?))
+      )
     ORDER BY created_at DESC, id DESC
     LIMIT 1
   `); },
@@ -8052,7 +8084,7 @@ export const legacyClaim = {
   // Read the identifying fields needed to evaluate a claim: the member's slug
   // (for post-claim redirect), real_name (for surname reconciliation against
   // the HP or legacy account), existing linkage state, and the verified-email
-  // signal used by the email-equality fast path in initiateLegacyClaim.
+  // signal that lets the login email count as a matching key.
   // The honor flags come with the row because a revert decides, per honor,
   // whether the flag the member carries came from the claim being reverted; a
   // flag they never held is not something a revert can clear.
@@ -8060,6 +8092,24 @@ export const legacyClaim = {
     SELECT id, slug, real_name, legacy_member_id, historical_person_id,
            login_email_normalized, email_verified_at, birth_date, country,
            is_hof, is_bap
+    FROM members
+    WHERE id = ?
+      AND deleted_at IS NULL
+      AND personal_data_purged_at IS NULL
+  `); },
+
+  // Who holds a record, as an administrator adjudicating a link reads it.
+  get findHolderForAdmin() { return db.prepare(`
+    SELECT id, slug, display_name FROM members WHERE id = ?
+  `); },
+
+  // Everything the claim step's matching reads from the member's own row: the
+  // name parts, the verified login email, the date of birth, the country and
+  // the two identity links already held.
+  get findMemberForMatch() { return db.prepare(`
+    SELECT id, real_name, given_names, family_name,
+           login_email_normalized, email_verified_at, birth_date, country,
+           legacy_member_id, historical_person_id
     FROM members
     WHERE id = ?
       AND deleted_at IS NULL
@@ -8199,7 +8249,7 @@ export const legacyMembers = {
     WHERE legacy_member_id = ?
   `); },
 
-  // Clear members.legacy_member_id when reverting a silent auto-link.
+  // Clear members.legacy_member_id when reverting a claim.
   // Caller wraps in the same transaction as the legacy_members.clearClaim
   // call so the linkage state is mutually consistent at COMMIT time.
   get clearMemberLegacyLink() { return db.prepare(`
@@ -8321,6 +8371,34 @@ export const legacyMembers = {
     LIMIT ?
   `); },
 
+  // The claim step's name index over old accounts: every account carrying a
+  // real name, held or not, because a held account is still reported to the
+  // administrator's candidate view. Unpaginated, so no tiebreaker is needed.
+  get listNamesForMatch() { return db.prepare(`
+    SELECT legacy_member_id, real_name
+    FROM legacy_members
+    WHERE real_name IS NOT NULL AND TRIM(real_name) <> ''
+  `); },
+
+  // Accounts carrying one exact date of birth, for the surname-plus-date key.
+  // Unpaginated, so no tiebreaker is needed.
+  get listByBirthDate() { return db.prepare(`
+    SELECT legacy_member_id, real_name, birth_date
+    FROM legacy_members
+    WHERE birth_date = ?
+  `); },
+
+  // Every account carrying one address in any of its three email slots, held
+  // or not, with the slot it sits in. Legacy emails are stored lowercase, so the
+  // BINARY email indexes serve the equality seek. Unpaginated.
+  get listByEmail() { return db.prepare(`
+    SELECT legacy_member_id, 1 AS slot FROM legacy_members WHERE legacy_email = ?
+    UNION ALL
+    SELECT legacy_member_id, 2 AS slot FROM legacy_members WHERE legacy_email2 = ?
+    UNION ALL
+    SELECT legacy_member_id, 3 AS slot FROM legacy_members WHERE legacy_email3 = ?
+  `); },
+
   // Profile-settings listing: every legacy_members row claimed by a live
   // member. Today there is at most one per member (single-claim enforced
   // by the partial UNIQUE on members.legacy_member_id), but the listing
@@ -8336,69 +8414,37 @@ export const legacyMembers = {
   `); },
 };
 
-// ── autoLinkStagedCandidates ────────────────────────────────────────────────
+
+// ── legacyClaimDeclines ─────────────────────────────────────────────────────
 //
-// Migration-only staging surface for batch auto-link candidate matches.
-// The staging pass inserts open rows without touching live tables; the
-// onboarding wizard reads open rows for the signed-in member; resolution
-// (confirmed / declined / expired) is terminal and recorded with a
-// timestamp. The partial unique index makes re-staging the same open
-// member/target pair a constraint hit, which the service treats as
-// already-staged.
+// A member's standing "This Is Not Me" answers in the claim step. Insert-only
+// for the member; the personal-data purge deletes a member's rows.
 // ---------------------------------------------------------------------------
-export interface AutoLinkStagedCandidateRow {
+export interface LegacyClaimDeclineRow {
   id: string;
   member_id: string;
   legacy_member_id: string | null;
   historical_person_id: string | null;
-  confidence: 'high' | 'medium';
-  matched_anchors_json: string;
-  proposed_evidence_strength: string;
-  source_pass: 'batch' | 'sign_in' | 'registration' | 'cross_source';
-  status: 'staged' | 'confirmed' | 'declined' | 'expired';
-  resolved_at: string | null;
-  expires_at: string | null;
 }
 
-export const autoLinkStagedCandidates = {
-  get insertCandidate() { return db.prepare(`
-    INSERT INTO auto_link_staged_candidates (
+export const legacyClaimDeclines = {
+  // A repeated decline of the same target is a no-op through the unique index.
+  get insertIfMissing() { return db.prepare(`
+    INSERT OR IGNORE INTO legacy_claim_declines (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, legacy_member_id, historical_person_id,
-      confidence, matched_anchors_json, proposed_evidence_strength,
-      source_pass, status, resolved_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 'staged', NULL, ?)
+      member_id, legacy_member_id, historical_person_id, confidence, evidence_json
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `); },
 
-  get listOpenByMember() { return db.prepare(`
-    SELECT * FROM auto_link_staged_candidates
-    WHERE member_id = ? AND status = 'staged'
-    ORDER BY created_at ASC, id ASC
+  // Unpaginated, so no tiebreaker is needed.
+  get listByMember() { return db.prepare(`
+    SELECT id, member_id, legacy_member_id, historical_person_id
+    FROM legacy_claim_declines
+    WHERE member_id = ?
   `); },
 
-  get listResolvedByMember() { return db.prepare(`
-    SELECT * FROM auto_link_staged_candidates
-    WHERE member_id = ? AND status != 'staged'
-    ORDER BY created_at ASC, id ASC
-  `); },
-
-  get findOpenById() { return db.prepare(`
-    SELECT * FROM auto_link_staged_candidates
-    WHERE id = ? AND status = 'staged'
-  `); },
-
-  // Terminal transition; the status guard makes resolution race-safe
-  // (changes=0 when another path already resolved the row).
-  get resolveById() { return db.prepare(`
-    UPDATE auto_link_staged_candidates
-    SET status = ?, resolved_at = ?, updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ? AND status = 'staged'
-  `); },
-
-  get listExpiredOpen() { return db.prepare(`
-    SELECT * FROM auto_link_staged_candidates
-    WHERE status = 'staged' AND expires_at IS NOT NULL AND expires_at <= ?
-    ORDER BY expires_at ASC, id ASC
+  get deleteAllForMember() { return db.prepare(`
+    DELETE FROM legacy_claim_declines WHERE member_id = ?
   `); },
 };
 
@@ -8446,6 +8492,37 @@ export const memberOnboarding = {
      WHERE id = ?
   `); },
 
+  // The claim task's two markers: date-of-birth changes made while onboarding
+  // and when the one last attempt was opened.
+  get findLegacyClaimCounters() { return db.prepare(`
+    SELECT birth_date_changes, last_attempt_opened_at
+      FROM member_onboarding_tasks
+     WHERE member_id = ?
+       AND task_type = 'legacy_claim'
+  `); },
+
+  get incrementBirthDateChanges() { return db.prepare(`
+    UPDATE member_onboarding_tasks
+       SET birth_date_changes = COALESCE(birth_date_changes, 0) + 1,
+           updated_at   = ?,
+           updated_by   = ?,
+           version      = version + 1
+     WHERE member_id = ?
+       AND task_type = 'legacy_claim'
+  `); },
+
+  // Once only: a second call finds the marker set and changes nothing.
+  get markLastAttemptOpened() { return db.prepare(`
+    UPDATE member_onboarding_tasks
+       SET last_attempt_opened_at = ?,
+           updated_at   = ?,
+           updated_by   = ?,
+           version      = version + 1
+     WHERE member_id = ?
+       AND task_type = 'legacy_claim'
+       AND last_attempt_opened_at IS NULL
+  `); },
+
   // Put a completed task back in front of the member. The caller decides when
   // that is warranted; this only performs it, and only on a task that is
   // currently completed, so re-running it cannot disturb one already pending.
@@ -8477,14 +8554,10 @@ export const declaredAnchors = {
   `); },
 
   get listByMember() { return db.prepare(`
-    SELECT id, anchor_type, anchor_value, created_at, verified_via_link_click_at
+    SELECT id, anchor_type, anchor_value, created_at
       FROM member_declared_anchors
      WHERE member_id = ?
      ORDER BY anchor_type, anchor_value
-  `); },
-
-  get deleteById() { return db.prepare(`
-    DELETE FROM member_declared_anchors WHERE id = ? AND member_id = ?
   `); },
 
   // Conflict-prompt scan inputs: every claimed identity's display name, so
@@ -8492,6 +8565,10 @@ export const declaredAnchors = {
   // already taken (same-name collision and impersonation detection).
   // Only the member's chosen public display_name is selected; the legacy
   // legal real_name must never surface to an unrelated registrant.
+  // Each scan counts as a holder exactly whom its claim gate refuses for, so
+  // the prompt and the refusal never disagree: an account is held while it
+  // records a claimant, and a record while a member of record holds it (which
+  // keeps an erased honoree's record held).
   get listClaimedLegacyForConflictScan() { return db.prepare(`
     SELECT legacy_member_id, display_name
     FROM legacy_members
@@ -8500,25 +8577,8 @@ export const declaredAnchors = {
 
   get listClaimedHpForConflictScan() { return db.prepare(`
     SELECT hp.person_id, hp.person_name
-    FROM members m
+    FROM members_of_record m
     JOIN historical_persons hp ON hp.person_id = m.historical_person_id
-    WHERE m.deleted_at IS NULL
-  `); },
-
-  get findByIdForMember() { return db.prepare(`
-    SELECT id, member_id, anchor_type, anchor_value,
-           verified_via_link_click_at, verification_token_id
-    FROM member_declared_anchors
-    WHERE id = ? AND member_id = ?
-  `); },
-
-  // Mailbox-control upgrade: stamps the click and the consumed token id.
-  // The IS NULL guard makes re-consume attempts no-ops.
-  get markVerifiedByLinkClick() { return db.prepare(`
-    UPDATE member_declared_anchors
-    SET verified_via_link_click_at = ?, verification_token_id = ?,
-        updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ? AND member_id = ? AND verified_via_link_click_at IS NULL
   `); },
 
   // PII purge clears every anchor the member declared; anchors are
@@ -8705,11 +8765,11 @@ export const erasureLog = {
   `); },
 };
 
-// Read-only auto-link candidate lookup. Rows in `name_variants` are loaded
+// Read-only name lookups for the claim step's name key. Rows in `name_variants` are loaded
 // pre-normalized (NFKC+lower+trim+collapse), by contract of the loader.
 // Symmetric table: a lookup must check both columns and return the opposite.
-// `person_name` is stored unnormalized; the SQL uses `lower(trim(...))` as a
-// safe approximation for current canonical data (NFC-composed, single-spaced).
+// `person_name` is stored unnormalized and folded in the service, so both sides
+// of a comparison go through the same Unicode rule.
 export const nameVariants = {
   get findByEitherColumn() { return db.prepare(`
     SELECT canonical_normalized, variant_normalized
@@ -8717,10 +8777,12 @@ export const nameVariants = {
     WHERE canonical_normalized = ? OR variant_normalized = ?
   `); },
 
-  get findHistoricalPersonsByNormalizedName() { return db.prepare(`
+  // Every record's name, for name matching. The comparison happens in the
+  // service, which folds both sides with the same Unicode rule: SQLite's lower()
+  // folds ASCII only, so a name carrying an accented capital could never match.
+  get listHistoricalPersonNames() { return db.prepare(`
     SELECT person_id, person_name
     FROM historical_persons
-    WHERE lower(trim(person_name)) = ?
     ORDER BY person_id
   `); },
 
@@ -9549,8 +9611,8 @@ export const workQueue = {
     WHERE id = ? AND status = 'open'
   `); },
 
-  // De-dupe probe for the batch auto-link pass: skip emitting a second open
-  // item for the same (task_type, entity) pair when one is already queued.
+  // De-dupe probe: skip emitting a second open item for the same
+  // (task_type, entity) pair when one is already queued.
   get findOpenByEntity() { return db.prepare(`
     SELECT id FROM work_queue_items
     WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
@@ -9910,22 +9972,6 @@ export const deceasedMarking = {
     WHERE member_id = ?
       AND status IN ('pending', 'confirmed')
       AND event_id IN (SELECT id FROM events WHERE start_date >= ?)
-  `); },
-};
-
-export const batchAutoLink = {
-  // Tier 0 candidate set for the seeded-environment batch auto-link pass. Excludes
-  // already-linked members (either anchor present) and members without a
-  // verifiable email (the classifier's anchor).
-  get listCandidates() { return db.prepare(`
-    SELECT m.id
-    FROM members_active AS m
-    JOIN member_tier_current AS mt ON mt.member_id = m.id
-    WHERE mt.tier_status = 'tier0'
-      AND m.legacy_member_id IS NULL
-      AND m.historical_person_id IS NULL
-      AND m.login_email IS NOT NULL
-      AND m.email_verified_at IS NOT NULL
   `); },
 };
 

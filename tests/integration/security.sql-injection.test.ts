@@ -205,17 +205,17 @@ describe('GET /members?q=... — SQL injection in search query', () => {
   }
 });
 
-// ── POST /register/wizard/legacy_claim/find (authenticated) ──────────────────
+// ── POST /register/wizard/legacy_claim/anchors/add (authenticated) ───────────
 
-describe('POST /register/wizard/legacy_claim/find — SQL injection in identifier', () => {
+describe('POST /register/wizard/legacy_claim/anchors/add — SQL injection in a former surname', () => {
   for (const payload of SQL_PAYLOADS) {
     it(`survives payload: ${payload.slice(0, 24)}...`, async () => {
       const before = countMembers();
       const res = await request(createApp())
-        .post('/register/wizard/legacy_claim/find')
+        .post('/register/wizard/legacy_claim/anchors/add')
         .set('Cookie', ownCookie())
         .type('form')
-        .send({ identifier: payload });
+        .send({ anchorType: 'former_surname', anchorValue: payload });
       expect(res.status).toBeLessThan(500);
       expect(countMembers()).toBe(before);
     });

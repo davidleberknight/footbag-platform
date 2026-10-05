@@ -1,12 +1,11 @@
 /**
  * Security integration tests for the onboarding wizard surface.
  * Covers auth gates, authorization (cross-member access), CSRF Origin-pin
- * on all state-changing POSTs, anti-enumeration on claim lookup, and
- * absence of PII/contact fields in wizard responses.
+ * on all state-changing POSTs, and absence of PII/contact fields in wizard
+ * responses.
  *
  * Contracts verified: the wizard is reachable only by the signed-in member
- * it belongs to; claim lookups reveal nothing about other accounts; no
- * contact fields ever render in wizard responses.
+ * it belongs to; no contact fields ever render in wizard responses.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -66,14 +65,11 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
   }
 
   const postRoutes = [
-    '/register/wizard/legacy_claim/find',
-    '/register/wizard/legacy_claim/auto-link/confirm',
-    '/register/wizard/legacy_claim/auto-link/decline',
-    '/register/wizard/legacy_claim/claim/confirm',
-    '/register/wizard/legacy_claim/cross-source/confirm',
-    '/register/wizard/legacy_claim/anchors/send-verification',
+    '/register/wizard/legacy_claim/claim',
+    '/register/wizard/legacy_claim/claim-with-surname',
+    '/register/wizard/legacy_claim/decline',
+    '/register/wizard/legacy_claim/birth-date',
     '/register/wizard/legacy_claim/anchors/add',
-    '/register/wizard/legacy_claim/anchors/remove',
     '/register/wizard/personal_details/submit',
     '/register/wizard/club_affiliations/submit',
     '/register/wizard/club_affiliations/none',
@@ -97,14 +93,11 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
 describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', () => {
   const cookie = cookieFor(MEMBER_A_ID);
   const postRoutes = [
-    '/register/wizard/legacy_claim/find',
-    '/register/wizard/legacy_claim/auto-link/confirm',
-    '/register/wizard/legacy_claim/auto-link/decline',
-    '/register/wizard/legacy_claim/claim/confirm',
-    '/register/wizard/legacy_claim/cross-source/confirm',
-    '/register/wizard/legacy_claim/anchors/send-verification',
+    '/register/wizard/legacy_claim/claim',
+    '/register/wizard/legacy_claim/claim-with-surname',
+    '/register/wizard/legacy_claim/decline',
+    '/register/wizard/legacy_claim/birth-date',
     '/register/wizard/legacy_claim/anchors/add',
-    '/register/wizard/legacy_claim/anchors/remove',
     '/register/wizard/personal_details/submit',
     '/register/wizard/club_affiliations/submit',
     '/register/wizard/club_affiliations/none',
@@ -116,106 +109,6 @@ describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', (
       await expectCsrfReject(createApp(), 'post', route, { cookie });
     });
   }
-});
-
-// ── Anti-enumeration on claim lookup ─────────────────────────────────────────
-
-describe('anti-enumeration: claim lookup returns identical response shape regardless of outcome', () => {
-  it('match, no-match, and already-claimed produce same status (303) and same banner text', async () => {
-    const stamp = Date.now();
-
-    // Case 1: no-match. The manual search runs only once personal details are
-    // on file, so complete that prerequisite for every case below.
-    const noMatchId = insertMember(db, {
-      slug: `ae_nomatch_${stamp}`,
-      login_email: `ae-nomatch-${stamp}@example.com`,
-      birth_date: '1980-01-01',
-      onboarding: 'none',
-    });
-    insertOnboardingTask(db, noMatchId, 'personal_details', 'completed');
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(noMatchId));
-    const noMatchAgent = request.agent(createApp());
-    const noMatchRes = await noMatchAgent
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(noMatchId))
-      .type('form')
-      .send({ identifier: `garbage-${stamp}` });
-
-    // Case 2: match (enqueued, not fast-path: different emails)
-    const targetEmail = `ae-target-${stamp}@oldsite.example`;
-    insertLegacyMember(db, {
-      legacy_member_id: `LM-AE-${stamp}`,
-      legacy_email: targetEmail,
-      real_name: 'Ae Target',
-    });
-    const matchId = insertMember(db, {
-      slug: `ae_match_${stamp}`,
-      login_email: `ae-match-${stamp}@example.com`,
-      birth_date: '1980-01-01',
-      onboarding: 'none',
-    });
-    insertOnboardingTask(db, matchId, 'personal_details', 'completed');
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(matchId));
-    const matchAgent = request.agent(createApp());
-    const matchRes = await matchAgent
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(matchId))
-      .type('form')
-      .send({ identifier: targetEmail });
-
-    // Case 3: already-claimed legacy
-    const claimedEmail = `ae-claimed-${stamp}@oldsite.example`;
-    const claimerId = insertMember(db, {
-      slug: `ae_claimer_${stamp}`,
-      login_email: `ae-claimer-${stamp}@example.com`,
-    });
-    insertLegacyMember(db, {
-      legacy_member_id: `LM-AE-CL-${stamp}`,
-      legacy_email: claimedEmail,
-      real_name: 'Ae Claimed',
-      claimed_by_member_id: claimerId,
-      claimed_at: '2025-01-01T00:00:00.000Z',
-    });
-    const claimedSeekerId = insertMember(db, {
-      slug: `ae_seeker_${stamp}`,
-      login_email: `ae-seeker-${stamp}@example.com`,
-      birth_date: '1980-01-01',
-      onboarding: 'none',
-    });
-    insertOnboardingTask(db, claimedSeekerId, 'personal_details', 'completed');
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(claimedSeekerId));
-    const claimedAgent = request.agent(createApp());
-    const claimedRes = await claimedAgent
-      .post('/register/wizard/legacy_claim/find')
-      .set('Cookie', cookieFor(claimedSeekerId))
-      .type('form')
-      .send({ identifier: claimedEmail });
-
-    // All three must produce 303 to same location
-    expect(noMatchRes.status).toBe(303);
-    expect(matchRes.status).toBe(303);
-    expect(claimedRes.status).toBe(303);
-
-    expect(noMatchRes.headers.location).toBe('/register/wizard/legacy_claim');
-    expect(matchRes.headers.location).toBe('/register/wizard/legacy_claim');
-    expect(claimedRes.headers.location).toBe('/register/wizard/legacy_claim');
-
-    // Follow-up GETs must show the same banner text
-    const noMatchFollow = await noMatchAgent
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(noMatchId));
-    const matchFollow = await matchAgent
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(matchId));
-    const claimedFollow = await claimedAgent
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(claimedSeekerId));
-
-    const bannerPattern = /confirmation link has been sent/;
-    expect(noMatchFollow.text).toMatch(bannerPattern);
-    expect(matchFollow.text).toMatch(bannerPattern);
-    expect(claimedFollow.text).toMatch(bannerPattern);
-  });
 });
 
 // ── No PII/contact fields in wizard responses ────────────────────────────────

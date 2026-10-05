@@ -599,16 +599,16 @@ JS
 
 cmd_account_tokens() {
   # Recent account_tokens for a member (or all if no arg). Surfaces token
-  # state (used vs unused vs expired) for the two-step claim, password reset,
-  # email verify, and data export flows. Useful for "the user says their
-  # claim link doesn't work" investigations.
+  # state (used vs unused vs expired) for the password reset, email verify,
+  # and data export flows. Useful for "the user says their link doesn't
+  # work" investigations.
   local member="${1:-}"
   banner "account_tokens${member:+ for $member}"
   compose exec -T -e MEMBER="$member" web node <<'JS'
 const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
 const member = process.env.MEMBER || '';
 const sql = member
-  ? `SELECT id, member_id, token_type, target_legacy_member_id,
+  ? `SELECT id, member_id, token_type,
             issued_at, expires_at, used_at,
             CASE
               WHEN used_at IS NOT NULL THEN 'used'
@@ -629,9 +629,8 @@ JS
 }
 
 cmd_work_queue() {
-  # work_queue_items inspection. Surfaces the batch auto-link queue and any
-  # other work-queue-driven flows. Filter by item_type ('auto_link_match',
-  # etc.) to focus on a specific producer.
+  # work_queue_items inspection across every work-queue-driven flow. Filter by
+  # item_type ('member_link_help_request', etc.) to focus on a specific producer.
   local item_type="${1:-}"
   banner "work_queue_items${item_type:+ type=$item_type}"
   compose exec -T -e ITEM_TYPE="$item_type" web node <<'JS'
@@ -706,7 +705,7 @@ JS
 
 cmd_stale_runs() {
   # Stale 'running' rows in system_job_runs: left behind by SIGKILL / OOM
-  # of a worker pass. The next runBatchAutoLink reaps these (>1h old)
+  # of a worker pass. The next run of the same job reaps its own (>1h old)
   # automatically; this command surfaces them so operators can investigate
   # the cause (worker crash? host reboot? OOM?) before the auto-reap fires.
   banner "system_job_runs status='running' older than 1h (likely stale)"

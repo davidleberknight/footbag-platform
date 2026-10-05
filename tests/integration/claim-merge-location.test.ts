@@ -66,6 +66,9 @@ function seedLegacyClaim(legacy: {
   });
   insertLegacyMember(db, {
     legacy_member_id: legacyId,
+    // Shares the member's surname (the factory default 'Test User'), so the
+    // claim passes the surname rule and each case tests only the location merge.
+    real_name: 'Located User',
     city: legacy.city ?? null,
     region: legacy.region ?? null,
     country: legacy.country ?? null,
@@ -141,6 +144,7 @@ describe('the claim does not copy imported address columns onto the member row',
     });
     insertLegacyMember(db, {
       legacy_member_id: legacyId,
+      real_name: 'Located User',
       street_address: '1 Old Road',
       postal_code: 'A1B2C3',
       city: 'Oldtown',

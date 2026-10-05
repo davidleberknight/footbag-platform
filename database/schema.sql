@@ -3093,21 +3093,13 @@ CREATE TABLE account_tokens (
   updated_by TEXT NOT NULL,
   version    INTEGER NOT NULL DEFAULT 1,
   member_id  TEXT NOT NULL REFERENCES members(id),
-  -- target_legacy_member_id: for account_claim tokens only; the legacy_members
-  -- row being claimed. Under the three-table identity redesign (DD §2.4),
-  -- claim targets are legacy_members rows, not members. legacy_members rows
-  -- are never deleted in normal flow, so ON DELETE NO ACTION.
-  target_legacy_member_id TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
   -- target_audit_entry_id: binds a token to the audit_entries row of the
   -- action the token authorizes acting upon (for example a claim a dispute
   -- token may revert). NULL for token types with no audit binding.
   target_audit_entry_id TEXT REFERENCES audit_entries(id) ON DELETE NO ACTION,
-  -- target_anchor_id: for mailbox_link tokens; the declared old-email
-  -- anchor whose mailbox control the click proves.
-  target_anchor_id TEXT REFERENCES member_declared_anchors(id) ON DELETE NO ACTION,
   -- token_type maps to the token "purpose" concept.
   token_type TEXT NOT NULL
-    CHECK (token_type IN ('email_verify','password_reset','data_export','account_claim','mailbox_link')),
+    CHECK (token_type IN ('email_verify','password_reset','data_export')),
   token_hash         TEXT NOT NULL,
   token_hash_version INTEGER NOT NULL DEFAULT 1,
   issued_at  TEXT NOT NULL,
@@ -3125,8 +3117,6 @@ CREATE UNIQUE INDEX ux_account_tokens_hash     ON account_tokens(token_hash);
 CREATE INDEX        idx_account_tokens_member  ON account_tokens(member_id);
 -- Index on expires_at for background cleanup job (purges expired/consumed tokens).
 CREATE INDEX        idx_account_tokens_expires ON account_tokens(expires_at);
-CREATE INDEX        idx_account_tokens_target_legacy_member ON account_tokens(target_legacy_member_id)
-  WHERE target_legacy_member_id IS NOT NULL;
 
 -- =============================================================================
 -- SECTION 20: MAILING LIST SUBSCRIPTIONS
@@ -3365,7 +3355,6 @@ VALUES
 --   token_cleanup_threshold_days    Age threshold (days) for expired/consumed token cleanup
 --   deceased_cleanup_grace_days     Grace period (days) before PII removal after marked deceased
 --   data_export_link_expiry_hours   Hours before a data export download link expires
---   account_claim_expiry_hours      Legacy account claim token TTL (hours)
 --   login_rate_limit_max_attempts   Max failed login attempts before account lockout
 --   login_rate_limit_window_minutes Sliding window (minutes) for failed login counting
 --   login_cooldown_minutes          Lockout duration (minutes) after rate-limit exceeded
@@ -3377,13 +3366,9 @@ VALUES
 --   password_change_rate_limit_window_minutes Window for password-change rate limiting
 --   verify_resend_rate_limit_max_attempts  Max verify-email resend requests per email per window
 --   verify_resend_rate_limit_window_minutes Window for verify-email resend rate limiting
---   legacy_claim_init_rate_limit_max_per_member  Max legacy-claim initiate attempts per requesting member per window
---   legacy_claim_init_rate_limit_max_per_target  Max legacy-claim emails per target legacy_member_id per window (silent)
---   legacy_claim_init_rate_limit_max_per_ip      Max legacy-claim initiate attempts per source IP per window (silent)
---   legacy_claim_init_rate_limit_window_minutes  Sliding window for legacy-claim initiate rate limiting
---   hp_claim_rate_limit_max_per_member  Max direct historical-person claim confirms per member per window
---   hp_claim_rate_limit_max_per_ip      Max direct historical-person claim confirms per source IP per window
---   hp_claim_rate_limit_window_minutes  Sliding window for direct historical-person claim rate limiting
+--   hp_claim_rate_limit_max_per_member  Max claim confirmations (direct record claim, wizard card confirm) per member per window
+--   hp_claim_rate_limit_max_per_ip      Max claim confirmations per source IP per window
+--   hp_claim_rate_limit_window_minutes  Sliding window for claim-confirmation rate limiting
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
 --   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
@@ -3398,15 +3383,11 @@ VALUES
 --   outbox_throttle_retry_seconds   Retry delay (seconds) when the provider throttles; consumes no attempt
 --   media_edit_rate_limit_per_hour  Max edits to a member's own media per hour
 --   gallery_write_rate_limit_per_hour Max gallery creates, renames and deletes per member per hour
---   mailbox_link_rate_limit_max_per_member  Max declared-old-email mailbox-link requests per member per window
---   mailbox_link_rate_limit_max_per_target  Max mailbox-link requests aimed at one legacy mailbox per window
---   mailbox_link_rate_limit_max_per_ip      Max mailbox-link requests per source IP per window
---   mailbox_link_rate_limit_window_minutes  Sliding window for mailbox-link rate limiting
+--   onboarding_birth_date_change_max Max date-of-birth changes a member may make before onboarding completes
 --   declared_anchor_rate_limit_max_per_member Max declared former surnames and old emails per member per window
 --   declared_anchor_rate_limit_window_minutes Sliding window for declared-anchor rate limiting
 --   link_help_request_rate_limit_max_per_member Max identity link-help requests per member per window
 --   link_help_request_rate_limit_window_minutes Sliding window for link-help request rate limiting
---   auto_link_staged_expiry_days    Days a staged auto-link candidate stays open before expiring
 --   bootstrap_claim_rate_limit_max_per_member Max first-administrator bootstrap claim attempts per member per window
 --   bootstrap_claim_rate_limit_max_per_ip     Max bootstrap claim attempts per source IP per window
 --   bootstrap_claim_rate_limit_window_minutes Sliding window for bootstrap claim rate limiting
@@ -3644,15 +3625,6 @@ VALUES
   ),
 
   (
-   'seed-account-claim-expiry-hours',
-   '2000-01-01T00:00:00.000Z',
-   'account_claim_expiry_hours', '24',
-   '2000-01-01T00:00:00.000Z',
-   'Legacy account claim token TTL in hours (default: 24 hours).',
-   NULL
-  ),
-
-  (
    'seed-login-rate-limit-max-attempts',
    '2000-01-01T00:00:00.000Z',
    'login_rate_limit_max_attempts', '10',
@@ -3770,47 +3742,11 @@ VALUES
   ),
 
   (
-   'seed-legacy-claim-init-rate-limit-max-per-member',
-   '2000-01-01T00:00:00.000Z',
-   'legacy_claim_init_rate_limit_max_per_member', '5',
-   '2000-01-01T00:00:00.000Z',
-   'Max legacy-claim initiate attempts per requesting member per window (default: 5).',
-   NULL
-  ),
-
-  (
-   'seed-legacy-claim-init-rate-limit-max-per-target',
-   '2000-01-01T00:00:00.000Z',
-   'legacy_claim_init_rate_limit_max_per_target', '3',
-   '2000-01-01T00:00:00.000Z',
-   'Max legacy-claim emails sent to one target legacy_member_id per window (default: 3); silent outcome on cap.',
-   NULL
-  ),
-
-  (
-   'seed-legacy-claim-init-rate-limit-max-per-ip',
-   '2000-01-01T00:00:00.000Z',
-   'legacy_claim_init_rate_limit_max_per_ip', '10',
-   '2000-01-01T00:00:00.000Z',
-   'Max legacy-claim initiate attempts per source IP per window (default: 10); silent outcome on cap.',
-   NULL
-  ),
-
-  (
-   'seed-legacy-claim-init-rate-limit-window-minutes',
-   '2000-01-01T00:00:00.000Z',
-   'legacy_claim_init_rate_limit_window_minutes', '60',
-   '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for legacy-claim initiate rate limiting (default: 60).',
-   NULL
-  ),
-
-  (
    'seed-hp-claim-rate-limit-max-per-member',
    '2000-01-01T00:00:00.000Z',
    'hp_claim_rate_limit_max_per_member', '5',
    '2000-01-01T00:00:00.000Z',
-   'Max direct historical-person claim confirms per requesting member per window (default: 5).',
+   'Max claim confirmations (direct record claim, wizard card confirm, cross-source confirm) per requesting member per window (default: 5).',
    NULL
   ),
 
@@ -3819,7 +3755,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'hp_claim_rate_limit_max_per_ip', '10',
    '2000-01-01T00:00:00.000Z',
-   'Max direct historical-person claim confirms per source IP per window (default: 10).',
+   'Max claim confirmations per source IP per window (default: 10).',
    NULL
   ),
 
@@ -3828,7 +3764,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'hp_claim_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for direct historical-person claim rate limiting (default: 60).',
+   'Sliding window in minutes for claim-confirmation rate limiting (default: 60).',
    NULL
   ),
 
@@ -4131,38 +4067,11 @@ VALUES
   ),
 
   (
-   'seed-mailbox-link-rate-limit-max-per-member',
+   'seed-onboarding-birth-date-change-max',
    '2000-01-01T00:00:00.000Z',
-   'mailbox_link_rate_limit_max_per_member', '5',
+   'onboarding_birth_date_change_max', '3',
    '2000-01-01T00:00:00.000Z',
-   'Maximum declared-old-email mailbox-link requests per member per window (default: 5).',
-   NULL
-  ),
-
-  (
-   'seed-mailbox-link-rate-limit-max-per-target',
-   '2000-01-01T00:00:00.000Z',
-   'mailbox_link_rate_limit_max_per_target', '3',
-   '2000-01-01T00:00:00.000Z',
-   'Maximum mailbox-link requests aimed at any one legacy mailbox per window (default: 3).',
-   NULL
-  ),
-
-  (
-   'seed-mailbox-link-rate-limit-max-per-ip',
-   '2000-01-01T00:00:00.000Z',
-   'mailbox_link_rate_limit_max_per_ip', '10',
-   '2000-01-01T00:00:00.000Z',
-   'Maximum mailbox-link requests per source IP per window (default: 10).',
-   NULL
-  ),
-
-  (
-   'seed-mailbox-link-rate-limit-window-minutes',
-   '2000-01-01T00:00:00.000Z',
-   'mailbox_link_rate_limit_window_minutes', '60',
-   '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting mailbox-link requests (default: 60).',
+   'Maximum date-of-birth changes a member may make before onboarding completes (default: 3).',
    NULL
   ),
 
@@ -4199,15 +4108,6 @@ VALUES
    'link_help_request_rate_limit_window_minutes', '1440',
    '2000-01-01T00:00:00.000Z',
    'Sliding window in minutes for counting link-help requests (default: 1440).',
-   NULL
-  ),
-
-  (
-   'seed-auto-link-staged-expiry-days',
-   '2000-01-01T00:00:00.000Z',
-   'auto_link_staged_expiry_days', '365',
-   '2000-01-01T00:00:00.000Z',
-   'Days a staged automatic-link candidate stays open before it expires unactioned (default: 365).',
    NULL
   ),
 
@@ -4475,6 +4375,15 @@ CREATE TABLE member_onboarding_tasks (
     -- skip, no dismissal, and no paused state to park a task in.
     CHECK (state IN ('pending','completed')),
   completed_at TEXT,
+  -- legacy_claim row only. How many times the member changed their date of
+  -- birth while onboarding, capped by onboarding_birth_date_change_max so the
+  -- date cannot be used to probe old accounts. NULL means none.
+  birth_date_changes INTEGER CHECK (birth_date_changes IS NULL OR birth_date_changes >= 0),
+  -- legacy_claim row only. When answering "I had one but cannot find it"
+  -- opened the one last attempt at the match. Set once, by that answer; the
+  -- attempt stays open until the member holds an account or a record or
+  -- onboarding completes. NULL means it was never opened.
+  last_attempt_opened_at TEXT,
 
   UNIQUE(member_id, task_type)
 );
@@ -4491,11 +4400,6 @@ CREATE TABLE member_declared_anchors (
   member_id    TEXT NOT NULL REFERENCES members(id),
   anchor_type  TEXT NOT NULL CHECK (anchor_type IN ('former_surname','old_email')),
   anchor_value TEXT NOT NULL,
-  -- Mailbox-control round-trip: set when the member clicked a confirmation
-  -- link delivered to this declared old email while signed in, upgrading
-  -- claims matched through this anchor to the hard-evidence tier.
-  verified_via_link_click_at TEXT,
-  verification_token_id      TEXT,
   UNIQUE(member_id, anchor_type, anchor_value)
 );
 CREATE INDEX idx_member_declared_anchors_member ON member_declared_anchors(member_id);
@@ -4594,15 +4498,18 @@ CREATE INDEX idx_legacy_members_legacy_email3
 CREATE UNIQUE INDEX ux_legacy_members_legacy_user_id
   ON legacy_members(legacy_user_id)
   WHERE legacy_user_id IS NOT NULL;
+-- Surname-plus-date-of-birth matching reads the accounts carrying one exact date.
+CREATE INDEX idx_legacy_members_birth_date
+  ON legacy_members(birth_date)
+  WHERE birth_date IS NOT NULL;
 
--- Migration-only staging table: auto-link candidate matches held for the
--- member to answer. On a live platform the rows come from the cross-source
--- offer that follows a confirmed claim; on a seeded test load the batch pass
--- stages them too. Neither mutates live tables or sends mail; the onboarding
--- wizard reads open rows and the member confirms or declines. Confirmation runs the ordinary claim
--- transaction; nothing applies without member action. May be dropped after
--- every staged row reaches a terminal state (confirmed, declined, expired).
-CREATE TABLE auto_link_staged_candidates (
+-- Migration-scope: a member's standing "This Is Not Me" answers in the claim
+-- step. Matching is computed live and nothing is staged, so what the member
+-- refused is the only claim-step state kept: a declined candidate is never
+-- offered to them again. A decline naming both an account and the record the
+-- pipeline linked to it hides each half on its own, so a later relink cannot
+-- bring either back. Droppable once onboarding of migrated members is over.
+CREATE TABLE legacy_claim_declines (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
@@ -4610,52 +4517,25 @@ CREATE TABLE auto_link_staged_candidates (
   updated_by TEXT NOT NULL,
   version    INTEGER NOT NULL DEFAULT 1,
 
-  member_id            TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  member_id            TEXT NOT NULL REFERENCES members(id),
   legacy_member_id     TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
   historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
-  confidence           TEXT NOT NULL CHECK (confidence IN ('high','medium')),
-  -- Anchors that produced the match (modern email, name variant, etc.),
-  -- as a JSON array of strings; feeds the wizard card's provenance label
-  -- and the staged/confirmed audit metadata.
-  matched_anchors_json TEXT NOT NULL DEFAULT '[]',
-  -- Evidence-strength tag a confirmation of this candidate will carry on
-  -- its claim audit row.
-  proposed_evidence_strength TEXT NOT NULL
-    CHECK (proposed_evidence_strength IN
-      ('declared_anchor_only','currently_controls_modern_email_matching_legacy',
-       'mailbox_control_via_link_click','admin_vetted_evidence')),
-  -- 'cross_source' rows are post-confirm offers for the member's OTHER
-  -- identity source (§7 cross-source candidate detection); they share the
-  -- stage/confirm/decline/expire lifecycle but emit the cross-source audit
-  -- event family.
-  source_pass TEXT NOT NULL CHECK (source_pass IN ('batch','sign_in','registration','cross_source')),
-  status      TEXT NOT NULL DEFAULT 'staged'
-    CHECK (status IN ('staged','confirmed','declined','expired')),
-  resolved_at TEXT,
-  expires_at  TEXT,
+  confidence           TEXT NOT NULL CHECK (confidence IN ('high','medium','low')),
+  -- The claim evidence block at the moment of the decline: ids, keys, signals
+  -- and outcomes only, never a name, a date of birth or a raw address.
+  evidence_json        TEXT NOT NULL DEFAULT '{}',
 
-  -- A candidate names at least one target source.
-  CHECK (legacy_member_id IS NOT NULL OR historical_person_id IS NOT NULL),
-  -- Open rows are exactly the unresolved ones.
-  CHECK ((status = 'staged') = (resolved_at IS NULL))
+  CHECK (legacy_member_id IS NOT NULL OR historical_person_id IS NOT NULL)
 );
 
--- Re-running the staging pass must not duplicate an open candidate for the
--- same member/target pair. COALESCE folds the nullable target columns so
+-- A repeated decline is a no-op. COALESCE folds the nullable targets so
 -- SQLite's NULLs-are-distinct UNIQUE semantics cannot admit duplicates.
-CREATE UNIQUE INDEX ux_auto_link_staged_open
-  ON auto_link_staged_candidates(
+CREATE UNIQUE INDEX ux_legacy_claim_declines_target
+  ON legacy_claim_declines(
     member_id,
     COALESCE(legacy_member_id, ''),
     COALESCE(historical_person_id, '')
-  )
-  WHERE status = 'staged';
-CREATE INDEX idx_auto_link_staged_member_open
-  ON auto_link_staged_candidates(member_id)
-  WHERE status = 'staged';
-CREATE INDEX idx_auto_link_staged_expiry
-  ON auto_link_staged_candidates(expires_at)
-  WHERE status = 'staged' AND expires_at IS NOT NULL;
+  );
 
 -- Migration-only staging table: normalized mirror-derived club identities.
 -- May be dropped once all bootstrap decisions are finalized and no staging

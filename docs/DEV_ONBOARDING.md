@@ -387,7 +387,7 @@ The suite is split:
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
 
-The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, transaction atomicity).
+The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, the matching rules, the claim step's cards, transaction atomicity).
 
 #### The full local suite (`run_all_tests.sh`)
 
@@ -645,7 +645,7 @@ Several conveniences exist to reduce friction during local manual testing. They 
 | `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. The rebuild modes that seed personas (`--from-csv`, `--all-data`, `--soup-to-nuts`) run this too, so a rebuilt database carries the catalog, including its two admin personas, without the dev-admin allowlist being involved. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by the testkit import guard and the production image strip. |
 | `./scripts/manage-test-personas.sh --refresh-test-personas --apply` (or the default refresh on `./run_dev.sh` and a code-only staging deploy) | operator script | development AND staging | Rebuilds every persona from its current spec, deleting persona-owned rows first. The only path that makes an existing database match a changed catalog; reports and writes nothing without `--apply`, and leaves a database with no personas untouched. Production blocked by the same import guard and image strip, and refused for any deploy target but staging. |
 
-Production carries none of these tools. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
+Production carries none of these tools. A member who needs a legacy identity linked after onboarding files the identity-link request from their profile, and an administrator applies the link (the `A_Review_Member_Link_Help_Requests` user story).
 
 ##### Switch between personas in the browser (/dev/personas)
 
@@ -665,7 +665,7 @@ The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the 
 
 For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
 
-A stub `legacy_members` row with no `legacy_email` (for example before the legacy data dump is loaded) is claimable from the onboarding wizard's `legacy_claim` task via the historical-person card-confirm path, which needs no email roundtrip; the mailbox-control round-trip is optional and only upgrades the audit evidence tier. Admins requiring manual recovery use the `manualLegacyClaimRecovery` flow.
+A stub `legacy_members` row with no email and no date of birth (for example before the legacy data dump is loaded) offers nothing to corroborate a self-serve claim, so the onboarding wizard's `legacy_claim` task shows it without a claim control; an administrator links it through the identity-link request after onboarding.
 
 
 ### 1.15 Filing a bug

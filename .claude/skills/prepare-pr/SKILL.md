@@ -15,8 +15,8 @@ Check whether `doc-sync` has been run since the last significant change in this 
 
 Read:
 - current diff (changed files and their diffs)
-- verification per the defaults in root `CLAUDE.md`: `npm run build` plus the named suites the change reaches and their importers, run if not already done; report pass/fail
-- the gate: the bare `./run_all_tests.sh` (not `--quick`, which is the commit loop and omits e2e, the clean room and the coverage thresholds); report its result and verdict (GREEN, INCOMPLETE or VOID) if it has run on the current tree, otherwise offer to run it under the long-runs rule in `.claude/rules/testing.md` and list it as a prerequisite until it has
+- verification per the Verification default in root `CLAUDE.md`, run if not already done; report pass/fail
+- the gate: the bare `./run_all_tests.sh`, which the maintainer starts; report its result and verdict (GREEN, INCOMPLETE or VOID) if it has run on the current tree, otherwise list it as the maintainer's prerequisite with that command
 - any open questions or unresolved risks
 
 ## Step 3: Verify architecture compliance

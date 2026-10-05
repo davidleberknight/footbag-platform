@@ -17,8 +17,7 @@ Reference classes (enumerated from database/schema.sql):
   a member has already claimed or is onboarding onto the loser account, which the
   merge must never silently drop):
     - members.legacy_member_id
-    - account_tokens.target_legacy_member_id
-    - auto_link_staged_candidates.legacy_member_id
+    - legacy_claim_declines.legacy_member_id
     - a club_bootstrap_leaders row for the loser with a member already imported
       or claimed onto it
 
@@ -127,23 +126,14 @@ def precheck_live_references(cur: sqlite3.Cursor, losers: set[str]) -> None:
         if m:
             violations.append(f"claimed via members.legacy_member_id: {m}")
 
-    if _table_exists(cur, "account_tokens"):
-        t = _ids_present(
-            cur,
-            "SELECT target_legacy_member_id FROM account_tokens "
-            "WHERE target_legacy_member_id IS NOT NULL",
-            losers)
-        if t:
-            violations.append(f"targeted by account_tokens: {t}")
-
-    if _table_exists(cur, "auto_link_staged_candidates"):
+    if _table_exists(cur, "legacy_claim_declines"):
         a = _ids_present(
             cur,
-            "SELECT legacy_member_id FROM auto_link_staged_candidates "
+            "SELECT legacy_member_id FROM legacy_claim_declines "
             "WHERE legacy_member_id IS NOT NULL",
             losers)
         if a:
-            violations.append(f"staged in auto_link_staged_candidates: {a}")
+            violations.append(f"declined in legacy_claim_declines: {a}")
 
     if _table_exists(cur, "club_bootstrap_leaders"):
         b = _ids_present(
@@ -305,13 +295,9 @@ def verify_no_loser_remains(cur: sqlite3.Cursor, losers: set[str]) -> None:
     if _table_exists(cur, "members"):
         checks.append(("members",
                        "SELECT legacy_member_id FROM members WHERE legacy_member_id IS NOT NULL"))
-    if _table_exists(cur, "account_tokens"):
-        checks.append(("account_tokens",
-                       "SELECT target_legacy_member_id FROM account_tokens "
-                       "WHERE target_legacy_member_id IS NOT NULL"))
-    if _table_exists(cur, "auto_link_staged_candidates"):
-        checks.append(("auto_link_staged_candidates",
-                       "SELECT legacy_member_id FROM auto_link_staged_candidates "
+    if _table_exists(cur, "legacy_claim_declines"):
+        checks.append(("legacy_claim_declines",
+                       "SELECT legacy_member_id FROM legacy_claim_declines "
                        "WHERE legacy_member_id IS NOT NULL"))
     if _table_exists(cur, "legacy_person_club_affiliations"):
         checks.append(("legacy_person_club_affiliations",

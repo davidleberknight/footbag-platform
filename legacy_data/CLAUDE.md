@@ -131,7 +131,8 @@ For pipeline-regenerated tables:
   `INSERT OR IGNORE`. Every skipped row needs a named category: dedup, FK miss, PK collision, bad row.
 - The club loaders are the exception to uniformity: the bootstrap-leader loaders reseed with
   DELETE + INSERT, while the clubs seed and cutover loaders are additive.
-- Ambiguous identity resolution never auto-selects; auto-link requires a strong multi-anchor match;
+- Ambiguous identity resolution never auto-selects; nothing links a member to an old record but the
+  member's own claim in the onboarding wizard or an administrator's applied link;
   `name_variants` stores high-confidence entries only; a club's external URL stays hidden on the
   public read until it is verified and not quarantined.
 - Business rules belong in the app's services, not in loaders or the DB layer; the app-layer

@@ -191,7 +191,7 @@
                 type an identifier the admin interface never showed them. }}
             <div class="section-heading"><h3>What the Platform Can See for Them</h3></div>
             {{#if evidence.candidates.hasLegacyAccounts}}
-              <p class="card-meta">Old accounts their own addresses reach:</p>
+              <p class="card-meta">Old accounts their evidence reaches:</p>
               <ul class="claim-evidence-list">
                 {{#each evidence.candidates.legacyAccounts}}
                   <li class="claim-evidence-item">
@@ -205,7 +205,7 @@
               </ul>
             {{/if}}
             {{#if evidence.candidates.hasHistoricalPersons}}
-              <p class="card-meta">Competition records under their name:</p>
+              <p class="card-meta">Competition records with no old account behind them that their evidence reaches:</p>
               <ul class="card-meta">
                 {{#each evidence.candidates.historicalPersons}}
                   <li>{{this.personName}} ({{this.personId}}){{#if this.matchNote}} &middot; {{this.matchNote}}{{/if}}</li>
@@ -230,30 +230,6 @@
               {{else}}
                 <p class="card-meta">This dispute named no records, so no revert can be applied to it.</p>
               {{/if}}
-            {{/if}}
-          {{/if}}
-
-          {{#if evidence.isAutoLink}}
-            <p>{{evidence.autoLink.reasonLabel}}</p>
-            {{#if evidence.autoLink.settledSince}}
-              <p class="card-meta">This member has been linked since the match was raised, so there is nothing left to judge here.</p>
-            {{else}}
-              <p class="card-meta">{{evidence.autoLink.actionLabel}}</p>
-            {{/if}}
-            {{#if evidence.autoLink.legacyAccount}}
-              <p class="card-meta">Old account reached: <strong>{{evidence.autoLink.legacyAccount.displayName}}</strong>
-                ({{evidence.autoLink.legacyAccount.legacyMemberId}}){{#if evidence.autoLink.legacyAccount.country}} &middot; {{evidence.autoLink.legacyAccount.country}}{{/if}}</p>
-              {{#if evidence.autoLink.legacyAccount.birthDate}}
-                <p class="card-meta claim-evidence-revealed">Date of birth on that account: <strong>{{evidence.autoLink.legacyAccount.birthDate}}</strong></p>
-              {{/if}}
-            {{/if}}
-            {{#if evidence.autoLink.hasCandidates}}
-              <p class="card-meta">Competition records under this name:</p>
-              <ul class="card-meta">
-                {{#each evidence.autoLink.candidates}}
-                  <li>{{this.personName}} ({{this.personId}})</li>
-                {{/each}}
-              </ul>
             {{/if}}
           {{/if}}
 

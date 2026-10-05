@@ -32,9 +32,6 @@ const CATALOG: CatalogEntry[] = [
   { template: 'account_exists_notice', services: ['identityAccessService'], samples: [
     { params: { loginUrl: 'https://x/login', resetUrl: 'https://x/password/forgot' }, variant: 'account_exists_notice' },
   ] },
-  { template: 'legacy_claim_confirm', services: ['identityAccessService'], samples: [
-    { params: { confirmUrl: 'https://x/claim/t', ttlHours: 24 }, variant: 'legacy_claim_confirm' },
-  ] },
   { template: 'password_changed', services: ['identityAccessService'], samples: [
     { params: {}, variant: 'password_changed' },
   ] },
@@ -56,9 +53,6 @@ const CATALOG: CatalogEntry[] = [
   ] },
   { template: 'data_export_ready', services: ['memberDataExportService'], samples: [
     { params: { memberName: 'A Member', downloadUrl: 'https://x/members/a/download/t', ttlHours: 72 }, variant: 'data_export_ready' },
-  ] },
-  { template: 'mailbox_link_confirm', services: ['identityAccessService'], samples: [
-    { params: { verifyUrl: 'https://x/anchors/verify/t', ttlHours: 24 }, variant: 'mailbox_link_confirm' },
   ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
   { template: 'admin_loss_recruitment', services: ['workQueueService'], samples: [

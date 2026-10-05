@@ -92,6 +92,6 @@ If in doubt about a layout, flag it to the human rather than shipping something 
 
 - write or update integration tests in `tests/integration/` using factory helpers from `tests/fixtures/factories.ts` (see `tests/CLAUDE.md` for conventions and `write-tests` skill for guidance)
 - make excellent adversarial tests: happy path, auth gates, not-found, draft/unpublished leakage, route ordering, edge cases from acceptance criteria
-- verify per the defaults in root `CLAUDE.md`: `npm run build` plus the named suites the change reaches and their importers; the runner is the gate, run only with approval as a background job (the long-runs rule in `.claude/rules/testing.md`)
+- verify per the Verification default in root `CLAUDE.md`
 - only use browser automation if the human explicitly asked for it (see `browser-qa` skill)
 - after changes, invoke `doc-sync` to check whether the owning service's file-header JSDoc or `.claude/rules/view-layer.md` needs updating

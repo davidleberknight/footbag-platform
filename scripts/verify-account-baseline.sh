@@ -101,6 +101,12 @@ QUIET=0
 MODE="report"
 COMPARE_FILE=""
 IGNORE_USERS=()
+# A trust document in one canonical form: keys sorted, and every array sorted.
+# AWS stores a trust's principals as internal ids and writes them back in no
+# fixed order, so the same trust read twice can list the same principals in a
+# different order. Every array in a policy is a set (statements, principals,
+# actions), so sorting them changes nothing about what the document allows.
+TRUST_CANON='walk(if type == "array" then sort else . end)'
 
 usage() {
   # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -290,7 +296,7 @@ baseline_facts() {
   for role in "${RUNTIME_ROLES[@]}"; do
     trust="$(aws_q iam get-role --role-name "$role" \
       --query 'Role.AssumeRolePolicyDocument' --output json)" || facts_fail "${role}'s trust policy"
-    trust="$(jq -S -c . <<<"$trust" 2>/dev/null)" || facts_fail "${role}'s trust policy as JSON"
+    trust="$(jq -S -c "$TRUST_CANON" <<<"$trust" 2>/dev/null)" || facts_fail "${role}'s trust policy as JSON"
     printf 'trust.%s\t%s\n' "$role" "$trust"
   done
 }
@@ -331,7 +337,21 @@ if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
       printf '%s\n' "$line"
     done
   }
-  SAVED="$(ignore_filter < "$COMPARE_FILE" | LC_ALL=C sort)"
+  # The saved trusts are put in the same canonical form before comparing, so a
+  # baseline saved before arrays were sorted still compares by content.
+  canon_saved_trusts() {
+    local line key doc
+    while IFS= read -r line; do
+      if [[ "$line" == trust.*$'\t'* ]]; then
+        key="${line%%$'\t'*}"
+        doc="$(jq -S -c "$TRUST_CANON" <<<"${line#*$'\t'}" 2>/dev/null)" || doc="${line#*$'\t'}"
+        printf '%s\t%s\n' "$key" "$doc"
+      else
+        printf '%s\n' "$line"
+      fi
+    done
+  }
+  SAVED="$(ignore_filter < "$COMPARE_FILE" | canon_saved_trusts | LC_ALL=C sort)"
   NOW="$(ignore_filter <<<"$FACTS" | LC_ALL=C sort)"
   if [[ "$SAVED" == "$NOW" ]]; then
     echo "Unchanged since ${COMPARE_FILE}: footbag-operator, every key outside those left out, and both runtime trusts."

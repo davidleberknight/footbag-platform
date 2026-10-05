@@ -57,15 +57,22 @@ emit_gate() {
 # distinct account, in any of the three email columns, identifies two accounts
 # and must be curated before cutover. Case-insensitive, matching how the
 # platform resolves claims. A value repeated within one row is not a collision.
+#
+# Test personas (import_source 'test') are seeded beside the real load on a
+# workstation and on staging, and one of them shares its address with a twin on
+# purpose, to exercise the ambiguous-address claim path. A collision among test
+# rows alone is that fixture, not legacy data, so it is not counted; a test row
+# sharing an address with any other row still is, since a persona could then
+# reach a real person's account.
 g1_dupes=$(q "SELECT COUNT(*) FROM (
   SELECT email FROM (
-    SELECT legacy_member_id AS mid, lower(legacy_email)  AS email FROM legacy_members WHERE legacy_email  IS NOT NULL
+    SELECT legacy_member_id AS mid, lower(legacy_email)  AS email, import_source IS NOT 'test' AS non_test FROM legacy_members WHERE legacy_email  IS NOT NULL
     UNION ALL
-    SELECT legacy_member_id, lower(legacy_email2) FROM legacy_members WHERE legacy_email2 IS NOT NULL
+    SELECT legacy_member_id, lower(legacy_email2), import_source IS NOT 'test' FROM legacy_members WHERE legacy_email2 IS NOT NULL
     UNION ALL
-    SELECT legacy_member_id, lower(legacy_email3) FROM legacy_members WHERE legacy_email3 IS NOT NULL
+    SELECT legacy_member_id, lower(legacy_email3), import_source IS NOT 'test' FROM legacy_members WHERE legacy_email3 IS NOT NULL
   )
-  GROUP BY email HAVING COUNT(DISTINCT mid) > 1
+  GROUP BY email HAVING COUNT(DISTINCT mid) > 1 AND MAX(non_test) = 1
 );")
 if [[ "${g1_dupes}" -eq 0 ]]; then
   emit_gate G1 PASS "no email shared across accounts (across all three email columns)"

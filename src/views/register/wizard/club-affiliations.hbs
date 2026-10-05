@@ -134,10 +134,11 @@
 
             {{#if content.insightPrompt}}
               <fieldset class="activity-signal-fieldset mt-4 mb-6">
-                <legend class="fs-sm fw-600">{{content.insightPrompt.legend}}</legend>
+                <legend class="fs-sm fw-600" id="insight-legend-card">{{content.insightPrompt.legend}}</legend>
                 <p class="text-muted fs-sm mb-2">{{content.insightPrompt.helpText}}</p>
                 <div class="form-field">
                   <textarea
+                    aria-labelledby="insight-legend-card"
                     name="{{content.insightPrompt.fieldName}}"
                     rows="4"
                     maxlength="{{content.insightPrompt.maxLength}}"></textarea>
@@ -169,10 +170,11 @@
       <form method="POST" action="{{content.noClubsHref}}" class="mt-6">
         {{#if content.insightPrompt}}
           <fieldset class="activity-signal-fieldset mb-6">
-            <legend class="fs-sm fw-600">{{content.insightPrompt.legend}}</legend>
+            <legend class="fs-sm fw-600" id="insight-legend-wrapup">{{content.insightPrompt.legend}}</legend>
             <p class="text-muted fs-sm mb-2">{{content.insightPrompt.helpText}}</p>
             <div class="form-field">
               <textarea
+                aria-labelledby="insight-legend-wrapup"
                 name="{{content.insightPrompt.fieldName}}"
                 rows="4"
                 maxlength="{{content.insightPrompt.maxLength}}"></textarea>

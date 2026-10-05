@@ -1,12 +1,8 @@
 /**
- * Lightweight Playwright E2E tests for the onboarding wizard.
- *
- * These cover browser-only behavior that integration tests cannot
- * prove: session cookie chain, redirect handling, form fill + PRG,
- * dashboard widget rendering, and accessibility.
- *
- * Kept deliberately lightweight: only checks that genuinely need a real
- * browser belong here; everything else lives in the integration suite.
+ * Browser-only onboarding behaviour: the session chain from registration
+ * through sign-out and back, the gate routing a pending registrant to the step
+ * they owe, the registration form's client-side defaults, and keyboard and
+ * grouping accessibility. Everything else lives in the integration suite.
  */
 import { randomBytes } from 'node:crypto';
 import { test, expect } from '@playwright/test';
@@ -14,50 +10,58 @@ import {
   seedMemberWithClubCards,
   seedTier0Member,
   completePersonalDetails,
+  getTaskState,
 } from './helpers/onboarding';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
 import { WizardPage } from './pages/wizard.page';
 import { DashboardPage } from './pages/dashboard.page';
 import { RegisterPage } from './pages/register.page';
 
-// ── Registration -> verification -> wizard entry ─────────────────────────────
+// Letters only: a legal name may not contain digits, and the surname also
+// becomes part of the permanent profile address, so it varies per run.
+function lettersOnly(n = 8): string {
+  return Array.from(randomBytes(n)).map((b) => String.fromCharCode(97 + (b % 26))).join('');
+}
 
-test('post-verify: register -> check-email -> click verify link -> lands on wizard', { tag: ['@smoke'] }, async ({ page }) => {
-  const stamp = Date.now();
-  const email = `e2e-reg-${stamp}@example.com`;
+test('a registrant who signs out part-way through and signs back in is returned to the step they still owe, and can finish', { tag: ['@smoke'] }, async ({ page }) => {
+  const email = `e2e-reg-${lettersOnly()}@example.com`;
+  const password = 'e2e-test-password-123';
+  const surname = `Newbie${lettersOnly(6)}`;
   const registerPage = new RegisterPage(page);
+  const wizard = new WizardPage(page);
 
   await registerPage.goto();
-  // The surname varies per run, in letters only. Registration derives a
-  // permanent profile URL from the name, so a fixed name means a fixed URL and
-  // any second registration of it against the same database is refused for a URL
-  // already taken, failing on a collision rather than on anything this test is
-  // about. Letters only because a legal name may not contain digits, so a
-  // numeric stamp is rejected by validation before the flow even starts.
-  const surname = `Newbie${Array.from(randomBytes(6))
-    .map((b) => String.fromCharCode(97 + (b % 26)))
-    .join('')}`;
-  await registerPage.fillRegistration({
-    givenNames: 'Test',
-    familyName: surname,
-    email,
-    password: 'e2e-test-password-123',
-  });
+  await registerPage.fillRegistration({ givenNames: 'Test', familyName: surname, email, password });
   await registerPage.submit();
-  await page.waitForURL(/\/register\/check-email/);
+  await expect(page).toHaveURL(/\/register\/check-email/);
 
   const verifyUrl = await registerPage.getSimulatedVerifyUrl();
   expect(verifyUrl, 'dev simulated-email card should contain a verify link').toBeTruthy();
-
   await page.goto(verifyUrl!);
-  await page.waitForURL(/\/register\/wizard\/|\/members\//);
+  // A freshly verified registrant is pending, never a member with a profile.
+  await expect(page).toHaveURL(/\/register\/wizard\/personal_details$/);
 
-  // personal_details is the first task in the fixed order, so a freshly
-  // verified member lands there before the legacy-claim step.
-  expect(page.url()).toMatch(/\/register\/wizard\/personal_details|\/members\//);
+  // A country with no state or province list, so the form asks for no region:
+  // a new account has no country on file, and the region picker for the USA
+  // and Canada appears only once the country is saved.
+  await wizard.fillPersonalDetailsAndSave(/\/register\/wizard\/legacy_claim$/, { city: 'Lyon', country: 'France' });
+  await wizard.answerCurrentTask(/\/register\/wizard\/club_affiliations$/);
+
+  await page.getByRole('button', { name: 'Logout' }).click();
+  await page.goto('/register/wizard/legacy_claim');
+  await expect(page).toHaveURL(/\/login\?returnTo=/);
+
+  await page.locator('#email').fill(email);
+  await page.locator('#password').fill(password);
+  await page.getByRole('button', { name: 'Log In' }).click();
+  // The claim step is answered, so the gate sends the member to the step they owe.
+  await expect(page).toHaveURL(/\/register\/wizard\/club_affiliations$/);
+
+  await wizard.answerCurrentTask(/\/register\/wizard\/complete$/);
+  await wizard.profileLink.click();
+  await expect(page).toHaveURL(/\/members\/[a-z0-9_]+$/);
+  expect(page.url()).toContain(surname.toLowerCase());
 });
-
-// ── Dashboard task widget: Continue Onboarding buttons ───────────────────────
 
 test('a pending registrant visiting their own profile is routed to the next outstanding task', async ({ browser, baseURL }) => {
   const db = openLiveDb();
@@ -70,46 +74,42 @@ test('a pending registrant visiting their own profile is routed to the next outs
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await wizard.answerCurrentTask();
+  await wizard.answerCurrentTask(/\/register\/wizard\/club_affiliations$/);
 
   // Resume is the gate redirect: the profile page does not exist while
   // pending, so requesting it lands on the next outstanding wizard task.
   const dashboard = new DashboardPage(page);
   await dashboard.goto(persona.slug);
-  await page.waitForURL(/\/register\/wizard\/club_affiliations/);
-  expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
+  await expect(page).toHaveURL(/\/register\/wizard\/club_affiliations$/);
 
   await context.close();
 });
 
-// ── Accessibility: wizard pages pass basic checks ────────────────────────────
+test('the registration form fills the display name and profile address from the legal name, keeps a value the visitor edited, and refuses a short password', async ({ page }) => {
+  const registerPage = new RegisterPage(page);
+  await registerPage.goto();
 
-test('wizard pages have accessible form labels and heading', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedTier0Member(db, { slug: `e2e_a11y_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
+  const surname = `Defaults${lettersOnly(6)}`;
+  await registerPage.givenNamesInput.fill('Jane');
+  await registerPage.familyNameInput.fill(surname);
+  await registerPage.familyNameInput.blur();
+  await expect(page.locator('#displayName')).toHaveValue(`Jane ${surname}`);
+  await expect(page.locator('#slug')).toHaveValue(`jane_${surname.toLowerCase()}`);
 
-  const context = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await context.newPage();
-  const wizard = new WizardPage(page);
+  // A display name the visitor typed is theirs and is not overwritten.
+  await page.locator('#displayName').fill(`JJ ${surname}`);
+  await page.locator('#displayName').blur();
+  await registerPage.givenNamesInput.fill('Janet');
+  await registerPage.givenNamesInput.blur();
+  await expect(page.locator('#displayName')).toHaveValue(`JJ ${surname}`);
 
-  await wizard.goto('legacy_claim');
-  await expect(wizard.heading).toBeVisible();
-  await expect(wizard.neverHadOldAccountButton).toBeVisible();
-  await expect(wizard.cannotFindOldAccountButton).toBeVisible();
-  const identifierLabel = page.locator('label[for="identifier"]');
-  await expect(identifierLabel).toBeVisible();
-
-  await wizard.answerCurrentTask();
-
-  // The club step is reached by the advance above; it carries its own heading
-  // and its own explicit answer control.
-  expect(page.url()).toContain('club_affiliations');
-  await expect(wizard.heading).toBeVisible();
-  await expect(wizard.noClubsButton).toBeVisible();
-
-  await context.close();
+  await registerPage.emailInput.fill(`e2e-def-${lettersOnly()}@example.com`);
+  await registerPage.passwordInput.fill('short');
+  await registerPage.confirmPasswordInput.fill('short');
+  await registerPage.submit();
+  await expect(page).toHaveURL(/\/register$/);
+  const message = await registerPage.passwordInput.evaluate((el: HTMLInputElement) => el.validationMessage);
+  expect(message).toBeTruthy();
 });
 
 test('club-affiliations disambiguation group is a single-select labelled fieldset', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
@@ -133,10 +133,7 @@ test('club-affiliations disambiguation group is a single-select labelled fieldse
 
   const fieldset = page.locator('fieldset.form-fieldset');
   await expect(fieldset).toBeVisible();
-
-  const legend = fieldset.locator('legend.card-title');
-  await expect(legend).toBeVisible();
-  await expect(legend).toContainText(/Which of these clubs in .+ were you part of\?/);
+  await expect(fieldset.locator('legend.card-title')).toBeVisible();
 
   const radios = fieldset.locator('input[type="radio"][name="selectedCandidateIds"]');
   expect(await radios.count()).toBeGreaterThan(1);
@@ -145,9 +142,39 @@ test('club-affiliations disambiguation group is a single-select labelled fieldse
   await context.close();
 });
 
-// ── Keyboard navigation ──────────────────────────────────────────────────────
+test('choosing one club on the grouped card leads to that club\'s own card, and answering it finishes the step', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithClubCards(db, {
+    slug: `e2e_club_group_${Date.now()}`,
+    clubCount: 2,
+    city: `Groupville${lettersOnly(4)}`,
+    withCoLeader: true,
+  });
+  db.close();
 
-test('the continue-without-linking answer is keyboard-reachable and activatable', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+  const context = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await context.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('club_affiliations');
+  await page.locator('input[name="selectedCandidateIds"]').first().check();
+  await page.getByRole('button', { name: 'Confirm Selection' }).click();
+  await expect(page).toHaveURL(/\/register\/wizard\/club_affiliations$/);
+  await expect(wizard.clubYesRadio).toBeVisible();
+
+  await page.locator('input[name="activitySignal"][value="active"]').check();
+  await wizard.clubYesRadio.check();
+  await wizard.clubSaveAnswersButton.click();
+  await expect(page).toHaveURL(/\/register\/wizard\/complete$/);
+
+  const db2 = openLiveDb();
+  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toBe('completed');
+  db2.close();
+
+  await context.close();
+});
+
+test('the never-had-one answer is keyboard-reachable and activatable', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_kbd_${Date.now()}` });
   completePersonalDetails(db, persona.memberId);
@@ -165,9 +192,7 @@ test('the continue-without-linking answer is keyboard-reachable and activatable'
   await expect(wizard.neverHadOldAccountButton).toBeFocused();
 
   await page.keyboard.press('Enter');
-  await page.waitForURL(/\/register\/wizard\/(?!legacy_claim)/);
-
-  expect(page.url()).not.toContain('legacy_claim');
+  await expect(page).toHaveURL(/\/register\/wizard\/club_affiliations$/);
 
   await context.close();
 });

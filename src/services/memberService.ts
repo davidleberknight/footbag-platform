@@ -114,6 +114,7 @@
  *   badges on a search result row), member_links,
  *   member_declared_anchors (deleted on PII purge and deceased scrub),
  *   legacy_members (claim-state columns cleared on PII purge),
+ *   legacy_claim_declines (deleted on PII purge),
  *   erasure_log (append-only; one row per applied erasure shape),
  *   audit_entries,
  *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
@@ -135,7 +136,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, legacyClaimDeclines, emailArchives, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
   assembleBirthDate,
@@ -1063,6 +1064,10 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
       memberId,
     );
     if (res.changes === 0) return { status: 'already_purged' as const };
+
+    // A member's standing claim-step declines are their personal answers and go
+    // with their personal data; the audit rows recording them remain.
+    legacyClaimDeclines.deleteAllForMember.run(memberId);
 
     // An honoree keeps their claim on the legacy account: the honor is for life,
     // so their old-site identity is never returned to the pool where another

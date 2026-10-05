@@ -1076,7 +1076,7 @@ describe('work-queue claims lapse', () => {
     const { id } = workQueueService.enqueue({
       actorId: 'system',
       queueCategory: 'membership',
-      taskType: 'auto_link_match',
+      taskType: 'member_contact_request',
       entityType: 'member',
       entityId: MEMBER_ID,
       priority: 5,
@@ -1155,26 +1155,24 @@ describe('work-queue claims lapse', () => {
   });
 });
 
-// A low-confidence auto-link classification reaches the queue for an
-// administrator to settle by hand. It is an internal review with no member
-// reply, so it closes with a dismissal rather than a resolution, and it names
-// its own audit event: the ledger is append-only, so filing one review type's
-// dismissal under another's could never be corrected. Every enqueued task type
-// owes the administrator a way to close it: an item with no control can never
-// leave the queue.
-describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match', () => {
-  async function seedAutoLinkMatch(memberId: string): Promise<string> {
-    const { workQueueService } = await import('../../src/services/workQueueService');
-    const { id } = workQueueService.enqueue({
-      actorId: 'system',
-      queueCategory: 'membership',
-      taskType: 'auto_link_match',
-      entityType: 'member',
-      entityId: memberId,
-      priority: 5,
-      reasonText: 'Batch auto-link match (low)',
-      detailText: null,
+// An internal review with no member reply closes with a dismissal rather than a
+// resolution, and it names its own audit event: the ledger is append-only, so
+// filing one review type's dismissal under another's could never be corrected.
+// Every enqueued task type owes the administrator a way to close it: an item
+// with no control can never leave the queue.
+describe('POST /admin/work-queue/:id/dismiss — internal review item', () => {
+  // Seeded through the factory rather than the enqueue path, so the type's own
+  // urgent alert does not put mail in the outbox the email assertion counts.
+  async function seedReviewItem(memberId: string): Promise<string> {
+    const db = new BetterSqlite3(dbPath);
+    const { insertWorkQueueItem: insert } = await import('../fixtures/factories');
+    const id = insert(db, {
+      queue_category: 'system',
+      task_type: 'admin_loss_recruitment',
+      entity_id: memberId,
+      reason_text: 'An administrator can no longer serve.',
     });
+    db.close();
     return id;
   }
 
@@ -1189,65 +1187,22 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
     }
   }
 
-  // Two of the classifier's stopping points call for opposite actions: several
-  // people share this name, so choose; and this old account has no competition
-  // record at all, so there is nothing to link. A card that does not say which
-  // one happened hands the administrator the same page for both.
-  it('says why the match stopped, in words, from the reason kept on the row', async () => {
-    const app = createApp();
-    const db = new BetterSqlite3(dbPath);
-    const { insertWorkQueueItem: insert } = await import('../fixtures/factories');
-    insert(db, {
-      queue_category: 'membership',
-      task_type: 'auto_link_match',
-      entity_id: MEMBER_ID,
-      reason_text: JSON.stringify({ reason: 'no_hp_for_legacy_account' }),
-    });
-    db.close();
-
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('no competition record attached to it');
-    expect(res.text).toContain('usually closed as reviewed');
-    // The stored payload is never printed at an administrator as it stands.
-    expect(res.text).not.toContain('no_hp_for_legacy_account');
-  });
-
-  it('falls back to plain wording on a row raised before the reason was kept', async () => {
-    const app = createApp();
-    const queueId = await seedAutoLinkMatch(OTHER_ID);
-    expect(queueId).toBeTruthy();
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(res.text).toContain('raised before the reason was recorded');
-    expect(res.text).not.toContain('Batch auto-link match (low)');
-  });
-
-  it('does not tell the administrator the member was linked when they were not', async () => {
-    // The classifier also falls silent for a member with nothing to match on, so
-    // the card reads the member's own links rather than inferring from silence.
-    const app = createApp();
-    await seedAutoLinkMatch(MEMBER_ID);
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(res.text).not.toContain('has been linked since the match was raised');
-  });
-
   it('renders a dismissal control the administrator can act on', async () => {
     const app = createApp();
-    const queueId = await seedAutoLinkMatch(MEMBER_ID);
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    const queueId = await seedReviewItem(MEMBER_ID);
+    const res = await request(app).get('/admin/work-queue?category=system').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Auto-link match');
     expect(res.text).toContain(`action="/admin/work-queue/${queueId}/dismiss"`);
   });
 
-  it('dismissal resolves the row and records an auto-link review, not a birth-date one', async () => {
+  it('dismissal closes the row as dismissed and records the type\'s own review event', async () => {
     const app = createApp();
-    const queueId = await seedAutoLinkMatch(MEMBER_ID);
+    const queueId = await seedReviewItem(MEMBER_ID);
     const res = await request(app)
       .post(`/admin/work-queue/${queueId}/dismiss`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ note: 'no plausible legacy account for this member' });
+      .send({ note: 'a replacement administrator is recruited' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath);
@@ -1260,10 +1215,9 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
     expect(row?.status).toBe('dismissed');
     expect(row?.resolved_by_member_id).toBe(ADMIN_ID);
 
-    expect(auditCount('legacy.auto_link_match_reviewed', MEMBER_ID)).toBe(1);
     // Each review type names its own dismissal event, so one type's dismissal
     // can never be filed under another's in a ledger that cannot be corrected.
-    expect(auditCount('admin.loss_alert_dismissed', MEMBER_ID)).toBe(0);
+    expect(auditCount('admin.loss_alert_dismissed', MEMBER_ID)).toBe(1);
   });
 
   // The note is free text an administrator writes about a member, so it belongs
@@ -1271,8 +1225,8 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
   // purge cannot reach.
   it('the dismissal note is kept on the queue row and stays out of the audit ledger', async () => {
     const app = createApp();
-    const queueId = await seedAutoLinkMatch(MEMBER_ID);
-    const note = 'Spoke to them; the 1998 account belongs to their brother.';
+    const queueId = await seedReviewItem(MEMBER_ID);
+    const note = 'Spoke to them; they are stepping back from the role for a year.';
     await request(app)
       .post(`/admin/work-queue/${queueId}/dismiss`)
       .set('Cookie', adminCookie())
@@ -1285,7 +1239,7 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
       .get(queueId) as { reason_text: string | null } | undefined;
     const ledger = db
       .prepare(`SELECT metadata_json, reason_text FROM audit_entries
-                WHERE action_type = 'legacy.auto_link_match_reviewed'
+                WHERE action_type = 'admin.loss_alert_dismissed'
                   AND metadata_json LIKE '%' || ? || '%'`)
       .all(queueId) as Array<Record<string, unknown>>;
     db.close();
@@ -1296,21 +1250,13 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
       .not.toContain(note);
   });
 
-  it('its hint does not offer to undo a link, because none was applied', async () => {
-    const app = createApp();
-    await seedAutoLinkMatch(OTHER_ID);
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(res.text).toContain('No link was applied');
-    expect(res.text).not.toContain('Linking is not reverted here');
-  });
-
   it('no member email is sent when a review item is dismissed', async () => {
     const app = createApp();
     const db0 = new BetterSqlite3(dbPath);
     const before = (db0.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
     db0.close();
 
-    const queueId = await seedAutoLinkMatch(MEMBER_ID);
+    const queueId = await seedReviewItem(MEMBER_ID);
     await request(app)
       .post(`/admin/work-queue/${queueId}/dismiss`)
       .set('Cookie', adminCookie())

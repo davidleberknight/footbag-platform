@@ -91,6 +91,81 @@ export function surnameKeyMatchesName(
   return target === memberSurname || target.endsWith(` ${memberSurname}`);
 }
 
+// The suffixes the claim-step fold drops from the end of a name.
+const CLAIM_NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv']);
+
+// Letters that carry no combining mark to strip, so the accent fold leaves them
+// standing and two spellings of one name would never meet.
+const LETTER_FOLDS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/ø/g, 'o'], [/ł/g, 'l'], [/ß/g, 'ss'], [/æ/g, 'ae'], [/œ/g, 'oe'], [/đ/g, 'd'], [/þ/g, 'th'],
+];
+
+/**
+ * A name folded into the words the claim step compares, both sides alike.
+ *
+ * A quoted nickname inside the name is removed, accents and the letters above
+ * are folded, hyphens become spaces, apostrophes, commas and full stops go,
+ * whitespace collapses and a trailing Jr, Sr, II, III or IV is dropped. The
+ * old site's data and a member's own entry spell the same name in all of these
+ * ways, and a fold applied to one side only refuses names it should accept.
+ */
+export function foldNameWords(name: string | null | undefined): string[] {
+  if (!name) return [];
+  let s = name.normalize('NFKC').toLowerCase();
+  s = s.replace(/["“”][^"“”]*["“”]/g, ' ');
+  for (const [from, to] of LETTER_FOLDS) s = s.replace(from, to);
+  s = stripAccents(s);
+  // Hyphen, the Unicode hyphens, and the en and em dashes all separate words.
+  s = s.replace(new RegExp('[-\\u2010\\u2011\\u2013\\u2014]', 'g'), ' ')
+    .replace(new RegExp('[\'\\u2018\\u2019`,.]', 'g'), '');
+  const words = s.split(/\s+/).filter(Boolean);
+  while (words.length > 1 && CLAIM_NAME_SUFFIXES.has(words[words.length - 1])) words.pop();
+  return words;
+}
+
+/**
+ * A name as the claim step matches it: its first given name and its possible
+ * surnames, which are every later word. Single-letter initials are dropped
+ * first, so "J. Robert Smith" is matched as Robert Smith. A middle name is a
+ * possible surname because a middle name is often a maiden name.
+ */
+export function nameMatchParts(name: string | null | undefined): { first: string; later: string[] } {
+  const all = foldNameWords(name);
+  const withoutInitials = all.filter((w) => w.length > 1);
+  // A name that is mostly initials ("J Smith") keeps them, or dropping the
+  // initial would leave a first name and no surname at all.
+  const words = withoutInitials.length >= 2 ? withoutInitials : all;
+  return { first: words[0] ?? '', later: words.slice(1) };
+}
+
+/**
+ * Whether a run of folded words appears whole, in order, among another list of
+ * words. A surname of several words ("van der berg") passes only where all of
+ * it stands together, never on one of its words alone.
+ */
+export function wordGroupIn(group: readonly string[], words: readonly string[]): boolean {
+  if (group.length === 0 || group.length > words.length) return false;
+  for (let i = 0; i + group.length <= words.length; i++) {
+    if (group.every((w, j) => words[i + j] === w)) return true;
+  }
+  return false;
+}
+
+/**
+ * The surname to show a member when theirs differs from a record's, as the
+ * record spells it: the last word of the name once a quoted nickname, trailing
+ * punctuation and a trailing suffix are set aside. It is also the value a
+ * member records as a former surname when they say they used it.
+ */
+export function displaySurname(name: string | null | undefined): string {
+  if (!name) return '';
+  const words = name.replace(/["“”][^"“”]*["“”]/g, ' ').trim().split(/\s+/)
+    .map((w) => w.replace(/[,.]+$/, ''))
+    .filter(Boolean);
+  while (words.length > 1 && CLAIM_NAME_SUFFIXES.has(words[words.length - 1].toLowerCase())) words.pop();
+  return words.length > 1 ? words[words.length - 1] : '';
+}
+
 /**
  * Strip accents for comparison (Unicode NFD decomposition, remove combining marks).
  */

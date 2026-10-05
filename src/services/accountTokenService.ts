@@ -6,13 +6,13 @@
  *     the raw token is returned to the caller once and never persisted
  *   - Consumption with expiry + single-use enforcement, including the
  *     `consumeIfUnusedInTx` variant composed inside a caller transaction so
- *     a rolled-back claim un-consumes the token
+ *     a rolled-back caller write un-consumes the token
  *   - Non-consuming lookup (`peekToken`) for pre-flight rendering
  *
  * Does not own:
  *   - Token delivery (callers enqueue the email carrying the raw token)
- *   - The account workflows the token gates (verify, reset, claim, export,
- *     mailbox link); callers act on the returned binding
+ *   - The account workflows the token gates (verify, reset, export);
+ *     callers act on the returned binding
  *   - TTL policy (callers pass ttlHours per flow)
  *
  * Required patterns:
@@ -35,9 +35,7 @@ import { accountTokens, type AccountTokenRow } from '../db/db';
 export type AccountTokenType =
   | 'email_verify'
   | 'password_reset'
-  | 'data_export'
-  | 'account_claim'
-  | 'mailbox_link';
+  | 'data_export';
 
 export interface IssuedToken {
   /** The raw URL-safe token handed to the caller. Never stored. */
@@ -50,17 +48,13 @@ export interface IssuedToken {
 export interface ConsumedToken {
   memberId: string;
   tokenRowId: string;
-  targetLegacyMemberId: string | null;
   targetAuditEntryId: string | null;
-  targetAnchorId: string | null;
 }
 
 export interface PeekedToken {
   memberId: string;
   tokenRowId: string;
-  targetLegacyMemberId: string | null;
   targetAuditEntryId: string | null;
-  targetAnchorId: string | null;
   expiresAt: string;
 }
 
@@ -86,9 +80,7 @@ export function issueToken(opts: {
   memberId: string;
   tokenType: AccountTokenType;
   ttlHours: number;
-  targetLegacyMemberId?: string;
   targetAuditEntryId?: string;
-  targetAnchorId?: string;
 }): IssuedToken {
   if (opts.ttlHours <= 0) {
     throw new Error('ttlHours must be > 0');
@@ -106,9 +98,7 @@ export function issueToken(opts: {
     nowIso,
     nowIso,
     opts.memberId,
-    opts.targetLegacyMemberId ?? null,
     opts.targetAuditEntryId ?? null,
-    opts.targetAnchorId ?? null,
     opts.tokenType,
     tokenHash,
     nowIso,
@@ -142,7 +132,7 @@ export function consumeToken(
   // The expiry pre-check above is a fast-fail; the UPDATE below re-checks
   // expiry in SQL via consumeIfUnusedAndUnexpired so a token that expires
   // between the JS check and the UPDATE cannot be consumed (TOCTOU close).
-  // Same statement is used by the Tx variant for the claim flow.
+  // Same statement is used by the Tx variant.
   const nowIso = new Date().toISOString();
   const result = accountTokens.consumeIfUnusedAndUnexpired.run(nowIso, nowIso, row.id, nowIso);
   if (result.changes !== 1) return null;
@@ -150,9 +140,7 @@ export function consumeToken(
   return {
     memberId: row.member_id,
     tokenRowId: row.id,
-    targetLegacyMemberId: row.target_legacy_member_id,
     targetAuditEntryId: row.target_audit_entry_id,
-    targetAnchorId: row.target_anchor_id,
   };
 }
 
@@ -182,9 +170,7 @@ export function consumeIfUnusedInTx(
   // Snapshot bindings before the UPDATE so we can return them if it wins.
   const memberId = row.member_id;
   const tokenRowId = row.id;
-  const targetLegacyMemberId = row.target_legacy_member_id;
   const targetAuditEntryId = row.target_audit_entry_id;
-  const targetAnchorId = row.target_anchor_id;
   const nowIso = new Date().toISOString();
   const result = accountTokens.consumeIfUnusedAndUnexpired.run(
     nowIso,
@@ -193,7 +179,7 @@ export function consumeIfUnusedInTx(
     nowIso,
   );
   if (result.changes !== 1) return null;
-  return { memberId, tokenRowId, targetLegacyMemberId, targetAuditEntryId, targetAnchorId };
+  return { memberId, tokenRowId, targetAuditEntryId };
 }
 
 /**
@@ -218,9 +204,7 @@ export function peekToken(
   return {
     memberId: row.member_id,
     tokenRowId: row.id,
-    targetLegacyMemberId: row.target_legacy_member_id,
     targetAuditEntryId: row.target_audit_entry_id,
-    targetAnchorId: row.target_anchor_id,
     expiresAt: row.expires_at,
   };
 }

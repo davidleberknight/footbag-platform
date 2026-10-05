@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import {
   identityAccessService,
-  ClaimConfirmContent,
   LinkHistoryContent,
 } from '../services/identityAccessService';
 import {
@@ -12,15 +11,12 @@ import {
   WizardActionResult,
   WizardCard,
   ClubInsightPrompt,
-  LegacyClaimAutoLinkConfirmFormState,
-  LegacyClaimTokenConfirmFormState,
   PersonalDetailsFormState,
+  readClaimTarget,
 } from '../services/memberOnboardingService';
 import { memberService, birthMonthOptions } from '../services/memberService';
-import { simulatedEmailService } from '../services/simulatedEmailService';
 import { logger } from '../config/logger';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
-import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
 import {
   FLASH_KIND,
@@ -28,8 +24,6 @@ import {
   readFlash,
   clearFlash,
 } from '../lib/flashCookie';
-import { config } from '../config/env';
-import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
 // Wizard surface: `/register/wizard/:taskType`. POST handlers are thin
 // HTTP glue: parse input, call one service method returning a
@@ -42,12 +36,6 @@ import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
 const TASK_TYPE_SET: Set<string> = new Set(TASK_CATALOG);
 const WIZARD_COMPLETE_URL = '/register/wizard/complete';
-
-const EMPTY_FLASH = {
-  submitted: false,
-  hpPersonId: null,
-  autoLinkDrift: false,
-} as const;
 
 interface ClubAffiliationsCardContent {
   dashboardHref:   string;
@@ -113,14 +101,6 @@ function nextPendingHref(memberId: string): string {
 }
 
 function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void {
-  if (flash.kind === 'WIZARD_LEGACY_CLAIM_RESULT') {
-    writeFlash(res, req, FLASH_KIND.WIZARD_LEGACY_CLAIM_RESULT, JSON.stringify(flash.payload));
-    return;
-  }
-  if (flash.kind === 'WIZARD_AUTO_LINK_DRIFT') {
-    writeFlash(res, req, FLASH_KIND.WIZARD_AUTO_LINK_DRIFT);
-    return;
-  }
   if (flash.kind === 'WIZARD_CLUB_CARD_RESOLVED') {
     writeFlash(res, req, FLASH_KIND.WIZARD_CLUB_CARD_RESOLVED, JSON.stringify(flash.payload));
     return;
@@ -130,73 +110,31 @@ function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void
   }
 }
 
-interface WizardFlashState {
-  submitted: boolean;
-  hpPersonId: string | null;
-  autoLinkDrift: boolean;
-}
-
-function readWizardFlashState(req: Request, res: Response): WizardFlashState {
-  const flash = readFlash(req);
-  if (!flash) return { ...EMPTY_FLASH };
-  if (flash.kind === FLASH_KIND.WIZARD_LEGACY_CLAIM_RESULT) {
-    clearFlash(res, req);
-    let hpPersonId: string | null = null;
-    try {
-      const payload = JSON.parse(flash.payload ?? '{}');
-      if (typeof payload.hpPersonId === 'string') hpPersonId = payload.hpPersonId;
-    } catch {
-      // Garbage payload: still treat as submitted; just no HP card.
-    }
-    return { submitted: true, hpPersonId, autoLinkDrift: false };
-  }
-  if (flash.kind === FLASH_KIND.WIZARD_AUTO_LINK_DRIFT) {
-    clearFlash(res, req);
-    return { submitted: false, hpPersonId: null, autoLinkDrift: true };
-  }
-  // Foreign flash kind (e.g., LOGOUT, AVATAR_UPLOADED): leave it intact for
-  // whichever surface owns it.
-  return { ...EMPTY_FLASH };
-}
-
 async function renderLegacyClaim(
   req: Request,
   res: Response,
-  state: WizardFlashState,
   statusOverride?: number,
   validationMessage?: string,
 ): Promise<void> {
   const memberId = req.user!.userId;
-  const data = await identityAccessService.getLinkHistoryViewForWizard(memberId, {
-    submitted: state.submitted,
-    hpPersonId: state.hpPersonId,
-    autoLinkDrift: state.autoLinkDrift,
-  });
+  const data = await identityAccessService.getLinkHistoryViewForWizard(memberId);
   if (!data) {
     renderNotFound(res);
     return;
   }
   data.dashboardHref = dashboardHrefFor(req);
-  data.turnstileSiteKey = config.turnstileSiteKey;
   data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
-  const anchorVerification = req.query.anchor_verification;
-  data.anchorVerificationNotice =
-    anchorVerification === 'sent' || anchorVerification === 'verified' || anchorVerification === 'invalid'
-      ? anchorVerification
-      : null;
-  const anchorSaved = req.query.anchor;
-  data.anchorSavedNotice =
-    anchorSaved === 'saved' || anchorSaved === 'removed' ? anchorSaved : null;
+  data.anchorSavedNotice = req.query.anchor === 'saved' ? 'saved' : null;
   // A decision is offered only while the task still needs one. Once it is
   // answered the form would submit into a silent no-op, which reads to the
   // member as a broken button.
   data.showNoLinkAnswers =
     memberOnboardingService.getTaskState(memberId, 'legacy_claim') !== 'completed';
-  // The last attempt at the match, reached by answering that they held an
-  // account and cannot find it. The date on file is offered for correction
-  // because the matcher runs on it, and a registrant who mistyped it has had no
-  // way to put it right since the details step closed behind them.
-  data.sharpenNotice = req.query.sharpen === '1';
+  // The last attempt at the match, opened once by answering that they held an
+  // account and cannot find it, and shown on the completed step's own render
+  // until they hold an account or a record. The date on file is offered for
+  // correction because the matcher runs on it.
+  data.sharpenNotice = !data.showNoLinkAnswers && memberOnboardingService.lastAttemptOpen(memberId);
   data.birthDateSavedNotice = req.query.birth_date === 'saved';
   if (data.sharpenNotice || data.birthDateSavedNotice) {
     const parts = memberService.getBirthDateParts(memberId);
@@ -207,20 +145,6 @@ async function renderLegacyClaim(
     data.continueHref = nextPendingHref(memberId);
   }
   if (validationMessage) data.validationMessage = validationMessage;
-  // On a dev or staging host (stub adapter) show the just-sent confirmation link
-  // on the page, scoped to the specific link type of whichever mail-sending
-  // state is active, so a tester finishes the flow without opening the dev
-  // outbox. In production the service returns null and no card renders.
-  const mailLinkPrefix =
-    data.anchorVerificationNotice === 'sent'
-      ? '/register/wizard/legacy_claim/anchors/verify/'
-      : data.sentNotice.show
-        ? '/register/wizard/legacy_claim/claim/confirm/'
-        : null;
-  if (mailLinkPrefix) {
-    data.emailPreview =
-      (await simulatedEmailService.getEmailPreview({ urlPathPrefix: mailLinkPrefix })) ?? undefined;
-  }
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find Your Past Records' },
     page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find Your Past Records' },
@@ -384,11 +308,7 @@ async function renderTaskByType(
 ): Promise<void> {
   switch (taskType) {
     case 'personal_details':         renderPersonalDetails(req, res); return;
-    case 'legacy_claim': {
-      const state = readWizardFlashState(req, res);
-      await renderLegacyClaim(req, res, state);
-      return;
-    }
+    case 'legacy_claim':             await renderLegacyClaim(req, res); return;
     case 'club_affiliations':        renderClubAffiliationsCard(req, res); return;
     default: {
       const _exhaustive: never = taskType;
@@ -438,6 +358,27 @@ async function dispatch<TFormState>(
     // to 503, everything else to next(err) -> 500.
     handleControllerError(err, res, next, `onboarding wizard:${currentTaskType}`);
   }
+}
+
+async function claimFromCard(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  withSurname: boolean,
+): Promise<void> {
+  const target = readClaimTarget(req.body);
+  await dispatch<null>(req, res, next, 'legacy_claim', {
+    action: () => memberOnboardingService.processClaimCandidate(
+      req.user!.userId, target, req.ip ?? 'unknown', withSurname),
+    renderValidationError: async (result) => {
+      // A member-safe reason from the service: the uniform "no longer
+      // available" refusal, or a concurrent claimant having won the record.
+      await renderLegacyClaim(req, res, 422, result.message);
+    },
+    renderRateLimited: async () => {
+      await renderLegacyClaim(req, res, 429, 'Too many claim attempts. Please try again later.');
+    },
+  });
 }
 
 export const memberOnboardingController = {
@@ -508,17 +449,13 @@ export const memberOnboardingController = {
 
       const taskState = memberOnboardingService.getTaskState(memberId, taskType);
       if (taskState === 'completed') {
-        // A completed legacy_claim still renders to a registrant still in the
-        // wizard, in two cases: while open staged candidates remain (the
-        // cross-source follow-on offer surfaces here right after the first
-        // claim completes), and while a linkage is still missing, so a
-        // registrant who answered "continue without linking" can come back to
-        // it before signing up is finished. Otherwise completed tasks bounce to
-        // the next outstanding one.
+        // A completed legacy_claim still renders in one case: the one last
+        // attempt at the match that answering "I had one but cannot find it"
+        // opened, until the member holds an account or a record. The claim
+        // step is one pass, so nothing else brings it back. Otherwise completed
+        // tasks bounce to the next outstanding one.
         const stillRendersDuringSignup =
-          taskType === 'legacy_claim' &&
-          (identityAccessService.listOpenStagedCandidates(memberId).length > 0 ||
-            memberOnboardingService.legacyClaimLinkageIncomplete(memberId));
+          taskType === 'legacy_claim' && memberOnboardingService.lastAttemptOpen(memberId);
         if (!stillRendersDuringSignup) {
           res.redirect(303, nextPendingHref(memberId));
           return;
@@ -566,7 +503,7 @@ export const memberOnboardingController = {
       renderValidationError: async (result) => {
         // A missing answer is the only validation that can fail; re-render the
         // page with the message so the member sees why the click did not advance.
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
+        await renderLegacyClaim(req, res, 422, result.message);
       },
     });
   },
@@ -589,148 +526,21 @@ export const memberOnboardingController = {
     });
   },
 
-  async postLegacyClaimFind(req: Request, res: Response, next: NextFunction): Promise<void> {
-    // Anti-enumeration: verify the Turnstile token server-side BEFORE any claim
-    // lookup. On failure the form re-renders with a generic message, identical
-    // to any other non-result, so a failed challenge reveals nothing. The stub
-    // (dev + staging) passes every real token, so this is transparent there.
-    const captchaToken = String(req.body['cf-turnstile-response'] ?? '');
-    const captcha = await getCaptchaAdapter().verify(captchaToken, req.ip);
-    if (!captcha.ok) {
-      await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422,
-        'Please complete the verification challenge and try again.');
-      return;
-    }
-    const identifier = String(req.body.identifier ?? '').trim();
-    await dispatch(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processLegacyClaimSubmit(req.user!.userId, identifier, req.ip ?? 'unknown'),
-      renderValidationError: async (result) => {
-        // Surface the validation message inline (e.g. "Enter an identifier to
-        // search.") instead of silently reloading the page — D4: empty
-        // submits used to look like the click did nothing.
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
-      },
-      renderRateLimited: async () => {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429,
-          'Too many search attempts. Please wait and try again.');
-      },
-    });
+  // "This Is Me, Link My History" on a card.
+  async postClaimCandidate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    await claimFromCard(req, res, next, false);
   },
 
-  async postLegacyClaimAutoLinkConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const personId = String(req.body.personId ?? '').trim();
-    await dispatch<LegacyClaimAutoLinkConfirmFormState>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processLegacyClaimAutoLinkConfirm(req.user!.userId, personId),
-      renderValidationError: async (result) => {
-        // A validation failure here carries a real, member-safe reason from
-        // the service (surname mismatch with its contact-an-administrator
-        // guidance, already claimed by another member, already linked,
-        // unverified old-email anchor, or the birth-date requirement).
-        // Render it inline on the wizard page so the member sees why the
-        // confirm did not go through; genuine classifier drift never reaches
-        // this branch (the service returns the drift flash for that).
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
-      },
-    });
+  // "This is me, I used the surname X" on a card whose surname differs.
+  async postClaimWithSurname(req: Request, res: Response, next: NextFunction): Promise<void> {
+    await claimFromCard(req, res, next, true);
   },
 
-  async postCrossSourceLegacyConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const candidateId = String(req.body.candidateId ?? '').trim();
+  // "This Is Not Me" on any card.
+  async postDeclineCandidate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const target = readClaimTarget(req.body);
     await dispatch<null>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processCrossSourceLegacyConfirm(req.user!.userId, candidateId),
-      renderValidationError: async (result) => {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
-      },
-    });
-  },
-
-  async postAnchorSendVerification(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      identityAccessService.requestAnchorMailboxVerification(
-        req.user!.userId,
-        String(req.body.anchorId ?? ''),
-        req.ip ?? 'unknown',
-      );
-      // Non-revealing: enqueued, already-verified, and not-found all land on
-      // the same banner; the member sees mail only when it was really sent.
-      res.redirect(303, `${taskUrlFor('legacy_claim')}?anchor_verification=sent`);
-    } catch (err) {
-      if (err instanceof RateLimitedError) {
-        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429, err.message);
-        return;
-      }
-      next(err);
-    }
-  },
-
-  async getAnchorVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const result = identityAccessService.consumeAnchorMailboxVerification(
-        req.user!.userId,
-        req.params.token ?? '',
-      );
-      const flag = result.status === 'verified' ? 'verified' : 'invalid';
-      res.redirect(303, `${taskUrlFor('legacy_claim')}?anchor_verification=${flag}`);
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  async postLegacyClaimAutoLinkDecline(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const candidateId = String(req.body.candidateId ?? '').trim();
-    const personId = String(req.body.personId ?? '').trim();
-    await dispatch<null>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processLegacyClaimAutoLinkDecline(req.user!.userId, candidateId, personId),
-      renderValidationError: () => {
-        res.redirect(303, taskUrlFor('legacy_claim'));
-      },
-    });
-  },
-
-  getLegacyClaimTokenConfirm(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const token = req.params.token ?? '';
-      const result = identityAccessService.peekLegacyClaim(req.user!.userId, token);
-      if (!result) {
-        res.status(400).render('register/wizard/legacy-claim-token-invalid', {
-          seo:  { title: 'Claim Link No Longer Valid' },
-          page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_invalid', title: 'Claim Link No Longer Valid' },
-          content: { dashboardHref: dashboardHrefFor(req) },
-        });
-        return;
-      }
-      res.render('register/wizard/legacy-claim-token-confirm', {
-        seo:  { title: 'Confirm Legacy Account Link' },
-        page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_confirm', title: 'Confirm Legacy Account Link' },
-        content: {
-          legacyMemberId: result.legacyMemberId,
-          displayName:    result.displayName,
-          country:        result.country,
-          isHof:          result.isHof,
-          isBap:          result.isBap,
-          token,
-          clubAffiliations: result.clubAffiliations,
-          eventsAttended:   result.eventsAttended,
-        },
-      } satisfies PageViewModel<ClaimConfirmContent>);
-    } catch (err) {
-      logger.error('onboarding claim token peek error', { error: err instanceof Error ? err.message : String(err) });
-      next(err);
-    }
-  },
-
-  async postLegacyClaimTokenConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const token = String(req.body.token ?? '');
-    await dispatch<LegacyClaimTokenConfirmFormState>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processLegacyClaimTokenConfirm(req.user!.userId, token),
-      renderValidationError: (result) => {
-        res.status(422).render('register/wizard/legacy-claim-token-invalid', {
-          seo:  { title: 'Claim Link No Longer Valid' },
-          page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_invalid', title: 'Claim Link No Longer Valid' },
-          content: { dashboardHref: dashboardHrefFor(req), error: result.message || undefined },
-        });
-      },
+      action: () => memberOnboardingService.processDeclineCandidate(req.user!.userId, target),
     });
   },
 
@@ -792,46 +602,30 @@ export const memberOnboardingController = {
   // match. The redirect back re-runs the match, because the step recomputes its
   // candidates on every draw, so a corrected date searches again by itself.
   async postLegacyClaimBirthDate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      memberService.correctOwnBirthDate(req.user!.slug ?? '', {
-        day:   String(req.body.birthDay ?? ''),
-        month: String(req.body.birthMonth ?? ''),
-        year:  String(req.body.birthYear ?? ''),
-      });
-      res.redirect(303, '/register/wizard/legacy_claim?birth_date=saved');
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
-        return;
-      }
-      next(err);
-    }
+    const parts = {
+      day:   String(req.body.birthDay ?? ''),
+      month: String(req.body.birthMonth ?? ''),
+      year:  String(req.body.birthYear ?? ''),
+    };
+    await dispatch<null>(req, res, next, 'legacy_claim', {
+      action: () => memberOnboardingService.processLegacyClaimBirthDate(req.user!.userId, req.user!.slug ?? '', parts),
+      renderValidationError: async (result) => {
+        await renderLegacyClaim(req, res, 422, result.message);
+      },
+    });
   },
 
   async postAddAnchor(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      identityAccessService.declareAnchor(
-        req.user!.userId,
-        String(req.body.anchorType ?? ''),
-        String(req.body.anchorValue ?? ''),
-      );
-      res.redirect(303, '/register/wizard/legacy_claim?anchor=saved');
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
-        return;
-      }
-      next(err);
-    }
-  },
-
-  postRemoveAnchor(req: Request, res: Response, next: NextFunction): void {
-    try {
-      identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
-      res.redirect(303, '/register/wizard/legacy_claim?anchor=removed');
-    } catch (err) {
-      next(err);
-    }
+    await dispatch<null>(req, res, next, 'legacy_claim', {
+      action: () => memberOnboardingService.processAddAnchor(
+        req.user!.userId, String(req.body.anchorType ?? ''), String(req.body.anchorValue ?? '')),
+      renderValidationError: async (result) => {
+        await renderLegacyClaim(req, res, 422, result.message);
+      },
+      renderRateLimited: async () => {
+        await renderLegacyClaim(req, res, 429, 'Too many identity-anchor changes. Please try again later.');
+      },
+    });
   },
 
 };

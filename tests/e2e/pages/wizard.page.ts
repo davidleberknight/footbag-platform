@@ -2,7 +2,7 @@
  * Page object for the onboarding wizard (/register/wizard/:taskType).
  * Uses accessible role/name locators per Playwright best practice.
  */
-import type { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export class WizardPage {
   constructor(private page: Page) {}
@@ -29,33 +29,54 @@ export class WizardPage {
     return this.page.locator('form[action="/register/wizard/legacy_claim/birth-date"]');
   }
 
-  // club_affiliations explicit no-club answer: the Stage 1 "None of These Are
-  // My Clubs" bulk decline, or the wrap-up "Finish Without a Club". Both
-  // complete the task; there is no skip anywhere in the wizard.
-  get noClubsButton() {
-    return this.page.getByRole('button', { name: /Finish Without a Club/i }).first();
+  // One claim-step card, found by the name it shows.
+  card(name: string): Locator {
+    return this.page.locator('li.candidate-card').filter({ hasText: name });
   }
 
-  // The explicit answer control that completes the current task without a
-  // link or club: legacy_claim's continue-without-linking, or the club task's
-  // no-club answer. personal_details has no such control; its required fields
-  // must be filled and saved.
-  get answerAndAdvanceButton() {
-    return this.page
-      .getByRole('button', { name: /Continue Without Linking a Past Account|Finish Without a Club/i })
-      .first();
+  get cards(): Locator {
+    return this.page.locator('li.candidate-card');
+  }
+
+  claimButton(card: Locator): Locator {
+    return card.getByRole('button', { name: /This Is Me, Link My History/i });
+  }
+
+  recordClaimLink(card: Locator): Locator {
+    return card.getByRole('link', { name: /Claim This Record/i });
+  }
+
+  surnameClaimButton(card: Locator): Locator {
+    return card.getByRole('button', { name: /This Is Me, I Used the Surname/i });
+  }
+
+  declineButton(card: Locator): Locator {
+    return card.getByRole('button', { name: /This Is Not Me/i });
+  }
+
+  get oldEmailInput() {
+    return this.page.locator('#oldEmail');
+  }
+
+  get addOldEmailButton() {
+    return this.page.getByRole('button', { name: 'Add Old Email' });
+  }
+
+  // club_affiliations' explicit no-club answer on the wrap-up landing. It
+  // completes the task; there is no skip anywhere in the wizard.
+  get noClubsButton() {
+    return this.page.getByRole('button', { name: /Finish Without a Club/i }).first();
   }
 
   get heading() {
     return this.page.getByRole('heading', { level: 1 });
   }
 
-  // Completes the current task by its explicit answer control. legacy_claim is
-  // completed by either non-claiming answer; this walks the never-had-one path,
-  // which advances straight to the next task. club_affiliations is completed by
-  // the no-club answer. personal_details is required and cannot be advanced
-  // this way.
-  async answerCurrentTask(): Promise<void> {
+  // Completes the current task by its explicit answer control and waits for the
+  // destination the caller names. legacy_claim is answered by the never-had-one
+  // answer; club_affiliations by the no-club answer. personal_details is
+  // required and cannot be advanced this way.
+  async answerCurrentTask(expected: RegExp): Promise<void> {
     const url = this.page.url();
     if (url.includes('legacy_claim')) {
       await this.neverHadOldAccountButton.click();
@@ -64,29 +85,10 @@ export class WizardPage {
     } else {
       throw new Error(`answerCurrentTask: current task has no explicit answer control: ${url}`);
     }
-    await this.page.waitForURL(/\/register\/wizard\//);
+    await expect(this.page).toHaveURL(expected);
   }
 
-  // Legacy claim task
-  get identifierInput() {
-    return this.page.locator('#identifier');
-  }
-
-  // Exact, because the claim step also carries "I Had One but Cannot Find It".
-  // A substring match would resolve to both and fail on strict mode.
-  get findButton() {
-    return this.page.getByRole('button', { name: 'Find', exact: true });
-  }
-
-  // Submits the legacy-claim search. Assumes personal_details is already
-  // complete, since the claim step is only reachable once it is on file.
-  async submitIdentifier(identifier: string): Promise<void> {
-    await this.identifierInput.fill(identifier);
-    await this.findButton.click();
-    await this.page.waitForURL(/\/register\/wizard\//);
-  }
-
-  // First competition year task
+  // First competition year field on personal_details.
   get yearInput() {
     return this.page.locator('#year');
   }
@@ -97,16 +99,11 @@ export class WizardPage {
     return this.page.getByRole('button', { name: /Save and (Continue|Complete) Onboarding/ }).first();
   }
 
-  async submitYear(year: string): Promise<void> {
-    await this.yearInput.fill(year);
-    await this.saveButton.click();
-    await this.page.waitForURL(/\/register\/wizard\//);
-  }
-
   // Fills the personal_details required fields (city, country, region where the
   // country needs one, and the date of birth) plus an optional
-  // first-competition year, then saves and waits for the advance.
+  // first-competition year, then saves and waits for the destination named.
   async fillPersonalDetailsAndSave(
+    expected: RegExp,
     opts: {
       city?: string; country?: string; region?: string; year?: string;
       birthDay?: string; birthMonth?: string; birthYear?: string;
@@ -117,7 +114,7 @@ export class WizardPage {
     await this.fillBirthDate(opts);
     if (opts.year !== undefined) await this.yearInput.fill(opts.year);
     await this.saveButton.click();
-    await this.page.waitForURL(/\/register\/wizard\//);
+    await expect(this.page).toHaveURL(expected);
   }
 
   // The date is three labelled parts, with the month chosen by name.
@@ -139,18 +136,9 @@ export class WizardPage {
     if (await regionSelect.count()) await regionSelect.selectOption(region);
   }
 
-  // Show competitive results task
-  get resultsToggle() {
-    return this.page.locator('input[name="enabled"]');
-  }
-
   // Club affiliations task
   get clubCardHeading() {
     return this.page.locator('.card-title').first();
-  }
-
-  get clubMembershipQuestion() {
-    return this.page.locator('fieldset:has(input[name="userDecision"]) legend');
   }
 
   get clubYesRadio() {
@@ -169,10 +157,6 @@ export class WizardPage {
     return this.page.locator('.text-muted.fs-sm').first();
   }
 
-  get signalChecklist() {
-    return this.page.locator('.signal-checklist');
-  }
-
   // Error display
   get inlineError() {
     return this.page.locator('[role="alert"]');
@@ -189,9 +173,5 @@ export class WizardPage {
 
   get profileLink() {
     return this.page.getByRole('link', { name: /continue to your profile/i });
-  }
-
-  currentUrl(): string {
-    return this.page.url();
   }
 }

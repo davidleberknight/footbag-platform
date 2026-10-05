@@ -5,9 +5,9 @@
  * 'running' / 'succeeded' / 'failed'; without it, every reaper invocation
  * throws SQLITE_CONSTRAINT_CHECK and orphaned rows stay stuck forever.
  *
- * Reaping is invoked at the head of each SYS-job pass (see
- * runBatchAutoLink). This test exercises that path against a freshly-built
- * schema and a pre-seeded stale 'running' row.
+ * Reaping runs at the head of every job the lifecycle wrapper runs. This test
+ * exercises that path against a freshly-built schema and a pre-seeded stale
+ * 'running' row.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -66,33 +66,12 @@ function insertStaleRunning(rowId: string, jobName: string, startedAt: string): 
   }
 }
 
-describe('runBatchAutoLink reaper writes status=aborted to stale running rows', () => {
-  it('updates a SYS_Batch_Auto_Link row older than the staleness threshold from running to aborted', async () => {
-    // Insert a stale row 2 hours in the past; threshold is 1h.
-    const staleStarted = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const staleId = 'sjr_stale_test_001';
-    insertStaleRunning(staleId, 'SYS_Batch_Auto_Link', staleStarted);
-
-    // Sanity: row starts as 'running'.
-    const before = readById(staleId);
-    expect(before?.status).toBe('running');
-
-    // Invoking the wrapper triggers reapStaleRunning before recordJobRun.
-    // We do not care about the new run's outcome; we only assert the stale
-    // row was successfully transitioned to 'aborted'.
-    await ops.operationsPlatformService.runBatchAutoLink();
-
-    const after = readById(staleId);
-    expect(after?.status).toBe('aborted');
-    expect(after?.finished_at).not.toBeNull();
-    expect(after?.last_error).toBe('stale_running_reaped');
-  });
-
+describe('the job lifecycle wrapper reaps stale running rows to aborted', () => {
   // Every scheduled job goes through the same lifecycle wrapper, so every one is
-  // reaped. Wiring the reap to a single job left every other one reading as
-  // still running for ever on the health page after a kill, and never counted
-  // among that job's failures.
-  it('reaps a stale row for any job the wrapper runs, not only the batch auto-link pass', async () => {
+  // reaped. Without it a killed job reads as still running for ever on the
+  // health page, and is never counted among that job's failures.
+  it('updates a row older than the staleness threshold from running to aborted when its job next runs', async () => {
+    // Two hours in the past; the threshold is one hour.
     const staleStarted = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const staleId = 'sjr_stale_test_002';
     insertStaleRunning(staleId, 'SYS_Rebuild_Hashtag_Stats', staleStarted);
@@ -102,6 +81,7 @@ describe('runBatchAutoLink reaper writes status=aborted to stale running rows', 
 
     const after = readById(staleId);
     expect(after?.status).toBe('aborted');
+    expect(after?.finished_at).not.toBeNull();
     expect(after?.last_error).toBe('stale_running_reaped');
   });
 });

@@ -308,7 +308,7 @@ describe('member intake', () => {
     // one left: if a single platform-raised row were counted, this would be
     // refused.
     const memberId = seedRequester();
-    for (const taskType of ['unattributed_refund', 'partial_refund_review', 'auto_link_match_review']) {
+    for (const taskType of ['unattributed_refund', 'partial_refund_review', 'admin_loss_recruitment']) {
       insertWorkQueueItem(db, { entity_id: memberId, task_type: taskType, status: 'open' });
     }
     for (let i = 0; i < 2; i += 1) {
@@ -688,6 +688,28 @@ describe('admin review', () => {
     expect(res.text).toContain('/admin/legacy-accounts');
   });
 
+  // Defect caught: an old account another member already holds vanishes from
+  // the card, so an administrator approving a link cannot see the conflict or
+  // who is on the other side of it.
+  it('shows an old account held by another member as a conflict naming its holder', async () => {
+    const memberId = seedRequester('Held Conflict');
+    const holderId = insertMember(db, { real_name: 'Other Holder', display_name: 'Other Holder' });
+    insertLegacyMember(db, {
+      legacy_member_id: `LM-held-${memberId}`,
+      legacy_email: `${memberId}@example.com`,
+      real_name: 'Held Conflict',
+      claimed_by_member_id: holderId, claimed_at: '2026-01-01T00:00:00.000Z',
+    });
+    await askAdminToLink(memberId, 'Someone else has my old account.');
+
+    const res = await request(createApp())
+      .get('/admin/work-queue')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`LM-held-${memberId}`);
+    expect(res.text).toContain('Held by another member: Other Holder');
+  });
+
   it('says plainly when nothing on file reaches a record for the member', async () => {
     const memberId = seedRequester('Nobody Findable');
     await askAdminToLink(memberId, 'I am sure I had an account.');
@@ -717,15 +739,16 @@ describe('admin review', () => {
       person_name: 'Other Personsson',
       legacy_member_id: 'lm-evidence-refused',
     });
+    // The ledger names the record by id only; the card reads its name live.
     insertAuditEntry(db, {
-      action_type: 'claim.historical_person_blocked',
+      action_type: 'claim.refused',
       actor_type: 'member',
       actor_member_id: memberId,
       entity_id: memberId,
       metadata: {
-        person_id: 'hp-evidence-refused',
-        person_name: 'Other Personsson',
-        reason: 'surname_mismatch',
+        account_id: null,
+        record_id: 'hp-evidence-refused',
+        refusal: 'surname_mismatch',
         dob_comparison: 'mismatch',
         assessment: 'contradicted',
       },
@@ -740,7 +763,7 @@ describe('admin review', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Refused: the surname did not match');
+    expect(res.text).toContain('Refused: the member&#x27;s evidence no longer made it claimable');
     expect(res.text).toContain('Other Personsson');
     expect(res.text).toContain('Date of birth does not match the record');
     // Both dates stand beside the verdict. An administrator weighing a doubtful

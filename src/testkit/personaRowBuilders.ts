@@ -1147,17 +1147,29 @@ export type OnboardingTaskState =
  * duplicate id, or the live dev server's own task-row insert when it shares this
  * database) won the row: fail loudly at the seed rather than in a distant assertion.
  */
+export interface OnboardingTaskOverrides {
+  /** legacy_claim row only: date-of-birth changes already made while onboarding. */
+  birth_date_changes?: number | null;
+  /** legacy_claim row only: when the cannot-find answer opened the last attempt. */
+  last_attempt_opened_at?: string | null;
+}
+
 export function insertOnboardingTask(
   db: BetterSqlite3.Database,
   memberId: string,
   taskType: OnboardingTaskType,
   state: OnboardingTaskState = 'completed',
+  o: OnboardingTaskOverrides = {},
 ): void {
   db.prepare(`
     INSERT OR IGNORE INTO member_onboarding_tasks
-      (id, created_at, created_by, updated_at, updated_by, version, member_id, task_type, state, completed_at)
-    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(`mot_${uid()}`, TS, SYS, TS, SYS, memberId, taskType, state, state === 'completed' ? TS : null);
+      (id, created_at, created_by, updated_at, updated_by, version, member_id, task_type, state, completed_at,
+       birth_date_changes, last_attempt_opened_at)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    `mot_${uid()}`, TS, SYS, TS, SYS, memberId, taskType, state, state === 'completed' ? TS : null,
+    o.birth_date_changes ?? null, o.last_attempt_opened_at ?? null,
+  );
 
   const landed = db.prepare(
     'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
@@ -1741,8 +1753,6 @@ export interface MemberDeclaredAnchorOverrides {
   anchor_value?: string;
   created_at?: string;
   created_by?: string;
-  verified_via_link_click_at?: string | null;
-  verification_token_id?: string | null;
 }
 
 export function insertMemberDeclaredAnchor(
@@ -1755,16 +1765,49 @@ export function insertMemberDeclaredAnchor(
   db.prepare(`
     INSERT INTO member_declared_anchors (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, anchor_type, anchor_value,
-      verified_via_link_click_at, verification_token_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+      member_id, anchor_type, anchor_value
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
   `).run(
     id, at, by, at, by,
     o.member_id,
     o.anchor_type  ?? 'former_surname',
     o.anchor_value ?? 'maidenname',
-    o.verified_via_link_click_at ?? null,
-    o.verification_token_id ?? null,
+  );
+  return id;
+}
+
+// ── Legacy claim decline ──────────────────────────────────────────────────────
+
+// A member's standing "This Is Not Me" answer for one claim candidate. At least
+// one target must be named, as the table requires.
+export interface LegacyClaimDeclineOverrides {
+  id?: string;
+  member_id: string;
+  legacy_member_id?: string | null;
+  historical_person_id?: string | null;
+  confidence?: 'high' | 'medium' | 'low';
+  evidence_json?: string;
+  created_at?: string;
+}
+
+export function insertLegacyClaimDecline(
+  db: BetterSqlite3.Database,
+  o: LegacyClaimDeclineOverrides,
+): string {
+  const id = o.id ?? `lcd-test-${uid()}`;
+  const at = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO legacy_claim_declines (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, legacy_member_id, historical_person_id, confidence, evidence_json
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, o.member_id, at, o.member_id,
+    o.member_id,
+    o.legacy_member_id ?? null,
+    o.historical_person_id ?? null,
+    o.confidence ?? 'medium',
+    o.evidence_json ?? '{}',
   );
   return id;
 }

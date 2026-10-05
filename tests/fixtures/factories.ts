@@ -54,6 +54,7 @@ import {
   createTier0WithActivePlayer,
   createTier3WithUnderlying,
   insertMemberDeclaredAnchor,
+  insertLegacyClaimDecline,
   insertStripeEvent,
   insertStripeWebhookFailure,
   insertClubCleanupResolution,
@@ -96,6 +97,7 @@ export {
   createTier0WithActivePlayer,
   createTier3WithUnderlying,
   insertMemberDeclaredAnchor,
+  insertLegacyClaimDecline,
   insertStripeEvent,
   insertStripeWebhookFailure,
   insertClubCleanupResolution,
@@ -1461,14 +1463,11 @@ export interface RegistrationOverrides {
 // demand: one spent a month ago, one that expired unused, one still valid.
 export interface AccountTokenOverrides {
   id?: string;
-  token_type?: 'email_verify' | 'password_reset' | 'data_export' | 'account_claim' | 'mailbox_link';
+  token_type?: 'email_verify' | 'password_reset' | 'data_export';
   issued_at?: string;
   expires_at?: string;
   used_at?: string | null;
   token_hash?: string;
-  // The declared anchor a mailbox-link token proves control of; NULL for every
-  // other token type.
-  target_anchor_id?: string | null;
 }
 
 export function insertAccountToken(
@@ -1481,13 +1480,12 @@ export function insertAccountToken(
   db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, target_anchor_id, token_type, token_hash, token_hash_version,
+      member_id, token_type, token_hash, token_hash_version,
       issued_at, expires_at, used_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 1, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?)
   `).run(
     id, issuedAt, SYS, issuedAt, SYS,
     memberId,
-    o.target_anchor_id ?? null,
     o.token_type ?? 'email_verify',
     o.token_hash ?? `hash-${id}`,
     issuedAt,

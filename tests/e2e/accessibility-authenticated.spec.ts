@@ -20,8 +20,16 @@
  */
 import { test, expect } from '@playwright/test';
 import { scanWcagAa, formatFindings } from './helpers/axe';
-import { seedAdmin, seedTier1Member, seedTier0Member } from '../fixtures/personas';
+import { seedAdmin, seedTier1Member, type Persona } from '../fixtures/personas';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
+import {
+  seedTier0Member as seedPendingTier0,
+  seedMemberWithEveryCardKind,
+  seedMemberInLastAttempt,
+  seedMemberWithClubCards,
+  seedAllTasksCompleted,
+  completeThroughLegacyClaim,
+} from './helpers/onboarding';
 import {
   insertMemberGallery,
   insertTag,
@@ -30,7 +38,6 @@ import {
   insertFreestyleTrick,
   insertAuditEntry,
   insertOutboxEmail,
-  insertOnboardingTask,
 } from '../fixtures/factories';
 
 function rand(): string {
@@ -47,6 +54,10 @@ async function scanPages(
     const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
     expect(res, `${name} (${path}) should respond`).not.toBeNull();
     expect(res!.status(), `${name} (${path}) should render, not error`).toBeLessThan(400);
+    // A redirect would scan some other page under this one's name, so the scan
+    // only counts where the browser stayed on the page requested.
+    const landed = new URL(page.url());
+    expect(`${landed.pathname}${landed.search}`, `${name} should render at ${path}, not redirect`).toBe(path);
     const findings = await scanWcagAa(page, { disableRules: ['color-contrast'] });
     if (findings.length > 0) report.push(formatFindings(name, findings));
   }
@@ -86,32 +97,39 @@ test('member surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, a
 
 test('the onboarding wizard has no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
-  // Each wizard step renders for exactly one task state, so covering all three
-  // needs two personas: one still owing personal details, and one past that
-  // step. A single persona would follow the redirect and silently scan the
-  // personal-details form three times.
-  const fresh = seedTier0Member(db, { slug: `a11y_wiz_new_${rand()}` });
-  const past = seedTier0Member(db, { slug: `a11y_wiz_on_${rand()}` });
-  insertOnboardingTask(db, past.memberId, 'personal_details', 'completed');
+  // Each wizard page renders for exactly one state, so every page gets the
+  // persona that reaches it; scanPages refuses a redirect, so a persona in the
+  // wrong state fails rather than scanning some other page.
+  const fresh = seedPendingTier0(db, { slug: `a11y_wiz_new_${rand()}` });
+  const everyCard = seedMemberWithEveryCardKind(db);
+  const lastAttempt = seedMemberInLastAttempt(db);
+  const clubCards = seedMemberWithClubCards(db, { clubCount: 2, city: `A11yville${rand()}` });
+  const wrapUp = seedPendingTier0(db, { slug: `a11y_wiz_wrap_${rand()}` });
+  completeThroughLegacyClaim(db, wrapUp.memberId);
+  const done = seedAllTasksCompleted(db);
   db.close();
 
-  const freshCtx = await createAuthenticatedContext(browser, baseURL!, fresh);
-  try {
-    await scanPages(freshCtx, [
-      { path: '/register/wizard/personal_details', name: 'personal-details wizard' },
-    ]);
-  } finally {
-    await freshCtx.close();
-  }
-
-  const pastCtx = await createAuthenticatedContext(browser, baseURL!, past);
-  try {
-    await scanPages(pastCtx, [
-      { path: '/register/wizard/legacy_claim', name: 'legacy-claim wizard' },
-      { path: '/register/wizard/club_affiliations', name: 'club-affiliations wizard' },
-    ]);
-  } finally {
-    await pastCtx.close();
+  const scans: Array<[Persona, Array<{ path: string; name: string }>]> = [
+    [fresh, [{ path: '/register/wizard/personal_details', name: 'personal-details wizard' }]],
+    [everyCard, [
+      // One render carrying every card kind: claim, record confirmation page,
+      // claim under another surname, and found by name only.
+      { path: '/register/wizard/legacy_claim', name: 'claim step with every card kind' },
+      // A nickname of the member's first name, so the first-name warning renders.
+      { path: `/history/${everyCard.recordOnlyId}/claim`, name: 'record confirmation page' },
+    ]],
+    [lastAttempt, [{ path: '/register/wizard/legacy_claim', name: 'claim step last attempt' }]],
+    [clubCards, [{ path: '/register/wizard/club_affiliations', name: 'club step with cards' }]],
+    [wrapUp, [{ path: '/register/wizard/club_affiliations', name: 'club step wrap-up' }]],
+    [done, [{ path: '/register/wizard/complete', name: 'onboarding complete' }]],
+  ];
+  for (const [persona, pages] of scans) {
+    const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+    try {
+      await scanPages(ctx, pages);
+    } finally {
+      await ctx.close();
+    }
   }
 });
 

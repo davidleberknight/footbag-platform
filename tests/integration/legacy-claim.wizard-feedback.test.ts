@@ -1,14 +1,12 @@
 /**
  * Member-facing feedback on the wizard claim task.
  *
- * A failed "This Is Me" confirmation shows the real reason (surname
- * mismatch with its contact-an-administrator guidance, or a record claimed
- * by another member in the meantime); only genuine classifier drift shows
- * the generic pick-another-candidate banner. The task belongs to signing up:
- * its writes are refused once onboarding completes, on every verb, not only
- * on the page render. A classifier-produced suggestion card carries a decline control
- * even before any staging pass has run, and declining it is durable: the
- * card never re-renders and the pair is never re-staged without new signal.
+ * A card offers only the claim the server would accept: a surname-differing
+ * card offers the one-step surname claim, and a held record shows no card.
+ * Every claim the re-check turns away, whatever the reason, gets the same
+ * refusal and links nothing. The task belongs to signing up: its writes are
+ * refused once onboarding completes, on every verb, not only on the page
+ * render.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -80,71 +78,81 @@ function matchFixture(opts: { memberName: string; personName: string }): {
   return { memberId, legacyId, personId, slug };
 }
 
-describe('specific failure reasons on This Is Me confirmation', () => {
-  it('a surname mismatch offers the two ways to resolve it, not an administrator', async () => {
-    const f = matchFixture({ memberName: 'Robin Alpha', personName: 'Robin Beta' });
-    const staged = svc.stageAutoLinkCandidate(
-      f.memberId,
-      { confidence: 'high', personId: f.personId, personName: 'Robin Beta' },
-      'batch',
-    );
-    expect(staged.status).toBe('staged');
+const NO_LONGER_AVAILABLE = 'This record is no longer available to claim.';
+
+function memberLinks(memberId: string): { historical_person_id: string | null; legacy_member_id: string | null } {
+  return db.prepare('SELECT historical_person_id, legacy_member_id FROM members WHERE id = ?')
+    .get(memberId) as { historical_person_id: string | null; legacy_member_id: string | null };
+}
+
+describe('what a claim the member cannot make shows them', () => {
+  // Defect caught: a card whose surname differs from the member's offers a
+  // plain claim the server will refuse, instead of the one-step surname claim,
+  // and a forged plain claim of it links anything.
+  it('a surname-differing card offers the surname claim, and a plain claim of it is refused', async () => {
+    const f = matchFixture({ memberName: 'Robin Alpha', personName: 'Robin Betaq' });
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(f.memberId));
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('/register/wizard/legacy_claim/claim-with-surname');
+    expect(page.text).toContain('I Used the Surname Betaq');
+    expect(page.text).not.toContain('action="/register/wizard/legacy_claim/claim"');
+
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(f.memberId))
       .type('form')
-      .send({ personId: f.personId });
+      .send({ accountId: f.legacyId, recordId: f.personId });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Your name does not match this record');
-    // A name that does not line up is as likely a marriage, a stale record
-    // name, or a plain mistake as anything else, so the member is handed the
-    // two self-serve remedies that actually find the record rather than being
-    // sent to write to someone.
-    expect(res.text).toContain('different surname');
-    expect(res.text).toContain('different email address');
-    expect(res.text).not.toContain('contact an administrator');
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
+    expect(memberLinks(f.memberId)).toEqual({ historical_person_id: null, legacy_member_id: null });
   });
 
-  it('a record claimed by another member in the meantime says so plainly', async () => {
+  // Defect caught: a record another member claimed after the page was drawn is
+  // still shown with a claim control, or a stale claim of it reveals whose it
+  // is or links anything.
+  it('a record claimed by another member in the meantime leaves no card, and a stale claim is refused uniformly', async () => {
     const f = matchFixture({ memberName: 'Casey Gamma', personName: 'Casey Gamma' });
-    const staged = svc.stageAutoLinkCandidate(
-      f.memberId,
-      { confidence: 'high', personId: f.personId, personName: 'Casey Gamma' },
-      'batch',
-    );
-    expect(staged.status).toBe('staged');
     const rival = insertMember(db, {
       slug: `wf_rival_${_seq}`, login_email: `rival${_seq}@example.com`,
       real_name: 'Casey Gamma', birth_date: '1980-01-01',
     });
     svc.claimLegacyAccount(rival, f.legacyId);
+
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(f.memberId));
+    expect(page.status).toBe(200);
+    expect(page.text).not.toContain(`value="${f.legacyId}"`);
+
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(f.memberId))
       .type('form')
-      .send({ personId: f.personId });
+      .send({ accountId: f.legacyId, recordId: f.personId });
     expect(res.status).toBe(422);
-    expect(res.text.toLowerCase()).toContain('already been claimed');
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
+    expect(res.text).not.toContain('claimed by another');
+    expect(memberLinks(f.memberId)).toEqual({ historical_person_id: null, legacy_member_id: null });
   });
 
-  it('genuine drift keeps the generic pick-another-candidate banner', async () => {
+  // Defect caught: an id the member's evidence never reached gets a different
+  // answer from a real refused one, which would let a member probe for ids.
+  it('an id the step never showed gets the same refusal', async () => {
     const memberId = insertMember(db, {
-      slug: `wf_drift_${tag('d')}`, login_email: `drift${_seq}@example.com`,
-      real_name: 'Drift Delta', birth_date: '1980-01-01',
+      slug: `wf_forged_${tag('d')}`, login_email: `forged${_seq}@example.com`,
+      real_name: 'Forged Delta', birth_date: '1980-01-01',
       onboarding: 'none',
     });
     insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ personId: 'HP-nonexistent' });
-    expect(res.status).toBe(303);
-    const follow = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', [cookieFor(memberId), ...(res.headers['set-cookie'] ?? [])].join('; '));
-    expect(follow.status).toBe(200);
-    expect(follow.text).toContain('no longer applicable');
+      .send({ accountId: 'LM-nonexistent' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain(NO_LONGER_AVAILABLE);
   });
 });
 
@@ -198,105 +206,18 @@ describe('the claim task after onboarding completes', () => {
   });
 });
 
-describe('declining a classifier-only suggestion card', () => {
-  it('the card carries This Is Not Me, declining removes it durably', async () => {
-    const f = matchFixture({ memberName: 'Morgan Kappa', personName: 'Morgan Kappa' });
-
-    const before = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(f.memberId));
-    expect(before.status).toBe(200);
-    expect(before.text).toContain('This Is Me, Link My History');
-    expect(before.text).toContain('This Is Not Me');
-
-    const decline = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/decline')
-      .set('Cookie', cookieFor(f.memberId))
-      .type('form')
-      .send({ personId: f.personId });
-    expect(decline.status).toBe(303);
-
-    const after = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(f.memberId));
-    expect(after.status).toBe(200);
-    // The auto-link card's own control going away is not durability: the same
-    // record can come back under the name-match card, which carries a different
-    // control. Assert the record itself is gone from the page.
-    expect(after.text).not.toContain('This Is Me, Link My History');
-    expect(after.text).not.toContain(`/history/${f.personId}/claim`);
-
-    const row = db.prepare(
-      "SELECT status, source_pass FROM auto_link_staged_candidates WHERE member_id = ? AND historical_person_id = ?",
-    ).get(f.memberId, f.personId) as { status: string; source_pass: string };
-    expect(row.status).toBe('declined');
-
-    // The declined pair is never re-staged without new signal.
-    const restage = svc.stageAutoLinkCandidate(
-      f.memberId,
-      { confidence: 'high', personId: f.personId, personName: 'Morgan Kappa' },
-      'batch',
-    );
-    expect(restage.status).toBe('skipped_previously_declined');
-  });
-
-  it('a second decline of the same card is a harmless no-op', async () => {
-    const f = matchFixture({ memberName: 'Repeat Sigma', personName: 'Repeat Sigma' });
-    for (let i = 0; i < 2; i += 1) {
-      const res = await request(createApp())
-        .post('/register/wizard/legacy_claim/auto-link/decline')
-        .set('Cookie', cookieFor(f.memberId))
-        .type('form')
-        .send({ personId: f.personId });
-      expect(res.status).toBe(303);
-    }
-  });
-});
-
-describe('the simulated-email card on the mailbox-control declared state', () => {
-  it('shows the just-sent mailbox-verification link on the page under the stub adapter', async () => {
-    const f = matchFixture({ memberName: 'Card Tester', personName: 'Card Tester' });
-    svc.declareAnchor(f.memberId, 'old_email', 'card-old@old.example.com');
-    const anchorId = svc.listDeclaredAnchors(f.memberId)[0].id;
-
-    const send = await request(createApp())
-      .post('/register/wizard/legacy_claim/anchors/send-verification')
-      .set('Cookie', cookieFor(f.memberId))
-      .type('form')
-      .send({ anchorId });
-    expect(send.status).toBe(303);
-    expect(send.headers.location).toContain('anchor_verification=sent');
-
-    // Following the redirect, the declared-state page shows the confirmation
-    // link so a tester opens it without leaving the page. The card reads the
-    // stub buffer, so the send's body scrub does not blank the rendered link.
-    const page = await request(createApp())
-      .get('/register/wizard/legacy_claim?anchor_verification=sent')
-      .set('Cookie', cookieFor(f.memberId));
-    expect(page.status).toBe(200);
-    expect(page.text).toContain('Simulated Email (Dev)');
-    expect(page.text).toMatch(
-      /\/register\/wizard\/legacy_claim\/anchors\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</,
-    );
-  });
-});
-
 describe('the wizard closes to a member who has finished signing up', () => {
-  it('an open staged card is not authorization to claim once onboarding is complete', async () => {
+  // Defect caught: a member who has finished onboarding claims an old account
+  // through a card posted from a stale page, bypassing the administrator.
+  it('a claim from a card is not accepted once onboarding is complete', async () => {
     const f = matchFixture({ memberName: 'Finished Claimant', personName: 'Finished Claimant' });
-    const staged = svc.stageAutoLinkCandidate(
-      f.memberId,
-      { confidence: 'high', personId: f.personId, personName: 'Finished Claimant' },
-      'batch',
-    );
-    expect(staged.status).toBe('staged');
     completeOnboarding(db, f.memberId);
 
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(f.memberId))
       .type('form')
-      .send({ personId: f.personId });
+      .send({ accountId: f.legacyId, recordId: f.personId });
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toContain('contact-admin?category=identity_link_issue');
@@ -311,10 +232,10 @@ describe('the wizard closes to a member who has finished signing up', () => {
     const cookie = cookieFor(f.memberId);
 
     const targets: Array<[string, Record<string, string>]> = [
-      ['/register/wizard/legacy_claim/cross-source/confirm', { candidateId: 'anything' }],
       ['/register/wizard/legacy_claim/continue-without-linking', { no_link_answer: 'never_had_one' }],
       ['/register/wizard/legacy_claim/anchors/add', { anchorType: 'old_email', anchorValue: 'x@old.example.com' }],
-      ['/register/wizard/legacy_claim/find', { query: 'anything' }],
+      ['/register/wizard/legacy_claim/decline', { accountId: f.legacyId, recordId: f.personId }],
+      ['/register/wizard/legacy_claim/claim-with-surname', { accountId: f.legacyId, recordId: f.personId }],
     ];
     for (const [path, body] of targets) {
       const res = await request(createApp())
@@ -322,29 +243,10 @@ describe('the wizard closes to a member who has finished signing up', () => {
       expect(res.status, path).toBe(303);
       expect(res.headers.location, path).toContain('contact-admin?category=identity_link_issue');
     }
-    // Nothing was declared along the way: the refusal is before the write.
+    // Nothing was declared or declined along the way: the refusal is before the write.
     expect(svc.listDeclaredAnchors(f.memberId)).toHaveLength(0);
-  });
-});
-
-describe('a declined record stays declined on every card path', () => {
-  it('does not come back as a claimable record card on the next render', async () => {
-    const f = matchFixture({ memberName: 'Decline Tester', personName: 'Decline Tester' });
-
-    const declined = await request(createApp())
-      .post('/register/wizard/legacy_claim/auto-link/decline')
-      .set('Cookie', cookieFor(f.memberId))
-      .type('form')
-      .send({ personId: f.personId });
-    expect(declined.status).toBe(303);
-
-    const page = await request(createApp())
-      .get('/register/wizard/legacy_claim')
-      .set('Cookie', cookieFor(f.memberId));
-    expect(page.status).toBe(200);
-    // The name-match card renders its own claim link, so the record returning
-    // under a different card shape is what this catches.
-    expect(page.text).not.toContain(`/history/${f.personId}/claim`);
-    expect(page.text).not.toContain('This Is Me, Link My History');
+    const declines = db.prepare('SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?')
+      .get(f.memberId) as { n: number };
+    expect(declines.n).toBe(0);
   });
 });

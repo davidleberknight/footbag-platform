@@ -53,7 +53,7 @@
   - [4.28 Name-matching utilities](#428-name-matching-utilities)
   - [4.29 Member Onboarding Tasks](#429-member-onboarding-tasks)
   - [4.30 Member Declared Anchors](#430-member-declared-anchors)
-  - [4.31 Staged Auto-Link Candidates](#431-staged-auto-link-candidates)
+  - [4.31 Legacy Claim Declines](#431-legacy-claim-declines)
   - [4.32 Pipeline-produced canonical content](#432-pipeline-produced-canonical-content-out-of-this-enumeration)
   - [4.33 Groups & Group Affiliations](#433-groups--group-affiliations)
 - [5. View Reference](#5-view-reference)
@@ -441,8 +441,8 @@ One row per applied file: its name, a checksum of its bytes, and when it was app
 Emitted values, grouped by namespace:
 
 - **`auth.*`**: `register`, `register_rate_limited`, `register_notification_failed`, `email_verified`, `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset`, `password_reset_notification_failed`, `register_duplicate_email` (a registration attempt on an address already held, recorded without revealing that fact to the caller), `account_deleted` (a member deleting their own account; the metadata records the grace period they were told, how much media and how many galleries went with it, how many upcoming registrations were withdrawn, how many events were left without an organizer, whether a recurring gift was cancelled, and whether the record keeps publishing under an honour).
-- **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed), `historical_person_blocked` (a direct claim refused by the surname gate), `dispute_opened` and `revert_applied` (the forensic pair written when a conflict dispute is upheld and the holder's claim is stripped; both land together with the state change, per A_Review_Member_Link_Help_Requests).
-- **`legacy.*`**: `auto_link_candidate_staged`, `auto_link_candidate_confirmed`, `auto_link_candidate_declined`, `auto_link_candidate_expired`, `auto_link_candidate_failed`, `auto_link_revert`, `cross_source_candidate_offered`, `cross_source_candidate_confirmed`, `cross_source_candidate_declined`, `mailbox_link_token_issued`, `mailbox_link_token_consumed`, `mailbox_link_token_expired`, `mailbox_link_email_enqueue_failed`, `registration_conflict_prompted`, `registration_conflict_disputed`, `claim_initiate_notification_failed`, `auto_link_match_reviewed` (an admin dismissing a low-confidence auto-link match without applying a link).
+- **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed), `refused` (a claim submit the server-side re-check refused, with the reason and the evidence block), `dispute_opened` and `revert_applied` (the forensic pair written when a conflict dispute is upheld and the holder's claim is stripped; both land together with the state change, per A_Review_Member_Link_Help_Requests).
+- **`legacy.*`**: `claim_candidate_declined` (the member answered "This Is Not Me"), `claim_step_answered` (one of the two non-claiming answers, with the candidates shown), `anchor_declared` (a former surname or old email added, by anchor id), `auto_link_revert`, `registration_conflict_prompted`, `registration_conflict_disputed`. Every claim, decline, refusal and answer row carries the claim evidence block described under `M_Claim_Legacy_Account`: email addresses as keyed hashes and anchors by id, never a name or a date of birth.
 - **`wizard.*`**: `start`, `complete`, `task.started`, `task.completed`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.cap_hit`, `club_affiliations.idempotent`, `club_affiliations.promoted`, `club_insight.recorded` (a note the registrant gave about a club during onboarding, kept for the cleanup queue), `legacy_claim.never_had_account` and `legacy_claim.cannot_find_record` (which of the two non-claiming answers finished the claim task, written in the transaction that completes it; two values rather than one carrying the answer in metadata, because the ledger is read back by action type and the members who held an old account and cannot find it are the population an administrator can help, marked nowhere else); historical, no current writer: `task.skipped`, `task.not_applicable`, `task.detour_paused`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `admin_leader_assigned` and `admin_leader_demoted` (an administrator assigning or demoting a club leader), `promoted_from_candidate` (a candidate club promoted to a real one), `coleader_invited` and `coleader_volunteered` (a co-leader invited by an existing leader, and a member offering to co-lead a club that has none), `auto_demoted` (the cleanup sweep demoting a club that met the inactivity predicate), `content_edited` (a leader editing their own club's details: name, description, city, region, country and external URL), `content_corrected` and `hashtag_corrected` (an administrator correcting those same details, or moving the hashtag that is the club's address, on behalf of co-leaders who cannot or will not; each carries the mandatory reason and, for a content correction, every changed field's value before and after, and they are distinct from the co-leader's own `content_edited` and `hashtag_updated` because the surface that reads the ledger is looking for what was done on somebody else's behalf), `revived_by_affiliation` and `revived_by_leadership_claim` (an inactive club returning to active because a member affiliated with it or claimed its leadership).
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`, `hof_grant` and `bap_grant` (an administrator granting a Hall of Fame or Big Add Posse honour, which carries the Tier 2 membership the honour confers, the badge, and the induction year), `hof_grant_removed` and `bap_grant_removed` (taking back a grant made in error, which clears the badge and its year and leaves the membership tier alone, because a member may hold that tier for reasons unconnected to the honour). These four are written from a conditional expression rather than a bare literal, so the convention gate's scan does not see them; they are listed here because the catalogue, not the scan, is the inventory.
@@ -864,7 +864,7 @@ The extract additionally carries two pipeline-internal board-at-cutover columns 
 #### Columns
 
 - `legacy_member_id` (`TEXT`, PK): the old-site user-account id.
-- `legacy_user_id`, `legacy_email`, `legacy_email2`, `legacy_email3`: migration metadata from the mirror/dump. A legacy account could hold up to three email addresses; all three participate in M_Claim_Legacy_Account matching. `legacy_email` (the primary) is used to deliver the one-time claim link; none is ever a login credential.
+- `legacy_user_id`, `legacy_email`, `legacy_email2`, `legacy_email3`: migration metadata from the mirror/dump. A legacy account could hold up to three email addresses; all three participate in M_Claim_Legacy_Account matching as keys only. None is ever mailed, and none is ever a login credential.
 - Profile snapshot; `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
 - Honor flags; `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §8 OR-merge rule).
 - `legacy_is_admin`; old-site admin flag. Retained for audit; never grants live admin privilege.
@@ -876,7 +876,8 @@ The extract additionally carries two pipeline-internal board-at-cutover columns 
 
 - `ux_legacy_members_claimed_by`; partial UNIQUE on `claimed_by_member_id` where non-NULL. Enforces at most one current member per legacy account.
 - `idx_legacy_members_legacy_email` / `idx_legacy_members_legacy_email2` / `idx_legacy_members_legacy_email3`; partial non-unique lookup indexes on the three email columns where non-NULL. Support M_Claim_Legacy_Account email matching. Non-unique because one address may be primary on one account and secondary on another; cross-account email uniqueness is enforced by the §25 G1 validation gate, not the DB.
-- `ux_legacy_members_legacy_user_id`; partial UNIQUE on `legacy_user_id` where non-NULL. Supports M_Claim_Legacy_Account username lookup.
+- `idx_legacy_members_birth_date`; partial non-unique index on `birth_date` where non-NULL. Supports M_Claim_Legacy_Account surname-plus-date-of-birth matching.
+- `ux_legacy_members_legacy_user_id`; partial UNIQUE on `legacy_user_id` where non-NULL. Keeps the old-site username unique; usernames are not a claim matching key.
 
 ### 4.15 Member Links
 
@@ -908,7 +909,7 @@ Attendance never changes membership tier. For Tier 1, Tier 2, or Tier 3 attendee
 
 `historical_persons` stores imported read-only archival identity records sourced from event-data (competition results) and, going forward, mirror club-roster extraction. The application never deletes a row; the canonical reseed deletes a person that has dropped out of the incoming seed, and only when nothing references it and it carries no administrator-set value. A row may or may not correspond to a current `members` row and may or may not carry a `legacy_member_id` (populated only when the source data named the legacy account).
 
-`historical_persons.is_deceased` (`INTEGER NOT NULL DEFAULT 0`) is an admin-settable, affirmative-only flag (its presence marks a person recognized as deceased; its absence asserts nothing). It is independent of `members.is_deceased`; `A_Mark_Member_Deceased` cascades to it when the member has a linked `historical_person_id`. It is consumed only to suppress the direct historical-record claim CTA (a living member cannot self-claim a deceased person's identity); no public memorial display is driven by it (deferred to a future story).
+`historical_persons.is_deceased` (`INTEGER NOT NULL DEFAULT 0`) is an admin-settable, affirmative-only flag (its presence marks a person recognized as deceased; its absence asserts nothing). It is independent of `members.is_deceased`; `A_Mark_Member_Deceased` cascades to it when the member has a linked `historical_person_id`. It is consumed only to keep the record out of every claim offer and to refuse its claim on every self-serve path, including a legacy-account claim that would transitively link it (a living member cannot self-claim a deceased person's identity); no public memorial display is driven by it (deferred to a future story).
 
 Three entity types form the identity model; see DD §2.4:
 
@@ -1091,14 +1092,13 @@ The application must prevent an event organizer from removing themselves if they
 
 **Table:** `account_tokens`
 
-Security tokens for email verification, password reset, data export, legacy-account claim, and declared-old-email mailbox verification (`token_type` CHECK: `email_verify`, `password_reset`, `data_export`, `account_claim`, `mailbox_link`). Tokens are stored as SHA-256 hashes only; plaintext is never persisted. Target bindings are nullable FK columns per purpose: `target_legacy_member_id` for claim tokens, `target_anchor_id` (to `member_declared_anchors`) for mailbox-link tokens, and `target_audit_entry_id` (to `audit_entries`) binding a token to the audit row of the action that issued it.
+Security tokens for email verification, password reset, and data export (`token_type` CHECK: `email_verify`, `password_reset`, `data_export`). Tokens are stored as SHA-256 hashes only; plaintext is never persisted. `target_audit_entry_id` (nullable FK to `audit_entries`) binds a token to the audit row of the action that issued it.
 
 - **Email verification tokens** expire after the duration configured in `email_verify_expiry_hours` (default: 24 hours).
 - **Password reset tokens** expire after the duration configured in `password_reset_expiry_hours` (default: 1 hour).
 - Both TTL values are Administrator-configurable via `system_config_current` (see §4.23).
 - **Multiple outstanding tokens are allowed** per member per type. The index `idx_account_tokens_active` on `(member_id, token_type)` is non-unique; it supports lookup performance but does not limit the number of active tokens.
-- `token_type` represents the token purpose. Values: `email_verify`, `password_reset`, `data_export`, `account_claim`, `mailbox_link`.
-- `account_claim` tokens are used in the self-serve legacy account claim flow. They are single-use, time-limited (default 24 hours, configurable via `account_claim_expiry_hours`), and carry a dual binding: `member_id` (the requesting authenticated account) and `target_legacy_member_id` (the `legacy_members` row being claimed). A token may only be consumed while authenticated as the same `member_id` that initiated the request. `target_legacy_member_id` uses `ON DELETE NO ACTION`; `legacy_members` rows are never deleted in normal flow (they are marked claimed, not removed).
+- `token_type` represents the token purpose. Values: `email_verify`, `password_reset`, `data_export`.
 - `used_at` records when the token was consumed (single-use); `NULL` means not yet consumed.
 - A presented token is valid only when `used_at IS NULL AND now < expires_at`.
 - `idx_account_tokens_expires` supports the background cleanup job, which deletes expired or consumed tokens older than the configured threshold (`token_cleanup_threshold_days`).
@@ -1181,11 +1181,6 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `payment_retention_days` | `2555` | Payment record compliance retention (~7 years) |
 | `password_reset_expiry_hours` | `1` | Password reset token TTL (hours) |
 | `email_verify_expiry_hours` | `24` | Email verification token TTL (hours) |
-| `account_claim_expiry_hours` | `24` | Legacy account claim token TTL (hours); per `M_Claim_Legacy_Account` |
-| `legacy_claim_init_rate_limit_max_per_member` | `5` | Max legacy-claim initiate attempts per requesting member per window |
-| `legacy_claim_init_rate_limit_max_per_target` | `3` | Max legacy-claim emails per target legacy member per window (silent) |
-| `legacy_claim_init_rate_limit_max_per_ip` | `10` | Max legacy-claim initiate attempts per source IP per window (silent) |
-| `legacy_claim_init_rate_limit_window_minutes` | `60` | Sliding window (minutes) for legacy-claim initiate rate limiting |
 | `member_search_rate_limit_max_per_ip` | `60` | Max authenticated member-search queries per source IP per window |
 | `member_search_rate_limit_max_per_member` | `30` | Max authenticated member-search queries per member per window |
 | `member_search_rate_limit_window_minutes` | `1` | Sliding window (minutes) for member-search rate limiting |
@@ -1236,20 +1231,16 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `group_email_rate_limit_per_hour` | `30` | Maximum messages one member may post to one group per hour; an abuse ceiling set well above what a live debate needs |
 | `tier1_price_cents` | `1000` | Tier 1 IFPA Member dues ($10.00 USD default; stored as integer cents) |
 | `tier2_price_cents` | `5000` | Tier 2 IFPA Organizer Member dues ($50.00 USD default; stored as integer cents) |
-| `auto_link_staged_expiry_days` | `365` | Days an open staged auto-link candidate stays offerable before the expiry sweep resolves it |
 | `admin_inactivity_alert_days` | `180` | Days without a sign-in before an administrator is surfaced for recruitment follow-up |
 | `system_health_window_hours` | `24` | Recent window (hours) the admin system-health view aggregates outbound-email and scheduled-job counts over |
-| `declared_anchor_rate_limit_max_per_member` | `10` | Max declared-anchor declare/remove writes per member per window |
+| `declared_anchor_rate_limit_max_per_member` | `10` | Max declared-anchor additions per member per window |
 | `declared_anchor_rate_limit_window_minutes` | `60` | Sliding window (minutes) for declared-anchor writes |
 | `link_help_request_rate_limit_max_per_member` | `3` | Max admin link help requests per member per window |
 | `link_help_request_rate_limit_window_minutes` | `1440` | Sliding window (minutes) for link help requests |
-| `mailbox_link_rate_limit_max_per_member` | `5` | Max mailbox-verification link requests per member per window |
-| `mailbox_link_rate_limit_max_per_target` | `3` | Max mailbox-verification links per target anchor per window (silent) |
-| `mailbox_link_rate_limit_max_per_ip` | `10` | Max mailbox-verification link requests per source IP per window (silent) |
-| `mailbox_link_rate_limit_window_minutes` | `60` | Sliding window (minutes) for mailbox-verification link requests |
-| `hp_claim_rate_limit_max_per_member` | `5` | Max direct historical-person claim confirms per requesting member per window |
-| `hp_claim_rate_limit_max_per_ip` | `10` | Max direct historical-person claim confirms per source IP per window (silent) |
-| `hp_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for direct historical-person claim rate limiting |
+| `onboarding_birth_date_change_max` | `3` | Max date-of-birth changes a member may make before onboarding completes |
+| `hp_claim_rate_limit_max_per_member` | `5` | Max claim confirmations (direct record claim, wizard card claim) per requesting member, and per target record, per window |
+| `hp_claim_rate_limit_max_per_ip` | `10` | Max claim confirmations per source IP per window (silent) |
+| `hp_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for claim-confirmation rate limiting |
 | `bootstrap_claim_rate_limit_max_per_member` | `5` | Max first-admin bootstrap-claim attempts per member per window |
 | `bootstrap_claim_rate_limit_max_per_ip` | `5` | Max first-admin bootstrap-claim attempts per source IP per window (silent) |
 | `bootstrap_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for bootstrap-claim attempts |
@@ -1397,7 +1388,7 @@ May be dropped together with `club_bootstrap_leaders` once all bootstrap rows re
 
 #### `name_variants` — permanent, not migration-only
 
-Name-equivalence pairs that support auto-link matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account` auto-link candidate staging and declared-anchor flow). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
+Name-equivalence pairs that support claim matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account`). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
 
 - **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `strftime('%Y-%m-%dT%H:%M:%fZ','now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
 - **Symmetric lookup**: storing `('robert', 'bob')` is equivalent to storing `('bob', 'robert')`. Lookups must check both columns. Never insert both directions; the self-pair CHECK and the PRIMARY KEY enforce uniqueness.
@@ -1414,7 +1405,7 @@ This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is r
 
 Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; the `M_Complete_Onboarding_Wizard` user story). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow reads and writes through the service, and the same rows are the membership authorization state: an account is pending until all three are `completed`.
 
-- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`); `state` TEXT with CHECK in (`pending`, `completed`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. `first_competition_year` and `show_competitive_results` are not valid task types; year input is bundled into `personal_details`.
+- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`); `state` TEXT with CHECK in (`pending`, `completed`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable; on the `legacy_claim` row only, `birth_date_changes` INTEGER nullable (date-of-birth changes made while onboarding, capped by `onboarding_birth_date_change_max`) and `last_attempt_opened_at` TEXT nullable (when the "I had one but cannot find it" answer opened the one last attempt at the match). `first_competition_year` and `show_competitive_results` are not valid task types; year input is bundled into `personal_details`.
 - **Two states**: a task is `pending` until the member answers it, then `completed`. Every exit from a wizard task is an explicit answer, so there is nothing to skip, dismiss, or park mid-flow, and the tasks are universal, so none is ever inapplicable.
 - **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
 - **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
@@ -1427,25 +1418,25 @@ Permanent operational state for the per-member onboarding wizard (`MemberOnboard
 
 **Table:** `member_declared_anchors`
 
-Former surnames and old email addresses declared by members to broaden the identity-matching surface for auto-link and legacy-claim flows. Declared anchors are private: visible only to the member and admin.
+Former surnames and old email addresses declared by members to broaden the claim-matching surface. Declared anchors are private: visible only to the member and admin.
 
-- **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; `anchor_type` TEXT with CHECK in (`former_surname`, `old_email`); `anchor_value` TEXT NOT NULL; `verified_via_link_click_at` TEXT NULL and `verification_token_id` TEXT NULL (mailbox-control round-trip: stamped when the member clicks the single-use link delivered to the declared address while signed in, upgrading matches through the anchor to the `mailbox_control_via_link_click` evidence tier).
+- **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; `anchor_type` TEXT with CHECK in (`former_surname`, `old_email`); `anchor_value` TEXT NOT NULL.
 - **`UNIQUE(member_id, anchor_type, anchor_value)`**: prevents duplicate declarations.
-- **Matching integration**: former-surname anchors feed into `findAutoLinkCandidates` as additional name inputs and into the direct historical-record claim's surname rule. Old-email anchors feed into `lookupLegacyAccount` as additional identifier lookups and into the batch classifier's email-anchor walk (verified login email first, then declared old emails; ambiguity anywhere collapses to low confidence). Both are exercised when the wizard's `legacy_claim` task renders the candidate list.
+- **Add-only**: a member adds anchors and never removes them, so an anchor that helped a match stays visible to an administrator; each addition is audit-logged (`legacy.anchor_declared`, by anchor id).
+- **Matching integration**: former surnames join the member's possible surnames for the name key and the surname rule; old emails are matched against all three email columns of every old account. Both are read by the one matching component when the wizard's `legacy_claim` task renders.
 - **PII purge**: all of a member's anchors delete when the account's personal data is purged.
-- **Anchor declare/remove writes are rate-limited** per member (`declared_anchor_rate_limit_max_per_member`, default 10 per `declared_anchor_rate_limit_window_minutes`, default 60).
+- **Anchor additions are rate-limited** per member (`declared_anchor_rate_limit_max_per_member`, default 10 per `declared_anchor_rate_limit_window_minutes`, default 60).
 
-### 4.31 Staged Auto-Link Candidates
+### 4.31 Legacy Claim Declines
 
-**Table:** `auto_link_staged_candidates`
+**Table:** `legacy_claim_declines`
 
-The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): on a live platform the post-claim cross-source pass stages candidate matches here, and on a seeded test load the batch pass does the same; nothing mutates live tables and no mail is sent until the member confirms a wizard card. Migration-scope; droppable once all staged candidates resolve.
+A member's standing "This Is Not Me" answers in the claim step (per `M_Claim_Legacy_Account`). Matching is computed live and nothing is staged, so the only claim-step state the platform keeps is what the member refused: a declined candidate is never offered to them again. Migration-scope; droppable once onboarding of migrated members is over.
 
-- **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; nullable targets `legacy_member_id` (FK `legacy_members`) and `historical_person_id` (FK `historical_persons`); `confidence` CHECK in (`high`, `medium`); `matched_anchors_json`; `proposed_evidence_strength` CHECK over the four evidence-strength tiers (the Legacy Data Migration decision in DESIGN_DECISIONS, §6.5); `source_pass` CHECK in (`batch`, `sign_in`, `registration`, `cross_source`); `status` CHECK in (`staged`, `confirmed`, `declined`, `expired`); `expires_at`; `resolved_at`.
-- **CHECKs**: at least one target column is non-NULL; `(status = 'staged') = (resolved_at IS NULL)`.
-- **`ux_auto_link_staged_open`**: partial UNIQUE on `(member_id, COALESCE(legacy_member_id,''), COALESCE(historical_person_id,''))` WHERE `status = 'staged'`; re-staging an open pair is a constraint no-op, making batch reruns idempotent. A declined pair is never re-staged (service-enforced against resolved rows).
-- **`source_pass = 'cross_source'`** rows are post-confirm offers for the member's other identity source; they share the stage/confirm/decline/expire lifecycle but emit the `legacy.cross_source_candidate_*` audit event family instead of `legacy.auto_link_candidate_*`.
-- Open candidates expire after `auto_link_staged_expiry_days` (default 365) via the worker's daily sweep.
+- **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; nullable targets `legacy_member_id` (FK `legacy_members`) and `historical_person_id` (FK `historical_persons`), together naming the declined candidate (both for an account and record the pipeline linked); `confidence` CHECK in (`high`, `medium`, `low`); `evidence_json` (the claim evidence block at the moment of the decline).
+- **CHECKs**: at least one target column is non-NULL.
+- **`UNIQUE(member_id, COALESCE(legacy_member_id,''), COALESCE(historical_person_id,''))`**: a repeated decline is a no-op.
+- **PII purge**: a member's declines delete when the account's personal data is purged; the audit row (`legacy.claim_candidate_declined`) remains.
 
 ### 4.32 Pipeline-produced canonical content (out of this enumeration)
 

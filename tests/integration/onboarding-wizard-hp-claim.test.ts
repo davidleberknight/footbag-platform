@@ -16,6 +16,7 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   insertOnboardingTask,
+  insertGivenNameVariant,
   createTestSessionJwt,
 } from '../fixtures/factories';
 import { ValidationError } from '../../src/services/serviceErrors';
@@ -31,6 +32,9 @@ let identitySvc: typeof import('../../src/services/identityAccessService').ident
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
+  // The curated nickname pair that lets a Bob reach a Robert's record; without
+  // it a different first name reaches nothing.
+  insertGivenNameVariant(db, { short_form_normalized: 'bob', long_form_normalized: 'robert' });
   createApp = await importApp();
   const mod = await import('../../src/services/memberOnboardingService');
   svc = mod.memberOnboardingService;
@@ -423,10 +427,13 @@ describe('transitive legacy claim through HP back-link', () => {
   it('HP claim transitively marks the back-linked legacy row claimed', async () => {
     const stamp = Date.now();
     const legacyId = `LM-HPBT-${stamp}`;
+    // The old account carries the member's sign-in address, which corroborates
+    // it: a record linked to an old account is claimable only so.
     insertLegacyMember(db, {
       legacy_member_id: legacyId,
       real_name: 'Backlink Target',
       country: 'AU',
+      legacy_email: `hp-bt-${stamp}@example.com`,
     });
     const personId = insertHistoricalPerson(db, {
       legacy_member_id: legacyId,

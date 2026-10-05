@@ -34,29 +34,7 @@ Do not ask whether to add tests. Add them.
 
 ## Scope of a verification run
 
-Widen the per-change run (root `CLAUDE.md`) from the changed file's own tests to every test file that imports what changed (`grep -rl "<module basename>" tests/`) when what changed is shared rather than local:
-
-- a fixture or factory
-- a service, helper, or type that more than one caller imports
-- a template partial rendered by more than one page
-- a SQL view or prepared statement with more than one consumer
-- any signature a test calls directly
-
-Where that reaches most of the suite (a fixture, a factory, a widely shared helper), it is a long run of `npm test`. Other people's uncommitted work in the tree is not a reason to widen; run what this change reaches.
-
-**Long runs.** The runner in any mode, `npm test`, `npm run test:coverage` and `npm run test:e2e` take minutes, longer than a foreground command may run. Start one only after the human approves it, naming the command and why it is needed. Run it as a background job with its output sent to a log file in the session scratchpad, wait for the completion notice rather than polling, then read only the run's closing summary and report each gate's result and the verdict. Leave the tree alone while it runs: the runner fingerprints the source, and an edit mid-run voids its verdict.
-
-Gate vocabulary: a commit uses `./run_all_tests.sh --quick` (what `npm run test:quick` runs: build and `typecheck:tests`, lint, conventions, harness, generated-content, secret scan, unit and integration); a push and a PR use the bare `./run_all_tests.sh`, local only, which also runs e2e, terraform validation, the security probes and the clean room. `--staging` adds the read-only staging rows. `--skip-py` leaves out the pre-go-live data-load Python gates, ends INCOMPLETE and writes no pass receipt, so it never stands in for the push gate. `./run_all_tests.sh --help` owns the details. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
-
-Each kind of change also needs the check that can see it, which a targeted vitest run cannot:
-
-- a signature in `src/` that a test calls: `npm run typecheck:tests` (vitest strips types, and `npm run build` checks `src/` only)
-- a template or CSS change: `npx vitest run tests/unit/template-*.test.ts tests/unit/*-conformance.test.ts`
-- a script under `scripts/`: `bash scripts/ci/assert_conventions.sh`
-- a hook, rule, skill or setting under `.claude/`: `bash scripts/ci/assert_claude_harness.sh` and `bash scripts/ci/test_hooks.sh`
-- curated or generated content: `bash scripts/ci/assert_generated_content_current.sh`
-
-Browser flows, the legacy Python suites, the loader and freestyle database guards, and terraform validation run only in the bare runner. When a change reaches one of them, say in the report that it did not run, and offer to run it.
+What runs per change, and who starts the full gate, is the Verification default in root `CLAUDE.md`. The mapping from a changed path to its tests and the extra check its kind needs is `scripts/test-targets.sh`. Neither is restated here. What each mode of `./run_all_tests.sh` proves is owned by the local-runner-tiers section of `docs/TESTING.md`, and `./run_all_tests.sh --help` owns the flags. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
 
 **Run vitest from the repository root, or pass `--config vitest.config.ts`.** Otherwise vitest's built-in defaults apply silently, and `tests/setup-env.ts` refuses the run.
 
@@ -99,7 +77,7 @@ For every schema change or factory change:
 
 - The factory inserts a row that satisfies all NOT NULL / CHECK / FK constraints.
 - The factory's auto-creation of dependent rows (e.g. `legacy_members` stub on passing `legacy_member_id`) is exercised by a test that proves the dependent row appears.
-- The factory applies the same value normalization as the production write path (lowercasing, trimming, stored-form invariants). After changing such an invariant, run the full integration suite (a long run, per the scope rule above), not only the touched files: factories are shared, so regressions surface in other files' tests.
+- The factory applies the same value normalization as the production write path (lowercasing, trimming, stored-form invariants). After changing such an invariant, the change reaches every file that uses the factory, so `scripts/test-targets.sh` reports it as needing the full gate: factories are shared, so regressions surface in other files' tests.
 
 ## Adversarial testing
 

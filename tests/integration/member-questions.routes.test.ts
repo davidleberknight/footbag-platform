@@ -218,7 +218,7 @@ describe('an administrator asks the member a question', () => {
     // matter, with a refusal naming a reason that is not true of that item, and
     // nothing bounds how long that lasts.
     const first = seedItem();
-    const second = seedItem('auto_link_match');
+    const second = seedItem('admin_loss_recruitment');
     expect((await ask(first)).status).toBe(303);
     expect((await ask(second, { subject: 'A different matter' })).status).toBe(303);
     const conn = readDb();
@@ -291,7 +291,7 @@ describe('an administrator asks the member a question', () => {
     // The rule is the person, not the matter: an item naming one signed-up
     // member names somebody who can answer, so a second kind of matter about the
     // same member works without anyone adding it to a list.
-    const itemId = seedItem('auto_link_match');
+    const itemId = seedItem('admin_loss_recruitment');
     expect((await ask(itemId)).status).toBe(303);
   });
 
@@ -677,7 +677,7 @@ describe('the administrator sees the answer on the item they asked from', () => 
   });
 
   it('offers the ask control on any matter naming a signed-up member', async () => {
-    seedItem('auto_link_match');
+    seedItem('admin_loss_recruitment');
     const res = await request(createApp())
       .get('/admin/work-queue').set('Cookie', adminCookie());
     expect(res.text).toContain('ask-member');

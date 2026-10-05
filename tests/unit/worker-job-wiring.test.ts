@@ -21,7 +21,6 @@ const workerSource = readFileSync(join(process.cwd(), 'src', 'worker.ts'), 'utf8
 /** Entry points the daily tick is responsible for calling. */
 const DAILY_TICK_JOBS = [
   'runActivePlayerExpiryCheck',
-  'runStagedCandidateExpiry',
   'runPiiPurgeScan',
   'runExpiredTokenCleanup',
   'runHashtagStatsRebuild',

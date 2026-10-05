@@ -4,12 +4,13 @@
  * that build on the existing factory/persona infrastructure.
  */
 import BetterSqlite3 from 'better-sqlite3';
-import type { Page } from '@playwright/test';
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertGivenNameVariant,
+  insertMemberDeclaredAnchor,
   insertTag,
   insertClub,
   insertClubLeader,
@@ -26,7 +27,6 @@ import {
   seedBrandNewPlayer as _seedBrandNewPlayer,
   seedTier0Member as _seedTier0Member,
   seedTier1Member as _seedTier1Member,
-  seedMemberWithAutoLinkCandidate as _seedMemberWithAutoLinkCandidate,
   seedMemberMidWizard as _seedMemberMidWizard,
   seedMemberWithPendingClubAffiliation as _seedMemberWithPendingClubAffiliation,
   type Persona,
@@ -48,9 +48,15 @@ function cookieFor(memberId: string): string {
 
 // ── E2E DB setup ─────────────────────────────────────────────────────────────
 
+// Raises the claim-confirmation and anchor-addition buckets, which the browser
+// suite shares across every spec in one run.
 export function raiseClaimRateLimits(db: BetterSqlite3.Database): void {
   const now = new Date().toISOString();
-  const keys = ['legacy_claim_init_rate_limit_max_per_ip', 'legacy_claim_init_rate_limit_max_per_member'];
+  const keys = [
+    'hp_claim_rate_limit_max_per_ip',
+    'hp_claim_rate_limit_max_per_member',
+    'declared_anchor_rate_limit_max_per_member',
+  ];
   for (const key of keys) {
     const id = `sc-e2e-${key}`;
     // The original statement used OR IGNORE because this helper runs once per
@@ -80,21 +86,6 @@ export function getTaskState(db: BetterSqlite3.Database, memberId: string, taskT
 export function getMemberField(db: BetterSqlite3.Database, memberId: string, field: string): unknown {
   const row = db.prepare(`SELECT ${field} FROM members WHERE id = ?`).get(memberId) as Record<string, unknown> | undefined;
   return row?.[field] ?? null;
-}
-
-/**
- * Recovers the legacy-claim confirmation URL from the dev simulated-email card
- * the stub SES adapter renders on the sent page. That card is the tester's
- * on-page recovery surface (there is no dev-outbox route); production renders no
- * card at all, which the live-adapter suites pin. The confirmation mail is
- * addressed to the legacy account's email, so the card row is matched on that
- * address to stay correct when the shared stub buffer holds other tests' mail.
- */
-export async function legacyClaimConfirmUrlFromCard(page: Page, legacyEmail: string): Promise<string> {
-  const row = page.locator('.sec-card-dev .sec-msg', { hasText: legacyEmail });
-  const href = await row.locator('a[href*="/claim/confirm/"]').first().getAttribute('href');
-  if (!href) throw new Error(`no claim confirm link in simulated-email card for ${legacyEmail}`);
-  return new URL(href, page.url()).pathname;
 }
 
 export function isLegacyClaimed(db: BetterSqlite3.Database, legacyMemberId: string): boolean {
@@ -136,83 +127,169 @@ export function completeThroughLegacyClaim(
   insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
 }
 
-// ── Persona composition helpers ──────────────────────────────────────────────
+// ── Claim-step persona composition ───────────────────────────────────────────
+//
+// The claim step's name key scans every account and record in the database,
+// and the whole browser suite shares one database, so every name a seed uses
+// is a fresh letters-only word: a digit-free name is a valid legal name, and a
+// unique one keeps one spec's records from appearing as another member's cards.
 
-export function seedMemberWithLegacyDiffEmail(
+export function nameWord(): string {
+  const letters = Array.from(randomBytes(9)).map((b) => String.fromCharCode(97 + (b % 26))).join('');
+  return `Q${letters}`;
+}
+
+// A pending registrant past personal details, so the claim step renders.
+function seedPendingClaimant(
   db: BetterSqlite3.Database,
-  opts: { slug?: string } = {},
-): Persona & { legacyMemberId: string; legacyEmail: string } {
-  const memberId = `enq-${rand()}`;
-  const slug = opts.slug ?? `enq_${rand()}`;
-  const legacyMemberId = `LM-ENQ-${rand().toUpperCase()}`;
-  const legacyEmail = `legacy-${rand()}@oldsite.example`;
-
-  insertLegacyMember(db, {
-    legacy_member_id: legacyMemberId,
-    legacy_email: legacyEmail,
-    real_name: 'Enqueued Claim',
-    display_name: 'Enqueued Claim',
-  });
-
+  prefix: string,
+  overrides: { real_name: string; login_email?: string; birth_date?: string | null },
+): Persona {
+  const memberId = `${prefix}-${rand()}`;
+  const slug = `${prefix}_${rand()}`;
   createMemberAtTier(db, {
     id: memberId,
     slug,
     tier: 'tier0',
     memberOverrides: {
       onboarding: 'none',
-      login_email: uniqueEmail('enq'),
-      real_name: 'Enqueued Claim',
+      login_email: overrides.login_email ?? uniqueEmail(prefix),
+      real_name: overrides.real_name,
+      birth_date: overrides.birth_date ?? '1990-06-15',
     },
   });
-
-  return {
-    memberId,
-    slug,
-    cookieHeader: cookieFor(memberId),
-    tier: 'tier0',
-    isAdmin: false,
-    legacyMemberId,
-    legacyEmail,
-  };
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
+  return { memberId, slug, cookieHeader: cookieFor(memberId), tier: 'tier0', isAdmin: false };
 }
 
-export function seedMemberWithHpMatch(
+// A competition record with no old account behind it under the member's name,
+// or, with `nickname`, under a nickname of the member's first name (seeded as a
+// curated pair), which the record's confirmation page flags as a first-name
+// difference.
+export function seedMemberWithRecordOnly(
   db: BetterSqlite3.Database,
-  opts: { slug?: string; personName?: string; memberName?: string } = {},
-): Persona & { personId: string } {
-  const memberId = `hp-${rand()}`;
-  const slug = opts.slug ?? `hp_${rand()}`;
-  const surname = 'Testplayer';
-  const personName = opts.personName ?? `Robert ${surname}`;
-  const memberName = opts.memberName ?? `Bob ${surname}`;
-
+  opts: { nickname?: boolean; personalDetailsDone?: boolean } = {},
+): Persona & { personId: string; personName: string } {
+  const first = nameWord();
+  const surname = nameWord();
+  const recordFirst = opts.nickname ? nameWord() : first;
+  if (opts.nickname) {
+    insertGivenNameVariant(db, {
+      short_form_normalized: recordFirst.toLowerCase(),
+      long_form_normalized: first.toLowerCase(),
+    });
+  }
+  const personName = `${recordFirst} ${surname}`;
   const personId = insertHistoricalPerson(db, {
-    person_id: `hp-hpm-${rand()}`,
+    person_id: `hp-ro-${rand()}`,
     person_name: personName,
     country: 'US',
     first_year: 2003,
   });
+  const persona = opts.personalDetailsDone === false
+    ? seedRegistrantBeforePersonalDetails(db, `${first} ${surname}`)
+    : seedPendingClaimant(db, 'ro', { real_name: `${first} ${surname}` });
+  return { ...persona, personId, personName };
+}
 
+function seedRegistrantBeforePersonalDetails(db: BetterSqlite3.Database, realName: string): Persona {
+  const memberId = `pre-${rand()}`;
+  const slug = `pre_${rand()}`;
   createMemberAtTier(db, {
     id: memberId,
     slug,
     tier: 'tier0',
-    memberOverrides: {
-      onboarding: 'none',
-      login_email: uniqueEmail('hp'),
-      real_name: memberName,
-    },
+    memberOverrides: { onboarding: 'none', login_email: uniqueEmail('pre'), real_name: realName },
   });
-
-  return {
-    memberId,
-    slug,
-    cookieHeader: cookieFor(memberId),
-    tier: 'tier0',
-    isAdmin: false,
-    personId,
-  };
+  return { memberId, slug, cookieHeader: cookieFor(memberId), tier: 'tier0', isAdmin: false };
 }
+
+// An old account carrying the member's login address under a different
+// surname: the card offers to record that surname as one used before and claim.
+export function seedMemberWithSurnameDifferingAccount(
+  db: BetterSqlite3.Database,
+): Persona & { legacyMemberId: string; oldSurname: string } {
+  const first = nameWord();
+  const oldSurname = nameWord();
+  const loginEmail = uniqueEmail('sd').toLowerCase();
+  const legacyMemberId = `LM-SD-${rand().toUpperCase()}`;
+  insertLegacyMember(db, {
+    legacy_member_id: legacyMemberId,
+    legacy_email: loginEmail,
+    real_name: `${first} ${oldSurname}`,
+    country: 'US',
+  });
+  const persona = seedPendingClaimant(db, 'sd', { real_name: `${first} ${nameWord()}`, login_email: loginEmail });
+  return { ...persona, legacyMemberId, oldSurname };
+}
+
+// An old account under the member's name that nothing of theirs corroborates:
+// it carries an old address the member does not sign in with and no date of
+// birth, so the card shows no claim control until the member adds that address.
+export function seedMemberWithNameOnlyAccount(
+  db: BetterSqlite3.Database,
+): Persona & { legacyMemberId: string; oldEmail: string; accountName: string } {
+  const accountName = `${nameWord()} ${nameWord()}`;
+  const oldEmail = uniqueEmail('old').toLowerCase();
+  const legacyMemberId = `LM-NO-${rand().toUpperCase()}`;
+  insertLegacyMember(db, { legacy_member_id: legacyMemberId, legacy_email: oldEmail, real_name: accountName });
+  const persona = seedPendingClaimant(db, 'no', { real_name: accountName });
+  return { ...persona, legacyMemberId, oldEmail, accountName };
+}
+
+// An old account under the member's name whose date of birth is the member's
+// with day and month swapped, and no address: found by name alone until the
+// member corrects their date in the last attempt, when the date corroborates it.
+export function seedMemberWithMisdatedAccount(
+  db: BetterSqlite3.Database,
+): Persona & { legacyMemberId: string; accountName: string } {
+  const accountName = `${nameWord()} ${nameWord()}`;
+  const legacyMemberId = `LM-MD-${rand().toUpperCase()}`;
+  insertLegacyMember(db, { legacy_member_id: legacyMemberId, real_name: accountName, birth_date: '1984-03-09' });
+  const persona = seedPendingClaimant(db, 'md', { real_name: accountName, birth_date: '1984-09-03' });
+  return { ...persona, legacyMemberId, accountName };
+}
+
+// One member whose claim step shows every card kind at once: an old account
+// with its linked record reached by the login address (claim), a record with no
+// account under a nickname of the member's first name (record confirmation
+// page), an account reached by a declared old address under another surname
+// (claim under that surname), and an account under the member's name that
+// nothing corroborates (no claim control).
+export function seedMemberWithEveryCardKind(
+  db: BetterSqlite3.Database,
+): Persona & { recordOnlyId: string } {
+  const first = nameWord();
+  const nickname = nameWord();
+  const surname = nameWord();
+  const memberName = `${first} ${surname}`;
+  const loginEmail = uniqueEmail('every').toLowerCase();
+  const oldEmail = uniqueEmail('everyold').toLowerCase();
+
+  const pairAccount = `LM-EV-${rand().toUpperCase()}`;
+  insertLegacyMember(db, { legacy_member_id: pairAccount, legacy_email: loginEmail, real_name: memberName });
+  insertHistoricalPerson(db, { person_id: `hp-ev-${rand()}`, legacy_member_id: pairAccount, person_name: memberName, first_year: 2001 });
+
+  insertGivenNameVariant(db, { short_form_normalized: nickname.toLowerCase(), long_form_normalized: first.toLowerCase() });
+  const recordOnlyId = insertHistoricalPerson(db, { person_id: `hp-evr-${rand()}`, person_name: `${nickname} ${surname}` });
+
+  insertLegacyMember(db, { legacy_member_id: `LM-EVS-${rand().toUpperCase()}`, legacy_email: oldEmail, real_name: `${first} ${nameWord()}` });
+  insertLegacyMember(db, { legacy_member_id: `LM-EVA-${rand().toUpperCase()}`, real_name: memberName });
+
+  const persona = seedPendingClaimant(db, 'every', { real_name: memberName, login_email: loginEmail });
+  insertMemberDeclaredAnchor(db, { member_id: persona.memberId, anchor_type: 'old_email', anchor_value: oldEmail });
+  return { ...persona, recordOnlyId };
+}
+
+// A registrant who answered "I had one but cannot find it", so the claim step is
+// complete and its one last attempt at the match is open.
+export function seedMemberInLastAttempt(db: BetterSqlite3.Database): Persona {
+  const persona = seedPendingClaimant(db, 'la', { real_name: `${nameWord()} ${nameWord()}` });
+  insertOnboardingTask(db, persona.memberId, 'legacy_claim', 'completed', { last_attempt_opened_at: TS });
+  return persona;
+}
+
+// ── Persona composition helpers ──────────────────────────────────────────────
 
 export function seedMemberWithClubCards(
   db: BetterSqlite3.Database,
@@ -366,9 +443,7 @@ export function seedAllTasksCompleted(
   const slug = opts.slug ?? `done_${rand()}`;
 
   // With linked, the persona carries both identity links (legacy account and
-  // historical person). A completed legacy_claim task with either link missing
-  // deliberately keeps rendering as the re-entry claim surface, so only a
-  // fully-linked persona exercises the transition-away-when-resolved contract.
+  // historical person), the state a claim of a linked account leaves behind.
   let memberOverrides: Record<string, unknown> = { login_email: uniqueEmail('done') };
   if (opts.linked) {
     const legacyMemberId = `LM-DONE-${rand().toUpperCase()}`;
@@ -422,20 +497,20 @@ export function seedTier1Member(db: BetterSqlite3.Database, opts: { slug?: strin
   return _seedTier1Member(db, { slug: opts.slug, overrides: { login_email: uniqueEmail('t1') } });
 }
 
-export function seedMemberWithAutoLinkCandidate(
+// An old account carrying the member's login address and the record the
+// pipeline linked to it, under the member's name: one strong, claimable card.
+export function seedMemberWithEmailMatchedPair(
   db: BetterSqlite3.Database,
   opts: { slug?: string; personName?: string } = {},
-): ReturnType<typeof _seedMemberWithAutoLinkCandidate> {
+): Persona & { legacyMemberId: string; personId: string } {
   const memberId = `al-${rand()}`;
-  const slug = opts.slug ?? `autolink_${rand()}`;
+  const slug = opts.slug ?? `pair_${rand()}`;
   const legacyMemberId = `LM-AL-${rand().toUpperCase()}`;
   const loginEmail = uniqueEmail('al');
-  // Unique per seed: every auto-link persona shares one database in the E2E run,
-  // so a constant name makes several records namesakes and the classifier
-  // downgrades the match to ambiguous, hiding the auto-link confirm card. The
-  // suffix is crypto-random rather than Math.random so uniqueness is not left to
-  // chance across the whole suite.
-  const personName = opts.personName ?? `Test Autolink ${randomUUID()}`;
+  // Unique per seed: every such persona shares one database in the E2E run, so
+  // a shared word in the name makes the records namesakes and each member is
+  // shown the others' cards as well as their own. Both words are crypto-random.
+  const personName = opts.personName ?? `${nameWord()} ${nameWord()}`;
 
   insertLegacyMember(db, {
     legacy_member_id: legacyMemberId,
