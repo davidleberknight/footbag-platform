@@ -206,8 +206,10 @@
  *     admin-alerts fan-out), raised from the identity-link category of the
  *     member contact form, which is the only way a member reaches this queue
  *
- * Service shape: singleton object (no external adapters beyond db.ts and the KMS-backed
- * JwtSigningAdapter resolved via getJwtSigningAdapter()).
+ * Service shape: singleton object (no external adapters beyond db.ts, the KMS-backed
+ * JwtSigningAdapter resolved via getJwtSigningAdapter(), and the CaptchaAdapter the
+ * human-challenge check resolves via getCaptchaAdapter(), so the entry forms'
+ * controllers never select an adapter themselves).
  */
 import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
@@ -221,6 +223,7 @@ import { workQueueService } from './workQueueService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
+import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 // The permanent dev/staging register-allowlist bootstrap: applyDevStagingBootstrapAdmin
 // promotes a registrant whose email is on the operator allowlist to admin. It is
 // active in dev/staging only; the env-config fail-fast guard prevents its trigger
@@ -4555,4 +4558,14 @@ function correctMemberSlug(
   }
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, declineCandidate, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+/**
+ * Whether the human-challenge token from an entry form passes, checked before
+ * the form's own service call reads anything. The answer depends only on the
+ * token, never on whether an account exists, so an entry form may refuse on it
+ * up front without opening an enumeration path.
+ */
+async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<boolean> {
+  return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
+}
+
+export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, declineCandidate, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

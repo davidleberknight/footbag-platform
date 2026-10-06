@@ -221,7 +221,7 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         const withdrawn = deceasedMarking.cancelUpcomingRegistrations.run(
           'Account deleted', nowIso, nowIso, input.memberId, input.memberId, nowIso.slice(0, 10),
         );
-        outbox.deadLetterQueuedForMember.run(nowIso, input.memberId);
+        outbox.deadLetterQueuedForMember.run('recipient_soft_deleted', nowIso, input.memberId);
         // Enqueued after the dead-letter sweep above, or it would be caught by
         // it, and addressed by the literal address read before the soft delete,
         // because the member-resolving send path reads the active view and would
@@ -229,6 +229,8 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         // soft-deleted member is enqueued nothing: it is the message telling
         // them what was deleted and how long their details are held, and it is
         // the last one they get. It offers no way back, because there is none.
+        // Strict, because the enqueue gate refuses every routine send to a
+        // soft-deleted member and only a strict send passes it.
         if (row.login_email) {
           emailService.send({
             template: 'account_deletion_requested',
@@ -236,6 +238,7 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
             recipientEmail:    row.login_email,
             recipientMemberId: input.memberId,
             idempotencyKey:    `account-deletion:${input.memberId}:${nowIso}`,
+            strict:            true,
           });
         }
         for (const event of orphanedEvents) {

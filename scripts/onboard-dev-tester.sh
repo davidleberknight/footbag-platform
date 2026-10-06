@@ -4,14 +4,16 @@
 # Onboards one dev-and-tester onto staging, in one run by a footbag-operator
 # holder: their named host account, their IAM user and key, their address on
 # the staging allow-list, and everything they need to reach staging, sealed with
-# age to the SSH public key they sent. The sealed file travels by any channel,
-# and the person accepts it on their own computer with
-# scripts/accept-dev-tester-onboarding.sh.
+# age to the SSH public key they sent. The sealed file is placed in their own
+# home on the staging host, and nobody carries it: their acceptance,
+# scripts/accept-dev-tester-onboarding.sh on their own computer, fetches it
+# from there over their own login, proves it, and removes it. The run ends by
+# printing that acceptance command, with the host address filled in.
 #
 # It is the one way anybody gets a named identity, and it works the same
 # whoever that is. A holder onboarding themselves runs it at their own keyboard
-# and then accepts the sealed file on the same machine, exactly as somebody on
-# another machine would; nothing about the path changes. A named identity is a
+# and then accepts on the same machine, exactly as somebody on another machine
+# would; nothing about the path changes. A named identity is a
 # user of the staging-only job role and nothing more: administrative work runs
 # as footbag-operator and the shared host account, never as a named identity.
 #
@@ -55,8 +57,8 @@
 # finishes the work: the host account holding exactly the key given is issued a
 # fresh password, and the IAM user's keys are retired and one reissued. An
 # onboarding counts as finished when IAM shows the grant and an active key,
-# because the key is committed only once the sealed file exists, and the host
-# account reads back live holding exactly the key given.
+# because the key is committed only once the sealed file is placed on the host,
+# and the host account reads back live holding exactly the key given.
 #
 # Usage. The redirect is the sudo password of the account your alias connects
 # as, which this run reads once and hands to each host step:
@@ -102,8 +104,9 @@
 #   --location "<where>"       where that address is, for the entry's
 #                              description. Default: home
 #   --reissue                  replace a finished onboarding: a fresh one-time
-#                              password and key, sealed again. For a lost sealed
-#                              file or a forgotten password
+#                              password and key, sealed again and placed over
+#                              the one on the host. For a forgotten password, or
+#                              a delivery that is no longer there to fetch
 #   --verify                   change nothing; prove the onboarding finished and
 #                              accepted: the host account live holding exactly the
 #                              key and the shared account not holding it, the IAM
@@ -425,6 +428,14 @@ if [[ ! "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
   echo "ERROR: could not read an account id out of ${AWS_IDENTITY_ARN}." >&2
   exit 1
 fi
+# The acceptance trusts a delivery only when it was issued in this account, so
+# one sealed from anywhere else would be refused at the other end after a key
+# and a host password had been minted for it.
+if [[ "$ACCOUNT_ID" != "$FOOTBAG_AWS_ACCOUNT_ID" ]]; then
+  echo "ERROR: ${AWS_IDENTITY_ARN} is in account ${ACCOUNT_ID}, not this project's" >&2
+  echo "       ${FOOTBAG_AWS_ACCOUNT_ID}. Nothing done." >&2
+  exit 1
+fi
 DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${FOOTBAG_DEV_TESTER_ROLE}"
 STAGING_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/footbag-staging-app-runtime"
 if ! "$AWS_BIN" iam get-role --role-name "$FOOTBAG_DEV_TESTER_ROLE" >/dev/null 2>&1; then
@@ -647,7 +658,7 @@ onboard_readback() {
 
 onboard_readback_failed() {
   echo "ERROR: ${ACCOUNT} does not read back from IAM as onboarded: ${1}" >&2
-  echo "       Do not send the sealed file on the strength of this run. Re-running" >&2
+  echo "       Do not tell them to accept on the strength of this run. Re-running" >&2
   echo "       the same command reads IAM again, and completes whatever it finds" >&2
   echo "       missing." >&2
   exit 1
@@ -696,9 +707,9 @@ onboard_host_finished() {
 }
 
 # A finished onboarding is read back rather than re-issued. The key is committed
-# only once the sealed file exists, so an IAM user carrying the grant and an
-# active key is one whose file was made; re-issuing it would replace the key
-# and the password its owner may already be using.
+# only once the sealed file is placed on the host, so an IAM user carrying the
+# grant and an active key is one whose file was placed; re-issuing it would
+# replace the key and the password its owner may already be using.
 ACTIVE_KEYS=""
 if (( IAM_USER_EXISTS && ! IAM_ADOPT_LEGACY )); then
   POLICY_NOW="$(iam_dev_tester_policy_state "$ACCOUNT")" || exit 1
@@ -708,10 +719,11 @@ if (( IAM_USER_EXISTS && ! IAM_ADOPT_LEGACY )); then
     onboard_host_finished
     echo ""
     echo "Already done: ${ACCOUNT} holds the ${FOOTBAG_DEV_TESTER_ROLE} grant and an active key"
-    echo "(${ACTIVE_KEYS% }), which exists only once a sealed file has been made, and"
+    echo "(${ACTIVE_KEYS% }), which exists only once a sealed file has been placed, and"
     echo "their host account is live holding exactly the key given."
-    echo "Nothing is re-issued. If the sealed file was lost, or they have forgotten"
-    echo "their password, re-run with --reissue, which replaces both."
+    echo "Nothing is re-issued. If they have forgotten their password, or their"
+    echo "acceptance finds nothing to fetch and they have not accepted, re-run with"
+    echo "--reissue, which replaces both."
     onboard_address
     onboard_readback
     exit 0
@@ -751,8 +763,7 @@ fi
 # nothing but the run.
 known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
 
-OUT_DIR="${HOME}/AWS"
-OUT_FILE="${OUT_DIR}/${ACCOUNT}-${TARGET}.onboarding.age"
+HOST_FILE="$(delivery_file_name "$ACCOUNT" "$TARGET")"
 
 # ── What this run will do ────────────────────────────────────────────────────
 
@@ -775,8 +786,8 @@ else
   echo "                sts:AssumeRole on ${FOOTBAG_DEV_TESTER_ROLE} and nothing else"
 fi
 echo "  pin lines     ${KNOWN_HOSTS_PIN_COUNT} for ${KNOWN_HOSTS_PIN_IP}"
-echo "  sealed file   ${OUT_FILE}"
-[[ -e "$OUT_FILE" ]] && echo "                (replacing the one there, which this run makes obsolete)"
+echo "  sealed file   ~${ACCOUNT}/${HOST_FILE} on the ${TARGET} host, theirs at mode 600,"
+echo "                replacing any there; no copy stays on this machine"
 echo "  allow-list    ${ADDRESS}, as ${ACCOUNT}'s own address parameter on ${TARGET}"
 echo "                (staging's firewall is reapplied alone: every staging port"
 echo "                blinks for a few seconds; the values file is not opened)"
@@ -798,7 +809,6 @@ onboard_cleanup() {
   (( SEALED_DONE )) && { secret_file_sweep; return 0; }
   iam_key_cleanup
   iam_dev_tester_undo
-  [[ -n "$SEAL_TMP" ]] && rm -f -- "$SEAL_TMP"
   SEAL_TMP=""
   secret_file_sweep
   if (( HOST_DONE )); then
@@ -854,7 +864,7 @@ DELIVERY_AWS_ACCOUNT_ID="$ACCOUNT_ID"
 DELIVERY_DEV_TESTER_ROLE_ARN="$DEV_TESTER_ROLE_ARN"
 DELIVERY_STAGING_RUNTIME_ROLE_ARN="$STAGING_ROLE_ARN"
 DELIVERY_HOST_ADDRESS="$KNOWN_HOSTS_PIN_IP"
-DELIVERY_HOST_PORT="2222"
+DELIVERY_HOST_PORT="$DELIVERY_SSH_PORT"
 DELIVERY_PINS=()
 while IFS= read -r _pin; do
   [[ -n "$_pin" ]] && DELIVERY_PINS+=("$_pin")
@@ -866,8 +876,8 @@ delivery_bundle_emit > "$BUNDLE" || exit 1
 DELIVERY_HOST_PASSWORD=""
 DELIVERY_AWS_SECRET_ACCESS_KEY=""
 
-mkdir -p -m 700 -- "$OUT_DIR"
-SEAL_TMP="$(umask 077 && mktemp "${OUT_DIR}/.${ACCOUNT}-onboarding.XXXXXX")"
+SEAL_TMP="$(umask 077 && mktemp)"
+secret_file_register "$SEAL_TMP"
 "$AGE_BIN" -r "$KEY_LINE" -o "$SEAL_TMP" "$BUNDLE" || {
   echo "ERROR: age could not seal the delivery." >&2
   exit 1
@@ -882,8 +892,21 @@ if [[ "$HEADER_TAGS" != "$RECIPIENT_TAG" ]]; then
   echo "       (expected ${RECIPIENT_TAG}, found '${HEADER_TAGS//$'\n'/ }')." >&2
   exit 1
 fi
-chmod 600 "$SEAL_TMP"
-mv -f -- "$SEAL_TMP" "$OUT_FILE"
+
+# ── Placed on the host ───────────────────────────────────────────────────────
+#
+# In their own home, over this run's pinned connection, and proved there by the
+# host step's read-back. The key inside is committed only after that, so a
+# placement that fails withdraws a key nobody could ever have fetched. No copy
+# stays on this machine: the temp file is shredded on every way out.
+echo ""
+echo "==> Placing the sealed file in ${ACCOUNT}'s home on the ${TARGET} host"
+if ! host_step --target "$TARGET" --account "$ACCOUNT" --place-delivery "$SEAL_TMP"; then
+  echo "ERROR: the sealed file is not proved in place on the ${TARGET} host. The key" >&2
+  echo "       inside it is withdrawn; re-run the same command." >&2
+  exit 1
+fi
+secret_file_destroy "$SEAL_TMP"
 SEAL_TMP=""
 
 iam_key_commit
@@ -891,22 +914,27 @@ IAM_KEY_SAK=""
 SEALED_DONE=1
 
 echo ""
-echo "Sealed: ${OUT_FILE}"
-echo "Only the private half of ${KEY_FINGERPRINT%% (*} opens it."
+echo "Sealed to ${KEY_FINGERPRINT%% (*} and placed as ~${ACCOUNT}/${HOST_FILE}."
+echo "Only the private half of that key opens it."
 
 onboard_address
 onboard_readback "$IAM_KEY_AKID"
 onboard_evidence "$IAM_KEY_AKID" "$ADDRESS" "not yet: seen once they accept, by --verify"
 
 echo ""
-echo "1. Get that file to ${FULL_NAME} by any channel. It is useless to anybody else."
-echo "   Onboarding yourself, it is already where it needs to be."
+echo "1. Post the evidence block on the onboarding card, with this line for"
+echo "   ${FULL_NAME}. They pull the public repository and run it on their own"
+echo "   computer (on this one, when onboarding yourself). It fetches the sealed"
+echo "   file from their account on ${TARGET}, proves it, and removes it there:"
 echo ""
-echo "2. They pull the public repository and run, on their own computer (on this one,"
-echo "   when onboarding yourself), with the file in ~/Downloads, ~/AWS or the"
-echo "   current directory:"
+echo "     bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} \\"
+echo "       --account ${ACCOUNT} --host ${KNOWN_HOSTS_PIN_IP}"
 echo ""
-echo "     bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account ${ACCOUNT}"
+echo "   The address is the ${TARGET} host's. It carries no trust: the acceptance"
+echo "   refuses a delivery that names any other."
+echo ""
+echo "2. Nothing is sent to them. If their connection is refused, their address"
+echo "   has changed: re-run this with the new one."
 echo ""
 echo "3. Nothing goes in the vault: nobody named has a vault entry. Who holds this"
 echo "   access is read live, and the onboarding card records who approved it."

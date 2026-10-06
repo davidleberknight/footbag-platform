@@ -1,22 +1,26 @@
 /**
- * scripts/accept-dev-tester-onboarding.sh — a dev-and-tester opening the sealed
- * delivery on their own computer and putting each thing in it where the tooling
- * expects it.
+ * scripts/accept-dev-tester-onboarding.sh — a dev-and-tester fetching the sealed
+ * delivery from their own home on the staging host, proving where it came from,
+ * and putting each thing in it where the tooling expects it.
  *
  * The refusals come first, each stopping the run before anything on the machine
  * changes: the wrong environment or account, a delivery for somebody else or in
- * any other shape, no key pair that opens it, a job-role profile that already
- * belongs to somebody else, a stanza pointing at another host, a one-time
- * password the host no longer accepts. Then whole runs, driven through a
- * terminal, which is where the promises can be checked: every file lands where
+ * any other shape, a delivery issued in another AWS account, a host whose key is
+ * not among the delivery's pins, no key pair that opens it, a job-role profile
+ * that already belongs to somebody else, a stanza pointing at another host, a
+ * one-time password the host no longer accepts. Then whole runs, driven through
+ * a terminal, which is where the promises can be checked: every file lands where
  * it belongs and nothing else changes, the directly authenticated identity's
  * section is byte-identical, no secret reaches the terminal or survives in temp,
- * and a second run finds every step already done.
+ * the copy on the host is removed last, a stopped run resumes, and a run after a
+ * finished one says so and changes nothing.
  *
- * aws, age and the connections to the host are stubs; the host is a file holding
+ * aws, age and the connections to the host are stubs. The host is a file holding
  * its current sudo password, which the stub accepts, rejects and changes the way
- * the remote half does. `ssh -G` is the real client reading this suite's own
- * home, because which account the alias resolves as is the thing under test.
+ * the remote half does, and a file standing for the delivery in the person's home,
+ * which the fetch reads and the last step removes. `ssh -G` is the real client
+ * reading this suite's own home, because which account the alias resolves as is
+ * the thing under test.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawn, spawnSync } from 'node:child_process';
@@ -29,8 +33,7 @@ import {
   statSync,
   readdirSync,
   symlinkSync,
-  renameSync,
-  copyFileSync,
+  rmSync,
 } from 'node:fs';
 import { join } from 'node:path';
 
@@ -59,6 +62,12 @@ const NEW_PASSWORD = 'james-own-sudo-password';
 const KEY_ID = 'AKIAFIXTUREJAMES0001';
 const SECRET = 'fixtureSecretAccessKeyForJames0000000000';
 const ADDRESS = '203.0.113.10';
+// This project's AWS account, the anchor every delivery is proved against, and
+// another account a forged delivery could be minted in.
+const PROJECT_ACCOUNT = '041904915126';
+const OTHER_ACCOUNT = '111122223333';
+const HOST_KEY = 'AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost';
+const DELIVERY_NAME = `${ACCOUNT}-staging.onboarding.age`;
 const OPERATOR_CRED =
   '[footbag-operator]\naws_access_key_id = AKIAOPERATORFIXTURE0\naws_secret_access_key = operator-fixture-secret\n';
 const OPERATOR_CONFIG = '[profile footbag-operator]\nregion = us-east-1\n';
@@ -69,7 +78,8 @@ const TF_PIN = /terraform_version:\s*(\S+)/.exec(readFileSync(join(process.cwd()
 let dir: string;
 let home: string;
 let tmp: string;
-let sealed: string;
+/** The delivery as it sits in the person's home on the host. */
+let hostDelivery: string;
 let hostPassword: string;
 
 function stub(name: string, body: string): string {
@@ -80,14 +90,20 @@ function stub(name: string, body: string): string {
 }
 
 /**
- * aws, answering by profile. A fresh assume-role, signed with the person's own
- * key, is answered separately: issued under the session name asked for, or
- * refused when `fresh` is 'refused', which is a key the role no longer honours
- * while the CLI's cache still answers the role profile as though it did.
+ * aws, answering by profile, or by the delivered key when a call names no
+ * profile and carries that key in its environment, which is how the delivery is
+ * proved before anything is written. The fresh assume-role is answered under
+ * the session name asked for, or refused when `fresh` is 'refused', which is a
+ * key the role no longer honours while the CLI's cache still answers the role
+ * profile as though it did. `account` is the account the key really lives in:
+ * another one is a delivery forged there under the same names.
  */
-function awsStub(opts: { session?: string; runtimeRole?: string; fresh?: 'issued' | 'refused' } = {}): string {
+function awsStub(
+  opts: { session?: string; runtimeRole?: string; fresh?: 'issued' | 'refused'; account?: string } = {},
+): string {
+  const acct = opts.account ?? PROJECT_ACCOUNT;
   return stub(
-    `aws-${opts.session ?? 'own'}-${opts.runtimeRole ?? 'runtime'}-${opts.fresh ?? 'issued'}`,
+    `aws-${opts.session ?? 'own'}-${opts.runtimeRole ?? 'runtime'}-${opts.fresh ?? 'issued'}-${acct}`,
     `
 # The version the scripts pin, and the profile list as the real CLI derives it
 # from the two files, so the run sees this suite's machine and not the host's.
@@ -104,14 +120,20 @@ while [[ $# -gt 0 ]]; do
   [[ "$1" == "--role-session-name" ]] && session="$2"
   shift
 done
-if [[ "$sub" == "assume-role" ]]; then
-  [[ "$profile" == ${JSON.stringify(ACCOUNT)} ]] || exit 255
-  ${opts.fresh === 'refused' ? 'echo "An error occurred (AccessDenied) when calling the AssumeRole operation: not authorized" >&2; exit 254' : 'echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/$session"; exit 0'}
+if [[ -z "$profile" ]]; then
+  # The delivered key, and only it, with nothing ambient beside it.
+  [[ "\${AWS_ACCESS_KEY_ID:-}" == ${JSON.stringify(KEY_ID)} && "\${AWS_SECRET_ACCESS_KEY:-}" == ${JSON.stringify(SECRET)} ]] || exit 255
+  [[ -z "\${AWS_PROFILE:-}" && -z "\${AWS_SESSION_TOKEN:-}" ]] || exit 255
+  if [[ "$sub" == "assume-role" ]]; then
+    ${opts.fresh === 'refused' ? 'echo "An error occurred (AccessDenied) when calling the AssumeRole operation: not authorized" >&2; exit 254' : `echo "arn:aws:sts::${acct}:assumed-role/FootbagDevTester/$session"; exit 0`}
+  fi
+  echo "arn:aws:iam::${acct}:user/footbag-dev-testers/${ACCOUNT}"
+  exit 0
 fi
 case "$profile" in
-  ${ACCOUNT}) echo "arn:aws:iam::000000000000:user/footbag-dev-testers/${ACCOUNT}" ;;
-  FootbagDevTester) echo "arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${opts.session ?? ACCOUNT}" ;;
-  footbag-staging-runtime) echo "arn:aws:sts::000000000000:assumed-role/${opts.runtimeRole ?? 'footbag-staging-app-runtime'}/botocore-session-1" ;;
+  ${ACCOUNT}) echo "arn:aws:iam::${acct}:user/footbag-dev-testers/${ACCOUNT}" ;;
+  FootbagDevTester) echo "arn:aws:sts::${acct}:assumed-role/FootbagDevTester/${opts.session ?? ACCOUNT}" ;;
+  footbag-staging-runtime) echo "arn:aws:sts::${acct}:assumed-role/${opts.runtimeRole ?? 'footbag-staging-app-runtime'}/botocore-session-1" ;;
   *) exit 255 ;;
 esac`,
   );
@@ -130,17 +152,44 @@ sed '1,/^--- /d' "$in" > "$out"`,
 }
 
 /**
- * The host, as the named account reaches it: sudo -v accepts the current
- * password; the password change reads the old one, then CHPW_NEW, and replaces
- * it. Every other connection is refused.
+ * The host, as the named account reaches it. The fetch records the arguments it
+ * was given and whatever it was sent, writes the key the host presents into the
+ * known_hosts file the client was told to use, and returns the delivery in the
+ * person's home, or exits 4 when there is none. The removal deletes it. sudo -v
+ * accepts the current password; the password change reads the old one, then
+ * CHPW_NEW, and replaces it. Every other connection is refused.
+ *
+ * Flag files in the suite's directory change what the host does: `fetch-refused`
+ * fails the fetch's login, `unreachable` fails every later connection,
+ * `presented-key` replaces the key the host presents, and `rm-fails` makes the
+ * removal fail.
  */
 function hostSshStub(): string {
+  const flag = (name: string) => JSON.stringify(join(dir, name));
   return stub(
     'host-ssh',
     `
 cmd="\${!#}"
+if [[ "$cmd" == 'f="$HOME/'* ]]; then
+  printf '%s\\n' "$@" > ${flag('fetch.args')}
+  cat > ${flag('fetch.stdin')}
+  [[ -e ${flag('fetch-refused')} ]] && exit 255
+  kh=""
+  for a in "$@"; do [[ "$a" == UserKnownHostsFile=* ]] && kh="\${a#UserKnownHostsFile=}"; done
+  key=${JSON.stringify(HOST_KEY)}
+  [[ -e ${flag('presented-key')} ]] && key="$(cat ${flag('presented-key')})"
+  [[ -n "$kh" ]] && printf '[%s]:2222 ssh-ed25519 %s\\n' ${JSON.stringify(ADDRESS)} "$key" >> "$kh"
+  [[ -f ${JSON.stringify(hostDelivery)} ]] || exit 4
+  cat ${JSON.stringify(hostDelivery)}
+  exit 0
+fi
 # ssh's own exit when it never reached the host.
-[[ -e ${JSON.stringify(join(dir, 'unreachable'))} ]] && exit 255
+[[ -e ${flag('unreachable')} ]] && exit 255
+if [[ "$cmd" == 'rm -f -- '* ]]; then
+  [[ -e ${flag('rm-fails')} ]] && exit 1
+  rm -f ${JSON.stringify(hostDelivery)}
+  exit 0
+fi
 IFS= read -r given || true
 current="$(cat ${JSON.stringify(hostPassword)})"
 case "$cmd" in
@@ -186,8 +235,13 @@ function aliasSsh(): string {
   return stub('alias-ssh', `exec ${REAL_SSH} -F ${JSON.stringify(join(home, '.ssh', 'config'))} "$@"`);
 }
 
-/** A sealed file in age's shape: a header naming the key, then the bundle. */
-function seal(overrides: Record<string, string> = {}, extraLine = '') {
+/**
+ * A sealed file in age's shape, a header naming the key and then the bundle,
+ * placed where the onboarding puts it: in the person's home on the host.
+ * `account` is the AWS account the delivery names throughout.
+ */
+function seal(overrides: Record<string, string> = {}, extraLine = '', account = PROJECT_ACCOUNT) {
+  const host = overrides.HOST_ADDRESS ?? ADDRESS;
   const values: Record<string, string> = {
     TARGET: 'staging',
     ACCOUNT,
@@ -195,9 +249,9 @@ function seal(overrides: Record<string, string> = {}, extraLine = '') {
     HOST_PASSWORD: ONE_TIME,
     AWS_ACCESS_KEY_ID: KEY_ID,
     AWS_SECRET_ACCESS_KEY: SECRET,
-    AWS_ACCOUNT_ID: '000000000000',
-    DEV_TESTER_ROLE_ARN: 'arn:aws:iam::000000000000:role/FootbagDevTester',
-    STAGING_RUNTIME_ROLE_ARN: 'arn:aws:iam::000000000000:role/footbag-staging-app-runtime',
+    AWS_ACCOUNT_ID: account,
+    DEV_TESTER_ROLE_ARN: `arn:aws:iam::${account}:role/FootbagDevTester`,
+    STAGING_RUNTIME_ROLE_ARN: `arn:aws:iam::${account}:role/footbag-staging-app-runtime`,
     HOST_ADDRESS: ADDRESS,
     HOST_PORT: '2222',
     ...overrides,
@@ -210,11 +264,11 @@ function seal(overrides: Record<string, string> = {}, extraLine = '') {
       [
         `source ${JSON.stringify(LIB)}`,
         ...Object.entries(values).map(([k, v]) => `DELIVERY_${k}=${JSON.stringify(v)}`),
-        `DELIVERY_PINS=(${JSON.stringify(`${ADDRESS} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost`)} ${JSON.stringify(
-          `[${ADDRESS}]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost`,
+        `DELIVERY_PINS=(${JSON.stringify(`${host} ssh-ed25519 ${HOST_KEY}`)} ${JSON.stringify(
+          `[${host}]:2222 ssh-ed25519 ${HOST_KEY}`,
         )})`,
         `tag="$(delivery_age_recipient_tag ${JSON.stringify(pub)})"`,
-        `{ echo age-encryption.org/v1; echo "-> ssh-ed25519 $tag share"; echo body; echo "--- mac"; delivery_bundle_emit; printf '%s' ${JSON.stringify(extraLine)}; } > ${JSON.stringify(sealed)}`,
+        `{ echo age-encryption.org/v1; echo "-> ssh-ed25519 $tag share"; echo body; echo "--- mac"; delivery_bundle_emit; printf '%s' ${JSON.stringify(extraLine)}; } > ${JSON.stringify(hostDelivery)}`,
       ].join('\n'),
     ],
     { encoding: 'utf-8', env: { ...process.env }, ...SPAWN_GUARD },
@@ -239,7 +293,8 @@ beforeEach(() => {
   writeFileSync(join(home, '.aws', 'config'), OPERATOR_CONFIG);
   hostPassword = join(dir, 'host-password');
   writeFileSync(hostPassword, `${ONE_TIME}\n`);
-  sealed = join(dir, `${ACCOUNT}-staging.onboarding.age`);
+  mkdirSync(join(dir, 'host-home'));
+  hostDelivery = join(dir, 'host-home', DELIVERY_NAME);
   seal();
 });
 
@@ -269,8 +324,8 @@ function env(extra: Record<string, string> = {}): Record<string, string> {
 }
 
 function args(overrides: Partial<Record<string, string>> = {}): string[] {
-  const o = { '--target': 'staging', '--account': ACCOUNT, ...overrides };
-  return [...Object.entries(o).flatMap(([k, v]) => (v === '' ? [] : [k, v as string])), sealed];
+  const o = { '--target': 'staging', '--account': ACCOUNT, '--host': ADDRESS, ...overrides };
+  return Object.entries(o).flatMap(([k, v]) => (v === '' ? [] : [k, v as string]));
 }
 
 function runPiped(argv: string[]) {
@@ -296,8 +351,9 @@ function runInTerminal(terminal: string[], extra: Record<string, string> = {}) {
 
 /** Every answer a first run asks for, in order. */
 // copy the pair, write the profiles, pin, add the stanza, the match block,
-// choose the password (typed twice), delete the sealed file, run the setup.
-const FIRST_RUN = ['APPLY', 'APPLY', 'APPLY', 'APPLY', 'APPLY', 'APPLY', NEW_PASSWORD, NEW_PASSWORD, 'APPLY', 'APPLY'];
+// choose the password (typed twice), run the setup. The copy on the host is
+// removed without a question: everything in it is in place by then.
+const FIRST_RUN = ['APPLY', 'APPLY', 'APPLY', 'APPLY', 'APPLY', 'APPLY', NEW_PASSWORD, NEW_PASSWORD, 'APPLY'];
 
 const read = (...p: string[]): string => readFileSync(join(home, ...p), 'utf-8');
 
@@ -383,9 +439,21 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
 
   it('refuses when no key pair on this machine is the one it was sealed to', () => {
     spawnSync('mv', [join(home, '.ssh', 'id_ed25519_footbag_operator.pub'), join(dir, 'away.pub')], { ...SPAWN_GUARD });
+    const kg = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(home, '.ssh', 'id_ed25519_other')], {
+      ...SPAWN_GUARD,
+    });
+    expect(kg.status).toBe(0);
     const r = runInTerminal(FIRST_RUN);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/0 key pairs in ~\/\.ssh match/);
+  });
+
+  it('refuses before connecting when there is no key pair at all to log in with', () => {
+    spawnSync('mv', [join(home, '.ssh', 'id_ed25519_footbag_operator.pub'), join(dir, 'away.pub')], { ...SPAWN_GUARD });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/no key pair in ~\/\.ssh to log in with/);
+    expect(existsSync(join(dir, 'fetch.args'))).toBe(false);
   });
 
   it('refuses a private key left alone at the named path, before copying anything over it', () => {
@@ -444,6 +512,9 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
     expect(r.out).toMatch(/a fresh session of FootbagDevTester, signed with your new key, was not/);
     expect(r.out).toMatch(/AccessDenied/);
     expect(existsSync(join(home, 'AWS', 'DEV_TESTER_HOST.txt'))).toBe(false);
+    // Proved before anything is written, so a refused grant leaves no profile.
+    expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
+    expect(read('.aws', 'config')).toBe(OPERATOR_CONFIG);
   });
 
   it('refuses a session the job role names after somebody else', () => {
@@ -470,6 +541,90 @@ describe('accept-dev-tester-onboarding.sh — refused before anything changes', 
   });
 });
 
+/**
+ * Nothing on this machine and nothing on the host changed: no profile, no pin,
+ * no stanza, no credential file, the host's password as it was (so nothing was
+ * sent to it), and the delivery still in the person's home.
+ */
+function expectUntouched(): void {
+  expect(read('.aws', 'credentials')).toBe(OPERATOR_CRED);
+  expect(read('.aws', 'config')).toBe(OPERATOR_CONFIG);
+  expect(existsSync(join(home, 'AWS', 'footbag_known_hosts'))).toBe(false);
+  expect(existsSync(join(home, '.ssh', 'config'))).toBe(false);
+  expect(existsSync(join(home, 'AWS', 'DEV_TESTER_HOST.txt'))).toBe(false);
+  expect(readFileSync(hostPassword, 'utf-8')).toBe(`${ONE_TIME}\n`);
+  expect(existsSync(hostDelivery)).toBe(true);
+}
+
+describe('accept-dev-tester-onboarding.sh — a delivery is trusted only once proved', () => {
+  it('refuses a delivery naming another AWS account, writing nothing and sending nothing', () => {
+    // Forged in another account under the same user and role names, sealed to
+    // the person's public key: every name matches, only the account does not.
+    seal({}, '', OTHER_ACCOUNT);
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_AWS_BIN: awsStub({ account: OTHER_ACCOUNT }) });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/names AWS account 111122223333, not this project's/);
+    expectUntouched();
+  });
+
+  it('refuses a delivery whose key authenticates in another account, though it names this one', () => {
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_AWS_BIN: awsStub({ account: OTHER_ACCOUNT }) });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/the key in this delivery authenticates as arn:aws:iam::111122223333:user/);
+    expectUntouched();
+  });
+
+  it('refuses when the host fetched from presented a key outside the delivery\'s pins', () => {
+    // A host answering at staging's address that is not staging. Its delivery is
+    // genuine, so only the host key can tell.
+    writeFileSync(join(dir, 'presented-key'), 'AAAAC3NzaC1lZDI1NTE5AAAAIInterceptor');
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/presented a key that is\s+not among the staging host's keys/);
+    expectUntouched();
+  });
+
+  it('refuses a delivery naming another host than the one it was fetched from', () => {
+    seal({ HOST_ADDRESS: '198.51.100.9' });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/names host 198\.51\.100\.9 port 2222, but it\s+was fetched from 203\.0\.113\.10/);
+    expectUntouched();
+  });
+
+  it('fetches with keys only, sends nothing, and trusts no known_hosts file of this machine', () => {
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status, r.out).toBe(0);
+    const fetchArgs = readFileSync(join(dir, 'fetch.args'), 'utf-8').split('\n');
+    expect(fetchArgs).toEqual(expect.arrayContaining([
+      '-F', '/dev/null', 'PasswordAuthentication=no', 'KbdInteractiveAuthentication=no',
+      'GlobalKnownHostsFile=/dev/null', 'StrictHostKeyChecking=accept-new', 'ForwardAgent=no',
+      `User=${ACCOUNT}`, 'Port=2222', ADDRESS,
+    ]));
+    const knownHosts = fetchArgs.find((a) => a.startsWith('UserKnownHostsFile='));
+    expect(knownHosts).toBeDefined();
+    expect(knownHosts).not.toContain(join(home, 'AWS'));
+    expect(knownHosts).not.toContain(join(home, '.ssh'));
+    expect(readFileSync(join(dir, 'fetch.stdin'), 'utf-8')).toBe('');
+  });
+
+  it('refuses what the host returns once it is larger than any delivery, and takes one at the limit', () => {
+    // A real delivery is about 1.5 KB: a dozen short values and four pin lines,
+    // plus age's header. The limit is 64 KiB, so a host returning more is not
+    // sending one.
+    writeFileSync(hostDelivery, 'x'.repeat(65537));
+    const over = runInTerminal(FIRST_RUN);
+    expect(over.status).toBe(1);
+    expect(over.out).toMatch(/larger than any delivery/);
+
+    writeFileSync(hostDelivery, 'x'.repeat(65536));
+    const at = runInTerminal(FIRST_RUN);
+    expect(at.status).toBe(1);
+    expect(at.out).not.toMatch(/larger than any delivery/);
+    expect(at.out).toMatch(/not sealed to exactly one SSH key/);
+  });
+});
+
 describe('accept-dev-tester-onboarding.sh — failures it must not misreport', () => {
   it('says the host could not be reached, rather than that the password was refused', () => {
     writeFileSync(join(dir, 'unreachable'), '');
@@ -478,6 +633,25 @@ describe('accept-dev-tester-onboarding.sh — failures it must not misreport', (
     expect(r.out).toMatch(/could not reach 203\.0\.113\.10/);
     expect(r.out).not.toMatch(/refuses the one-time password/);
     expect(readFileSync(hostPassword, 'utf-8')).toBe(`${ONE_TIME}\n`);
+  });
+
+  it('says a refused login is an address to post, not a missing delivery', () => {
+    writeFileSync(join(dir, 'fetch-refused'), '');
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/could not log in to 203\.0\.113\.10 on port 2222 as james_leberknight/);
+    expect(r.out).toMatch(/checkip\.amazonaws\.com/);
+    expect(r.out).not.toMatch(/no delivery waiting/);
+    expectUntouched();
+  });
+
+  it('says there is nothing to fetch, and who to ask, when no delivery was ever placed', () => {
+    rmSync(hostDelivery);
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/no delivery waiting for you on 203\.0\.113\.10/);
+    expect(r.out).toMatch(/--reissue/);
+    expect(r.out).not.toMatch(/Already accepted/);
   });
 
   it('ends the run on an interrupt, rather than carrying on with its secrets blanked', async () => {
@@ -562,7 +736,7 @@ describe('accept-dev-tester-onboarding.sh — the staging runtime chain', () => 
     // A holder onboarding themselves accepts on the machine that already runs
     // staging work as footbag-operator; that chain is theirs as an administrator.
     const adminChain =
-      '[profile footbag-staging-runtime]\nrole_arn = arn:aws:iam::000000000000:role/footbag-staging-app-runtime\nsource_profile = footbag-operator\n';
+      '[profile footbag-staging-runtime]\nrole_arn = arn:aws:iam::041904915126:role/footbag-staging-app-runtime\nsource_profile = footbag-operator\n';
     writeFileSync(join(home, '.aws', 'config'), OPERATOR_CONFIG + adminChain);
     const r = runInTerminal(FIRST_RUN.slice(0, -1).concat(['APPLY']));
     expect(r.status, r.out).toBe(0);
@@ -590,7 +764,7 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(creds).toContain(`[${ACCOUNT}]`);
     expect(creds).toContain(KEY_ID);
     const config = read('.aws', 'config');
-    expect(config).toMatch(/\[profile FootbagDevTester\]\nrole_arn\s+= arn:aws:iam::000000000000:role\/FootbagDevTester\nsource_profile = james_leberknight\nrole_session_name = james_leberknight/);
+    expect(config).toMatch(/\[profile FootbagDevTester\]\nrole_arn\s+= arn:aws:iam::041904915126:role\/FootbagDevTester\nsource_profile = james_leberknight\nrole_session_name = james_leberknight/);
     expect(config).toMatch(/\[profile footbag-staging-runtime\]\nrole_arn\s+= \S+footbag-staging-app-runtime\nsource_profile = FootbagDevTester/);
 
     const pins = read('AWS', 'footbag_known_hosts');
@@ -604,7 +778,8 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(readFileSync(hostPassword, 'utf-8')).toBe(`${NEW_PASSWORD}\n`);
     expect(read('AWS', 'DEV_TESTER_HOST.txt')).toBe(`${NEW_PASSWORD}\n`);
     expect(statSync(join(home, 'AWS', 'DEV_TESTER_HOST.txt')).mode & 0o777).toBe(0o600);
-    expect(existsSync(sealed)).toBe(false);
+    // The copy in their home on the host is gone once everything is in place.
+    expect(existsSync(hostDelivery)).toBe(false);
   });
 
   it('shows no secret on the terminal and leaves no cleartext in temp', () => {
@@ -612,7 +787,7 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(r.status, r.out).toBe(0);
     // The terminal echoes the answers typed ahead before the script turns echo
     // off, so what is judged is the script's own output, from its first step.
-    const own = r.out.slice(r.out.indexOf('==> Your key pair'));
+    const own = r.out.slice(r.out.indexOf('==> Fetching your delivery'));
     expect(own.length).toBeGreaterThan(0);
     expect(own).not.toContain(ONE_TIME);
     expect(own).not.toContain(SECRET);
@@ -630,7 +805,7 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     const longerName = join(cache, 'longer-name.json');
     const other = join(cache, 'other.json');
     const entry = (session: string) =>
-      JSON.stringify({ Credentials: { AccessKeyId: 'ASIAFIXTURE' }, AssumedRoleUser: { Arn: `arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${session}` } });
+      JSON.stringify({ Credentials: { AccessKeyId: 'ASIAFIXTURE' }, AssumedRoleUser: { Arn: `arn:aws:sts::041904915126:assumed-role/FootbagDevTester/${session}` } });
     writeFileSync(theirs, entry(ACCOUNT), { mode: 0o600 });
     writeFileSync(longerName, entry(`${ACCOUNT}2`), { mode: 0o600 });
     writeFileSync(other, entry('someone_else'), { mode: 0o600 });
@@ -642,13 +817,19 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(r.out).toContain(`removed a cached FootbagDevTester session of ${ACCOUNT}'s`);
   });
 
-  it('finds every step already done on a second run', () => {
-    const first = runInTerminal([...FIRST_RUN.slice(0, -2), 'no', 'no']);
-    expect(first.status, first.out).toBe(0);
+  it('finishes a run that stopped before the copy on the host was removed, finding every step done', () => {
+    // The copy stays until the last step so that a stopped run can be resumed:
+    // removed first, a re-run would have nothing to fetch and need a reissue.
+    writeFileSync(join(dir, 'rm-fails'), '');
+    const first = runInTerminal(FIRST_RUN.slice(0, -1));
+    expect(first.status).toBe(1);
+    expect(first.out).toMatch(/Run the same command again to finish/);
+    expect(existsSync(hostDelivery)).toBe(true);
     const credsAfterFirst = read('.aws', 'credentials');
     const configAfterFirst = read('.aws', 'config');
     const sshAfterFirst = read('.ssh', 'config');
 
+    rmSync(join(dir, 'rm-fails'));
     const second = runInTerminal(['no']);
     expect(second.status, second.out).toBe(0);
     expect(second.out).toMatch(/already in place/);
@@ -657,10 +838,37 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(read('.aws', 'credentials')).toBe(credsAfterFirst);
     expect(read('.aws', 'config')).toBe(configAfterFirst);
     expect(read('.ssh', 'config')).toBe(sshAfterFirst);
+    expect(existsSync(hostDelivery)).toBe(false);
+  });
+
+  it('says a finished acceptance is already done, changing nothing, when run again', () => {
+    const first = runInTerminal(FIRST_RUN);
+    expect(first.status, first.out).toBe(0);
+    const credsAfterFirst = read('.aws', 'credentials');
+    const configAfterFirst = read('.aws', 'config');
+    const pinsAfterFirst = read('AWS', 'footbag_known_hosts');
+
+    const second = runInTerminal([]);
+    expect(second.status, second.out).toBe(0);
+    expect(second.out).toMatch(/Already accepted: there is nothing to fetch, and sudo on 203\.0\.113\.10 accepts/);
+    expect(read('.aws', 'credentials')).toBe(credsAfterFirst);
+    expect(read('.aws', 'config')).toBe(configAfterFirst);
+    expect(read('AWS', 'footbag_known_hosts')).toBe(pinsAfterFirst);
+    expect(readFileSync(hostPassword, 'utf-8')).toBe(`${NEW_PASSWORD}\n`);
+  });
+
+  it('does not call it accepted when the password filed here no longer works', () => {
+    const first = runInTerminal(FIRST_RUN);
+    expect(first.status, first.out).toBe(0);
+    writeFileSync(hostPassword, 'changed-on-the-host\n');
+    const second = runInTerminal([]);
+    expect(second.status).toBe(1);
+    expect(second.out).not.toMatch(/Already accepted/);
+    expect(second.out).toMatch(/no delivery waiting for you/);
   });
 });
 
-/** A run through a terminal with explicit arguments, the sealed file included or not. */
+/** A run through a terminal with explicit arguments. */
 function runWith(argv: string[], terminal: string[], extra: Record<string, string> = {}, cwd = dir) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a))].join(' ');
   const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
@@ -673,32 +881,20 @@ function runWith(argv: string[], terminal: string[], extra: Record<string, strin
   return { status: r.status, out: r.stdout ?? '' };
 }
 
-describe('accept-dev-tester-onboarding.sh — before anything is opened', () => {
-  const NO_FILE = ['--target', 'staging', '--account', ACCOUNT];
-
-  it('finds the sealed file in ~/Downloads when it is not named', () => {
-    devMachine();
-    mkdirSync(join(home, 'Downloads'));
-    renameSync(sealed, join(home, 'Downloads', `${ACCOUNT}-staging.onboarding.age`));
-    const r = runWith(NO_FILE, FIRST_RUN, {}, tmp);
-    expect(r.status, r.out).toBe(0);
-    expect(r.out).toContain(`Using ${join(home, 'Downloads', `${ACCOUNT}-staging.onboarding.age`)}`);
+describe('accept-dev-tester-onboarding.sh — before anything is fetched', () => {
+  it('refuses without --host, or with anything but one IPv4 address, before connecting', () => {
+    for (const host of ['', '203.0.113', '203.0.113.300', 'staging.example', '203.0.113.10/32']) {
+      const r = runWith(args({ '--host': host }), []);
+      expect(r.status, `--host '${host}'`).toBe(2);
+      expect(r.out).toMatch(/--host <address> is required/);
+    }
+    expect(existsSync(join(dir, 'fetch.args'))).toBe(false);
   });
 
-  it('asks which one when two copies are found, rather than choosing', () => {
-    mkdirSync(join(home, 'Downloads'));
-    mkdirSync(join(home, 'AWS'), { recursive: true });
-    copyFileSync(sealed, join(home, 'Downloads', `${ACCOUNT}-staging.onboarding.age`));
-    copyFileSync(sealed, join(home, 'AWS', `${ACCOUNT}-staging.onboarding.age`));
-    const r = runWith(NO_FILE, [], {}, tmp);
+  it('refuses a file named on the command line: the delivery is only ever fetched', () => {
+    const r = runWith([...args(), join(dir, 'somewhere.onboarding.age')], []);
     expect(r.status).toBe(2);
-    expect(r.out).toMatch(/more than one james_leberknight-staging\.onboarding\.age/);
-  });
-
-  it('says where to put it when none is found', () => {
-    const r = runWith(NO_FILE, [], {}, tmp);
-    expect(r.status).toBe(2);
-    expect(r.out).toMatch(/no james_leberknight-staging\.onboarding\.age in ~\/Downloads, ~\/AWS or here/);
+    expect(r.out).toMatch(/unknown argument/);
   });
 
   it('refuses a Terraform at another version than the pinned one, before opening anything', () => {
@@ -756,8 +952,8 @@ describe('accept-dev-tester-onboarding.sh on a maintainer\'s own machine', () =>
     ]);
     const before = snapshotAdminFiles(home);
     // copy the pair, write the profiles, the match block, choose the password
-    // (typed twice), delete the sealed file, run the setup: no pin, no stanza.
-    const r = runInTerminal(['APPLY', 'APPLY', 'APPLY', 'APPLY', NEW_PASSWORD, NEW_PASSWORD, 'APPLY', 'APPLY']);
+    // (typed twice), run the setup: no pin, no stanza.
+    const r = runInTerminal(['APPLY', 'APPLY', 'APPLY', 'APPLY', NEW_PASSWORD, NEW_PASSWORD, 'APPLY']);
     expect(r.status, r.out).toBe(0);
     const after = snapshotAdminFiles(home);
     expect(after['AWS/AWS_OPERATOR.txt']).toBe(before['AWS/AWS_OPERATOR.txt']);
@@ -837,7 +1033,7 @@ describe('accept-dev-tester-onboarding.sh — what it leaves at the end', () => 
     const r = runInTerminal(FIRST_RUN);
     expect(r.status, r.out).toBe(0);
     expect(read('..', 'setup.args')).toBe('--target staging\n--target staging --check\n');
-    expect(r.out).toContain(`assumed role:  arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${ACCOUNT}`);
+    expect(r.out).toContain(`assumed role:  arn:aws:sts::041904915126:assumed-role/FootbagDevTester/${ACCOUNT}`);
     expect(r.out).toContain(`access key id: ${KEY_ID}`);
   });
 

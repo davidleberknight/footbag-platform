@@ -66,6 +66,11 @@
  *   - A strict send is valid only on a single-recipient audience: it bypasses
  *     the suppression gate, which is defensible for one member-initiated
  *     security signal and never for a broadcast.
+ *   - The member-state gate runs at enqueue only: no outbox row is written for
+ *     a recipient member who is deceased, soft-deleted or purged, whatever the
+ *     audience, unless the send is strict. Mail already queued when a member
+ *     reaches one of those states is dead-lettered by the service that changes
+ *     the state, so the drain does not re-check it.
  *   - Failed attempts back off exponentially via scheduled_for before the
  *     attempt budget dead-letters them; provider throttling and quota
  *     exhaustion wait out a delay WITHOUT consuming an attempt.
@@ -98,6 +103,7 @@
  *   outbox_emails; mailing_lists, mailing_list_subscriptions, registrations
  *   and members_active
  *   (read-only: audience resolution and the suppression lookup);
+ *   members (read-only: the member-state gate, which must see deleted rows);
  *   ses_events (read-only: the bounce and complaint counts the bulk halt
  *   is judged on).
  *
@@ -219,10 +225,12 @@ interface EnqueueEmailInput {
   /** Registered template that produced this email; the compose service stamps it. */
   templateKey?: string | null;
   /**
-   * Skips the mailbox suppression gate. Reserved for strict security sends:
-   * those flows are member-initiated, rare,
-   * and refusing them would either strand the member or let an
-   * anti-enumeration surface answer differently for a bounced address.
+   * Skips both enqueue gates: the mailbox suppression gate, and the
+   * member-state gate that refuses a deceased, soft-deleted or purged
+   * recipient. Reserved for strict security sends: those flows are
+   * member-initiated, rare, and refusing them would either strand the member,
+   * let an anti-enumeration surface answer differently for a bounced address,
+   * or withhold the one notice confirming an account deletion.
    */
   bypassSuppression?: boolean;
   stream: SendStream;
@@ -538,9 +546,9 @@ interface MailingListRow {
  *
  * The branches do NOT filter alike, and the difference is deliberate:
  *
- * - `address` applies no filter at all. It exists for the mail that has to
- *   reach a mailbox the platform cannot yet vouch for, verification being the
- *   obvious case, so filtering here would make the address audience useless.
+ * - `address` applies no filter at resolution. It exists for the mail that has
+ *   to reach a mailbox the platform cannot yet vouch for, verification being
+ *   the obvious case, so filtering here would make the address audience useless.
  * - `member` excludes purged and deceased accounts only. It checks neither
  *   `email_verified_at` nor `email_status`, for the same reason.
  * - `list` and `event` apply the full set (verified, deliverable, and not
@@ -548,10 +556,12 @@ interface MailingListRow {
  *   bouncing mailbox, and the platform sends nothing to a member it has marked
  *   deceased.
  *
- * Suppression is enforced separately, at insert time, for every non-strict
- * send, so a hard-bounced address is dropped whichever audience named it. What
- * is not enforced anywhere for `address` and `member` is subscription state:
- * a caller sending bulk to either kind owns that check itself.
+ * Two gates run separately, at insert time, for every non-strict send, so they
+ * hold whichever audience named the recipient: a recipient member who is
+ * deceased, soft-deleted or purged is refused, and a hard-bounced address is
+ * dropped. What is not enforced anywhere for `address` and `member` is
+ * subscription state: a caller sending bulk to either kind owns that check
+ * itself.
  */
 function resolveAudience(audience: SendAudience): ResolvedRecipient[] {
   switch (audience.kind) {
@@ -666,6 +676,24 @@ export function createCommunicationService(
     {
       if (!input.recipientEmail) {
         throw new ValidationError('recipientEmail is required.');
+      }
+      if (!input.bypassSuppression && input.recipientMemberId) {
+        const member = outbox.recipientMemberState.get(input.recipientMemberId) as
+          | { is_deceased: number; deleted_at: string | null; personal_data_purged_at: string | null }
+          | undefined;
+        if (member && (member.is_deceased === 1 || member.deleted_at || member.personal_data_purged_at)) {
+          // Every audience and every caller reaches this one writer, so the rule
+          // that the platform mails no deceased, deleted or erased member holds
+          // here whatever the caller resolved. Log by member id only.
+          logger.warn('outbox enqueue suppressed: recipient member is deceased or removed', {
+            recipientMemberId: input.recipientMemberId,
+            isDeceased: member.is_deceased === 1,
+            isDeleted: member.deleted_at !== null,
+            isPurged: member.personal_data_purged_at !== null,
+            templateKey: input.templateKey ?? null,
+          });
+          return { id: null, status: 'suppressed' };
+        }
       }
       if (!input.bypassSuppression) {
         const mailbox = account.emailStatusByNormalizedLoginEmail.get(

@@ -145,6 +145,7 @@ ROTATE=0
 OFFBOARD=0
 SEALED=0
 INSPECT_ONLY=0
+PLACE_FILE=""
 
 usage() {
   cat <<'EOF'
@@ -153,6 +154,8 @@ Usage: < <the credential file your alias selects> bash scripts/provision-dev-tes
          --key-line "<ssh public key>" (--sealed | --offboard)
        < <the credential file your alias selects> bash scripts/provision-dev-tester-account.sh \
          --target staging --account <name> --inspect
+       < <the credential file your alias selects> bash scripts/provision-dev-tester-account.sh \
+         --target staging --account <name> --place-delivery <sealed file>
 
 Reads the sudo password from stdin (line 1), so the redirect is not optional, and
 refuses an empty first line rather than sending an empty password to the host. It
@@ -172,6 +175,9 @@ account. scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh run it
                                  off every account on the host. Destructive.
   --inspect                      read the account and change nothing: whether it
                                  exists, whether it is locked, the keys it accepts
+  --place-delivery <file>        put the sealed onboarding in the account's own
+                                 home, owned by it at mode 600, proved by reading
+                                 it back, for its owner's acceptance to fetch
 EOF
 }
 
@@ -200,6 +206,10 @@ while [[ $# -gt 0 ]]; do
     --offboard) OFFBOARD=1; shift ;;
     --sealed) SEALED=1; shift ;;
     --inspect) INSPECT_ONLY=1; shift ;;
+    --place-delivery)
+      PLACE_FILE="${2:-}"
+      shift 2 || { echo "ERROR: --place-delivery requires an argument" >&2; exit 2; }
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
@@ -242,7 +252,21 @@ if [[ "$INSPECT_ONLY" -eq 1 ]]; then
     exit 2
   fi
 fi
-if [[ -z "$FULL_NAME" && "$OFFBOARD" -ne 1 && "$INSPECT_ONLY" -ne 1 ]]; then
+# Placing the delivery is its own operation on an account that already exists:
+# no name, no key, and no other mode alongside it.
+if [[ -n "$PLACE_FILE" ]]; then
+  if [[ "$SEALED" -eq 1 || "$OFFBOARD" -eq 1 || "$INSPECT_ONLY" -eq 1 \
+        || -n "$FULL_NAME" || -n "$KEY_LINE_ARG" || -n "$KEY_FILE" ]]; then
+    echo "ERROR: --place-delivery takes only --target and --account, and is not" >&2
+    echo "       combined with another operation." >&2
+    exit 2
+  fi
+  if [[ -L "$PLACE_FILE" || ! -f "$PLACE_FILE" ]]; then
+    echo "ERROR: --place-delivery '${PLACE_FILE}' is not a regular file." >&2
+    exit 2
+  fi
+fi
+if [[ -z "$FULL_NAME" && "$OFFBOARD" -ne 1 && "$INSPECT_ONLY" -ne 1 && -z "$PLACE_FILE" ]]; then
   echo "ERROR: --full-name is required. It is written into the account itself, so" >&2
   echo "       the host says whose login this is, and an unattributable login is" >&2
   echo "       the thing the named-account rule exists to prevent." >&2
@@ -256,7 +280,7 @@ fi
 # Offboarding needs no key: it is ending an access rather than granting one, and
 # demanding the departing person's public key to withdraw their access would be
 # a requirement nobody can always meet.
-if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$KEY_LINE_ARG" && -z "$KEY_FILE" ]]; then
+if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$PLACE_FILE" && -z "$KEY_LINE_ARG" && -z "$KEY_FILE" ]]; then
   echo "ERROR: the dev-and-tester's public key is required: --key-line \"<key>\" for a" >&2
   echo "       key you can paste, or --key-file <path> if it arrived as a file." >&2
   exit 2
@@ -274,7 +298,7 @@ if [[ "$SEALED" -eq 1 && "$OFFBOARD" -eq 1 ]]; then
   echo "       They are opposite intentions; name the one you mean." >&2
   exit 2
 fi
-if [[ "$SEALED" -eq 0 && "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 ]]; then
+if [[ "$SEALED" -eq 0 && "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$PLACE_FILE" ]]; then
   echo "ERROR: name the operation: --sealed to create or re-issue the account, or" >&2
   echo "       --offboard to end its access. scripts/onboard-dev-tester.sh and" >&2
   echo "       scripts/offboard-dev-tester.sh pass the right one." >&2
@@ -336,7 +360,7 @@ fi
 # Skipped entirely when offboarding, which takes no key: the whole of this
 # section validates something that run is not given and must not require.
 KEY_FINGERPRINT=""
-if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 ]]; then
+if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$PLACE_FILE" ]]; then
 
 if [[ -n "$KEY_LINE_ARG" ]]; then
   KEY_TMP="$(umask 077 && mktemp)"
@@ -536,6 +560,38 @@ if [[ "$INSPECT_ONLY" -eq 1 ]]; then
   else
     echo "SHARED unknown"
   fi
+  exit 0
+fi
+
+# ── Placing the delivery ─────────────────────────────────────────────────────
+#
+# The sealed file travels on the stream as base64 on one line, like every file
+# this family moves, so there is no staging path on the host to clean up after a
+# crash. Its digest travels with it and the host proves the copy it wrote.
+if [[ -n "$PLACE_FILE" ]]; then
+  if [[ "$ACCOUNT_EXISTS" == "no" ]]; then
+    echo "ERROR: ${ACCOUNT} does not exist on ${REMOTE}, so there is no home to place" >&2
+    echo "       the delivery in. Nothing changed." >&2
+    exit 1
+  fi
+  # shellcheck source=lib/dev-tester-delivery.sh
+  source "${SCRIPT_DIR}/lib/dev-tester-delivery.sh"
+  PLACE_NAME="$(delivery_file_name "$ACCOUNT" "$TARGET")"
+  PLACE_SHA="$(openssl dgst -sha256 -r "$PLACE_FILE" | cut -d' ' -f1)"
+  PLACE_B64="$(openssl base64 -A -in "$PLACE_FILE")"
+  if [[ -z "$PLACE_SHA" || -z "$PLACE_B64" ]]; then
+    echo "ERROR: could not read ${PLACE_FILE}. Nothing changed." >&2
+    exit 1
+  fi
+  {
+    printf '%s\n' "$SUDO_PASS"
+    printf 'DTACC_MODE=%q\n' "place-delivery"
+    printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
+    printf 'DTACC_DELIVERY_NAME=%q\n' "$PLACE_NAME"
+    printf 'DTACC_DELIVERY_B64=%q\n' "$PLACE_B64"
+    printf 'DTACC_DELIVERY_SHA256=%q\n' "$PLACE_SHA"
+    cat "$REMOTE_HALF"
+  } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
   exit 0
 fi
 

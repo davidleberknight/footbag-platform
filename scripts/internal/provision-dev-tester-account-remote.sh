@@ -15,7 +15,8 @@
 # assignments, and runs this body as root. Nothing secret reaches argv.)
 #
 # Required shell variables (provided by the caller's prepended assignments):
-#   DTACC_MODE          create | rotate | remove | offboard | inspect
+#   DTACC_MODE          create | rotate | remove | offboard | inspect |
+#                       place-delivery
 #   DTACC_ACCOUNT       the Linux account name
 #   DTACC_FULL_NAME     who it belongs to, for the comment field
 #   DTACC_KEY_LINE      their SSH public key line (create and rotate)
@@ -32,6 +33,10 @@
 #                       offboard retired, for the same person under the same
 #                       name: login shell and expiry restored, and a key it was
 #                       retired with refused.
+#   DTACC_DELIVERY_NAME, DTACC_DELIVERY_B64, DTACC_DELIVERY_SHA256
+#                       (place-delivery only) the sealed file's name in the
+#                       account's home, its content as base64 on one line, and
+#                       the SHA-256 the read-back must match.
 
 set -euo pipefail
 
@@ -172,6 +177,55 @@ if [[ "$DTACC_MODE" == "inspect" ]]; then
       done <<<"$inspect_shared"
     fi
   fi
+  exit 0
+fi
+
+# ── place-delivery ───────────────────────────────────────────────────────────
+#
+# The sealed onboarding, put in the person's own home for their acceptance to
+# fetch over their own login. Root and that account are the only ones who can
+# read it there, and it is sealed to their key besides, because it carries a
+# live IAM secret. Written whole through a restricted temp file and proved by
+# reading back the owner, the mode and the content's digest: the onboarding
+# commits the key inside it only once this says it is in place.
+#
+# A link or anything but a regular file at the name is refused rather than
+# written through: the home is the account's to write in, and root following a
+# link it left there would write wherever it points.
+if [[ "$DTACC_MODE" == "place-delivery" ]]; then
+  : "${DTACC_DELIVERY_NAME:?missing DTACC_DELIVERY_NAME variable in pipe}"
+  : "${DTACC_DELIVERY_B64:?missing DTACC_DELIVERY_B64 variable in pipe}"
+  : "${DTACC_DELIVERY_SHA256:?missing DTACC_DELIVERY_SHA256 variable in pipe}"
+  if [[ ! "$DTACC_DELIVERY_NAME" =~ ^${DTACC_ACCOUNT}-[a-z]+\.onboarding\.age$ ]]; then
+    echo "REFUSING: '${DTACC_DELIVERY_NAME}' is not ${DTACC_ACCOUNT}'s delivery name." >&2
+    exit 1
+  fi
+  if ! id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
+    echo "ERROR: ${DTACC_ACCOUNT} does not exist, so there is no home to place it in." >&2
+    exit 1
+  fi
+  place_home="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f6)"
+  place_gid="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f4)"
+  if [[ -z "$place_home" || ! -d "$place_home" || -L "$place_home" ]]; then
+    echo "ERROR: ${DTACC_ACCOUNT}'s home '${place_home}' is not a directory." >&2
+    exit 1
+  fi
+  place_dest="${place_home}/${DTACC_DELIVERY_NAME}"
+  if [[ -L "$place_dest" ]] || { [[ -e "$place_dest" ]] && [[ ! -f "$place_dest" ]]; }; then
+    echo "REFUSING: ${place_dest} is a link or not a regular file. Nothing written." >&2
+    exit 1
+  fi
+  printf '%s' "$DTACC_DELIVERY_B64" | base64 -d | install_via_tmp "$place_dest" 600 "$DTACC_ACCOUNT" "$place_gid"
+  place_owner="$(stat -c '%U' "$place_dest" 2>/dev/null || true)"
+  place_mode="$(stat -c '%a' "$place_dest" 2>/dev/null || true)"
+  place_sha="$(sha256sum "$place_dest" 2>/dev/null | cut -d' ' -f1)"
+  if [[ "$place_owner" != "$DTACC_ACCOUNT" || "$place_mode" != "600" \
+        || "$place_sha" != "$DTACC_DELIVERY_SHA256" ]]; then
+    echo "ERROR: ${place_dest} did not read back as written: owner '${place_owner}'," >&2
+    echo "       mode '${place_mode}', digest ${place_sha:-unreadable}." >&2
+    exit 1
+  fi
+  echo "  Placed ${place_dest}: owned by ${DTACC_ACCOUNT}, mode 600, content as sealed."
   exit 0
 fi
 
@@ -388,6 +442,16 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
     echo "  no authorized_keys to move."
   fi
 
+  # A sealed onboarding they never accepted. It holds a key the offboarding
+  # retires and a password the lock makes useless, so it is no longer a way in,
+  # but it is a copy of a credential nobody will ever fetch. Everything else in
+  # the home stays.
+  for delivery_left in "${home_dir}/${DTACC_ACCOUNT}"-*.onboarding.age; do
+    [[ -e "$delivery_left" || -L "$delivery_left" ]] || continue
+    rm -f -- "$delivery_left"
+    echo "  Removed an onboarding they never accepted: ${delivery_left}"
+  done
+
   # ── Their keys on OTHER accounts ──────────────────────────────────────────
   #
   # Disabling the named account is not the whole of a person's access: a key of
@@ -453,6 +517,13 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
 
   # ── Prove it, rather than trusting four exit statuses ──────────────────────
   offboard_failed=0
+
+  if compgen -G "${home_dir}/${DTACC_ACCOUNT}-*.onboarding.age" >/dev/null; then
+    echo "  FAIL an onboarding delivery is still in ${home_dir}" >&2
+    offboard_failed=1
+  else
+    echo "  OK   no onboarding delivery left in their home"
+  fi
 
   pw_state="$(passwd -S -- "$DTACC_ACCOUNT" 2>/dev/null | awk '{print $2}')"
   case "$pw_state" in

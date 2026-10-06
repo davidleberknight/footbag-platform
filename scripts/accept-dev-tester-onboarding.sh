@@ -2,11 +2,18 @@
 # accept-dev-tester-onboarding.sh
 #
 # Run by a dev-and-tester on their own computer, from their clone of the public
-# repository, to open the sealed onboarding a footbag-operator holder made for
-# them with scripts/onboard-dev-tester.sh and put everything in it where the
-# tooling expects it. At the end they reach staging only as themselves, through
+# repository, to fetch the sealed onboarding a footbag-operator holder placed in
+# their own home on the staging host with scripts/onboard-dev-tester.sh, prove
+# where it came from, and put everything in it where the tooling expects it. At
+# the end they reach staging only as themselves, through
 # scripts/as-dev-tester.sh --account <their name>, with a sudo password nobody
 # else has ever known.
+#
+# The fetch is the one connection made before this machine holds a pin for the
+# host, because the pins arrive inside the delivery. It sends nothing secret:
+# it logs in with their own key, reads one file and writes nothing on either
+# side. The host key it meets is recorded and, once the delivery is proved to
+# come from this project's AWS account, checked against the pins inside it.
 #
 # WHY THIS EXISTS.
 #
@@ -24,6 +31,13 @@
 #   - Open a delivery addressed to another account or environment than the one
 #     named, or one whose contents are not exactly the known format. It is read,
 #     never run.
+#   - Trust a delivery not proved issued in this project's AWS account to this
+#     person's own IAM user. The proof runs with the delivered key held in
+#     memory, before any file on this machine is written, so a delivery forged
+#     in another account under the same names writes nothing and is sent
+#     nothing.
+#   - Trust a delivery naming a host other than the --host it was fetched from,
+#     or a host whose key, met on the fetch, is not among the delivery's pins.
 #   - Write a [footbag-operator] section, or change any AWS section but this
 #     person's own. The job role's profile is added only where absent, and one
 #     that already chains from somebody else is refused.
@@ -36,9 +50,9 @@
 #   - Edit an SSH stanza this machine already carries. A missing one is written.
 #   - Leave the one-time password standing, or accept a new one shorter than 12
 #     characters.
-#   - Leave a cleartext copy of the delivery anywhere: it is opened into a
-#     mode-600 temp file shredded on every way out, and the sealed file itself
-#     is deleted only after everything is proved, on a typed APPLY.
+#   - Leave a copy of the delivery anywhere: it is fetched and opened into
+#     mode-600 temp files shredded on every way out, and the copy on the host is
+#     removed once everything is proved and the one-time password replaced.
 #
 #   - Write the staging runtime profile on a machine whose AWS config carries a
 #     footbag-operator profile. That name is the administrators' chain there, and
@@ -50,19 +64,19 @@
 #
 # Every step is shown before it changes anything, confirmed with APPLY, and
 # skipped when its outcome is already proven, so a run that stopped part way is
-# finished by running the same command again. Before it opens anything it checks
+# finished by running the same command again: the copy on the host stays until
+# the last step, so the re-run fetches it again. Once it is gone, a run finds
+# nothing to fetch, proves the password it filed still works, and says the
+# acceptance is already done. Before it fetches anything it checks
 # every tool the staging work needs (age, the pinned AWS CLI and Terraform,
 # docker, jq, rsync, sqlite3), with ~/.local/bin first on the path, where the
 # workstation setup installs them. It ends behind one APPLY with the full
 # workstation setup and its check, both run through the wrapper as you, and an
 # evidence block for the onboarding card.
 #
-# Usage, with the sealed file in ~/Downloads, ~/AWS or the current directory:
+# Usage, exactly as the onboarding run printed it for you, address included:
 #   bash scripts/accept-dev-tester-onboarding.sh --target staging \
-#     --account james_leberknight
-# or naming it:
-#   bash scripts/accept-dev-tester-onboarding.sh --target staging \
-#     --account james_leberknight ~/somewhere/james_leberknight-staging.onboarding.age
+#     --account james_leberknight --host 203.0.113.7
 #
 # A holder who onboarded themselves runs this on the same machine, exactly as
 # anybody else runs it on theirs. It writes no footbag-operator section, edits
@@ -74,8 +88,10 @@
 # Flags:
 #   --target staging          the environment the onboarding is for; required
 #   --account <first_last>    your account name, as the holder onboarded you
-#   <sealed file>             the .onboarding.age file the holder sent you;
-#                             found by name when left out
+#   --host <address>          the staging host's address, as the onboarding
+#                             printed it. It carries no trust: the delivery must
+#                             name the same address, and the key the host shows
+#                             must be among the delivery's proven pins
 #
 # Test seams (CI only; nobody else sets these):
 #   ACCEPT_AWS_BIN            replaces the aws CLI
@@ -132,17 +148,15 @@ STAGING_RUNTIME_PROFILE="footbag-staging-runtime"
 
 TARGET=""
 ACCOUNT=""
-SEALED=""
+HOST=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
     --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
+    --host) HOST="${2:-}"; shift 2 || { echo "ERROR: --host requires an argument" >&2; exit 2; } ;;
     -h|--help) sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"; exit 0 ;;
-    -*) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
-    *)
-      [[ -z "$SEALED" ]] || { echo "ERROR: one sealed file, not two." >&2; exit 2; }
-      SEALED="$1"; shift ;;
+    *) echo "ERROR: unknown argument '$1'. Run the command the onboarding printed." >&2; exit 2 ;;
   esac
 done
 
@@ -160,6 +174,17 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   echo "ERROR: '${ACCOUNT}' is not an account name: firstname_lastname, lower case." >&2
   exit 2
 fi
+_host_ok=0
+if [[ "$HOST" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
+  _host_ok=1
+  for _o in "${BASH_REMATCH[@]:1:4}"; do (( 10#$_o <= 255 )) || _host_ok=0; done
+fi
+if (( ! _host_ok )); then
+  echo "ERROR: --host <address> is required: the ${TARGET} host's IPv4 address, as the" >&2
+  echo "       onboarding printed it in the command it gave you." >&2
+  exit 2
+fi
+unset _host_ok _o
 # Every tool the staging work needs, before anything is opened: a machine that
 # accepts and then cannot deploy or test has an onboarding nobody can use.
 delivery_require_tools "age=${AGE_BIN}" "ssh=${SSH_BIN}" ssh-keygen=ssh-keygen \
@@ -185,40 +210,6 @@ if (( ${#WRONG_VERSIONS[@]} )); then
   exit 1
 fi
 
-# The sealed file: as named, or found by its own name where people put files
-# they were sent. Exactly one is used; two copies in different places are asked
-# about rather than chosen between.
-if [[ -z "$SEALED" ]]; then
-  SEALED_NAME="${ACCOUNT}-${TARGET}.onboarding.age"
-  declare -A SEEN=()
-  FOUND_SEALED=()
-  for where in "${HOME}/Downloads" "${HOME}/AWS" "$PWD"; do
-    candidate="${where}/${SEALED_NAME}"
-    [[ -f "$candidate" ]] || continue
-    real="$(readlink -f -- "$candidate")"
-    [[ -n "${SEEN[$real]:-}" ]] && continue
-    SEEN[$real]=1
-    FOUND_SEALED+=("$candidate")
-  done
-  if (( ${#FOUND_SEALED[@]} == 0 )); then
-    echo "ERROR: no ${SEALED_NAME} in ~/Downloads, ~/AWS or here. Put the file the" >&2
-    echo "       holder sent you in one of those, or name it on the command line." >&2
-    exit 2
-  fi
-  if (( ${#FOUND_SEALED[@]} > 1 )); then
-    echo "ERROR: more than one ${SEALED_NAME}:" >&2
-    printf '         %s\n' "${FOUND_SEALED[@]}" >&2
-    echo "       Name the one to use on the command line." >&2
-    exit 2
-  fi
-  SEALED="${FOUND_SEALED[0]}"
-  echo "==> Using ${SEALED}"
-fi
-if [[ ! -f "$SEALED" ]]; then
-  echo "ERROR: ${SEALED} is not a file. Name the sealed .onboarding.age file the" >&2
-  echo "       holder sent you." >&2
-  exit 2
-fi
 [[ "$AGE_BIN" != "age" ]] && echo "SYNTHETIC: age='${AGE_BIN}' -- nothing is really opened." >&2
 [[ "$AWS_BIN" != "aws" ]] && echo "SYNTHETIC: aws='${AWS_BIN}' -- nothing proves an identity." >&2
 [[ "$SSH_BIN" != "ssh" ]] && echo "SYNTHETIC: ssh='${SSH_BIN}' -- no host is reached." >&2
@@ -231,11 +222,14 @@ fi
 
 BUNDLE=""
 NEW_PASS=""
+FETCH_DIR=""
 accept_cleanup() {
   NEW_PASS=""
   DELIVERY_HOST_PASSWORD=""
   DELIVERY_AWS_SECRET_ACCESS_KEY=""
   secret_file_sweep
+  [[ -n "$FETCH_DIR" ]] && rm -rf -- "$FETCH_DIR"
+  FETCH_DIR=""
   return 0
 }
 trap accept_cleanup EXIT
@@ -245,16 +239,172 @@ trap 'accept_cleanup; exit 130' INT TERM
 
 step() { printf '\n==> %s\n' "$1"; }
 
-# ── 1. The key pair the delivery was sealed to ───────────────────────────────
+NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
+DELIVERY_NAME="$(delivery_file_name "$ACCOUNT" "$TARGET")"
+PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
+
+# Every connection after the fetch: to this person's own account, verified
+# against the pin file. FOOTBAG_SSH_PIN_OPTS is empty until the pin is proved,
+# so nothing uses this before then.
+ssh_to_host() {
+  "$SSH_BIN" -F /dev/null "${FOOTBAG_SSH_PIN_OPTS[@]}" \
+    -o "User=${ACCOUNT}" -o "Port=${DELIVERY_SSH_PORT}" -o "IdentityFile=${NAMED_KEY}" \
+    -o "IdentitiesOnly=yes" -o "ControlPath=none" -o "ConnectTimeout=10" \
+    "$HOST" "$@"
+}
+
+sudo_accepts() {
+  # The password is line one of the stream and sudo reads it from there. ssh
+  # exits 255 when it never reached the host, which says nothing about the
+  # password, so that ends the run here rather than reading as a refusal: a
+  # refusal sends the person to ask for a new delivery they do not need.
+  local rc=0
+  printf '%s\n' "$1" | ssh_to_host 'sudo -k -S -p "" -v' >/dev/null 2>&1 || rc=$?
+  if (( rc == 255 )); then
+    echo "ERROR: could not reach ${HOST} on port ${DELIVERY_SSH_PORT} as" >&2
+    echo "       ${ACCOUNT}. Nothing about your password was decided. Check your" >&2
+    echo "       connection, and that your address is on the host's allow-list," >&2
+    echo "       then run this again." >&2
+    exit 1
+  fi
+  return "$rc"
+}
+
+# ── 1. Your delivery, fetched from your account on the host ──────────────────
+#
+# Over your own login, with your own key, before this machine holds any pin for
+# the host. Nothing secret is sent and nothing is written on the host, so a host
+# that is not the real one learns nothing from it. Its key is recorded in a
+# known_hosts file of this run's own, which no configuration of this machine's
+# can add to, and is checked once the delivery is proved.
+#
+# The login tries the pair at the path the tooling uses when both halves are
+# there, and otherwise every pair in ~/.ssh: the delivery's header, which says
+# which pair it was sealed to, is not readable until it has been fetched. The
+# client offers each public half first and asks for a passphrase only for the
+# one the host accepts. More than five would exhaust the host's tries before
+# the right one, so that is refused with what to do instead.
+
+step "Fetching your delivery from ${HOST}"
+FETCH_IDS=()
+if [[ -f "$NAMED_KEY" && -f "${NAMED_KEY}.pub" ]]; then
+  FETCH_IDS=("$NAMED_KEY")
+else
+  for candidate in "${HOME}"/.ssh/*.pub; do
+    [[ -f "$candidate" && -f "${candidate%.pub}" ]] && FETCH_IDS+=("${candidate%.pub}")
+  done
+fi
+if (( ${#FETCH_IDS[@]} == 0 )); then
+  echo "ERROR: no key pair in ~/.ssh to log in with. Nothing was changed." >&2
+  echo "       The onboarding was sealed to the public key you posted; its private" >&2
+  echo "       half must be on this machine." >&2
+  exit 1
+fi
+if (( ${#FETCH_IDS[@]} > 5 )); then
+  echo "ERROR: ${#FETCH_IDS[@]} key pairs in ~/.ssh, more than the host lets one login try." >&2
+  echo "       Copy the pair whose public key you posted to" >&2
+  echo "         ${NAMED_KEY} and ${NAMED_KEY}.pub" >&2
+  echo "       and run this again. Nothing was changed." >&2
+  exit 1
+fi
+FETCH_DIR="$(umask 077 && mktemp -d)"
+FETCH_KH="${FETCH_DIR}/known_hosts"
+SEALED="${FETCH_DIR}/${DELIVERY_NAME}"
+secret_file_register "$SEALED"
+FETCH_SSH=("$SSH_BIN" -F /dev/null -o "User=${ACCOUNT}" -o "Port=${DELIVERY_SSH_PORT}")
+for _id in "${FETCH_IDS[@]}"; do
+  FETCH_SSH+=(-o "IdentityFile=${_id}")
+done
+unset _id
+FETCH_SSH+=(-o "IdentitiesOnly=yes" -o "PasswordAuthentication=no"
+  -o "KbdInteractiveAuthentication=no" -o "ForwardAgent=no" -o "ForwardX11=no"
+  -o "ControlPath=none" -o "GlobalKnownHostsFile=/dev/null"
+  -o "UserKnownHostsFile=${FETCH_KH}" -o "StrictHostKeyChecking=accept-new"
+  -o "UpdateHostKeys=no" -o "CheckHostIP=no" -o "ConnectTimeout=10" "$HOST")
+# Exit 4 is the host saying there is no file, which is not a failure to connect.
+FETCH_REMOTE="f=\"\$HOME/${DELIVERY_NAME}\"; [ -f \"\$f\" ] || exit 4; cat -- \"\$f\""
+set +e
+"${FETCH_SSH[@]}" "$FETCH_REMOTE" </dev/null | head -c $(( DELIVERY_MAX_BYTES + 1 )) > "$SEALED"
+FETCH_RCS=("${PIPESTATUS[@]}")
+set -e
+FETCH_SIZE="$(wc -c < "$SEALED")"
+
+if (( FETCH_SIZE > DELIVERY_MAX_BYTES )); then
+  echo "ERROR: what ${HOST} returned is larger than any delivery. It is not one," >&2
+  echo "       and nothing was changed. Tell the holder who onboarded you." >&2
+  exit 1
+fi
+case "${FETCH_RCS[0]}" in
+  0) ;;
+  4)
+    # Nothing to fetch: either the acceptance already finished, which removes
+    # the copy as its last step, or there was never a delivery. Told apart by
+    # proving the outcome: the password this machine filed for the account,
+    # accepted by sudo over the pinned connection.
+    operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
+    FILED=""
+    if [[ -f "$OPERATOR_CREDENTIAL_FILE" ]] && operator_credential_mode_ok "$OPERATOR_CREDENTIAL_FILE" 2>/dev/null; then
+      IFS= read -r FILED < "$OPERATOR_CREDENTIAL_FILE" || true
+    fi
+    if [[ -n "$FILED" ]] \
+       && grep -q '^[^#]' <<<"$(ssh-keygen -F "[${HOST}]:${DELIVERY_SSH_PORT}" -f "$PIN" 2>/dev/null)" \
+       && FOOTBAG_KNOWN_HOSTS="$PIN" require_pinned_known_hosts 2>/dev/null \
+       && sudo_accepts "$FILED"; then
+      FILED=""
+      echo "  Already accepted: there is nothing to fetch, and sudo on ${HOST} accepts"
+      echo "  the password filed in ${OPERATOR_CREDENTIAL_DISPLAY}. Nothing was changed."
+      echo "  If the workstation setup did not finish, run it and its check:"
+      echo "    bash scripts/as-dev-tester.sh --account ${ACCOUNT} \\"
+      echo "      bash scripts/setup-operator-workstation.sh --target ${TARGET}"
+      echo "    (and the same with --check)"
+      exit 0
+    fi
+    FILED=""
+    echo "ERROR: there is no delivery waiting for you on ${HOST}, and this machine" >&2
+    echo "       holds no password your account there accepts. Nothing was changed." >&2
+    echo "       Ask the holder who onboards you to run the onboarding, with" >&2
+    echo "       --reissue if they already have, then run this again." >&2
+    exit 1
+    ;;
+  255)
+    echo "ERROR: could not log in to ${HOST} on port ${DELIVERY_SSH_PORT} as ${ACCOUNT}." >&2
+    echo "       Nothing was changed. Check that --host is the address the" >&2
+    echo "       onboarding printed. If it is, and the holder has said you are" >&2
+    echo "       onboarded, your own address has probably changed: post your" >&2
+    echo "       current one on the onboarding card, from" >&2
+    echo "         curl -s https://checkip.amazonaws.com" >&2
+    exit 1
+    ;;
+  *)
+    echo "ERROR: the fetch from ${HOST} failed (exit ${FETCH_RCS[0]}). Nothing was changed." >&2
+    exit 1
+    ;;
+esac
+if (( FETCH_SIZE == 0 )); then
+  echo "ERROR: the delivery on ${HOST} is empty. Nothing was changed. Ask the holder" >&2
+  echo "       to re-run the onboarding with --reissue." >&2
+  exit 1
+fi
+# The one key the host presented, as algorithm and key, from the file this run
+# gave the client. A non-default port is recorded in the bracketed form.
+FETCHED_HOST_KEY="$(ssh-keygen -F "[${HOST}]:${DELIVERY_SSH_PORT}" -f "$FETCH_KH" 2>/dev/null \
+  | grep -v '^#' | awk 'NF >= 3 {print $2" "$3}' | sort -u)"
+if [[ -z "$FETCHED_HOST_KEY" || "$(grep -c . <<<"$FETCHED_HOST_KEY")" != "1" ]]; then
+  echo "ERROR: the host's key was not recorded by the fetch, so it cannot be checked" >&2
+  echo "       against the delivery. Nothing was changed." >&2
+  exit 1
+fi
+echo "  fetched ${FETCH_SIZE} bytes; the host presented ${FETCHED_HOST_KEY%% *}, checked below"
+
+# ── 2. The key pair the delivery was sealed to ───────────────────────────────
 
 step "Your key pair"
 SEALED_TAGS="$(delivery_age_header_tags "$SEALED")"
 if [[ -z "$SEALED_TAGS" || "$(grep -c . <<<"$SEALED_TAGS")" != "1" ]]; then
-  echo "ERROR: ${SEALED} is not sealed to exactly one SSH key. Ask the holder who" >&2
-  echo "       sent it to run the onboarding again." >&2
+  echo "ERROR: the delivery is not sealed to exactly one SSH key. Ask the holder" >&2
+  echo "       who onboards you to run the onboarding again." >&2
   exit 1
 fi
-NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
 pub_tag() { delivery_age_recipient_tag "$(grep -m1 . "$1" 2>/dev/null)" 2>/dev/null || true; }
 
 # require_pair <private> <public>
@@ -354,21 +504,21 @@ if [[ -n "${SSH_AUTH_SOCK:-}" ]] && command -v "$SSH_ADD_BIN" >/dev/null 2>&1; t
   fi
 fi
 
-# ── 2. Open the delivery ─────────────────────────────────────────────────────
+# ── 3. Open the delivery ─────────────────────────────────────────────────────
 
 step "Opening the delivery"
 BUNDLE="$(umask 077 && mktemp)"
 secret_file_register "$BUNDLE"
 # age asks for the key's passphrase itself, on the terminal, if it has one.
 if ! "$AGE_BIN" -d -i "$NAMED_KEY" -o "$BUNDLE" "$SEALED"; then
-  echo "ERROR: age could not open ${SEALED} with ${NAMED_KEY}." >&2
+  echo "ERROR: age could not open the delivery with ${NAMED_KEY}." >&2
   exit 1
 fi
 if ! delivery_bundle_parse "$BUNDLE"; then
   echo "ERROR: the delivery is not in the expected format: ${DELIVERY_ERROR}." >&2
   exit 1
 fi
-secret_file_destroy "$BUNDLE"
+secret_file_destroy "$BUNDLE" "$SEALED"
 if [[ "$DELIVERY_ACCOUNT" != "$ACCOUNT" || "$DELIVERY_TARGET" != "$TARGET" ]]; then
   echo "ERROR: this delivery is for ${DELIVERY_ACCOUNT} on ${DELIVERY_TARGET}, not ${ACCOUNT} on" >&2
   echo "       ${TARGET}. Nothing was changed." >&2
@@ -385,6 +535,24 @@ if ! aws_cred_key_id_looks_valid "$DELIVERY_AWS_ACCESS_KEY_ID" \
   echo "       changed; ask the holder to run the onboarding again." >&2
   exit 1
 fi
+# Anchored to this project's account, not to whatever account the delivery
+# names: a delivery is only as trustworthy as the account that issued it, and
+# every ARN below is built from the anchor rather than from the delivery.
+if [[ "$DELIVERY_AWS_ACCOUNT_ID" != "$FOOTBAG_AWS_ACCOUNT_ID" \
+      || "$DELIVERY_DEV_TESTER_ROLE_ARN" != "arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:role/${DEV_TESTER_PROFILE}" \
+      || "$DELIVERY_STAGING_RUNTIME_ROLE_ARN" != "arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:role/footbag-${TARGET}-app-runtime" ]]; then
+  echo "REFUSING: this delivery names AWS account ${DELIVERY_AWS_ACCOUNT_ID}, not this project's" >&2
+  echo "          ${FOOTBAG_AWS_ACCOUNT_ID}. It was not made by the project's onboarding, and" >&2
+  echo "          nothing in it is trusted. Nothing was changed and nothing was sent." >&2
+  echo "          Tell the holder who onboards you." >&2
+  exit 1
+fi
+if [[ "$DELIVERY_HOST_ADDRESS" != "$HOST" || "$DELIVERY_HOST_PORT" != "$DELIVERY_SSH_PORT" ]]; then
+  echo "REFUSING: this delivery names host ${DELIVERY_HOST_ADDRESS} port ${DELIVERY_HOST_PORT}, but it" >&2
+  echo "          was fetched from ${HOST} port ${DELIVERY_SSH_PORT}. Nothing was changed. Run the" >&2
+  echo "          command exactly as the onboarding printed it." >&2
+  exit 1
+fi
 for _pin in "${DELIVERY_PINS[@]}"; do
   case "$_pin" in
     "${DELIVERY_HOST_ADDRESS} "*|"[${DELIVERY_HOST_ADDRESS}]:${DELIVERY_HOST_PORT} "*) ;;
@@ -393,7 +561,109 @@ for _pin in "${DELIVERY_PINS[@]}"; do
 done
 echo "  opened: ${ACCOUNT} on ${TARGET}, host ${DELIVERY_HOST_ADDRESS}, key ${DELIVERY_AWS_ACCESS_KEY_ID}"
 
-# ── 3. Your AWS profiles ─────────────────────────────────────────────────────
+# ── 4. Where it came from, proved before anything is written ─────────────────
+#
+# With the delivered key held in memory, never in a file: the key must
+# authenticate as this person's own IAM user in this project's account, and a
+# fresh session of the job role signed with it must be issued under their name.
+# Only the project's administrators can mint a key that does both, so a delivery
+# that passes was made by the project's onboarding, and its pins and its host
+# address can be trusted from here on. A key minted minutes ago is refused for a
+# while, because IAM is eventually consistent, so the proof is polled until it
+# resolves or the wait runs out.
+#
+# The job role is proved by that fresh assume rather than through a role
+# profile, which the CLI can answer from a session it cached before an offboard;
+# that session would pass and then be refused on real work.
+
+step "Proving the delivery came from this project's AWS account"
+WANT_USER_ARN="arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:user/footbag-dev-testers/${ACCOUNT}"
+FRESH_WANT="arn:aws:sts::${FOOTBAG_AWS_ACCOUNT_ID}:assumed-role/${DEV_TESTER_PROFILE}/${ACCOUNT}"
+# Runs the CLI on the delivered key alone. Exported inside a subshell, so the
+# key reaches the child's environment and no process's argv, and nothing the
+# person's shell or AWS files hold can stand in for it.
+with_delivered_key() {
+  (
+    unset AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+    export AWS_ACCESS_KEY_ID="$DELIVERY_AWS_ACCESS_KEY_ID"
+    export AWS_SECRET_ACCESS_KEY="$DELIVERY_AWS_SECRET_ACCESS_KEY"
+    "$AWS_BIN" "$@" --region us-east-1
+  )
+}
+USER_CALL=(sts get-caller-identity --query Arn --output text)
+FRESH_CALL=(sts assume-role --role-arn "$DELIVERY_DEV_TESTER_ROLE_ARN"
+  --role-session-name "$ACCOUNT" --query AssumedRoleUser.Arn --output text)
+USER_ARN=""
+FRESH_ARN=""
+for (( try = 0; try <= POLL_TRIES; try++ )); do
+  if (( try )); then
+    (( try == 1 )) && echo "  waiting for the new key to take effect (up to $(( POLL * POLL_TRIES ))s)"
+    sleep "$POLL"
+  fi
+  USER_ARN="$(with_delivered_key "${USER_CALL[@]}" 2>/dev/null)" || USER_ARN=""
+  [[ -z "$USER_ARN" ]] && continue
+  # A key that authenticates as anybody else will not become this person's by
+  # waiting, so that is judged at once.
+  [[ "$USER_ARN" != "$WANT_USER_ARN" ]] && break
+  FRESH_ARN="$(with_delivered_key "${FRESH_CALL[@]}" 2>/dev/null)" && break
+  FRESH_ARN=""
+done
+if [[ -n "$USER_ARN" && "$USER_ARN" != "$WANT_USER_ARN" ]]; then
+  echo "REFUSING: the key in this delivery authenticates as ${USER_ARN}," >&2
+  echo "          not ${WANT_USER_ARN}." >&2
+  echo "          The delivery was not made by this project's onboarding, and nothing" >&2
+  echo "          in it is trusted. Nothing was changed and nothing was sent. Tell" >&2
+  echo "          the holder who onboards you." >&2
+  exit 1
+fi
+if [[ -z "$USER_ARN" || "$FRESH_ARN" != "$FRESH_WANT" ]]; then
+  if [[ -z "$USER_ARN" ]]; then
+    echo "ERROR: the key in this delivery is not honoured by AWS. AWS said:" >&2
+    with_delivered_key "${USER_CALL[@]}" 2>&1 >/dev/null | sed 's/^/         /' >&2 || true
+  else
+    echo "ERROR: a fresh session of ${DEV_TESTER_PROFILE}, signed with your new key, was not" >&2
+    echo "       issued as ${FRESH_WANT}." >&2
+    if [[ -n "$FRESH_ARN" ]]; then
+      echo "       It came back as ${FRESH_ARN}." >&2
+    else
+      echo "       AWS said:" >&2
+      with_delivered_key "${FRESH_CALL[@]}" 2>&1 >/dev/null | sed 's/^/         /' >&2 || true
+    fi
+  fi
+  echo "       A key made minutes ago can take a while longer to be honoured. Wait a" >&2
+  echo "       few minutes and run the same command again; nothing was written:" >&2
+  echo "         bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} \\" >&2
+  echo "           --account ${ACCOUNT} --host ${HOST}" >&2
+  echo "       If it still fails, ask the holder who onboarded you to check your grant." >&2
+  exit 1
+fi
+echo "  your key is ${USER_ARN}"
+echo "  a fresh ${DEV_TESTER_PROFILE} session, signed with it: ${FRESH_ARN}"
+
+# ── 5. The host the delivery was fetched from ────────────────────────────────
+#
+# The pins are now proved, so the key the host presented on the fetch is held to
+# them. A key outside them is a host that is not staging answering at its
+# address, and nothing is written or sent to it.
+
+step "The host you fetched from"
+HOST_KEY_PINNED=0
+for _pin in "${DELIVERY_PINS[@]}"; do
+  [[ "$_pin" == "[${HOST}]:${DELIVERY_SSH_PORT} "* ]] || continue
+  [[ "$(cut -d' ' -f2,3 <<<"$_pin")" == "$FETCHED_HOST_KEY" ]] && HOST_KEY_PINNED=1
+done
+unset _pin
+if (( ! HOST_KEY_PINNED )); then
+  echo "REFUSING: the host that answered at ${HOST} port ${DELIVERY_SSH_PORT} presented a key that is" >&2
+  echo "          not among the staging host's keys this proven delivery carries." >&2
+  echo "          Something between you and staging may be intercepting the" >&2
+  echo "          connection. Nothing was written and nothing was sent. Tell the" >&2
+  echo "          holder who onboards you before running this again." >&2
+  exit 1
+fi
+echo "  its ${FETCHED_HOST_KEY%% *} key is one of staging's pinned keys"
+
+# ── 6. Your AWS profiles ─────────────────────────────────────────────────────
 
 step "Your AWS profiles"
 CRED_FILE="${AWS_SHARED_CREDENTIALS_FILE:-${HOME}/.aws/credentials}"
@@ -437,7 +707,7 @@ fi
 # rebuilt host, and either way not this run's to settle: replacing the pins would
 # change what every administrator connection trusts. Checked here, before any
 # file is written, so a refusal leaves the machine exactly as it was. A file with
-# no line for the host at all is only missing a pin, and step 5 adds it.
+# no line for the host at all is only missing a pin, and the pin step adds it.
 if (( OPERATOR_PROFILE_HERE )); then
   _admin_pins="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
   for _pin in "${DELIVERY_PINS[@]}"; do
@@ -532,52 +802,21 @@ else
 fi
 DELIVERY_AWS_SECRET_ACCESS_KEY=""
 
-# ── 4. Prove the identity ────────────────────────────────────────────────────
+# ── 7. The profiles, proved as written ───────────────────────────────────────
 #
-# A key minted minutes ago is refused as invalid for a while: IAM is eventually
-# consistent. Polled until it resolves or the wait runs out; the proofs then
-# judge the outcome either way.
+# The key was proved in memory above; this proves the files now hold it the way
+# the tooling reads it, with every ARN anchored to this project's account.
 
-step "Proving who you are on AWS"
-# The job role is proved by a fresh assume signed with the new key itself, never
-# through the role profile, which the CLI can answer from a session it cached
-# before an offboard; that session would pass every proof here and then be
-# refused on real work.
-FRESH_CALL=(sts assume-role --profile "$ACCOUNT" --role-arn "$DELIVERY_DEV_TESTER_ROLE_ARN"
-  --role-session-name "$ACCOUNT" --query AssumedRoleUser.Arn --output text --region us-east-1)
-FRESH_WANT="arn:aws:sts::${DELIVERY_AWS_ACCOUNT_ID}:assumed-role/${DEV_TESTER_PROFILE}/${ACCOUNT}"
-FRESH_ARN=""
-for (( try = 0; try <= POLL_TRIES; try++ )); do
-  if (( try )); then
-    (( try == 1 )) && echo "  waiting for the new key to take effect (up to $(( POLL * POLL_TRIES ))s)"
-    sleep "$POLL"
-  fi
-  FRESH_ARN="$("$AWS_BIN" "${FRESH_CALL[@]}" 2>/dev/null)" && break
-  FRESH_ARN=""
-done
-aws_identity_require_user "$ACCOUNT" "$ACCOUNT" || exit 1
-echo "  [${ACCOUNT}] is IAM user ${ACCOUNT}"
-if [[ "$FRESH_ARN" != "$FRESH_WANT" ]]; then
-  echo "ERROR: a fresh session of ${DEV_TESTER_PROFILE}, signed with your new key, was not" >&2
-  echo "       issued as ${FRESH_WANT}." >&2
-  if [[ -n "$FRESH_ARN" ]]; then
-    echo "       It came back as ${FRESH_ARN}." >&2
-  else
-    echo "       AWS said:" >&2
-    "$AWS_BIN" "${FRESH_CALL[@]}" 2>&1 >/dev/null | sed 's/^/         /' >&2 || true
-  fi
-  echo "       A key made minutes ago can take a while longer to be honoured. Wait a" >&2
-  echo "       few minutes and run the same command again; every step already done" >&2
-  echo "       is found done:" >&2
-  echo "         bash scripts/accept-dev-tester-onboarding.sh --target ${TARGET} --account ${ACCOUNT}" >&2
-  echo "       If it still fails, ask the holder who onboarded you to check your grant." >&2
-  exit 1
-fi
-echo "  a fresh ${DEV_TESTER_PROFILE} session, signed with your new key: ${FRESH_ARN}"
+step "Proving your profiles"
+aws_identity_require_arn "$ACCOUNT" "$WANT_USER_ARN" || exit 1
 aws_identity_resolve "$DEV_TESTER_PROFILE" || exit 1
 aws_identity_require_assumed_role "$DEV_TESTER_PROFILE" || exit 1
 if [[ "$AWS_IDENTITY_SESSION_NAME" != "$ACCOUNT" ]]; then
   echo "ERROR: the ${DEV_TESTER_PROFILE} session is named '${AWS_IDENTITY_SESSION_NAME}', not ${ACCOUNT}." >&2
+  exit 1
+fi
+if [[ "$AWS_IDENTITY_ARN" != "$FRESH_WANT" ]]; then
+  echo "ERROR: [profile ${DEV_TESTER_PROFILE}] resolves to ${AWS_IDENTITY_ARN}, not ${FRESH_WANT}." >&2
   exit 1
 fi
 echo "  [profile ${DEV_TESTER_PROFILE}] assumes ${DEV_TESTER_PROFILE} as ${ACCOUNT}"
@@ -597,10 +836,9 @@ else
   echo "    not through ${DEV_TESTER_PROFILE}, so it is left as it is and not proved here"
 fi
 
-# ── 5. The pinned host keys ──────────────────────────────────────────────────
+# ── 8. The pinned host keys ──────────────────────────────────────────────────
 
 step "The staging host's pinned keys"
-PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
 # A delivered pin is already in place when the file verifies that host with that
 # key, which is what ssh asks; how the line is written (hashed, combined with
 # other names, in another order) is not the question. So a pin file that already
@@ -659,7 +897,7 @@ echo "  verified on port 22 and port ${DELIVERY_HOST_PORT}"
 FOOTBAG_KNOWN_HOSTS="$PIN"
 require_pinned_known_hosts || exit 1
 
-# ── 6. The SSH alias ─────────────────────────────────────────────────────────
+# ── 9. The SSH alias ─────────────────────────────────────────────────────────
 
 ALIAS="footbag-${TARGET}"
 SSH_CONFIG="${HOME}/.ssh/config"
@@ -704,7 +942,7 @@ case "$_rc" in
 esac
 dtsk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" || exit 1
 
-# ── 7. Your own sudo password ────────────────────────────────────────────────
+# ── 10. Your own sudo password ───────────────────────────────────────────────
 #
 # Written into the credential file before the host changes it, so a run that
 # stops in between still holds the new value on disk; a re-run then finds the
@@ -713,28 +951,6 @@ dtsk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" 
 # rule, never built here.
 
 step "Your sudo password on the ${TARGET} host"
-SSH_TO_HOST=("$SSH_BIN" -F /dev/null "${FOOTBAG_SSH_PIN_OPTS[@]}"
-  -o "User=${ACCOUNT}" -o "Port=${DELIVERY_HOST_PORT}" -o "IdentityFile=${NAMED_KEY}"
-  -o "IdentitiesOnly=yes" -o "ControlPath=none" -o "ConnectTimeout=10"
-  "$DELIVERY_HOST_ADDRESS")
-
-sudo_accepts() {
-  # The password is line one of the stream and sudo reads it from there. ssh
-  # exits 255 when it never reached the host, which says nothing about the
-  # password, so that ends the run here rather than reading as a refusal: a
-  # refusal sends the person to ask for a new delivery they do not need.
-  local rc=0
-  printf '%s\n' "$1" | "${SSH_TO_HOST[@]}" 'sudo -k -S -p "" -v' >/dev/null 2>&1 || rc=$?
-  if (( rc == 255 )); then
-    echo "ERROR: could not reach ${DELIVERY_HOST_ADDRESS} on port ${DELIVERY_HOST_PORT} as" >&2
-    echo "       ${ACCOUNT}. Nothing about your password was decided. Check your" >&2
-    echo "       connection, and that your address is on the host's allow-list," >&2
-    echo "       then run this again with the same file." >&2
-    exit 1
-  fi
-  return "$rc"
-}
-
 operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
 FILED=""
 if [[ -f "$OPERATOR_CREDENTIAL_FILE" ]] && operator_credential_mode_ok "$OPERATOR_CREDENTIAL_FILE" 2>/dev/null; then
@@ -746,10 +962,10 @@ if [[ -n "$FILED" ]] && sudo_accepts "$FILED"; then
 else
   FILED=""
   if ! sudo_accepts "$DELIVERY_HOST_PASSWORD"; then
-    echo "ERROR: the host refuses the one-time password in this file, and there is" >&2
-    echo "       no working password filed here. The file has been used or replaced." >&2
-    echo "       Ask the holder to re-run the onboarding with --reissue, then use the" >&2
-    echo "       new file." >&2
+    echo "ERROR: the host refuses the one-time password in your delivery, and there is" >&2
+    echo "       no working password filed here. It has been used or replaced. Ask" >&2
+    echo "       the holder to re-run the onboarding with --reissue, then run this" >&2
+    echo "       again." >&2
     exit 1
   fi
   echo "  The one-time password works. It is replaced now by one you choose, which"
@@ -777,7 +993,7 @@ else
     printf '%s\n' "$DELIVERY_HOST_PASSWORD"
     printf 'CHPW_NEW=%q\n' "$NEW_PASS"
     cat "$REMOTE_HALF"
-  } | "${SSH_TO_HOST[@]}" 'sudo -k -S -p "" bash' || {
+  } | ssh_to_host 'sudo -k -S -p "" bash' || {
     echo "ERROR: the host did not change the password. Re-run the same command." >&2
     exit 1
   }
@@ -790,7 +1006,7 @@ else
 fi
 DELIVERY_HOST_PASSWORD=""
 
-# ── 8. The acceptance marker ─────────────────────────────────────────────────
+# ── 11. The acceptance marker ────────────────────────────────────────────────
 #
 # Which pair this account was onboarded with, recorded beside the pair. The only
 # reader is setup-dev-workstation.sh --replace-key retired, which sets a pair
@@ -805,19 +1021,22 @@ else
   ( umask 077 && printf '%s\n' "$NAMED_SHA" > "$MARKER" )
 fi
 
-# ── 9. The sealed file ───────────────────────────────────────────────────────
+# ── 12. The delivery on the host ─────────────────────────────────────────────
+#
+# Last, because it is what a stopped run is resumed from: everything in it is
+# now in place and proved, and its one-time password no longer works. Removed
+# over your own pinned login, as you, since it is your file in your home, and
+# proved gone.
 
-step "The sealed file"
-echo "  Everything in ${SEALED} is now in place and proved, and its one-time"
-echo "  password no longer works. It is deleted now."
-if confirm_from_tty "Type 'APPLY' to delete it: " "APPLY"; then
-  rm -f -- "$SEALED"
-  echo "  deleted"
-else
-  echo "  kept. It opens only with your key and holds nothing that still works."
+step "Your delivery on the ${TARGET} host"
+if ! ssh_to_host "rm -f -- \"\$HOME/${DELIVERY_NAME}\" && [ ! -e \"\$HOME/${DELIVERY_NAME}\" ]" </dev/null; then
+  echo "ERROR: could not remove ~${ACCOUNT}/${DELIVERY_NAME} on ${HOST}. Everything" >&2
+  echo "       else is in place. Run the same command again to finish." >&2
+  exit 1
 fi
+echo "  removed from your home there; nothing in it still works"
 
-# ── 10. The workstation, set up and checked as you ───────────────────────────
+# ── 13. The workstation, set up and checked as you ───────────────────────────
 #
 # The rest of what deploying and testing staging needs (the Terraform tree, the
 # host address, the checks that prove the login) is the workstation setup's, run

@@ -20,7 +20,6 @@ import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 import { isSafePath } from '../lib/safePath';
-import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
 // Shown when the Turnstile challenge fails. Kept generic and identical across
 // every gated surface so a failed challenge reveals nothing about whether an
@@ -71,8 +70,8 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
     }));
   };
 
-  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha.ok) {
+  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha) {
     renderError(CAPTCHA_FAILED_MESSAGE, 422);
     return;
   }
@@ -142,8 +141,8 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     } satisfies PageViewModel<RegisterContent>);
   };
 
-  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha.ok) {
+  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha) {
     renderError(CAPTCHA_FAILED_MESSAGE);
     return;
   }
@@ -279,8 +278,8 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
 async function postVerifyResend(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email } = req.body as { email?: string };
 
-  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha.ok) {
+  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha) {
     res.status(422).render('auth/check-email', {
       seo: { title: 'Check Your Email', noindex: true },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
@@ -358,8 +357,8 @@ function getPasswordForgot(_req: Request, res: Response): void {
 async function postPasswordForgot(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email } = req.body as { email?: string };
   try {
-    const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-    if (!captcha.ok) {
+    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    if (!captcha) {
       res.status(422).render('auth/password-forgot', {
         seo: { title: 'Reset Your Password', noindex: true },
         page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset Your Password' },
@@ -409,8 +408,8 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
   };
   const token = req.params.token;
 
-  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha.ok) {
+  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha) {
     setNoStore(res);
     res.status(422).render('auth/password-reset', {
       seo: { title: 'Set a New Password', noindex: true },

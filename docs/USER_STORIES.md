@@ -2915,13 +2915,14 @@ Success Criteria:
 - System adds a deceased: true flag and deceasedAt timestamp to the member record.
 - If the member has a linked `historical_person_id`, the same action sets `historical_persons.is_deceased = 1` on that record (cascade), audit-logged, so the member and historical surfaces stay consistent.
 - Deceased member accounts are immediately removed from active member search results, removed from club rosters, and unregistered from any upcoming events.
+- Any active recurring donation is cancelled at the end of its current period.
 - If member has HoF or BAP status, these honors remain visible with the member's name and brief bio to preserve community history.
 - Member's uploaded media (photos/videos) remains published with attribution preserved to honor their contributions.
 - Member's historical event results, club affiliations, and other community contributions remain visible in archives and historical records.
 - Login is disabled for deceased member accounts (cannot authenticate).
 - Email address and other private contact information are permanently removed after a admin-configurable grace period (in case of error).
 - Admin action requires a confirmation step: a dedicated page naming the member, showing the flag's before-and-after, and stating the consequences and the grace window before the action commits. No free-text reason is collected. The action has one motive, and a required note about a named person's death would be stored where no erasure path can reach it and read back nowhere.
-- All marking actions audit-logged with admin ID, member ID, timestamp, and the structured consequences (cascade to a historical record, registrations withdrawn).
+- All marking actions audit-logged with admin ID, member ID, timestamp, and the structured consequences (cascade to a historical record, registrations withdrawn, recurring donations set to cancel).
 - Admin sees a clear success message when action completes.
 - If marking was done in error, admin can remove the deceased flag within a configurable grace period with audit logging; after grace period, only full account deletion is available.
 - A parallel admin affordance can set or unset `historical_persons.is_deceased` on an unlinked historical record (a historical person with no member account), audit-logged and reversible, behind the same confirmation step. The `historical_persons.is_deceased` flag is affirmative-only (its presence marks a person recognized as deceased; its absence asserts nothing) and is consumed only to keep the record out of every claim offer (no suggestion, card, follow-up offer or claim control names it) and to refuse its claim on every self-serve path, including a legacy-account claim that would transitively link it (see M_Claim_Legacy_Account). No public memorial display is driven by this flag; an "In Memoriam" presentation on historical and HoF/BAP surfaces is deferred to its own future story.

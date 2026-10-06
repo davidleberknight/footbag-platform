@@ -1246,7 +1246,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_Edit_Profile** (dims 1, 3, 4, 5, 13, 14). An authenticated owner edits their own profile; another member's edit route returns 404. Validation and adversarial input on every field, escaped on render. Contact fields are gated to the owner and admins. Audit on change.
 
-**M_View_Profile** (dims 1, 2, 14). The public profile renders for anyone; member-only and contact fields appear only to authorized viewers; a deceased member keeps honors and history visible. An unknown member key returns 404.
+**M_View_Profile** (dims 1, 2, 14). The public profile renders for anyone; member-only and contact fields appear only to authorized viewers; a deceased member keeps honors and history visible. An unknown member key returns 404 to a signed-in viewer and redirects a signed-out visitor to sign in, the same answer a real non-honoree's profile gets, so neither reveals whether the key exists.
 
 **M_Search_Members** (dims 1, 2, 6, 14). Authenticated search; results exclude unverified, deceased, opted-out, and PII-purged members. No existence oracle and no contact-field leak in results. Adversarial query input.
 

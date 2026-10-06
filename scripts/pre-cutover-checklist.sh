@@ -35,7 +35,6 @@
 # first and the second-to-last in the sequence, and a rehearsal that stops at
 # gate one teaches an operator to read past the summary it exists to produce.
 #   FOOTBAG_PRECUTOVER_EMAIL_PROFILE     AWS profile for the live outbox smoke (step 8a)
-#   FOOTBAG_PRECUTOVER_EMAIL_CREDFILE    operator credential file (sudo password line 1)
 #   FOOTBAG_PRECUTOVER_EMAIL_INBOX       optional real inbox for the outbox smoke
 #
 # Flags:
@@ -308,16 +307,26 @@ fi
 #     Opt-in, because it sends real email and opens a privileged remote
 #     session: it runs only when the operator supplies the email env set below;
 #     otherwise it reports SKIP so a dry run stays hermetic. The inbox is
-#     optional (the smoke defaults to the SES success simulator).
-if [[ "${MOCK_AWS}" -eq 0 && -n "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE:-}" \
-      && -n "${FOOTBAG_PRECUTOVER_EMAIL_CREDFILE:-}" ]]; then
-  run_step "G10-OUTBOX" bash -c \
-    'bash scripts/verify-prod-email.sh --profile "$1" --confirm-production --outbox ${2:+--inbox "$2"} < "$3"' _ \
-    "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
-    "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
-    "${FOOTBAG_PRECUTOVER_EMAIL_CREDFILE}"
+#     optional (the smoke defaults to the SES success simulator). The sudo
+#     password is the production host's, chosen by the account the production
+#     alias connects as through the shared credential rule, never by a variable
+#     naming a file: a path supplied by hand is how one person's run ends up
+#     under another's credential with nothing to say so.
+if [[ "${MOCK_AWS}" -eq 0 && -n "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE:-}" ]]; then
+  # shellcheck source=scripts/lib/operator-credential.sh
+  source scripts/lib/operator-credential.sh
+  if require_operator_credential footbag-production production; then
+    run_step "G10-OUTBOX" bash -c \
+      'bash scripts/verify-prod-email.sh --profile "$1" --confirm-production --outbox ${2:+--inbox "$2"} < "$3"' _ \
+      "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
+      "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
+      "${OPERATOR_CREDENTIAL_FILE}"
+  else
+    results+=("GATE: G10-OUTBOX FAIL: no usable production operator credential, so the live outbox smoke did not run (the reason is printed above)")
+    fail=$((fail + 1))
+  fi
 else
-  results+=("GATE: G10-OUTBOX SKIP: set FOOTBAG_PRECUTOVER_EMAIL_PROFILE and FOOTBAG_PRECUTOVER_EMAIL_CREDFILE (optionally FOOTBAG_PRECUTOVER_EMAIL_INBOX) to run the live outbox smoke")
+  results+=("GATE: G10-OUTBOX SKIP: set FOOTBAG_PRECUTOVER_EMAIL_PROFILE (optionally FOOTBAG_PRECUTOVER_EMAIL_INBOX) to run the live outbox smoke")
 fi
 
 # 9. Internal QC subsystem must be absent from the production image

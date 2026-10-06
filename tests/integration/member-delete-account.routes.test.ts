@@ -194,8 +194,11 @@ describe('the deletion itself', () => {
     await deleteAccount(slug, id);
 
     const profile = await request(createApp()).get(`/members/${slug}`).set('Cookie', cookie);
-    // The profile is gone, the same answer an unknown slug gets.
-    expect(profile.status).toBe(404);
+    // The session no longer signs anyone in, so the profile answers as any
+    // non-public profile does to a signed-out visitor, the same answer an
+    // unknown slug gets.
+    expect(profile.status).toBe(302);
+    expect(profile.headers.location).toMatch(/^\/login/);
     const edit = await request(createApp()).get(`/members/${slug}/edit`).set('Cookie', cookie);
     expect(edit.status).toBe(302);
     expect(edit.headers.location).toMatch(/^\/login/);

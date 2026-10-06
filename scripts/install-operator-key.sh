@@ -105,8 +105,8 @@ CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 # the profile names above are: there is exactly one of each, naming them here is
 # what makes a typo impossible, and reading them from Terraform is circular,
 # since initialising that tree needs the profiles these lines create.
-STAGING_ROLE_ARN="${INSTALL_OPERATOR_KEY_STAGING_ROLE_ARN:-arn:aws:iam::041904915126:role/footbag-staging-app-runtime}"
-PRODUCTION_ROLE_ARN="${INSTALL_OPERATOR_KEY_PRODUCTION_ROLE_ARN:-arn:aws:iam::041904915126:role/footbag-production-app-runtime}"
+STAGING_ROLE_ARN="${INSTALL_OPERATOR_KEY_STAGING_ROLE_ARN:-arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:role/footbag-staging-app-runtime}"
+PRODUCTION_ROLE_ARN="${INSTALL_OPERATOR_KEY_PRODUCTION_ROLE_ARN:-arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:role/footbag-production-app-runtime}"
 
 PROFILE="$FOOTBAG_OPERATOR_PROFILE"
 

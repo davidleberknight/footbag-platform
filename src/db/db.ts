@@ -5726,6 +5726,14 @@ export const outbox = {
       AND COALESCE(last_attempt_at, updated_at, created_at) < ?
   `); },
 
+  // The member-state facts the enqueue gate refuses on. Reads the base table,
+  // because the active view hides exactly the deleted rows it has to see.
+  get recipientMemberState() { return db.prepare(`
+    SELECT is_deceased, deleted_at, personal_data_purged_at
+    FROM members
+    WHERE id = ?
+  `); },
+
   get insert() { return db.prepare(`
     INSERT INTO outbox_emails (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -5883,18 +5891,19 @@ export const outbox = {
     WHERE id = ?
   `); },
 
-  // Mail still queued to a member at the moment they delete their account. It
-  // is dead-lettered rather than left to drain, because the account is
-  // unreachable for the whole grace period and a message delivered into it
-  // would be one the member asked not to receive; nothing replays it if they
-  // come back. The body goes now, the addressing column stays, so the later
-  // erasure can still find the row. Distinct from the erasure-time scrub below,
-  // which clears the recipient address and subject of everything ever sent to
-  // them: this one is a delivery decision, that one is the erasure.
+  // Mail still queued to a member at the moment they delete their account or
+  // are marked deceased, with the reason recorded as `last_error`. It is
+  // dead-lettered rather than left to drain, because a message delivered then
+  // would reach an account the member asked to close or an address nobody
+  // should be mailing; nothing replays it if the change is reversed. The body
+  // goes now, the addressing column stays, so the later erasure can still find
+  // the row. Distinct from the erasure-time scrub below, which clears the
+  // recipient address and subject of everything ever sent to them: this one is
+  // a delivery decision, that one is the erasure.
   get deadLetterQueuedForMember() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'dead_letter',
-        last_error = 'recipient_soft_deleted',
+        last_error = ?,
         body_text = NULL,
         updated_at = ?,
         updated_by = 'system',

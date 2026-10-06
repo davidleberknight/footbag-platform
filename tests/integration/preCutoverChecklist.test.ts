@@ -230,6 +230,56 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
     expect(r.stdout).toMatch(/GATE: CLAIM-SAFETY SKIP/);
   });
 
+  // The live outbox smoke runs only with mock mode off, and pipes the production
+  // host's sudo password into a privileged session. Which file holds that
+  // password is decided by the account the production alias connects as, never
+  // by a path the operator names, so one person's run cannot go out under
+  // another's credential with nothing to say so. Everything else these runs
+  // would reach is stood in for: the alias resolves through a stub ssh that
+  // only answers the configuration query, and the name-server and image tools
+  // refuse, so the gates that need them fail on the spot instead of reaching
+  // the network.
+  describe('the live outbox smoke\'s credential', () => {
+    function runOutboxGate(extraEnv: Record<string, string>) {
+      buildFixtureDb(dbPath);
+      const home = path.join(workDir, 'home');
+      const bin = path.join(workDir, 'outbox-bin');
+      fs.mkdirSync(path.join(home, 'AWS'), { recursive: true });
+      fs.mkdirSync(bin, { recursive: true });
+      const stub = (name: string, body: string) => {
+        fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
+        fs.chmodSync(path.join(bin, name), 0o755);
+      };
+      stub('ssh', 'for a in "$@"; do [[ "$a" == "-G" ]] && { printf "user footbag\\nhostname 203.0.113.10\\n"; exit 0; }; done\nexit 255');
+      stub('dig', 'exit 9');
+      stub('docker', 'exit 1');
+      return runChecklist(dbPath, snapshotDir, [], {
+        FOOTBAG_PRECUTOVER_MOCK_AWS: '0',
+        FOOTBAG_PRECUTOVER_EMAIL_PROFILE: 'fixture-profile',
+        HOME: home,
+        PATH: `${bin}:${process.env.PATH ?? ''}`,
+        ...extraEnv,
+      });
+    }
+
+    it('refuses by name when the production account\'s credential file is missing', () => {
+      const r = runOutboxGate({});
+      expect(r.stdout).toMatch(/GATE: G10-OUTBOX FAIL: no usable production operator credential/);
+      expect(r.stderr).toContain('~/AWS/AWS_OPERATOR_PRODUCTION.txt is missing or unreadable');
+      expect(r.status).not.toBe(0);
+    });
+
+    it('ignores a credential file named by a variable', () => {
+      // A readable file the operator pointed at by hand is exactly what the
+      // rule must not reach for in place of the account's own.
+      const stray = path.join(workDir, 'someone-elses-credential.txt');
+      fs.writeFileSync(stray, 'not-this-password\n', { mode: 0o600 });
+      const r = runOutboxGate({ FOOTBAG_PRECUTOVER_EMAIL_CREDFILE: stray });
+      expect(r.stdout).toMatch(/GATE: G10-OUTBOX FAIL: no usable production operator credential/);
+      expect(r.stderr).toContain('~/AWS/AWS_OPERATOR_PRODUCTION.txt is missing or unreadable');
+    });
+  });
+
   it('red path: empty name_variants → G11 FAIL → exit non-zero, summary reports the failure', () => {
     buildFixtureDb(dbPath, { withNameVariants: false });
     const r = runChecklist(dbPath, snapshotDir);

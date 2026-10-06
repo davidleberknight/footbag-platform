@@ -70,6 +70,7 @@ export type CorrectionOutcome =
   | 'active_player_unchanged'
   | 'active_player_not_applicable'
   | 'deceased_marked'
+  | 'deceased_marked_donation_cancel_failed'
   | 'deceased_reverted'
   | 'deceased_grace_elapsed'
   | 'slug_corrected'
@@ -94,6 +95,8 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
     ['no', 'Active Player is a Tier 0 standing and this member holds a paid or governance tier, so the expiry was not changed.'],
   deceased_marked:
     ['ok', 'The member is marked deceased. Their honours, media and competition results are untouched, and the platform will send them nothing.'],
+  deceased_marked_donation_cancel_failed:
+    ['no', 'The member is marked deceased, but their recurring donation could not be cancelled. Cancel it in the Stripe dashboard.'],
   deceased_reverted: ['ok', 'The deceased marking has been removed, and the reversal is recorded in the audit log.'],
   deceased_grace_elapsed:
     ['no', 'The window for reversing this marking has passed, so nothing was changed. Past that window the member\'s contact details are cleared, and full account deletion is the remaining path.'],
@@ -1129,14 +1132,16 @@ export const adminMemberService = {
   },
 
   /** Commit the marking, or its reversal, through the service that owns it. */
-  applyDeceasedChange(
+  async applyDeceasedChange(
     actorId: string,
     memberId: string,
     reverting: boolean,
-  ): CorrectionOutcome {
+  ): Promise<CorrectionOutcome> {
     if (!reverting) {
-      deceasedMarkingService.markDeceased(actorId, memberId);
-      return 'deceased_marked';
+      const marked = await deceasedMarkingService.markDeceased(actorId, memberId);
+      return marked.recurringDonationCancelFailures > 0
+        ? 'deceased_marked_donation_cancel_failed'
+        : 'deceased_marked';
     }
     const result = deceasedMarkingService.revertDeceased(actorId, memberId);
     return result.status === 'reverted' ? 'deceased_reverted' : 'deceased_grace_elapsed';

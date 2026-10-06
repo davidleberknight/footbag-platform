@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { paymentService, RecoverableWebhookError } from '../services/paymentService';
-import { getPaymentAdapter, type StubPaymentAdapter } from '../adapters/paymentAdapter';
 import { WebhookSignatureError } from '../adapters/stripeWebhook';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -27,13 +26,8 @@ export const paymentController = {
   getCheckout(req: Request, res: Response, next: NextFunction): void {
     try {
       const sessionId = req.params.sessionId;
-      const adapter = getPaymentAdapter() as StubPaymentAdapter;
-      const session = adapter.sessions.get(sessionId);
+      const session = paymentService.getStubCheckoutSession(sessionId, req.user?.userId);
       if (!session) {
-        renderNotFound(res);
-        return;
-      }
-      if (req.user?.userId !== session.memberId) {
         renderNotFound(res);
         return;
       }
@@ -72,27 +66,17 @@ export const paymentController = {
    */
   async postCheckoutConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const sessionId = req.params.sessionId;
-      const adapter = getPaymentAdapter() as StubPaymentAdapter;
-      const session = adapter.sessions.get(sessionId);
-      if (!session) {
+      // The event is built for whichever outcome was recorded against the
+      // session. Default outcome is 'success'; tests can override via
+      // setNextOutcome before the session was created.
+      const target = paymentService.completeStubCheckout(
+        req.params.sessionId, req.user?.userId, 'confirm',
+      );
+      if (!target) {
         renderNotFound(res);
         return;
       }
-      if (req.user?.userId !== session.memberId) {
-        renderNotFound(res);
-        return;
-      }
-
-      // Build and sign the synthetic event for whichever outcome was recorded
-      // against the session, then feed it through the same verifier and handler
-      // a real Stripe delivery uses. Default outcome is 'success'; tests can
-      // override via setNextOutcome before the session was created.
-      const { rawBody, signature } = adapter.buildSignedStubWebhookEvent(sessionId);
-      paymentService.handleWebhook(rawBody, signature);
-
-      const target = session.outcome === 'success' ? session.successUrl : session.cancelUrl;
-      res.redirect(303, substitutePlaceholders(target, sessionId));
+      res.redirect(303, target);
     } catch (err) {
       handleControllerError(err, res, next, 'payment checkout confirm controller');
     }
@@ -107,21 +91,14 @@ export const paymentController = {
    */
   async postCheckoutCancel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const sessionId = req.params.sessionId;
-      const adapter = getPaymentAdapter() as StubPaymentAdapter;
-      const session = adapter.sessions.get(sessionId);
-      if (!session) {
+      const target = paymentService.completeStubCheckout(
+        req.params.sessionId, req.user?.userId, 'cancel',
+      );
+      if (!target) {
         renderNotFound(res);
         return;
       }
-      if (req.user?.userId !== session.memberId) {
-        renderNotFound(res);
-        return;
-      }
-      adapter.overrideSessionOutcome(sessionId, 'cancel');
-      const { rawBody, signature } = adapter.buildSignedStubWebhookEvent(sessionId);
-      paymentService.handleWebhook(rawBody, signature);
-      res.redirect(303, substitutePlaceholders(session.cancelUrl, sessionId));
+      res.redirect(303, target);
     } catch (err) {
       handleControllerError(err, res, next, 'payment checkout cancel controller');
     }
@@ -137,21 +114,14 @@ export const paymentController = {
    */
   async postCheckoutDecline(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const sessionId = req.params.sessionId;
-      const adapter = getPaymentAdapter() as StubPaymentAdapter;
-      const session = adapter.sessions.get(sessionId);
-      if (!session) {
+      const target = paymentService.completeStubCheckout(
+        req.params.sessionId, req.user?.userId, 'decline',
+      );
+      if (!target) {
         renderNotFound(res);
         return;
       }
-      if (req.user?.userId !== session.memberId) {
-        renderNotFound(res);
-        return;
-      }
-      adapter.overrideSessionOutcome(sessionId, 'failure');
-      const { rawBody, signature } = adapter.buildSignedStubWebhookEvent(sessionId);
-      paymentService.handleWebhook(rawBody, signature);
-      res.redirect(303, substitutePlaceholders(session.cancelUrl, sessionId));
+      res.redirect(303, target);
     } catch (err) {
       handleControllerError(err, res, next, 'payment checkout decline controller');
     }
@@ -488,13 +458,6 @@ function selectDonationAmountInput(body: Record<string, unknown>): string {
   if (typeof choice === 'string' && choice !== 'custom') return choice;
   const custom = body.customAmount;
   return typeof custom === 'string' ? custom : '';
-}
-
-function substitutePlaceholders(url: string, sessionId: string): string {
-  // Stripe Checkout's `{CHECKOUT_SESSION_ID}` placeholder is replaced server-side
-  // when the live adapter constructs the redirect; in stub mode we expand it
-  // here so the member lands on /payments/success?session_id=<real-id>.
-  return url.replace(/\{CHECKOUT_SESSION_ID\}/g, sessionId);
 }
 
 // Suppress unused-import warnings for types imported for JSDoc clarity. These

@@ -232,10 +232,10 @@ export const adminMemberController = {
 
   /** POST /admin/members/:memberId/deceased/confirm and .../revert/confirm */
   confirmDeceased(reverting: boolean) {
-    return (req: Request, res: Response, next: NextFunction): void => {
+    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const memberId = req.params['memberId'] ?? '';
     try {
-      const outcome = adminMemberService.applyDeceasedChange(
+      const outcome = await adminMemberService.applyDeceasedChange(
         req.user!.userId, memberId, reverting,
       );
       writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);

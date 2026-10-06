@@ -89,7 +89,10 @@
  *     the controller instead of a render.
  *   - Privacy gate is fail-closed: getMemberProfilePage returns null for an
  *     unauthenticated or pending viewer viewing a non-HoF/BAP member, which the
- *     controller maps to 404. HoF and BAP profiles stay publicly visible; any full
+ *     controller maps to a sign-in redirect for a signed-out visitor and to 404
+ *     for a signed-in one; an unknown, erased or pending slug gets the same
+ *     answer, so neither response reveals whether the slug exists. HoF and BAP
+ *     profiles stay publicly visible; any full
  *     member may view any member profile read-only. The 404 carries no "this profile
  *     is private" message, which would itself leak existence. Owner-only sub-routes
  *     (edit, edit/password, galleries, media upload, account :section) return 404 on

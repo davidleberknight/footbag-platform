@@ -9,6 +9,9 @@
  *   - Withdrawal of the member's open suggested matches, which they can no
  *     longer answer (IdentityAccessService performs it, in this transaction)
  *   - The same flag on an unlinked historical record, set or unset
+ *   - Deciding that the member's active recurring donations end at the close of
+ *     their current period (PaymentService performs each cancellation, after
+ *     the marking commits, attributed to the administrator)
  *
  * Does not own:
  *   - Clearing the member's contact data afterwards (MemberService owns the
@@ -24,7 +27,9 @@
  *
  * Required patterns:
  *   - Every consumer of the flag already exists and reads it directly, so this
- *     service writes it and nothing else propagates.
+ *     service writes it and propagates nothing beyond the cascade, the
+ *     withdrawals, the queued-mail dead-lettering and the recurring-donation
+ *     cancellations listed here.
  *   - The member write, the cascade and the withdrawals land in one
  *     transaction, so a record can never be half-marked.
  *   - Both writes are guarded on the flag's current value, which makes a repeat
@@ -42,17 +47,29 @@
  *     contact scrub waits out, because after the scrub there is nothing left to
  *     restore.
  *
- * Persistence: members, historical_persons, registrations, audit_entries.
+ * Persistence: members, historical_persons, registrations, outbox_emails,
+ * audit_entries; recurring_donation_subscriptions is read here and written by
+ * PaymentService.
  *
- * Side effects: audit_entries append. No email: the platform sends nothing to a
- * member it has marked deceased, which is enforced where notifications resolve
- * their recipient.
+ * Side effects: audit_entries append; mail queued to the member is moved to
+ * dead_letter in the marking transaction. No email: the platform sends nothing
+ * to a member it has marked deceased, which the outbox enqueue gate enforces
+ * for every audience. A reversal does not replay the dead-lettered mail. After
+ * the marking commits, each active recurring donation is cancelled at period
+ * end at the payment provider; a refusal leaves the marking in place, is logged
+ * at error level, and is counted in the result for the administrator. A
+ * reversal does not restore a cancelled donation.
  *
- * Service shape: singleton object (no external adapters).
+ * Service shape: singleton object; it reaches the payment provider only through
+ * PaymentService, after its own transaction has committed.
  */
-import { account, deceasedMarking, transaction } from '../db/db';
+import {
+  account, deceasedMarking, outbox, recurringDonationSubscriptions, transaction,
+} from '../db/db';
+import { logger } from '../config/logger';
 import { appendAuditEntry } from './auditService';
 import { readIntConfig } from './configReader';
+import { paymentService } from './paymentService';
 import { ConflictError, NotFoundError } from './serviceErrors';
 
 const DECEASED_GRACE_DAYS_DEFAULT = 30;
@@ -62,6 +79,8 @@ export type MarkDeceasedResult = {
   status: 'marked';
   cascadedToHistoricalPerson: boolean;
   registrationsWithdrawn: number;
+  recurringDonationsCancelRequested: number;
+  recurringDonationCancelFailures: number;
 };
 
 export type RevertDeceasedResult =
@@ -98,10 +117,18 @@ export const deceasedMarkingService = {
    * The linked historical record follows, so the member surfaces and the
    * historical ones cannot disagree about it, and the member is withdrawn from
    * events that have not happened yet, which is the one consumer effect no
-   * existing exclusion predicate covers. Everything else the member leaves
-   * behind stays exactly as it is.
+   * existing exclusion predicate covers. Each active recurring donation is then
+   * cancelled at the end of its current period, so no further charge falls on
+   * the member's card and the gift already made is kept. Everything else the
+   * member leaves behind stays exactly as it is.
+   *
+   * The provider call cannot sit inside the marking's transaction, so the
+   * marking commits first and each cancellation follows it. A provider refusal
+   * leaves the marking in place and is counted in the result for the
+   * administrator to finish by hand, rather than undoing a marking that is
+   * correct.
    */
-  markDeceased(actorId: string, memberId: string): MarkDeceasedResult {
+  async markDeceased(actorId: string, memberId: string): Promise<MarkDeceasedResult> {
     const row = readMember(memberId);
     if (row.is_deceased === 1) {
       throw new ConflictError('This member is already marked deceased.');
@@ -118,7 +145,7 @@ export const deceasedMarkingService = {
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
 
-    return transaction(() => {
+    const marked = transaction(() => {
       deceasedMarking.markMember.run(now, now, actorId, memberId);
 
       const cascaded = Boolean(row.historical_person_id);
@@ -129,6 +156,19 @@ export const deceasedMarkingService = {
       const withdrawn = deceasedMarking.cancelUpcomingRegistrations.run(
         'Member deceased', now, now, actorId, memberId, today,
       ).changes;
+
+      // The enqueue gate stops new mail from now on; this stops what was
+      // already waiting, which an operator pause could otherwise hold and
+      // release to the family at any later moment.
+      outbox.deadLetterQueuedForMember.run('recipient_deceased', now, memberId);
+
+      // Read inside the marking so the audit row names exactly the donations
+      // the cancellations below set out to end. Each successful cancellation
+      // then writes its own row naming this administrator.
+      const donations = recurringDonationSubscriptions.listActiveByMember.all(memberId) as {
+        id: string;
+        stripe_subscription_id: string;
+      }[];
 
       appendAuditEntry({
         actionType:    'member.deceased_marked',
@@ -142,15 +182,42 @@ export const deceasedMarkingService = {
           cascaded_to_historical_person: cascaded,
           historical_person_id:          row.historical_person_id,
           registrations_withdrawn:       withdrawn,
+          recurring_donations_to_cancel: donations.map((d) => d.id),
         },
       });
 
-      return {
-        status: 'marked' as const,
-        cascadedToHistoricalPerson: cascaded,
-        registrationsWithdrawn: withdrawn,
-      };
+      return { cascaded, withdrawn, donations };
     });
+
+    let requested = 0;
+    let failures = 0;
+    for (const donation of marked.donations) {
+      try {
+        await paymentService.cancelRecurringDonation(
+          memberId,
+          donation.stripe_subscription_id,
+          { adminMemberId: actorId, reason: 'member_deceased' },
+        );
+        requested += 1;
+      } catch (err) {
+        // The card keeps being charged until someone ends the gift at the
+        // provider, so this is a failure an operator must act on.
+        failures += 1;
+        logger.error('recurring donation could not be cancelled after the member was marked deceased', {
+          memberId,
+          subscriptionId: donation.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return {
+      status: 'marked' as const,
+      cascadedToHistoricalPerson: marked.cascaded,
+      registrationsWithdrawn: marked.withdrawn,
+      recurringDonationsCancelRequested: requested,
+      recurringDonationCancelFailures: failures,
+    };
   },
 
   /**

@@ -14,7 +14,7 @@ Adapters are the only seam between application code and external services (AWS, 
 
 - Interface: `<Purpose>Adapter` (e.g. `SesAdapter`, `MediaStorageAdapter`, `SecretsAdapter`).
 - Implementation: `<Backend><Purpose>Adapter` (e.g. `StubSesAdapter`, `LiveSesAdapter`, `LocalMediaStorageAdapter`); a stub extends its interface (`Stub<Purpose>Adapter extends <Purpose>Adapter`).
-- Accessor: `get<Purpose>Adapter(): <Purpose>Adapter`, a lazy process singleton that resolves the backend from `config`. Services and controllers obtain adapters through this accessor only; they never construct an implementation directly.
+- Accessor: `get<Purpose>Adapter(): <Purpose>Adapter`, a lazy process singleton that resolves the backend from `config`. Services (and the few middleware, lib and worker entry points that need one) obtain adapters through this accessor only, and never construct an implementation directly; controllers reach an adapter only through a service.
 
 ## Backend selection
 

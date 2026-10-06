@@ -35,8 +35,9 @@
 #
 # The host half re-reads the account after disabling it and refuses to report
 # success unless the password is locked, the login shell is nologin, the account
-# is expired, it is out of the sudo group, and no account on the host still
-# authorizes any key of theirs. The AWS half proves the grant and every key are
+# is expired, it is out of the sudo group, no account on the host still
+# authorizes any key of theirs, and no onboarding they never accepted is left
+# in their home. The AWS half proves the grant and every key are
 # gone and that a fresh role session is refused. A login attempted from this
 # workstation would prove nothing more: it would be made with this machine's
 # key, which was never theirs, and be refused whatever state their account was

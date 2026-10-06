@@ -387,7 +387,13 @@ describe('the server a run reaches follows its label, and confirms it', () => {
       // never from a value typed or exported beside it.
       // Only beside a --target: a script whose subject is a domain name, such as
       // a certificate check, names no environment for an address to disagree with.
-      if (/^\s*--target\)/m.test(body) && /^\s*--(base-url|domain|url|host)\)/m.test(body)) {
+      // One named exception: a dev-and-tester's acceptance runs before their
+      // machine can read the target's address at all (it is in no public file,
+      // and Terraform needs the key the delivery carries), so it is handed the
+      // address the onboarding read from the target, and refuses any delivery
+      // naming another.
+      const ADDRESS_BEFORE_IDENTITY = new Set(['accept-dev-tester-onboarding.sh']);
+      if (!ADDRESS_BEFORE_IDENTITY.has(name) && /^\s*--target\)/m.test(body) && /^\s*--(base-url|domain|url|host)\)/m.test(body)) {
         found.push(`${name}: accepts a site address beside the target`);
       }
       if (/\$\{SMOKE_BASE_URL/.test(body)) found.push(`${name}: takes the smoke address from SMOKE_BASE_URL`);

@@ -612,6 +612,11 @@ describe('the operator-facing restore script', () => {
       'exit 0',
     ].join('\n'));
     chmodSync(join(stubDir, 'ssh'), 0o755);
+    // The script requires an AWS CLI before it reaches the host, and this case
+    // must reach the host's identity question, so it owns the stand-in it
+    // depends on rather than relying on one installed on the machine.
+    writeFileSync(join(stubDir, 'aws'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(stubDir, 'aws'), 0o755);
     const pin = join(workDir, 'mislabelled-pin');
     writeFileSync(pin, '[203.0.113.10]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
 

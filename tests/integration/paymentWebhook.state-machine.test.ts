@@ -33,12 +33,15 @@ const M_EXPIRE_LATE = 'sm-expire-late';
 const M_SIGNUP = 'sm-signup';
 const M_OVERCHARGE = 'sm-overcharge';
 const M_SETTLE_TWICE = 'sm-settle-twice';
+const M_SUCCEED_CANCELED = 'sm-succeed-canceled';
+const M_REFUND_CANCELED = 'sm-refund-canceled';
 
 const MEMBERS = [
   M_RETRY, M_ABANDON, M_LATE_FAIL,
   M_SUB_PAID, M_SUB_FAILED, M_SUB_UPDATED, M_SUB_PAUSED, M_SUB_ORDER,
   M_SUB_RETRY, M_SUB_LATE,
   M_DECLINE_AGAIN, M_EXPIRE_LATE, M_SIGNUP, M_OVERCHARGE, M_SETTLE_TWICE,
+  M_SUCCEED_CANCELED, M_REFUND_CANCELED,
 ];
 
 beforeAll(async () => {
@@ -367,6 +370,71 @@ describe('a declined card inside an open checkout', () => {
     } finally {
       db.close();
     }
+  });
+});
+
+// The provider cancels the payment intent when the checkout session expires, so
+// a buyer completing payment at that moment produces a success, or a later
+// refund, against a payment already settled as canceled. No redelivery could
+// ever apply it, so refusing it would only make the provider retry for days and
+// count every attempt as a delivery failure; the nightly reconciliation is what
+// raises the disagreement for an administrator.
+describe('settlement events reported against a canceled payment', () => {
+  async function canceledPayment(memberId: string) {
+    const { paymentService, stub } = await services();
+    const { paymentId, sessionId } = await startCheckout(memberId);
+    stub.overrideSessionOutcome(sessionId, 'cancel');
+    const expired = stub.buildSignedStubWebhookEvent(sessionId);
+    expect(paymentService.handleWebhook(expired.rawBody, expired.signature))
+      .toEqual({ outcome: 'processed' });
+    stub.overrideSessionOutcome(sessionId, 'success');
+    const tierBefore = readOutcome(paymentId, memberId).tier;
+    return { paymentService, stub, paymentId, sessionId, tierBefore };
+  }
+
+  function readOutcome(paymentId: string, memberId: string) {
+    const db = openDb();
+    try {
+      const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      const moved = db.prepare(
+        `SELECT COUNT(*) AS c FROM payment_status_transitions
+         WHERE payment_id = ? AND to_status IN ('succeeded', 'refunded')`,
+      ).get(paymentId) as { c: number };
+      const tier = db
+        .prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?')
+        .get(memberId) as { tier_status?: string } | undefined;
+      return { status: payment.status, moved: moved.c, tier: tier?.tier_status ?? null };
+    } finally {
+      db.close();
+    }
+  }
+
+  it('acknowledges a success once, then as a duplicate, without granting the tier', async () => {
+    const { paymentService, stub, paymentId, sessionId, tierBefore } =
+      await canceledPayment(M_SUCCEED_CANCELED);
+    const succeeded = stub.buildSignedStubWebhookEvent(sessionId);
+    expect(paymentService.handleWebhook(succeeded.rawBody, succeeded.signature))
+      .toEqual({ outcome: 'ignored' });
+    expect(paymentService.handleWebhook(succeeded.rawBody, succeeded.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    expect(readOutcome(paymentId, M_SUCCEED_CANCELED))
+      .toEqual({ status: 'canceled', moved: 0, tier: tierBefore });
+    expect(tierBefore).not.toBe('tier1');
+  });
+
+  it('acknowledges a refund once, then as a duplicate, leaving the payment canceled', async () => {
+    const { paymentService, stub, paymentId, sessionId, tierBefore } =
+      await canceledPayment(M_REFUND_CANCELED);
+    const refunded = stub.buildSignedStubRefundEvent(sessionId);
+    expect(paymentService.handleWebhook(refunded.rawBody, refunded.signature))
+      .toEqual({ outcome: 'ignored' });
+    expect(paymentService.handleWebhook(refunded.rawBody, refunded.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    expect(readOutcome(paymentId, M_REFUND_CANCELED))
+      .toEqual({ status: 'canceled', moved: 0, tier: tierBefore });
   });
 });
 

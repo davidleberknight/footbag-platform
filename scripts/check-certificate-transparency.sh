@@ -18,9 +18,17 @@
 # It READS and never writes. No AWS call, no zone change, no registrar action.
 #
 # What it refuses to do: judge. It reports every name it finds and fails when one
-# is outside the served set the design fixes. It does not decide whether an
-# unexpected certificate is benign; that is the operator's call, and a run that
-# guessed would teach the operator to ignore it.
+# outside the served set the design fixes holds a certificate that matters now:
+# one still valid, or one issued within the last 200 days, the longest a public
+# certificate can be valid, so any certificate obtained through the window above
+# is caught whether or not it has since expired. An older certificate that has
+# expired cannot serve anything, and is printed as historical evidence, named
+# in full, without failing the run; reporting a decade-old entry in the present
+# tense would teach the operator to read past the gate. It does not decide
+# whether an unexpected certificate is benign; that is the operator's call, and
+# a run that guessed would teach the operator to ignore it. A log entry carrying
+# no readable validity dates is treated as current, so a format the run cannot
+# read fails rather than passes.
 #
 # Usage:
 #   bash scripts/check-certificate-transparency.sh --domain <name> [--out <path>]
@@ -37,8 +45,8 @@
 #              perform it at all. Prints the skip line the aggregator carries up
 #              and exits 0.
 #
-# Exits non-zero when a certificate covers a name outside the served set, or when
-# the logs could not be read. An empty result is a pass and says so: no
+# Exits non-zero when a current or recently issued certificate covers a name
+# outside the served set, or when the logs could not be read. An empty result is a pass and says so: no
 # certificate under the domain is the expected state before the platform's own
 # are issued.
 #
@@ -52,7 +60,9 @@ OUT=""
 MOCK=0
 CURL_BIN="${FOOTBAG_CURL_BIN:-curl}"
 
-if [[ -n "${FOOTBAG_CURL_BIN:-}" ]]; then
+# Naming the real binary through the seam is still a real read, so only a
+# different reader is reported as a stub.
+if [[ -n "${FOOTBAG_CURL_BIN:-}" && "${FOOTBAG_CURL_BIN}" != "curl" ]]; then
   echo "NOTE: FOOTBAG_CURL_BIN is set, so this run reads a stub rather than the public logs." >&2
 fi
 
@@ -141,14 +151,46 @@ if [[ -z "${RAW//[[:space:]]/}" || "${RAW//[[:space:]]/}" == "[]" ]]; then
   exit 0
 fi
 
-if ! NAMES="$(printf '%s' "$RAW" | jq -r '.[] | .name_value' 2>/dev/null | tr '\n' '\n' | sort -u)"; then
+# One line per name: the name, whether any certificate for it still matters
+# ("live") or every one is long expired ("historical"), and the dates behind
+# that verdict. One log entry can cover several names, one per line of its
+# name_value. The window is the longest validity a public certificate can carry,
+# measured back from now, so a certificate obtained through the gap above is
+# caught even after it expires.
+CLASSIFY='
+  def moment: if (type == "string" and length >= 19)
+    then (.[0:19] + "Z" | try fromdateiso8601 catch null) else null end;
+  (now - 200 * 86400) as $window_start
+  | [ .[]
+      | (.not_before | moment) as $nb
+      | (.not_after | moment) as $na
+      | (if $nb == null or $na == null then "undated"
+         elif $na >= now then "valid"
+         elif $nb >= $window_start then "recent"
+         else "expired" end) as $class
+      | (.name_value // "" | split("\n")[] | select(length > 0))
+      | {name: ., class: $class, nb: ($nb // null), na: ($na // null)} ]
+  | group_by(.name)[]
+  | map(select(.class != "expired")) as $live
+  | if ($live | length) > 0 then
+      [.[0].name, "live",
+       ($live[0] | if .class == "undated" then "no readable validity dates"
+         elif .class == "valid" then "valid until \(.na | todate)"
+         else "issued \(.nb | todate), inside the last 200 days" end)]
+    else
+      [.[0].name, "historical", "expired \(map(.na) | max | todate)"]
+    end
+  | @tsv'
+
+if ! NAMES="$(printf '%s' "$RAW" | jq -r "$CLASSIFY" 2>/dev/null)"; then
   echo "FAIL: the certificate log answered with something this cannot parse." >&2
   exit 1
 fi
 
 unexpected=0
 expected=0
-while IFS= read -r name; do
+historical=0
+while IFS=$'\t' read -r name verdict detail; do
   [[ -n "$name" ]] || continue
   # A wildcard entry is reported under the name it covers rather than silently
   # matched against the served set, because a wildcard is broader than any single
@@ -163,15 +205,19 @@ while IFS= read -r name; do
   if (( match == 1 )); then
     expected=$((expected + 1))
     add_line "EXPECTED    ${name}"
+  elif [[ "$verdict" == "historical" ]]; then
+    historical=$((historical + 1))
+    add_line "HISTORICAL  ${name}  ${detail}; not in the served set, reported as evidence"
   else
     unexpected=$((unexpected + 1))
-    add_line "UNEXPECTED  ${name}  not in the served set"
+    add_line "UNEXPECTED  ${name}  not in the served set (${detail})"
   fi
 done <<< "$NAMES"
 
 add_line ""
 add_line "  in the served set: ${expected}"
 add_line "  outside it:        ${unexpected}"
+add_line "  historical:        ${historical}"
 
 [[ -n "$OUT" ]] && printf '%s' "$REPORT" > "$OUT"
 

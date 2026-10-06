@@ -234,6 +234,44 @@ describe('POST /payments/checkout/:sessionId/confirm (stub adapter)', () => {
       testDb.close();
     }
   });
+
+  // Another member who learns a session id must not be able to pay, cancel or
+  // fail someone else's checkout, and must get the answer an unknown session
+  // gets so the id cannot be probed.
+  it('404s every action on a session that belongs to another member, leaving it pending', async () => {
+    const app = createApp();
+    // The other member owns this checkout and the usual purchaser intrudes,
+    // because the purchaser already holds the tier an earlier case bought.
+    const start = await request(app)
+      .post(`/members/${OTHER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie(OTHER_ID))
+      .send({ tier: 'tier1' });
+    expect(start.status).toBe(303);
+    const sessionId = (start.headers.location as string).split('/').pop()!;
+
+    const statuses: Record<string, number> = {};
+    for (const action of ['confirm', 'cancel', 'decline']) {
+      const res = await request(app)
+        .post(`/payments/checkout/${sessionId}/${action}`)
+        .set('Cookie', memberCookie());
+      statuses[action] = res.status;
+    }
+    const unknown = await request(app)
+      .post('/payments/checkout/cs_no_such_session/confirm')
+      .set('Cookie', memberCookie());
+    expect({ ...statuses, unknown: unknown.status })
+      .toEqual({ confirm: 404, cancel: 404, decline: 404, unknown: 404 });
+
+    const testDb = new BetterSqlite3(dbPath);
+    try {
+      const payment = testDb.prepare(
+        'SELECT status FROM payments WHERE stripe_checkout_session_id = ?',
+      ).get(sessionId) as { status: string };
+      expect(payment.status).toBe('pending');
+    } finally {
+      testDb.close();
+    }
+  });
 });
 
 describe('GET /payments/success (stub adapter)', () => {

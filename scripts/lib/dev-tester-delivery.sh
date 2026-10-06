@@ -9,8 +9,10 @@
 # one-time password of their host account, their IAM access key, the account's
 # role ARNs, and the staging host's pin lines, which their job role is denied
 # the Lightsail call to read. It is sealed with age to the SSH public key they
-# sent, so it can travel by any channel and only the holder of the matching
-# private key opens it.
+# sent, so only the holder of the matching private key opens it. The onboarding
+# places it in their own home on the staging host, where nobody but root and
+# that account can read it, and their acceptance fetches it from there and
+# removes it. Nobody carries it.
 #
 # The format has one home, here, so the writer and the reader cannot drift. It
 # is KEY=VALUE lines, one value per line, everything after the first '=' taken
@@ -23,6 +25,22 @@ DELIVERY_FORMAT="footbag-dev-tester-delivery-1"
 DELIVERY_KEYS=(TARGET ACCOUNT FULL_NAME HOST_PASSWORD AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY AWS_ACCOUNT_ID DEV_TESTER_ROLE_ARN
   STAGING_RUNTIME_ROLE_ARN HOST_ADDRESS HOST_PORT)
+
+# The SSH port every connection to the host is made on, the delivery's fetch
+# included. The delivery names it too, and the acceptance holds the two equal.
+DELIVERY_SSH_PORT="2222"
+
+# delivery_file_name <account> <target>
+# The sealed file's name, in the person's home on the host. One spelling, so the
+# onboarding that places it, the acceptance that fetches it and the offboarding
+# that removes an unaccepted one cannot disagree.
+delivery_file_name() {
+  printf '%s-%s.onboarding.age\n' "$1" "$2"
+}
+
+# The largest sealed file either side handles. A delivery is a few kilobytes;
+# anything far larger is not one, and is refused before it is written to disk.
+DELIVERY_MAX_BYTES=65536
 
 # delivery_require_tools <name>=<command>...
 # Checks every tool the caller needs before anything changes, and returns 1

@@ -9,6 +9,14 @@
 # the host had been checked. Accepting a key on first contact protects only the
 # connections after the one that matters.
 #
+# One connection precedes the pin by design, and none of this applies to it: a
+# dev-and-tester's acceptance fetching their sealed onboarding from their own
+# host account, before their machine holds any pin. It sends no secret and
+# writes nothing, and the host key it meets is held to the pins inside the
+# delivery once the delivery is proved issued in this project's AWS account,
+# so a substituted host learns nothing and is refused before anything is
+# written.
+#
 # The pinned file is built from the Lightsail API's host-key record, which
 # reports what AWS captured when the instance was created. That is an
 # out-of-band source: it is read over an authenticated AWS API call rather than

@@ -801,7 +801,7 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     seedAdmin();
     const { memberId, hpId } = setupClaimed({ withHpBackLink: true });
     const { deceasedMarkingService } = await import('../../src/services/deceasedMarkingService');
-    deceasedMarkingService.markDeceased(ADMIN_ID, memberId);
+    await deceasedMarkingService.markDeceased(ADMIN_ID, memberId);
     const flag = () => (open().prepare('SELECT is_deceased FROM historical_persons WHERE person_id = ?')
       .get(hpId!) as { is_deceased: number }).is_deceased;
     expect(flag()).toBe(1);

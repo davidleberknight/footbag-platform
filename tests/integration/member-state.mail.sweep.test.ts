@@ -74,7 +74,61 @@ interface SenderRow {
   run: (prefix: string) => MemberStateMatrix;
 }
 
+/**
+ * Every member in the matrix, by the address it was seeded with. A purged
+ * row no longer holds that address, but a caller that read it earlier still
+ * does, which is exactly the send this has to refuse.
+ */
+function memberRecipients(
+  prefix: string,
+  matrix: MemberStateMatrix,
+): Array<{ memberId: string; email: string }> {
+  return MEMBER_STATES.map((state) => ({
+    memberId: matrix[state],
+    email: `${prefix}-${state}@example.test`.toLowerCase(),
+  }));
+}
+
 const SENDERS: SenderRow[] = [
+  {
+    // The path every service notification takes. A verification mail has to
+    // reach an unverified mailbox, so unverified is not part of this row's
+    // claim; the member-state rule is enforced at insert, whatever the audience.
+    name: 'single-address notification',
+    excludes: ['deceased', 'softDeleted', 'purged', 'bounced', 'complained'],
+    run: (prefix) => {
+      const matrix = withDb((db) => seedMemberStateMatrix(db, { prefix }));
+      const comms = createCommunicationService(createStubSesAdapter());
+      for (const r of memberRecipients(prefix, matrix)) {
+        comms.enqueue({
+          audience: { kind: 'address', email: r.email, memberId: r.memberId },
+          subject: 'Club update',
+          bodyText: 'body',
+          idempotencyKey: `${prefix}-${r.memberId}`,
+        });
+      }
+      return matrix;
+    },
+  },
+  {
+    // The member audience checks neither verification nor mailbox state at
+    // resolution, so only the states the platform must never mail are claimed.
+    name: 'single-member notification',
+    excludes: ['deceased', 'softDeleted', 'purged'],
+    run: (prefix) => {
+      const matrix = withDb((db) => seedMemberStateMatrix(db, { prefix }));
+      const comms = createCommunicationService(createStubSesAdapter());
+      for (const state of MEMBER_STATES) {
+        comms.enqueue({
+          audience: { kind: 'member', memberId: matrix[state] },
+          subject: 'Tier change',
+          bodyText: 'body',
+          idempotencyKey: `${prefix}-${state}`,
+        });
+      }
+      return matrix;
+    },
+  },
   {
     name: 'mailing-list broadcast',
     excludes: BULK_EXCLUDED,

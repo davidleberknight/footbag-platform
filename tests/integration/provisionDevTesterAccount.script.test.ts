@@ -1733,3 +1733,78 @@ describe('provision-dev-tester-account-remote.sh — the cross-account key sweep
     expect(r.stdout).not.toMatch(/REMOVED their key/);
   });
 });
+
+describe('provision-dev-tester-account.sh --place-delivery', () => {
+  /** A sealed file to place, and an ssh that records the stream a placement sends. */
+  function placeFixture(): { file: string; content: string; stream: string; ssh: string } {
+    const dir = mkdtempSync(join(WORK_DIR, 'place-'));
+    const file = join(dir, 'sealed.age');
+    const content = 'age-encryption.org/v1\n-> ssh-ed25519 tag share\nbody\n--- mac\nsealed bytes\n';
+    writeFileSync(file, content, { mode: 0o600 });
+    const stream = join(dir, 'stream');
+    const ssh = join(dir, 'ssh');
+    writeFileSync(
+      ssh,
+      [
+        '#!/usr/bin/env bash',
+        hostIdentityAnswer(),
+        'for a in "$@"; do',
+        '  case "$a" in',
+        '    *"id -u"*) echo EXISTS; exit 0 ;;',
+        `    *"sudo -k -S"*) cat > ${JSON.stringify(stream)}; exit 0 ;;`,
+        '  esac',
+        'done',
+        'cat > /dev/null',
+        'exit 0',
+      ].join('\n'),
+    );
+    chmodSync(ssh, 0o755);
+    return { file, content, stream, ssh };
+  }
+
+  it('takes only the target and the account, and no other operation beside it', () => {
+    const { file } = placeFixture();
+    for (const extra of [['--sealed'], ['--offboard'], ['--inspect'], ['--full-name', 'Robin Fielder'], ['--key-file', VALID_KEY]]) {
+      const r = runScript(['--target', 'staging', '--account', 'robin_fielder', '--place-delivery', file, ...extra]);
+      expect(r.exitCode, extra.join(' ')).toBe(2);
+      expect(r.stderr).toMatch(/--place-delivery takes only --target and --account/);
+    }
+  });
+
+  it('refuses a delivery that is not a regular file', () => {
+    const r = runScript(['--target', 'staging', '--account', 'robin_fielder', '--place-delivery', join(WORK_DIR, 'no-such.age')]);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/is not a regular file/);
+  });
+
+  it('sends the sudo line, then the file whole with its digest, on one pinned session', () => {
+    const { file, content, stream, ssh } = placeFixture();
+    const r = runScript(['--target', 'staging', '--account', 'robin_fielder', '--place-delivery', file], {
+      existingAccount: true,
+      env: { FOOTBAG_PROVISION_SSH: ssh },
+    });
+    expect(r.exitCode, r.stderr).toBe(0);
+    const sent = readFileSync(stream, 'utf-8');
+    expect(sent.split('\n')[0]).toBe('fixture-sudo-password');
+    // The values as the remote shell binds them, read back through bash itself.
+    const bound = spawnSync(
+      'bash',
+      ['-c', `eval "$(sed -n '/^DTACC_/p' ${JSON.stringify(stream)})"; printf '%s\\n%s\\n%s\\n' "$DTACC_MODE" "$DTACC_DELIVERY_NAME" "$DTACC_DELIVERY_SHA256"; printf '%s' "$DTACC_DELIVERY_B64" | base64 -d`],
+      { encoding: 'utf-8', ...SPAWN_GUARD },
+    ).stdout.split('\n');
+    expect(bound[0]).toBe('place-delivery');
+    expect(bound[1]).toBe('robin_fielder-staging.onboarding.age');
+    const sha = spawnSync('sha256sum', [file], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout.split(' ')[0];
+    expect(bound[2]).toBe(sha);
+    expect(bound.slice(3).join('\n')).toBe(content);
+    expect(sent).toContain(readFileSync(REMOTE_HALF, 'utf-8'));
+  });
+
+  it('refuses when the account is not on the host, sending nothing', () => {
+    const { file, stream } = placeFixture();
+    const r = runScript(['--target', 'staging', '--account', 'robin_fielder', '--place-delivery', file]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toMatch(/does not exist on footbag-staging, so there is no home to place/);
+    expect(existsSync(stream)).toBe(false);
+  });
+});

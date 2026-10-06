@@ -24,7 +24,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, statSync, readdirSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -35,7 +35,8 @@ import { seedMaintainerMachine, snapshotAdminFiles } from '../fixtures/maintaine
 
 const SCRIPT = join(process.cwd(), 'scripts/onboard-dev-tester.sh');
 const ACCOUNT = 'james_leberknight';
-const OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
+// footbag-operator in this project's account, which every delivery is anchored to.
+const OPERATOR_ARN = 'arn:aws:iam::041904915126:user/footbag-operator';
 const MINTED_KEY_ID = 'AKIAFIXTUREMINTED001';
 const MINTED_SECRET = 'fixture/minted+secret=value000000000000';
 const EARLIER_KEY_ID = 'fixture-earlier-key-id';
@@ -70,6 +71,7 @@ function stub(name: string, body: string): string {
  * once the run has minted its key, which is the read-back failing after
  * everything else succeeded. "grant-lost" makes the grant fail to stick, and
  * "minted-lost" the minted key, as though somebody removed either in between.
+ * "caller-arn" replaces the identity STS reports for the caller.
  * "warn-on-success" puts a line on stderr for every call, successful or not, the way the CLI prints a deprecation or library warning;
  * it is an acknowledged fake, because what is asserted is that no read takes it
  * as data, not its wording. Not-found answers are printed as the CLI prints them,
@@ -93,7 +95,7 @@ if [[ "$2" == "get-user" && -e "$S/late-unreadable-get-user" && -e "$S/minted-ke
   echo "aws: [ERROR]: An error occurred (AccessDenied) when calling the GetUser operation: not authorized" >&2; exit 254
 fi
 case "$1 $2" in
-  "sts get-caller-identity") echo ${JSON.stringify(OPERATOR_ARN)} ;;
+  "sts get-caller-identity") if [[ -e "$S/caller-arn" ]]; then cat "$S/caller-arn"; else echo ${JSON.stringify(OPERATOR_ARN)}; fi ;;
   "iam get-role") exit 0 ;;
   "iam get-user")
     [[ -e "$S/user" ]] || { echo "aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetUser operation: The user with name ${ACCOUNT} cannot be found." >&2; exit 254; }
@@ -174,12 +176,24 @@ esac`,
  * inspect, it answers as the real one does, from files the test writes: the
  * account live and holding the key given, unless "host-absent", "host-locked"
  * or "host-other-key" says otherwise, or "host-unreadable" makes the read fail.
+ * Asked to place the delivery, it copies the file into "host-delivery", the
+ * person's home on the host; "place-fails" makes the placement fail.
  */
 function provisionStub(): string {
   const D = JSON.stringify(dir);
   return stub(
     'provision',
     `
+if [[ " $* " == *" --place-delivery "* ]]; then
+  printf '%s\\n' "$*" > ${JSON.stringify(join(dir, 'place.args'))}
+  IFS= read -r sudo_line || true
+  printf '%s\\n' "$sudo_line" > ${JSON.stringify(join(dir, 'place.stdin'))}
+  [[ -e ${D}/place-fails ]] && { echo "ERROR: did not read back as written." >&2; exit 1; }
+  src=""; prev=""
+  for a in "$@"; do [[ "$prev" == --place-delivery ]] && src="$a"; prev="$a"; done
+  cp -- "$src" ${JSON.stringify(join(dir, 'host-delivery'))}
+  exit 0
+fi
 if [[ " $* " == *" --inspect "* ]]; then
   printf '%s\\n' "$*" >> ${JSON.stringify(join(dir, 'inspect.args'))}
   IFS= read -r sudo_line || true
@@ -283,7 +297,7 @@ afterEach(() => {
 function env(): Record<string, string> {
   return {
     ...NO_AWS_CREDENTIALS,
-    ...awsIdentityStubEnv(dir, { profile: ['footbag-operator'] }),
+    ...awsIdentityStubEnv(dir, { profile: ['footbag-operator'], arn: OPERATOR_ARN }),
     HOME: home,
     // Where every temp file the run makes lands, so the suite can see that
     // none of them outlives it.
@@ -351,7 +365,10 @@ function mutatingCalls(): string[] {
 
 const read = (name: string): string => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), 'utf-8') : '');
 
-const SEALED = (): string => join(home, 'AWS', `${ACCOUNT}-staging.onboarding.age`);
+/** The sealed file as placed in the person's home on the host. */
+const SEALED = (): string => join(dir, 'host-delivery');
+/** Where it used to be left on this machine, and must never be now. */
+const LOCAL_COPY = (): string => join(home, 'AWS', `${ACCOUNT}-staging.onboarding.age`);
 
 /** A finished onboarding in IAM: the user, its grant and an active key. */
 function finished(): void {
@@ -510,14 +527,18 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(handBack).not.toBe('');
     expect(existsSync(handBack)).toBe(false);
 
-    const sealed = SEALED();
-    expect(statSync(sealed).mode & 0o777).toBe(0o600);
-    const body = readFileSync(sealed, 'utf-8').split('--- stubmac\n')[1];
+    // Placed in their home on the host, through the host step with the sudo
+    // password, and no copy kept here.
+    expect(read('place.args')).toContain(`--target staging --account ${ACCOUNT} --place-delivery `);
+    expect(read('place.stdin')).toBe('fixture-sudo-password\n');
+    expect(existsSync(LOCAL_COPY())).toBe(false);
+    const body = readFileSync(SEALED(), 'utf-8').split('--- stubmac\n')[1];
     expect(body).toContain(`ACCOUNT=${ACCOUNT}\n`);
     expect(body).toContain(`HOST_PASSWORD=${ONE_TIME}\n`);
     expect(body).toContain(`AWS_ACCESS_KEY_ID=${MINTED_KEY_ID}\n`);
     expect(body).toContain(`AWS_SECRET_ACCESS_KEY=${MINTED_SECRET}\n`);
-    expect(body).toContain('DEV_TESTER_ROLE_ARN=arn:aws:iam::000000000000:role/FootbagDevTester\n');
+    expect(body).toContain('AWS_ACCOUNT_ID=041904915126\n');
+    expect(body).toContain('DEV_TESTER_ROLE_ARN=arn:aws:iam::041904915126:role/FootbagDevTester\n');
     expect(body).toContain('HOST_ADDRESS=203.0.113.10\n');
     expect(body.match(/^PIN=/gm)).toHaveLength(4);
     expect(body).toContain('PIN=[203.0.113.10]:2222 ssh-ed25519 ');
@@ -551,7 +572,7 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/does not read back from IAM as onboarded: it does not hold AssumeFootbagDevTester/);
-    expect(r.out).not.toMatch(/Get that file to/);
+    expect(r.out).not.toMatch(/accept-dev-tester-onboarding\.sh --target/);
   });
 
   it('fails the run when the key it sealed is not active', () => {
@@ -559,7 +580,7 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status).toBe(1);
     expect(r.out).toContain(`the key just sealed, ${MINTED_KEY_ID}, is not active`);
-    expect(r.out).not.toMatch(/Get that file to/);
+    expect(r.out).not.toMatch(/accept-dev-tester-onboarding\.sh --target/);
   });
 
   it('fails the run when IAM cannot be read back, rather than reading the user as absent', () => {
@@ -568,7 +589,7 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/could not read the IAM user james_leberknight/);
     expect(r.out).toMatch(/does not read back from IAM as onboarded: IAM could not be read/);
-    expect(r.out).not.toMatch(/Get that file to/);
+    expect(r.out).not.toMatch(/accept-dev-tester-onboarding\.sh --target/);
   });
 
   it('never reads a warning the CLI prints on stderr as a key id', () => {
@@ -592,7 +613,7 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     );
     writeFileSync(
       configFile,
-      `${OPERATOR_CONFIG}[profile FootbagDevTester]\nrole_arn = arn:aws:iam::000000000000:role/FootbagDevTester\nsource_profile = ${ACCOUNT}\nrole_session_name = ${ACCOUNT}\n`,
+      `${OPERATOR_CONFIG}[profile FootbagDevTester]\nrole_arn = arn:aws:iam::041904915126:role/FootbagDevTester\nsource_profile = ${ACCOUNT}\nrole_session_name = ${ACCOUNT}\n`,
     );
     const r = runInTerminal('APPLY\n', args({}, ['--reissue']));
     expect(r.status, r.out).toBe(0);
@@ -619,7 +640,16 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(r.out).toMatch(/Nothing goes in the vault: nobody named has a vault entry/);
     expect(r.out).toMatch(new RegExp(`access key id: ${MINTED_KEY_ID}`));
     expect(r.out).toMatch(new RegExp(`fingerprint: +${pubSha.replace(/[+/]/g, '\\$&')}`));
-    expect(r.out).toContain('accept-dev-tester-onboarding.sh');
+  });
+
+  it('hands over the acceptance command with the host address filled in, and sends nothing', () => {
+    // The person's machine has no other way to learn the address: it is in no
+    // public file, and Terraform needs the key the delivery carries.
+    const r = runInTerminal('APPLY\n');
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('bash scripts/accept-dev-tester-onboarding.sh --target staging \\');
+    expect(r.out).toContain(`--account ${ACCOUNT} --host 203.0.113.10`);
+    expect(r.out).not.toMatch(/any channel|Downloads/);
   });
 
   it('leaves the directly authenticated identity untouched, in AWS and on this machine', () => {
@@ -633,11 +663,44 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(mutatingCalls().every((c) => c.includes(`--user-name ${ACCOUNT}`))).toBe(true);
   });
 
-  it('leaves no cleartext behind, beside the sealed file or in temp', () => {
+  it('leaves nothing of the delivery on this machine, sealed or not', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status, r.out).toBe(0);
-    expect(readdirSync(join(home, 'AWS'))).toEqual([`${ACCOUNT}-staging.onboarding.age`]);
+    expect(existsSync(join(home, 'AWS')) ? readdirSync(join(home, 'AWS')) : []).toEqual([]);
     expect(readdirSync(tmp).filter((f) => !f.startsWith('tf-'))).toEqual([]);
+  });
+
+  it('refuses to act from any AWS account but this project\'s', () => {
+    // A delivery is accepted only from this account, so one sealed elsewhere
+    // would mint a key and a host password the person could never use.
+    writeFileSync(join(dir, 'caller-arn'), 'arn:aws:iam::111122223333:user/footbag-operator\n');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/is in account 111122223333, not this project's/);
+    expect(mutatingCalls()).toEqual([]);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+  });
+});
+
+describe('onboard-dev-tester.sh — the delivery is placed before its key counts', () => {
+  it('withdraws the key it sealed when the delivery cannot be placed, and keeps no copy', () => {
+    // Committed only once placed: a key in a delivery nobody can fetch is a live
+    // credential nobody holds.
+    writeFileSync(join(dir, 'place-fails'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/not proved in place on the staging host/);
+    expect(calls().some((c) => c.startsWith(`iam delete-access-key --user-name ${ACCOUNT} --access-key-id ${MINTED_KEY_ID}`))).toBe(true);
+    expect(read('address.args')).toBe('');
+    expect(existsSync(LOCAL_COPY())).toBe(false);
+    expect(readdirSync(tmp).filter((f) => !f.startsWith('tf-'))).toEqual([]);
+  });
+
+  it('keeps the key once the delivery is placed', () => {
+    const r = runInTerminal('APPLY\n');
+    expect(r.status, r.out).toBe(0);
+    expect(existsSync(SEALED())).toBe(true);
+    expect(calls().some((c) => c.startsWith(`iam delete-access-key --user-name ${ACCOUNT} --access-key-id ${MINTED_KEY_ID}`))).toBe(false);
   });
 });
 
@@ -660,7 +723,7 @@ describe('onboard-dev-tester.sh — the IAM identity it makes', () => {
     expect(grants).toHaveLength(1);
     expect(grants[0]).toContain('--policy-name AssumeFootbagDevTester');
     expect(grants[0]).toContain('"Action":"sts:AssumeRole"');
-    expect(grants[0]).toContain('"Resource":"arn:aws:iam::000000000000:role/FootbagDevTester"');
+    expect(grants[0]).toContain('"Resource":"arn:aws:iam::041904915126:role/FootbagDevTester"');
     expect(calls().some((c) => /attach-user-policy|add-user-to-group/.test(c))).toBe(false);
   });
 
@@ -978,7 +1041,7 @@ describe('onboard-dev-tester.sh on a maintainer\'s own machine', () => {
   it('leaves every administrative file byte for byte across an onboarding, an already-done run and a re-issue', () => {
     // The holder onboards themselves on the machine holding footbag-operator, both
     // runtime chains, the shared password files, the pin file and the stanzas.
-    // The only thing any of these runs may add is the sealed file.
+    // None of these runs adds anything here: the sealed file goes to the host.
     seedMaintainerMachine(home, ['203.0.113.10 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost']);
     const files = {
       AWS_CONFIG_FILE: join(home, '.aws', 'config'),
@@ -999,15 +1062,16 @@ describe('onboard-dev-tester.sh on a maintainer\'s own machine', () => {
     const reissue = runInTerminal('APPLY\n', args({}, ['--reissue']), files);
     expect(reissue.status, reissue.out).toBe(0);
     expect(snapshotAdminFiles(home)).toEqual(before);
+    // Nothing is added there at all: the delivery goes to the host.
     expect(readdirSync(join(home, 'AWS')).sort()).toEqual(
-      ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt', 'footbag_known_hosts', `${ACCOUNT}-staging.onboarding.age`].sort(),
+      ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt', 'footbag_known_hosts'].sort(),
     );
   });
 });
 
 describe('onboard-dev-tester.sh --verify: one read-only verdict', () => {
   const VERIFY = ['--verify', '--target', 'staging', '--account', ACCOUNT];
-  const ASSUMED_ARN = `arn:aws:sts::000000000000:assumed-role/FootbagDevTester/${ACCOUNT}`;
+  const ASSUMED_ARN = `arn:aws:sts::041904915126:assumed-role/FootbagDevTester/${ACCOUNT}`;
 
   /** A finished, accepted onboarding: IAM, the host, the address, and the trail. */
   function accepted(): void {

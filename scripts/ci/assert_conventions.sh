@@ -133,6 +133,27 @@ if [ -n "$hits" ]; then
 fi
 fi
 
+# Rule: one writer of the outbox, one caller of the mail provider.
+# Reason: the rules every message must obey (the member-state gate that keeps
+# mail from deceased, deleted and erased members, and the mailbox suppression
+# gate) are applied once, on the single enqueue path in communicationService.ts,
+# and the drain there is the only code that hands a row to the provider. A
+# second writer or a direct provider call would send around both gates silently.
+#
+# Allowlisted exceptions:
+#   - src/adapters/**   the provider adapters define sendEmail itself
+if check "outbox writes and provider sends outside communicationService.ts" src; then
+hits=$(grep -rnE --include='*.ts' 'outbox\.insert\b|\.sendEmail\(' src/ \
+  | grep -v '^src/services/communicationService\.ts:' \
+  | grep -v '^src/adapters/' \
+  || true)
+if [ -n "$hits" ]; then
+  echo "$hits" >&2
+  echo "  FAIL: only communicationService.ts writes the outbox and calls the mail provider" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: tests seed table data through the shared factories, never a hand-rolled
 # INSERT.
 # Reason: a factory writes the columns the production path writes and applies the

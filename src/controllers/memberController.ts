@@ -68,9 +68,9 @@ export const memberController = {
    * member viewer, or the HoF/BAP public read-only exception for
    * anonymous visitors (others redirect to login). A profile page exists only
    * once its owner is a member: a pending registrant is routed to their next
-   * wizard task in place of their own page, and a pending registrant's slug
-   * is not-found for every other viewer (the service returns null for a
-   * pending target, indistinguishable from an unknown slug). */
+   * wizard task in place of their own page. An unknown, erased or pending slug
+   * answers exactly as a real non-honoree's does: a signed-out visitor is sent
+   * to sign in, and a signed-in viewer gets not-found. */
   getProfile(req: Request, res: Response, next: NextFunction): void {
     const memberKey = req.params.memberKey;
 
@@ -142,10 +142,15 @@ export const memberController = {
         return;
       }
     } catch (err) {
-      if (err instanceof NotFoundError) { renderNotFound(res); return; }
-      logger.error('member public profile error', { error: err instanceof Error ? err.message : String(err) });
-      next(err);
-      return;
+      // A signed-out visitor falls through to the sign-in redirect below, the
+      // same answer a hidden profile gets, so the response never says whether
+      // an address belongs to anyone.
+      if (!(err instanceof NotFoundError)) {
+        logger.error('member public profile error', { error: err instanceof Error ? err.message : String(err) });
+        next(err);
+        return;
+      }
+      if (req.isAuthenticated) { renderNotFound(res); return; }
     }
 
     if (!req.isAuthenticated) {

@@ -249,14 +249,26 @@ describe('show_competitive_results flag', () => {
 // ── Purged member ─────────────────────────────────────────────────────────────
 
 describe('purged member', () => {
-  it('profile returns 404 without auth', async () => {
+  // A signed-out visitor gets one answer for every profile that is not public:
+  // a real member's, an erased one's, and an address that never existed all
+  // send them to sign in. Answering an unknown address differently would let
+  // anyone test a name for whether that person has an account.
+  it('answers a signed-out visitor the same for a hidden, an erased and an unknown profile', async () => {
     const app = createApp();
-    const res = await request(app).get(`/members/${PURGED_SLUG}`);
-    // A purged slug resolves to nothing, so an anonymous visitor meets the
-    // ordinary not-found page. Pinned: accepting a redirect as well would pass
-    // if the route ever started sending purged members to a sign-in prompt,
-    // which is itself a disclosure that the slug once existed.
-    expect(res.status).toBe(404);
+    const answers = await Promise.all(
+      [REGULAR_SLUG, PURGED_SLUG, 'no_such_member_ever'].map(async (slug) => {
+        const res = await request(app).get(`/members/${slug}`);
+        return {
+          status: res.status,
+          location: String(res.headers.location ?? '').replace(slug, '<slug>'),
+        };
+      }),
+    );
+    expect(answers).toEqual([
+      { status: 302, location: '/login?returnTo=%2Fmembers%2F<slug>' },
+      { status: 302, location: '/login?returnTo=%2Fmembers%2F<slug>' },
+      { status: 302, location: '/login?returnTo=%2Fmembers%2F<slug>' },
+    ]);
   });
 
   it('profile returns 404 with auth', async () => {

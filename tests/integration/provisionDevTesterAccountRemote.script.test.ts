@@ -1,6 +1,7 @@
 /**
  * scripts/internal/provision-dev-tester-account-remote.sh — the offboard branch,
- * run for real against a fake host.
+ * the key checks, the inspection and the placing of a sealed onboarding, run for
+ * real against a fake host.
  *
  * The root-side half is what actually ends a person's access, and a text match
  * against its source cannot say whether it does. So this suite runs the real
@@ -26,8 +27,10 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  symlinkSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
@@ -77,10 +80,14 @@ esac`,
 [[ "$1" == "-d" ]] || exit 2
 awk -F: -v OFS=: -v n="$2" -v g="$3" '$1==g{c=split($4,m,","); o=""; for(i=1;i<=c;i++) if(m[i]!=n) o=(o==""?m[i]:o","m[i]); $4=o}1' "$FAKE/group" > "$FAKE/group.new" && mv "$FAKE/group.new" "$FAKE/group"`,
   install: `
-mode=600
-while [[ "$1" == -* ]]; do case "$1" in -m) mode="$2"; shift 2 ;; *) shift 2 ;; esac; done
-cp -- "$1" "$2" && chmod "$mode" "$2"`,
-  stat: `echo root`,
+mode=600; owner=root
+while [[ "$1" == -* ]]; do case "$1" in -m) mode="$2"; shift 2 ;; -o) owner="$2"; shift 2 ;; *) shift 2 ;; esac; done
+cp -- "$1" "$2" && chmod "$mode" "$2" && printf '%s\\n' "$owner" > "$2.owner"`,
+  // The owner install recorded beside the file, and the real mode.
+  stat: `
+if [[ "$2" == "%U" && -e "$3.owner" ]]; then cat "$3.owner"
+elif [[ "$2" == "%a" ]]; then /usr/bin/stat -c %a "$3"
+else echo root; fi`,
   useradd: `touch "$FAKE/write-reached"; exit 3`,
 };
 
@@ -618,5 +625,94 @@ describe('reopening a retired account', () => {
     const r = runReopen('create', keys.fresh);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/needs rotate mode/);
+  });
+});
+
+const DELIVERY = `${LEAVER}-staging.onboarding.age`;
+
+/** The sealed onboarding, placed in the account's home. */
+function runPlace(content: string, opts: { name?: string; sha?: string } = {}) {
+  return spawnSync('bash', [script], {
+    encoding: 'utf-8',
+    env: {
+      ...process.env,
+      PATH: `${join(host, 'bin')}:${process.env.PATH ?? ''}`,
+      FAKE: host,
+      DTACC_MODE: 'place-delivery',
+      DTACC_ACCOUNT: LEAVER,
+      DTACC_DELIVERY_NAME: opts.name ?? DELIVERY,
+      DTACC_DELIVERY_B64: Buffer.from(content).toString('base64'),
+      DTACC_DELIVERY_SHA256: opts.sha ?? createHash('sha256').update(content).digest('hex'),
+    },
+    ...SPAWN_GUARD,
+  });
+}
+
+describe('placing the sealed onboarding in the person\'s home', () => {
+  it('writes it owned by them at mode 600, proved by reading the content back', () => {
+    const home = addAccount(LEAVER, ['leaver']);
+    const r = runPlace('age-encryption.org/v1\nsealed body\n');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`Placed ${join(home, DELIVERY)}`);
+    expect(readFileSync(join(home, DELIVERY), 'utf-8')).toBe('age-encryption.org/v1\nsealed body\n');
+    expect(readFileSync(join(home, `${DELIVERY}.owner`), 'utf-8').trim()).toBe(LEAVER);
+    const mode = spawnSync('/usr/bin/stat', ['-c', '%a', join(home, DELIVERY)], { encoding: 'utf-8', ...SPAWN_GUARD });
+    expect(mode.stdout.trim()).toBe('600');
+  });
+
+  it('replaces one placed earlier, as a reissue does', () => {
+    const home = addAccount(LEAVER, ['leaver']);
+    writeFileSync(join(home, DELIVERY), 'the earlier delivery\n');
+    const r = runPlace('the reissued delivery\n');
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(join(home, DELIVERY), 'utf-8')).toBe('the reissued delivery\n');
+  });
+
+  it('fails when what it wrote does not read back as what was sent', () => {
+    addAccount(LEAVER, ['leaver']);
+    const r = runPlace('sealed body\n', { sha: createHash('sha256').update('something else').digest('hex') });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/did not read back as written/);
+  });
+
+  it('refuses to write through a link the account left at the name', () => {
+    // The home is the account's to write in; root following its link would
+    // write wherever it points.
+    const home = addAccount(LEAVER, ['leaver']);
+    const target = join(host, 'elsewhere');
+    writeFileSync(target, 'not theirs\n');
+    symlinkSync(target, join(home, DELIVERY));
+    const r = runPlace('sealed body\n');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is a link or not a regular file/);
+    expect(readFileSync(target, 'utf-8')).toBe('not theirs\n');
+  });
+
+  it('refuses a name that is not this account\'s delivery', () => {
+    const home = addAccount(LEAVER, ['leaver']);
+    for (const name of ['.ssh/authorized_keys', `someone_else-staging.onboarding.age`, `../${DELIVERY}`]) {
+      const r = runPlace('sealed body\n', { name });
+      expect(r.status, name).toBe(1);
+      expect(r.stderr).toMatch(/is not leaver_one's delivery name/);
+    }
+    expect(authorizedKeys(LEAVER)).toContain(keys.leaver.split(' ')[1]);
+    expect(existsSync(join(home, DELIVERY))).toBe(false);
+  });
+});
+
+describe('the offboard removes an onboarding they never accepted', () => {
+  it('deletes the sealed delivery and nothing else in their home', () => {
+    addAccount('footbag', ['other']);
+    const home = addAccount(LEAVER, ['leaver']);
+    writeFileSync(join(home, DELIVERY), 'never accepted\n');
+    writeFileSync(join(home, 'notes.txt'), 'their own file\n');
+
+    const r = runOffboard();
+
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`Removed an onboarding they never accepted: ${join(home, DELIVERY)}`);
+    expect(r.stdout).toContain('OK   no onboarding delivery left in their home');
+    expect(existsSync(join(home, DELIVERY))).toBe(false);
+    expect(readFileSync(join(home, 'notes.txt'), 'utf-8')).toBe('their own file\n');
   });
 });

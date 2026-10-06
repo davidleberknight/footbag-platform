@@ -217,6 +217,29 @@ describe('the convention gate: rules about src/', () => {
     expectCheckRan(res, '.prepare( outside src/db/db.ts');
   });
 
+  // Defect caught: a service writes its own outbox row or calls the provider
+  // directly, so its mail skips the gate that keeps it from deceased members.
+  it('refuses an outbox write or a provider send outside the communication service', () => {
+    const res = inFixtureRepo({
+      'src/services/clubThing.ts': 'outbox.insert.run(id, email);\n',
+      'src/services/otherThing.ts': 'await adapter.sendEmail({ to });\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('only communicationService.ts writes the outbox');
+    expect(res.stderr).toContain('src/services/clubThing.ts:1');
+    expect(res.stderr).toContain('src/services/otherThing.ts:1');
+  });
+
+  it('accepts the communication service and the adapters doing both', () => {
+    const res = inFixtureRepo({
+      'src/services/communicationService.ts': 'outbox.insert.run(id);\nawait adapter.sendEmail({ to });\n',
+      'src/adapters/sesAdapter.ts': 'return stub.sendEmail(input);\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('only communicationService.ts writes the outbox');
+    expectCheckRan(res, 'outbox writes and provider sends outside communicationService.ts');
+  });
+
   it('accepts a tree where the vitest config marker and its refusal are both present', () => {
     // The marker and the refusal that reads it are a pair and either alone is
     // inert: a config that stamps nothing cannot be detected as absent, and a

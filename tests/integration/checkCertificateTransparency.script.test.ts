@@ -11,7 +11,9 @@
  * cannot read them must say so rather than report silence.
  *
  * Four properties carry the risk. An unreadable log must never be reported as an
- * empty one. A name outside the served set must fail rather than be summarised.
+ * empty one. A name outside the served set whose certificate is still valid, or
+ * was issued within the last 200 days, must fail rather than be summarised; only
+ * a long-expired one is reported as historical evidence without failing.
  * The served set must be derived from the domain the operator names, so a run
  * against one domain cannot pass on another's names. And the run must refuse
  * without a domain, because which domain is read is exactly the thing that must
@@ -56,6 +58,67 @@ beforeEach(() => {
 
 afterEach(() => {
   removeScratch(dir);
+});
+
+// One row of the public log's JSON exactly as it answered for this domain,
+// captured 2026-10-06 from crt.sh: a certificate for the legacy host that expired
+// in 2016. The validity fields are read from this shape, so the fixture keeps the
+// row whole rather than the two fields the classification uses.
+const CAPTURED_EXPIRED_ROW = {
+  issuer_ca_id: 1558,
+  issuer_name: 'C=US, O=GeoTrust Inc., CN=RapidSSL SHA256 CA - G3',
+  common_name: 'rimu2.footbag.org',
+  name_value: 'rimu2.footbag.org',
+  id: 10034592,
+  not_before: '2015-02-11T22:41:55',
+  not_after: '2016-05-16T03:02:24',
+  serial_number: '025255',
+  result_count: 2,
+};
+
+/** A log timestamp `days` from now, in the log's own format. */
+function logMoment(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 19);
+}
+
+describe('judging a logged certificate by its validity window', () => {
+  it('reports a long-expired certificate outside the served set as evidence, without failing', () => {
+    const r = run(['--domain', 'footbag.org'], writeReader(JSON.stringify([CAPTURED_EXPIRED_ROW])));
+    expect(r.status, String(r.stderr)).toBe(0);
+    expect(r.stdout).toMatch(/HISTORICAL\s+rimu2\.footbag\.org\s+expired 2016-05-16T03:02:24Z/);
+    expect(r.stdout).toMatch(/outside it:\s+0/);
+  });
+
+  it('fails on a certificate outside the served set that is still valid', () => {
+    const body = JSON.stringify([
+      CAPTURED_EXPIRED_ROW,
+      { ...CAPTURED_EXPIRED_ROW, id: 1, not_before: logMoment(-400), not_after: logMoment(30) },
+    ]);
+    const r = run(['--domain', 'footbag.org'], writeReader(body));
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/UNEXPECTED\s+rimu2\.footbag\.org\s+not in the served set \(valid until/);
+  });
+
+  it('fails on a certificate issued inside the window even after it has expired', () => {
+    // A short-lived certificate obtained through the window above and already
+    // lapsed still says someone proved control of the name recently.
+    const body = JSON.stringify([
+      { ...CAPTURED_EXPIRED_ROW, name_value: 'rogue.footbag.org', not_before: logMoment(-40), not_after: logMoment(-1) },
+    ]);
+    const r = run(['--domain', 'footbag.org'], writeReader(body));
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/UNEXPECTED\s+rogue\.footbag\.org\s+not in the served set \(issued/);
+  });
+
+  it('judges each name an entry covers, so a served name cannot carry an unexpected one past', () => {
+    const body = JSON.stringify([
+      { ...CAPTURED_EXPIRED_ROW, name_value: 'www.footbag.org\nshadow.footbag.org', not_before: logMoment(-10), not_after: logMoment(80) },
+    ]);
+    const r = run(['--domain', 'footbag.org'], writeReader(body));
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/EXPECTED\s+www\.footbag\.org/);
+    expect(r.stdout).toMatch(/UNEXPECTED\s+shadow\.footbag\.org/);
+  });
 });
 
 describe('check-certificate-transparency.sh', () => {
@@ -114,6 +177,17 @@ describe('check-certificate-transparency.sh', () => {
     const r = run(['--domain', 'example.org'], writeReader(body));
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/UNEXPECTED\s+www\.footbag\.org/);
+  });
+
+  it('does not call the real reader a stub when the seam names it', () => {
+    // Mock mode reads nothing, so this asks only what the run says about its reader.
+    const r = spawnSync('bash', [SCRIPT, '--mock', '--domain', 'footbag.org'], {
+      encoding: 'utf8',
+      env: { ...process.env, FOOTBAG_CURL_BIN: 'curl' },
+      ...SPAWN_GUARD,
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toMatch(/reads a stub/);
   });
 
   it('writes the report to --out as well as printing it', () => {

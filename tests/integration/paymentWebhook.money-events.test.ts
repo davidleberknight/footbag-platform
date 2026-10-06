@@ -29,11 +29,20 @@ const M_AMOUNT_MISMATCH = 'me-amount-mismatch';
 const M_CURRENCY_MISMATCH = 'me-currency-mismatch';
 const M_AMOUNT_MATCH = 'me-amount-match';
 const M_AMOUNT_ABSENT = 'me-amount-absent';
+const M_RECEIPT_DECEASED = 'me-receipt-deceased';
+const M_RECEIPT_DELETED = 'me-receipt-deleted';
+const M_RENEWAL_DECEASED = 'me-renewal-deceased';
+const M_RENEWAL_DELETED = 'me-renewal-deleted';
+const M_RECEIPT_LIVE = 'me-receipt-live';
+const M_RECEIPT_BOUNCED = 'me-receipt-bounced';
+const M_RECEIPT_ADMIN = 'me-receipt-admin';
 
 const MEMBERS = [
   M_REFUND_FAILED, M_REFUND_PROGRESS,
   M_INVOICE_PAID, M_INVOICE_TWICE, M_INVOICE_RESTATE, M_INVOICE_ZERO,
   M_AMOUNT_MISMATCH, M_CURRENCY_MISMATCH, M_AMOUNT_MATCH, M_AMOUNT_ABSENT,
+  M_RECEIPT_DECEASED, M_RECEIPT_DELETED, M_RENEWAL_DECEASED, M_RENEWAL_DELETED,
+  M_RECEIPT_LIVE,
 ];
 
 beforeAll(async () => {
@@ -41,6 +50,14 @@ beforeAll(async () => {
   for (const [i, id] of MEMBERS.entries()) {
     insertMember(db, { id, slug: `me_${i}`, display_name: `Me ${i}`, login_email: `me${i}@example.com` });
   }
+  insertMember(db, {
+    id: M_RECEIPT_BOUNCED, slug: 'me_receipt_bounced', display_name: 'Me Bounced',
+    login_email: 'me-bounced@example.com', email_status: 'bounced',
+  });
+  insertMember(db, {
+    id: M_RECEIPT_ADMIN, slug: 'me_receipt_admin', display_name: 'Receipt Admin',
+    login_email: 'me-receipt-admin@example.com', is_admin: 1,
+  });
   db.close();
   await importApp();
 });
@@ -426,6 +443,111 @@ describe('a renewal the provider reports as paid', () => {
       'SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ?',
       M_INVOICE_ZERO,
     )).toBe(outboxBefore);
+  });
+});
+
+// A payer can die, delete their account or start bouncing between paying and
+// the provider reporting it. The payment still has to be booked and the event
+// acknowledged, but no receipt may be queued, and the ledger must not claim one
+// was sent. A thrown lookup here used to answer 500 after the payment had
+// committed, waking the operator alarm for an event that had in fact applied.
+describe('the receipt for a payer the platform may no longer mail', () => {
+  async function makeUnmailable(memberId: string, state: 'deceased' | 'softDeleted'): Promise<void> {
+    if (state === 'deceased') {
+      const { deceasedMarkingService } = await import('../../src/services/deceasedMarkingService');
+      await deceasedMarkingService.markDeceased(M_RECEIPT_ADMIN, memberId);
+    } else {
+      const { getDefaultAccountDeletionService } = await import('../../src/services/accountDeletionService');
+      const result = await getDefaultAccountDeletionService().requestAccountDeletion({
+        memberId, recurringDonationChoice: 'keep',
+      });
+      expect(result.status).toBe('deleted');
+    }
+  }
+
+  function receiptRecord(memberId: string, paymentId: string): { outbox: number; audited: number } {
+    return {
+      outbox: countRows(
+        "SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ? AND template_key LIKE 'payment_receipt%'",
+        memberId,
+      ),
+      audited: countRows(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.receipt_sent' AND entity_id = ?",
+        paymentId,
+      ),
+    };
+  }
+
+  it('books a one-time gift from a deceased or deleted payer with no receipt', async () => {
+    for (const [memberId, state] of [
+      [M_RECEIPT_DECEASED, 'deceased'],
+      [M_RECEIPT_DELETED, 'softDeleted'],
+    ] as const) {
+      const { paymentService, stub } = await services();
+      const started = await paymentService.startDonation(memberId, 2500, null, false, '/x');
+      await makeUnmailable(memberId, state);
+      const evt = stub.buildSignedStubWebhookEvent(started.sessionId);
+      expect(paymentService.handleWebhook(evt.rawBody, evt.signature), state)
+        .toEqual({ outcome: 'processed' });
+
+      const db = openDb();
+      try {
+        const payment = db.prepare('SELECT id, status FROM payments WHERE stripe_checkout_session_id = ?')
+          .get(started.sessionId) as { id: string; status: string };
+        expect(payment.status, state).toBe('succeeded');
+        expect(receiptRecord(memberId, payment.id), state).toEqual({ outbox: 0, audited: 0 });
+      } finally {
+        db.close();
+      }
+    }
+  });
+
+  it('books a renewal from a deceased or deleted donor with no receipt', async () => {
+    for (const [memberId, state, invoiceId] of [
+      [M_RENEWAL_DECEASED, 'deceased', 'in_me_renewal_deceased'],
+      [M_RENEWAL_DELETED, 'softDeleted', 'in_me_renewal_deleted'],
+    ] as const) {
+      const { paymentService, stub } = await services();
+      const { sessionId } = await liveSubscription(memberId);
+      await makeUnmailable(memberId, state);
+      const paid = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_paid', { invoiceId });
+      expect(paymentService.handleWebhook(paid.rawBody, paid.signature), state)
+        .toEqual({ outcome: 'processed' });
+
+      const db = openDb();
+      try {
+        const charge = db.prepare('SELECT id, status FROM payments WHERE stripe_invoice_id = ?')
+          .get(invoiceId) as { id: string; status: string };
+        expect(charge.status, state).toBe('succeeded');
+        expect(receiptRecord(memberId, charge.id), state).toEqual({ outbox: 0, audited: 0 });
+      } finally {
+        db.close();
+      }
+    }
+  });
+
+  it('records a receipt as sent only when one was queued', async () => {
+    const { paymentService, stub } = await services();
+    const outcomes: Record<string, { outbox: number; audited: number }> = {};
+    for (const memberId of [M_RECEIPT_LIVE, M_RECEIPT_BOUNCED]) {
+      const started = await paymentService.startDonation(memberId, 2500, null, false, '/x');
+      const evt = stub.buildSignedStubWebhookEvent(started.sessionId);
+      expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'processed' });
+      const db = openDb();
+      try {
+        const { id } = db.prepare('SELECT id FROM payments WHERE stripe_checkout_session_id = ?')
+          .get(started.sessionId) as { id: string };
+        outcomes[memberId] = receiptRecord(memberId, id);
+      } finally {
+        db.close();
+      }
+    }
+    // The live payer proves the receipt path runs at all; the bounced mailbox
+    // is suppressed at the outbox, so the ledger must not say it went out.
+    expect(outcomes).toEqual({
+      [M_RECEIPT_LIVE]: { outbox: 1, audited: 1 },
+      [M_RECEIPT_BOUNCED]: { outbox: 0, audited: 0 },
+    });
   });
 });
 

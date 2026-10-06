@@ -27,6 +27,16 @@
 AWS_IDENTITY_BIN="${AWS_IDENTITY_BIN:-aws}"
 AWS_IDENTITY_REGION="${AWS_IDENTITY_REGION:-us-east-1}"
 
+# The AWS account this project runs in. Not a secret: it appears in every ARN
+# the project's roles are named by. It is the anchor a dev-and-tester's sealed
+# delivery is proved against: a delivery minted in any other account, under the
+# same user and role names, would otherwise pass every check that matches names
+# alone, and its host-key pins and the host address it names would be trusted.
+#
+# Fixed, never read from the environment. An anchor ambient state could move
+# proves nothing, and a test seam here would be one.
+FOOTBAG_AWS_ACCOUNT_ID="041904915126"
+
 # _aws_identity_caller_arn [<aws args>...]
 # One get-caller-identity. Prints the ARN on success and returns 0; prints the
 # error text and returns 1 on failure. The ARN is read from stdout alone,
@@ -87,6 +97,31 @@ aws_identity_require_user() {
   echo "       which is not user/${expected}. Acting on the strength of some" >&2
   echo "       other identity's success proves nothing. Nothing done." >&2
   return 1
+}
+
+# aws_identity_require_arn <profile> <expected-arn>
+#
+# The profile must resolve to exactly that ARN: account, path and name. The name
+# match above accepts the name in any account and under any path, which is right
+# for a check of which local key a profile holds and wrong wherever a credential
+# that came from outside is about to be trusted.
+aws_identity_require_arn() {
+  local profile="$1" expected="$2" arn
+  AWS_IDENTITY_ARN=""
+
+  if ! arn="$(_aws_identity_caller_arn --profile "$profile")"; then
+    echo "ERROR: the profile '${profile}' could not resolve an identity at all." >&2
+    printf '%s\n' "$arn" | sed 's/^/         /' >&2
+    return 1
+  fi
+  if [[ "$arn" != "$expected" ]]; then
+    echo "ERROR: '${profile}' resolves to ${arn}," >&2
+    echo "       not ${expected}. Nothing done." >&2
+    return 1
+  fi
+  AWS_IDENTITY_ARN="$arn"
+  echo "    ${profile}: ${arn}"
+  return 0
 }
 
 # aws_identity_require_direct_user <expected-iam-user>

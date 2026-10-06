@@ -13,17 +13,20 @@
  * about a named person landing there would outlive every erasure the platform
  * can perform.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertHistoricalPerson, insertEvent, createTestSessionJwt,
-  insertRegistration,
+  insertRegistration, insertOutboxEmail, insertRecurringDonationSubscription,
+  insertSystemConfig,
 } from '../fixtures/factories';
+import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3431');
+process.env.PAYMENT_ADAPTER = 'stub';
 
 const ADMIN_ID = 'dm_admin';
 const PLAIN_ID = 'dm_plain';
@@ -32,6 +35,14 @@ const HONOURED_ID = 'dm_honoured';
 const REVERT_ID = 'dm_revert';
 const STALE_ID = 'dm_stale';
 const PROBE_ID = 'dm_probe';
+const QUEUED_ID = 'dm_queued';
+const DONOR_ID = 'dm_donor';
+const ENDED_DONOR_ID = 'dm_ended_donor';
+const DECLINED_DONOR_ID = 'dm_declined_donor';
+
+const DONOR_SUB = 'sub_dm_donor';
+const ENDED_SUB = 'sub_dm_ended';
+const DECLINED_SUB = 'sub_dm_declined';
 
 const PERSON_ID = 'dm_person_1';
 const UNLINKED_PERSON_ID = 'dm_person_2';
@@ -97,7 +108,8 @@ beforeAll(async () => {
   });
   for (const [id, name] of [
     [PLAIN_ID, 'Pat Plain'], [REVERT_ID, 'Rex Revert'], [STALE_ID, 'Stan Stale'],
-    [PROBE_ID, 'Percy Probe'],
+    [PROBE_ID, 'Percy Probe'], [QUEUED_ID, 'Quinn Queued'],
+    [DONOR_ID, 'Dora Donor'], [ENDED_DONOR_ID, 'Eddie Ended'], [DECLINED_DONOR_ID, 'Dee Declined'],
   ] as const) {
     insertMember(conn, {
       id, slug: id, display_name: name, real_name: name, login_email: `${id}@example.com`,
@@ -122,6 +134,21 @@ beforeAll(async () => {
   for (const [rid, eid] of [['dm_reg_future', 'dm_event_future'], ['dm_reg_past', 'dm_event_past']] as const) {
     insertRegistration(conn, eid, PLAIN_ID, { id: rid });
   }
+
+  insertRecurringDonationSubscription(conn, {
+    id: 'rds_dm_donor', member_id: DONOR_ID, stripe_subscription_id: DONOR_SUB,
+  });
+  // One cancellation attempt per member per hour, which the donor case below
+  // uses up before the marking. The administrator's one cancellation per
+  // marking is not a member's double submit and must not be refused as one.
+  insertSystemConfig(conn, { config_key: 'donation_rate_limit_per_hour', value_json: '1' });
+  insertRecurringDonationSubscription(conn, {
+    id: 'rds_dm_ended', member_id: ENDED_DONOR_ID, stripe_subscription_id: ENDED_SUB,
+    status: 'canceled', canceled_at: '2025-01-01T00:00:00.000Z',
+  });
+  insertRecurringDonationSubscription(conn, {
+    id: 'rds_dm_declined', member_id: DECLINED_DONOR_ID, stripe_subscription_id: DECLINED_SUB,
+  });
 
   conn.close();
   createApp = await importApp();
@@ -150,6 +177,32 @@ describe('marking a member deceased', () => {
     expect(past.status).toBe('confirmed');
 
     expect(auditCount('member.deceased_marked', PLAIN_ID)).toBe(1);
+  });
+
+  // Defect caught: mail queued before the marking (a club notice held behind an
+  // operator pause, say) still drains to the family afterwards.
+  it('stops mail already queued to the member, and leaves what was sent alone', async () => {
+    const ids = db((conn) => ({
+      queued: insertOutboxEmail(conn, {
+        recipient_member_id: QUEUED_ID, recipient_email: `${QUEUED_ID}@example.com`, status: 'pending',
+      }),
+      sent: insertOutboxEmail(conn, {
+        recipient_member_id: QUEUED_ID, recipient_email: `${QUEUED_ID}@example.com`, status: 'sent',
+      }),
+    }));
+
+    expect(await mark(QUEUED_ID)).toBe(303);
+
+    const rows = db((conn) => ({
+      queued: conn.prepare('SELECT status, last_error, body_text FROM outbox_emails WHERE id = ?')
+        .get(ids.queued) as { status: string; last_error: string | null; body_text: string | null },
+      sent: conn.prepare('SELECT status FROM outbox_emails WHERE id = ?')
+        .get(ids.sent) as { status: string },
+    }));
+    expect(rows.queued.status).toBe('dead_letter');
+    expect(rows.queued.last_error).toBe('recipient_deceased');
+    expect(rows.queued.body_text).toBeNull();
+    expect(rows.sent.status).toBe('sent');
   });
 
   it('refuses a second marking rather than writing a second audit row', async () => {
@@ -273,6 +326,125 @@ describe('the same flag on a record nobody has claimed', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Lena Linked');
     expect(res.text).toContain(`/admin/members/${LINKED_ID}`);
+  });
+});
+
+// A yearly gift left running charges a dead person's card every year, which
+// ends in a dispute by the family. The marking ends each active gift at the
+// close of the period already paid for, so the gift made is kept and nothing
+// further is charged. The provider call cannot sit inside the marking's
+// transaction, so a provider failure leaves the marking in place and tells the
+// administrator rather than undoing it.
+describe('a deceased member\'s recurring donations', () => {
+  let cancelCalls: string[] = [];
+
+  async function watchProvider(fail: boolean): Promise<void> {
+    const mod = await import('../../src/adapters/paymentAdapter');
+    mod.resetPaymentAdapterForTests();
+    const stub = mod.getPaymentAdapter();
+    cancelCalls = [];
+    mod.setPaymentAdapterForTests({
+      ...stub,
+      async cancelSubscriptionAtPeriodEnd(id: string) {
+        cancelCalls.push(id);
+        if (fail) throw new Error('injected provider refusal');
+      },
+    });
+  }
+
+  afterEach(async () => {
+    const mod = await import('../../src/adapters/paymentAdapter');
+    mod.resetPaymentAdapterForTests();
+  });
+
+  async function markAndLand(memberId: string): Promise<string> {
+    const res = await request(createApp())
+      .post(`/admin/members/${memberId}/deceased/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+    const carried = (res.headers['set-cookie'] as unknown as string[])
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const landed = await request(createApp())
+      .get(`/admin/members/${memberId}`)
+      .set('Cookie', `${carried}; ${adminCookie()}`);
+    expect(landed.status).toBe(200);
+    return landed.text;
+  }
+
+  function subscription(id: string): { status: string; is_cancel_at_period_end: number } {
+    return db((conn) => conn.prepare(
+      'SELECT status, is_cancel_at_period_end FROM recurring_donation_subscriptions WHERE id = ?',
+    ).get(id)) as { status: string; is_cancel_at_period_end: number };
+  }
+
+  function markingMetadata(memberId: string): Record<string, unknown> {
+    const row = db((conn) => conn.prepare(
+      "SELECT metadata_json FROM audit_entries WHERE action_type = 'member.deceased_marked' AND entity_id = ?",
+    ).get(memberId)) as { metadata_json: string };
+    return JSON.parse(row.metadata_json) as Record<string, unknown>;
+  }
+
+  it('cancels an active donation at period end, on the administrator\'s authority', async () => {
+    await watchProvider(false);
+    const { hit } = await import('../../src/services/rateLimitService');
+    expect(hit(`cancel-recurring:${DONOR_ID}`, 1, 60).allowed).toBe(true);
+    const page = await markAndLand(DONOR_ID);
+
+    expect(memberRow(DONOR_ID).is_deceased).toBe(1);
+    expect(cancelCalls).toEqual([DONOR_SUB]);
+    expect(subscription('rds_dm_donor')).toEqual({ status: 'active', is_cancel_at_period_end: 1 });
+    expect(markingMetadata(DONOR_ID)['recurring_donations_to_cancel']).toEqual(['rds_dm_donor']);
+
+    // The cancellation is the administrator's act, not the member's: a trail
+    // reading as the member's own request would misstate who ended the gift.
+    const cancel = db((conn) => conn.prepare(
+      `SELECT actor_type, actor_member_id,
+              json_extract(metadata_json, '$.member_id') AS member_id,
+              json_extract(metadata_json, '$.reason') AS reason
+       FROM audit_entries
+       WHERE action_type = 'payment.recurring_cancel_requested' AND entity_id = 'rds_dm_donor'`,
+    ).all()) as Record<string, unknown>[];
+    expect(cancel).toEqual([{
+      actor_type: 'admin', actor_member_id: ADMIN_ID, member_id: DONOR_ID, reason: 'member_deceased',
+    }]);
+    const ledger = db((conn) => conn.prepare(
+      `SELECT reason_text FROM recurring_donation_subscription_transitions
+       WHERE recurring_subscription_id = 'rds_dm_donor' AND lifecycle_event_code = 'cancel_requested'`,
+    ).all()) as { reason_text: string }[];
+    expect(ledger).toEqual([
+      { reason_text: 'cancelled at period end because the member was marked deceased' },
+    ]);
+
+    // The family receives no "your donation was cancelled" notice.
+    const outbox = db((conn) => conn.prepare(
+      'SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ?',
+    ).get(DONOR_ID)) as { c: number };
+    expect(outbox.c).toBe(0);
+
+    expect(page).not.toContain('could not be cancelled');
+  });
+
+  it('asks the provider for nothing when the donation has already ended', async () => {
+    await watchProvider(false);
+    await markAndLand(ENDED_DONOR_ID);
+
+    expect(memberRow(ENDED_DONOR_ID).is_deceased).toBe(1);
+    expect(cancelCalls).toEqual([]);
+    expect(markingMetadata(ENDED_DONOR_ID)['recurring_donations_to_cancel']).toEqual([]);
+  });
+
+  it('keeps the marking and tells the administrator when the provider refuses', async () => {
+    await watchProvider(true);
+    expectLoggedError('recurring donation could not be cancelled after the member was marked deceased');
+    const page = await markAndLand(DECLINED_DONOR_ID);
+
+    expect(memberRow(DECLINED_DONOR_ID).is_deceased).toBe(1);
+    expect(cancelCalls).toEqual([DECLINED_SUB]);
+    expect(subscription('rds_dm_declined')).toEqual({ status: 'active', is_cancel_at_period_end: 0 });
+    expect(page).toContain('could not be cancelled');
   });
 });
 

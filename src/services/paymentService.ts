@@ -21,6 +21,10 @@
  *     PageViewModel including copy, amounts, and hrefs. Controllers fetch the
  *     payment row, enforce the ownership/session gate, validate request-derived
  *     redirect targets, then render the returned model without augmenting it.
+ *   - The stub-mode stand-in for the provider's hosted checkout: reading the
+ *     viewer's simulated session and completing it with the event the provider
+ *     would send, so no controller selects the payment adapter or reads its
+ *     state.
  *
  * Does not own:
  *   - Tier-grant ledger writes (delegated to
@@ -63,6 +67,10 @@
  *     that window; the cancel-intent write closes it, refusing to move a row
  *     whose cancellation was already requested, so only the request that
  *     actually moved it may append to the ledger.
+ *   - The one cancellation an administrator makes is the deceased marking's,
+ *     through the member's own cancel path: the ledger and the audit row name
+ *     the administrator and the reason, and the member's throttle does not
+ *     apply to it.
  *   - Recurring donations mirror Stripe, never lead it. Stripe owns the annual
  *     billing cycle, the dunning schedule, and every retry; the local
  *     subscription row moves only in response to a webhook. A member's
@@ -247,8 +255,13 @@
  *     variant rather than its own transaction().
  *   - Adapter calls (`createCheckoutSession`) happen OUTSIDE transactions
  *     (they are network calls in live mode).
- *   - Side effects (audit append, receipt-email enqueue) run AFTER the
- *     transaction commits, gated on the processed outcome.
+ *   - A webhook handler's audit row and any administrator work item are written
+ *     inside the same transaction as the event's idempotency claim, so a failed
+ *     write rolls the claim back and the redelivery writes them; written after
+ *     the commit, the redelivery would return early as a duplicate and the
+ *     record would be lost. Only the member and administrator notices (receipt,
+ *     lifecycle email, the donation-ended alert) run after the commit, gated on
+ *     the processed outcome.
  *
  * Persistence:
  *   payments, payment_status_transitions, stripe_events,
@@ -263,7 +276,9 @@
  *     zero-amount renewal invoice, subscription lifecycle)
  *   - outbox_emails enqueue (payment receipt, recurring-donation lifecycle
  *     notices, admin alert when a recurring donation ends; all best-effort
- *     after the commit)
+ *     after the commit). A payer who is deceased or no longer an active member
+ *     is skipped with a warning, never failed, because the event has already
+ *     applied; and a receipt the outbox suppressed is not recorded as sent.
  *   - work_queue_items insert in the `payments` category for the money events an
  *     administrator must see: a declined recurring charge, a partially refunded
  *     payment, a refund matching no local record, a refund the provider could
@@ -315,6 +330,7 @@ import {
 import {
   getPaymentAdapter,
   type StripeWebhookEvent,
+  type StubPaymentAdapter,
 } from '../adapters/paymentAdapter';
 import { emailService } from './emailService';
 import { formatDateDisplay } from './dateFormat';
@@ -639,11 +655,20 @@ function validateEligibility(currentTier: MemberTier, target: 'tier1' | 'tier2')
   }
 }
 
-function lookupMemberContact(memberId: string): { slug: string; loginEmail: string | null; realName: string | null } {
+/**
+ * The contact a payment notice goes to, or null when the payer is no longer a
+ * member the platform mails: deceased, deleted or erased. Both notice helpers
+ * run after their event has committed, so a missing payer is a notice to skip,
+ * never a failure that would answer the provider with an error for an event
+ * that has already applied.
+ */
+function lookupMemberContact(
+  memberId: string,
+): { slug: string; loginEmail: string | null; realName: string | null } | null {
   const row = auth.findMemberForSessionAfterVerify.get(memberId) as
     | { slug: string; login_email: string | null; real_name: string | null }
     | undefined;
-  if (!row) throw new NotFoundError('member not found');
+  if (!row) return null;
   return { slug: row.slug, loginEmail: row.login_email, realName: row.real_name };
 }
 
@@ -1329,9 +1354,19 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
     return recordIdempotentNoop(event, 'duplicate');
   }
   if (payment.status !== 'pending') {
-    throw new RecoverableWebhookError(
-      `payment ${payment.id} cannot transition to succeeded from status=${payment.status}`,
-    );
+    // Settled another way first: the provider cancels the payment intent when
+    // its checkout session expires, so a buyer paying at that moment produces a
+    // success against a canceled payment. No redelivery could ever apply it, so
+    // it is acknowledged rather than retried, and the nightly reconciliation
+    // raises the disagreement for an administrator. Only the first delivery
+    // warns; a redelivery finds the event claimed and is a duplicate.
+    if (!claimEvent(event)) return { outcome: 'duplicate' };
+    logger.warn('payment success reported against a settled payment; acknowledged', {
+      paymentId: payment.id,
+      status: payment.status,
+      eventId: event.id,
+    });
+    return { outcome: 'ignored' };
   }
 
   // One transaction: claim the event id, transition pending -> succeeded, write
@@ -1422,31 +1457,30 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
         },
       }, new Date());
     }
+    appendAuditEntry({
+      actionType: 'payment.succeeded',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: null,
+      metadata: {
+        member_id: payment.member_id,
+        payment_type: payment.payment_type,
+        purchased_tier_status: payment.purchased_tier_status,
+        stripe_event_id: event.id,
+        stripe_payment_intent_id: paymentIntentId,
+        // The story requires the settled amount and its currency on this row.
+        // The audit ledger is retained for seven years and is read on its own,
+        // long after anyone would think to join it back to the payment row.
+        amount_cents: payment.amount_cents,
+        currency: payment.currency,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.succeeded',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'payment',
-    entityId: payment.id,
-    reasonText: null,
-    metadata: {
-      member_id: payment.member_id,
-      payment_type: payment.payment_type,
-      purchased_tier_status: payment.purchased_tier_status,
-      stripe_event_id: event.id,
-      stripe_payment_intent_id: paymentIntentId,
-      // The story requires the settled amount and its currency on this row.
-      // The audit ledger is retained for seven years and is read on its own,
-      // long after anyone would think to join it back to the payment row.
-      amount_cents: payment.amount_cents,
-      currency: payment.currency,
-    },
-  });
 
   // Best-effort receipt email. Failure does not roll back the tier grant;
   // the payment is recorded, the tier is granted, and the member can see
@@ -1492,28 +1526,27 @@ function handlePaymentIntentFailed(event: StripeWebhookEvent): WebhookOutcome {
       eventType: event.type,
       reasonText: 'payment attempt declined; the checkout session remains open',
     });
+    appendAuditEntry({
+      // Named "declined" rather than "failed": a card the bank refused is an
+      // ordinary donor-side event, not a platform fault for an operator to act on,
+      // so it must not travel the operational-error path that raises the alarm.
+      actionType: 'payment.attempt_declined',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: null,
+      metadata: {
+        member_id: payment.member_id,
+        payment_type: payment.payment_type,
+        stripe_event_id: event.id,
+        stripe_payment_intent_id: paymentIntentId,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    // Named "declined" rather than "failed": a card the bank refused is an
-    // ordinary donor-side event, not a platform fault for an operator to act on,
-    // so it must not travel the operational-error path that raises the alarm.
-    actionType: 'payment.attempt_declined',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'payment',
-    entityId: payment.id,
-    reasonText: null,
-    metadata: {
-      member_id: payment.member_id,
-      payment_type: payment.payment_type,
-      stripe_event_id: event.id,
-      stripe_payment_intent_id: paymentIntentId,
-    },
-  });
 
   enqueueReceiptEmail(payment, 'failed');
   return { outcome: 'processed' };
@@ -1683,6 +1716,19 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
   }
 
   if (payment.status === 'refunded') return recordIdempotentNoop(event, 'duplicate');
+  if (payment.status === 'canceled' || payment.status === 'failed') {
+    // A settled payment that never succeeded cannot become refunded, and no
+    // redelivery would change that, so the event is acknowledged and left to the
+    // nightly reconciliation. A pending payment still throws below: there the
+    // refund may simply have arrived before the success it follows.
+    if (!claimEvent(event)) return { outcome: 'duplicate' };
+    logger.warn('refund reported against a payment that never succeeded; acknowledged', {
+      paymentId: payment.id,
+      status: payment.status,
+      eventId: event.id,
+    });
+    return { outcome: 'ignored' };
+  }
   if (payment.status !== 'succeeded') {
     throw new RecoverableWebhookError(
       `payment ${payment.id} cannot transition to refunded from status=${payment.status}`,
@@ -1703,33 +1749,32 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       eventType: event.type,
       reasonText: 'charge.refunded',
     });
+    appendAuditEntry({
+      actionType: 'payment.refunded',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: null,
+      metadata: {
+        member_id: payment.member_id,
+        stripe_event_id: event.id,
+        stripe_payment_intent_id: paymentIntentId,
+        // The story names the charge id, the amount returned and its currency.
+        // A refund dispute is worked from this row, and without the amount it
+        // cannot say how much went back.
+        stripe_charge_id: chargeId,
+        refunded_amount_cents: refundedAmount,
+        currency: payment.currency,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
 
   // Per DD §6.1: no automatic tier or registration changes on refund.
   // Access changes (if any) are admin-driven via A_Override_Member_Data.
-
-  appendAuditEntry({
-    actionType: 'payment.refunded',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'payment',
-    entityId: payment.id,
-    reasonText: null,
-    metadata: {
-      member_id: payment.member_id,
-      stripe_event_id: event.id,
-      stripe_payment_intent_id: paymentIntentId,
-      // The story names the charge id, the amount returned and its currency.
-      // A refund dispute is worked from this row, and without the amount it
-      // cannot say how much went back.
-      stripe_charge_id: chargeId,
-      refunded_amount_cents: refundedAmount,
-      currency: payment.currency,
-    },
-  });
   return { outcome: 'processed' };
 }
 
@@ -2090,25 +2135,24 @@ function handleRecurringCheckoutExpired(
       newStatus: 'canceled',
       reasonText: 'checkout.session.expired',
     });
+    appendAuditEntry({
+      actionType: 'payment.recurring_donation_checkout_abandoned',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: subscription.id,
+      reasonText: 'checkout.session.expired',
+      metadata: {
+        member_id: subscription.member_id,
+        stripe_event_id: event.id,
+        amount_cents: subscription.amount_cents,
+        currency: subscription.currency,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_donation_checkout_abandoned',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'recurring_donation_subscription',
-    entityId: subscription.id,
-    reasonText: 'checkout.session.expired',
-    metadata: {
-      member_id: subscription.member_id,
-      stripe_event_id: event.id,
-      amount_cents: subscription.amount_cents,
-      currency: subscription.currency,
-    },
-  });
   return { outcome: 'processed' };
 }
 
@@ -2167,29 +2211,35 @@ function handleCheckoutExpired(event: StripeWebhookEvent): WebhookOutcome {
       eventType: event.type,
       reasonText: 'checkout.session.expired',
     });
+    appendAuditEntry({
+      actionType: 'payment.canceled',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: null,
+      metadata: {
+        member_id: payment.member_id,
+        stripe_event_id: event.id,
+        stripe_checkout_session_id: sessionId,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.canceled',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'payment',
-    entityId: payment.id,
-    reasonText: null,
-    metadata: {
-      member_id: payment.member_id,
-      stripe_event_id: event.id,
-      stripe_checkout_session_id: sessionId,
-    },
-  });
   return { outcome: 'processed' };
 }
 
 function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed'): void {
   const contact = lookupMemberContact(payment.member_id);
+  if (!contact) {
+    logger.warn(
+      'payment receipt skipped: payer is deceased or no longer an active member',
+      { paymentId: payment.id, memberId: payment.member_id },
+    );
+    return;
+  }
   if (!contact.loginEmail) {
     logger.warn(
       'payment receipt skipped: member has no login_email',
@@ -2199,7 +2249,7 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
   }
 
   try {
-    emailService.send({
+    const sent = emailService.send({
       template: 'payment_receipt',
       params: {
         descriptor: payment.descriptor,
@@ -2226,6 +2276,9 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
       recipientMemberId: payment.member_id,
       idempotencyKey: `payment_receipt:${payment.id}:${outcome}`,
     });
+    // A receipt the outbox refused, because the mailbox bounced or the payer
+    // can no longer be mailed, did not go out, and the ledger must not say so.
+    if (sent.status === 'suppressed') return;
     // That a receipt went out is part of the record, not just a queue entry.
     // The outbox row is deleted once it ages past the outbound-copy retention
     // window, so without this there is no durable evidence anywhere that a
@@ -2524,26 +2577,25 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
     memberBillingDb.setStripeCustomerIdIfNull.run(
       stripeCustomerId, now, 'payment_service', memberId,
     );
+    appendAuditEntry({
+      actionType: 'payment.recurring_donation_activated',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: subscriptionRecordId,
+      reasonText: null,
+      metadata: {
+        member_id: memberId,
+        stripe_event_id: event.id,
+        stripe_subscription_id: stripeSubscriptionId,
+        amount_cents: amountCents,
+        currency: CURRENCY,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_donation_activated',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'recurring_donation_subscription',
-    entityId: subscriptionRecordId,
-    reasonText: null,
-    metadata: {
-      member_id: memberId,
-      stripe_event_id: event.id,
-      stripe_subscription_id: stripeSubscriptionId,
-      amount_cents: amountCents,
-      currency: CURRENCY,
-    },
-  });
 
   const inserted = subsDb.findById.get(subscriptionRecordId) as RecurringSubscriptionRow;
   enqueueSubscriptionEmail(inserted, 'donation_subscription_started');
@@ -2592,29 +2644,28 @@ function restateRecordedInvoiceCharge(
     paymentsDb.updateChargeAmountWithEventTime.run(
       charge.amountCents, event.createdAt, now, 'payment_service', payment.id,
     );
+    appendAuditEntry({
+      actionType: 'payment.recurring_charge_amount_updated',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: null,
+      metadata: {
+        member_id: charge.memberId,
+        recurring_subscription_id: charge.subscriptionId,
+        stripe_event_id: event.id,
+        stripe_invoice_id: charge.invoiceId,
+        stripe_subscription_id: charge.stripeSubscriptionId,
+        previous_amount_cents: payment.amount_cents,
+        amount_cents: charge.amountCents,
+        currency: charge.currency,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_charge_amount_updated',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'payment',
-    entityId: payment.id,
-    reasonText: null,
-    metadata: {
-      member_id: charge.memberId,
-      recurring_subscription_id: charge.subscriptionId,
-      stripe_event_id: event.id,
-      stripe_invoice_id: charge.invoiceId,
-      stripe_subscription_id: charge.stripeSubscriptionId,
-      previous_amount_cents: payment.amount_cents,
-      amount_cents: charge.amountCents,
-      currency: charge.currency,
-    },
-  });
 
   return { outcome: 'processed' };
 }
@@ -2798,6 +2849,24 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
         event.id, event.createdAt, now, 'payment_service', sub.id, event.createdAt,
       );
     }
+    appendAuditEntry({
+      actionType: 'payment.recurring_charge_succeeded',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: paymentId,
+      reasonText: null,
+      metadata: {
+        member_id: sub.member_id,
+        recurring_subscription_id: sub.id,
+        stripe_event_id: event.id,
+        stripe_invoice_id: invoiceId,
+        stripe_subscription_id: stripeSubscriptionId,
+        amount_cents: amountCents,
+        currency,
+      },
+    });
     return true;
     });
   } catch (err) {
@@ -2812,25 +2881,6 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
     throw err;
   }
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_charge_succeeded',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'payment',
-    entityId: paymentId,
-    reasonText: null,
-    metadata: {
-      member_id: sub.member_id,
-      recurring_subscription_id: sub.id,
-      stripe_event_id: event.id,
-      stripe_invoice_id: invoiceId,
-      stripe_subscription_id: stripeSubscriptionId,
-      amount_cents: amountCents,
-      currency,
-    },
-  });
 
   const payment = paymentsDb.findById.get(paymentId) as PaymentRow;
   enqueueReceiptEmail(payment, 'succeeded');
@@ -2915,51 +2965,50 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
       // in the Stripe Dashboard governs every further attempt.
       reasonText: 'stripe reported a failed renewal charge',
     });
+    appendAuditEntry({
+      // Named "declined" rather than "failed": a renewal charge Stripe could not
+      // collect is an ordinary donor-side event (an expired card, usually), not a
+      // platform fault for an operator to act on, so it must not travel the
+      // operational-error path that raises the error alarm.
+      actionType: 'payment.recurring_charge_declined',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      reasonText: null,
+      metadata: {
+        member_id: sub.member_id,
+        stripe_event_id: event.id,
+        stripe_invoice_id: invoiceId,
+        stripe_subscription_id: stripeSubscriptionId,
+        failure_count: sub.failure_count + 1,
+      },
+    });
+    // Surfaced on the admin dashboard as a payments work-queue item. Raised
+    // inside the claim, beside the status change it reports: raised after the
+    // commit, a failed insert would let the redelivery return early as a
+    // duplicate and the declined charge would reach no administrator.
+    workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'payments',
+      taskType: 'recurring_donation_charge_declined',
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      priority: 0,
+      reasonText: 'A recurring donation renewal charge failed at Stripe.',
+      detailText: [
+        `Subscription ${stripeSubscriptionId}`,
+        `amount ${formatAmount(sub.amount_cents, sub.currency)}`,
+        invoiceId === null ? null : `invoice ${invoiceId}`,
+        `charge failed on ${event.createdAt.slice(0, 10)}`,
+      ]
+        .filter((part) => part !== null)
+        .join('; '),
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    // Named "declined" rather than "failed": a renewal charge Stripe could not
-    // collect is an ordinary donor-side event (an expired card, usually), not a
-    // platform fault for an operator to act on, so it must not travel the
-    // operational-error path that raises the error alarm.
-    actionType: 'payment.recurring_charge_declined',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'recurring_donation_subscription',
-    entityId: sub.id,
-    reasonText: null,
-    metadata: {
-      member_id: sub.member_id,
-      stripe_event_id: event.id,
-      stripe_invoice_id: invoiceId,
-      stripe_subscription_id: stripeSubscriptionId,
-      failure_count: sub.failure_count + 1,
-    },
-  });
-
-  // Surfaced on the admin dashboard as a payments work-queue item. Enqueued
-  // after the commit, alongside the other side effects, so a notification
-  // problem can never roll back the status change it reports.
-  workQueueService.enqueue({
-    actorId: 'system',
-    queueCategory: 'payments',
-    taskType: 'recurring_donation_charge_declined',
-    entityType: 'recurring_donation_subscription',
-    entityId: sub.id,
-    priority: 0,
-    reasonText: 'A recurring donation renewal charge failed at Stripe.',
-    detailText: [
-      `Subscription ${stripeSubscriptionId}`,
-      `amount ${formatAmount(sub.amount_cents, sub.currency)}`,
-      invoiceId === null ? null : `invoice ${invoiceId}`,
-      `charge failed on ${event.createdAt.slice(0, 10)}`,
-    ]
-      .filter((part) => part !== null)
-      .join('; '),
-  });
 
   const updated = subsDb.findById.get(sub.id) as RecurringSubscriptionRow;
   enqueueSubscriptionEmail(updated, 'donation_subscription_charge_failed');
@@ -3004,25 +3053,24 @@ function handleSubscriptionDeleted(event: StripeWebhookEvent): WebhookOutcome {
           ? 'member-requested cancellation took effect at period end'
           : 'stripe ended the subscription after exhausting retries',
     });
+    appendAuditEntry({
+      actionType: 'payment.recurring_donation_canceled',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      reasonText: null,
+      metadata: {
+        member_id: sub.member_id,
+        stripe_event_id: event.id,
+        stripe_subscription_id: stripeSubscriptionId,
+        member_requested: sub.is_cancel_at_period_end === 1,
+      },
+    });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_donation_canceled',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'recurring_donation_subscription',
-    entityId: sub.id,
-    reasonText: null,
-    metadata: {
-      member_id: sub.member_id,
-      stripe_event_id: event.id,
-      stripe_subscription_id: stripeSubscriptionId,
-      member_requested: sub.is_cancel_at_period_end === 1,
-    },
-  });
 
   const canceled = subsDb.findById.get(sub.id) as RecurringSubscriptionRow;
   enqueueSubscriptionEmail(canceled, 'donation_subscription_canceled');
@@ -3167,57 +3215,55 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
       newStatus: nextStatus,
       reasonText: 'stripe reported a subscription change',
     });
+    appendAuditEntry({
+      actionType: 'payment.recurring_donation_updated',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      reasonText: null,
+      metadata: {
+        member_id: sub.member_id,
+        stripe_event_id: event.id,
+        stripe_subscription_id: stripeSubscriptionId,
+        old_status: sub.status,
+        new_status: nextStatus,
+        old_amount_cents: sub.amount_cents,
+        new_amount_cents: nextAmount,
+        stripe_status: typeof rawStatus === 'string' ? rawStatus : null,
+        old_cancel_at_period_end: sub.is_cancel_at_period_end,
+        new_cancel_at_period_end: nextCancelAtPeriodEnd,
+        collection_paused: collectionPaused,
+      },
+    });
+    // A pause collects nothing but is not a failed charge, and the mirror has no
+    // state that tells the two apart. Raising it keeps a donation that has quietly
+    // stopped paying from reading as an ordinary dunning problem that Stripe will
+    // resolve on its own.
+    //
+    // Both shapes reach here. The provider's `paused` status covers a trial that
+    // ended without a payment method; `pause_collection` is what an administrator
+    // pausing collection in the dashboard actually sets, and it leaves the status
+    // reading active.
+    if (rawStatus === 'paused' || collectionPaused) {
+      workQueueService.enqueue({
+        actorId: 'system',
+        queueCategory: 'payments',
+        taskType: 'recurring_donation_paused',
+        entityType: 'recurring_donation_subscription',
+        entityId: sub.id,
+        priority: 0,
+        reasonText: 'A recurring donation was paused at Stripe and is no longer collecting.',
+        detailText: [
+          `Subscription ${stripeSubscriptionId}`,
+          `amount ${formatAmount(nextAmount, sub.currency)}`,
+        ].join('; '),
+      });
+    }
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_donation_updated',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'recurring_donation_subscription',
-    entityId: sub.id,
-    reasonText: null,
-    metadata: {
-      member_id: sub.member_id,
-      stripe_event_id: event.id,
-      stripe_subscription_id: stripeSubscriptionId,
-      old_status: sub.status,
-      new_status: nextStatus,
-      old_amount_cents: sub.amount_cents,
-      new_amount_cents: nextAmount,
-      stripe_status: typeof rawStatus === 'string' ? rawStatus : null,
-      old_cancel_at_period_end: sub.is_cancel_at_period_end,
-      new_cancel_at_period_end: nextCancelAtPeriodEnd,
-      collection_paused: collectionPaused,
-    },
-  });
-
-  // A pause collects nothing but is not a failed charge, and the mirror has no
-  // state that tells the two apart. Raising it keeps a donation that has quietly
-  // stopped paying from reading as an ordinary dunning problem that Stripe will
-  // resolve on its own.
-  //
-  // Both shapes reach here. The provider's `paused` status covers a trial that
-  // ended without a payment method; `pause_collection` is what an administrator
-  // pausing collection in the dashboard actually sets, and it leaves the status
-  // reading active.
-  if (rawStatus === 'paused' || collectionPaused) {
-    workQueueService.enqueue({
-      actorId: 'system',
-      queueCategory: 'payments',
-      taskType: 'recurring_donation_paused',
-      entityType: 'recurring_donation_subscription',
-      entityId: sub.id,
-      priority: 0,
-      reasonText: 'A recurring donation was paused at Stripe and is no longer collecting.',
-      detailText: [
-        `Subscription ${stripeSubscriptionId}`,
-        `amount ${formatAmount(nextAmount, sub.currency)}`,
-      ].join('; '),
-    });
-  }
   return { outcome: 'processed' };
 }
 
@@ -3235,6 +3281,14 @@ function enqueueSubscriptionEmail(
   template: SubscriptionEmailTemplate,
 ): void {
   const contact = lookupMemberContact(sub.member_id);
+  if (!contact) {
+    logger.warn('recurring donation notice skipped: donor is deceased or no longer an active member', {
+      subscriptionId: sub.id,
+      memberId: sub.member_id,
+      template,
+    });
+    return;
+  }
   if (!contact.loginEmail) {
     logger.warn('recurring donation notice skipped: member has no login_email', {
       subscriptionId: sub.id,
@@ -3868,10 +3922,17 @@ async function startDonation(
  * intended to give and no further charge occurs. The local status stays put:
  * only `customer.subscription.deleted` moves it to canceled, which is what keeps
  * local state a mirror of Stripe rather than a second opinion.
+ *
+ * An administrator marking the member deceased ends the gift through this same
+ * path, passing `byAdmin`: the ledger and the audit row then name the
+ * administrator and the reason, so the trail never reads as the member's own
+ * request, and the member's per-person throttle does not apply because the
+ * marking that triggers it commits once.
  */
 async function cancelRecurringDonation(
   memberId: string,
   stripeSubscriptionId: string,
+  byAdmin?: { adminMemberId: string; reason: 'member_deceased' },
 ): Promise<{ status: 'cancel_requested' | 'already_requested' }> {
   const sub = subsDb.findByStripeSubscriptionId.get(stripeSubscriptionId) as
     | RecurringSubscriptionRow
@@ -3893,13 +3954,15 @@ async function cancelRecurringDonation(
   // every request, and its guard above is read before an await, so a rapid
   // double submit could otherwise call Stripe twice and append two rows to an
   // append-only ledger that documents one row per event.
-  const rlMax = readIntConfig('donation_rate_limit_per_hour', 20);
-  const rl = rateLimitHit(`cancel-recurring:${memberId}`, rlMax, 60);
-  if (!rl.allowed) {
-    throw new RateLimitedError(
-      'Too many cancellation attempts. Please try again later.',
-      rl.retryAfterSeconds,
-    );
+  if (!byAdmin) {
+    const rlMax = readIntConfig('donation_rate_limit_per_hour', 20);
+    const rl = rateLimitHit(`cancel-recurring:${memberId}`, rlMax, 60);
+    if (!rl.allowed) {
+      throw new RateLimitedError(
+        'Too many cancellation attempts. Please try again later.',
+        rl.retryAfterSeconds,
+      );
+    }
   }
 
   // Network call before the transaction: a Stripe failure must leave local state
@@ -3926,7 +3989,9 @@ async function cancelRecurringDonation(
       lifecycleEventCode: 'cancel_requested',
       oldStatus: sub.status,
       newStatus: sub.status,
-      reasonText: 'member requested cancellation at period end',
+      reasonText: byAdmin
+        ? 'cancelled at period end because the member was marked deceased'
+        : 'member requested cancellation at period end',
     });
     return true;
   });
@@ -3935,8 +4000,8 @@ async function cancelRecurringDonation(
   appendAuditEntry({
     actionType: 'payment.recurring_cancel_requested',
     category: 'payment',
-    actorType: 'member',
-    actorMemberId: memberId,
+    actorType: byAdmin ? 'admin' : 'member',
+    actorMemberId: byAdmin ? byAdmin.adminMemberId : memberId,
     entityType: 'recurring_donation_subscription',
     entityId: sub.id,
     reasonText: null,
@@ -3944,6 +4009,7 @@ async function cancelRecurringDonation(
       stripe_subscription_id: stripeSubscriptionId,
       amount_cents: sub.amount_cents,
       currency: sub.currency,
+      ...(byAdmin ? { member_id: memberId, reason: byAdmin.reason } : {}),
     },
   });
 
@@ -4046,7 +4112,66 @@ export const paymentActionSource: MemberActionSource = {
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
+// ── Stub-mode hosted checkout ────────────────────────────────────────────────
+//
+// In stub mode the platform serves its own stand-in for the provider's hosted
+// checkout page, so a tester can pay, cancel or decline without Stripe. These
+// read and drive the stub adapter's simulated sessions, which keeps adapter
+// selection and adapter state inside the service layer: the controller only
+// learns whether the session is the viewer's and where to send them next.
+
+function stubCheckoutSessionFor(sessionId: string, memberId: string | undefined) {
+  const adapter = getPaymentAdapter();
+  if (!('sessions' in adapter)) return null;
+  const stub = adapter as StubPaymentAdapter;
+  const session = stub.sessions.get(sessionId);
+  // Another member's session answers exactly as a missing one, so the page
+  // cannot be used to probe for other members' checkouts.
+  if (!session || session.memberId !== memberId) return null;
+  return { stub, session };
+}
+
+/** The stub checkout session the viewer may act on, or null for one that does
+ *  not exist or is not theirs. */
+function getStubCheckoutSession(
+  sessionId: string,
+  memberId: string | undefined,
+): { paymentType: string; amountCents: number; currency: string } | null {
+  const found = stubCheckoutSessionFor(sessionId, memberId);
+  if (!found) return null;
+  const { paymentType, amountCents, currency } = found.session;
+  return { paymentType, amountCents, currency };
+}
+
+/**
+ * Completes a stub checkout the way the provider would: records the chosen
+ * outcome, feeds the signed event it would send through the same verifier and
+ * handler a real delivery uses, and returns where the member lands next. Null
+ * when the session does not exist or is not the viewer's.
+ */
+function completeStubCheckout(
+  sessionId: string,
+  memberId: string | undefined,
+  action: 'confirm' | 'cancel' | 'decline',
+): string | null {
+  const found = stubCheckoutSessionFor(sessionId, memberId);
+  if (!found) return null;
+  const { stub, session } = found;
+  if (action === 'cancel') stub.overrideSessionOutcome(sessionId, 'cancel');
+  if (action === 'decline') stub.overrideSessionOutcome(sessionId, 'failure');
+  const { rawBody, signature } = stub.buildSignedStubWebhookEvent(sessionId);
+  handleWebhook(rawBody, signature);
+  const target = action === 'confirm' && session.outcome === 'success'
+    ? session.successUrl
+    : session.cancelUrl;
+  // The provider expands this placeholder itself when it redirects; the stub
+  // expands it here so the member lands on the page for their own session.
+  return target.replace(/\{CHECKOUT_SESSION_ID\}/g, sessionId);
+}
+
 export const paymentService = {
+  getStubCheckoutSession,
+  completeStubCheckout,
   startMembershipPurchase,
   handleWebhook,
   recordWebhookRejection,
