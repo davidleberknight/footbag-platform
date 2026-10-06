@@ -876,6 +876,15 @@ describe('deploy wrapper has no yes-defaulting prompt (static-text)', () => {
     expect(wrapper).toMatch(/deploy_to_aws\.sh -k\s+ship code only/);
     expect(wrapper).toMatch(/deploy_to_aws\.sh --from-csv rebuild and REPLACE/);
   });
+
+  it('a dry run reports schema drift ahead of every refusal, so it can show what a real run would meet', () => {
+    expect(wrapper).toMatch(/-n\|--dry-run\)\s+DRY_RUN_ASKED=1/);
+    const drift = wrapper.slice(wrapper.indexOf('differs from the DB schema deployed'));
+    const dryBranch = drift.indexOf('(( DRY_RUN_ASKED ))');
+    expect(dryBranch, 'no dry-run branch in the drift handling').toBeGreaterThan(-1);
+    expect(dryBranch).toBeLessThan(drift.indexOf('states no intent for the database'));
+    expect(dryBranch).toBeLessThan(drift.indexOf('no TTY to confirm'));
+  });
 });
 
 // ── deploy provenance, both paths (static text scan) ─────────────────────────

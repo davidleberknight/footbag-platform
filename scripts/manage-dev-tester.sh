@@ -582,7 +582,9 @@ else
     sleep "$RETIRE_POLL"
     retire_try=$(( retire_try + 1 ))
   done
-  echo "    a real role session: refused, and this is what it said:"
+  echo "    a real role session: refused, as required. The [ERROR] below is AWS"
+  echo "      rejecting the retired key, which is the proof the offboarding worked;"
+  echo "      it is kept verbatim as evidence:"
   printf '%s\n' "$REAL_ASSUME" | sed 's/^/      /'
 fi
 

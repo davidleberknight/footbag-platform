@@ -172,12 +172,13 @@ describe('session edge cases — unknown sub', () => {
     const orphanToken = createTestSessionJwt({ memberId: 'ghost-id', passwordVersion: 1 });
     const app = createApp();
     // /members/:memberKey is publicly routable; the orphan JWT makes the
-    // request effectively unauthenticated, so the controller returns 404 for
-    // the unknown slug (the important thing is no 500).
+    // request signed out, and a signed-out visitor to an unknown slug is sent
+    // to sign in, the same answer a hidden profile gets, rather than a 500 or
+    // a not-found that would say the address belongs to nobody.
     const res = await request(app)
       .get('/members/ghost_user')
       .set('Cookie', `__Host-footbag_session=${orphanToken}`);
-    expect(res.status).toBe(404);
+    expectUnauthenticated(res);
   });
 });
 

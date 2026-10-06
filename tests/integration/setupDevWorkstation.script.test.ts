@@ -483,15 +483,24 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     (spawnSync('ssh-keygen', ['-l', '-f', pub], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').split(' ')[1];
 
   /**
-   * A machine with every tool, the pinned AWS CLI, an ssh-keygen that creates
-   * keys without a passphrase (the real one asks on a terminal the suite does
-   * not have), and a downloader that answers the address lookup.
+   * A machine with every tool, the pinned AWS CLI, an ssh-keygen that refuses
+   * to create a key unless told to make it with no passphrase (the real one
+   * would stop at a prompt a joiner should never see), and a downloader that
+   * answers the address lookup.
    */
   function awsMachine() {
     stubCompleteMachine();
     stub('aws', 'echo "aws-cli/2.34.8 Python/3.13.11 Linux/6 exe/x86_64"');
     const real = (spawnSync('bash', ['-c', 'command -v ssh-keygen'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
-    stub('ssh-keygen', `if [[ " $* " == *" -t "* ]]; then exec ${real} -N '' "$@"; fi\nexec ${real} "$@"`);
+    stub(
+      'ssh-keygen',
+      [
+        'prev=; empty=0',
+        'for a in "$@"; do [[ "$prev" == -N && -z "$a" ]] && empty=1; prev=$a; done',
+        'if [[ " $* " == *" -t "* && $empty == 0 ]]; then echo "stub: would ask for a passphrase" >&2; exit 1; fi',
+        `exec ${real} "$@"`,
+      ].join('\n'),
+    );
     file(
       join(root, 'fetch'),
       '#!/bin/bash\n[[ "$2" == *checkip* ]] && { echo 203.0.113.7 > "$1"; exit 0; }\necho not-the-pinned-file > "$1"\n',

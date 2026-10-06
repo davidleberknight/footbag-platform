@@ -479,7 +479,7 @@ require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 echo "==> Target host: $REMOTE  (${TARGET})"
-echo "==> Account:     $ACCOUNT  for ${FULL_NAME}"
+echo "==> Account:     $ACCOUNT${FULL_NAME:+  for ${FULL_NAME}}"
 [[ -n "$KEY_FINGERPRINT" ]] && echo "==> Key:         $KEY_FINGERPRINT"
 
 # Reachability, and that the host is the target, are proved before a credential

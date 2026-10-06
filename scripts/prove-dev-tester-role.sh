@@ -23,7 +23,12 @@
 #      staging Terraform plan that must be empty, applying nothing
 #      (terraform-apply.sh --require-empty-plan). Pending drift is refused here,
 #      because this run did not come to apply it
-#   2  as the role: a code-only staging deploy (deploy_to_aws.sh)
+#   2  as the role: a dry run of the code-only staging deploy
+#      (deploy_to_aws.sh -n), which ships nothing: it resolves the account's
+#      credential file, connects to staging over the pinned route as the named
+#      account, reads the deployed schema through the container and prints the
+#      plan. A proof replaces nothing staging runs; schema drift is reported
+#      here, ahead of any real deploy, rather than refused
 #   3  as the role: the quick test gate with the staging rows
 #      (run_all_tests.sh --quick --staging), which rewrites the staging pass
 #      receipt this machine keeps
@@ -51,8 +56,9 @@
 #     before onboarding with: bash scripts/verify-account-baseline.sh --save
 #   - Hand the shared sudo password to anything but step 6. Every other step's
 #     stdin is closed.
-#   - Run without a terminal: step 2 replaces what staging runs, and that is
-#     confirmed by a typed APPLY.
+#   - Run without a terminal: step 3 rewrites this machine's staging pass
+#     receipt, and that is confirmed by a typed APPLY.
+#   - Deploy anything. Step 2 is a dry run.
 #
 # Usage, from the machine the account was accepted on, the redirect being the
 # shared account's staging sudo password:
@@ -235,7 +241,8 @@ fi
 echo "Proving ${ACCOUNT} through the FootbagDevTester role on staging, against ${BASELINE}:"
 echo "  1. as the role: the chain into the staging runtime role, then a staging"
 echo "     plan that must be empty"
-echo "  2. as the role: a code-only deploy to staging, replacing what staging runs"
+echo "  2. as the role: a dry run of the code-only staging deploy, which connects"
+echo "     as the account and ships nothing"
 echo "  3. as the role: the quick test gate with the staging rows, which rewrites"
 echo "     this machine's staging pass receipt"
 echo "  4-6. as footbag-operator, read-only: the role's denials, the protected"
@@ -279,8 +286,8 @@ if (( FROM_STEP <= 1 )); then
 fi
 if (( FROM_STEP <= 2 )); then
   echo ""
-  echo "== 2. A code-only staging deploy as ${ACCOUNT}"
-  as_role bash "$DEPLOY_ENTRY" --target staging || stop 2 "the code-only deploy did not finish"
+  echo "== 2. A dry run of the code-only staging deploy as ${ACCOUNT}, shipping nothing"
+  as_role bash "$DEPLOY_ENTRY" --target staging -n || stop 2 "the deploy's dry run did not finish"
 fi
 if (( FROM_STEP <= 3 )); then
   echo ""
@@ -322,6 +329,6 @@ case "$VERIFY_RC" in
 esac
 
 echo ""
-echo "PROVED: ${ACCOUNT} chained into the staging runtime role, planned, deployed and"
-echo "tested staging through the role, the role's denials hold, and footbag-operator"
+echo "PROVED: ${ACCOUNT} chained into the staging runtime role, planned staging,"
+echo "dry-ran a deploy to it and tested it through the role, the role's denials hold, and footbag-operator"
 echo "and both runtime trusts are exactly as they were in ${BASELINE}."

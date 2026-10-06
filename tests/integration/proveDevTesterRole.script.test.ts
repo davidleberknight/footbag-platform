@@ -177,7 +177,7 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
       `wrap --account ${ACCOUNT}`,
       'apply --target staging --require-empty-plan | stdin=',
       `wrap --account ${ACCOUNT}`,
-      'deploy --target staging | stdin=',
+      'deploy --target staging -n | stdin=',
       `wrap --account ${ACCOUNT}`,
       'runner --quick --staging | stdin=',
       'denials  | stdin=',

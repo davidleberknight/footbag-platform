@@ -119,9 +119,12 @@ REFRESH_TEST_PERSONAS=0
 MEDIA_INTENT_NAMED=0   # -W / -m / --no-media / --sync-media / --no-s3-wipe: the
                        # operator has stated what happens to the media bucket.
 
+DRY_RUN_ASKED=0   # -n / --dry-run: the orchestrator runs nothing; checks report, not refuse.
+
 HAS_MODE=0
 for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   case "$arg" in
+    -n|--dry-run)               DRY_RUN_ASKED=1 ;;
     -k|--keep-staging-db)       MODE_CODE_ONLY=1; HAS_MODE=1 ;;
     -r|--reuse-local-db)        MODE_REUSE=1;     HAS_MODE=1 ;;
     --from-csv|--soup-to-nuts|--all-data)  DATA_REBUILD=1 ;;
@@ -734,7 +737,15 @@ if (( MODE_CODE_ONLY == 1 )) \
     echo "         on the changed tables/columns will crash at runtime. There is no in-place" >&2
     echo "         migration; the fix is a rebuild that ships a fresh schema + DB." >&2
     echo "" >&2
-    if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" == "1" ]]; then
+    if (( DRY_RUN_ASKED )); then
+      # A dry run deploys nothing, so there is no database decision to refuse
+      # for; its job is to show, before anything ships, what a real run would
+      # meet. It says so plainly and carries on to the plan.
+      echo "  Dry run: reported, not refused. A real code-only deploy stops here until" >&2
+      echo "  staging is rebuilt with this schema (bash deploy_to_aws.sh --all-data by a" >&2
+      echo "  maintainer, or --public-data on staging without the private checkout)." >&2
+      echo "" >&2
+    elif [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" == "1" ]]; then
       echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 → proceeding code-only despite schema drift." >&2
     elif (( HAS_MODE == 0 )); then
       # A bare invocation states no intent about the database, so on drift there

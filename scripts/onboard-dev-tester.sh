@@ -449,13 +449,9 @@ fi
 # finished onboarding would skip the check below and go on to re-issue a live
 # host password before the create failed.
 iam_dev_tester_state "$ACCOUNT" || exit 1
-# A legacy user is ours under the earlier names; it is moved and retagged after
-# the confirmation, then treated as the existing user it is.
-IAM_ADOPT_LEGACY=0
 case "$IAM_DEV_TESTER_STATE" in
   foreign) iam_dev_tester_refuse_foreign "$ACCOUNT"; exit 1 ;;
   ours) IAM_USER_EXISTS=1 ;;
-  legacy) IAM_USER_EXISTS=1; IAM_ADOPT_LEGACY=1 ;;
   *) IAM_USER_EXISTS=0 ;;
 esac
 
@@ -711,7 +707,7 @@ onboard_host_finished() {
 # grant and an active key is one whose file was placed; re-issuing it would
 # replace the key and the password its owner may already be using.
 ACTIVE_KEYS=""
-if (( IAM_USER_EXISTS && ! IAM_ADOPT_LEGACY )); then
+if (( IAM_USER_EXISTS )); then
   POLICY_NOW="$(iam_dev_tester_policy_state "$ACCOUNT")" || exit 1
   KEYS_NOW="$(iam_dev_tester_keys "$ACCOUNT")" || exit 1
   ACTIVE_KEYS="$(printf '%s\n' "$KEYS_NOW" | awk -F'\t' '$2=="Active"{print $1}' | tr '\n' ' ')"
@@ -774,11 +770,7 @@ echo ""
 echo "  host account  ${ACCOUNT} on footbag-${TARGET}-web, with a one-time password"
 echo "                that is never shown (an existing one is read first and"
 echo "                decided with you)"
-if (( IAM_ADOPT_LEGACY )); then
-  echo "  IAM user      ${ACCOUNT} exists and is ours under ${IAM_DEV_TESTER_LEGACY_PATH};"
-  echo "                it is moved to ${IAM_DEV_TESTER_PATH} and its ownership tags"
-  echo "                rewritten, its keys are retired and one fresh key is minted"
-elif (( IAM_USER_EXISTS )); then
+if (( IAM_USER_EXISTS )); then
   echo "  IAM user      ${ACCOUNT} exists and is ours; its keys are retired and one"
   echo "                fresh key is minted"
 else
@@ -845,9 +837,6 @@ fi
 
 # ── The IAM identity ─────────────────────────────────────────────────────────
 
-if (( IAM_ADOPT_LEGACY )); then
-  iam_dev_tester_adopt_legacy "$ACCOUNT" || exit 1
-fi
 iam_dev_tester_ensure "$ACCOUNT" "$IAM_USER_EXISTS" "$DEV_TESTER_ROLE_ARN" || exit 1
 IAM_KEY_DELIVERY="install"
 IAM_KEY_AWS_ARGS=()

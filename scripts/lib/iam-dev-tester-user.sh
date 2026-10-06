@@ -44,16 +44,6 @@ IAM_DEV_TESTER_TAG_MANAGED_BY="manage-dev-tester.sh"
 # What the user is for. Not the role's name.
 IAM_DEV_TESTER_TAG_ROLE="dev_tester"
 
-# Current: a user these scripts created under the earlier names sits at the
-# legacy path with the legacy ManagedBy value and tag key, and the role's trust
-# no longer admits it. A re-onboarding moves such a user to the path above and
-# rewrites its tags, so no one-off command is needed.
-# Target: no user carries the legacy names, and this block, the "legacy" state
-# and iam_dev_tester_adopt_legacy are removed.
-IAM_DEV_TESTER_LEGACY_PATH="/footbag-operators/"
-IAM_DEV_TESTER_LEGACY_MANAGED_BY="manage-human-operator.sh"
-IAM_DEV_TESTER_LEGACY_ROLE_KEY="OperatorRole"
-
 IAM_DEV_TESTER_AWS_BIN="${IAM_DEV_TESTER_AWS_BIN:-aws}"
 
 # What this run created, so a failure undoes that and nothing else. The most
@@ -197,18 +187,17 @@ iam_dev_tester_login_profile_state() {
 }
 
 # iam_dev_tester_state <name>
-# Sets IAM_DEV_TESTER_STATE to absent, ours, legacy or foreign, and
+# Sets IAM_DEV_TESTER_STATE to absent, ours or foreign, and
 # IAM_DEV_TESTER_FOUND_PATH. Ownership is proved from the path and all three
 # tags together, because any one of them could be a coincidence and the set is
-# what only these scripts write. "legacy" is the same proof against the earlier
-# names, a user of ours that a re-onboarding moves; everything else is foreign.
-# Returns 1, having said why on stderr, when any of them could not be read.
+# what only these scripts write; everything else is foreign. Returns 1, having
+# said why on stderr, when any of them could not be read.
 #
 # Each read carries its own `|| return 1`. A caller writes this function under
 # `||`, and inside it errexit is then off, so a failed read would otherwise run
 # on as an empty answer; and a read made inside `[[ ]]` never reports failure.
 iam_dev_tester_state() {
-  local name="$1" project managed_by dev_tester_role legacy_role
+  local name="$1" project managed_by dev_tester_role
   IAM_DEV_TESTER_FOUND_PATH="$(iam_dev_tester_path "$name")" || return 1
   if [[ -z "$IAM_DEV_TESTER_FOUND_PATH" ]]; then
     IAM_DEV_TESTER_STATE="absent"
@@ -222,55 +211,9 @@ iam_dev_tester_state() {
         && "$managed_by" == "$IAM_DEV_TESTER_TAG_MANAGED_BY" \
         && "$dev_tester_role" == "$IAM_DEV_TESTER_TAG_ROLE" ]]; then
     IAM_DEV_TESTER_STATE="ours"
-    return 0
-  fi
-  legacy_role="$(iam_dev_tester_tag "$name" "$IAM_DEV_TESTER_LEGACY_ROLE_KEY")" || return 1
-  # Either path: a move that stopped after the path changed and before the tags
-  # did is finished by the next run rather than refused as somebody else's.
-  if [[ ( "$IAM_DEV_TESTER_FOUND_PATH" == "$IAM_DEV_TESTER_LEGACY_PATH" \
-          || "$IAM_DEV_TESTER_FOUND_PATH" == "$IAM_DEV_TESTER_PATH" ) \
-        && "$project" == "$IAM_DEV_TESTER_TAG_PROJECT" \
-        && "$managed_by" == "$IAM_DEV_TESTER_LEGACY_MANAGED_BY" \
-        && "$legacy_role" == "$IAM_DEV_TESTER_TAG_ROLE" \
-        && -z "$dev_tester_role" ]]; then
-    IAM_DEV_TESTER_STATE="legacy"
   else
     IAM_DEV_TESTER_STATE="foreign"
   fi
-  return 0
-}
-
-# iam_dev_tester_adopt_legacy <name>
-# Moves a legacy user of ours to the current path and rewrites its tags, then
-# reads it back as ours. The user keeps its unique id, its keys and its inline
-# grant; only its ARN changes, which is what the role's trust matches on. The
-# caller has already proved the user legacy and confirmed the run.
-iam_dev_tester_adopt_legacy() {
-  local name="$1"
-  _iam_dev_tester_refuse_reserved "$name" || return 1
-  echo "==> Moving ${name} from ${IAM_DEV_TESTER_LEGACY_PATH} to ${IAM_DEV_TESTER_PATH}"
-  "$IAM_DEV_TESTER_AWS_BIN" iam update-user --user-name "$name" \
-    --new-path "$IAM_DEV_TESTER_PATH" >/dev/null || {
-    echo "ERROR: could not move the IAM user ${name}." >&2
-    return 1
-  }
-  "$IAM_DEV_TESTER_AWS_BIN" iam tag-user --user-name "$name" \
-    --tags "Key=ManagedBy,Value=${IAM_DEV_TESTER_TAG_MANAGED_BY}" \
-           "Key=DevTesterRole,Value=${IAM_DEV_TESTER_TAG_ROLE}" >/dev/null || {
-    echo "ERROR: could not rewrite ${name}'s ownership tags." >&2
-    return 1
-  }
-  "$IAM_DEV_TESTER_AWS_BIN" iam untag-user --user-name "$name" \
-    --tag-keys "$IAM_DEV_TESTER_LEGACY_ROLE_KEY" >/dev/null || {
-    echo "ERROR: could not remove ${name}'s ${IAM_DEV_TESTER_LEGACY_ROLE_KEY} tag." >&2
-    return 1
-  }
-  iam_dev_tester_state "$name" || return 1
-  if [[ "$IAM_DEV_TESTER_STATE" != "ours" ]]; then
-    echo "ERROR: ${name} reads back as ${IAM_DEV_TESTER_STATE} after the move, not as one of ours." >&2
-    return 1
-  fi
-  echo "    now at ${IAM_DEV_TESTER_PATH} with the current ownership tags"
   return 0
 }
 

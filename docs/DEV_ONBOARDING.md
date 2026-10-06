@@ -943,7 +943,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
      --account <first>_<last>
    ```
 
-   It installs the pinned tools, the AWS CLI included, creates the pair at `~/.ssh/id_ed25519_<first>_<last>` if it is missing (asking for a passphrase), and prints the public key line, its SHA256 fingerprint and the address this machine connects from. Send the maintainer the key and the address, and the fingerprint by a different channel, so the key can be checked as it arrives.
+   It installs the pinned tools, the AWS CLI included, creates the pair at `~/.ssh/id_ed25519_<first>_<last>` if it is missing, with no passphrase, and prints the public key line, its SHA256 fingerprint and the address this machine connects from. Send the maintainer the key and the address, and the fingerprint by a different channel, so the key can be checked as it arrives.
 
    That pair is for staging alone. No step in joining, leaving or coming back changes, moves or deletes any other key in `~/.ssh`, such as the one you use for GitHub. If the key you send is one you already use elsewhere, the acceptance copies it to that path when you type `APPLY` and leaves the original where it is.
 2. Accept the onboarding. The maintainer's onboarding places a sealed file that only your key opens in your own account on the staging host, and gives you the command to run, with the staging host's address filled in:
@@ -968,7 +968,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
 - Message the maintainer before any staging deploy, of any kind, every time. Staging is shared, and a deploy can replace what someone else is testing. The read-only `--staging` test rows are exempt.
 - A schema change reaches staging with `./deploy_to_aws.sh --public-data`, through the wrapper. It rebuilds staging's database from the committed public inputs alone and replaces it. Staging then lacks the real legacy members, the roster-based enrichment, the account rulings and board flags, and every other member row it held, until a maintainer's full rebuild restores them. The run says so before it starts and as the last thing it prints, and it is refused for production.
 
-**Leaving.** Offboarding disables your host account, retires your AWS identity and its key, and removes your address from the staging allow-list. Your clone of this repository is untouched, and repository access is granted and withdrawn separately. Offboarding removes only the staging pair at `~/.ssh/id_ed25519_<your_account>`, never your other keys. To come back, make a fresh pair, retiring the one your acceptance recorded, and join again from step 1 with the new key; `--replace-key` acts on that one path alone:
+**Leaving.** Offboarding disables your host account, retires your AWS identity and its key, and removes your address from the staging allow-list. Your clone of this repository is untouched, and repository access is granted and withdrawn separately. Offboarding runs on the maintainer's machine and changes nothing on yours: your keys stay where they are, and every credential the onboarding gave you stops working. To come back, make a fresh pair, retiring the one your acceptance recorded, and join again from step 1 with the new key; `--replace-key` acts on the staging pair at `~/.ssh/id_ed25519_<your_account>` alone, never your other keys:
 
 ```bash
 bash scripts/setup-dev-workstation.sh --aws \

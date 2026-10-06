@@ -37,7 +37,8 @@
 #   10. With --aws only: the AWS CLI v2, which only the administrators and
 #       dev-and-testers use.
 #   11. With --account only: the named key pair a dev-and-tester is onboarded
-#       with, at ~/.ssh/id_ed25519_<account>, where the acceptance looks for it.
+#       with, at ~/.ssh/id_ed25519_<account>, where the acceptance looks for it,
+#       made with no passphrase.
 #   Then it checks every tool again and exits non-zero if anything is missing.
 #   With --account it ends by printing what the holder who onboards them needs:
 #   the public key, its fingerprint, and the address this machine connects from.
@@ -368,7 +369,7 @@ legacy_env_ok || PLAN+=("python env: build or repair the legacy pipeline environ
 seeder_env_ok || PLAN+=("python env: build or repair the seeder environment")
 [[ "$(git rev-parse --git-path hooks 2>/dev/null)" == *.githooks ]] || PLAN+=("git: activate the repository's hooks")
 (( WITH_AWS )) && ! aws_ok && PLAN+=("aws: install AWS CLI ${AWS_CLI_VERSION} into ${BIN_DIR}")
-[[ "$KEY_ACTION" == "create" ]] && PLAN+=("ssh key: create ${NAMED_KEY_TILDE} for ${ACCOUNT} (ssh-keygen asks for a passphrase)")
+[[ "$KEY_ACTION" == "create" ]] && PLAN+=("ssh key: create ${NAMED_KEY_TILDE} for ${ACCOUNT}, with no passphrase")
 [[ "$KEY_ACTION" == "replace" ]] && PLAN+=("ssh key: set ${NAMED_KEY_TILDE} (${REPLACE_KEY}) aside as ~/.ssh/retired_${ACCOUNT}_<time>, then create a fresh pair")
 
 echo "Developer workstation setup for ${REPO_ROOT}"
@@ -521,7 +522,9 @@ fi
 if [[ -n "$KEY_ACTION" ]]; then
   echo "==> ssh key ${NAMED_KEY_TILDE}"
   mkdir -p -m 700 "${HOME}/.ssh"
-  ssh-keygen -q -t ed25519 -f "$NAMED_KEY" -C "${ACCOUNT} footbag"
+  # No passphrase: the pair opens only a staging-only identity that offboarding
+  # retires, and a prompt on every connection of a deploy buys nothing more.
+  ssh-keygen -q -t ed25519 -N '' -f "$NAMED_KEY" -C "${ACCOUNT} footbag"
 fi
 
 # ── Verify the outcome ───────────────────────────────────────────────────────
