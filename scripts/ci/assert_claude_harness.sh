@@ -89,7 +89,7 @@ fi
 # inside the doc-reference detector regexes that other checks and skills carry, and matching
 # those bare would fail the build on the detectors themselves.
 DELETED_DOCS='SERVICE_CATALOG\.md|VIEW_CATALOG\.md|IMPLEMENTATION_PLAN|BUG_REPORT|docs/DEVOPS_GUIDE|ISSUE_TEMPLATE|setup-bug-tracker-project'
-if refs=$(git grep -lE "$DELETED_DOCS" -- ":!$self" ':!exploration' 2>/dev/null); then
+if refs=$(git grep --untracked -lE "$DELETED_DOCS" -- ":!$self" ':!exploration' 2>/dev/null); then
   echo "[harness] FAIL: reference(s) to a deleted doc or retired surface (SERVICE_CATALOG.md / VIEW_CATALOG.md / IMPLEMENTATION_PLAN.md / BUG_REPORT.md / the removed docs/DEVOPS_GUIDE.md path / .github/ISSUE_TEMPLATE / scripts/setup-bug-tracker-project.sh):" >&2
   ( IFS=$'\n'; printf '  %s\n' $refs >&2 )
   fail=1
@@ -105,7 +105,7 @@ fi
 # therefore also carry the word "private". Line-level matching is deliberate (`--and --not`):
 # filtering git grep's output instead would test the file PATH too, and a path that itself
 # contains "private" would mask an unmarked line inside it.
-unmarked=$(git grep -n -e 'DEVOPS_GUIDE\.md' --and --not -e 'private' -- ":!$self" ':!exploration' 2>/dev/null || true)
+unmarked=$(git grep --untracked -n -e 'DEVOPS_GUIDE\.md' --and --not -e 'private' -- ":!$self" ':!exploration' 2>/dev/null || true)
 if [ -n "$unmarked" ]; then
   echo "[harness] FAIL: DEVOPS_GUIDE.md named without marking it private on the same line:" >&2
   printf '%s\n' "$unmarked" >&2

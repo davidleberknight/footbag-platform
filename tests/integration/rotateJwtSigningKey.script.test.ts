@@ -110,7 +110,7 @@ function run(args: string[], opts: Opts = {}) {
       '  *) exit 64 ;;',
       'esac',
     ]),
-    ROTATE_JWT_TERRAFORM_BIN: stub('terraform', ['echo "d111111abcdef8.cloudfront.net"']),
+    ROTATE_JWT_TERRAFORM_BIN: stub('terraform', ['echo "d1234abcdef8.cloudfront.net"']),
     ROTATE_JWT_CURL_BIN: stub('curl', [
       `echo "curl $*" >> ${JSON.stringify(callLog)}`,
       `if [[ -e ${JSON.stringify(restarted)} ]]; then printf '%s' ${JSON.stringify(statusAfter)}; else printf '%s' ${JSON.stringify(statusBefore)}; fi`,
@@ -136,7 +136,7 @@ describe('rotating the JWT signing key', () => {
     expect(log).toContain('tf-apply --target staging --replace aws_kms_key.jwt_signing');
     expect(log).toContain('restart --target staging');
     expect(log.indexOf('tf-apply')).toBeLessThan(log.indexOf('restart --target'));
-    expect(log).toContain('https://d111111abcdef8.cloudfront.net/health/ready');
+    expect(log).toContain('https://d1234abcdef8.cloudfront.net/health/ready');
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('no terminal to confirm on');
     expect(res.stderr).toContain('--from-step 3');

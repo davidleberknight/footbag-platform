@@ -31,7 +31,7 @@ for vars_file in terraform/*/variables.tf; do
 
   [ -n "$sensitive_names" ] || continue
 
-  examples="$(git ls-files "$env_dir/*.tfvars.example")"
+  examples="$(git ls-files --cached --others --exclude-standard "$env_dir/*.tfvars.example")"
   [ -n "$examples" ] || continue
 
   for example in $examples; do

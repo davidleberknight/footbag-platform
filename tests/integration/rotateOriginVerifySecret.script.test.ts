@@ -79,7 +79,7 @@ function run(args: string[], opts: Opts = {}) {
       `echo "aws $*" >> ${JSON.stringify(callLog)}`,
       `cat ${JSON.stringify(secretFile)}`,
     ]),
-    ROTATE_TERRAFORM_BIN: stub('terraform', ['echo "d111111abcdef8.cloudfront.net"']),
+    ROTATE_TERRAFORM_BIN: stub('terraform', ['echo "d1234abcdef8.cloudfront.net"']),
     ROTATE_CURL_BIN: stub('curl', [
       `echo "curl $*" >> ${JSON.stringify(callLog)}`,
       `if [[ -e ${JSON.stringify(deployed)} ]]; then printf '%s' ${JSON.stringify(statusAfter)}; else printf '%s' ${JSON.stringify(statusBefore)}; fi`,
@@ -102,7 +102,7 @@ describe('rotating the origin-verify secret', () => {
     expect(log).toContain('tf-apply --target staging --replace random_id.origin_verify_secret');
     expect(log).toContain('deploy --target staging -k');
     expect(log.indexOf('tf-apply')).toBeLessThan(log.indexOf('deploy'));
-    expect(log).toContain('https://d111111abcdef8.cloudfront.net/health/ready');
+    expect(log).toContain('https://d1234abcdef8.cloudfront.net/health/ready');
     expect(res.stdout).toContain('answers 200');
   });
 

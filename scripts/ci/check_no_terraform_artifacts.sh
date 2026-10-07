@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-violations=$(git ls-files 'terraform/' \
+violations=$(git ls-files --cached --others --exclude-standard 'terraform/' \
   | grep -vE '(\.tf|\.hcl|\.tfvars\.example|\.tftpl)$|/cloudfront-functions/[^/]+\.js$|/maintenance-page/[^/]+\.html$' \
   || true)
 

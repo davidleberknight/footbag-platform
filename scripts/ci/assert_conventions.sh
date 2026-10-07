@@ -1840,7 +1840,7 @@ check "no superseded operator-identity model in tracked files"
 # not have caught.
 OLD_MODEL_RE='standup-identity-center\.sh|install-operator-sso-profile\.sh|footbag-operator-key([^s]|$)|footbag-devtester|super_admin_sso_role_arn|dev_tester_sso_role_arn|AWSReservedSSO|also_assume|aws sso login|aws_ssoadmin_|aws_identitystore_|"sso:|"identitystore:'
 OLD_MODEL_ADMITTED_RE='"(sso:ListInstances|sso:ListPermissionSets|identitystore:ListUsers)"'
-old_model_hits=$(git grep -nE "$OLD_MODEL_RE" -- . \
+old_model_hits=$(git grep --untracked -nE "$OLD_MODEL_RE" -- . \
   | grep -v 'scripts/ci/assert_conventions\.sh' \
   | grep -v '^tests/unit/dev-tester-role-policy\.test\.ts:' \
   | grep -v '^tests/unit/operator-runtime-trust\.test\.ts:' \
@@ -1864,7 +1864,7 @@ check "no retired onboarding script or flag in tracked files"
 # was retired. No file but this one is exempt: a test asserting one of these is
 # absent spells it in pieces.
 RETIRED_ONBOARDING_RE='hire-dev-tester|onboard-operator\.sh|offboard-operator\.sh|accept-dev-tester-delivery|\.delivery\.age|--own-password|--attest-own'
-retired_onboarding_hits=$(git grep -nE "$RETIRED_ONBOARDING_RE" -- . \
+retired_onboarding_hits=$(git grep --untracked -nE "$RETIRED_ONBOARDING_RE" -- . \
   | grep -v '^scripts/ci/assert_conventions\.sh:' \
   || true)
 if [ -n "$retired_onboarding_hits" ]; then
@@ -1878,7 +1878,7 @@ check "no concrete CloudFront hostnames tracked"
 # like" example domain and the Terraform bootstrap placeholder value), plus the
 # one staging sneak-preview host the README intentionally publishes as a public
 # preview link.
-cf_host_hits=$(git grep -nE '[a-z0-9]+\.cloudfront\.net' -- . \
+cf_host_hits=$(git grep --untracked -nE '[a-z0-9]+\.cloudfront\.net' -- . \
   | grep -v 'scripts/ci/assert_conventions\.sh' \
   | grep -vE 'd1234abcdef8\.cloudfront\.net|placeholder\.cloudfront\.net|doye1nvv64qep\.cloudfront\.net' \
   || true)
@@ -2299,7 +2299,7 @@ if check "the retired QC subsystem has not returned" src database; then
 # gitignored Python virtualenv and pipeline output too, which is a hundred
 # thousand files of other people's code and generated artifacts, and makes the
 # answer depend on what a given workstation happens to be holding.
-qc_hits=$(git grep -nE \
+qc_hits=$(git grep --untracked -nE \
   'internal-qc|internalRouter|netQcController|personsQcController|netQcService|personsQcService|personsQcChecks|/internal/(net|persons|freestyle)/|net_review_queue|net_candidate_match|net_curated_match|net_raw_fragment|net_recovery_alias_candidate|net_team_correction_candidate' \
   -- src database legacy_data scripts ':(exclude)**/tests/**' 2>/dev/null \
   | grep -vE '^scripts/validate-qc-absence\.sh:' \

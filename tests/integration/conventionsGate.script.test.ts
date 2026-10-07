@@ -43,8 +43,10 @@ interface RunResult { exitCode: number; stdout: string; stderr: string }
 /**
  * Stands up a throwaway repository holding the given files and runs the real gate
  * inside it. The gate resolves its own root through git, so the fixture has to be a
- * repository rather than a bare directory, and the files are staged because one rule
- * reads the tracked tree rather than the filesystem.
+ * repository rather than a bare directory. The gate reads what a commit would carry,
+ * tracked files plus new files git does not ignore, so `files` are staged and
+ * `untracked` are written after staging, to prove a new file is judged before it is
+ * ever added.
  *
  * `declareFixture` is what tells the gate that a check with nothing to scan is
  * expected here; the one case that leaves it off is the case asserting that a real
@@ -52,17 +54,24 @@ interface RunResult { exitCode: number; stdout: string; stderr: string }
  */
 function inFixtureRepo(
   files: Record<string, string>,
-  { declareFixture = true }: { declareFixture?: boolean } = {},
+  { declareFixture = true, untracked = {} }: {
+    declareFixture?: boolean;
+    untracked?: Record<string, string>;
+  } = {},
 ): RunResult {
   const root = mkdtempSync(join(tmpdir(), 'footbag-test-conventions-gate-'));
-  try {
-    spawnSync('git', ['init', '-q', root], { encoding: 'utf8', ...SPAWN_GUARD });
-    for (const [name, body] of Object.entries(files)) {
+  const write = (set: Record<string, string>): void => {
+    for (const [name, body] of Object.entries(set)) {
       const full = join(root, name);
       mkdirSync(dirname(full), { recursive: true });
       writeFileSync(full, body);
     }
+  };
+  try {
+    spawnSync('git', ['init', '-q', root], { encoding: 'utf8', ...SPAWN_GUARD });
+    write(files);
     spawnSync('git', ['-C', root, 'add', '-A'], { encoding: 'utf8', ...SPAWN_GUARD });
+    write(untracked);
     const env = { ...process.env };
     if (declareFixture) env.CONVENTIONS_FIXTURE_TREE = '1';
     else delete env.CONVENTIONS_FIXTURE_TREE;
@@ -184,6 +193,31 @@ describe('the convention gate: no pipe into a quitting grep', () => {
 });
 
 /** The role and container credential sources, each of which can authenticate a spawned child on its own. */
+describe('the convention gate: judges a new file before it is added', () => {
+  // Assembled from pieces so this file does not itself carry a concrete hostname.
+  const CONCRETE_HOST = 'd9abcdef0123' + '.cloudfront.net';
+  const CF_FAIL = 'a concrete CloudFront hostname must never be committed';
+
+  it('refuses a concrete CloudFront hostname in a file not yet added to git', () => {
+    const res = inFixtureRepo({}, {
+      untracked: { 'tests/stub.test.ts': `const host = '${CONCRETE_HOST}';\n` },
+    });
+    expect(res.stderr).toContain(`tests/stub.test.ts:1:const host = '${CONCRETE_HOST}'`);
+    expect(res.stderr).toContain(CF_FAIL);
+  });
+
+  it('ignores a gitignored file, and accepts the documented fake host in a new file', () => {
+    const res = inFixtureRepo({ '.gitignore': 'notes/\n' }, {
+      untracked: {
+        'notes/hosts.txt': `${CONCRETE_HOST}\n`,
+        'tests/stub.test.ts': "const host = 'd1234abcdef8.cloudfront.net';\n",
+      },
+    });
+    expectCheckRan(res, 'no concrete CloudFront hostnames tracked');
+    expect(res.stderr).not.toContain(CF_FAIL);
+  });
+});
+
 const ROLE_AND_CONTAINER_SOURCES = [
   'AWS_WEB_IDENTITY_TOKEN_FILE',
   'AWS_ROLE_ARN',
