@@ -10,19 +10,41 @@
 # as runbook prose so it can be tested, rehearsed and run identically under
 # pressure by someone who did not write it.
 #
-# Two destinations, and it never guesses which one is meant:
+# Three destinations, and it never guesses which one is meant:
 #
-#   --to-local <path>   Downloads, verifies and writes the snapshot to a local
-#                       file. Nothing is deployed and no host is touched. This
-#                       is the drill destination and the default posture: the
-#                       question a drill answers is whether the artifact is
-#                       restorable, and that does not require a live host.
+#   --target <env> --drill
+#                       The restore drill. The host pulls the snapshot, verifies
+#                       it, and restores it into a scratch file beside nothing
+#                       it serves: integrity check, member and payment row
+#                       counts, the newest audit timestamp, and the elapsed
+#                       time, then the scratch copy is shredded. The live
+#                       database and the service are never touched, so it asks
+#                       for no confirmation. Production data stays on the
+#                       production host and no person handles it.
 #
 #   --target <env>      Restores onto a deployed host, in place. The host pulls
 #                       the snapshot itself using the profile that wrote it, the
-#                       service is stopped, the database in place is copied aside
-#                       first, and the service is restarted. Requires a typed
+#                       service and the backup timer are stopped, the database in
+#                       place is copied aside first, the snapshot is put in
+#                       place, and the erasures it records as due are re-applied
+#                       before the service is restarted. A replay that does not
+#                       complete leaves the service stopped and backups paused,
+#                       held there across a reboot or a deploy by a marker beside
+#                       the database, until --resume-erasure-replay finishes it.
+#                       After the service reports ready, set-aside database
+#                       copies older than seven days are deleted. Requires a
+#                       typed confirmation.
+#
+#   --target <env> --resume-erasure-replay
+#                       Finishes a restore whose erasure replay did not
+#                       complete: re-runs the replay against the database in
+#                       place and, only when it succeeds, clears the marker,
+#                       starts the service and resumes backups. Refuses when no
+#                       replay is pending. Production asks for the typed
 #                       confirmation.
+#
+#   --to-local <path>   Downloads, verifies and writes a STAGING snapshot to a
+#                       local file. Nothing is deployed and no host is touched.
 #
 # What it refuses, and why each refusal exists:
 #
@@ -39,6 +61,10 @@
 #     --bucket outside footbag-production-*. A staging snapshot holds test
 #     accounts and rehearsal data; production restores only from its own
 #     buckets, the DR bucket among them.
+#   - A production snapshot anywhere but production, whether named by --source
+#     or by a footbag-production-* --bucket: not to a workstation, not onto the
+#     internet-reachable staging host. Production member data never leaves the
+#     production host and its backups; a drill of it runs there, with --drill.
 #
 # Which snapshot it looks for, which is never a guess between the two classes:
 #
@@ -70,7 +96,8 @@
 # stream, the snapshot key follows as an assignment, and the root-side body is
 # cat'd onto the same stream. Nothing secret reaches an argument list.
 #
-# Usage (the sudo password is read from stdin, line 1; --to-local needs none).
+# Usage (the sudo password is read from stdin, line 1, for --target with or
+# without --drill; --to-local needs none).
 #
 # Which file holds that password follows the account the alias connects as, and
 # each account has its own file per environment, because staging and production
@@ -81,9 +108,14 @@
 #
 # A run started without the redirect names the one it needs.
 #
-#   bash scripts/restore-db.sh --source production --to-local /tmp/drill.db
+#   # the restore drill, from the primary bucket and then from the DR bucket:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production --drill
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production --drill \
+#       --bucket footbag-production-db-snapshots-dr
 #   < ~/AWS/DEV_TESTER_HOST.txt bash scripts/restore-db.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production --snapshot routine/2026/08/21/footbag-20260821T055900Z.db.gz
+#   # finishing a restore whose erasure replay did not complete:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production --resume-erasure-replay
 #   bash scripts/restore-db.sh --source staging --to-local /tmp/drill.db --dry-run
 #   # the cutover rollback, both flags, onto the live host:
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production \
@@ -98,6 +130,8 @@ BUCKET=""
 AWS_PROFILE_ARG=""
 DRY_RUN=0
 PRE_FLIP=0
+DRILL=0
+RESUME=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -108,6 +142,8 @@ while [[ $# -gt 0 ]]; do
     --bucket)    BUCKET="${2:-}";     shift 2 || { echo "ERROR: --bucket requires an argument" >&2; exit 2; } ;;
     --profile)   AWS_PROFILE_ARG="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
     --pre-flip)  PRE_FLIP=1; shift ;;
+    --drill)     DRILL=1; shift ;;
+    --resume-erasure-replay) RESUME=1; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --help|-h)
       # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -126,13 +162,16 @@ if [[ -n "$TARGET" && -n "$TO_LOCAL" ]]; then
   die "--target and --to-local are mutually exclusive: name one destination"
 fi
 if [[ -z "$TARGET" && -z "$TO_LOCAL" ]]; then
-  die "name a destination: --to-local <path> for a drill, or --target <staging|production> to restore a host"
+  die "name a destination: --target <staging|production> --drill for a drill, --target to restore a host, or --to-local <path> for a staging snapshot"
+fi
+# The drill runs on the host whose data it is, so it needs a host to run on.
+if (( DRILL )) && [[ -z "$TARGET" ]]; then
+  die "--drill runs on a host: name it with --target <staging|production>"
 fi
 
 # The snapshot stream to read from. It defaults to the environment being
-# restored, because reading staging's snapshots onto production is a mistake
-# with no legitimate form; naming it explicitly is how a drill reads production's
-# artifacts without a production host being involved.
+# restored, because the only legitimate direction is an environment reading its
+# own stream.
 [[ -z "$SOURCE_ENV" ]] && SOURCE_ENV="$TARGET"
 # Both checks here stay hand-rolled, deliberately, and this is the one script
 # where that is the right answer.
@@ -158,12 +197,96 @@ if [[ -n "$TARGET" ]]; then
   esac
 fi
 
-# The direction with no legitimate form, refused before anything else runs so
-# a dry run shows it too and nothing reaches the network. A staging snapshot
-# holds test accounts and rehearsal data; production restores only from its own
-# stream. The reverse direction is the documented drill path and stays allowed.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REMOTE_HALF="${SCRIPT_DIR}/internal/restore-db-remote.sh"
+# Travels ahead of the remote half on the same stream and defines the function
+# that deletes set-aside database copies once they are more than seven days old.
+PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
+
+# The remote half exits with this status when it leaves an erasure replay
+# pending: the restored database is in place, the site is held down and backups
+# are paused until the replay is finished.
+PENDING_EXIT=3
+report_replay_pending() {
+  echo "" >&2
+  echo "ERROR: the erasure replay on ${SSH_ALIAS} has NOT completed." >&2
+  echo "       Backups on ${SSH_ALIAS} are PAUSED and the site is STOPPED, and both" >&2
+  echo "       stay that way, across a reboot or a deploy, until the replay is" >&2
+  echo "       finished. The host's own output above names the database in place" >&2
+  echo "       and the one it replaced. Finish it with:" >&2
+  echo "         bash scripts/restore-db.sh --target ${TARGET} --resume-erasure-replay" >&2
+}
+
+# ── Resume: finish a restore whose erasure replay did not complete ───────────
+# Its own mode rather than a step for an operator to type on the host: the
+# replay, the marker, the service and the backup timer have to move in one
+# order, and only on the replay's success.
+if (( RESUME )); then
+  [[ -n "$TARGET" ]] || die "--resume-erasure-replay runs on a host: name it with --target <staging|production>"
+  if (( DRILL )) || [[ -n "$TO_LOCAL" || -n "$SNAPSHOT_KEY" || -n "$BUCKET" || "$PRE_FLIP" == "1" || "$SOURCE_ENV" != "$TARGET" ]]; then
+    die "--resume-erasure-replay takes only --target (and --dry-run): it re-runs the replay against the database already in place"
+  fi
+  SSH_ALIAS="footbag-$TARGET"
+  if (( DRY_RUN )); then
+    echo "== dry run: resume the erasure replay on ${SSH_ALIAS} =="
+    echo "Would, in order:"
+    echo "  1. Read the sudo password from stdin, line 1"
+    [[ "$TARGET" == "production" ]] && echo "  2. Require a typed confirmation naming production"
+    echo "  3. On the host: refuse unless an erasure replay is pending, re-run it, and"
+    echo "     only on 'erasure-replay: ok' clear the marker, start the service and"
+    echo "     resume backups"
+    exit 0
+  fi
+  ASSUME_YES=no
+  # shellcheck source=lib/host-env-remote.sh
+  source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+  require_operator_stdin "scripts/restore-db.sh --target $TARGET --resume-erasure-replay" \
+    "$SSH_ALIAS" "$TARGET" || exit 1
+  require_ssh_alias "$SSH_ALIAS" || exit 1
+  require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
+  [[ -r "$REMOTE_HALF" ]] || die "missing remote half: $REMOTE_HALF"
+  [[ -r "$PRUNE_LIB" ]] || die "missing pruning helper: $PRUNE_LIB"
+  echo ""
+  echo "This re-runs the erasure replay against the database in place on ${SSH_ALIAS}"
+  echo "and, only if it succeeds, starts the site and resumes backups."
+  echo ""
+  if [[ "$TARGET" == "production" ]]; then
+    confirm_from_tty "Type 'APPLY' to continue: " "APPLY" \
+      || die "not confirmed; nothing was changed"
+  fi
+  resume_status=0
+  {
+    printf '%s\n' "$SUDO_PASS"
+    printf 'RESUME_ERASURE_REPLAY=%q\n' 1
+    cat "$PRUNE_LIB" "$REMOTE_HALF"
+  } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash' || resume_status=$?
+  if (( resume_status != 0 )); then
+    if (( resume_status == PENDING_EXIT )); then
+      report_replay_pending
+    else
+      echo "" >&2
+      echo "ERROR: resuming the erasure replay failed on ${SSH_ALIAS}; its own output" >&2
+      echo "       above says why." >&2
+    fi
+    exit 1
+  fi
+  echo ""
+  echo "== erasure replay completed on ${TARGET}; the site is serving and backups resume =="
+  exit 0
+fi
+
+# The two directions with no legitimate form, refused before anything else runs
+# so a dry run shows them too and nothing reaches the network. A staging
+# snapshot holds test accounts and rehearsal data; production restores only from
+# its own stream. A production snapshot holds every member's personal data, and
+# it never leaves production: not onto a workstation, where it outlives the run
+# on a disk nobody audits, and not onto the staging host, which is reachable from
+# the internet with its development surfaces on. Its drill runs on production.
 if [[ "$TARGET" == "production" && "$SOURCE_ENV" != "production" ]]; then
   die "a staging snapshot never restores onto production: --target production reads only --source production"
+fi
+if [[ "$SOURCE_ENV" == "production" && "$TARGET" != "production" ]]; then
+  die "a production snapshot never leaves production: restore or drill it with --target production"
 fi
 
 # Everything a local destination needs before the network is touched. Both of
@@ -195,15 +318,15 @@ fi
 if [[ "$TARGET" == "production" && "$BUCKET" != footbag-production-* ]]; then
   die "a staging snapshot never restores onto production: --target production reads only a footbag-production-* bucket (got '${BUCKET}')"
 fi
+if [[ "$TARGET" != "production" && "$BUCKET" == footbag-production-* ]]; then
+  die "a production snapshot never leaves production: a footbag-production-* bucket is read only by --target production (got '${BUCKET}')"
+fi
 
 # The host is the target's own alias and nothing else names one: a label and a
 # host chosen separately can disagree, and a run that believes the label acts
 # on whatever host the other choice reached.
 SSH_ALIAS=""
 [[ -n "$TARGET" ]] && SSH_ALIAS="footbag-$TARGET"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REMOTE_HALF="${SCRIPT_DIR}/internal/restore-db-remote.sh"
 
 AWS_ARGS=()
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
@@ -245,6 +368,15 @@ if (( DRY_RUN )); then
   if [[ -n "$TO_LOCAL" ]]; then
     echo "Would download the snapshot, verify it, and write it to ${TO_LOCAL}."
     echo "No host is contacted and nothing is deployed."
+  elif (( DRILL )); then
+    echo "Would, in order:"
+    echo "  1. Read the sudo password from stdin, line 1"
+    echo "  2. Pipe the password, the snapshot key, the drill flag and the root-side"
+    echo "     body (${REMOTE_HALF#"$SCRIPT_DIR"/}) into one ssh session on ${SSH_ALIAS},"
+    echo "     which downloads the snapshot host-side into a scratch directory,"
+    echo "     verifies it, reports its row counts, newest audit timestamp and the"
+    echo "     elapsed time, and shreds the scratch copy"
+    echo "The live database and the service are not touched."
   else
     echo "Would, in order:"
     echo "  1. Read the sudo password from stdin, line 1"
@@ -254,7 +386,8 @@ if (( DRY_RUN )); then
     echo "  4. Pipe the password, the snapshot key, and the root-side body"
     echo "     (${REMOTE_HALF#"$SCRIPT_DIR"/}) into one ssh session, which downloads"
     echo "     the snapshot host-side, verifies it, stops the service, copies the"
-    echo "     database in place aside, restores, re-verifies and restarts"
+    echo "     database in place aside, restores, re-verifies, re-applies the"
+    echo "     erasures the snapshot records and restarts"
   fi
   exit 0
 fi
@@ -292,7 +425,7 @@ if [[ -z "$SNAPSHOT_KEY" ]]; then
 fi
 echo "    snapshot: s3://${BUCKET}/${SNAPSHOT_KEY}"
 
-# ── Local destination: a drill, and the default posture ──────────────────────
+# ── Local destination: a staging snapshot only ───────────────────────────────
 if [[ -n "$TO_LOCAL" ]]; then
   umask 077
   work="$(mktemp -d)"
@@ -330,7 +463,7 @@ if [[ -n "$TO_LOCAL" ]]; then
   echo "  From:     s3://${BUCKET}/${SNAPSHOT_KEY}"
   echo "  Integrity check: ok"
   echo "  Contents: ${counts}"
-  echo "  This is a copy of live data. Delete it when the drill is recorded."
+  echo "  This is a copy of staging data. Delete it when you are done with it."
   echo "======================================================================"
   exit 0
 fi
@@ -352,7 +485,18 @@ require_operator_stdin "scripts/restore-db.sh --target $TARGET" \
 require_ssh_alias "$SSH_ALIAS" || exit 1
 require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 [[ -r "$REMOTE_HALF" ]] || die "missing remote half: $REMOTE_HALF"
+[[ -r "$PRUNE_LIB" ]] || die "missing pruning helper: $PRUNE_LIB"
 
+# The drill changes nothing the host serves: it restores into a scratch
+# directory, starts nothing, and leaves the live database and the service alone.
+# So the adapter refusal and the typed confirmation below, which both exist
+# because an in-place restore replaces what the public is served, do not apply.
+if (( DRILL )); then
+  echo ""
+  echo "Restore drill on ${SSH_ALIAS}. The live database and the service are not touched."
+  echo "  snapshot: s3://${BUCKET}/${SNAPSHOT_KEY}"
+  echo ""
+else
 HOST_ENV_FILE="$(mktemp)"
 trap 'rm -f "$HOST_ENV_FILE"' EXIT INT TERM
 host_env_fetch "$SSH_ALIAS" "$HOST_ENV_FILE" || exit 1
@@ -384,24 +528,38 @@ echo "This REPLACES the live database on ${SSH_ALIAS}."
 echo "  snapshot:        s3://${BUCKET}/${SNAPSHOT_KEY}"
 echo "  SES adapter:     ${SES_ADAPTER_ON_HOST:-unset}"
 echo "  payment adapter: ${PAYMENT_ADAPTER_ON_HOST:-unset}"
-echo "The database in place is copied aside on the host first and is not deleted."
+echo "The database in place is copied aside on the host first and kept for seven days."
 echo ""
 
 CONFIRM_WORD="APPLY"
 confirm_from_tty "Type '${CONFIRM_WORD}' to continue: " "$CONFIRM_WORD" \
   || die "not confirmed; nothing was restored"
+fi
 
-if ! {
-      printf '%s\n' "$SUDO_PASS"
-      printf 'SNAPSHOT_KEY=%q\n' "$SNAPSHOT_KEY"
-      # BUCKET must cross the wire. Without it the remote half falls back to the
-      # host's own BACKUP_S3_BUCKET, which is the primary bucket -- so --bucket
-      # selected the snapshot and printed the banner above, then the host fetched
-      # from somewhere else. The cutover rollback lives in the DR bucket, so that
-      # silently restored the wrong database while displaying the right URI.
-      printf 'BUCKET=%q\n' "$BUCKET"
-      cat "$REMOTE_HALF"
-    } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
+restore_status=0
+{
+  printf '%s\n' "$SUDO_PASS"
+  printf 'SNAPSHOT_KEY=%q\n' "$SNAPSHOT_KEY"
+  # BUCKET must cross the wire. Without it the remote half falls back to the
+  # host's own BACKUP_S3_BUCKET, which is the primary bucket -- so --bucket
+  # selected the snapshot and printed the banner above, then the host fetched
+  # from somewhere else. The cutover rollback lives in the DR bucket, so that
+  # silently restored the wrong database while displaying the right URI.
+  printf 'BUCKET=%q\n' "$BUCKET"
+  printf 'DRILL=%q\n' "$DRILL"
+  cat "$PRUNE_LIB" "$REMOTE_HALF"
+} | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash' || restore_status=$?
+if (( restore_status != 0 )); then
+  if (( DRILL )); then
+    echo "" >&2
+    echo "ERROR: the restore drill FAILED on ${SSH_ALIAS}. Its own output names the" >&2
+    echo "       check that failed. Nothing the host serves was changed." >&2
+    exit 1
+  fi
+  if (( restore_status == PENDING_EXIT )); then
+    report_replay_pending
+    exit 1
+  fi
   echo "" >&2
   echo "ERROR: the restore failed on ${SSH_ALIAS}." >&2
   echo "       The remote half refuses before stopping the service, so an early" >&2
@@ -411,6 +569,13 @@ if ! {
 fi
 
 echo ""
+if (( DRILL )); then
+  echo "== restore drill passed on ${TARGET} =="
+  echo "Record the date, the snapshot, its bucket, the counts and the elapsed time"
+  echo "above: that record is the drill evidence the go-live backup and recovery"
+  echo "gate asks for."
+  exit 0
+fi
 echo "== restore complete on ${TARGET} =="
 echo "Record the date, the elapsed time and the outcome: that record is the drill"
 echo "evidence the go-live backup and recovery gate asks for."

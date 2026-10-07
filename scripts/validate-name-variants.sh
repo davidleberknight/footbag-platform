@@ -3,16 +3,22 @@
 #
 # Confirms the name_variants table is seeded with at least the documented
 # baseline (pipeline validation gate G11; the seed files under legacy_data/out/
-# track the exact counts, currently 389 production pairs). Probes a small
-# bidirectional sample so the table is queryable in both directions, and
-# emits a category-source breakdown for operator visibility.
+# track the exact counts, currently 389 production pairs). Reads one sampled
+# pair back by its own key, which proves only that the table answers a keyed
+# read; it is not a symmetry check, because each pair is stored in one
+# direction only and lookups search both columns, so there is no reverse row to
+# require. Emits a category-source breakdown for operator visibility.
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db).
 # FOOTBAG_NAME_VARIANTS_MIN overrides the minimum row count (default 250 -
 # slightly under 290 to allow for legitimate de-duplication during load).
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# Streamed to a host and run from a process substitution, $0 is not a file and
+# there is no checkout to move into; the database then comes from FOOTBAG_DB_PATH.
+if [[ -f "$0" ]]; then
+  cd "$(dirname "$0")/.."
+fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 if [[ ! -f "${DB_FILE}" ]]; then
@@ -20,7 +26,7 @@ if [[ ! -f "${DB_FILE}" ]]; then
   exit 1
 fi
 
-q() { sqlite3 "${DB_FILE}" "$1"; }
+q() { sqlite3 -readonly "${DB_FILE}" "$1"; }
 
 MIN="${FOOTBAG_NAME_VARIANTS_MIN:-250}"
 total=$(q "SELECT COUNT(*) FROM name_variants;")
@@ -35,8 +41,7 @@ mirror=$(q "SELECT COUNT(*) FROM name_variants WHERE source = 'mirror_mined';")
 admin=$(q  "SELECT COUNT(*) FROM name_variants WHERE source = 'admin_added';")
 member=$(q "SELECT COUNT(*) FROM name_variants WHERE source = 'member_submitted';")
 
-# Bidirectional sample probe: pick a random row, ensure findByEitherColumn
-# semantics work (canonical → variant and variant → canonical both find it).
+# Sample probe: pick a random row and read it back by its own key.
 sample=$(q "SELECT canonical_normalized || '|' || variant_normalized FROM name_variants ORDER BY RANDOM() LIMIT 1;")
 if [[ -z "${sample}" ]]; then
   printf 'GATE: G11 FAIL: cannot sample a row even though COUNT > 0\n'
@@ -46,7 +51,9 @@ canonical="${sample%%|*}"
 variant="${sample##*|}"
 fwd=$(q "SELECT COUNT(*) FROM name_variants WHERE canonical_normalized = '$(printf %s "${canonical}" | sed "s/'/''/g")' AND variant_normalized = '$(printf %s "${variant}" | sed "s/'/''/g")';")
 if [[ "${fwd}" -ne 1 ]]; then
-  printf 'GATE: G11 FAIL: bidirectional probe failed for sample %s|%s\n' "${canonical}" "${variant}"
+  # The sampled pair is a member's name, so it is never printed: the gate's
+  # output can leave the host it runs on.
+  printf 'GATE: G11 FAIL: a sampled row did not read back by its own key\n'
   exit 1
 fi
 

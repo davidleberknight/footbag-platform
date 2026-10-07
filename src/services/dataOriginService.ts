@@ -44,9 +44,9 @@ export type DataOrigin = 'live' | 'test' | 'unknown';
 let resolved: DataOrigin | undefined;
 
 /**
- * The marker is written by the go-live runbook step and read by the deploy
- * guard; it is not managed by Terraform, so this is its only in-application
- * read path.
+ * The marker is created by Terraform with its value ignored, flipped by the
+ * go-live runbook step and read by the deploy guard; this is its only
+ * in-application read path.
  */
 function goLiveMarkerName(): string {
   return `/footbag/${config.footbagEnv}/app/production_live`;

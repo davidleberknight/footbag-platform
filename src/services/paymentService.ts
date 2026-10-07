@@ -1773,8 +1773,9 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
   });
   if (!claimed) return { outcome: 'duplicate' };
 
-  // Per DD §6.1: no automatic tier or registration changes on refund.
-  // Access changes (if any) are admin-driven via A_Override_Member_Data.
+  // A refund changes no tier or registration automatically: a completed
+  // payment is never retroactively altered, and any access change is an
+  // administrator's decision via A_Override_Member_Data.
   return { outcome: 'processed' };
 }
 

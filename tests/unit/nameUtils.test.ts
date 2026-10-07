@@ -1,5 +1,46 @@
 import { describe, it, expect } from 'vitest';
-import { matchReservedNameWord } from '../../src/services/nameUtils';
+import { matchReservedNameWord, normalizeNameCase } from '../../src/services/nameUtils';
+
+describe('name capitalization: fix only what is clearly careless', () => {
+  it('capitalizes a name typed all in capitals or all in lower case', () => {
+    expect(normalizeNameCase('JOHN SMITH')).toBe('John Smith');
+    expect(normalizeNameCase('john smith')).toBe('John Smith');
+  });
+
+  it('capitalizes the letter after a hyphen or an apostrophe', () => {
+    expect(normalizeNameCase("o'brien-jones")).toBe("O'Brien-Jones");
+    expect(normalizeNameCase('O’NEILL')).toBe('O’Neill');
+  });
+
+  it('leaves a mixed-case name exactly as typed, so deliberate capitals survive', () => {
+    for (const name of ['McDonald', 'DiCaprio', 'van der Berg', 'de Glanville', 'MacLeod-Smith']) {
+      expect(normalizeNameCase(name), name).toBe(name);
+    }
+  });
+
+  it('handles accented letters as letters', () => {
+    expect(normalizeNameCase('JOSÉ LÓPEZ')).toBe('José López');
+    expect(normalizeNameCase('élodie')).toBe('Élodie');
+  });
+
+  it('returns a dotted capital I as one composed letter', () => {
+    // Lower-casing 'İ' yields 'i' plus a combining dot; without composing the
+    // result, the stored name is 'I' and a loose mark, which a search or
+    // duplicate check comparing against the typed 'İsmail' would never match.
+    expect(normalizeNameCase('İSMAIL')).toBe('İsmail');
+  });
+
+  it('leaves a name in a script without capitals unchanged', () => {
+    expect(normalizeNameCase('你好')).toBe('你好');
+    expect(normalizeNameCase('')).toBe('');
+  });
+
+  it('is stable when applied twice', () => {
+    for (const name of ['JOHN SMITH', "o'brien-jones", 'McDonald']) {
+      expect(normalizeNameCase(normalizeNameCase(name)), name).toBe(normalizeNameCase(name));
+    }
+  });
+});
 
 describe('reserved-name matching', () => {
   it('returns null for nothing to check', () => {

@@ -25,7 +25,14 @@ set -euo pipefail
 # source twice over: it sits in whichever account last deployed, so naming one
 # account's home locks every other operator out, and the next deploy deletes and
 # rebuilds it.
-LIVE_DIR=/srv/footbag
+#
+# Test seam: FOOTBAG_TEST_LIVE_DIR replaces the install directory, so a suite
+# runs this file itself against a scratch install. It never reaches a host run:
+# sudo starts this body with a reset environment. A run using it says so.
+LIVE_DIR="${FOOTBAG_TEST_LIVE_DIR:-/srv/footbag}"
+if [[ -n "${FOOTBAG_TEST_LIVE_DIR:-}" ]]; then
+  echo "NOTE: using a stand-in install directory (FOOTBAG_TEST_LIVE_DIR); this run proves nothing about any host." >&2
+fi
 SNAPSHOT="${LIVE_DIR}/scripts/take-pre-cutover-snapshot.sh"
 
 if [[ ! -r "${SNAPSHOT}" ]]; then
@@ -65,3 +72,15 @@ if [[ -z "${DR_URI}" ]]; then
   exit 1
 fi
 printf 'PRECUTOVER_SNAPSHOT_URI=%s\n' "${DR_URI}"
+
+# The host-local copy and its uncompressed checksum, so the data checks that
+# follow read exactly this object on this host instead of pulling it back.
+flat="$(printf '%s' "${MANIFEST}" | tr -d ' \n')"
+LOCAL_PATH="$(printf '%s' "${flat}" | sed -n 's/.*"snapshot_path":"\([^"]*\)".*/\1/p')"
+SHA256="$(printf '%s' "${flat}" | sed -n 's/.*"sha256":"\([0-9a-f]\{64\}\)".*/\1/p')"
+if [[ -z "${LOCAL_PATH}" || -z "${SHA256}" ]]; then
+  echo "ERROR: the snapshot manifest named no local path or checksum, so it cannot be checked here." >&2
+  exit 1
+fi
+printf 'PRECUTOVER_SNAPSHOT_PATH=%s\n' "${LOCAL_PATH}"
+printf 'PRECUTOVER_SNAPSHOT_SHA256=%s\n' "${SHA256}"

@@ -40,7 +40,7 @@
 locals {
   # The directly authenticated identity, named here only so the policy can deny
   # this role every write to it.
-  super_admin_user_arn = "arn:aws:iam::${var.aws_account_id}:user/footbag-operator"
+  operator_user_arn = "arn:aws:iam::${var.aws_account_id}:user/footbag-operator"
 
   # Every named dev-and-tester lives under one IAM path, and the trust policy
   # admits the path rather than a list of people. Onboarding therefore never
@@ -534,12 +534,12 @@ locals {
     # Reads stay because verify-account-baseline.sh calls ListAccessKeys and
     # GetAccessKeyLastUsed against this user, and reading the identity is how the
     # baseline gate reports on it.
-    never_touch_super_admin_identity = {
-      Sid       = "NeverTouchTheSuperAdminIdentity"
+    never_touch_operator_identity = {
+      Sid       = "NeverTouchTheOperatorIdentity"
       Effect    = "Deny"
       NotAction = ["iam:Get*", "iam:List*", "iam:Simulate*"]
       Resource = [
-        local.super_admin_user_arn,
+        local.operator_user_arn,
         # Trailing star, because the live device is named footbag-operator-mfa
         # and IAM matches a resource ARN literally. Spelled without it, this
         # half of the denial matched no device at all. It is inert today only
@@ -593,7 +593,7 @@ locals {
       ]
     }
 
-    # Reads are preserved here for the same reason as the super-admin denial
+    # Reads are preserved here for the same reason as the operator-identity denial
     # above, and the shape is deliberately the same so the two are read as one
     # rule rather than as two that happen to differ. This role must not edit its
     # own definition or its trust policy — that is what makes this the one tree
@@ -896,7 +896,7 @@ locals {
     ]
     Guardrails = [
       local.statements.no_self_elevation,
-      local.statements.never_touch_super_admin_identity,
+      local.statements.never_touch_operator_identity,
       local.statements.never_administer_a_dev_tester,
       local.statements.never_touch_this_role,
       local.statements.never_rewrite_a_role_we_can_assume,

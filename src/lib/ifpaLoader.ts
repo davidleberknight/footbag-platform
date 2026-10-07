@@ -45,6 +45,15 @@ function extractHeadings(html: string): { id: string; text: string }[] {
   return headings;
 }
 
+// The page renders the document's title as its one h1, so a top-level heading
+// inside the document body (the document naming itself) ranks one level below
+// it. Only the tag changes; the heading's text and attributes stay as written.
+function demoteBodyH1(html: string): string {
+  return html
+    .replace(/<h1(\s[^>]*)?>/g, (_m, attrs: string | undefined) => `<h2${attrs ?? ''}>`)
+    .replace(/<\/h1>/g, '</h2>');
+}
+
 let cache: Map<string, ParsedIfpaDoc> | null = null;
 
 function buildCache(): Map<string, ParsedIfpaDoc> {
@@ -58,7 +67,9 @@ function buildCache(): Map<string, ParsedIfpaDoc> {
     map.set(entry.slug, {
       slug: entry.slug,
       title: entry.title,
-      bodyHtml: html,
+      bodyHtml: demoteBodyH1(html),
+      // Read before the demotion, so the table of contents lists the
+      // document's sections and never its own title.
       headings: extractHeadings(html),
     });
   }

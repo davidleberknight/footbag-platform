@@ -45,7 +45,6 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { committedFiles } from '../fixtures/committedFiles';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RUNNER = join(REPO_ROOT, 'run_all_tests.sh');
@@ -183,14 +182,14 @@ afterAll(() => {
  * because the gate simply does less. Counting the trees that exist is what
  * makes that visible.
  *
- * Counted from git rather than from the directory. The expectation below is an
- * exact arithmetic count, so an untracked experiment carrying its own
- * providers.tf would change the answer and fail a gate that had behaved
- * perfectly. A tree is part of this repository when it is committed, which is
- * also exactly the condition under which the gate's loop should have grown to
- * cover it.
+ * A tree is a folder under terraform/ holding a providers.tf, read from disk:
+ * a new tree on disk is about to be committed, and the gate's loop must
+ * already cover it.
  */
-const TREES = committedFiles('terraform/*/providers.tf').map((rel) => rel.split('/')[1]);
+const TREES = readdirSync(join(REPO_ROOT, 'terraform'), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && existsSync(join(REPO_ROOT, 'terraform', e.name, 'providers.tf')))
+  .map((e) => e.name)
+  .sort();
 
 describe('gate_terraform', () => {
   it('runs and invokes terraform for fmt and for every tree on disk', () => {

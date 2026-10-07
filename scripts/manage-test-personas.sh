@@ -78,6 +78,15 @@ fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 SEED_ENV="${FOOTBAG_ENV:-development}"
+# Allowed values only, so a spelling the production check above does not match
+# (Production, prod) is refused rather than handed to the runner.
+case "${SEED_ENV}" in
+  development|staging) ;;
+  *)
+    echo "refusing to touch test personas: FOOTBAG_ENV must be development or staging, not '${SEED_ENV}'." >&2
+    exit 2
+    ;;
+esac
 
 # --apply is a modifier, not an action, so it is read before the action loop
 # runs: written either side of the action on the command line, it must still

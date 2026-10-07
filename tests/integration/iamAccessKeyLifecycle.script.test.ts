@@ -83,7 +83,10 @@ function awsStub(opts: { existingKeys?: number; keyRows?: string } = {}): string
 }
 
 /** Drive the library directly: source it, then run one snippet against it. */
-function runSnippet(snippet: string, opts: { existingKeys?: number; keyRows?: string } = {}) {
+function runSnippet(
+  snippet: string,
+  opts: { existingKeys?: number; keyRows?: string; extraEnv?: Record<string, string> } = {},
+) {
   const script = join(stubDir, 'case.sh');
   writeFileSync(
     script,
@@ -93,7 +96,7 @@ function runSnippet(snippet: string, opts: { existingKeys?: number; keyRows?: st
   const result = spawnSync('bash', [script], {
     cwd: process.cwd(),
     encoding: 'utf-8',
-    env: { ...process.env, IAM_KEY_AWS_BIN: awsStub(opts) },
+    env: { ...process.env, IAM_KEY_AWS_BIN: awsStub(opts), ...opts.extraEnv },
     ...SPAWN_GUARD,
   });
   return {
@@ -113,6 +116,18 @@ describe('access key provisioning refusals', () => {
   it('mints nothing when there is no terminal to show the secret on', () => {
     const r = runSnippet(
       'iam_key_provision footbag-staging-cwagent-publisher aws-entry 0; echo "rc=$?"',
+    );
+    expect(r.stdout).toContain('rc=1');
+    expect(r.stderr).toContain('no terminal to show the new access key on');
+    expect(calls().some((c) => c.includes('create-access-key'))).toBe(false);
+  });
+
+  it('ignores an exported delivery mode, so a vault rotation still needs a terminal', () => {
+    // A value left in the operator's shell would otherwise mint a shared
+    // credential that is never shown and never recorded in the vault.
+    const r = runSnippet(
+      'iam_key_provision footbag-staging-cwagent-publisher aws-entry 0; echo "rc=$?"',
+      { extraEnv: { IAM_KEY_DELIVERY: 'install' } },
     );
     expect(r.stdout).toContain('rc=1');
     expect(r.stderr).toContain('no terminal to show the new access key on');
@@ -547,29 +562,5 @@ describe('cwagent installers', () => {
     // called, which is a record nobody can act on.
     const source = readFileSync(join(process.cwd(), script), 'utf-8');
     expect(source).toContain('IAM_KEY_VAULT_NOTES=');
-  });
-
-  it('the root-side half installs exactly one cleanup handler, which owns everything', () => {
-    // Bash keeps one handler per signal. The privileged-writer helper used to
-    // install its own EXIT INT TERM handler and clear all three on the way out,
-    // which replaced and then discarded the handler the install step sets for its
-    // downloaded package directory: a fresh install left that directory behind
-    // every time, and an interrupt after the first promoted file left it behind
-    // with nothing watching. A registry the single handler sweeps is the only shape
-    // that can hold both, so what is pinned here is that there is exactly one
-    // registration and that the helper adds to the registry rather than trapping.
-    const half = readFileSync(
-      join(process.cwd(), 'scripts/internal/install-cwagent-remote.sh'),
-      'utf-8',
-    );
-    const registrations = half.split('\n').filter((l) => /^\s*trap\s/.test(l));
-    expect(registrations, registrations.join('\n')).toHaveLength(1);
-    expect(registrations[0]).toMatch(/EXIT INT TERM/);
-    expect(half).not.toMatch(/trap - EXIT/);
-
-    const helper = half.slice(half.indexOf('install_via_tmp() {'));
-    const body = helper.slice(0, helper.indexOf('\n}'));
-    expect(body).toMatch(/CWAGENT_TMPS\+=\("\$tmp"\)/);
-    expect(body).not.toMatch(/trap/);
   });
 });

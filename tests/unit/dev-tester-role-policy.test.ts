@@ -136,7 +136,7 @@ describe('the job role carries exactly the statements it is meant to', () => {
       ],
       Guardrails: [
         'no_self_elevation',
-        'never_touch_super_admin_identity',
+        'never_touch_operator_identity',
         'never_administer_a_dev_tester',
         'never_touch_this_role',
         'never_rewrite_a_role_we_can_assume',
@@ -421,9 +421,9 @@ describe('the job role cannot become an administrator', () => {
     // still cannot reach this user: an enumerated Deny protects only the actions
     // somebody thought to name. Reads stay because the baseline gate calls
     // ListAccessKeys against that user, and reading it is how the gate reports.
-    const s = statement('NeverTouchTheSuperAdminIdentity');
+    const s = statement('NeverTouchTheOperatorIdentity');
     expect(s).toContain('Effect    = "Deny"');
-    expect(actions('NeverTouchTheSuperAdminIdentity', 'NotAction')).toEqual([
+    expect(actions('NeverTouchTheOperatorIdentity', 'NotAction')).toEqual([
       'iam:Get*',
       'iam:List*',
       'iam:Simulate*',
@@ -783,7 +783,7 @@ describe('the trust policy is what makes attribution real on a shared role', () 
     // rather than through this role, and no role can chain into it.
     const at = source.indexOf('Sid       = "NamedDevTestersMayAssume"');
     const block = source.slice(at, at + 900);
-    expect(block).not.toContain('local.super_admin_user_arn');
+    expect(block).not.toContain('local.operator_user_arn');
     expect(block).not.toMatch(/:role\//);
   });
 });

@@ -16,7 +16,10 @@
 #              in that case; run cleanup). Absent means consumed cleanly or
 #              never provisioned.
 #   cleanup    Delete the parameter. Use after a successful claim whose
-#              self-delete failed, or to abort a pending handoff.
+#              self-delete failed, or to abort a pending handoff. Asks for
+#              a typed APPLY on a terminal, with no flag to skip it: a
+#              pending token is a live credential someone may be about to
+#              use, and deleting it cannot be undone.
 #
 # The app consumes the token at POST /admin/bootstrap-claim: on a match it
 # grants the first admin atomically and then deletes this parameter itself.
@@ -29,12 +32,19 @@
 #   scripts/admin-bootstrap-token.sh --target staging --profile <staging-profile> provision
 #   scripts/admin-bootstrap-token.sh --target production --profile <prod-profile> status
 #   scripts/admin-bootstrap-token.sh --target staging --profile <staging-profile> cleanup
+#
+# Test seam: ADMIN_BOOTSTRAP_AWS_BIN replaces the AWS CLI for the parameter
+# calls. A run using it says so on stderr, because a stubbed run proves nothing
+# about the account.
 set -euo pipefail
 
 # The AWS identity this run uses, supplied and proved rather than inherited from
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+# confirm_from_tty: the shared typed confirmation, read from the terminal.
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 TARGET=""
 AWS_PROFILE_ARG=""
@@ -86,6 +96,8 @@ if [[ -z "$ACTION" ]]; then
 fi
 
 PARAM_NAME="/footbag/${TARGET}/app/bootstrap/admin_token"
+AWS_BIN="${ADMIN_BOOTSTRAP_AWS_BIN:-aws}"
+[[ -n "${ADMIN_BOOTSTRAP_AWS_BIN:-}" ]] && echo "NOTE: using a stand-in for the AWS CLI; this run proves nothing about the account." >&2
 AWS_ARGS=()
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
   AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
@@ -97,7 +109,7 @@ else
 fi
 
 param_exists() {
-  aws ssm get-parameter --name "$PARAM_NAME" "${AWS_ARGS[@]}" >/dev/null 2>&1
+  "$AWS_BIN" ssm get-parameter --name "$PARAM_NAME" "${AWS_ARGS[@]}" >/dev/null 2>&1
 }
 
 case "$ACTION" in
@@ -124,9 +136,11 @@ case "$ACTION" in
     TMP_JSON="$(mktemp)"
     chmod 600 "$TMP_JSON"
     trap 'shred -u "$TMP_JSON" 2>/dev/null || true' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     printf '{"Name":"%s","Type":"SecureString","Value":"%s"}\n' \
       "$PARAM_NAME" "$TOKEN" > "$TMP_JSON"
-    aws ssm put-parameter --cli-input-json "file://${TMP_JSON}" "${AWS_ARGS[@]}" >/dev/null
+    "$AWS_BIN" ssm put-parameter --cli-input-json "file://${TMP_JSON}" "${AWS_ARGS[@]}" >/dev/null
     echo "Provisioned ${PARAM_NAME} on ${TARGET}."
     echo
     echo "Hand this token to the intended first admin OUT OF BAND (it is"
@@ -159,7 +173,14 @@ case "$ACTION" in
       echo "Nothing to do: ${PARAM_NAME} does not exist on ${TARGET}."
       exit 0
     fi
-    aws ssm delete-parameter --name "$PARAM_NAME" "${AWS_ARGS[@]}"
+    echo "About to delete ${PARAM_NAME} on ${TARGET}."
+    echo "A token handed out and not yet claimed stops working, and the"
+    echo "first admin then needs a newly provisioned one."
+    if ! confirm_from_tty "Type APPLY to delete the bootstrap token: " "APPLY"; then
+      echo "Not confirmed; nothing was deleted." >&2
+      exit 1
+    fi
+    "$AWS_BIN" ssm delete-parameter --name "$PARAM_NAME" "${AWS_ARGS[@]}"
     echo "Deleted ${PARAM_NAME} on ${TARGET}. The bootstrap token is dead."
     ;;
 esac

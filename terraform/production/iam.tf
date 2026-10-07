@@ -16,13 +16,13 @@ resource "aws_iam_role" "app_runtime" {
   # Trusts:
   #   - footbag-production-source-profile (host runtime path; long-lived keys
   #     live on the production Lightsail host at /root/.aws/credentials)
-  #   - footbag-operator (the super-admin identity, directly authenticated; also
-  #     the operator-workstation chained-AssumeRole path used by
+  #   - the footbag-operator IAM user (directly authenticated; also the
+  #     operator-workstation chained-AssumeRole path used by
   #     tests/smoke/staging-readiness.test.ts via
   #     AWS_PROFILE=footbag-production-runtime)
   #
-  # Both entries stay. The super-admin identity's ARN is what lets a directly
-  # authenticated principal reach this role, and AWS resolves a literal-ARN trust
+  # Both entries stay. The footbag-operator IAM user's ARN is what lets a
+  # directly authenticated principal reach this role, and AWS resolves a literal-ARN trust
   # to that user's internal unique id, so removing it is not undone by recreating
   # the user: a recreated user is a different principal and this breaks with no
   # plan diff to warn anyone.
@@ -439,14 +439,27 @@ resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {
 resource "aws_iam_role" "s3_replication" {
   name = "${local.prefix}-s3-replication"
 
+  # S3 Batch Operations is trusted only while the archive exists, because the
+  # archive is the one source whose existing objects a batch job copies
+  # (scripts/backfill-replication.sh). AWS requires a Batch Replication job's
+  # role to trust that service, and requires the job's role to sit in the same
+  # account as the job, so no other account can hand this role to a job.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid       = "TrustS3"
-      Effect    = "Allow"
-      Principal = { Service = "s3.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
+    Statement = concat(
+      [{
+        Sid       = "TrustS3"
+        Effect    = "Allow"
+        Principal = { Service = "s3.amazonaws.com" }
+        Action    = "sts:AssumeRole"
+      }],
+      var.enable_archive ? [{
+        Sid       = "TrustS3BatchOperations"
+        Effect    = "Allow"
+        Principal = { Service = "batchoperations.s3.amazonaws.com" }
+        Action    = "sts:AssumeRole"
+      }] : [],
+    )
   })
 }
 
@@ -454,54 +467,95 @@ resource "aws_iam_role_policy" "s3_replication" {
   name = "s3-replication"
   role = aws_iam_role.s3_replication.id
 
-  # Single policy covering both replication pairs:
+  # Single policy covering every replication pair:
   #   snapshots (us-east-1) → dr (us-west-2)
   #   media     (us-east-1) → media_dr (us-west-2)
+  #   archive   (us-east-1) → archive_dr (us-west-2), while the archive exists
   # AWS S3 replication needs Get* on the source bucket and ReplicateObject
-  # on the destination; combining both pairs into one policy keeps the role
+  # on the destination; combining the pairs into one policy keeps the role
   # singular and avoids attaching a second policy by hand.
+  #
+  # The last statement is what a Batch Replication job over the archive needs
+  # beyond live replication, scoped to the archive and to the one prefix of
+  # its log bucket the job writes its generated manifest and completion report
+  # under. Inventory configuration is how S3 builds the manifest.
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "SourceBucketRead"
-        Effect = "Allow"
-        Action = [
-          "s3:GetReplicationConfiguration",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          aws_s3_bucket.snapshots.arn,
-          aws_s3_bucket.media.arn,
-        ]
-      },
-      {
-        Sid    = "SourceObjectRead"
-        Effect = "Allow"
-        Action = [
-          "s3:GetObjectVersionForReplication",
-          "s3:GetObjectVersionAcl",
-          "s3:GetObjectVersionTagging"
-        ]
-        Resource = [
-          "${aws_s3_bucket.snapshots.arn}/*",
-          "${aws_s3_bucket.media.arn}/*",
-        ]
-      },
-      {
-        Sid    = "DestinationObjectWrite"
-        Effect = "Allow"
-        Action = [
-          "s3:ReplicateObject",
-          "s3:ReplicateDelete",
-          "s3:ReplicateTags"
-        ]
-        Resource = [
-          "${aws_s3_bucket.dr.arn}/*",
-          "${aws_s3_bucket.media_dr.arn}/*",
-        ]
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Sid    = "SourceBucketRead"
+          Effect = "Allow"
+          Action = [
+            "s3:GetReplicationConfiguration",
+            "s3:ListBucket"
+          ]
+          Resource = concat(
+            [
+              aws_s3_bucket.snapshots.arn,
+              aws_s3_bucket.media.arn,
+            ],
+            var.enable_archive ? [aws_s3_bucket.archive[0].arn] : [],
+          )
+        },
+        {
+          Sid    = "SourceObjectRead"
+          Effect = "Allow"
+          Action = [
+            "s3:GetObjectVersionForReplication",
+            "s3:GetObjectVersionAcl",
+            "s3:GetObjectVersionTagging"
+          ]
+          Resource = concat(
+            [
+              "${aws_s3_bucket.snapshots.arn}/*",
+              "${aws_s3_bucket.media.arn}/*",
+            ],
+            var.enable_archive ? ["${aws_s3_bucket.archive[0].arn}/*"] : [],
+          )
+        },
+        {
+          Sid    = "DestinationObjectWrite"
+          Effect = "Allow"
+          Action = [
+            "s3:ReplicateObject",
+            "s3:ReplicateDelete",
+            "s3:ReplicateTags"
+          ]
+          Resource = concat(
+            [
+              "${aws_s3_bucket.dr.arn}/*",
+              "${aws_s3_bucket.media_dr.arn}/*",
+            ],
+            var.enable_archive ? ["${aws_s3_bucket.archive_dr[0].arn}/*"] : [],
+          )
+        },
+      ],
+      var.enable_archive ? [
+        {
+          Sid      = "ArchiveBatchReplicationInitiate"
+          Effect   = "Allow"
+          Action   = ["s3:InitiateReplication"]
+          Resource = ["${aws_s3_bucket.archive[0].arn}/*"]
+        },
+        {
+          Sid      = "ArchiveBatchReplicationManifest"
+          Effect   = "Allow"
+          Action   = ["s3:PutInventoryConfiguration"]
+          Resource = [aws_s3_bucket.archive[0].arn]
+        },
+        {
+          Sid    = "ArchiveBatchReplicationReport"
+          Effect = "Allow"
+          Action = [
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:GetObjectVersion"
+          ]
+          Resource = ["${aws_s3_bucket.archive_logs[0].arn}/${local.archive_batch_replication_prefix}/*"]
+        },
+      ] : [],
+    )
   })
 }
 

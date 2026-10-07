@@ -145,10 +145,12 @@ if [[ "${g4_total}" -eq 0 ]]; then
 else
   rn_pct=$(( g4_realname * 100 / g4_total ))
   cy_pct=$(( g4_country  * 100 / g4_total ))
-  if [[ "${rn_pct}" -ge 95 ]]; then
-    emit_gate G4 PASS "real_name ${rn_pct}% / country ${cy_pct}% populated (sample)"
-  else
+  if [[ "${rn_pct}" -lt 95 ]]; then
     emit_gate G4 FAIL "real_name only ${rn_pct}% populated (< 95% threshold)"
+  elif [[ "${cy_pct}" -lt 50 ]]; then
+    emit_gate G4 FAIL "country only ${cy_pct}% populated (< 50% threshold)"
+  else
+    emit_gate G4 PASS "real_name ${rn_pct}% / country ${cy_pct}% populated (sample)"
   fi
 fi
 

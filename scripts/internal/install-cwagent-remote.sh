@@ -63,7 +63,14 @@ cwagent_remote_cleanup() {
   fi
   return 0
 }
-trap cwagent_remote_cleanup EXIT INT TERM
+# The interrupt handlers only end the run; the exit that follows runs the one
+# cleanup. A handler that cleaned up and returned would let bash carry on from
+# the next command, so an interrupted install would go on to write the secret
+# key and restart the agent with its temp-file registry already swept.
+trap cwagent_remote_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 install_via_tmp() {
   local dest="$1"

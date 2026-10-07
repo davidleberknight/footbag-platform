@@ -64,16 +64,22 @@
  *     bases are evaluated together, so a lower later source never discards a
  *     higher tier an earlier claimed source conferred (a floor guard mirroring
  *     the purchase grant). A marker row is still written for every claim.
- *   - Admin-role grant requires the target currently hold Tier 2 or Tier 3
- *     (checked at request time); it sets `is_admin=1`, appends an admin-actor
- *     audit row, and subscribes the member to `admin-alerts`, all in one
- *     transaction. No `member_tier_grants` row is written: the target already
- *     satisfies the admin Tier 2 prerequisite and tier predicates short-circuit
- *     on `is_admin`. Revoke is self-revoke-guarded (an admin cannot revoke their
+ *   - Admin-role grant establishes Tier 2 rather than requiring it: in one
+ *     transaction it sets `is_admin=1`, writes a `member_tier_grants` row when
+ *     the target holds less than Tier 2 (a Tier 2 or Tier 3 target keeps its
+ *     tier), appends an admin-actor audit row recording the tier movement, and
+ *     subscribes the member to `admin-alerts`. Administrators are unpaid
+ *     volunteers, so none pays for a tier in order to serve. Revoke is self-revoke-guarded (an admin cannot revoke their
  *     own role, so at least one admin always remains); it sets `is_admin=0`,
  *     audits, and unsubscribes the member from `admin-alerts` only, leaving
  *     other list subscriptions untouched. Both enqueue the affected-member
  *     notification after the transaction commits.
+ *   - An automatic tier write never leaves a sitting administrator below
+ *     Tier 2: a Tier 3 removal or auto-link revert that would do so is followed
+ *     in the same transaction by the role's Tier 2 grant, recorded on that
+ *     operation's own audit row. An administrator's tier override is a
+ *     deliberate correction and is applied as chosen. A purchase, honor or
+ *     claim grant never lowers a tier, so needs no check.
  *   - Every admin-provisioning path (steady-state grant plus the bootstrap and
  *     dev-repair callers of the Tier 2 invariant grant) subscribes the member to
  *     `admin-alerts`, so the work-queue fan-out reaches every admin.
@@ -433,8 +439,9 @@ export function applyPurchaseGrantInTx(
 
 /**
  * Bring an admin member up to Tier 2, assuming the caller has already opened a
- * transaction. The platform admin role requires Tier 2+ as a prerequisite; this
- * enforces the invariant on the data side. Writes a standard 'grant' row plus a
+ * transaction. Tier 2+ for the platform admin role is applied when the role is
+ * granted, by every path that makes a member an admin, rather than demanded of
+ * them first. Writes a standard 'grant' row plus a
  * system-actor audit entry (both greppable markers) and ensures the admin-alerts
  * subscription. Skips the grant silently when the member already holds Tier 2 or
  * higher. Use this when the grant must be atomic with other writes: the bootstrap
@@ -447,7 +454,7 @@ export function applyPurchaseGrantInTx(
  *     'dev_admin_register_allowlist.admin_tier2', which keeps a distinctive
  *     action_type so an audit search partitions the dev/staging bootstrap events;
  *   - the production single-shot SSM-token bootstrap, reason_code
- *     'prod.admin_bootstrap_tier2', which falls through to the canonical
+ *     'admin_bootstrap.admin_tier2', which falls through to the canonical
  *     admin.bootstrap_grant action_type.
  */
 export function applyAdminTier2InvariantGrantInTx(
@@ -513,6 +520,38 @@ export function applyAdminTier2InvariantGrantInTx(
   }
   return { applied: true, fromTier: current.tier_status };
 }
+
+// Ledger reason code for the Tier 2 grant that keeps a sitting administrator at
+// the role's floor when another tier write would leave them below it.
+const ADMIN_TIER2_INVARIANT_REASON_CODE = 'admin.role_tier2_invariant';
+
+function isAdminMember(memberId: string): boolean {
+  const row = adminRole.getIsAdmin.get(memberId) as { is_admin: number } | undefined;
+  return row?.is_admin === 1;
+}
+
+/**
+ * Keep a sitting administrator at Tier 2 or above after a tier write that can
+ * lower the tier (Tier 3 removal, auto-link revert), in the caller's
+ * transaction. These automatic paths keep a sitting administrator at Tier 2
+ * (an administrator's tier override is a deliberate correction and is applied
+ * as chosen), so a write here that would leave one below Tier 2 is followed by
+ * the role's Tier 2 grant through the same helper every admin-provisioning
+ * path uses, keeping the ledger consistent. Returns whether
+ * the grant was written. The caller's own audit row records the movement, so
+ * this writes no audit row of its own: one event, one row.
+ */
+function keepAdminAtTier2InTx(memberId: string): boolean {
+  if (!isAdminMember(memberId)) return false;
+  if (TIER_RANK[getCurrent(memberId).tier_status] >= TIER_RANK.tier2) return false;
+  return applyAdminTier2InvariantGrantInTx(
+    memberId,
+    ADMIN_TIER2_INVARIANT_REASON_CODE,
+    {},
+    { emitAudit: false },
+  ).applied;
+}
+
 
 /**
  * Grant the platform admin role to a member (story A_Manage_Admin_Role). The
@@ -1192,6 +1231,13 @@ export function applyLegacyClaimGrantInTx(
  * claim is gone, so a revert generally falls back to `tier0` unless the
  * member already held a non-legacy upgrade (paid tier1, governance, etc.).
  *
+ * A sitting administrator never ends below Tier 2: when the restored tier is
+ * lower, the role's Tier 2 grant follows in the same transaction (reason code
+ * `admin.role_tier2_invariant`) and the audit row records it as
+ * `admin_tier2_invariant_to`. This matters because the admin-role grant writes
+ * no Tier 2 row for a member already at Tier 2, so a claim can be an
+ * administrator's only Tier 2 source.
+ *
  * Caller owns the transaction so the revoke is atomic with the linkage
  * clear and audit writes.
  */
@@ -1229,6 +1275,10 @@ export function applyAutoLinkRevertGrantInTx(
     now,
   });
 
+  // An administrator's Tier 2 may have come only from the reverted claim: the
+  // admin grant writes no Tier 2 row for a member already holding it.
+  const adminKeptAtTier2 = keepAdminAtTier2InTx(memberId);
+
   audit({
     actionType: 'tier.auto_link_revert',
     category:   'tier_change',
@@ -1240,6 +1290,7 @@ export function applyAutoLinkRevertGrantInTx(
       ...metadata,
       from: current.tier_status,
       to:   preservedTier,
+      ...(adminKeptAtTier2 ? { admin_tier2_invariant_to: 'tier2' } : {}),
     },
   });
 }
@@ -1317,6 +1368,11 @@ export function setGovernanceTier3(
  * Remove Tier 3 governance status. Reverts the member to the underlying tier
  * captured by the latest governance_set row.
  *
+ * A sitting administrator never ends below Tier 2: when the underlying tier is
+ * Tier 1, the role's Tier 2 grant follows the governance_removed row in the
+ * same transaction (reason code `admin.role_tier2_invariant`) and the audit row
+ * records it as `admin_tier2_invariant_to`.
+ *
  * Rejected with ConflictError if the member is not currently Tier 3.
  */
 export function removeGovernanceTier3(
@@ -1362,6 +1418,10 @@ export function removeGovernanceTier3(
     // not keep showing as on it.
     memberTier.setBoardFlag.run(0, now, actorId, memberId);
 
+    // An administrator who entered Tier 3 from Tier 1 reverts to Tier 1 above;
+    // the role's floor then brings them back to Tier 2.
+    const adminKeptAtTier2 = keepAdminAtTier2InTx(memberId);
+
     audit({
       actionType: 'tier.governance_removed',
       category: 'governance_change',
@@ -1371,6 +1431,7 @@ export function removeGovernanceTier3(
       reasonText: reason,
       metadata: {
         revert_to: revertTo,
+        ...(adminKeptAtTier2 ? { admin_tier2_invariant_to: 'tier2' } : {}),
       },
     });
 

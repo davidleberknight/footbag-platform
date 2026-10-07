@@ -261,8 +261,8 @@ cleanup() {
       echo "" >&2
       echo "ERROR: the marker could NOT be reversed and the host is still marked." >&2
       echo "       The destructive rebuild deploy will refuse this host until it is." >&2
-      echo "       Reverse it by hand, on the host, as root:" >&2
-      echo "         sudo /srv/footbag/scripts/cutover-marker.sh --set reversed" >&2
+      echo "       Reverse it from the workstation:" >&2
+      echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/cutover-marker-host.sh --target ${TARGET} --set reversed" >&2
       rc=1
     fi
   fi

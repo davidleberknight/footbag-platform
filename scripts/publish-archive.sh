@@ -83,6 +83,19 @@
 #   --signing-key <pem>        Private key for the edge check (default the
 #                              environment's own, ~/AWS/archive-signing-key-<env>.pem).
 #
+# A production publish stops for a typed APPLY every time, read from the
+# terminal, after every source gate has passed and before anything reaches the
+# bucket. It replaces what the public archive serves, so it is a production
+# deploy: no flag and no environment variable answers it, and a run with no
+# terminal is refused. --dry-run asks nothing, because it changes nothing.
+#
+# Test seams (CI only; operators never set these): FOOTBAG_AWS_BIN and
+# FOOTBAG_TERRAFORM_BIN replace the AWS CLI and Terraform, and
+# PUBLISH_ARCHIVE_TREE_VERIFIER and PUBLISH_ARCHIVE_EDGE_VERIFIER replace the
+# mirror verifier and the edge proof. Each says so on stderr when in use,
+# because a run through a stand-in proves nothing about the capture or the
+# estate.
+#
 # There is no flag to wave through unscanned or unrecognized bytes. A file the
 # gates refuse is either something the archive should serve, in which case the
 # capture is what needs fixing, or something it should not, in which case it
@@ -97,6 +110,19 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "${SCRIPT_DIR}/lib/aws-profile.sh"
+# confirm_from_tty: the shared typed confirmation, read from the terminal, which
+# an exported accept flag cannot answer because the library assigns it.
+# shellcheck source=lib/host-env-remote.sh
+source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+
+AWS_BIN="${FOOTBAG_AWS_BIN:-aws}"
+TF_BIN="${FOOTBAG_TERRAFORM_BIN:-terraform}"
+TREE_VERIFIER="${PUBLISH_ARCHIVE_TREE_VERIFIER:-${REPO_ROOT}/legacy_data/legacy_mirror/verify_mirror.sh}"
+EDGE_VERIFIER="${PUBLISH_ARCHIVE_EDGE_VERIFIER:-${SCRIPT_DIR}/verify-archive-edge.sh}"
+[[ -n "${FOOTBAG_AWS_BIN:-}" ]] && echo "NOTE: using a stand-in for the AWS CLI; this run proves nothing about the account." >&2
+[[ -n "${FOOTBAG_TERRAFORM_BIN:-}" ]] && echo "NOTE: using a stand-in for Terraform; the identifiers this run uses are not the estate's." >&2
+[[ -n "${PUBLISH_ARCHIVE_TREE_VERIFIER:-}" ]] && echo "NOTE: using a stand-in for the mirror verifier; this run proves nothing about the capture." >&2
+[[ -n "${PUBLISH_ARCHIVE_EDGE_VERIFIER:-}" ]] && echo "NOTE: using a stand-in for the edge proof; this run proves nothing about what members are served." >&2
 
 TARGET_ENV=""
 DRY_RUN=0
@@ -227,7 +253,7 @@ fi
 
 TF_DIR="${REPO_ROOT}/terraform/${TARGET_ENV}"
 tf_out() {
-  terraform -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true
+  "$TF_BIN" -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true
 }
 BUCKET="$(tf_out archive_bucket_name)"
 DIST_ID="$(tf_out archive_distribution_id)"
@@ -450,7 +476,6 @@ echo "Sanitization gate: no admin-only fields, scripts, missing charsets, or leg
 # see, so a skip in either refuses the publish. Other checks may legitimately
 # skip on a capture that predates what they read, and those are left to the
 # operator's eye rather than held against the publish.
-TREE_VERIFIER="${REPO_ROOT}/legacy_data/legacy_mirror/verify_mirror.sh"
 if [[ ! -f "$TREE_VERIFIER" ]]; then
   echo "ERROR: the mirror verifier is missing: ${TREE_VERIFIER}" >&2
   echo "A publish is not allowed to skip verification of the tree it ships." >&2
@@ -481,8 +506,26 @@ SRC_COUNT="$(find "$WWW_ROOT" -type f ! -name '*.sanitized' | wc -l)"
 SRC_BYTES="$(find "$WWW_ROOT" -type f ! -name '*.sanitized' -printf '%s\n' | { total=0; while read -r n; do total=$((total + n)); done; echo "$total"; })"
 echo "Source: ${SRC_COUNT} files, ${SRC_BYTES} bytes (sidecars excluded)"
 
+# ---- 4a. Production confirmation ----------------------------------------------
+#
+# Here, after every source gate and before the first call to AWS, so the operator
+# confirms a capture that has already passed and nothing reaches the bucket
+# unconfirmed. A dry run changes nothing and asks nothing.
+if [[ "$TARGET_ENV" == "production" && "$DRY_RUN" -eq 0 ]]; then
+  echo ""
+  echo "About to publish to PRODUCTION:"
+  echo "  source        ${WWW_ROOT} (${SRC_COUNT} files)"
+  echo "  bucket        s3://${BUCKET}, keys absent from the source DELETED"
+  echo "  distribution  ${DIST_ID}, the whole cache invalidated (/*)"
+  echo "What the public archive serves is replaced by this capture."
+  if ! confirm_from_tty "Type APPLY to publish to production: " "APPLY"; then
+    echo "Not confirmed; nothing was uploaded, deleted, or invalidated." >&2
+    exit 1
+  fi
+fi
+
 BUCKET_LISTING="${WORK_DIR}/bucket_before.txt"
-aws s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$BUCKET_LISTING" || true
+"$AWS_BIN" s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$BUCKET_LISTING" || true
 echo "Bucket before: $(wc -l < "$BUCKET_LISTING") objects"
 
 # ---- 5. Sync -----------------------------------------------------------------
@@ -501,6 +544,10 @@ SYNC_ARGS=(
 for pattern in ${EXCLUDE_PATTERNS+"${EXCLUDE_PATTERNS[@]}"}; do
   SYNC_ARGS+=(--exclude "$pattern")
 done
+# No --size-only: it never uploads an edit that keeps a file's byte length, so
+# the archive would go on serving the old page. The default comparison (size and
+# modification time) is already a delta, because the mirror crawler gives every
+# file it did not change back its original modification time.
 SYNC_ARGS+=(
   --delete
   --no-progress
@@ -532,7 +579,7 @@ stale_keys_from() {
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "DRY RUN (--dry-run): listing what a publish would change."
-  aws "${SYNC_ARGS[@]}" --dryrun "${AWS_ARGS[@]}" | tee "${WORK_DIR}/dryrun.txt" | tail -20
+  "$AWS_BIN" "${SYNC_ARGS[@]}" --dryrun "${AWS_ARGS[@]}" | tee "${WORK_DIR}/dryrun.txt" | tail -20
   echo "Dry-run change count: $(wc -l < "${WORK_DIR}/dryrun.txt")"
   stale_keys_from "$BUCKET_LISTING" "${WORK_DIR}/stale_dry.txt"
   STALE_DRY="$(wc -l < "${WORK_DIR}/stale_dry.txt")"
@@ -552,7 +599,7 @@ fi
 
 echo "Applying sync to s3://${BUCKET} ..."
 SYNC_START="$(date +%s)"
-aws "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" > "${WORK_DIR}/sync.txt"
+"$AWS_BIN" "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" > "${WORK_DIR}/sync.txt"
 SYNC_SECONDS="$(( $(date +%s) - SYNC_START ))"
 echo "Sync complete in ${SYNC_SECONDS}s: $(wc -l < "${WORK_DIR}/sync.txt") operations"
 
@@ -564,7 +611,7 @@ echo "Sync complete in ${SYNC_SECONDS}s: $(wc -l < "${WORK_DIR}/sync.txt") opera
 # adding a pattern is what makes it stale, and this is what makes adding one
 # take effect on the bucket rather than only on the next upload.
 RECONCILE_LISTING="${WORK_DIR}/bucket_reconcile.txt"
-aws s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$RECONCILE_LISTING"
+"$AWS_BIN" s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$RECONCILE_LISTING"
 STALE_KEYS="${WORK_DIR}/stale_keys.txt"
 stale_keys_from "$RECONCILE_LISTING" "$STALE_KEYS"
 STALE_COUNT="$(wc -l < "$STALE_KEYS")"
@@ -573,7 +620,7 @@ if [[ "$STALE_COUNT" -gt 0 ]]; then
   while IFS= read -r stale_key; do
     [[ -z "$stale_key" ]] && continue
     echo "  removing: ${stale_key}"
-    aws s3 rm "s3://${BUCKET}/${stale_key}" "${AWS_ARGS[@]}" >/dev/null
+    "$AWS_BIN" s3 rm "s3://${BUCKET}/${stale_key}" "${AWS_ARGS[@]}" >/dev/null
   done < "$STALE_KEYS"
 else
   echo "Reconciliation: nothing stale; the bucket holds only intended keys."
@@ -583,7 +630,7 @@ fi
 
 fail=0
 for key in index.html _gate/denied.html _gate/not-found.html; do
-  if ! aws s3api head-object --bucket "$BUCKET" --key "$key" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
+  if ! "$AWS_BIN" s3api head-object --bucket "$BUCKET" --key "$key" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
     echo "ERROR: expected key missing after sync: ${key}" >&2
     fail=1
   fi
@@ -594,7 +641,7 @@ done
 # the steady state removes nothing.
 AFTER_LISTING="${WORK_DIR}/bucket_after.txt"
 if [[ "$STALE_COUNT" -gt 0 ]]; then
-  aws s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$AFTER_LISTING"
+  "$AWS_BIN" s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$AFTER_LISTING"
 else
   cp "$RECONCILE_LISTING" "$AFTER_LISTING"
 fi
@@ -623,7 +670,7 @@ fi
 
 # ---- 7. Invalidation ---------------------------------------------------------
 
-INVALIDATION_ID="$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" \
+INVALIDATION_ID="$("$AWS_BIN" cloudfront create-invalidation --distribution-id "$DIST_ID" \
   --paths "/*" --query 'Invalidation.Id' --output text "${AWS_ARGS[@]}")"
 echo "Invalidation created: ${INVALIDATION_ID} (distribution ${DIST_ID})"
 
@@ -639,7 +686,7 @@ echo "Invalidation created: ${INVALIDATION_ID} (distribution ${DIST_ID})"
 # the policy shape cannot leave the two disagreeing.
 EDGE_ARGS=(--target "$TARGET_ENV" --signing-key "$SIGNING_KEY")
 [[ -n "$AWS_PROFILE_ARG" ]] && EDGE_ARGS+=(--profile "$AWS_PROFILE_ARG")
-if ! bash "${SCRIPT_DIR}/verify-archive-edge.sh" "${EDGE_ARGS[@]}"; then
+if ! bash "$EDGE_VERIFIER" "${EDGE_ARGS[@]}"; then
   echo "ERROR: edge verification failed after publish. If the invalidation just" >&2
   echo "ran, the edge may still be settling; retry before investigating." >&2
   exit 1

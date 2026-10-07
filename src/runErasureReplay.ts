@@ -11,10 +11,12 @@
  * necessary and safe: necessary because the personal data comes back, and safe
  * because the conditions that justified removing it come back with it.
  *
- * Without this step the daily retention pass would eventually notice and purge
- * again, so nothing is permanently un-erased. The gap it closes is the window:
- * a restore otherwise serves a member's erased personal data until that pass
- * next runs, which can be most of a day, and the person asked for it to be gone.
+ * The restore runs it while the stack is down and treats anything short of the
+ * final "erasure-replay: ok" line as a failed restore: the site stays stopped,
+ * backups stay paused, and a marker beside the database keeps both refusing
+ * across a reboot or a deploy until the replay is re-run and succeeds. A
+ * restored database that has not been replayed is never served and never
+ * backed up, so a nonzero exit here is what holds it back.
  *
  * The scan is idempotent. Running it on a database with nothing to replay is a
  * no-op that reports zero, so the restore path can run it unconditionally
@@ -27,6 +29,7 @@
 import { operationsPlatformService } from './services/operationsPlatformService';
 import { initDataOrigin } from './services/dataOriginService';
 import { logger } from './config/logger';
+import { config } from './config/env';
 
 export async function runErasureReplay(): Promise<number> {
   await initDataOrigin();
@@ -54,14 +57,16 @@ export async function runErasureReplay(): Promise<number> {
   );
 
   if (errors.length > 0) {
-    // Loud rather than fatal-to-the-restore: the database is already in place
-    // and serving it is better than not, but an operator must know that some
-    // erasures did not re-apply and act on them by hand.
+    // Fatal to the restore: some erasures did not re-apply, so the database in
+    // place may still hold personal data a member asked to have erased. The
+    // nonzero exit, and the missing "ok" line, keep the site stopped and the
+    // backups paused until the replay is re-run and succeeds.
     logger.error('erasure replay: some rows could not be re-applied', {
       failed: errors.length,
     });
     process.stdout.write(
-      `erasure-replay: FAILED for ${errors.length} row(s); re-apply by hand before the site takes traffic\n`,
+      `erasure-replay: FAILED for ${errors.length} row(s); finish it from a workstation with ` +
+        `scripts/restore-db.sh --target ${config.footbagEnv ?? '<env>'} --resume-erasure-replay\n`,
     );
     return 1;
   }

@@ -369,7 +369,7 @@ News items are auto-generated as side effects of primary entity flows (event pub
 **Views:** `email_templates_enabled`
 
 #### Outbox pattern
-All emails are written to `outbox_emails` first; a background worker sends them and updates `status`. The admin Pause Sending toggle prevents new sends without losing queued items. Each row records the `template_key` of the registered template that produced it, stamped by the email service.
+All emails are written to `outbox_emails` first; a background worker sends them and updates `status`. The pause-sending switch, set by operator script, prevents new sends without losing queued items. Each row records the `template_key` of the registered template that produced it, stamped by the email service.
 
 `idempotency_key` prevents duplicate sends when the same outbox row is retried.
 
@@ -424,9 +424,9 @@ Config values are admin-configurable. Numeric limits and time windows are stored
 One key is written by the application rather than seeded or administered: `payments_declared_mode`, appended by the web process at boot only when the deployment's declared arming state differs from the last row recorded, so the payments health page can say since when the declared mode has held. It is an observation with a null author, not a setting, and it has no seed row.
 
 #### Schema migrations
-`schema_migrations` records which migration files have been applied to a database. Before go-live the whole database is replaced on every deploy, so the schema is whatever `database/schema.sql` says; after go-live that deploy is forbidden and a migration file is the only way a schema change reaches production. Without this record the only way to know production's schema is to read production, and a restore is worse still, because the restored file is at whatever point the snapshot was taken and nothing in it says which migrations it now lacks.
+`schema_migrations` records which migration files have been applied to a database. Production is the one database that is never rebuilt, and a migration file is the only way a schema change reaches it; every other database is built whole from `database/schema.sql`. Without this record the only way to know production's schema is to read production, and a restore is worse still, because the restored file is at whatever point the snapshot was taken and nothing in it says which migrations it now lacks.
 
-One row per applied file: its name, a checksum of its bytes, and when it was applied. The row is written inside the same transaction as the migration itself, so a migration that rolls back leaves no claim to have run. The checksum separates "already applied" from "the file has been edited since it was applied"; the second is refused, because the database no longer matches the file that names its state, and the fix is a new migration rather than a re-run. A database built from `schema.sql` records the bundled migrations as already applied, since the schema file already carries their effect. Before go-live that makes `database/migrations/` empty by design: a migration file written now would be recorded as already applied by every fresh build and executed by nothing, so a pre-go-live schema change lands in `schema.sql` alone.
+One row per applied file: its name, a checksum of its bytes, and when it was applied. The row is written inside the same transaction as the migration itself, so a migration that rolls back leaves no claim to have run. The checksum separates "already applied" from "the file has been edited since it was applied"; the second is refused, because the database no longer matches the file that names its state, and the fix is a new migration rather than a re-run. A database built from `schema.sql` records the bundled migrations as already applied, since the schema file already carries their effect, so every migration's schema change is also written into `schema.sql`, and a parity test holds the two in agreement.
 
 #### Job runs
 `system_job_runs` holds one row per periodic job per pass: name, start, finish, status, and `details_json`, the result the job returned. Rows are never pruned, because for some jobs the result is the record: the nightly payment reconciliation returns its whole report (window, provider mode compared, rows set aside, per-pass findings, issues raised and resolved, gross totals by category and currency), and the admin Financial Reports view reads those rows back rather than keeping a second table of reports. A job that throws leaves a failed row with the error text and no result.
@@ -434,7 +434,7 @@ One row per applied file: its name, a checksum of its bytes, and when it was app
 #### Audit log
 `audit_entries` is an append-only, privacy-safe ledger. IP addresses and user-agent strings are **never** stored. UPDATE and DELETE are blocked by DB triggers; rows are permanent. Actor context uses `actor_type` + `actor_member_id` (NULL for system actors).
 
-`data_origin` records whether the row came from real business (`live`), a rehearsal (`test`), or a process that could not tell (`unknown`). Production is proven before it goes live, so the cutover rehearsal, the payment-provider exercise and the operator bootstrap all write into the production ledger; the stamp is what stops those rows later reading as real member activity. It is resolved once at process start from the go-live marker and defaults to `unknown`, never `live`, because the ledger is append-only and a wrong stamp can never be corrected.
+`data_origin` records whether the row came from real business (`live`), a rehearsal (`test`), or a process that could not tell (`unknown`). Rows written while the production-live marker reads anything other than live, such as rehearsals, payment-provider exercises and the operator bootstrap, land in the same production ledger as real activity; the stamp is what stops them reading as real member activity. It is resolved once at process start from the production-live marker and defaults to `unknown`, never `live`, because the ledger is append-only and a wrong stamp can never be corrected.
 
 **`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). Every value is a dotted `domain.event` (e.g. `auth.register`, `payment.succeeded`); the convention binds every event.
 
@@ -587,8 +587,9 @@ Append-only ledger of lifetime membership tier changes only. UPDATE and DELETE a
 | `governance.tier3_set` | Tier 3 governance assigned |
 | `governance.tier3_removed` | Tier 3 governance removed (reverts to underlying tier) |
 | `admin.role_grant_tier2` | Admin role granted; the role's Tier 2 invariant applied |
-| `prod.admin_bootstrap_tier2` | First administrator claimed the bootstrap token; same invariant |
+| `admin_bootstrap.admin_tier2` | First administrator claimed the bootstrap token; same invariant |
 | `dev_admin_register_allowlist.admin_tier2` | Development and staging allowlist bootstrap; same invariant |
+| `admin.role_tier2_invariant` | A Tier 3 removal or legacy auto-link revert would have left a sitting administrator below Tier 2; the role's Tier 2 granted back in the same transaction |
 | `admin.override` | Admin manual change (correction or exceptional remediation) |
 | `admin.correction` | Admin correction of a prior data error |
 | `legacy.claim_tier_grant` | Legacy migration claim resolved to a tier assignment |
@@ -616,7 +617,7 @@ The only source FK retained is `related_payment_id` (purchase-origin grants). Vo
 
 #### Refund policy
 
-A refund does NOT trigger a `revoke` row. Per APP-006, completed payments are not retroactively altered: the service writes a `payment_status_transitions` row on refund and leaves the lifetime tier untouched. Membership tier persists across refunds.
+A refund does NOT trigger a `revoke` row. Per APP-006, completed payments are not retroactively altered (`SYS_Process_One_Time_Payments`: no automatic tier or registration changes on refund): the service writes a `payment_status_transitions` row on refund and leaves the lifetime tier untouched. Membership tier persists across refunds.
 
 #### Application responsibilities (APP-016; app-enforced values/workflow)
 - Write a single ledger row per real tier change. Use `purchase.tier1` / `purchase.tier2` for buys, `honor.hof_tier2_grant` / `honor.bap_tier2_grant` for HoF/BAP inductions, `governance.tier3_set` / `governance.tier3_removed` for board flag transitions, `admin.override` or `admin.correction` for admin actions, and `legacy.claim_tier_grant` for legacy claim resolutions.
@@ -746,7 +747,7 @@ Operational roster surface for `A_View_Official_Roster_Reports`. Joins `members_
 
 #### Access policy
 
-The Official IFPA Roster is not public. Access is gated at the route by membership tier: Tier 2 (IFPA Organizer Member) and above, which is the grant the IFPA membership rules make for official IFPA event and organizer purposes per US `A_View_Official_Roster_Reports`. Site administrators must already hold Tier 2 or Tier 3, so the one gate admits administrators, directors and organizers alike, and membership tier is the whole record of who may look. Every view is audit-logged via `audit_entries` with category `roster_access` and the actor, filter and row count captured in `metadata_json`. The roster is served as an on-screen page and stays inside the platform: the governing documents grant access and say nothing about taking a copy, so it is presented for reading rather than handed over as a file.
+The Official IFPA Roster is not public. Access is gated at the route by membership tier: Tier 2 (IFPA Organizer Member) and above, which is the grant the IFPA membership rules make for official IFPA event and organizer purposes per US `A_View_Official_Roster_Reports`. Granting the site administrator role grants Tier 2 to a member holding less, and the tier check passes every administrator, so the one gate admits administrators, directors and organizers alike, and membership tier and the administrator role are the whole record of who may look. Every view is audit-logged via `audit_entries` with category `roster_access` and the actor, filter and row count captured in `metadata_json`. The roster is served as an on-screen page and stays inside the platform: the governing documents grant access and say nothing about taking a copy, so it is presented for reading rather than handed over as a file.
 
 #### Deceased exclusion rationale
 
@@ -784,7 +785,7 @@ Append-only ledger recording that an Active Player expiry notice was sent to a m
 #### Competition history
 
 - `first_competition_year` (`INTEGER`, nullable): the member's first competition year. Editable on profile edit and wizard personal-details task. Pre-populated from `historical_persons.first_year` during legacy claim via COALESCE (member value wins if already set).
-- `show_first_competition_year` (`INTEGER`, default 0): opt-in toggle controlling whether "Competing since {year}" appears on the member's public profile. Default 0 means legacy imports and HP-claim transfers do not auto-show the year; only explicit member action sets it to 1. The toggle is not the hide mechanism: clearing `first_competition_year` hides the line whatever the toggle says, and the profile read applies no fallback to a linked historical person's `first_year`, so a value the member cleared is not put back by the record they are linked to.
+- `show_first_competition_year` (`INTEGER`, default 1): toggle controlling whether "Competing since {year}" appears on the member's public profile (`M_Edit_Profile`). The toggle is not the only hide mechanism: clearing `first_competition_year` hides the line whatever the toggle says, and the profile read applies no fallback to a linked historical person's `first_year`, so a value the member cleared is not put back by the record they are linked to.
 - `show_competitive_results` (`INTEGER`, default 1): controls whether competition results appear on the member's public profile. Own-profile view always shows results to the owner regardless of toggle state.
 - `show_gender` (`INTEGER`, default 0): opt-in toggle controlling whether the member's `gender` is shown to authenticated members on the member profile, in member search, and on club rosters. Default 0 keeps gender owner-and-admin only; only explicit member action sets it to 1. Only `'male'` / `'female'` render when set.
 - `email_visibility` (`TEXT`, default `'private'`, `CHECK (email_visibility IN ('private','members'))`): controls whether the member's contact email is shown to authenticated members. `'private'` (default) keeps it owner-and-admin only; `'members'` shows it to authenticated members; never shown to unauthenticated visitors. Gated in `memberService`.
@@ -1173,7 +1174,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `reconciliation_expiry_days` | `90` | Resolved reconciliation issue TTL |
 | `reconciliation_window_days` | `7` | Lookback window the nightly reconciliation passes compare; the window reaches further back when the last successful run is older than this, so an outage leaves no unexamined period |
 | `reconciliation_grace_minutes` | `30` | Age a record must reach before reconciliation judges it; minimum 1 |
-| `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker (DD §5.4) |
+| `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker; set by operator script (DD Arming Switches) |
 | `payments_paused` | `0` | `1` = operator kill-switch halting new membership purchases and donations; the application reads it and has no write path to it, and an operator script sets it |
 | `donation_rate_limit_per_hour` | `20` | Max donation checkout attempts per member per hour |
 | `event_registration_reminder_days` | `7` | Days before event start to send reminder |
@@ -1388,7 +1389,7 @@ May be dropped together with `club_bootstrap_leaders` once all bootstrap rows re
 
 #### `name_variants` — permanent, not migration-only
 
-Name-equivalence pairs that support claim matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account`). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
+Name-equivalence pairs that support claim matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account`). Seeded from mirror-mined pairs (~290) and kept live thereafter, so admins and members may record further equivalences as new name collisions surface.
 
 - **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `strftime('%Y-%m-%dT%H:%M:%fZ','now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
 - **Symmetric lookup**: storing `('robert', 'bob')` is equivalent to storing `('bob', 'robert')`. Lookups must check both columns. Never insert both directions; the self-pair CHECK and the PRIMARY KEY enforce uniqueness.
@@ -1450,9 +1451,11 @@ Display-only community advice recovered from the legacy Footbag.org `moves2.move
 
 ### 4.33 Groups & Group Affiliations
 
+<< V2 SCOPE >> Ships with native groups in v2; not part of the v1 launch.
+
 **Tables:** `groups`, `group_member_affiliations`
 
-Governance, working-group, and social entities distinct from clubs, per Group Membership in USER_STORIES. One group is planned at launch: the IFPA Board of Directors; the mechanism is general and an administrator creates any further group as data. Only a `type = 'board'` roster confers standing; a committee's roster confers no flag and no tier.
+Governance, working-group, and social entities distinct from clubs, per Group Membership in USER_STORIES. One group is planned first: the IFPA Board of Directors; the mechanism is general and an administrator creates any further group as data. A `type = 'board'` roster reflects board standing set by an administrator; no roster confers a flag or a tier.
 
 **`groups`**
 
@@ -1467,7 +1470,7 @@ Governance, working-group, and social entities distinct from clubs, per Group Me
 - **`ux_group_affiliations_one_current`**: partial UNIQUE on `(group_id, member_id) WHERE is_current = 1`. A member holds at most one current row per group; ended rows accumulate, because past composition is part of the record.
 - **CHECK**: `term_end IS NULL OR term_end >= term_start`.
 - **App-enforced**: `seat_reference` is required when `seat_basis` is set, and a group with zero current `role = 'owner'` rows raises the "Group Needs Owner" work-queue item. Neither is expressible as a row-local CHECK.
-- **Standing follows the roster.** For a `type = 'board'` group the roster is the record of who sits on the board: the service that writes a current row on it sets the member's IFPA Board flag and Tier 3 in the same transaction, recording the underlying tier for reversion, and ending the row reverts it (§4.12 Member Tier Grants, `A_Manage_Group_Roster`). The coupling lives in the service rather than a trigger so the grant, the tier row, and the audit entry commit together. No other route sets that flag on a board member.
+- **The roster follows standing.** Setting a member's board standing through `A_Grant_HoF_BAP_Board_Status` sets the IFPA Board flag and Tier 3, records the underlying tier for reversion, and adds their current row on the `type = 'board'` roster in the same transaction; clearing it reverts the tier and ends the row (§4.12 Member Tier Grants). The coupling lives in the service rather than a trigger so the flag, the tier row, the roster row, and the audit entry commit together.
 - **Standing and voting are independent.** `is_voting` gates ballots only: vote eligibility resolves `voting_members_of_group(group_id)` over current rows where `is_voting = 1`, snapshotted at vote-open (§4.5). A director whose seat is filled by appointment, or elected but not yet seated, carries standing with `is_voting = 0`. Reading membership as enfranchisement is the mistake this column exists to prevent.
 - **Nothing is aged out.** Ended rows keep `office`, `seat_basis`, `seat_reference`, and both term dates, so the board's composition on any past date is recoverable. Archiving a group ends its rows and preserves them.
 
@@ -1577,7 +1580,7 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 **Membership-tier grants from paid purchases and confirmed registrations must not be written before payment success is established.** Write `member_tier_grants` rows with `reason_code IN ('purchase.tier1','purchase.tier2')` and `registration.status = 'confirmed'` atomically with the `payments.status = 'succeeded'` update. Never grant access on `'pending'`, `'failed'`, or `'canceled'` payments.
 
-**Refunds preserve membership tier.** When a previously succeeded payment is refunded, the service writes a `payment_status_transitions` row only and does NOT write a `revoke` row to `member_tier_grants`. Membership tier is permanent across refunds (US §1.2: completed payments are not retroactively altered).
+**Refunds preserve membership tier.** When a previously succeeded payment is refunded, the service writes a `payment_status_transitions` row only and does NOT write a `revoke` row to `member_tier_grants`. Membership tier is permanent across refunds (`SYS_Process_One_Time_Payments`: no automatic tier or registration changes on refund).
 
 ---
 
@@ -1638,8 +1641,8 @@ When the application explicitly deletes a media item or gallery and wants to rec
 ### APP-015 — Admin role prerequisites and side effects
 
 Admin grant/revoke is application-only logic:
-1. **Target-member prerequisite:** only members whose effective tier is `tier2` or `tier3` may receive `is_admin = 1` (US §1.2, §6.6 A_Manage_Admin_Role).
-2. **Who may grant/revoke:** only existing admins may manage admin roles. Bootstrap exception: the initial system administrator may appoint the first admin during first-run setup.
+1. **Tier 2 invariant:** granting `is_admin = 1` grants Tier 2 in the same transaction when the target holds less; a Tier 3 removal or legacy auto-link revert that would leave an administrator below Tier 2 grants it back in the same transaction; an administrator's tier override is a deliberate correction and is applied as chosen (`A_Manage_Admin_Role`).
+2. **Who may grant/revoke:** only existing admins may manage admin roles. Bootstrap exception: while no admin exists, a signed-in member who submits the single-shot operator-provisioned token becomes the first admin (`A_Bootstrap_First_Admin`).
 3. **Anti-lockout:** the last admin may not have `is_admin` removed. Validate before the update.
 4. **Mailing list side effect:** write `mailing_list_subscriptions` changes for admin-alert lists in the same transaction as `is_admin` changes.
 5. All admin role changes must be audit-logged.

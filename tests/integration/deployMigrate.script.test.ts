@@ -21,6 +21,15 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { createTestDb, renderSidecarTemplate } from '../fixtures/testDb';
+import {
+  insertEmailTemplate, insertMember, insertMemberTierGrant,
+  insertFreestyleTrick, insertFreestyleTrickAlias, insertFreestyleTrickSource,
+  insertFreestyleTrickSourceLink, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink,
+  insertFreestyleTrickTip, insertFreestyleRecord, insertConsecutiveKicksRecord,
+  insertFreestyleEvAdjudication, insertMediaSource, insertVideoMediaItem, insertTag, attachMediaTag,
+  insertMemberGallery, insertGalleryCriterionTag, insertGalleryExcludeTag, insertGalleryExternalLink,
+} from '../fixtures/factories';
 
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/deploy-migrate.sh');
 
@@ -624,5 +633,385 @@ describe('curated content across a data-preserving deploy', () => {
       db.prepare('PRAGMA table_info(media_items)').all() as { name: string }[],
     ).map((c) => c.name);
     expect(columns).not.toContain('note');
+  });
+});
+
+/**
+ * Every admin-authored domain across a data-preserving deploy, on the real
+ * schema. After cutover the production database is the only copy of what
+ * admins have written: an edited email template, a member's account and the
+ * flags only an admin sets, the freestyle dictionary and its records and
+ * rulings, curated media and galleries. A migrating deploy that loses or
+ * resets any of it loses it for good, because nothing is reseeded. Each domain
+ * migrates its own table, so each case proves its rows survive a change to the
+ * table that holds them.
+ */
+describe('admin-authored content across a data-preserving deploy, on the real schema', () => {
+  const TEMPLATE_KEY = 'account_verify';
+  const OPERATOR_KEY = 'member-hof';
+
+  beforeEach(() => {
+    for (const ext of ['', '-wal', '-shm']) rmSync(`${dbPath}${ext}`, { force: true });
+    createTestDb(dbPath).close();
+  });
+
+  function seed(fn: (db: BetterSqlite3.Database) => void): void {
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    try {
+      fn(db);
+    } finally {
+      db.close();
+    }
+  }
+
+  function count(table: string): number {
+    return readDb((db) => (db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c);
+  }
+
+  function seedEditedTemplate(db: BetterSqlite3.Database): void {
+    insertEmailTemplate(db, {
+      id: `emailtpl_test_${TEMPLATE_KEY}`,
+      template_key: TEMPLATE_KEY,
+      subject_template: 'Admin-edited subject',
+      body_template: 'Admin-edited body for {memberName}',
+      is_enabled: 0,
+      pii_classification: 'restricted',
+    });
+  }
+
+  function seedMembers(db: BetterSqlite3.Database): void {
+    insertMember(db, {
+      id: OPERATOR_KEY, slug: 'hall-of-famer', login_email: 'hof@example.com',
+      password_hash: 'argon2id$fixture-hash', is_hof: 1, hof_inducted_year: 1999, is_board: 1,
+      bio: 'Admin-corrected biography',
+    });
+    insertMember(db, { id: 'member-deceased', slug: 'remembered', is_deceased: 1, deceased_at: '2024-05-01T00:00:00.000Z' });
+    insertMemberTierGrant(db, { member_id: OPERATOR_KEY, new_tier_status: 'tier2', reason_code: 'admin.manual_grant' });
+  }
+
+  function seedDictionary(db: BetterSqlite3.Database): void {
+    insertFreestyleTrick(db, {
+      slug: 'blender', canonical_name: 'Blender',
+      short_description: 'Curator short description',
+      execution_summary: 'Curator execution summary',
+      learning_notes: 'Curator learning notes',
+      prerequisite_notes: 'Curator prerequisites',
+      pronunciation: 'BLEN-der',
+      operational_notation_source: 'curator',
+    });
+    insertFreestyleTrickAlias(db, 'blendah', 'blender', 'Blendah', { alias_origin_producer: 'curator-application' });
+    const source = insertFreestyleTrickSource(db, { source_label: 'Curator citation' });
+    insertFreestyleTrickSourceLink(db, 'blender', source, { external_url: 'https://example.com/blender' });
+    insertFreestyleTrickModifier(db, { slug: 'curator-mod' });
+    insertFreestyleTrickModifierLink(db, 'blender', 'curator-mod');
+    insertFreestyleTrickTip(db, { trick_slug: 'blender', tip_text: 'Curator-approved tip', status: 'published' });
+  }
+
+  function seedRecords(db: BetterSqlite3.Database): void {
+    insertFreestyleRecord(db, {
+      id: 'record-1', display_name: 'Record Holder', trick_name: 'Blender', adds_count: 4,
+      confidence: 'verified', video_timecode: '1:06',
+    });
+    insertConsecutiveKicksRecord(db, { id: 'ck-1', sort_order: 7, division: 'Open Singles' });
+  }
+
+  function seedRulings(db: BetterSqlite3.Database): void {
+    insertFreestyleEvAdjudication(db, { candidate_id: 'ev-first', submitted_name: 'First Ruling', note: 'Ruled first' });
+    insertFreestyleEvAdjudication(db, { candidate_id: 'ev-second', submitted_name: 'Second Ruling', note: 'Ruled second' });
+  }
+
+  function seedCurated(db: BetterSqlite3.Database): void {
+    insertMember(db, { id: 'curator-owner', slug: 'curator-owner' });
+    insertMediaSource(db, 'passback_records', { sourceName: 'PassBack Records' });
+    const media = insertVideoMediaItem(db, {
+      id: 'media-real-1', uploader_member_id: 'curator-owner', video_platform: 'youtube',
+      video_id: 'CURATED', video_url: 'https://www.youtube.com/watch?v=CURATED',
+      caption: 'Admin caption', source_id: 'passback_records',
+    });
+    const include = insertTag(db, { tag_normalized: '#curated', tag_display: '#curated' });
+    const exclude = insertTag(db, { tag_normalized: '#outtake', tag_display: '#outtake' });
+    attachMediaTag(db, media, include);
+    const gallery = insertMemberGallery(db, { id: 'gallery-real-1', owner_member_id: 'curator-owner', name: 'Admin gallery' });
+    insertGalleryCriterionTag(db, gallery, include);
+    insertGalleryExcludeTag(db, gallery, exclude);
+    insertGalleryExternalLink(db, { gallery_id: gallery, label: 'Admin link', url: 'https://example.com/more' });
+  }
+
+  it('keeps an admin-edited email template, with no seeder run', () => {
+    // Defect caught: a migrating deploy that replays the committed sidecars or
+    // rebuilds the table, so members get the old wording back.
+    seed(seedEditedTemplate);
+    const before = count('email_templates');
+
+    const res = applyMigration('ALTER TABLE email_templates ADD COLUMN locale TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    const row = readDb((db) => db.prepare(
+      'SELECT subject_template, body_template, is_enabled, pii_classification FROM email_templates WHERE template_key = ?',
+    ).get(TEMPLATE_KEY)) as { subject_template: string; body_template: string; is_enabled: number; pii_classification: string };
+    expect(row).toEqual({
+      subject_template: 'Admin-edited subject', body_template: 'Admin-edited body for {memberName}',
+      is_enabled: 0, pii_classification: 'restricted',
+    });
+    expect(row.subject_template).not.toBe(renderSidecarTemplate(TEMPLATE_KEY).subject);
+    expect(count('email_templates')).toBe(before);
+    expect(readDb((db) => db.prepare('SELECT COUNT(*) AS c FROM email_templates_enabled WHERE template_key = ?')
+      .get(TEMPLATE_KEY) as { c: number }).c).toBe(0);
+  });
+
+  it('keeps member accounts and the flags only an admin sets', () => {
+    // Defect caught: members unable to sign in, Hall of Fame listings vanishing,
+    // or a deceased member reappearing after a deploy.
+    seed(seedMembers);
+    const activeBefore = count('members_active');
+
+    const res = applyMigration('ALTER TABLE members ADD COLUMN pronouns TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    const hof = readDb((db) => db.prepare(
+      'SELECT slug, login_email, password_hash, is_hof, hof_inducted_year, is_board, bio FROM members WHERE id = ?',
+    ).get(OPERATOR_KEY));
+    expect(hof).toEqual({
+      slug: 'hall-of-famer', login_email: 'hof@example.com', password_hash: 'argon2id$fixture-hash',
+      is_hof: 1, hof_inducted_year: 1999, is_board: 1, bio: 'Admin-corrected biography',
+    });
+    expect(readDb((db) => (db.prepare('SELECT is_deceased FROM members WHERE id = ?')
+      .get('member-deceased') as { is_deceased: number }).is_deceased)).toBe(1);
+    expect(readDb((db) => (db.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?')
+      .get(OPERATOR_KEY) as { tier_status: string }).tier_status)).toBe('tier2');
+    expect(count('members_active')).toBe(activeBefore);
+  });
+
+  it('keeps the freestyle dictionary: prose, aliases, citations, modifiers and tips', () => {
+    // Defect caught: after cutover the database is the only copy, so a deploy
+    // that loses a trick's editorial prose, its alias redirect, its citation or
+    // its tips loses them for good.
+    seed(seedDictionary);
+
+    const res = applyMigration('ALTER TABLE freestyle_tricks ADD COLUMN etymology TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    expect(readDb((db) => db.prepare(
+      `SELECT short_description, execution_summary, learning_notes, prerequisite_notes,
+              pronunciation, operational_notation_source FROM freestyle_tricks WHERE slug = 'blender'`,
+    ).get())).toEqual({
+      short_description: 'Curator short description', execution_summary: 'Curator execution summary',
+      learning_notes: 'Curator learning notes', prerequisite_notes: 'Curator prerequisites',
+      pronunciation: 'BLEN-der', operational_notation_source: 'curator',
+    });
+    expect(readDb((db) => (db.prepare("SELECT trick_slug FROM freestyle_trick_aliases WHERE alias_slug = 'blendah'")
+      .get() as { trick_slug: string }).trick_slug)).toBe('blender');
+    expect(readDb((db) => (db.prepare("SELECT external_url FROM freestyle_trick_source_links WHERE trick_slug = 'blender'")
+      .get() as { external_url: string }).external_url)).toBe('https://example.com/blender');
+    expect(count('freestyle_trick_modifier_links')).toBe(1);
+    expect(readDb((db) => (db.prepare("SELECT tip_text FROM freestyle_trick_tips WHERE trick_slug = 'blender'")
+      .get() as { tip_text: string }).tip_text)).toBe('Curator-approved tip');
+  });
+
+  it('keeps freestyle and consecutive-kicks records, including an admin\'s ordering', () => {
+    // Defect caught: the record tables reverting or emptying after a deploy.
+    seed(seedRecords);
+
+    const res = applyMigration('ALTER TABLE freestyle_records ADD COLUMN verified_by TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    expect(readDb((db) => db.prepare(
+      "SELECT display_name, adds_count, confidence, video_timecode FROM freestyle_records WHERE id = 'record-1'",
+    ).get())).toEqual({ display_name: 'Record Holder', adds_count: 4, confidence: 'verified', video_timecode: '1:06' });
+    expect(readDb((db) => db.prepare("SELECT sort_order, division FROM consecutive_kicks_records WHERE id = 'ck-1'").get()))
+      .toEqual({ sort_order: 7, division: 'Open Singles' });
+  });
+
+  it('keeps emerging-vocabulary rulings in order, and every symbolic-grammar row', () => {
+    // Defect caught: curator rulings lost or reordered, or the symbolic layer
+    // the dictionary pages read emptied by a deploy.
+    seed(seedRulings);
+    const symbolic = readDb((db) => (db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'symbolic\\_%' ESCAPE '\\' ORDER BY name",
+    ).all() as { name: string }[]).map((t) => t.name));
+    expect(symbolic.length).toBeGreaterThan(0);
+    const before = Object.fromEntries(symbolic.map((t) => [t, count(t)]));
+
+    const res = applyMigration('ALTER TABLE freestyle_ev_adjudications ADD COLUMN reviewer_note TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    expect(readDb((db) => (db.prepare(
+      "SELECT candidate_id FROM freestyle_ev_adjudications WHERE candidate_id IN ('ev-first', 'ev-second') ORDER BY sequence_no",
+    ).all() as { candidate_id: string }[]).map((r) => r.candidate_id))).toEqual(['ev-first', 'ev-second']);
+    expect(readDb((db) => (db.prepare("SELECT note FROM freestyle_ev_adjudications WHERE candidate_id = 'ev-second'")
+      .get() as { note: string }).note)).toBe('Ruled second');
+    for (const table of symbolic) expect(count(table), table).toBe(before[table]);
+  });
+
+  it('keeps curated media and galleries, including exclusions, links and sources', () => {
+    // Defect caught: a gallery showing the wrong videos after a deploy, because
+    // its exclusion or its source attribution was lost.
+    seed(seedCurated);
+
+    const res = applyMigration('ALTER TABLE member_galleries ADD COLUMN banner TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    expect(readDb((db) => db.prepare("SELECT caption, source_id FROM media_items WHERE id = 'media-real-1'").get()))
+      .toEqual({ caption: 'Admin caption', source_id: 'passback_records' });
+    expect(readDb((db) => (db.prepare("SELECT name FROM member_galleries WHERE id = 'gallery-real-1'")
+      .get() as { name: string }).name)).toBe('Admin gallery');
+    expect(count('media_tags')).toBe(1);
+    expect(count('member_gallery_tags')).toBe(1);
+    expect(count('member_gallery_exclude_tags')).toBe(1);
+    expect(readDb((db) => (db.prepare("SELECT label FROM gallery_external_links WHERE gallery_id = 'gallery-real-1'")
+      .get() as { label: string }).label)).toBe('Admin link');
+    expect(count('media_sources')).toBeGreaterThan(0);
+  });
+
+  it('keeps every domain unchanged when the migration fails and is rolled back', () => {
+    // Defect caught: a failed migration that partly lands, or restores a copy
+    // missing content written before it.
+    seed((db) => {
+      seedEditedTemplate(db); seedMembers(db); seedDictionary(db);
+      seedRecords(db); seedRulings(db); seedCurated(db);
+    });
+
+    const res = applyMigration(
+      'ALTER TABLE email_templates ADD COLUMN note TEXT;\n' +
+      // factory-cannot-express: the migration must fail, so its row is one the schema refuses
+      "INSERT INTO email_templates (id) VALUES ('broken-row');\n",
+    );
+    expect(res.status).not.toBe(0);
+
+    expect(readDb((db) => (db.prepare('SELECT subject_template FROM email_templates WHERE template_key = ?')
+      .get(TEMPLATE_KEY) as { subject_template: string }).subject_template)).toBe('Admin-edited subject');
+    expect(readDb((db) => (db.prepare('SELECT password_hash FROM members WHERE id = ?')
+      .get(OPERATOR_KEY) as { password_hash: string }).password_hash)).toBe('argon2id$fixture-hash');
+    expect(readDb((db) => (db.prepare("SELECT learning_notes FROM freestyle_tricks WHERE slug = 'blender'")
+      .get() as { learning_notes: string }).learning_notes)).toBe('Curator learning notes');
+    expect(count('freestyle_records')).toBe(1);
+    expect(count('freestyle_ev_adjudications')).toBeGreaterThanOrEqual(2);
+    expect(count('member_gallery_exclude_tags')).toBe(1);
+    const columns = readDb((db) => db.prepare('PRAGMA table_info(email_templates)').all() as { name: string }[])
+      .map((c) => c.name);
+    expect(columns).not.toContain('note');
+  });
+});
+
+describe('pruning set-aside database copies after a code deploy', () => {
+  const REMOTE = join(process.cwd(), 'scripts/internal/deploy-code-remote.sh');
+  const PRUNE_LIB = join(process.cwd(), 'scripts/internal/prune-db-copies.sh');
+
+  /**
+   * Runs the remote half from its readiness poll through the prune, with the
+   * host's tools stubbed as shell functions: the poll and the identity check
+   * answer as a healthy release unless READY_EXIT says otherwise. The prelude
+   * stands where the shipped helper does on the wire.
+   */
+  function runTail(prelude: string, extraEnv?: NodeJS.ProcessEnv) {
+    const remote = readFileSync(REMOTE, 'utf8');
+    const start = remote.indexOf('_stack_healthy=0');
+    const endMarker = 'unset _prune_db_dir';
+    const end = remote.indexOf(endMarker);
+    expect(start, 'readiness poll not found in the remote half').toBeGreaterThan(-1);
+    expect(end, 'prune step not found after the readiness poll').toBeGreaterThan(start);
+    const readEnv = remote.match(/^read_env\(\) \{\n[\s\S]*?^\}$/m)![0];
+
+    const dbDir = join(workDir, 'host-db');
+    mkdirSync(dbDir, { recursive: true });
+    const envPath = join(workDir, 'host-env');
+    writeFileSync(envPath, `FOOTBAG_ENV=staging\nFOOTBAG_DB_DIR=${dbDir}\n`);
+    const log = join(workDir, 'tail-calls.log');
+    rmSync(log, { force: true });
+
+    const harness = join(workDir, 'tail-harness.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      prelude,
+      `LOG=${JSON.stringify(log)}`,
+      'systemctl() { echo "systemctl $*" >> "$LOG"; }',
+      'sleep() { :; }',
+      'docker() {',
+      '  echo "docker $*" >> "$LOG"',
+      '  case "$*" in',
+      '    *wget*) return "${READY_EXIT:-0}" ;;',
+      '    *GetCallerIdentityCommand*) printf "arn:aws:sts::1:assumed-role/footbag-staging-app-runtime/s" ;;',
+      '  esac',
+      '}',
+      `ENV_PATH=${JSON.stringify(envPath)}`,
+      'FOOTBAG_ENV_VAL=staging',
+      readEnv,
+      remote.slice(start, end + endMarker.length),
+      'echo TAIL_DONE',
+    ].join('\n'));
+
+    const res = spawnSync('bash', [harness], {
+      env: { ...process.env, ...(extraEnv ?? {}) },
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    return {
+      status: res.status ?? -1,
+      stdout: res.stdout ?? '',
+      stderr: res.stderr ?? '',
+      dbDir,
+      log: existsSync(log) ? readFileSync(log, 'utf8') : '',
+    };
+  }
+
+  /** A copy-aside timestamp, `days` before now. */
+  const stampDaysAgo = (days: number): string =>
+    new Date(Date.now() - days * 86_400_000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+
+  // Defect caught: the deploy's half of the seven-day promise not kept, so a
+  // host that migrates routinely fills its disk with copies of the member
+  // database; or pruning aimed at a literal directory rather than the one the
+  // host records.
+  it('deletes old copies from the database directory the host records, once the release is ready', () => {
+    const recording = `prune_db_copies() { echo "prune $1" >> ${JSON.stringify(join(workDir, 'tail-calls.log'))}; }`;
+    const res = runTail(recording);
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.log).toContain(`prune ${res.dbDir}`);
+    expect(res.log.indexOf('wget')).toBeLessThan(res.log.indexOf('prune '));
+    expect(res.log.indexOf('GetCallerIdentityCommand')).toBeLessThan(res.log.indexOf('prune '));
+  });
+
+  it('prunes with the shipped helper for real', () => {
+    const hostDb = join(workDir, 'host-db');
+    mkdirSync(hostDb, { recursive: true });
+    const old = join(hostDb, `footbag.db.pre-migration.${stampDaysAgo(8)}`);
+    const recent = join(hostDb, `footbag.db.pre-migration.${stampDaysAgo(1)}`);
+    writeFileSync(old, 'old');
+    writeFileSync(recent, 'recent');
+
+    const res = runTail(readFileSync(PRUNE_LIB, 'utf8'));
+    expect(res.status, res.stderr).toBe(0);
+    expect(existsSync(old)).toBe(false);
+    expect(existsSync(recent)).toBe(true);
+  });
+
+  // Defect caught: copies deleted by a deploy that never came up, removing a
+  // way back from an operator who may need it.
+  it('does not prune when the release never reports ready', () => {
+    const recording = `prune_db_copies() { echo "prune $1" >> ${JSON.stringify(join(workDir, 'tail-calls.log'))}; }`;
+    const res = runTail(recording, { READY_EXIT: '1' });
+
+    expect(res.status).toBe(1);
+    expect(res.log).not.toContain('prune ');
+  });
+
+  // Defect caught: a deploy that had already succeeded reported as failed
+  // because tidying up afterwards did not finish.
+  it('warns and carries on when pruning fails', () => {
+    const res = runTail('prune_db_copies() { return 1; }');
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain('TAIL_DONE');
+    expect(res.stderr).toContain('WARNING: pruning old database copies did not complete');
+  });
+
+  // The remote half calls a function only the helper defines, so the sender
+  // has to put the helper ahead of the body on the stream.
+  it('is shipped ahead of the remote half by the code deploy', () => {
+    const sender = readFileSync(join(process.cwd(), 'scripts/deploy-code.sh'), 'utf8');
+    expect(sender).toContain('PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"');
+    expect(sender).toContain('cat "$PRUNE_LIB" "$REMOTE_HALF"');
   });
 });

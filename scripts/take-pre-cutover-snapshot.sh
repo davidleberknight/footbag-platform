@@ -99,11 +99,9 @@ count_ckr=$(q     "SELECT COUNT(*) FROM consecutive_kicks_records;")
 source_host=$(hostname -f 2>/dev/null || hostname)
 source_db=$(readlink -f "${DB_FILE}" 2>/dev/null || printf '%s' "${DB_FILE}")
 
-# Compress before upload, matching the routine stream's format. Both halves of
-# scripts/restore-db.sh gunzip unconditionally, so an uncompressed artifact here
-# is one the rollback tooling cannot read -- which is what made this snapshot,
-# the only way back after the member load, unrestorable. gzip replaces the file
-# in place, so this runs after every sqlite read above.
+# Compress before upload, matching the routine stream's format, so this artifact
+# has the same shape as every other snapshot scripts/restore-db.sh reads. gzip
+# replaces the file in place, so this runs after every sqlite read above.
 #
 # byte_size and sha256 stay the UNCOMPRESSED values: they describe the database
 # a restore reconstructs, and are what you verify against after restoring.

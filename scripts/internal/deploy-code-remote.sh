@@ -9,6 +9,9 @@
 # the rest and runs this body as root.)
 #
 # Runs as root for the full body; commands are bare (no per-line sudo).
+#
+# scripts/internal/prune-db-copies.sh travels ahead of this body on the same
+# stream and defines prune_db_copies, which runs once the release reports ready.
 
 set -euo pipefail
 
@@ -1747,6 +1750,26 @@ if [[ "$_identity" != *"assumed-role/${_expected_role}/"* ]]; then
   exit 1
 fi
 echo "    Container AWS identity verified: ${_expected_role}."
+
+# Delete the database copies a migrating deploy or an in-place restore set
+# aside, once they are more than seven days old. Only here, after the release
+# reports ready and runs as the right identity: a deploy that has not come up is
+# one whose operator may still need every copy on the host. The function arrives
+# ahead of this body on the same stream (scripts/internal/prune-db-copies.sh).
+# The directory is the one the compose files mount, read from the env file as
+# the migration reads it, since an ordinary code deploy never resolves it
+# otherwise. A prune that fails costs disk, not data, so it warns and never
+# fails a deploy that has already succeeded.
+_prune_db_dir="$(read_env FOOTBAG_DB_DIR)"
+[[ -n "$_prune_db_dir" ]] || _prune_db_dir="/srv/footbag/db"
+if declare -F prune_db_copies >/dev/null; then
+  echo "==> Pruning database copies older than seven days..."
+  prune_db_copies "$_prune_db_dir" \
+    || echo "    WARNING: pruning old database copies did not complete; some may remain in ${_prune_db_dir}. The deploy itself succeeded." >&2
+else
+  echo "    WARNING: the copy-pruning helper did not arrive with this body; old database copies in ${_prune_db_dir} were left alone." >&2
+fi
+unset _prune_db_dir
 
 systemctl status footbag --no-pager -l
 

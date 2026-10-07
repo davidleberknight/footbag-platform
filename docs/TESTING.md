@@ -520,13 +520,13 @@ A test-only HTTP endpoint is permitted only when its handler lives in `src/testk
 
 ### 7.7 Production-only go-live verification
 
-Some contracts cannot be exercised below production: the stub and staging paths deliberately avoid real side effects (real charges, real mail to real inboxes, real DNS and TLS, the real first-admin claim). These are lumped here as one operator-run pass, performed after the production deploy and before the surface opens to members. Each produces an observable artifact (a settled row, an audit row, a delivered message), not just a 200.
+Some contracts cannot be exercised below production: the stub and staging paths deliberately avoid real side effects (real charges, real mail to real inboxes, real DNS and TLS, the real first-admin claim). These are lumped here as one operator-run pass. Each produces an observable artifact (a settled row, an audit row, a delivered message), not just a 200.
 
 **Live email deliverability.** With `SES_ADAPTER=live`: a real send to an operator inbox lands in the inbox and passes SPF, DKIM, and DMARC at a major provider; a real bounce and a real complaint (the SES simulator addresses) write a suppression row and a feedback-feed audit row; the suppression list then withholds a later send to that address.
 
 **Live Stripe payments.** Live payments move real money, so they are verified in two stages — Stripe test mode against the real Stripe API, then a controlled live canary — before members can pay. The stub checkout (§16.5) and the signed-webhook integration tests (§7.2) cover the handler; this verifies the real Stripe surface the stub cannot.
 
-1. Test-mode end-to-end, run on production while the production-live marker still reads pre-live because the live adapter runs nowhere else: against test keys, drive real Checkout session creation and a real Stripe-signed webhook (`stripe listen` / `trigger`): success grants the tier, cancel and decline do not, the signature validates against the production verifier, a resent event does not double-grant, and the SCA / authentication-required and declined-card paths behave. Then the flows a one-time charge does not touch: a recurring signup, a renewal produced by advancing a test clock, a declined renewal through the configured dunning to its cancellation, a platform-side cancellation, a partial and a full refund, a dispute raised with the dispute test card and closed, a signing-secret rotation overlap with no dropped delivery, and the payments pause drill with a delivery still processing. Each real payload is sanitised into the golden-payload fixture, renewal invoices first, and the reconciliation pass runs clean afterwards.
+1. Test-mode end-to-end, run on production because the live adapter runs nowhere else, while the production-live marker reads "false", the only state in which the key-match guard admits a test key there: against test keys, drive real Checkout session creation and a real Stripe-signed webhook (`stripe listen` / `trigger`): success grants the tier, cancel and decline do not, the signature validates against the production verifier, a resent event does not double-grant, and the SCA / authentication-required and declined-card paths behave. Then the flows a one-time charge does not touch: a recurring signup, a renewal produced by advancing a test clock, a declined renewal through the configured dunning to its cancellation, a platform-side cancellation, a partial and a full refund, a dispute raised with the dispute test card and closed, a signing-secret rotation overlap with no dropped delivery, and the payments pause drill with a delivery still processing. Each real payload is sanitised into the golden-payload fixture, renewal invoices first, and the reconciliation pass runs clean afterwards.
 2. Live canary: with the live API key and webhook signing secret in Parameter Store and the live endpoint registered against the production domain, make one real low-value charge with a real card; confirm a settled `payments` row, the tier grant, the receipt email, and the audit row written by the signature-validation path; refund it and confirm the refund path leaves no dangling grant; replay the live webhook from the Stripe Dashboard and confirm no double-grant.
 3. Reconciliation and controls: the `payments` table reconciles against the Stripe ledger (no missed webhooks — the Stripe event log against the rows), amount and currency are correct, card data never reaches the origin (hosted Checkout; no PAN in logs), live keys live only in Parameter Store, and payments can be disabled quickly if a defect appears. Open payments to members only after the canary and reconciliation pass; watch failed-payment and webhook-delivery-failure signals through the first days.
 
@@ -648,15 +648,13 @@ exist only while the pre-go-live seeders do, and are deleted with them after cut
 - **Guard fail-fast** (pytest): the seeder or rebuild refuses a database carrying
   the in-database post-cutover marker before any mutation, layered over the env,
   path, and host-file guards (`legacy_data/tests/test_db_cutover_guard.py`).
-- **Admin authoring** (integration): the post-go-live authoring surface is audited
+- **Admin authoring** (integration): the in-app authoring surface is audited
   and validated, and an edit is used by the very next read or send with no reseed.
 - **Durability through a data-preserving deploy**: domain rows survive
   `scripts/deploy-migrate.sh` with no seeder run. The migrating deploy applies a migration
   file, so this leg authors a throwaway additive migration for the test and hands it to the
-  deploy by path, leaving `database/migrations/` to the post-go-live chain it belongs to.
-  This leg is exercised against the migrating deploy directly and is the durability evidence
-  the go-live curator and email-template gates ask for. The other four legs do not wait for
-  it.
+  deploy by path, leaving `database/migrations/` to the production migration chain it belongs to.
+  This leg is exercised against the migrating deploy directly.
 
 ---
 

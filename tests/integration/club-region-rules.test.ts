@@ -196,3 +196,24 @@ describe('promotion cannot create the region-less club that flattens a country p
     expect(result.branch).toBe('promoted');
   });
 });
+
+describe('promotion cannot create a club with no country', () => {
+  // The member who confirms a wizard card reaches the same refusal as an admin,
+  // and the wizard shows the refusal's message on the card, so the class and the
+  // message are the contract both callers rely on.
+  it('refuses a candidate with no country with the create form\'s validation message', async () => {
+    const actor = seedCreator();
+    const db = new BetterSqlite3(dbPath);
+    const candidateId = insertLegacyClubCandidate(db, {
+      classification: 'onboarding_visible',
+      display_name: `Candidate ${nextId('c')}`,
+      city: 'Lyon',
+      country: null,
+    });
+    db.close();
+    const { ValidationError } = await import('../../src/services/serviceErrors');
+    const attempt = svc.promoteCandidate(candidateId, actor, { actorType: 'member', region: 'Rhone' });
+    await expect(attempt).rejects.toBeInstanceOf(ValidationError);
+    await expect(attempt).rejects.toThrow('Country is required.');
+  });
+});

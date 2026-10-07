@@ -48,12 +48,15 @@ let tfStub: string;
 let callLog: string;
 // Dropped by the stub's force-unlock so a later plan stops reporting the lock.
 let unlockMarker: string;
+// Dropped by the stub's first `show`, so a second one can answer differently.
+let showMarker: string;
 
 beforeAll(() => {
   tmpDir = mkdtempSync(join(tmpdir(), 'footbag-test-tfapply-'));
   tfStub = join(tmpDir, 'terraform-stub.sh');
   callLog = join(tmpDir, 'calls.log');
   unlockMarker = join(tmpDir, 'unlocked.marker');
+  showMarker = join(tmpDir, 'shown.marker');
 });
 
 afterAll(() => {
@@ -102,8 +105,33 @@ function writeTerraformStub(
      * a gate that treats it as one cannot be applied around.
      */
     showWarnsOnStderr?: string;
+    /** The plan's input variables, as `show -json` reports them. */
+    planVariables?: Record<string, { value: unknown }>;
+    /**
+     * What a SECOND `show -json` answers, for the run that plans again after
+     * writing the firewall in place. Unset, every show answers the first plan.
+     */
+    secondPlanResourceChanges?: Array<{
+      type: string;
+      address: string;
+      actions: string[];
+      before?: unknown;
+      after?: unknown;
+    }>;
   } = {},
 ): void {
+  const planJson = (changes: NonNullable<typeof opts.planResourceChanges>) =>
+    JSON.stringify({
+      variables: opts.planVariables ?? {},
+      resource_changes: changes.map((rc) => ({
+        address: rc.address,
+        type: rc.type,
+        change: {
+          actions: rc.actions, before: rc.before ?? null, after: rc.after ?? null,
+          after_unknown: (rc as { after_unknown?: unknown }).after_unknown ?? {},
+        },
+      })),
+    });
   // A plan refused by the backend lock, reproduced as terraform emits it: the
   // 412 from the object store plus the Lock Info block, which carries the only
   // description of the holder the operator ever gets.
@@ -178,14 +206,19 @@ function writeTerraformStub(
       ...(opts.showWarnsOnStderr
         ? [`      echo ${JSON.stringify(opts.showWarnsOnStderr)} >&2`]
         : []),
+      ...(opts.secondPlanResourceChanges
+        ? [
+            `      if [ -e "${showMarker}" ]; then`,
+            `        cat <<'PLANJSON2'`,
+            planJson(opts.secondPlanResourceChanges),
+            'PLANJSON2',
+            '        exit 0',
+            '      fi',
+            `      : > "${showMarker}"`,
+          ]
+        : []),
       `      cat <<'PLANJSON'`,
-      JSON.stringify({
-        resource_changes: (opts.planResourceChanges ?? []).map((rc) => ({
-          address: rc.address,
-          type: rc.type,
-          change: { actions: rc.actions, before: rc.before ?? null, after: rc.after ?? null },
-        })),
-      }),
+      planJson(opts.planResourceChanges ?? []),
       'PLANJSON',
       '      exit 0',
       '      ;;',
@@ -205,6 +238,7 @@ function writeTerraformStub(
 function run(args: string[], withStub = true, extraEnv: NodeJS.ProcessEnv = {}): RunResult {
   rmSync(callLog, { force: true });
   rmSync(unlockMarker, { force: true });
+  rmSync(showMarker, { force: true });
   // The script settles and proves its AWS identity before it touches the state
   // backend, so the run needs an identity to have one to prove.
   const env: NodeJS.ProcessEnv = {
@@ -531,7 +565,7 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
   };
   const ADD = ['--target', 'staging', '--firewall-only', '--firewall-add', ADDED];
 
-  it('applies a firewall-only plan, saying first that every staging port blinks', () => {
+  it('applies a firewall-only plan outside the in-place guards, saying first that every staging port blinks', () => {
     writeTerraformStub({ planResourceChanges: [FIREWALL] });
     const res = run(ADD);
     expect(res.exitCode, res.stderr).toBe(0);
@@ -793,6 +827,244 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
     });
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/still locked/);
+  });
+});
+
+describe('terraform-apply.sh: the firewall written in place', () => {
+  // The provider can only delete and recreate the instance firewall, so every
+  // port-list change closed SSH and the site for several seconds. The wrapper
+  // instead writes the reviewed list in one call after the confirmation, plans
+  // again, and applies the second plan only if it is the reviewed plan less the
+  // firewall. These pin the order, the guards that keep the write from ever
+  // locking anyone out, and every failure stopping with nothing more applied.
+  const OPERATOR = '198.51.100.4/32';
+  const EDGE = '120.52.22.96/27';
+  const ports = (ssh: string[], opts: { alias?: boolean; port80?: string[] } = {}) => ({
+    instance_name: 'footbag-staging-web',
+    port_info: [
+      {
+        from_port: 22, to_port: 22, protocol: 'tcp', cidrs: ssh,
+        ...(opts.alias === false ? {} : { cidr_list_aliases: ['lightsail-connect'] }),
+      },
+      { from_port: 2222, to_port: 2222, protocol: 'tcp', cidrs: ssh },
+      { from_port: 80, to_port: 80, protocol: 'tcp', cidrs: opts.port80 ?? [EDGE] },
+    ],
+  });
+  const FIREWALL = {
+    type: 'aws_lightsail_instance_public_ports',
+    address: 'aws_lightsail_instance_public_ports.web',
+    actions: ['delete', 'create'],
+    before: ports([OPERATOR]),
+    after: ports([OPERATOR, '203.0.113.7/32']),
+  };
+  const BUCKET_TAG = {
+    type: 'aws_s3_bucket', address: 'aws_s3_bucket.media', actions: ['update'],
+    before: { tags: {} }, after: { tags: { owner: 'ifpa' } },
+  };
+  const FIREWALL_SETTLED = { ...FIREWALL, actions: ['no-op'], before: FIREWALL.after };
+  const VARIABLES = { aws_region: { value: 'us-east-1' } };
+
+  /** A stand-in AWS CLI: put stores the list it was given, port-states reads it back. */
+  function awsStub(opts: { putFails?: boolean; opStatus?: string; readBack?: string } = {}): NodeJS.ProcessEnv {
+    const stored = join(tmpDir, 'fw-live.json');
+    rmSync(stored, { force: true });
+    const path = join(tmpDir, 'aws-fw-stub.sh');
+    writeFileSync(path, [
+      '#!/usr/bin/env bash',
+      `echo "aws $*" >> "${callLog}"`,
+      'prev=""; infos=""',
+      'for a in "$@"; do [[ "$prev" == "--port-infos" ]] && infos="$a"; prev="$a"; done',
+      'case "$2" in',
+      `  put-instance-public-ports) ${opts.putFails ? 'exit 254' : `printf '%s' "$infos" > "${stored}"; echo op-1; exit 0`} ;;`,
+      `  get-operation) echo ${JSON.stringify(opts.opStatus ?? 'Succeeded')}; exit 0 ;;`,
+      '  get-instance-port-states)',
+      opts.readBack
+        ? `    printf '%s' ${JSON.stringify(opts.readBack)}; exit 0 ;;`
+        : `    printf '{"portStates":'; cat "${stored}"; printf '}'; exit 0 ;;`,
+      'esac',
+      'exit 64',
+    ].join('\n'));
+    chmodSync(path, 0o755);
+    return { TERRAFORM_APPLY_AWS_BIN: path };
+  }
+
+  type Change = { type: string; address: string; actions: string[]; before?: unknown; after?: unknown };
+  function stubPlans(second: Change[] | null = [FIREWALL_SETTLED, BUCKET_TAG], first: Change[] = [FIREWALL, BUCKET_TAG]) {
+    writeTerraformStub({
+      planResourceChanges: first,
+      planVariables: VARIABLES,
+      ...(second ? { secondPlanResourceChanges: second } : {}),
+    });
+  }
+
+  it('writes the reviewed list in place, plans again, and applies only the second plan', () => {
+    stubPlans();
+    const res = run(['--target', 'staging'], true, awsStub());
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toContain('written in place after you');
+    expect(res.stdout).not.toMatch(/closes for a few seconds/);
+    const log = calls();
+    const order = ['put-instance-public-ports', 'get-operation', 'get-instance-port-states', ' apply '];
+    const at = order.map((s) => log.indexOf(s));
+    expect(at.every((i) => i >= 0), log).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+    expect(log.match(/ plan /g)?.length, 'planned twice').toBe(2);
+    expect(log).toContain('lightsail-connect');
+  });
+
+  it('still writes in place when only fields it never writes are unknown until apply', () => {
+    // Defect caught: Terraform reports the new resource's id, and the optional
+    // ipv6 and alias lists of a port that sets none, as unknown on every
+    // replacement. A guard that treated any unknown as unsafe fell back to the
+    // closing replacement every time, so the in-place path never ran at all.
+    writeTerraformStub({
+      planResourceChanges: [
+        {
+          ...FIREWALL,
+          after_unknown: {
+            id: true,
+            port_info: [
+              { cidr_list_aliases: [false], cidrs: [false], ipv6_cidrs: true },
+              { cidr_list_aliases: true, cidrs: [false], ipv6_cidrs: true },
+              { cidr_list_aliases: true, cidrs: [false], ipv6_cidrs: true },
+            ],
+          },
+        } as Change,
+        BUCKET_TAG,
+      ],
+      planVariables: VARIABLES,
+      secondPlanResourceChanges: [FIREWALL_SETTLED, BUCKET_TAG],
+    });
+    const res = run(['--target', 'staging'], true, awsStub());
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toContain('put-instance-public-ports');
+    expect(res.stdout).not.toMatch(/replaced the ordinary way/);
+  });
+
+  it('writes nothing to production before the typed confirmation', () => {
+    // Defect caught: a production firewall changed by a run nobody confirmed.
+    stubPlans();
+    const res = run(['--target', 'production'], true, awsStub());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    expect(calls()).not.toContain('put-instance-public-ports');
+  });
+
+  // Each row is a list the in-place write must never send, because it could lock
+  // someone out: the browser console's alias dropped, a port admitting nobody,
+  // or a value the plan does not know yet. Each falls back to the ordinary
+  // replacement, saying the ports will close, and writes nothing in place.
+  it.each([
+    ['the console alias is missing on port 22', { ...FIREWALL, after: ports([OPERATOR], { alias: false }) }],
+    ['a port admits no source', { ...FIREWALL, after: ports([OPERATOR], { port80: [] }) }],
+    ['part of the list is unknown until apply', { ...FIREWALL, after_unknown: { port_info: [{ cidrs: true }] } }],
+  ])('falls back to the ordinary replacement when %s', (_label, change) => {
+    writeTerraformStub({ planResourceChanges: [change], planVariables: VARIABLES });
+    const res = run(['--target', 'staging'], true, awsStub());
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/replaced the ordinary way/);
+    expect(calls()).not.toContain('put-instance-public-ports');
+    expect(calls()).toMatch(/ apply \//);
+  });
+
+  it.each([
+    ['the write is refused', { putFails: true }, 'was refused'],
+    ['the write operation fails', { opStatus: 'Failed' }, "operation status 'Failed'"],
+    ['the live firewall reads back differently', { readBack: '{"portStates":[]}' }, 'does not read back'],
+  ])('stops with nothing else applied when %s', (_label, aws, message) => {
+    stubPlans();
+    const res = run(['--target', 'staging'], true, awsStub(aws));
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain(message);
+    expect(res.stderr).toContain('Re-run this script');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('stops when the second plan differs from the reviewed one beyond the firewall', () => {
+    // Defect caught: applying a plan nobody read, because something changed
+    // between the review and the write.
+    stubPlans([FIREWALL_SETTLED, { ...BUCKET_TAG, after: { tags: { owner: 'someone-else' } } }]);
+    const res = run(['--target', 'staging'], true, awsStub());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('differs from the one reviewed');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('stops when the firewall still plans a change after the write', () => {
+    stubPlans([FIREWALL, BUCKET_TAG]);
+    const res = run(['--target', 'staging'], true, awsStub());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('still plans a change');
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('shreds both plan files, the reviewed one and the second', () => {
+    stubPlans();
+    run(['--target', 'staging'], true, awsStub());
+    expect(existsSync(plannedPath())).toBe(false);
+  });
+});
+
+describe('terraform-apply.sh: replacing one listed resource', () => {
+  // The origin-verify secret rotates by destroying and recreating its random_id,
+  // which used to be a hand-typed apply with no saved plan, no confirmation and
+  // no shred. Routed through here it gets all three; the list is what stops the
+  // flag becoming a way to destroy and recreate anything at all.
+
+  it('plans the replacement through the saved plan and applies that same file', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--replace', 'random_id.origin_verify_secret']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    const plan = calls().split('\n').find((l) => / plan /.test(l) && l.includes('-out='));
+    expect(plan).toContain('-replace=random_id.origin_verify_secret');
+    expect(calls()).toContain(`apply ${plannedPath()}`);
+    expect(existsSync(plannedPath()), 'the plan file was shredded').toBe(false);
+  });
+
+  it('replaces the JWT signing key, the other address on the list, the same way', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--replace', 'aws_kms_key.jwt_signing']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    const plan = calls().split('\n').find((l) => / plan /.test(l) && l.includes('-out='));
+    expect(plan).toContain('-replace=aws_kms_key.jwt_signing');
+    expect(plan).not.toContain('-replace=random_id.origin_verify_secret');
+  });
+
+  it('refuses any address not on the list, before terraform runs', () => {
+    // Defect caught: a general passthrough lets one flag destroy and recreate
+    // the instance, a bucket or a key pair.
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--replace', 'aws_lightsail_instance.web']);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toContain('--replace takes only');
+    expect(calls()).not.toMatch(/ plan /);
+  });
+
+  it('refuses the shared and identity trees, before terraform runs', () => {
+    writeTerraformStub();
+    for (const target of ['shared', 'identity']) {
+      const res = run(['--target', target, '--replace', 'random_id.origin_verify_secret']);
+      expect(res.exitCode, target).toBe(2);
+      expect(res.stderr, target).toContain('staging or production only');
+    }
+    expect(calls()).not.toMatch(/ plan /);
+  });
+
+  it('refuses to combine with a restricted plan shape or a lock break', () => {
+    writeTerraformStub();
+    for (const extra of [['--require-empty-plan'], ['--break-stale-lock']]) {
+      const res = run(['--target', 'staging', '--replace', 'random_id.origin_verify_secret', ...extra]);
+      expect(res.exitCode, extra.join(' ')).toBe(2);
+      expect(res.stderr, extra.join(' ')).toContain('does not combine');
+    }
+  });
+
+  it('still stops for the typed word on production', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'production', '--replace', 'random_id.origin_verify_secret']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    expect(calls()).not.toMatch(/\sapply\s/);
   });
 });
 

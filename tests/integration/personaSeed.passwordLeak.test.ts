@@ -22,9 +22,7 @@
  * importing the literal from personaSecrets triggers that guard.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execSync } from 'node:child_process';
-
-import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { scanSource } from '../fixtures/sourceTree';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 
@@ -48,26 +46,24 @@ beforeAll(async () => {
   TEST_PERSONA_SEED_PASSWORD_LITERAL = m.TEST_PERSONA_SEED_PASSWORD_LITERAL;
 });
 
+// The source folders of the checkout, named rather than walked from the top:
+// legacy_data is listed by its source subfolders because it also holds the
+// machine-only site mirror, tens of gigabytes of HTML no commit carries.
+const SOURCE_ROOTS = [
+  'src', 'tests', 'scripts', 'database', 'curated', 'docker', 'terraform', '.github', 'freestyle',
+  ...[
+    'clubs', 'event_results', 'inputs', 'legacy_repo_scripts', 'member_data_scripts', 'membership',
+    'overrides', 'persons', 'pipeline', 'qc', 'runbooks', 'scripts', 'seed', 'tests', 'tools',
+    'legacy_mirror/scripts', 'legacy_mirror/tests', 'legacy_mirror/mirror_seeds',
+  ].map((d) => `legacy_data/${d}`),
+];
+// Folders whose own files are read without descending: the repository root
+// and the legacy_data roots that hold scripts beside the mirror.
+const SHALLOW_ROOTS = ['.', 'legacy_data', 'legacy_data/legacy_mirror'];
+const CODE_EXTS = ['.ts', '.tsx', '.js', '.sh', '.json', '.hbs', '.yml', '.yaml', '.html'];
+
 function grepRepoForLiteral(needle: string): string[] {
-  // Scan only git-tracked (checked-in) files. `git grep` skips every gitignored
-  // artifact (.curated-build media, scripts/.venv, the legacy mirror, any build
-  // dir), which both matches this test's "checked-in file" intent and avoids
-  // crawling large binary trees that timed out the old filesystem `grep -r`.
-  const cmd =
-    `git grep -I -l -F -e '${needle}' -- ` +
-    `'*.ts' '*.tsx' '*.js' '*.sh' '*.json' '*.hbs' '*.yml' '*.yaml' '*.html'`;
-  let raw = '';
-  try {
-    raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
-  } catch (err) {
-    const e = err as { status?: number; stdout?: string };
-    if (e.status === 1) return [];
-    throw err;
-  }
-  return raw
-    .split('\n')
-    .filter((s) => s.length > 0)
-    .map((p) => p.replace(/^\.\//, ''));
+  return scanSource(needle, { roots: SOURCE_ROOTS, shallow: SHALLOW_ROOTS, exts: CODE_EXTS });
 }
 
 describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {

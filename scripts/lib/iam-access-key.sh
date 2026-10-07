@@ -88,7 +88,11 @@ IAM_KEY_VAULT_NOTES=""
 # The state machine below is the same either way. In install mode the credential
 # stays `minted` when this returns, so the caller's own failure still withdraws
 # it, and the caller calls iam_key_commit only once the write has succeeded.
-IAM_KEY_DELIVERY="${IAM_KEY_DELIVERY:-vault}"
+#
+# Assigned, not read from the environment: a caller opts into install by setting
+# it after sourcing this file. An exported value would otherwise turn a vault
+# rotation into one whose secret no human records, with nothing printed to say so.
+IAM_KEY_DELIVERY="vault"
 
 # Whether retiring the identity's LAST active key is allowed.
 #

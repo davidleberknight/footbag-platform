@@ -18,7 +18,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -236,5 +236,52 @@ describe('apply-bucket-tls-baseline.sh — the access-log delivery precondition'
     const r = run(['--from-step', '1', '--yes'], NO_SECRET_CHANGE, 'key');
     expect(r.stderr).not.toMatch(/could not list the staging access-log bucket/);
     expect(r.stdout).toMatch(/newest staging access-log key is now AWSLogs\//);
+  });
+});
+
+describe('apply-bucket-tls-baseline.sh — Terraform can still reach its own state', () => {
+  // The last proof the run makes, and the one a lockout shows up in: the deny
+  // goes onto the bucket holding Terraform's own state, so a refresh-only plan
+  // that cannot reach the backend must fail the run, never be printed past. The
+  // error is relayed because only its text tells a lockout from an unrelated
+  // fault, and the recovery command it offers removes the protection.
+  it('fails the run, relaying terraform\'s error, when the refresh-only plan cannot reach the backend', () => {
+    const tfLog = join(stubDir, 'terraform-calls.log');
+    const tf = join(stubDir, 'terraform-refresh-fails.sh');
+    writeFileSync(
+      tf,
+      [
+        '#!/usr/bin/env bash',
+        `printf '%s\\n' "$*" >> ${JSON.stringify(tfLog)}`,
+        'case "$*" in',
+        '  *-refresh-only*)',
+        '    echo "Error: stub backend refused: AccessDenied on the state object" >&2; exit 1 ;;',
+        'esac',
+        'exit 0',
+      ].join('\n'),
+      'utf-8',
+    );
+    chmodSync(tf, 0o755);
+    awsStubOnPath('key');
+    const r = spawnSync('bash', [SCRIPT, '--verify-only'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(stubDir),
+        TERRAFORM_APPLY_BIN: tf,
+        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+      },
+      ...SPAWN_GUARD,
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/refresh-only plan against terraform\/production did not succeed/);
+    expect(r.stderr).toMatch(/stub backend refused: AccessDenied on the state object/);
+    expect(r.stdout).not.toMatch(/Terraform still reads its own state/);
+    expect(r.stdout).not.toMatch(/^Done\./m);
+    // A verification run reaches the backend read and nothing that writes.
+    const calls = readFileSync(tfLog, 'utf8');
+    expect(calls).toMatch(/plan -refresh-only/);
+    expect(calls).not.toMatch(/\bapply\b/);
   });
 });

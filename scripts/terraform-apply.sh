@@ -29,9 +29,13 @@
 #
 # Some runbook steps also carry work around the apply that stays in the runbook,
 # because absorbing it here would mean claiming to handle it: the two-pass
-# CloudFront bootstrap, importing a console-created resource before the first
-# apply, and refreshing providers when one is added. Use --init for that last
-# one; do the other two as the runbook says, then apply through here.
+# CloudFront bootstrap, and refreshing providers when one is added. Use --init
+# for that last one; do the first as the runbook says, then apply through here.
+# Importing a resource is not among them either: a resource made outside
+# Terraform is declared with an import block beside its definition and taken in
+# through this script's plan and apply, never by a hand-typed terraform import,
+# and never deleted to be recreated, which for anything holding data destroys
+# what it holds.
 #
 # Steps (referenced by --from-step, so a failure part-way is resumable):
 #   1  terraform init, only when asked for
@@ -47,11 +51,20 @@
 #   scripts/terraform-apply.sh --target staging --break-stale-lock --i-killed-that-run
 #   scripts/terraform-apply.sh --target staging --firewall-only --firewall-add 203.0.113.7/32
 #   scripts/terraform-apply.sh --target staging --require-empty-plan
+#   scripts/terraform-apply.sh --target production --replace random_id.origin_verify_secret
+#
+# --replace plans with Terraform's -replace for one resource address, through
+# the same saved plan, confirmation and shred as any other run. It takes only the
+# addresses listed in REPLACEABLE_ADDRESSES below, on staging or production: a
+# general passthrough would let any resource be destroyed and recreated by a
+# flag. Each address has one caller that owns the steps and the proof around the
+# replacement: scripts/rotate-origin-verify-secret.sh for the origin-verify
+# secret, scripts/rotate-jwt-signing-key.sh for the JWT signing key.
 #
 # --firewall-only and --require-empty-plan are for callers that know in advance
 # what the plan may contain, on staging only. The first, run by the dev-and-tester
-# address path, applies only when the firewall rule set is the whole change, and
-# says first that every staging port blinks while it is replaced. The second, run
+# address path, applies only when the firewall rule set is the whole change; the
+# rule set is written in place (see "The firewall, written in place"). The second, run
 # when proving the job role, applies nothing and refuses unless there is nothing
 # to apply. Either refuses any other change as drift it did not come to apply.
 #
@@ -92,6 +105,8 @@
 # Test seams (CI only; operators never set these): TERRAFORM_APPLY_BIN points the
 # terraform command at a stub, announced loudly when set, because a run that
 # silently used a stub would prove nothing about the estate.
+# TERRAFORM_APPLY_AWS_BIN does the same for the AWS CLI calls of the in-place
+# firewall write.
 # TERRAFORM_APPLY_PROC_COUNT stands in for the local terraform process count the
 # state-lock report reads, so both of its branches are testable on a machine that
 # has no terraform running. TERRAFORM_APPLY_VALUES_FILE names the file the
@@ -129,8 +144,17 @@ STALE_LOCK_MIN_AGE_SECS=1800
 # "firewall-only" for a dev-and-tester address change, "empty" for proving the
 # job role can plan staging. Empty means no restriction, which is every other run.
 PLAN_SHAPE=""
+# The resource addresses --replace may name, and the only list of them. Each is
+# a value whose rotation is a Terraform replacement by design: the origin-verify
+# secret, and the JWT signing key, which the design rotates as a whole new key.
+# Anything else rotates by its own script or not by replacement at all.
+REPLACE_ADDR=""
+REPLACEABLE_ADDRESSES=("random_id.origin_verify_secret" "aws_kms_key.jwt_signing")
 # The one resource a dev-and-tester address change may touch.
 FIREWALL_ADDRESS="aws_lightsail_instance_public_ports.web"
+# Set when the plan replaces the firewall and the replacement is instead written
+# in place before the apply; see "The firewall, written in place" below.
+FW_INPLACE=0
 # The one SSH address a firewall-only apply may add, and the one it may remove.
 FIREWALL_ADD=""
 FIREWALL_REMOVE=""
@@ -147,6 +171,8 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 
 TF_BIN="${TERRAFORM_APPLY_BIN:-terraform}"
+# The AWS CLI the in-place firewall write uses; a stub under test.
+AWS_FW_BIN="${TERRAFORM_APPLY_AWS_BIN:-aws}"
 
 # A stranded state lock is the plan failure an operator is least equipped to
 # read. The backend reports it as a 412 PreconditionFailed on a PutObject, which
@@ -307,6 +333,10 @@ while [[ $# -gt 0 ]]; do
       PLAN_SHAPE="empty"
       shift
       ;;
+    --replace)
+      REPLACE_ADDR="${2:-}"
+      shift 2 || { echo "ERROR: --replace requires a resource address" >&2; exit 2; }
+      ;;
     --firewall-add|--firewall-remove)
       if [[ -z "${2:-}" || "$2" == --* ]]; then
         echo "ERROR: $1 takes an address in CIDR form, e.g. 203.0.113.7/32." >&2
@@ -339,6 +369,30 @@ done
 # scripts/onboard-dev-tester.sh and scripts/offboard-dev-tester.sh own that
 # instead.
 require_target "$TARGET" staging production shared identity || exit 2
+
+# A replacement is a deliberate destroy-and-recreate, so it takes only an
+# address on the list, only on the two runtime trees, and never alongside a
+# restricted plan shape or a lock break, which are different operations.
+declare -a PLAN_EXTRA_ARGS=()
+if [[ -n "$REPLACE_ADDR" ]]; then
+  allowed=0
+  for addr in "${REPLACEABLE_ADDRESSES[@]}"; do
+    [[ "$REPLACE_ADDR" == "$addr" ]] && allowed=1
+  done
+  if (( ! allowed )); then
+    echo "ERROR: --replace takes only: ${REPLACEABLE_ADDRESSES[*]} (got '${REPLACE_ADDR}')." >&2
+    exit 2
+  fi
+  if [[ "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
+    echo "ERROR: --replace applies to staging or production only." >&2
+    exit 2
+  fi
+  if [[ -n "$PLAN_SHAPE" ]] || (( BREAK_LOCK )); then
+    echo "ERROR: --replace does not combine with --firewall-only, --require-empty-plan or --break-stale-lock." >&2
+    exit 2
+  fi
+  PLAN_EXTRA_ARGS=("-replace=${REPLACE_ADDR}")
+fi
 
 # Both shapes are staging-only: the dev-and-tester path exists on staging alone,
 # and a restriction on the plan is not a reason to apply any other tree.
@@ -398,6 +452,9 @@ fi
 
 if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
   echo "SYNTHETIC: terraform='$TF_BIN' -- this run proves nothing about the estate." >&2
+fi
+if [[ -n "${TERRAFORM_APPLY_AWS_BIN:-}" ]]; then
+  echo "SYNTHETIC: aws='$AWS_FW_BIN' -- this run proves nothing about the estate." >&2
 fi
 
 echo "== terraform apply: $TARGET =="
@@ -745,7 +802,7 @@ PLAN_STATUS=0
 # DNS check below greps when jq is unavailable. Terraform's colour escapes land
 # between the start of a line and its +/-/~ marker, which defeats an anchored
 # pattern and makes that check silently match nothing.
-"$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} -no-color -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
+"$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} ${PLAN_EXTRA_ARGS[@]+"${PLAN_EXTRA_ARGS[@]}"} -no-color -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
 if (( PLAN_STATUS != 0 )); then
   echo "ERROR: terraform plan failed. Nothing was applied." >&2
   if ! report_state_lock "$TF_PLAN_LOG"; then
@@ -904,6 +961,74 @@ if (( JOB_ROLE )); then
   fi
 fi
 
+# ── The firewall, written in place ───────────────────────────────────────────
+#
+# The provider can only create and delete the instance firewall, never update
+# it, so any change to its port list plans as delete-then-create, and every port
+# (SSH, and the site through CloudFront) is closed between the two. Address
+# changes make that a monthly outage. Instead, when the plan replaces the
+# firewall, the reviewed port list is written in place with Lightsail's
+# put-instance-public-ports, which sets the whole list in one call, and the tree
+# is planned again: the provider reads the live port list, so the firewall then
+# plans as no change and only the rest of the reviewed plan is applied.
+#
+# The write happens after the confirmation, never before, and uses the list from
+# the plan that was reviewed. The second plan must match the first in every
+# other change, or nothing more is applied. It is guarded so it can never write a
+# list that locks anyone out: every value known at plan time, exactly the three
+# ports this firewall carries (SSH on 22 and 2222, the site on 80, all tcp), a
+# source list on each, and the browser console's lightsail-connect alias kept on
+# 22. A plan outside those bounds, or a run without jq, takes the ordinary
+# replacement instead and says the ports will close.
+FW_PLANNED=""
+FW_INSTANCE=""
+FW_REGION=""
+if [[ -n "${PLAN_JSON:-}" ]] && command -v jq >/dev/null 2>&1 \
+   && printf '%s' "$PLAN_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" \
+        'any(.resource_changes[]?; .address == $fw and (.change.actions | index("delete")) and (.change.actions | index("create")))' >/dev/null 2>&1; then
+  fw_reason=""
+  # Only the values this step writes must be known. The plan always reports the
+  # new resource's id, and the optional ipv6 and alias lists of a port that sets
+  # none, as unknown until apply; none of those is written, so none of them
+  # stops the in-place path. An unknown address list or instance name does.
+  if ! printf '%s' "$PLAN_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" '
+       ([.resource_changes[] | select(.address == $fw)][0].change.after_unknown // {}) as $u
+       | ($u.instance_name // false) != true
+         and ((($u.port_info // []) | if type == "array" then . else [{cidrs: .}] end)
+              | all(.[]; ((.cidrs // false) | if type == "array" then any else . end) | not))' >/dev/null 2>&1; then
+    fw_reason="part of the new port list is not known until apply"
+  elif ! printf '%s' "$PLAN_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" '
+        [.resource_changes[] | select(.address == $fw)][0].change.after as $a
+        | ($a.port_info | map(.from_port) | sort) == [22, 80, 2222]
+          and all($a.port_info[]; .protocol == "tcp" and .from_port == .to_port and ((.cidrs // []) | length > 0))
+          and any($a.port_info[]; .from_port == 22 and ((.cidr_list_aliases // []) | index("lightsail-connect")))
+          and ($a.instance_name | type == "string" and length > 0)' >/dev/null 2>&1; then
+    fw_reason="the new port list is not the three-port shape this step is allowed to write"
+  else
+    FW_PLANNED="$(printf '%s' "$PLAN_JSON" | jq -c --arg fw "$FIREWALL_ADDRESS" '
+      [.resource_changes[] | select(.address == $fw)][0].change.after.port_info
+      | map({fromPort: .from_port, toPort: .to_port, protocol: .protocol, cidrs: (.cidrs // [])}
+            + (if ((.cidr_list_aliases // []) | length) > 0 then {cidrListAliases: .cidr_list_aliases} else {} end)
+            + (if ((.ipv6_cidrs // []) | length) > 0 then {ipv6Cidrs: .ipv6_cidrs} else {} end))')"
+    FW_INSTANCE="$(printf '%s' "$PLAN_JSON" | jq -r --arg fw "$FIREWALL_ADDRESS" \
+      '[.resource_changes[] | select(.address == $fw)][0].change.after.instance_name')"
+    FW_REGION="$(printf '%s' "$PLAN_JSON" | jq -r '.variables.aws_region.value // empty')"
+    [[ -n "$FW_REGION" ]] || fw_reason="the plan does not name the region"
+  fi
+  if [[ -z "$fw_reason" ]]; then
+    FW_INPLACE=1
+    echo "The firewall's port list changes. It will be written in place after you"
+    echo "confirm, so no port closes; the firewall then plans as no change and the"
+    echo "rest of this plan is applied only if a second plan matches it."
+    echo ""
+  else
+    echo "NOTE: the firewall is replaced the ordinary way, because ${fw_reason}."
+    echo "      Every port on ${TARGET}, SSH and the site alike, closes for a few"
+    echo "      seconds while it is rewritten."
+    echo ""
+  fi
+fi
+
 # ── A caller that knows what the plan may contain ────────────────────────────
 #
 # A dev-and-tester address change touches the firewall resource and nothing
@@ -977,11 +1102,13 @@ if [[ -n "$PLAN_SHAPE" ]]; then
     echo "       applies staging first." >&2
     exit 1
   fi
-  echo "This apply replaces the staging firewall rule set (${FIREWALL_ADDRESS})."
-  echo "Every staging port, SSH and the site alike, closes for a few seconds while"
-  echo "the rules are rewritten, then reopens with the new list. Production is not"
-  echo "touched."
-  echo ""
+  if (( ! FW_INPLACE )); then
+    echo "This apply replaces the staging firewall rule set (${FIREWALL_ADDRESS})."
+    echo "Every staging port, SSH and the site alike, closes for a few seconds while"
+    echo "the rules are rewritten, then reopens with the new list. Production is not"
+    echo "touched."
+    echo ""
+  fi
 fi
 
 if [[ -n "$DNS_CHANGES" ]]; then
@@ -1054,6 +1181,68 @@ else
   echo "The plan covers this whole environment, not only the change you came for."
   echo ""
 fi
+
+# The firewall, written in place (see the block above that decided it). Any
+# failure here stops the run with nothing further applied and prints the live
+# port list. A re-run is safe: the provider reads the live list, so it plans
+# from wherever this left the firewall.
+if (( FW_INPLACE )); then
+  fw_live() {
+    "$AWS_FW_BIN" lightsail get-instance-port-states --instance-name "$FW_INSTANCE" --region "$FW_REGION" \
+      --output json </dev/null 2>/dev/null
+  }
+  fw_stop() {
+    echo "ERROR: $1" >&2
+    echo "       Nothing else in the plan was applied. The firewall as it stands now:" >&2
+    fw_live | jq -c '.portStates[]? | {fromPort, protocol, cidrs, cidrListAliases}' 2>/dev/null | sed 's/^/         /' >&2 || true
+    echo "       Re-run this script: the next plan starts from the live firewall." >&2
+    exit 1
+  }
+  echo "==> Writing the firewall's port list in place on ${FW_INSTANCE}"
+  FW_OP="$("$AWS_FW_BIN" lightsail put-instance-public-ports --instance-name "$FW_INSTANCE" --region "$FW_REGION" \
+      --port-infos "$FW_PLANNED" --query 'operation.id' --output text </dev/null)" \
+    || fw_stop "put-instance-public-ports was refused"
+  fw_status=""
+  for (( i = 1; i <= 30; i++ )); do
+    fw_status="$("$AWS_FW_BIN" lightsail get-operation --operation-id "$FW_OP" --region "$FW_REGION" \
+      --query 'operation.status' --output text </dev/null 2>/dev/null)" || fw_status=""
+    [[ "$fw_status" == "Succeeded" || "$fw_status" == "Failed" ]] && break
+    (( i < 30 )) && sleep 2
+  done
+  [[ "$fw_status" == "Succeeded" ]] || fw_stop "the port-list write did not succeed (operation status '${fw_status:-unknown}')"
+
+  # Read back and compare as sets: the outcome, not the call's exit status.
+  fw_norm='map({fromPort, toPort, protocol, cidrs: ((.cidrs // []) | sort), cidrListAliases: ((.cidrListAliases // []) | sort)}) | sort_by(.fromPort)'
+  fw_want="$(printf '%s' "$FW_PLANNED" | jq -c "$fw_norm")"
+  fw_have="$(fw_live | jq -c ".portStates | $fw_norm" 2>/dev/null)" || fw_have=""
+  [[ -n "$fw_have" && "$fw_have" == "$fw_want" ]] \
+    || fw_stop "the live firewall does not read back as the reviewed port list"
+  echo "    the live firewall matches the reviewed port list"
+
+  # Plan again. The firewall must now be a no-op, and every other change must be
+  # the one that was reviewed; anything different is a plan nobody has read.
+  echo "==> Planning again against the live firewall"
+  shred -u "$TF_PLAN" 2>/dev/null || rm -f "$TF_PLAN"
+  : > "$TF_PLAN"
+  chmod 600 "$TF_PLAN"
+  "$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} ${PLAN_EXTRA_ARGS[@]+"${PLAN_EXTRA_ARGS[@]}"} \
+      -no-color -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 \
+    || fw_stop "the second plan failed"
+  PLAN2_JSON="$("$TF_BIN" -chdir="$TF_DIR" show -json "$TF_PLAN" 2>/dev/null)" || fw_stop "could not read the second plan"
+  fw_changes() {
+    jq -c --arg fw "$FIREWALL_ADDRESS" '
+      [.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+       | select(.address != $fw) | {address, actions: .change.actions, after: .change.after}] | sort_by(.address)'
+  }
+  printf '%s' "$PLAN2_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" \
+      'all(.resource_changes[]?; .address != $fw or .change.actions == ["no-op"] or .change.actions == ["read"])' >/dev/null 2>&1 \
+    || fw_stop "the firewall still plans a change after the in-place write"
+  [[ "$(printf '%s' "$PLAN_JSON" | fw_changes)" == "$(printf '%s' "$PLAN2_JSON" | fw_changes)" ]] \
+    || fw_stop "the second plan differs from the one reviewed (something changed in between). Its firewall write matched what you reviewed"
+  echo "    the second plan is the reviewed plan, less the firewall"
+  echo ""
+fi
+
 if ! "$TF_BIN" -chdir="$TF_DIR" apply ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} "$TF_PLAN"; then
   echo "ERROR: terraform apply failed. Resume with --from-step 2 once fixed." >&2
   exit 1

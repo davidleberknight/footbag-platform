@@ -68,7 +68,7 @@ This project's knowledge base has two layers. **Canonical documents** hold durab
 
 **Testing Strategy:** Defines how to derive, layer, and verify tests across routes, services, and pure functions, with a risk-classification rubric, coverage expectations, and verification gates. Strategic context that pairs with the operational testing rules in `.claude/rules/testing.md`.
 
-**Migration and go-live** (listed here for orientation): how the project transitions from where it is today to production launch lives in GO_LIVE_PLAN.md (private GitHub repo) — the gate index, the cutover state machine, the launch sequencing, the rollback posture, the operational-readiness gate detail (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the stakeholder coordination. The legacy data migration design it carries out (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history) is the Legacy Data Migration decision in Design Decisions, with the member-facing behaviour in the claim and onboarding user stories. The pipeline validation gates that govern the data load are in Testing Strategy; the private plan carries a copy of them and wins where the two disagree.
+**Migration and go-live** (listed here for orientation): migration and go-live planning lives in GO_LIVE_PLAN.md (private GitHub repo) — the gate index, the cutover state machine, the launch sequencing, the rollback posture, the operational-readiness gate detail (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the stakeholder coordination. The legacy data migration design it carries out (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history) is the Legacy Data Migration decision in Design Decisions, with the member-facing behaviour in the claim and onboarding user stories. The pipeline validation gates that govern the data load are in Testing Strategy; the private plan carries a copy of them and wins where the two disagree.
 
 **Operations** (listed here for orientation): develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod), including operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures, live in DEVOPS_GUIDE.md (private GitHub repo), not in this repository.
 
@@ -245,7 +245,7 @@ Stripe handles all credit card processing with separate Live/Test API keys per e
 
 Admin approval required before payment features activate for any event. Funds flow to IFPA's Stripe account, not to individual organizers. Manual distribution provides IFPA oversight and reconciliation capability. Organizers never directly handle money. All transactions logged with comprehensive audit trail.
 
-Using Stripe offloads PCI compliance (no card data touches our systems). Stripe test mode on pre-cutover production enables safe payment testing before real money moves; dev and staging use the stub adapter. Required for processing membership dues, event registrations, and donations.
+Using Stripe offloads PCI compliance (no card data touches our systems). Stripe test mode enables payment testing without moving real money; dev and staging use the stub adapter. Required for processing membership dues, event registrations, and donations.
 
 Stripe webhooks are treated as durable input events; the system records them, applies idempotent payment state transitions, and runs nightly reconciliation that produces durable discrepancy reports for admins. Duplicate deliveries from Stripe retries do not cause duplicate payments or refund processing. A webhook handler validates signatures and processes payment events to update local payment records and trigger downstream effects (tier upgrades, receipts, registration confirmation).
 
@@ -348,7 +348,7 @@ Handles HTTP request/response cycle. Parses and validates input using Zod schema
 
 **Controller Pipeline for Form Submissions:**
 
-Controllers validate authentication/authorization and enforce HTTP verb discipline (no mutations on GET). State-changing requests are permitted only when authorized. If the origin is unavailable or returning 5xx errors, CloudFront serves the maintenance page. Operational states are normal, maintenance, and the one-time cutover window, where the public names serve the migration notice from the CloudFront edge function while the preview hostname serves the real site (the decision on how the namespace is served, in DESIGN_DECISIONS).
+Controllers validate authentication/authorization and enforce HTTP verb discipline (no mutations on GET). State-changing requests are permitted only when authorized. If the origin is unavailable or returning 5xx errors, CloudFront serves the maintenance page. Operational states are normal and maintenance; maintenance is entered automatically on origin failure or deliberately for a planned window (the CloudFront error-pages decision, in DESIGN_DECISIONS).
 
 **Response Format Negotiation:**
 

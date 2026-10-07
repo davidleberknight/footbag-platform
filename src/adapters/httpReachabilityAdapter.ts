@@ -6,7 +6,7 @@
  * check re-applied at every redirect hop (closes DNS-rebinding and
  * redirect-to-private-IP attacks). 2xx is reachable; 4xx/5xx warn-but-allow
  * (returned reachable=true with status); network/timeout failures return
- * reachable=false with the DD-verbatim "URL could not be reached" message.
+ * reachable=false with the user-facing "URL could not be reached" message.
  *
  * `live` performs real HEAD; `stub` consults in-memory state for tests
  * and dev; `disabled` returns reachable=true unconditionally to satisfy

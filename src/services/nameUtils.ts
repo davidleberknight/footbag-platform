@@ -22,6 +22,30 @@ export function assembleFullName(givenNames: string, familyName: string): string
 }
 
 /**
+ * Fix the capitalization of a name only where it is clearly careless: typed
+ * entirely in capitals or entirely in lower case. Each word then takes a capital
+ * first letter, as does the letter after a hyphen or apostrophe ("o'brien-jones"
+ * becomes "O'Brien-Jones").
+ *
+ * A name in mixed case is returned exactly as typed, because mixed case shows
+ * the member chose it ("McDonald", "DiCaprio", "van der Berg"), and blanket
+ * title-casing would break those names. A name in a script without capitals has
+ * no case to judge and is returned unchanged.
+ *
+ * The result is NFC: lower-casing 'İ' yields 'i' and a combining dot, and
+ * capitalizing that 'i' would otherwise leave 'I' and the mark rather than 'İ'.
+ */
+export function normalizeNameCase(name: string): string {
+  const upper = name.toUpperCase();
+  const lower = name.toLowerCase();
+  if (upper === lower) return name;
+  if (name !== upper && name !== lower) return name;
+  return lower
+    .replace(/(^|[\s\-'’])(\p{Ll})/gu, (_m, sep: string, letter: string) => sep + letter.toUpperCase())
+    .normalize('NFC');
+}
+
+/**
  * The surname key to match a member by.
  *
  * Prefers the recorded family name, and falls back to guessing it from the full

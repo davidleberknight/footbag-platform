@@ -43,6 +43,10 @@
  *     happens at the write path only: correcting a misspelling already on a row
  *     stays a curated-data fix made at source, so the render layer is never
  *     taught a geography table.
+ *   - Every club row names a country: creation requires one, and promotion
+ *     refuses a candidate that carries none, since nobody triggering it can
+ *     supply one. The clubs index lists only countries that name a country
+ *     page, so a blank country already on a row never renders a nameless link.
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier. Within one country an exact name is still taken by
  *     at most one club, blocked with no override on creation and on rename
@@ -1193,8 +1197,12 @@ export class ClubService {
     return runSqliteRead('clubService.getPublicClubsIndexPage', () => {
       const rows = clubs.listActive.all() as PublicClubRow[];
 
+      // A club whose country names no country page (blank, or nothing that
+      // slugifies) is left out: it has no destination, and listing it would
+      // render a nameless link to the bare clubs path.
       const countryTotals = new Map<string, number>();
       for (const row of rows) {
+        if (!slugifyCountry(row.country)) continue;
         countryTotals.set(row.country, (countryTotals.get(row.country) ?? 0) + 1);
       }
 
@@ -2106,6 +2114,13 @@ export class ClubService {
     }
     if (candidate.mapped_club_id) {
       return { branch: 'already_promoted', clubId: candidate.mapped_club_id };
+    }
+    // A live club names its country, as the create form requires: the clubs
+    // index groups and links every club by it, so a club created without one
+    // renders a nameless link. Promotion creates a club row and holds the same
+    // rule; nobody triggering it can supply a country, so it refuses.
+    if (!candidate.country || !candidate.country.trim()) {
+      throw new ValidationError('Country is required.');
     }
 
     // The candidate's own region wins where it has one: it descends from the

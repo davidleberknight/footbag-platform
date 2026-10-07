@@ -309,6 +309,45 @@ resource "aws_cloudwatch_metric_alarm" "root_account_used" {
   alarm_actions       = [aws_sns_topic.alarms.arn]
 }
 
+# Host access details minted. GetInstanceAccessDetails issues a short-lived
+# certificate for the host's default account, which carries passwordless sudo,
+# so any mint could be a root shell on a host. The same call is also the only
+# authenticated source of a host's SSH host keys, so two routine scripts make
+# it through scripts/lib/ssh-known-hosts.sh: scripts/install-known-hosts.sh
+# (including its --check mode) and scripts/onboard-dev-tester.sh. Neither uses
+# the certificate. The path stays usable and is alarmed instead, so every
+# firing is matched to one of three things: a logged run of one of those
+# scripts, a declared emergency, or a test of the break-glass path. A firing
+# matching none is investigated. The trail is multi-region and records
+# management events, so this one filter counts calls against both hosts.
+resource "aws_cloudwatch_log_metric_filter" "break_glass_host_access" {
+  count          = var.enable_cloudtrail ? 1 : 0
+  name           = "${local.prefix}-break-glass-host-access"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+  pattern        = "{ ($.eventSource = \"lightsail.amazonaws.com\") && ($.eventName = \"GetInstanceAccessDetails\") }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "BreakGlassHostAccess"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "break_glass_host_access" {
+  count               = var.enable_cloudtrail ? 1 : 0
+  alarm_name          = "${local.prefix}-break-glass-host-access"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "BreakGlassHostAccess"
+  namespace           = "Footbag/${var.environment}"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Lightsail access details were minted for a host (staging or production): a short-lived certificate for the default account, which has passwordless sudo. Routine callers also make this call to read host keys: scripts/install-known-hosts.sh (including --check) and scripts/onboard-dev-tester.sh. Match the firing to a logged run of one of those, a declared emergency, or a test of the break-glass path; investigate if it matches none."
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+}
+
 # Denied calls to the parameter store. The design says unusual parameter-store
 # access is alarmable; a burst of AccessDenied is the shape that matters, because
 # it is what credential probing looks like from the inside.

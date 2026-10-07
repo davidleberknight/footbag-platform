@@ -63,6 +63,19 @@ output "archive_bucket_name" {
   value       = var.enable_archive ? aws_s3_bucket.archive[0].bucket : null
 }
 
+output "archive_dr_bucket_name" {
+  description = "us-west-2 cross-region replication target for the archive bucket. Null while the archive stack is off."
+  value       = var.enable_archive ? aws_s3_bucket.archive_dr[0].bucket : null
+}
+
+output "archive_batch_replication_report" {
+  description = "Where a Batch Replication job over the archive writes its generated manifest and completion report: the archive log bucket and the one key prefix the replication role may write there. Read by scripts/backfill-replication.sh. Null while the archive stack is off."
+  value = var.enable_archive ? {
+    bucket = aws_s3_bucket.archive_logs[0].bucket
+    prefix = local.archive_batch_replication_prefix
+  } : null
+}
+
 output "archive_distribution_id" {
   description = "CloudFront distribution ID for the legacy archive. Every publish ends with an invalidation against it, because the edge TTL is a year."
   value       = var.enable_archive ? aws_cloudfront_distribution.archive[0].id : null

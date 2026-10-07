@@ -26,7 +26,7 @@
 # =============================================================================
 
 variable "enable_archive" {
-  description = "Create the archive stack: bucket, key group, signing-key parameter, edge function, gate pages, distribution and access logging, served on the distribution's own cloudfront.net name until enable_archive_custom_domain adds a real one. Independent of enable_cloudfront. Requires archive_signing_public_key when true."
+  description = "Create the archive stack: bucket and its cross-region replica, key group, signing-key parameter, edge function, gate pages, distribution and access logging, served on the distribution's own cloudfront.net name until enable_archive_custom_domain adds a real one. Independent of enable_cloudfront. Requires archive_signing_public_key when true."
   type        = bool
   default     = false
 }
@@ -89,6 +89,12 @@ locals {
   # underscore-prefixed top-level entry (_jpg), so this prefix cannot collide
   # with mirror content, and the content publisher must never delete it.
   archive_gate_prefix = "_gate"
+
+  # Key prefix in the archive log bucket where a Batch Replication job over the
+  # archive writes its generated manifest and completion report. The
+  # replication role may write there and nowhere else in that bucket, and the
+  # bucket's 90-day expiry clears old reports with the access logs.
+  archive_batch_replication_prefix = "batch-replication"
 }
 
 # ── Bucket ───────────────────────────────────────────────────────────────────
@@ -98,7 +104,8 @@ locals {
 # Deliberately NO Object Lock, unlike the DR snapshot bucket. The whole tree is
 # re-synced after the final crawl adds video, and bucket-layer immutability
 # fights a workflow whose normal operation is overwriting. Recovery headroom
-# comes from versioning plus the checksummed packaged capture held offline.
+# comes from versioning plus cross-region replication to a backup-region bucket
+# configured as the media bucket's is, declared below.
 
 resource "aws_s3_bucket" "archive" {
   count  = var.enable_archive ? 1 : 0
@@ -151,6 +158,135 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive" {
     filter {}
     noncurrent_version_expiration {
       noncurrent_days = 30
+    }
+  }
+}
+
+# ── Archive DR (cross-region replication target, us-west-2) ──────────────────
+# At parity with production: the same backup as the media bucket, setting for
+# setting, a versioned, encrypted, private second-region copy filled by
+# continuous replication, with deletions replicated and old versions expiring
+# after 30 days on both sides. Staging carries it so the publish-and-replicate
+# path is rehearsed before production is loaded. S3 replication copies only
+# objects written after the rule exists; objects already in the bucket when the
+# rule arrives are copied by scripts/backfill-replication.sh.
+
+resource "aws_s3_bucket" "archive_dr" {
+  count    = var.enable_archive ? 1 : 0
+  provider = aws.us_west_2
+  bucket   = "${local.prefix}-archive-dr"
+  lifecycle { prevent_destroy = true }
+}
+
+resource "aws_s3_bucket_versioning" "archive_dr" {
+  count    = var.enable_archive ? 1 : 0
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.archive_dr[0].id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "archive_dr" {
+  count    = var.enable_archive ? 1 : 0
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.archive_dr[0].id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "archive_dr" {
+  count                   = var.enable_archive ? 1 : 0
+  provider                = aws.us_west_2
+  bucket                  = aws_s3_bucket.archive_dr[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Deny-only policy. Nothing else grants on this bucket: replication writes
+# through the replication role's own IAM, which is an S3-internal TLS path, and
+# no client reads it directly. Adding a deny where no allow exists cannot
+# subtract anything.
+data "aws_iam_policy_document" "archive_dr" {
+  count = var.enable_archive ? 1 : 0
+
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.archive_dr[0].arn,
+      "${aws_s3_bucket.archive_dr[0].arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "archive_dr" {
+  count    = var.enable_archive ? 1 : 0
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.archive_dr[0].id
+  policy   = data.aws_iam_policy_document.archive_dr[0].json
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "archive_dr" {
+  count    = var.enable_archive ? 1 : 0
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.archive_dr[0].id
+
+  rule {
+    id     = "expire-old-archive-dr-versions"
+    status = "Enabled"
+    filter {}
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
+# Cross-region replication: archive to archive_dr. Continuous. Delete markers
+# are replicated, as the media rule does, so a publish that removes a page
+# removes it from the copy too. The s3_replication role's policy (iam.tf)
+# covers this pair alongside the media pair.
+resource "aws_s3_bucket_replication_configuration" "archive" {
+  count = var.enable_archive ? 1 : 0
+  depends_on = [
+    aws_s3_bucket_versioning.archive,
+    aws_s3_bucket_versioning.archive_dr,
+  ]
+
+  role   = aws_iam_role.s3_replication.arn
+  bucket = aws_s3_bucket.archive[0].id
+
+  rule {
+    id     = "replicate-all-to-archive-dr"
+    status = "Enabled"
+    filter {}
+    delete_marker_replication { status = "Enabled" }
+
+    destination {
+      bucket        = aws_s3_bucket.archive_dr[0].arn
+      storage_class = "ONEZONE_IA"
+
+      # Same flag as the media rule: the metrics the alarms read exist only
+      # while the rule publishes them.
+      dynamic "metrics" {
+        for_each = var.enable_replication_alarm ? [1] : []
+        content {
+          status = "Enabled"
+        }
+      }
     }
   }
 }

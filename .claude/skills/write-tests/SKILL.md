@@ -81,7 +81,7 @@ Follow the shapes in `EXAMPLES.md`, and these instructions:
 Give the test its own inputs. For every input the test does not create (a file, a directory, an installed binary, an exported variable), write it, stub it, pass its path or set it; a default that resolves to the developer's machine is not an input the test owns.
 
 - A case gated on an installed tool probes through `requireToolInCI` in `tests/fixtures/toolAvailability.ts`, which returns availability for `skipIf` locally and throws when the tool is missing and `CI` is set. If the case does not matter enough to provision for, delete it.
-- A claim about what is checked in uses `git grep` or `tests/fixtures/committedFiles.ts`, never a listing of a directory the machine might add to.
+- A claim about the source tree reads the working tree through `tests/fixtures/sourceTree.ts` (`listFiles` for one folder, `scanSource` over named folders), never git.
 - The shared setup already denies credentials, the home directory, the deployment-environment variable, the media directories and the SSH client; extend that declaration rather than defending a file by hand.
 - Check with `scripts/ci/run_clean_room.sh`, which runs the suite in a throwaway worktree with an empty home and no ambient environment.
 

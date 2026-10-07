@@ -18,16 +18,14 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { committedBasenames } from '../fixtures/committedFiles';
+import { listFiles } from '../fixtures/sourceTree';
 import { requireToolInCI } from '../fixtures/toolAvailability';
 import { join } from 'node:path';
 import { TRICKS_MOSAIC } from '../../src/content/freestyleTricksMosaic';
 
 const SITE_DIR = join(process.cwd(), 'curated/site');
 
-// Asked of git, not of the directory: the claim is about the twelve committed
-// clips, and the count below would otherwise fail on any stray matching file.
-const siteFiles = committedBasenames('curated/site');
+const siteFiles = listFiles('curated/site');
 const sidecars = siteFiles.filter((f) => /^mosaic-.*\.meta\.json$/.test(f));
 const clips = siteFiles.filter((f) => /^mosaic-.*\.mp4$/.test(f));
 

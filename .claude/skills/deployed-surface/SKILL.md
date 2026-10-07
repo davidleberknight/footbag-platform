@@ -28,7 +28,7 @@ Classify each story in `docs/USER_STORIES.md`, and each deployed runtime feature
 - **Runtime feature without a story id** — reachable code whose requirements live in another doc or are implicit in the architecture, with no clean user-story header.
 - **Designed but not deployed** — a story or design exists, but no mounted route or runtime path implements it yet.
 - **Future / not yet built** — no deployed path and no active runtime behavior; the work has not started.
-- **Documented-deferred** — future work explicitly parked with a recorded decision in the maintainers' private tracker or its parked list; a tracked deferral, distinct from plain future work.
+- **Documented-deferred** — future work explicitly deferred with a recorded decision in the maintainers' private tracker or in the private repository's post-go-live plan or version 2 scope; a tracked deferral, distinct from plain future work.
 - **Ambiguous / source-of-truth conflict** — code and docs disagree in a way that needs a maintainer decision.
 
 A full-surface audit that must prove it accounted for every candidate may also mark an item **not inspected** — a completeness-ledger bookkeeping status, never a finding.

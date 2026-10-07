@@ -103,8 +103,16 @@ resource "aws_kms_key" "jwt_signing" {
   customer_master_key_spec = "RSA_2048"
   key_usage                = "SIGN_VERIFY"
   deletion_window_in_days  = 30
-  # NOTE: asymmetric keys do not support automatic rotation. Rotation, when
-  # implemented, is operator-driven (new key + alias swap + 24h overlap).
+  # Asymmetric keys do not rotate automatically. Rotation is for cause, through
+  # scripts/rotate-jwt-signing-key.sh, which replaces this key: a flag day with
+  # one key at a time and no overlap, so every session ends at the switch.
+  # create_before_destroy makes the replacement create the new key and retarget
+  # the alias before the old key is scheduled for deletion; the default
+  # destroy-first order would leave the alias on a key pending deletion and
+  # refuse every login until the create landed.
+  lifecycle {
+    create_before_destroy = true
+  }
 
   policy = jsonencode({
     Version = "2012-10-17"

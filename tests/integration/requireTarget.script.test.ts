@@ -421,12 +421,13 @@ describe('the server a run reaches follows its label, and confirms it', () => {
   };
 
   // Every form a script here opens a connection with: the ssh client itself
-  // with its pinned options, the named seam a script substitutes for it in
-  // tests, and the shared library's wire functions.
+  // with its pinned options, the named seams a script substitutes for it in
+  // tests (its own, or the shared library's announced client), and the shared
+  // library's wire functions.
   // `ssh -G` only reads the local configuration and reaches nothing, so it is
   // not a connection.
   const connects = (body: string): boolean =>
-    /(^|[|(;&!]|\b(then|do|else))\s*ssh\s+(?!-G\b)|"?\$\{?SSH_BIN\}?"?\s|\b(scp|sftp)\s|-e\s+"?ssh\b|\bhost_env_(fetch|install)\s|\bhost_log_tail\s/m.test(body);
+    /(^|[|(;&!]|\b(then|do|else))\s*ssh\s+(?!-G\b)|"?\$\{?(HOST_)?SSH_BIN\}?"?\s|\b(scp|sftp)\s|-e\s+"?ssh\b|\bhost_env_(fetch|install)\s/m.test(body);
 
   it('every script that connects to a server asks it which environment it is first', () => {
     const offenders = operatorScripts()

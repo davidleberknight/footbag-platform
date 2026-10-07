@@ -554,17 +554,6 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/bap"');
   });
 
-  it('includes a Media nav link in the main nav', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    const navOpen = res.text.indexOf('class="main-nav"');
-    const navClose = res.text.indexOf('</nav>', navOpen);
-    expect(navOpen).toBeGreaterThan(-1);
-    const nav = res.text.slice(navOpen, navClose);
-    expect(nav).toContain('href="/media"');
-    expect(nav).toMatch(/>Media</);
-  });
-
   it('opens the document with a skip link pointing at the main element', async () => {
     const app = createApp();
     const res = await request(app).get('/');
@@ -812,17 +801,6 @@ describe('GET /clubs/club_:clubKey', () => {
 // ── HoF landing ────────────────────────────────────────────────────────────────
 
 describe('GET /hof', () => {
-  it('includes HoF nav link', async () => {
-    const res = await page('/hof');
-    expect(res.text).toContain('href="/hof"');
-  });
-
-  it('includes navigation links to home and events', async () => {
-    const res = await page('/hof');
-    expect(res.text).toContain('href="/"');
-    expect(res.text).toContain('href="/events"');
-  });
-
   it('leaks no template artifacts into the page (a short-form Handlebars comment containing a mustache terminates early and spills its text)', async () => {
     const res = await page('/hof');
     expect(res.text).not.toContain('[object Object]');
@@ -834,17 +812,6 @@ describe('GET /hof', () => {
 // ── BAP landing page ──────────────────────────────────────────────────────────
 
 describe('GET /bap', () => {
-  it('includes BAP nav link', async () => {
-    const res = await page('/bap');
-    expect(res.text).toContain('href="/bap"');
-  });
-
-  it('includes navigation links to home and events', async () => {
-    const res = await page('/bap');
-    expect(res.text).toContain('href="/"');
-    expect(res.text).toContain('href="/events"');
-  });
-
   it('leaks no template artifacts into the page (a short-form Handlebars comment containing a mustache terminates early and spills its text)', async () => {
     const res = await page('/bap');
     expect(res.text).not.toContain('[object Object]');

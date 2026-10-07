@@ -15,17 +15,22 @@
  * cannot drift; a key with no seed row is refused rather than guessed at; and a
  * status read never writes.
  *
- * A real run reaches a deployed host over ssh, which CI cannot exercise. The
- * root-side body is the whole of the behaviour, though: it takes its inputs as
- * shell variables and operates on a SQLite file, so it runs here directly
- * against a temporary database built from the real schema.
+ * The root-side body takes its inputs as shell variables and operates on a
+ * SQLite file, so it runs here directly against a temporary database built from
+ * the real schema. The workstation half, scripts/reconcile-host-config.sh, is
+ * driven end to end at the bottom of this file through a stand-in ssh client
+ * that runs the real body, so its refusals and its report are seen against a
+ * real write.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
+import { pauseLeverHarness, type LeverHarness } from '../fixtures/pauseLeverHarness';
+import { createScratchDir } from '../fixtures/scratchDir';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { insertSystemConfig } from '../fixtures/factories';
@@ -178,3 +183,76 @@ describe('restoring the host configuration', () => {
     expect(effectiveValue()).toBe('30');
   });
 });
+
+describe.skipIf(!requireToolInCI('sqlite3', '-version'))(
+  'reconcile-host-config.sh, driven through a stand-in host',
+  () => {
+    const SCRIPT = 'scripts/reconcile-host-config.sh';
+    let scratch: string;
+    let h: LeverHarness;
+    beforeAll(() => {
+      scratch = createScratchDir('reconcile-host-config-wire');
+      h = pauseLeverHarness(scratch, SCRIPT, KEY);
+    });
+    beforeEach(() => h.reset());
+    afterAll(() => h.dispose());
+
+    /** The host database the stand-in client's body writes. */
+    const drift = (value: string) => {
+      const db = new BetterSqlite3(h.hostDbPath());
+      try {
+        insertSystemConfig(db, {
+          id: `cfg_wire_${value}`,
+          created_at: new Date().toISOString(),
+          config_key: KEY,
+          value_json: value,
+          reason_text: 'a developer-only override',
+        });
+      } finally {
+        db.close();
+      }
+    };
+
+    it('refuses to apply without a reason, before reaching the host', () => {
+      const res = h.run(['--target', 'staging', '--apply', '--yes']);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain('--reason is required');
+      expect(res.stream).toBeNull();
+    });
+
+    it('refuses a host that records another environment, and writes nothing', () => {
+      drift('2');
+      const res = h.run(['--target', 'staging', '--apply', '--reason', 'r', '--yes'], { recordedEnv: 'production' });
+      expect(res.status).not.toBe(0);
+      expect(res.stream).toBeNull();
+      expect(h.effective()).toBe('2');
+    });
+
+    it('with no terminal and no --yes, is not confirmed and sends nothing', () => {
+      drift('2');
+      const res = h.run(['--target', 'staging', '--apply', '--reason', 'r']);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain('not confirmed; nothing was changed');
+      expect(res.stream).toBeNull();
+      expect(h.effective()).toBe('2');
+    });
+
+    it('reports drift on --status and writes nothing; --apply restores the seeded value', () => {
+      drift('2');
+      const status = h.run(['--target', 'staging', '--status']);
+      expect(status.status, status.stderr).toBe(0);
+      expect(status.stdout).toContain(`DIFFERS from seeded default: ${KEY}`);
+      expect(status.stdout).toContain('configuration on staging: DIFFERS');
+      expect(h.effective()).toBe('2');
+
+      const apply = h.run(['--target', 'staging', '--apply', '--reason', 'developer value reached the host', '--yes']);
+      expect(apply.status, apply.stderr).toBe(0);
+      expect(apply.stream![0]).toBe('stub-sudo-password');
+      expect(apply.stdout).toContain('configuration on staging: 1 value(s) restored.');
+      expect(h.effective()).toBe('30');
+
+      const after = h.run(['--target', 'staging', '--status']);
+      expect(after.stdout).toContain('every checked value matches its seeded default');
+    });
+  },
+);

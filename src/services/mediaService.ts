@@ -83,17 +83,20 @@
  *     prose reads "by *Member Name*" distinct from gallery ownership.
  *   - Viewer-aware shaping (`viewer: ViewerContext`): the member-galleries list
  *     and the identity set header link a member's display name to their member
- *     profile only for a signed-in viewer (profiles are member-only); the name
- *     shows unlinked otherwise. A `#by_*` chip is a different control and always
+ *     profile only for a viewer who is a member (profiles are member-only, and a
+ *     registrant still onboarding reads these pages as a signed-out visitor
+ *     does); the name shows unlinked otherwise. A `#by_*` chip is a different control and always
  *     links to that member's public gallery, for every viewer, so a signed-out
  *     visitor never meets a dead name. The item viewer's uploader credit carries
  *     the uploader's badges on the same principle: the membership tier and
- *     Active Player status are member-visible and render for a signed-in viewer
+ *     Active Player status are member-visible and render for a member viewer
  *     only, while Hall of Fame, Big Add Posse and Board are public wherever the
  *     member appears and render for everyone. Both are read from
  *     `member_membership_status_current` and `members_active` in the same lookup
  *     that resolves the `#by_<slug>` display name, so the credit costs no extra
- *     query.
+ *     query. The item viewer's own-item and reporting controls read the
+ *     viewer's identity only for a member viewer; a registrant still onboarding
+ *     is shaped exactly as a signed-out visitor.
  *
  * Service shape: singleton object (storage adapter used only to construct
  * read URLs).
@@ -149,11 +152,15 @@ export interface TagChip {
 }
 
 export interface ViewerContext {
+  // True for a viewer who is a member: signed in with onboarding complete. A
+  // registrant still onboarding passes false, because every member enhancement
+  // this flag unlocks (profile links, member-visible badges) is closed to them.
   authenticated: boolean;
   // Who the viewer is, supplied only by the two item-page routes, which are the
   // only surfaces that offer a control bound to the viewer's own identity. Every
   // other media surface shapes the same for every signed-in reader and passes
-  // neither.
+  // neither. Read only when `authenticated` is true: a registrant still
+  // onboarding carries a session identity but is offered no control bound to it.
   memberId?: string | null;
   slug?: string | null;
 }
@@ -1049,6 +1056,10 @@ function buildItemPage(
   // otherwise the hero is this title and no separate heading renders.
   const itemTitle = titleFor(row);
   const heroTitle = set.collectionTitle ?? itemTitle;
+  // The viewer's identity drives the own-item and reporting controls, which
+  // are member actions; a viewer who is not a member is shaped as a visitor.
+  const viewerMemberId = viewer.authenticated ? (viewer.memberId ?? null) : null;
+  const viewerSlug = viewer.authenticated ? (viewer.slug ?? null) : null;
 
   return {
     seo: { title: itemTitle },
@@ -1072,10 +1083,10 @@ function buildItemPage(
       nextHref: showPager ? set.encodeItemHref(set.rows[(set.index + 1) % n].id) : null,
       flag: buildMediaFlagBlock({
         mediaId,
-        viewerMemberId: viewer.memberId ?? null,
+        viewerMemberId,
         // The uploader tag is the item's ownership record on this surface, so
         // the viewer's own slug settles it without another query.
-        isOwnItem: uploaderSlug != null && viewer.slug != null && uploaderSlug === viewer.slug,
+        isOwnItem: uploaderSlug != null && viewerSlug != null && uploaderSlug === viewerSlug,
       }),
     },
   };
@@ -1187,9 +1198,9 @@ export const mediaService = {
           itemCountNoun: itemCount === 1 ? 'item' : 'items',
           href: `/media/${g.id}`,
           ownerDisplayName: g.owner_display_name,
-          // Member profiles are visible to signed-in members only, so the owner
-          // link is present for authenticated viewers and omitted for visitors,
-          // who still see the owner's display name.
+          // Member profiles are visible to members only, so the owner link is
+          // present for a member viewer and omitted for everyone else, who
+          // still sees the owner's display name.
           ownerHref: viewer.authenticated ? `/members/${g.owner_slug}` : null,
         };
       });

@@ -94,6 +94,16 @@ command -v aws >/dev/null     || fail "aws CLI not installed"
 [[ -n "${BACKUP_S3_BUCKET:-}" ]] || fail "BACKUP_S3_BUCKET is not set in /srv/footbag/env"
 [[ -n "${FOOTBAG_ENV:-}" ]]      || fail "FOOTBAG_ENV is not set"
 
+# A restore that has put a snapshot in place but not yet re-applied the
+# erasures it records leaves this marker beside the database. Backing that
+# database up would copy personal data a member asked to have erased into the
+# snapshot stream, whose promoted generations replicate to an object-locked
+# bucket nobody can delete from, and would make it the newest restore point.
+# Refused as a failed run, so the consecutive-failure metric rises and the
+# pause is visible rather than silent; nothing is uploaded.
+[[ -e "${DB_DIR}/.erasure-replay-pending" ]] \
+  && record_failure "a restore's erasure replay has not completed (${DB_DIR}/.erasure-replay-pending); refusing to back up. Finish it with scripts/restore-db.sh --target ${FOOTBAG_ENV} --resume-erasure-replay"
+
 WORK_DIR=$(mktemp -d /tmp/footbag-backup.XXXXXX)
 trap 'rm -rf "${WORK_DIR}"' EXIT
 

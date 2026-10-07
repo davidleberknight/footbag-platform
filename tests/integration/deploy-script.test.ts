@@ -2067,13 +2067,17 @@ describe('both deploy paths start from an empty upload directory', () => {
   // and no deploy shipped it, so the cutover's own snapshot step failed on every
   // host. Asserted against both halves, because pinning the list in one of a
   // pair is how the rebuild half's list drifted unnoticed in the first place.
+  // The service unit's start check is one of them: the promote step syncs with
+  // --delete, so a deploy that did not ship it would leave a unit whose
+  // ExecStartPre names a missing script, and the site would not start.
   it.each(['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'])(
-    '%s ships the three scripts that run on the host',
+    '%s ships the scripts that run on the host',
     (file) => {
       const source = read(file);
       expect(source).toContain("--include='/scripts/backup-db.sh'");
       expect(source).toContain("--include='/scripts/cutover-marker.sh'");
       expect(source).toContain("--include='/scripts/take-pre-cutover-snapshot.sh'");
+      expect(source).toContain("--include='/scripts/assert-no-erasure-replay-pending.sh'");
     },
   );
 });

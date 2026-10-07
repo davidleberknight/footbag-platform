@@ -278,6 +278,18 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
       expect(r.stdout).toMatch(/GATE: G10-OUTBOX FAIL: no usable production operator credential/);
       expect(r.stderr).toContain('~/AWS/AWS_OPERATOR_PRODUCTION.txt is missing or unreadable');
     });
+
+    it('sends nothing when the send is not confirmed on a terminal', () => {
+      // The checklist hands the send script --yes, so its own typed confirmation
+      // is the only thing standing between a captured run and real production mail.
+      const home = path.join(workDir, 'home');
+      fs.mkdirSync(path.join(home, 'AWS'), { recursive: true });
+      fs.writeFileSync(path.join(home, 'AWS', 'AWS_OPERATOR_PRODUCTION.txt'), 'stub-sudo-pass\n', { mode: 0o600 });
+      const r = runOutboxGate({});
+      expect(r.stdout).toMatch(/GATE: G10-OUTBOX FAIL: not confirmed, so no mail was sent/);
+      expect(r.stdout).not.toMatch(/--- G10-OUTBOX/);
+      expect(r.status).not.toBe(0);
+    });
   });
 
   it('red path: empty name_variants → G11 FAIL → exit non-zero, summary reports the failure', () => {
@@ -336,6 +348,12 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir, ['--target', 'prod']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/--target must be 'staging' or 'production'/);
+  });
+
+  it('refuses --no-snapshot without a target, since there is no host to read', () => {
+    const r = runChecklist(dbPath, snapshotDir, ['--no-snapshot']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--no-snapshot applies only with --target/);
   });
 
   it('refuses to label a mocked run with an environment name', () => {
@@ -410,6 +428,226 @@ describe.runIf(TOOLS_PRESENT)('a targeted run points each leg at the environment
     expect(e2e).not.toMatch(/E2E_BASE_URL|BASE_URL/);
     // And it still runs where it is safe: a workstation run keeps the gate.
     expect(e2e).toMatch(/run_step "E2E"\s+npm run test:e2e/);
+  });
+});
+
+// ── the data gates of a targeted run, on the host ───────────────────────────
+//
+// Production member data never leaves AWS, so a targeted run sends the check
+// scripts to the host and keeps only their verdicts. The host-facing function is
+// cut out of the script and run against a stand-in host, because the rest of a
+// targeted run reaches DNS, the network and AWS.
+
+describe('a targeted run\'s data gates run on the host and bring back only verdicts', () => {
+  const SOURCE = fs.readFileSync(
+    path.join(REPO_ROOT, 'scripts', 'pre-cutover-checklist.sh'), 'utf8');
+  const BLOCK = SOURCE.slice(
+    SOURCE.indexOf('DATA_CHECKS=('),
+    SOURCE.indexOf('if [[ -n "${TARGET}" ]]; then\n  if [[ -n "${HOST_SUBJECT}" ]]'),
+  );
+  const SNAPSHOT_BLOCK = SOURCE.slice(
+    SOURCE.indexOf('  if [[ "${NO_SNAPSHOT}" -eq 1 ]]; then'),
+    SOURCE.indexOf('\nfi\n\n# 2-5 and 7.'),
+  );
+  const LABELS = ['G1_6', 'CLUBS', 'LEADERS', 'VARIANTS', 'AUDIT', 'SHOWCASE'];
+  let workDir: string;
+
+  beforeEach(() => { workDir = tempDir(); });
+  afterEach(() => { fs.rmSync(workDir, { recursive: true, force: true }); });
+
+  /** Runs the host-facing function against a stand-in host answering `reply`. */
+  function runHostGates(reply: string, prelude = '') {
+    const binDir = path.join(workDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const stream = path.join(workDir, 'stream');
+    const argv = path.join(workDir, 'argv');
+    fs.writeFileSync(path.join(workDir, 'reply'), reply);
+    fs.writeFileSync(path.join(binDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      `printf '%s\\n' "$*" > ${JSON.stringify(argv)}`,
+      `cat > ${JSON.stringify(stream)}`,
+      `cat ${JSON.stringify(path.join(workDir, 'reply'))}`,
+    ].join('\n'));
+    fs.chmodSync(path.join(binDir, 'ssh'), 0o755);
+    const harness = [
+      'set -uo pipefail',
+      'results=(); fail=0; TARGET=production; SSH_ALIAS=footbag-production; HOST_SSH_OPTS=()',
+      'SUDO_PASS=fixture-sudo-password; HOST_SUBJECT=live; SNAPSHOT_PATH=; SNAPSHOT_SHA256=',
+      prelude,
+      BLOCK,
+      'run_host_data_gates',
+      'for r in "${results[@]}"; do printf "RESULT %s\\n" "$r"; done',
+      'echo "FAIL=${fail}"',
+    ].join('\n');
+    const res = spawnSync('bash', ['-c', harness], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ''}` },
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    return {
+      stdout: res.stdout ?? '',
+      stream: fs.existsSync(stream) ? fs.readFileSync(stream, 'utf8') : '',
+      argv: fs.existsSync(argv) ? fs.readFileSync(argv, 'utf8') : '',
+    };
+  }
+
+  const CLEAN = [
+    'GATE: G1 PASS: 0 collisions', 'GATE: G7 PASS: 2 candidates', 'GATE: G8 PASS: 1 rows',
+    'GATE: G11 PASS: 300 rows', 'GATE: DEV-ADMIN-AUDIT PASS: exit 0', 'GATE: SHOWCASE-PRESENCE PASS: present',
+    ...LABELS.map((l) => `DG_${l}_RC=0`),
+  ].join('\n');
+
+  it('passes a clean host reply through with no failure', () => {
+    const r = runHostGates(`${CLEAN}\n`);
+    expect(r.stdout).toMatch(/^FAIL=0$/m);
+    expect(r.stdout).toMatch(/^RESULT GATE: G11 PASS: 300 rows$/m);
+  });
+
+  it('drops every host line that is not an allowlisted verdict, printing none of it', () => {
+    // Defect caught: a member's name or address said by the host, by sudo or by a
+    // check, relayed into the operator's terminal or the cutover log.
+    const r = runHostGates(
+      `${CLEAN}\nJane Doe jane.doe@example.com\nJane Doe\nGATE: NOT-A-GATE PASS: x\nGATE: G11 PASS\n` +
+      'GATE: G11 PASS: sampled jane.doe@example.com\nGATE: G8 PASS: \u001b[31mred\u001b[0m\n',
+    );
+    expect(r.stdout).not.toContain('\u001b');
+    expect(r.stdout).not.toContain('@');
+    // A bare name carries no '@', so only the gate-shape match keeps it back.
+    expect(r.stdout).not.toContain('Jane Doe');
+    expect(r.stdout).not.toContain('NOT-A-GATE');
+    expect(r.stdout).not.toMatch(/GATE: G11 PASS$/m);
+    expect(r.stdout).toMatch(/^FAIL=0$/m);
+  });
+
+  it('fails a check the host reported no exit status for', () => {
+    // Defect caught: a body that stopped part way reported as clean because the
+    // lines it did print were all PASS.
+    const r = runHostGates(CLEAN.replace('DG_LEADERS_RC=0\n', ''));
+    expect(r.stdout).toMatch(/^RESULT GATE: G8 FAIL: the production host reported no result for this check$/m);
+    expect(r.stdout).toMatch(/^FAIL=1$/m);
+  });
+
+  it('fails a check that exited non-zero after printing only PASS lines', () => {
+    const r = runHostGates(CLEAN.replace('DG_G1_6_RC=0', 'DG_G1_6_RC=78'));
+    expect(r.stdout).toMatch(/^RESULT GATE: G1-G6 FAIL: the check exited 78 on the host$/m);
+    expect(r.stdout).toMatch(/^FAIL=1$/m);
+  });
+
+  it('counts a host FAIL line as a failure', () => {
+    const r = runHostGates(CLEAN.replace('GATE: G8 PASS: 1 rows', 'GATE: G8 FAIL: 0 rows'));
+    expect(r.stdout).toMatch(/^FAIL=1$/m);
+  });
+
+  it('sends the password first, then the subject, every check and the body, and nothing in argv', () => {
+    // Defect caught: the password reaching a process list, or a check missing
+    // from the stream so the host has nothing to run for it.
+    const r = runHostGates(`${CLEAN}\n`);
+    const lines = r.stream.split('\n');
+    expect(lines[0]).toBe('fixture-sudo-password');
+    expect(r.stream).toContain('DG_SUBJECT=live');
+    for (const label of LABELS) expect(r.stream).toMatch(new RegExp(`^DG_${label}_B64=\\S+$`, 'm'));
+    expect(r.stream).toContain('Root-side body of the pre-cutover checklist\'s data checks');
+    expect(r.argv).not.toContain('fixture-sudo-password');
+  });
+
+  it('makes the snapshot the subject, and sends its path and checksum to the host', () => {
+    // Defect caught: a snapshot run that silently reads the live database, or
+    // that never tells the host which object to check and so fails every time.
+    const snapshotBlock = SNAPSHOT_BLOCK;
+    const sha = 'b'.repeat(64);
+    const snapshotReply = [
+      'manifest noise',
+      'PRECUTOVER_SNAPSHOT_URI=s3://footbag-production-db-snapshots-dr/pre-flip/s1/s1.db.gz',
+      'PRECUTOVER_SNAPSHOT_PATH=/srv/footbag/snapshots/s1.db.gz',
+      `PRECUTOVER_SNAPSHOT_SHA256=${sha}`,
+    ].join('\n');
+    fs.writeFileSync(path.join(workDir, 'snapshot-reply'), snapshotReply);
+    const r = runHostGates(`${CLEAN}\n`, [
+      `remote_snapshot() { cat ${JSON.stringify(path.join(workDir, 'snapshot-reply'))}; }`,
+      'NO_SNAPSHOT=0',
+      snapshotBlock,
+    ].join('\n'));
+
+    expect(r.stdout).toMatch(/^RESULT GATE: SNAPSHOT PASS: production snapshot taken on the host/m);
+    expect(r.stream).toContain('DG_SUBJECT=snapshot');
+    expect(r.stream).toContain('DG_SNAPSHOT_PATH=/srv/footbag/snapshots/s1.db.gz');
+    expect(r.stream).toContain(`DG_SNAPSHOT_SHA256=${sha}`);
+  });
+
+  it('with --no-snapshot takes no snapshot and makes the live database the subject', () => {
+    // Defect caught: a pre-cutover-day check writing a rollback artifact into
+    // the object-locked pre-flip prefix, or the data gates left with no subject
+    // and failing, or reading something other than the live database.
+    const called = path.join(workDir, 'snapshot-called');
+    const r = runHostGates(`${CLEAN}\n`, [
+      'HOST_SUBJECT=',
+      `remote_snapshot() { touch ${JSON.stringify(called)}; }`,
+      'NO_SNAPSHOT=1',
+      SNAPSHOT_BLOCK,
+    ].join('\n'));
+
+    expect(fs.existsSync(called)).toBe(false);
+    expect(r.stdout).toMatch(/^RESULT GATE: SNAPSHOT SKIP: --no-snapshot passed/m);
+    expect(r.stream).toMatch(/^DG_SUBJECT=live$/m);
+    expect(r.stdout).toMatch(/^FAIL=0$/m);
+  });
+
+  it.runIf(TOOLS_PRESENT)('parses the path and checksum out of a real snapshot manifest on the host', () => {
+    // Defect caught: the host-side wrapper reading the archive's checksum, or no
+    // path at all, so the data checks refuse or check the wrong object.
+    const dbPath = path.join(workDir, 'fixture.db');
+    buildFixtureDb(dbPath);
+    const snapshots = path.join(workDir, 'snapshots');
+    const manifestOut = spawnSync('bash', ['scripts/take-pre-cutover-snapshot.sh'], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, FOOTBAG_DB_PATH: dbPath, FOOTBAG_SNAPSHOT_DIR: snapshots, FOOTBAG_SNAPSHOT_LOCAL_ONLY: '1' },
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    expect(manifestOut.status, manifestOut.stderr).toBe(0);
+    const manifest = JSON.parse(manifestOut.stdout) as { snapshot_path: string; sha256: string; archive_sha256: string };
+    const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'scripts/internal/take-pre-cutover-snapshot-remote.sh'), 'utf8');
+    const parse = wrapper.slice(wrapper.indexOf('flat="$('));
+    const res = spawnSync('bash', ['-c', `set -euo pipefail\n${parse}`], {
+      env: { ...process.env, MANIFEST: manifestOut.stdout },
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain(`PRECUTOVER_SNAPSHOT_PATH=${manifest.snapshot_path}`);
+    expect(res.stdout).toContain(`PRECUTOVER_SNAPSHOT_SHA256=${manifest.sha256}`);
+    expect(manifest.sha256).not.toBe(manifest.archive_sha256);
+  });
+
+  it('opens the database read-only in every check that runs on the host', () => {
+    // Defect caught: a check run as root against the live database opening it
+    // for writing, which a sha comparison of the file cannot see.
+    for (const script of [
+      'validate-legacy-import-gates.sh', 'validate-club-candidates.sh', 'validate-bootstrap-leaders.sh',
+      'validate-name-variants.sh', 'audit-dev-shortcuts.sh', 'validate-showcase-presence.sh',
+    ]) {
+      const calls = fs.readFileSync(path.join(REPO_ROOT, 'scripts', script), 'utf8').split('\n')
+        .filter((l) => !l.trim().startsWith('#') && /\bsqlite3\s/.test(l));
+      expect(calls.length, script).toBeGreaterThan(0);
+      for (const call of calls) expect(call, `${script}: ${call.trim()}`).toContain('sqlite3 -readonly');
+    }
+  });
+
+  it('never downloads a snapshot or any object from storage', () => {
+    // Defect caught: a copy of the production member database reaching the
+    // operator's workstation, which the governance of that data forbids.
+    expect(SOURCE).not.toMatch(/s3 cp|s3api get-object|s3 sync/);
+    expect(SOURCE).not.toContain('PULLED_DB');
+  });
+
+  it('never falls back to a local database under a target\'s heading when the snapshot failed', () => {
+    const targeted = SOURCE.slice(
+      SOURCE.indexOf('if [[ -n "${TARGET}" ]]; then\n  if [[ -n "${HOST_SUBJECT}" ]]'),
+      SOURCE.indexOf('# 2. G1-G6: legacy import gates'),
+    );
+    expect(targeted).toContain('FAIL: no snapshot to check, so this gate read nothing');
+    expect(targeted).not.toContain('run_step');
   });
 });
 

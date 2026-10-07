@@ -147,7 +147,7 @@ if ! result="$(
     printf 'REASON=%q\n' "${REASON:-status read}"
     printf 'ACTOR=%q\n' "${ACTOR:-}"
     cat "$REMOTE_HALF"
-  } | ssh "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
+  } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 )"; then
   die "the remote step failed; nothing is assumed about the host's configuration"
 fi

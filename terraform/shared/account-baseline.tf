@@ -20,7 +20,7 @@
 #
 # These are properties of the account, not of an environment, and the account is
 # what the shared tree bootstraps. They are also applied by the directly
-# authenticated super-admin identity rather than by the human job role, which is
+# authenticated operator identity rather than by the human job role, which is
 # not a choice made here: the job role's S3 object grant reaches only the staging
 # state key, so it cannot read this tree's state at all, by design.
 # =============================================================================

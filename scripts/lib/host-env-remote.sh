@@ -68,15 +68,21 @@ require_host_ssh_opts() {
 }
 HOST_ENV_READ_HALF="${HOST_ENV_LIB_DIR}/../internal/host-env-read-remote.sh"
 HOST_ENV_WRITE_HALF="${HOST_ENV_LIB_DIR}/../internal/host-env-write-remote.sh"
-HOST_LOG_GREP_HALF="${HOST_ENV_LIB_DIR}/../internal/host-log-grep-remote.sh"
 HOST_IDENTITY_HALF="${HOST_ENV_LIB_DIR}/../internal/host-identity-remote.sh"
 
-# The client require_host_is connects with. Assigned here rather than read from
-# the environment, so a value exported in the operator's shell cannot route the
-# check somewhere the run itself does not go. A script that substitutes its own
-# client in tests points this at the same substitute after sourcing, so the
-# check and the run always use one client.
-HOST_SSH_BIN="ssh"
+# The client require_host_is connects with, and the one a caller's own wire
+# should use, so the identity check and the run go through one client and the
+# check cannot be answered by a host the run then does not reach. A script with
+# its own seam points this at the same substitute after sourcing.
+#
+# Test seam (CI only; operators never set this): FOOTBAG_HOST_SSH_BIN replaces
+# the client, and says so on stderr every run, because a run through a stand-in
+# proves nothing about any host. A generic name such as HOST_SSH_BIN is not read
+# from the environment, so an unrelated export cannot reroute a run unannounced.
+HOST_SSH_BIN="${FOOTBAG_HOST_SSH_BIN:-ssh}"
+if [[ -n "${FOOTBAG_HOST_SSH_BIN:-}" ]]; then
+  echo "NOTE: using a stand-in for the ssh client (FOOTBAG_HOST_SSH_BIN); this run proves nothing about any host." >&2
+fi
 
 # Set by require_host_is to the address the confirmed host records; declared
 # here so a script reading it is safe under `set -u` on a path that never asked.
@@ -404,30 +410,6 @@ host_env_install() {
 # runtime config carries SECRET or KEY, which is what this matches.
 host_env_mask() {
   sed -E 's/^([A-Za-z_][A-Za-z0-9_]*(SECRET|KEY)[A-Za-z0-9_]*)=.*/\1=********/' "$1"
-}
-
-# host_log_tail <alias> <fixed-pattern> [scan-lines]
-# Prints the last line of the running web container's log matching the pattern.
-#
-# Exists so a scripted step can read a host's log rather than an operator typing
-# `docker logs | grep` by hand. Reading the log needs root, so it goes over the
-# same wire as everything else here.
-host_log_tail() {
-  local alias="$1" pattern="$2" lines="${3:-2000}"
-
-  [[ -r "$HOST_LOG_GREP_HALF" ]] || {
-    echo "ERROR: missing remote half: $HOST_LOG_GREP_HALF" >&2
-    return 1
-  }
-
-  require_host_ssh_opts || return 1
-
-  {
-    printf '%s\n' "$SUDO_PASS"
-    printf 'LOG_PATTERN=%q\n'    "$pattern"
-    printf 'LOG_SCAN_LINES=%q\n' "$lines"
-    cat "$HOST_LOG_GREP_HALF"
-  } | ssh "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash'
 }
 
 # tfvars_mask <file>

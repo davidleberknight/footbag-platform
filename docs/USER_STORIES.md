@@ -226,7 +226,7 @@ each release contains is §1.3.
     - [SYS_Cleanup_Expired_Tokens](#sys_cleanup_expired_tokens)
     - [SYS_Cleanup_Soft_Deleted_Records](#sys_cleanup_soft_deleted_records)
     - [SYS_Rebuild_Hashtag_Stats](#sys_rebuild_hashtag_stats)
-    - [SYS_Freestyle_Content_Source_Of_Truth_Cutover](#sys_freestyle_content_source_of_truth_cutover)
+    - [SYS_Freestyle_Content_Source_Of_Truth](#sys_freestyle_content_source_of_truth)
     - [SYS_Handle_Stripe_Webhooks](#sys_handle_stripe_webhooks)
     - [SYS_Handle_SES_Bounce_And_Complaint_Feed](#sys_handle_ses_bounce_and_complaint_feed)
     - [SYS_Cross_Region_Replication](#sys_cross_region_replication)
@@ -243,9 +243,11 @@ Security and sessions: Authentication uses an HttpOnly, Secure, SameSite=Lax ses
 
 Input validation and sanitization: All user-entered text (names, bios, captions, comments, descriptions, etc.) is validated and sanitized to prevent abuse and visual spoofing while remaining usable for international content.
 
+External links: a member-supplied external URL that fails validation is refused with a plain message and a retry option, so the member can correct it and try again. The messages are "This URL appears to use a disallowed protocol." for a non-web scheme, "URL could not be reached. Please verify the link." when the reachability check is on and the address does not answer, and "This URL is not allowed." for every other refusal. Every external link opens in a new tab, shows its full URL on hover, and carries a small external-link icon except where the URL itself is the link text; the icon marks leaving the site, which is why it is exempt from the no-glyph rule for ordinary links.
+
 Payment Processing Guarantees: The system does not grant paid access unless Stripe confirms success. Local payment state transitions are monotonic and keyed by Stripe object IDs; duplicates and reordering do not cause double-application. This ordering ensures the system never grants paid features without successful payment. Webhook event processing is idempotent: duplicate webhook deliveries with the same event_id are safely ignored and return 200 OK without reprocessing. This prevents double-processing when Stripe automatically retries webhook delivery. Two payment models are used and each has its own state machine keyed to the appropriate Stripe object:
 
-- One-time payments (membership dues, event registrations, one-time donations): State transitions are keyed by Stripe's payment_intent_id. The enforced state machine is: pending to completed on payment_intent.succeeded; pending to canceled on checkout.session.expired; completed to refunded on charge.refunded. A declined card is not a state transition: while the checkout session is open the buyer may try another card, so payment_intent.payment_failed records the attempt and leaves the record pending. The session, not the attempt, is the unit of failure. Each state transition is recorded in audit logs with timestamp and Stripe event_id. No action is taken on refunds at launch in any case, so the refund concern is theoretical.
+- One-time payments (membership dues, event registrations, one-time donations): State transitions are keyed by Stripe's payment_intent_id. The enforced state machine is: pending to completed on payment_intent.succeeded; pending to canceled on checkout.session.expired; completed to refunded on charge.refunded. A declined card is not a state transition: while the checkout session is open the buyer may try another card, so payment_intent.payment_failed records the attempt and leaves the record pending. The session, not the attempt, is the unit of failure. Each state transition is recorded in audit logs with timestamp and Stripe event_id. The platform offers no refunds: no member or administrator surface issues one and no member-facing text promises one. A refund issued at the provider is recorded (`SYS_Process_One_Time_Payments`); any refund owed is arranged by the IFPA Treasurer outside the platform.
 
 - Recurring donations (Stripe Subscriptions): State transitions are keyed by the Stripe subscription_id and invoice_id. The enforced state machine is: active on customer.subscription.created; active (new payment record created) on invoice.payment_succeeded; past_due on invoice.payment_failed (increments a failure counter; Stripe's configured dunning schedule governs retries); canceled on customer.subscription.deleted (triggered after Stripe exhausts all retries, or when canceled by member or admin). Each subscription event is recorded in audit logs with timestamp and Stripe event_id. All webhook event types are deduplicated via the stripe_events table (keyed on Stripe event_id) regardless of payment model.
 
@@ -273,7 +275,7 @@ Reporting scope: Any dashboards/metrics described here are operational metrics (
 
 Times: every timestamp is stored and displayed in UTC, and every admin surface that renders one names the zone on the face of the figure (for example `2026-08-20 15:21:21 UTC`). The platform holds no per-member time zone and does not convert to a viewer's local clock: an admin reconstructing an incident, or reconciling against a payment provider's dashboard, must be able to read a time without knowing which clock produced it.
 
-Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator. Task types classified urgent (security, data-integrity, or administrative-continuity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
+Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator, so the alert channel stays meaningful for a small volunteer team instead of training administrators to ignore it. Task types classified urgent (security, data-integrity, or administrative-continuity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
 
 Member action items follow the mirror-image rule. Anything the platform is waiting on a member for surfaces on that member's dashboard (`M_View_Dashboard`), which is where every login lands, so a member is shown what they owe rather than having to remember where to look for it. Urgency is set by the part of the platform that owns the obligation, since only it knows its deadline: needs-attention-now items lead the dashboard's action block and put a compact banner on every other member page, while pending items sit quietly on the dashboard alone. Neither the block nor the banner carries private content; each item shows a headline, an optional non-private detail line, and its options, and anything private is read on the owner-only surface the item links to. Notification email is unchanged by this: each obligation keeps whatever reminder its own story specifies, and members receive no rollup digest.
 
@@ -321,7 +323,7 @@ Security and Validation: The hashtag system implements security at input validat
 
 Photos (Hosted Content): Members upload photos (JPEG and PNG only; GIF not supported) with security processing in a way the eliminates the need for anti-virus scans as part of the system's tech stack. Each photo is re-encoded at 85% quality, stripped of all EXIF/ICC metadata, and generates two variants: a thumbnail bounded at 600 pixels on its longest edge, which keeps the photo's own shape, and an 800px-width display image (or smaller if the original image is narrower than 800px). Processing occurs synchronously.
 
-Captions, Descriptions and other Text: All user-submitted text fields (captions, descriptions, names) undergo input validation before storage. Input sanitization removes HTML tags and normalizes Unicode to prevent homograph attacks; output encoding via Handlebars templates prevents script execution; length limits enforce practical constraints (captions 500 characters, descriptions 2000 characters, names 100 characters after normalization). This multi-layer approach prevents injection attacks (XSS, CSV formulas, template code) while maintaining usability for legitimate international content.
+Captions, Descriptions and other Text: All user-submitted text fields (captions, descriptions, names) undergo input validation before storage. Input sanitization removes HTML tags and normalizes Unicode to prevent homograph attacks; output encoding via Handlebars templates prevents script execution; length limits enforce practical constraints (captions 500 characters, descriptions 2000 characters, people's names per the registration limits, other names 100 characters, all after normalization). This multi-layer approach prevents injection attacks (XSS, CSV formulas, template code) while maintaining usability for legitimate international content.
 
 Videos (External Links): Members submit YouTube or Vimeo links rather than uploading video files. The system validates URL patterns (youtube.com/watch?v=, youtu.be/, vimeo.com/), extracts video IDs via regex, and stores metadata only. Videos stream directly from their hosting platforms, eliminating storage and transcoding complexity.
 
@@ -361,7 +363,7 @@ Implementation notes used by stories below:
 - Membership tier and Active Player status are separate concepts; both must be queryable independently and shown distinguishably in any roster, report, or profile surface.
 - Membership tiers do not expire. Only Active Player status expires. Numeric defaults (price, duration, reminder offsets) live in §7.7 Configurable Parameters.
 - Canonical membership-tier database string values used in code and SQL: `tier0`, `tier1`, `tier2`, `tier3`. Display text ("Tier 1 IFPA Member", etc.) is formatted separately in UI templates. Active Player is represented by separate fields, not by a tier string.
-- Site Administrators (the platform admin role) must hold Tier 2 or Tier 3 status.
+- Site Administrators (the platform admin role) are granted Tier 2 on appointment when they hold less, and a Tier 3 removal or auto-link revert never leaves a sitting administrator below Tier 2.
 - Feature access is controlled by membership tier, Active Player status where applicable, and contextual roles or flags (Event Organizer, Club Leader, Administrator, HoF, BAP). These values are fetched from the database on any authenticated request to check authorization rules; JWT tier or flag claims are cached for routing performance but are never authoritative for access control decisions.
 - Member counts displayed to the public, where any exist, must clearly indicate whether they represent "all registered accounts" (including Tier 0 without Active Player status) or the "Official IFPA Roster."
 
@@ -377,16 +379,15 @@ the build is not; the remaining deferred items are defined by their rulings on t
 **v2**, built first after launch, in this order: voting and elections; then the Hall of Fame
 nomination and voting flow, the first real consumer of that subsystem. Independent of that
 order: IFPA rankings computed from sanctioned-event results, the news feed with its authoring
-and moderation surfaces, the curated net topic gallery, and per-discipline routine music on
-events.
+and moderation surfaces, the curated net topic gallery, per-discipline routine music on
+events, and native groups and committees.
 
 **v3**, unordered: administrator authority split into named lanes of expertise rather than one
 flat role; the Big Add Posse nomination and voting flow; and native tournament-day operations.
 
 Two deadlines bind the deferred work, and the ruled list is the single home for their dates
-and reasoning: the first binding election on the new voting subsystem, which fixes the v2
-order and its timing (the Hall of Fame proving run with disregardable votes completes before
-it, because it is binding), and the fixed Worlds 2027 deadline on tournament operations,
+and reasoning: the first vote on the new voting subsystem, the Hall of Fame vote, which fixes
+the v2 order and its timing, and the fixed Worlds 2027 deadline on tournament operations,
 whatever position it takes in v3.
 
 # 2. Visitor Stories
@@ -406,7 +407,7 @@ Success Criteria:
 - The modernized Footbag website is served as the primary footbag.org site; visitors can access it without logging in.
 - The legacy footbag.org content is preserved as a read-only static archive at archive.footbag.org for authenticated members only.
 - The current footbagworldwide.com implementation is the basis of the new and improved footbag.org; domain and URL details for the final layout are deferred to the detailed design document.
-- Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they click “Legacy Archive,” they are redirected to register/log in; only members can proceed to archive.footbag.org.
+- Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they open the Legacy Archive, they see an access-denied page with a link to log in; only members can proceed to archive.footbag.org.
 - The top-level sport sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`, `/net/events`, `/net/teams`, `/net/teams/:teamId`), the Sideline landing page (`/sideline`), the cross-sport Records page (`/records`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
 - The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights; `/net/teams` lists teams with discipline and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
 - `/sideline` is an editorial landing page presenting the sideline games (circle kicking, 2-square, 4-square, consecutive kicks, footbag golf) with demonstration clips and internal links to the matching rules pages and to `/records`; the page renders zero offsite links.
@@ -530,6 +531,7 @@ Success Criteria:
 - When the trick has no tagged videos at all, the Media section is omitted (no gallery link).
 - The page browser-tab title follows the convention `Footbag Trick #{slug}` (e.g. `Footbag Trick #ripwalk`), parallel to the event-page title convention.
 - The trick's Media section links to its full video gallery at `/media/browse?context=<slug>`, with the trick slug as a locked context tag; member-uploaded videos tagged with the trick appear there by default alongside curator-published clips, and all narrowing happens in that gallery.
+- A gallery link or hashtag carrying a trick alias permanently redirects (301) to the same view under the canonical trick slug, so one trick never has two galleries.
 - Navigation from a trick hashtag and from the Detail link are distinct and unambiguous. On a trick page, a trick's media hashtag (`#ripwalk`, the same token as the slug `ripwalk` and the `/freestyle/tricks/ripwalk` segment, differing only by the leading `#`) opens that trick's media gallery at `/media/browse?context=<slug>` when the trick has media, and renders as a plain non-clickable token otherwise; it does not open the trick detail page. The plain-English trick name links to the trick detail page at `/freestyle/tricks/{slug}`, and a separate "Detail" link beside it resolves to the same page; a "Media" link beside it opens the same gallery as the hashtag, appearing only when the trick has media. The gallery path and the detail path never have to be guessed from one control, and media presence is signalled twice rather than once.
 - Freestyle concepts that are not tricks carry their hashtag by role, not by the bare slug: a set is `#set_{slug}` (e.g. `#set_pixie`), an operator or modifier is `#operator_{slug}` (e.g. `#operator_spinning`), and a trick family is `#family_{slug}`. The bare `#{slug}` is reserved for a trick's media, so a set or operator never shows a bare trick hashtag. Pixie and fairy are both a trick and a set, so each shows the bare trick hashtag on its trick surface and the `#set_` hashtag on set surfaces. Because a modifier or operator is not a trick, `/freestyle/tricks/{slug}` redirects it to its modifier detail page at `/freestyle/modifier/{slug}`, and trick search lists tricks and sets, not operators.
 - On the trick dictionary at `/freestyle/tricks`, the family filter and the by-family, by-ADD, by-set, and by-modifier views open the filtered dictionary, and the search box opens search results. Each hashtag, filter, Detail control, and Media control is a real link the visitor can follow directly or deep-link to.
@@ -591,7 +593,7 @@ Success Criteria:
 - New member registration with email verification.
 - **Name model:** Registration collects two name fields:
   - **Family name** (`family_name`): required. It is the anchor every claim path matches on, so it is the part that must always be there. A member whose legal name is a single word, which is ordinary in much of the world, records that one name here; requiring both parts is what would refuse those members.
-  - **Given name(s)** (`given_names`): optional. No digits in either field, and no restriction on script, accents, apostrophes, hyphens or internal spaces. The two are stored as given and assembled into `real_name` with the given names first. The fields are labelled given and family rather than first and last, which encode an ordering that is wrong for the many members who write their family name first.
+  - **Given name(s)** (`given_names`): optional. No digits in either field, and no restriction on script, accents, apostrophes, hyphens or internal spaces. The two are stored as given, except that a name typed entirely in capitals or entirely in lower case is saved with a capital at the start of each word and after a hyphen or apostrophe ("JOHN O'BRIEN" becomes "John O'Brien"); a name in mixed case is saved exactly as typed, so "McDonald" or "van der Berg" is never altered. The same rule applies to the display name and to an administrator's name correction. The two are assembled into `real_name` with the given names first. The fields are labelled given and family rather than first and last, which encode an ordering that is wrong for the many members who write their family name first.
   - **Display name** (`display_name`): optional. Defaults to `real_name` if left blank. Must end with the member's recorded family name, after suffix stripping (Jr, Sr, II, III, IV, PhD, MD), so a member whose family name is several words is held to the whole of it. Display name is permanent and cannot be changed after registration; the registration form must make this clear.
   - **Slug selection:** The member's URL slug is generated from display name by default but the member can customize it during registration. The slug must contain the final word of the recorded family name, because a profile URL carries no spaces and a family name of several words could never be contained in one. Both sides fold to letters and digits before that comparison, so a family name carrying an apostrophe or a hyphen is satisfiable by a slug that can hold neither. A family name written in a script with no Latin form folds to nothing: the containment rule does not apply, any slug passing the pattern is accepted, and the member must choose one during registration, because no readable address can be generated from such a name and a permanent public address should not be a machine's guess at how its owner spells their own name. Two members may share the same display name; slug uniqueness is enforced. Slug is permanent after registration.
 - This registration MUST use the human’s real and full name, spelled out, with no initials or abbreviations. Bogus registrations that do not follow this rule, upon discovery, will be deleted.
@@ -601,7 +603,8 @@ Success Criteria:
 - Email must be unique across all members including accounts in their deletion grace period (reuse only after the grace period completes and PII is cleared).
 - Registration enforces email uniqueness without disclosing account existence. The form responds identically whether or not the submitted email already belongs to an account (active or in its deletion grace period): the same generic "check your email" confirmation, with no inline indication that the address is already registered, so registration cannot be used to probe which emails have accounts. When the address already has an account, the platform emails that address an "account already exists" notice with links to log in or reset the password (never a new verification link), so the legitimate owner is helped through a channel only they control. Rate limiting and the server-side CAPTCHA apply regardless of match.
 - Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read.
-- Display names are constrained to prevent homograph and impersonation attacks, within a reasonable length limit. Each display name is NFC-normalized, must carry no invisible or control characters, and must draw its letters from a single writing system, so a name that mixes Latin and Cyrillic letters is rejected.
+- Name lengths follow the UK Government Data Standards Catalogue person-name standard: family name at most 35 characters, given names at most 35, and the assembled name and the display name at most 70, counted after normalization; a display name has at least 2 characters.
+- Display names are constrained to prevent homograph and impersonation attacks. Each display name is NFC-normalized, must carry no invisible or control characters, and must draw its letters from a single writing system, so a name that mixes Latin and Cyrillic letters is rejected.
 - Registration refuses a real name, display name, or member-chosen profile URL that claims platform or role authority. Words are compared whole, case-insensitively, with accents and digit-for-letter substitutions folded away, so a name whose own word is a reserved role or platform word is rejected, while a longer name that merely contains one, such as the surname Stafford, is accepted. The rejection names the failed check without listing the reserved words.
 - New members automatically assigned Tier 0 (free lifetime) status.
 - **Legacy-link check:** Registration itself links nothing. Matching runs in the onboarding wizard's claim step, after the personal details (including date of birth) are on file, per `M_Claim_Legacy_Account`; the member answers every card there and is the authority on their own identity.
@@ -862,6 +865,7 @@ Success Criteria:
 - **Person-link reversion:** When a member deletes their account, any historical person links (in event results and other historical surfaces) that were pointing to `/members/:slug` must revert to `/history/:personId`. The `personHref()` helper handles this automatically when `member_id` is cleared or the member row is soft-deleted. HoF and BAP honorees are the exception: their links are never cleared and their profile keeps publishing, so those links stay pointed at `/members/:slug`.
 - **Declared-anchor purge:** PII purge clears the member's declared former surnames and declared old emails (see M_Edit_Profile) alongside `members.historical_person_id` and `members.legacy_member_id`. Declared anchors are member-asserted personal data; they do not persist past the member's account.
 - **Outbound mail:** the messages the platform sent or queued to the member are erased alongside the rest of their personal data. The recipient address and the message body are cleared and the subject is replaced with a placeholder, while the row itself is kept so the send record stays complete.
+- **Mailing-list subscriptions:** PII purge hard-deletes the member's mailing-list subscription rows, bounce and complaint state included, alongside the rest of their personal data.
 - Members with HoF or BAP flags receive special treatment during deletion. Admin-configurable soft-delete grace period applies. After this grace period expires: email/phone/passwordHash removed like all members, but displayName and bio fields are always preserved regardless of deletion. Deleted HoF/BAP profiles continue showing: special status badges (HoF or BAP flag), preserved displayName (not changed to "Deleted Member"), preserved bio text, memberId for referential integrity. Historical event results, leadership records, and community contributions remain attributed to these members by preserved displayName. This preserves community history and honors that are meant to be permanent regardless of account status.
 - Financial and audit records anonymized after the configured grace period. Transaction IDs retained for a configurable compliance period (default: 7 years).
 - Audit logs retain for a configurable compliance period (default: 7 years) with no personal identifiers (except member id).
@@ -916,9 +920,8 @@ Success Criteria:
 
 - After logging into the main site, a member can click a clearly labeled "Legacy Archive" link.
 - The member is transparently authenticated to the legacy archive and can browse historical content without re-entering credentials.
-- Legacy archive access is gated by the main site session JWT. Access expires when the main site JWT expires. The JWT expiry duration is Administrator-configurable (default: 24 hours, keyed by `jwt_expiry_hours`). No separate archive session token is issued; the platform validates the member's session transparently at the archive edge.
-- If the member's session expires, attempts to use the archive cause a redirect back to the main site login.
-- Direct access attempts to the legacy archive by unauthenticated users redirect to the main site login with a suitable message.
+- Legacy archive access is granted at main-site login and expires with the main-site session. The session duration is Administrator-configurable (default: 24 hours, keyed by `jwt_expiry_hours`). No separate archive login exists; the archive edge checks the access the main site granted at sign-in.
+- A visitor without valid archive access, whether never signed in or with an expired session, sees an access-denied page explaining the archive is for members, with a link to log in on the main site; after logging in they can return to the archive.
 - The legacy archive is read-only, static HTML content (no DB or JavaScript).
 - The archive preserves the historical structure and content of the old footbag.org site as closely as practical (pages, articles, event reports, and media that were mirrored). Notably however, all videos (many of which had old, obsolete video formats) have been converted to .mp4 format, and all images have been converted to .jpg.
 - Archive search is not provided and no new content is added to the archive (it is strictly historical).
@@ -1086,7 +1089,9 @@ Success Criteria:
 - **Discoverable in member search** (`searchable`, default on): a self-service toggle labeled "Allow other members to find me in member search." When off, the member is excluded from `M_Search_Members` results (enforced by the `members_searchable` view), but their profile remains reachable by direct link and they still appear to club co-members on rosters; the toggle governs search inclusion only. Changes are audit-logged.
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
+  - `show_first_competition_year` (default on): a "Show first competition year on my public profile" checkbox that hides the "Competing since" line without deleting the year.
   - `show_competitive_results` (default on): toggle controlling whether competition results appear on the member's public profile. The member's own profile view always shows their results regardless of toggle state.
+  - These toggles hide the year and the results from the profile only; published results stay on event and history pages, so their labels and help text say what is hidden from the profile and never that anything is removed.
 - **Declared identity anchors (always private; declared in the onboarding wizard's legacy-claim task, shown here read-only and not edited inline):**
   - `former_surnames` (optional, multi-valued): zero or more surnames the member previously used (e.g. before marriage). Participates in legacy-claim matching alongside the current real-name surname. Never displayed on public surfaces, member search, or any cross-member listing. Visible only to the member and to admin.
   - Declared old emails (optional, multi-valued): email addresses the member previously controlled. Participate in legacy-claim matching against every email a legacy account carried (the primary `legacy_email` plus up to two secondary addresses). A declared address is a matching key only; the platform never mails it. Never displayed on public surfaces. Visible only to the member and to admin.
@@ -1100,7 +1105,7 @@ Success Criteria:
 - External URLs on profiles (maximum 3) are validated before publication and presented safely (e.g., clearly labeled and protected against malicious links).
 - Key actions are recorded in the audit log.
 - Member profile will automatically show club affiliation, media galleries, and links to event results, if participated.
-- Display names are constrained to prevent homograph attacks (for example: no mixed scripts or invisible characters, and reasonable length limits).
+- Display names are constrained to prevent homograph attacks (for example: no mixed scripts or invisible characters, and the name length limits set in `V_Register_Account`).
 
 ### M_Contact_IFPA_Admin
 
@@ -1173,7 +1178,8 @@ Success Criteria:
 - Member can view any member profile (own or others).
 - Profile displays: photo, display name, city, country, bio, tier badge, external URLs, club affiliation (if any), and gender when the member has opted in to gender visibility (shown to signed-in members only).
 - **Historical name:** When a member has a linked historical person whose name differs from the member's current display name, the historical name is shown on the profile (e.g., "Also known as {historical name} in competition records").
-- **Competition history:** If `first_competition_year` is set, display "Competing since {year}" on the profile. If `show_competitive_results` is on (or the viewer is the profile owner), display the member's competition results section. Results section includes the caveat text: "Published event results only. Historical records may be incomplete."
+- **Claimed historical record:** Opening the public history page of a historical person a member has claimed lands on that member's profile by permanent redirect, so one person has one page.
+- **Competition history:** If `first_competition_year` is set and `show_first_competition_year` is on, display "Competing since {year}" on the profile. If `show_competitive_results` is on (or the viewer is the profile owner), display the member's competition results section. Results section includes the caveat text: "Published event results only. Historical records may be incomplete."
 - Email address shown only if: (viewer is profile owner) OR (profile owner opted in to email visibility).
 - Membership tier badges and current Active Player badges visible to logged-in members only on profiles, club rosters, event participant lists, search results, media author info. Honor badges such as Hall of Fame (HoF), Big Add Posse (BAP), and Board Member are visible to all users (including visitors) wherever the member appears.
 - Profile shows member's uploaded photos and videos in thumbnail grid.
@@ -1227,6 +1233,7 @@ Success Criteria:
 
 - Club page displays: club name, description, city, country, external URL (if provided), standardized hashtag. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
 - Member roster shows all members where clubId matches the club.
+- The roster also lists unconfirmed affiliations imported from the legacy site in the same member-visible list; each carries a per-entry "unconfirmed" label and is never presented as current membership.
 - Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country, and gender when the member has opted in to gender visibility.
 - Email addresses shown only if member has opted in to email visibility.
 - Roster sorted alphabetically by display name.
@@ -1605,6 +1612,7 @@ Success Criteria:
 - Photo tagged with club hashtag appears in that club's media gallery.
 - Upload completes during the request/response flow, so the user receives immediate success or failure feedback after upload/processing.
 - On success, the UI receives sufficient data to display the uploaded photo and related metadata immediately.
+- If processing fails for a reason other than the limits above, the uploader sees a clear, generic failure message that reveals nothing about the processing internals, and can retry with another image.
 - If upload/processing does not complete within the configured request timeout, the UI displays a clear error message and allows retry.
 
 ### M_Submit_Video
@@ -1685,7 +1693,7 @@ Story: As a member, I can manage my mailing list subscriptions so that I control
 
 Success Criteria:
 
-- Member profile includes a subscriptions list with categories: all-members, newsletter, board-announcements, event-notifications, technical-updates, active-player-reminders, announce.
+- Member profile includes a subscriptions list showing each list an administrator has marked member-manageable (for example newsletter, board-announcements, event-notifications, technical-updates); the set is data, not fixed.
 - Member can subscribe or unsubscribe via profile settings.
 - System uses the subscriptions list to determine which bulk emails the member receives in each category.
 - Changes made in the member's profile are respected by all future bulk emails for those categories.
@@ -1727,13 +1735,17 @@ Success Criteria:
 
 ## 3.10 Group Membership
 
+<< V2 SCOPE >> Native groups and committees are version-two scope. The stories in this section are
+design intent for that build and are not part of the v1 launch. Board standing itself, set through
+`A_Grant_HoF_BAP_Board_Status`, is v1.
+
 Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: `type`, `official` flag, visibility (`policy`), `restrict_membership`, email enable, lifecycle `state`, and optional `parent_group_id` for subcommittees.
 
-One group is planned at launch: the IFPA Board of Directors. The European Footbag Committee, the Worlds Operating Committee and the International Footbag Committee are archived rather than carried onto the platform. The mechanism is general: administrators stand up any further group through `A_Create_Group` without new code, so which groups exist is data an administrator enters rather than a property of the design. Exactly one group may carry `type='board'`, and that group is the IFPA Board of Directors; only its roster confers standing, and a committee's roster confers no flag and no tier.
+One group is planned first: the IFPA Board of Directors. The European Footbag Committee, the Worlds Operating Committee and the International Footbag Committee are archived rather than carried onto the platform. The mechanism is general: administrators stand up any further group through `A_Create_Group` without new code, so which groups exist is data an administrator enters rather than a property of the design, and a body that would rather keep its conversation where its members already are is not argued with. Exactly one group may carry `type='board'`, and that group is the IFPA Board of Directors; only board standing, set by an administrator, confers a flag and a tier, and a committee's roster confers neither.
 
 A group's lifecycle is one field, `state`, with three values. `active` is the normal state. `inactive` hides the group from the public directory while preserving member access and its mail. `archived` ends the group: it leaves the directory, its mailing list is archived, its roster rows are set not-current, and it accepts no further messages. Group records are never deleted and do not use the soft-delete (`deleted_at`) pattern.
 
-**The standing is the record, and the roster reflects it.** Board standing is conferred in exactly one place, by an administrator through `A_Grant_HoF_BAP_Board_Status`, which sets the IFPA Board flag and Tier 3 and records the underlying tier for later reversion. A `type='board'` group's roster is the published list of who sits on the board and follows that standing rather than conferring it: setting a member's board standing adds their roster row, and clearing it ends that row. The roster confers no flag and no tier by itself, so a roster row can never disagree with the standing it reflects. Board standing and voting are separate facts: a director may hold standing without a vote, because a seat can be filled by appointment under a bylaw provision, or by election ahead of the vote that seats it. Every row on a `type='board'` roster is a director; a group's roster is not the place for observers or advisors.
+**The standing is the record, and the roster reflects it.** Board standing is conferred in exactly one place, by an administrator through `A_Grant_HoF_BAP_Board_Status`, which sets the IFPA Board flag and Tier 3 and records the underlying tier for later reversion. A `type='board'` group's roster is the published list of who sits on the board and follows that standing rather than conferring it: setting a member's board standing adds their roster row, and clearing it ends that row. The roster confers no flag and no tier by itself, so a roster row can never disagree with the standing it reflects. The directors sitting at cutover arrive in the legacy import as a curated list that grants nothing by itself; an administrator sets each one's standing after cutover. Board standing and voting are separate facts: a director may hold standing without a vote, because a seat can be filled by appointment under a bylaw provision, or by election ahead of the vote that seats it. Every row on a `type='board'` roster is a director; a group's roster is not the place for observers or advisors.
 
 Each `group_member_affiliations` row records, besides the member and the group: `role` (`owner` or `member`), `office` (free text, e.g. President, Secretary, Treasurer, Director; may be empty), `is_voting` (bool), `seat_basis` (`elected` or `appointed`), `seat_reference` (free text naming the election or the bylaw provision behind the seat), `term_start` (date), `term_end` (date, empty while serving), and `display_order` (integer, for precedence on the roster).
 
@@ -2591,6 +2603,8 @@ Success Criteria:
 
 # 6. Group Owner Stories
 
+<< V2 SCOPE >> Group ownership ships with native groups in v2; not part of the v1 launch.
+
 Group Owners are members designated by an Admin at group creation time. Owners can invite co-owners who share identical group management permissions. Owner permissions are group-scoped: owning one group grants permissions only for that group. Members may own multiple groups simultaneously.
 
 The group lifecycle (create, archive) is Admin-controlled and lives in `A_Create_Group` and `A_Archive_Group`. Owners do not create or archive groups. Owners can leave the group they own via `GO_Leave_Group` subject to the sole-owner promotion-first rule.
@@ -2680,7 +2694,7 @@ Success Criteria:
 
 # 7. Administrator Stories
 
-Administrators are member volunteers with elevated privileges for platform operations, content moderation, and system configuration. Administrators are assigned manually and must be IFPA members with Tier 2 or Tier 3 status. All admin actions that modify data are audit-logged with admin ID, action type, reason, and timestamp. There is no UI for becoming an Admin, as this is done usually by another Admin, but could be done also by a System Administrator (a developer role not a user role) in order to grant system privileges.
+Administrators are member volunteers with elevated privileges for platform operations, content moderation, and system configuration. Administrators are assigned manually and are granted Tier 2 on appointment when they hold less, at no charge, because administrators are unpaid volunteers and nobody should have to pay for a membership tier in order to do volunteer work for IFPA. All admin actions that modify data are audit-logged with admin ID, action type, reason, and timestamp. There is no UI for becoming an Admin, as this is done usually by another Admin, but could be done also by a System Administrator (a developer role not a user role) in order to grant system privileges.
 
 ## 7.1 Event and Payments
 
@@ -2748,9 +2762,11 @@ Success Criteria:
 - Admin can change membership tier from the member detail view to any of the three membership tiers: `tier0`, `tier1`, `tier2` (using canonical database string values). Director standing (`tier3`) is not set here: it is governance standing rather than a membership tier, and it is conferred in one place, through `A_Grant_HoF_BAP_Board_Status`, which also records the tier the member returns to and sets the board badge. Active Player status is managed separately from membership tier.
 - Admin can correct the Active Player expiry date when needed for exceptional remediation, with mandatory reason and audit logging.
 - The member's own profile is the ordinary path for every field they can edit themselves, and an administrator does not use this surface for routine editing on a member's behalf. An administrator can correct any of those fields when the member cannot: a data bug, a member who has died, an account whose holder can no longer reach it, or a value the member's own surface will not accept. Every such correction carries a mandatory reason and an audit row with the value before and after. The member's bio is their own words: an administrator can clear it but does not rewrite it. Display name corrections require admin action (contact IFPA).
+- A member's own words are cleared, withdrawn or redacted, never rewritten under their name. This covers the bio and every other member-authored text an administrator reaches, including a club note, an answer to an administrator's question, a sent announcement, and a donation comment; each removal takes its own reason and audit row.
 - Event results and other data fields that could be buggy can also be edited via this interface, but will require additional UI support.
 - Mandatory reason field for manual adjustment (typically: payment issue resolution, complimentary access, error correction).
 - Confirmation dialog before applying with member name, old tier, new tier, and reason.
+- Every correction on this surface previews before it writes, and the confirmation names the reason and every changed value before and after.
 - Member receives email notification of membership-status change with key points: new membership tier, Active Player status or expiry where changed, reason.
 - All manual data overrides audit-logged with admin ID, member ID, old values, new values, reason, timestamp.
 - Admin sees a clear success message when adjustment completes successfully.
@@ -2787,7 +2803,7 @@ Story: As an admin, I can grant special status badges to a member if they qualif
 Success Criteria:
 
 - Admin can select member and grant Hall of Fame (HoF) or Big Add Posse (BAP) status flags (assuming they qualify per IFPA criteria). HoF and BAP badges are permanent lifetime honors that persist indefinitely. The act of assigning either badge automatically grants Tier 2 membership. If the member is currently Tier 3, the member remains Tier 3 while governance status is active and the underlying membership tier is set to Tier 2 for later reversion. Granting these badges sends a congratulatory email to the member.
-- The IFPA Board flag (Tier 3 governance status) is temporary and applies only while the member is an active board member. When the IFPA Board flag is set active, the system sets the member's membership tier to Tier 3 (IFPA director) and records the underlying membership tier for later reversion. If a Tier 0 member becomes Tier 3, the underlying membership tier is set to Tier 1 and any current Active Player status ends. When the IFPA Board flag is removed (member no longer on board), membership tier reverts to the underlying tier: Tier 1 if the member entered Tier 3 from Tier 0 or Tier 1, or Tier 2 if the member entered from Tier 2, Hall of Fame, or BAP. All Board flag changes and resulting tier changes are audit-logged.
+- The IFPA Board flag (Tier 3 governance status) is temporary and applies only while the member is an active board member. When the IFPA Board flag is set active, the system sets the member's membership tier to Tier 3 (IFPA director) and records the underlying membership tier for later reversion. If a Tier 0 member becomes Tier 3, the underlying membership tier is set to Tier 1 and any current Active Player status ends. When the IFPA Board flag is removed (member no longer on board), membership tier reverts to the underlying tier: Tier 1 if the member entered Tier 3 from Tier 0 or Tier 1, or Tier 2 if the member entered from Tier 2, Hall of Fame, or BAP. An administrator never reverts below Tier 2 by this removal: where the underlying tier is Tier 1, the role's Tier 2 is granted in the same transaction. All Board flag changes and resulting tier changes are audit-logged.
 - Badges are visible on member profile and anywhere member tier is displayed.
 - The IFPA Board flag is temporary, as long as the member is an active board member only.
 - This story is the one place board standing is conferred or cleared. The member record's tier control sets the three membership tiers and not this one, because director standing carries a badge and a record of the tier the member returns to that a plain tier correction would not write. Where a `type='board'` group exists, setting a member's standing adds their roster row and clearing it ends that row, in the same transaction, so the published roster and the standing can never disagree; the roster reflects standing and never confers it (see `A_Manage_Group_Roster`).
@@ -2808,7 +2824,7 @@ Success Criteria:
 
 ### A_View_Official_Roster_Reports
 
-Access: Tier 2 and above. The IFPA membership rules grant Tier 2 (IFPA Organizer Member), Tier 3 and administrators access to the Official IFPA Roster for official IFPA event and organizer purposes. Site administrators must already hold Tier 2 or Tier 3, so one tier gate serves all three. Tier 1 and Tier 0 members, including a Tier 0 member holding current Active Player status, are refused.
+Access: Tier 2 and above. The IFPA membership rules grant Tier 2 (IFPA Organizer Member), Tier 3 and administrators access to the Official IFPA Roster for official IFPA event and organizer purposes. Granting the site administrator role grants Tier 2 to a member holding less, and the tier check passes every administrator, so one tier gate serves all three. Tier 1 and Tier 0 members, including a Tier 0 member holding current Active Player status, are refused.
 
 Story: As a Tier 2 or Tier 3 member or an administrator, I can view the Official IFPA Roster and its membership breakdown so that I can run official IFPA events, carry out organizer work, and report accurate membership statistics to the IFPA Board, distinguishing membership tier from Active Player status.
 
@@ -2898,7 +2914,7 @@ Success Criteria:
 - Admin can cancel any event, with the same registrant notification, reason, and audit trail the organizer's own cancellation carries.
 - Admin can cancel any registration, with the same member notification, reason, and audit trail the organizer's own cancellation carries.
 - Admin can assign an event organizer from the member base where an event has none (see `A_Reassign_Event_Organizer`).
-- Every correction requires a reason entered by the admin, and writes an audit row carrying the before and after values, the admin's identity, the timestamp, and the reason.
+- Every correction requires a reason entered by the admin, previews before it writes, and writes an audit row carrying the before and after values, the admin's identity, the timestamp, and the reason.
 - Corrections appear in the normal public and member-facing views immediately, with no separate publication step.
 - Purpose-built surfaces remain the ordinary path: an organizer edits their own event, results corrections go through `A_Fix_Event_Results`, and member records go through `A_Override_Member_Data`. This story is the backstop for what those do not reach.
 - Four record classes are outside this story, each protected by its own design: audit logs are append-only and are never corrected retroactively; payment records follow the payment provider through reconciliation rather than free-hand edits; imported historical results are corrected at their source and rebuilt; and vote records carry their own integrity model.
@@ -3010,6 +3026,8 @@ Success Criteria:
 - Visibility into flagging patterns: who flagged what, when, and any relevant aggregate patterns (for example: repeated flagging by the same accounts), without storing IP-derived data.
 - Admin decision buttons: Delete hides immediately and removes origin access immediately; cached CDN copies may persist briefly per TTL/invalidation.
 - All actions append to immutable audit log with actor, reason, and affected mediaId.
+- An administrator cannot decide a report against an item they uploaded; the platform refuses and says another administrator must review it. An administrator who reports an item and then decides it is taking the designed moderation path, because the bar is on being the subject, not on having touched the item.
+- A report's reason text is the reporter's own words: an administrator can redact it but does not rewrite it.
 - System emails uploader with decision.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
 - Moderation reaches a member's named gallery, not only individual items: an admin can act on a member-owned gallery through the same admin gallery URL that manages Footbag Hacky's own. The gallery's name and description are the member's own words, so an admin clears an abusive one rather than rewriting it under their name; the item ordering and the criteria and exclude tag sets are structure rather than words, and an admin may set them. This is moderation of a member's media, not curation; curation is an admin adding or editing Footbag Hacky's own media as the system member, specified in A_Upload_Curated_Media and A_Manage_Curated_Gallery. Deleting a member-owned gallery is not a moderation action and returns 404 there; removing a member's media is done per item through the takedown decision above. Every such act takes a mandatory reason and appends an audit row naming the acting admin, the affected gallery, and each changed value before and after.
@@ -3523,7 +3541,7 @@ Success Criteria:
 - All Administrator-configurable system parameters have normative default values defined in the Configurable Parameters subsection of this document. The initial database creation process must load those defaults into the corresponding tables. Defaults reflect IFPA rules where applicable, and otherwise reflect privacy, security, and legal-retention requirements.
 - The Membership and Pricing section allows an admin to view and adjust: Tier 1 IFPA Member price (USD). Tier 2 IFPA Organizer Member price (USD).
 - The Donations and Payments section shows the "Pause payments" emergency switch (default: off) read-only, alongside the operator procedure that changes it. When set, new membership purchases and donations are refused before any Stripe Checkout session is started, while existing payments and webhooks continue to process. An admin cannot toggle it: the application has no write path to the flag and none is planned, because halting live payments is a System Administrator action run by script. The same read-only treatment applies wherever this screen shows a flag the application does not own.
-- The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (configurable; default 30 seconds via `outbox_poll_interval_seconds`) for SYS_Send_Email. "Pause sending" emergency toggle (default: off) that stops the worker from sending new outbox items while keeping newly enqueued items pending. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-Active-Player-expiry reminder offsets (defaults: 30 and 7 days). Day-of Active Player expiry notification (T+0) is built in and not separately configurable.
+- The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (configurable; default 30 seconds via `outbox_poll_interval_seconds`) for SYS_Send_Email. The "pause sending" switch (default: off), which stops the worker from sending new outbox items while keeping newly enqueued items pending, is shown read-only here: it is set by operator script, never from the browser. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-Active-Player-expiry reminder offsets (defaults: 30 and 7 days). Day-of Active Player expiry notification (T+0) is built in and not separately configurable.
 - All parameters on this screen: Show current values and defaults, with short helper text explaining how each value is used (for example “Used by recurring donations job; do not set below X days without CTO approval”). Enforce safe ranges and validation so that admins cannot set obviously invalid values (for example negative days, zero retry count, or unparseable expressions). Are audit-logged when changed, including old value, new value, admin ID, and timestamp, and these changes appear in A_View_Audit_Logs / A_View_System_Health where appropriate.
 - Changing any of these parameters does not require code deployment: the updated values are read from the SystemConfig data store and automatically picked up by the relevant jobs, flows, and admin views the next time they run.
 - The Data Retention Configuration section allows an admin to view and adjust entity-specific retention periods, and states for each one what the period actually does, because "retention" means three different things across this screen and a single label for all of them misleads. The governing principle is that personal data ages out while the record does not:
@@ -3738,6 +3756,7 @@ Success Criteria:
 - On resolve, one `audit_entries` row is written with `actor_type='admin'`, `action_type='support.contact_request_resolved'`, `category='support'`, `reason_text=<decision_label>`, and `metadata_json` carrying the resolution note and original queue item id.
 - On resolve, an email reply is dispatched to the member's `login_email` via the `SesAdapter` containing the decision label, the resolution note, and instructions to submit a new request if further assistance is needed. The templated reply does not echo the member's original message back.
 - If the resolution requires changing a member field (display_name, slug, tier, identity link), the admin performs that change through the relevant admin tool. The contact-request resolution itself never mutates member rows; it only transitions queue state, writes audit, and sends email.
+- An administrator cannot resolve a contact request they submitted themselves; the platform refuses and says another administrator must review it.
 - Resolving an item with an invalid decision label or empty resolution note returns 422 with a field-level error. Resolving an unknown or already-resolved queue id returns 404.
 - Non-admin authenticated users receive 403 from `/admin/work-queue` and the resolve action; unauthenticated traffic is redirected to login.
 
@@ -3764,7 +3783,7 @@ Success Criteria:
 
 - Audit log view lists entries with at least: timestamp, actor (admin, system, or member), action type, affected entity (such as member, event, media, payment, election), and a short description or reason where available.
 - Entries are sorted by timestamp, newest first by default.
-- Admin can filter logs by: date range (from/to); topic/category (for example: membership changes, pricing changes, elections, content moderation, payments, system alarms, configuration changes); actor type (admin vs system vs member); a specific member (matching rows where that member is the actor or the affected entity); and action type. A self-action filter surfaces rows where the acting admin is the affected member.
+- Admin can filter logs by: date range (from/to); topic/category (for example: membership changes, pricing changes, elections, content moderation, payments, system alarms, configuration changes); actor type (admin vs system vs member); a specific member (matching rows where that member is the actor or the affected entity); a specific actor; a specific affected entity; and action type. A self-action filter surfaces rows where the acting admin is the affected member.
 - Filtering uses the structured filters above; the app does not provide free-text search over reason or metadata content, which is done with an external tool when needed.
 - Audit coverage includes at least: membership tier changes, pricing updates, event sanction approvals, media takedown decisions, freestyle content edits (trick rows, aliases, sources, and modifier links), election operations (create, publish, decrypt), admin role changes, alarm acknowledgments, and system cleanup or reconciliation processes.
 - Monthly summary view shows counts per category (for example: number of tier changes, number of event approvals, number of takedowns) to support lightweight reporting.
@@ -3791,6 +3810,8 @@ Success Criteria:
 
 ## 7.9 Group Management
 
+<< V2 SCOPE >> Ships with native groups in v2; not part of the v1 launch.
+
 ### A_Create_Group
 
 Access: Only Admins can create groups, regardless of type. Members may request group creation via `M_Contact_IFPA_Admin` using the "Group creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the group through this story if approved.
@@ -3802,7 +3823,7 @@ Success Criteria:
 - Form includes: name (required, max 80 chars, not required to be globally unique); slug (required, unique, the group's URL identity); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); state (enum: `active`, `inactive`, `archived`, default `active`); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
 - At most one group may carry `type='board'`. Creating a second is rejected with a specific message naming the existing one. Creating a board group confers nothing on anybody by itself: the roster follows standing an administrator has set, per `A_Grant_HoF_BAP_Board_Status`.
 - If `email_enabled=true`, the system creates the associated group-backed `MailingList` naming the new group, sends it from a no-reply identity, and applies admin-set initial values for `subject_prefix` and `restricted_sending`, which the group's owner maintains thereafter. The list's recipients are the group's members, so it needs no seeding.
-- This story provisions new platform groups only. The legacy `@ifpa.footbag.org` subdomain retires and its surviving committee and sanctioning functions consolidate onto apex `@footbag.org` addresses, and no group reproduces one of its list addresses: a platform group has no address of its own, because the platform receives no inbound email. Group mail is composed on the group page and distributed via SES.
+- This story provisions new platform groups only. Committee and sanctioning correspondence uses apex `@footbag.org` addresses, and no group reproduces a legacy list address: a platform group has no address of its own, because the platform receives no inbound email. Group mail is composed on the group page and distributed via SES.
 - The initial owner receives an email notification with the group name, type, and owner responsibilities.
 - Admin sees a clear success message and a link to the newly created group's page.
 - Validation errors (e.g., invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.
@@ -3837,7 +3858,7 @@ Success Criteria:
 - Admin can add a member to the roster, setting `role`, `office`, `is_voting`, `seat_basis` (`elected` or `appointed`), `seat_reference` (free text naming the election or the bylaw provision), `term_start`, and `display_order`. `term_end` is left empty while the member serves.
 - A roster row on a `type='board'` group exists because an administrator set that member's board standing through `A_Grant_HoF_BAP_Board_Status`, which adds the row in the same transaction as the flag and the tier. The roster is not a second way to confer standing: an administrator managing this roster sets and clears the governance fields on a row, and adds or removes a director by setting or clearing their standing.
 - Standing and voting are independent. A director with `is_voting=0` holds the flag, Tier 3, and the badge, and casts no ballot. The form states this where the marker is set, because a seat filled by appointment or awaiting its seating vote is the ordinary case rather than an error.
-- Admin can end a membership: `is_current=0`, `term_end` stamped, the row and all its governance fields retained. On a board group this clears the flag and reverts the member to the underlying tier in the same transaction.
+- Admin can end a membership: `is_current=0`, `term_end` stamped, the row and all its governance fields retained. On a board group, ending a director's membership is clearing their standing through `A_Grant_HoF_BAP_Board_Status`, which clears the flag and reverts the member to the underlying tier in the same transaction.
 - Admin can correct any governance field on a current or ended row. A correction records old and new values.
 - Ending the last membership carrying `is_voting=1` is allowed and raises no block: whether the board can act is a bylaws question the platform does not adjudicate. It is surfaced as a notice on the admin work queue so it is visible rather than silent.
 - Validation: `term_end` may not precede `term_start`; `seat_reference` is required when `seat_basis` is set; a member may hold at most one current row per group.
@@ -3923,7 +3944,7 @@ Success Criteria:
 
 - System sends emails for: account registration, email verification, password reset, membership purchase or upgrade, Active Player grant/extension/expiry, payment receipt, event registration confirmation, club membership changes, co-organizer/co-leader additions, and other cases. As this is a flexible list, it is not necessary to hard-code all cases now.
 - All emails are sent via SES with deliverability tracking. Transactional mail, which is what this story sends, carries no unsubscribe control: it answers an action the member took, and offering to switch it off would let a member turn off their own security mail. The one-click unsubscribe headers belong to bulk mail, per `A_Send_Mailing_List_Email`.
-- Worker respects the admin Pause Sending toggle: when enabled, the worker does not attempt new sends, but enqueued items remain pending.
+- Worker respects the pause-sending switch (set by operator script, shown read-only to admins): when enabled, the worker does not attempt new sends, but enqueued items remain pending.
 - Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 30 seconds), sends via SES, and records sent/failed status.
 - Failed email deliveries are logged and retried up to 5 times with exponential backoff; after the maximum retry count the outbox item is moved to a dead-letter queue/folder for admin review and possible replay.
 - Email templates are stored as plain text in the database and are editable by Administrators through the email-template editor (`A_Manage_Email_Templates`). Template changes are audit-logged. 
@@ -4066,20 +4087,19 @@ Success Criteria:
 - If the job fails, existing stats remain in place and the failure is logged for later investigation.
 - The system exposes basic metrics for the job (run time, success/failure) to operations/admins.
 
-### SYS_Freestyle_Content_Source_Of_Truth_Cutover
+### SYS_Freestyle_Content_Source_Of_Truth
 
-Access: This source-of-truth behavior is a go-live cutover step run under the system role by the operator; only admins author freestyle content, before and after the cutover.
+Access: Only admins author freestyle content.
 
-Story: The freestyle dictionary content switches its source of truth from the committed CSV inputs to the persistent production database at go-live, so that after cutover freestyle content is edited in the running application and the CSV rebuild retires, deleted with the rest of the pipeline once the final production load is signed off, mirroring the curated-media source-of-truth model.
+Story: The persistent production database is the single source of truth for freestyle dictionary content, so that freestyle content is edited in the running application, mirroring the curated-media source-of-truth model.
 
 Success Criteria:
 
-- Before go-live, the committed CSV inputs are the source of truth: an admin edits a committed CSV and reruns the freestyle rebuild, and git history is the audit trail.
-- The freestyle rebuild refuses to run against any non-development database, with no bypass flag, so it never rewrites a live database; the one sanctioned final CSV rebuild runs on the pre-cutover database immediately before the switch.
-- At the cutover the persistent production database becomes the single source of truth for freestyle content: the CSV rebuild retires, and the audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) become the write path for curated content; the symbolic-grammar layers derived from trick data are regenerated in the app from the database when a trick is published or edited; the code-managed registries (the modifier registry and the curated symbolic-grammar layers) change only through a reviewed database migration.
+- The audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) are the write path for curated freestyle content; the symbolic-grammar layers derived from trick data are regenerated in the app from the database when a trick is published or edited; the code-managed registries (the modifier registry and the curated symbolic-grammar layers) change only through a reviewed database migration.
+- The freestyle rebuild refuses to run against any non-development database, with no bypass flag, so it never rewrites a live database.
 - Freestyle table rows survive a data-preserving deploy that does not run the rebuild.
 - Recovery from a bad edit is a corrective in-app edit or a database restore; every in-app edit is recorded in the audit trail.
-- Cutover tests pin the switch: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and after cutover freestyle content is written only through the audited in-app curation surfaces, plus reviewed database migrations for the code-managed registries.
+- Tests pin the rule: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and freestyle content is written only through the audited in-app curation surfaces, plus reviewed database migrations for the code-managed registries.
 
 ### SYS_Handle_Stripe_Webhooks
 Access: This event-driven process runs under the system role when Stripe sends webhook events. Only admins can view logs and failure metrics.

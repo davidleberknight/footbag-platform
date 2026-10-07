@@ -185,11 +185,11 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │    passwordVersion: 4,             // incremented on pwd change     │
 │    role:            "member",      // routing hint ("admin" if so)  │
 │    iat:             1234567890,    // issued-at timestamp           │
-│    exp:             1234654290,    // +24 hours                     │
+│    exp:             1234654290,    // iat + jwt_expiry_hours × 3600 │
 │  }                                                                  │
 │                                                                     │
 │  Set-Cookie: __Host-footbag_session=<JWT>                           │
-│    HttpOnly · Secure · SameSite=Lax · Max-Age: 86400                │
+│    HttpOnly · Secure · SameSite=Lax · Max-Age: same lifetime        │
 └─────────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐

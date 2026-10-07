@@ -28,10 +28,16 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'host-env-remote.sh');
 const TERMINAL_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'terminal.sh');
+/**
+ * `setsid` gives a run a session with no controlling terminal, the condition a
+ * scheduled job or an agent session has; `--wait` keeps its exit status.
+ */
+const SETSID = requireToolInCI('setsid', '--version');
 
 function runConfirm(assumeYes: 'yes' | 'no'): { status: number | null; stderr: string } {
   // spawnSync always captures, so the child's stdout and stderr are pipes. When
@@ -141,6 +147,23 @@ describe('confirm_from_tty: the human-present guard', () => {
       { encoding: 'utf8', env: { ...process.env, ASSUME_YES: 'yes' }, ...SPAWN_GUARD },
     );
     expect(res.stdout).toBe('no');
+  });
+
+  it.skipIf(!SETSID)('refuses an exported accept flag the caller never reassigns, with no terminal at all', () => {
+    // The exploitable shape: a script that sources the library and never parses
+    // a --yes of its own, launched from a shell exporting ASSUME_YES=yes, in a
+    // process with no controlling terminal. The cases above reassign the flag
+    // after sourcing, so they pass whether or not the library overwrites an
+    // inherited value; this one calls the helper under the inherited value
+    // itself, and an inherited "yes" would accept the confirmation unseen.
+    const res = spawnSync(
+      'setsid',
+      ['--wait', 'bash', '-c', `source "${LIB}"; confirm_from_tty "apply? (APPLY): " APPLY`],
+      { encoding: 'utf8', env: { ...process.env, ASSUME_YES: 'yes' }, ...SPAWN_GUARD },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('no terminal to confirm on');
+    expect(res.stderr).not.toContain('[--yes]');
   });
 
   it('still lets a caller opt in after sourcing, which is how --yes works', () => {

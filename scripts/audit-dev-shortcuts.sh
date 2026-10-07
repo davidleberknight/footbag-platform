@@ -20,7 +20,11 @@
 #   FOOTBAG_DB_PATH=/path/to/prod.db ./scripts/audit-dev-shortcuts.sh
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# Streamed to a host and run from a process substitution, $0 is not a file and
+# there is no checkout to move into; the database then comes from FOOTBAG_DB_PATH.
+if [[ -f "$0" ]]; then
+  cd "$(dirname "$0")/.."
+fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 
@@ -33,7 +37,7 @@ run_count() {
   local label="$1"
   local sql="$2"
   local count
-  count=$(sqlite3 "${DB_FILE}" "${sql}")
+  count=$(sqlite3 -readonly "${DB_FILE}" "${sql}")
   # Human-readable line to stderr; count to stdout for command-substitution
   # capture. Without this split, $(run_count ...) would capture both.
   printf '  %-32s %s\n' "${label}:" "${count}" >&2

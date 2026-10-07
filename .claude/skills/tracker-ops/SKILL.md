@@ -93,7 +93,7 @@ the human's instruction as given.
   primary docs account for it in the same pass: the `README.md` "What lives where"
   map; `DATA_INVENTORY.md` (the placement-homes list, plus a dataset row for anything
   private, sensitive, or archival); the applicable governance doc when the material is
-  governance-scoped; and a roadmap home (`GO_LIVE_PLAN.md`, `PARKED.md`, or
+  governance-scoped; and a roadmap home (`GO_LIVE_PLAN.md`, `POST_GO_LIVE_PLAN.md`, or
   `V2_SCOPE.md`) when it changes or defers planned work. Check for those mentions
   before declaring the drafting done, and draft any missing ones yourself. An
   undocumented stash in an access-controlled repo is invisible data — the failure

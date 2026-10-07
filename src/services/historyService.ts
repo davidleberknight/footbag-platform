@@ -2,8 +2,8 @@
  * HistoryService -- public historical-person detail page (read-only).
  *
  * Serves:
- *   - GET /history/:personId: historical player detail. Public for HoF/BAP persons; auth required
- *     otherwise (the service loads the person and checks honor flags, returning an action the
+ *   - GET /history/:personId: historical player detail. Public for canonical HoF/BAP persons;
+ *     auth required otherwise, including for a non-canonical record carrying an honor flag (the service loads the person and checks honor flags, returning an action the
  *     controller acts on, such as redirecting an unauthenticated visitor to /login?returnTo=...
  *     for non-honored persons). There is no bare /history route.
  *
@@ -145,7 +145,13 @@ export const historyService = {
       return { action: 'redirect', href: memberHref };
     }
 
-    const isPublicHonor = player.hofMember || player.bapMember;
+    // Only a canonical, results-derived record is a public page. A provisional
+    // record or an unresolved-name placeholder is never public, whatever honor
+    // flag it carries, matching the search and the sitemap; the member-visible
+    // rosters and result tables that link such records still resolve for a
+    // signed-in viewer.
+    const isCanonical = p['source_scope'] === 'CANONICAL';
+    const isPublicHonor = isCanonical && (player.hofMember || player.bapMember);
     if (!isPublicHonor && !isAuthenticated) {
       return { action: 'requireAuth' };
     }

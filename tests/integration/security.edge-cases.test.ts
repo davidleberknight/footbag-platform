@@ -75,8 +75,11 @@ describe('Oversized payloads', () => {
     expect(res.status).toBeLessThan(400);
   });
 
-  it('display name >64 chars rejected at registration', async () => {
-    const oversized = 'x'.repeat(65);
+  it('display name far over 70 chars is refused by the display-name length rule', async () => {
+    // Mixed case, ending in the family name, so every other name rule accepts
+    // it and only the length rule can refuse it. A length rule that stopped
+    // firing would store a 10,000-character public name.
+    const oversized = 'A' + 'b'.repeat(10000) + ' User';
     const res = await request(createApp())
       .post('/register')
       .type('form')
@@ -87,17 +90,19 @@ describe('Oversized payloads', () => {
         password: 'ValidPass1!',
         confirmPassword: 'ValidPass1!',
       });
-    // 422 on validation error; whatever the status, server must not crash.
-    expect(res.status).toBeLessThan(500);
-    // Registration was rejected: no member with that email should exist.
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Display name must be 70 characters or fewer');
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT 1 FROM members WHERE login_email_normalized = ?').get('oversize-display@example.com');
     db.close();
     expect(row).toBeUndefined();
   });
 
-  it('real name >64 chars rejected at registration', async () => {
-    const oversized = 'x y'.repeat(30); // 90 chars, two words
+  it('given names far over 35 chars are refused by the given-names length rule', async () => {
+    // Mixed case, so it is kept as typed. Without the given-names rule the
+    // assembled-name rule would still refuse it, with a different message,
+    // which is why the message is what this asserts.
+    const oversized = 'C' + 'c'.repeat(10000);
     const res = await request(createApp())
       .post('/register')
       .type('form')
@@ -105,11 +110,12 @@ describe('Oversized payloads', () => {
         email: 'oversize-real@example.com',
         givenNames: oversized,
         familyName: 'Toolong',
-        displayName: 'Valid User',
+        displayName: 'Cara Toolong',
         password: 'ValidPass1!',
         confirmPassword: 'ValidPass1!',
       });
-    expect(res.status).toBeLessThan(500);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Given names must be 35 characters or fewer');
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT 1 FROM members WHERE login_email_normalized = ?').get('oversize-real@example.com');
     db.close();

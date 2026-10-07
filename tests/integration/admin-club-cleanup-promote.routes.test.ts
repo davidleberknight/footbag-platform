@@ -189,6 +189,42 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
     }
   });
 
+  // A live club names its country: the clubs index groups and links every club
+  // by it, so a club created without one renders a nameless link to the bare
+  // clubs path. Promotion is a club creation and refuses the same blank the
+  // create form does, whether the candidate carries no country or a blank one.
+  it.each([
+    ['no country', null],
+    ['a blank country', '   '],
+  ])('candidate with %s -> 422 and no club is created', async (_label, country) => {
+    const db = new BetterSqlite3(dbPath);
+    const name = `Countryless Candidate ${country === null ? 'Null' : 'Blank'}`;
+    const cand = insertLegacyClubCandidate(db, {
+      classification: 'onboarding_visible',
+      display_name: name,
+      city: 'Nowhere',
+      country,
+    });
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/candidates/${cand}/promote`)
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(422);
+
+    const check = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const mapped = check.prepare(
+        'SELECT mapped_club_id FROM legacy_club_candidates WHERE id = ?',
+      ).get(cand) as { mapped_club_id: string | null };
+      expect(mapped.mapped_club_id).toBeNull();
+      const clubs = check.prepare('SELECT COUNT(*) AS c FROM clubs WHERE name = ?').get(name) as { c: number };
+      expect(clubs.c).toBe(0);
+    } finally {
+      check.close();
+    }
+  });
+
   it('promotes an onboarding-visible candidate: deterministic club id, live-content fields, hashtag, mapped_club_id, affiliation carry-forward, audit', async () => {
     const app = createApp();
     const expectedClubId = stableClubId(OV_KEY);

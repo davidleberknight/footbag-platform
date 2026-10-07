@@ -28,7 +28,9 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync, readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -207,3 +209,121 @@ describe.each(INSTALLERS)(
     });
   },
 );
+
+/**
+ * The install itself, end to end against stand-ins, for one property: of the
+ * credential file redirected into the run, only the first line ever reaches a
+ * host. Sudo consumes exactly one line and the remote bash executes everything
+ * after it as root, so a second line in that file (a note, another credential)
+ * forwarded down the pipe runs as a root command on the host.
+ *
+ * The run mints the key and shows it for vaulting on a terminal, which is the
+ * real operator configuration, so it runs under a pseudo-terminal: standard
+ * output and error are the terminal, the vault prompt is answered on it, and
+ * standard input stays the credential file. The ssh client is the shared
+ * library's announced stand-in, which records every session's stream and
+ * answers the host's identity question.
+ */
+describe.each(INSTALLERS)('$script — the credential file reaches the host one line at a time', ({ environment, script }) => {
+  it('sends only the password line of a three-line credential file, to every session', () => {
+    const sessions = join(stubDir, 'sessions');
+    const ssh = join(stubDir, 'ssh-stand-in.sh');
+    writeFileSync(
+      ssh,
+      [
+        '#!/usr/bin/env bash',
+        `mkdir -p ${JSON.stringify(sessions)}`,
+        `f="$(mktemp ${JSON.stringify(join(sessions, 'session.XXXXXX'))})"`,
+        'cat > "$f"',
+        'case "$*" in *footbag-host-identity*)',
+        `  printf -- "---FOOTBAG-HOST-ENV---\\n${environment}\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n"`,
+        'esac',
+        'exit 0',
+      ].join('\n'),
+    );
+    chmodSync(ssh, 0o755);
+
+    const aws = join(stubDir, 'iam-stand-in.sh');
+    writeFileSync(
+      aws,
+      [
+        '#!/usr/bin/env bash',
+        'case "$2" in',
+        '  list-access-keys) echo 0 ;;',
+        "  create-access-key) printf 'AKIAFIXTUREMINTED001\\tstub-secret-not-real\\n' ;;",
+        'esac',
+        'exit 0',
+      ].join('\n'),
+    );
+    chmodSync(aws, 0o755);
+
+    const knownHosts = join(stubDir, 'known_hosts');
+    writeFileSync(knownHosts, `footbag-${environment} ssh-ed25519 AAAAstub\n`, { mode: 0o600 });
+    const cred = join(stubDir, 'credential.txt');
+    writeFileSync(cred, 'stub-sudo-pass\nSECOND-LINE-MARKER\nTHIRD-LINE-MARKER\n', { mode: 0o600 });
+
+    // Standard input is the credential file; the controlling terminal, standard
+    // output and standard error are a pseudo-terminal whose input already holds
+    // the answer to the vault prompt.
+    const harness = join(stubDir, 'pty-harness.py');
+    writeFileSync(
+      harness,
+      [
+        'import fcntl, os, sys, termios',
+        'cred, script = sys.argv[1], sys.argv[2]',
+        'master, slave = os.openpty()',
+        'pid = os.fork()',
+        'if pid == 0:',
+        '    os.setsid()',
+        '    fcntl.ioctl(slave, termios.TIOCSCTTY, 0)',
+        '    fd = os.open(cred, os.O_RDONLY)',
+        '    os.dup2(fd, 0); os.dup2(slave, 1); os.dup2(slave, 2)',
+        '    os.close(master)',
+        "    os.execvp('bash', ['bash', script])",
+        'os.close(slave)',
+        "os.write(master, b'VAULTED\\n')",
+        "out = b''",
+        'while True:',
+        '    try:',
+        '        chunk = os.read(master, 4096)',
+        '    except OSError:',
+        '        break',
+        '    if not chunk:',
+        '        break',
+        '    out += chunk',
+        '_, status = os.waitpid(pid, 0)',
+        'sys.stdout.buffer.write(out)',
+        'sys.exit(os.waitstatus_to_exitcode(status))',
+      ].join('\n'),
+    );
+
+    const r = spawnSync(
+      'python3',
+      ['-I', harness, cred, join(process.cwd(), script)],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          ...NO_AWS_CREDENTIALS,
+          ...awsIdentityStubEnv(stubDir),
+          IAM_KEY_AWS_BIN: aws,
+          FOOTBAG_HOST_SSH_BIN: ssh,
+          FOOTBAG_KNOWN_HOSTS: knownHosts,
+        },
+        ...SPAWN_GUARD,
+      },
+    );
+    expect(r.status, r.stdout).toBe(0);
+
+    const streams = readdirSync(sessions).map((f) => readFileSync(join(sessions, f), 'utf-8'));
+    // Two sessions: the host's identity, then the install carrying the key.
+    expect(streams).toHaveLength(2);
+    expect(streams.some((s) => s.includes('CWAGENT_AKID=AKIAFIXTUREMINTED001'))).toBe(true);
+    for (const s of streams) {
+      expect(s.split('\n')[0]).toBe('stub-sudo-pass');
+      expect(s).not.toContain('SECOND-LINE-MARKER');
+      expect(s).not.toContain('THIRD-LINE-MARKER');
+    }
+  });
+});

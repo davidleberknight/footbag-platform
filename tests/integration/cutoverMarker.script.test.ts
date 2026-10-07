@@ -366,3 +366,46 @@ describe('cutover marker writer', () => {
     expect(r.stdout).toMatch(/post_cutover:\s+no-database/);
   });
 });
+
+describe('cutover marker writer, confirmed at the operator workstation', () => {
+  // The workstation wrapper takes the typed APPLY at the operator's own terminal
+  // and runs this over a wire with no terminal, carrying that confirmation as a
+  // flag. These pin the flag's limits: it moves both markers with no prompt only
+  // where there is no terminal; at an interactive shell it is refused, so a person
+  // in front of the host always answers the prompt; and nothing exported in a
+  // shell can stand in for it.
+
+  it('moves both markers with no prompt when there is no terminal', () => {
+    makeDb(null);
+    const r = run(['--set', 'complete', '--confirmed-at-workstation']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain("Type 'APPLY'");
+    expect(envHasMarker()).toBe(true);
+    expect(run(['--status']).stdout).toMatch(/post_cutover: *complete/);
+  });
+
+  it('refuses the flag at an interactive terminal, moving nothing', () => {
+    // Defect caught: a person at a host shell skipping the confirmation by adding
+    // a flag meant for the wire.
+    makeDb(null);
+    const r = runTyped(['--set', 'complete', '--confirmed-at-workstation'], '');
+    expect(r.status).toBe(2);
+    expect(r.stdout + r.stderr).toContain('--confirmed-at-workstation is for');
+    expect(envHasMarker()).toBe(false);
+  });
+
+  it('cannot be satisfied by an exported variable, even one named like the flag', () => {
+    // Defect caught: a value left exported in an operator's shell standing in for
+    // the typed confirmation, the ambient-state hazard the shared helpers close.
+    makeDb(null);
+    const r = spawnSync('bash', [SCRIPT, '--set', 'complete'], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, ENV_PATH: envPath, DB_PATH: dbPath, CONFIRMED_AT_WORKSTATION: 'yes' },
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('requires an interactive terminal');
+    expect(envHasMarker()).toBe(false);
+  });
+});

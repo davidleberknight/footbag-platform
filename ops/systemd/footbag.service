@@ -46,6 +46,14 @@ EnvironmentFile=/srv/footbag/env
 # the host before sshd is responsive. If an image is missing, the unit fails
 # fast with a clear error rather than silently triggering a build.
 
+# Refuse to start while a restored database is waiting for its erasures to be
+# re-applied. The restore stops the service, but a deploy's restart or a reboot
+# would start it again and serve personal data members asked to have erased;
+# this check sits on every start, so none of them can. It reads the database
+# directory from the env file above and prints the one command that finishes
+# the replay and clears the marker.
+ExecStartPre=/usr/bin/env bash scripts/assert-no-erasure-replay-pending.sh
+
 # Start the stack; --remove-orphans cleans up containers from old service defs.
 # --no-build forbids boot-time image builds (see comment above).
 ExecStart=/usr/bin/docker compose \

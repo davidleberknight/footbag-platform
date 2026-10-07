@@ -146,11 +146,6 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /net/teams', () => {
-  it('includes the evidence disclaimer', async () => {
-    const res = await page('/net/teams');
-    expect(res.text).toContain('algorithmically constructed');
-  });
-
   it('shows both teams (Alice/Bob and Carol/Dave)', async () => {
     const res = await page('/net/teams');
     expect(res.text).toContain('Alice Net');

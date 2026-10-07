@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -23,9 +23,10 @@ interface RunResult {
   stderr: string;
 }
 
-function runScript(args: string[]): RunResult {
+function runScript(args: string[], env: NodeJS.ProcessEnv = process.env): RunResult {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
+    env,
     encoding: 'utf-8',
     ...SPAWN_GUARD,
   });
@@ -191,8 +192,11 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     // is not.
     expect(result.stdout).toMatch(/scripts\/set-host-env\.sh --target staging/);
     expect(result.stdout).toMatch(/2\. Terraform\s+PENDING/);
-    expect(result.stdout).toMatch(/terraform -chdir=terraform\/staging plan/);
-    expect(result.stdout).toMatch(/terraform import/);
+    // The Terraform row points at the wrapper, which reviews the plan and
+    // applies it, and never at a hand-typed import: a resource made outside
+    // Terraform is taken in by an import block through the wrapper's own plan.
+    expect(result.stdout).toMatch(/scripts\/terraform-apply\.sh --target staging/);
+    expect(result.stdout).not.toMatch(/terraform import/);
     expect(result.stdout).toMatch(/4\. Backup pipeline\s+PENDING/);
     expect(result.stdout).toMatch(/scripts\/install-backup-timer\.sh --target staging/);
     expect(result.stdout).toMatch(/5\. SES feedback\s+PENDING/);
@@ -262,6 +266,42 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     ]);
     const result = runScript(['--target', 'staging', '--probe-file', probe]);
     expect(result.stdout).toMatch(/enable_backup_alarm = true in terraform\/staging\/terraform\.tfvars/);
+  });
+});
+
+describe('bringup-status.sh — the Stripe key mode read from the parameter', () => {
+  // The probe file supplies the mode already classified, so these drive the
+  // real aws probe through a stand-in aws ahead of PATH that answers the key
+  // parameter and reports every other parameter absent.
+  function runWithKey(key: string): RunResult {
+    const binDir = join(tmpDir, `aws-bin-${key}`);
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, 'aws'), [
+      '#!/usr/bin/env bash',
+      'case "$*" in',
+      `  *secrets/stripe_secret_key*--with-decryption*) printf '%s\\n' ${JSON.stringify(key)} ;;`,
+      '  cloudwatch*) echo 0 ;;',
+      '  *) echo "An error occurred (ParameterNotFound) when calling the GetParameter operation" >&2; exit 254 ;;',
+      'esac',
+    ].join('\n'));
+    chmodSync(join(binDir, 'aws'), 0o755);
+    return runScript(
+      ['--target', 'production', '--profile', 'stand-in', '--skip-remote', '--skip-terraform'],
+      { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ''}` },
+    );
+  }
+
+  it.each([
+    // An operator reading "live" for a test key believes payments take real
+    // money while every checkout is a test-mode one.
+    ['sk_test_abc123', 'test'],
+    ['sk_live_abc123', 'live'],
+  ])('reports %s as %s on the Payments row, never printing the key', (key, mode) => {
+    const result = runWithKey(key);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/probes: aws\)/);
+    expect(result.stdout).toMatch(new RegExp(`3\\. Payments\\s+PENDING\\s+.*SSM key: ${mode},`));
+    expect(result.stdout + result.stderr).not.toContain(key);
   });
 });
 

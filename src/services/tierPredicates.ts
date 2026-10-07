@@ -2,10 +2,13 @@
  * Tier-status predicates composing getTierStatus and activePlayerService.getStatus.
  *
  * Admin short-circuit: any member with `is_admin = 1` satisfies all tier
- * predicates regardless of their member_tier_grants state. The operational
- * invariant (admins always hold Tier 2+) is a governance rule enforced
- * nowhere at the schema or service layer; this predicate gate
- * is the single point that makes the invariant true for callers.
+ * predicates regardless of their member_tier_grants state. On the ledger,
+ * MembershipTieringService keeps admins at Tier 2+: every path that makes a
+ * member an admin grants Tier 2 when they hold less, and a Tier 3 removal or
+ * auto-link revert that would leave an admin below Tier 2 grants it back in the
+ * same transaction. An administrator's tier override is a deliberate correction
+ * and is applied as chosen, and the schema does not enforce the floor, so this
+ * short-circuit is what guarantees an admin every entitlement.
  *
  * Unknown-member handling: predicates return `false` (no entitlement) when
  * `getTierStatus` throws `NotFoundError`. Callers always pass an

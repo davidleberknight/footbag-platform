@@ -8,8 +8,8 @@ Asking is the last resort. Work every answer through the authority order in root
 is never restated here, and prefer live research, reading the actual docs and code now, over memory
 or assumption. Confirm what "done" means before starting: the success criteria from the user story
 or design intent. If the design supplies none, that is itself a genuine question. Derive the answer
-rather than guessing it: design intent gives the ruling, the user stories and data model give the
-details that follow from it, and code shows current reality. `docs/DATA_GOVERNANCE.md` is mandatory
+rather than guessing it: the user stories rule on behaviour, design decisions on technical design,
+the data model gives the details, and code shows current reality. `docs/DATA_GOVERNANCE.md` is mandatory
 for members, historical persons, search, auth, contact fields, exports, stats, and privacy.
 Triangulate across more than one source and re-read the cited passages yourself. A ruling that
 ratifies text you drafted is not primary grounding: trace any new surface (route, page, table, flag)

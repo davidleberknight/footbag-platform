@@ -1095,6 +1095,9 @@ describe('POST /register/wizard/club_affiliations/submit — activity-signal emi
     const sharedCandId = insertLegacyClubCandidate(testDb, {
       classification: 'onboarding_visible',
       display_name:   'Shared Carry-Forward Club',
+      // Promotion creates a live club, which must name its country.
+      city:           'Lyon',
+      country:        'France',
     });
     const earlyAffId = insertLegacyPersonClubAffiliation(testDb, {
       legacy_member_id:         'lm-wiz-sig-early',

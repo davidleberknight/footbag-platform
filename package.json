@@ -72,6 +72,7 @@
     "audit-ci": "7.1.0",
     "eslint": "10.4.1",
     "happy-dom": "20.9.0",
+    "html-validate": "11.16.2",
     "supertest": "7.2.2",
     "tsx": "4.22.4",
     "typescript": "5.9.3",

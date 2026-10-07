@@ -157,6 +157,18 @@ function outboxFor(memberId: string): Array<{
   return rows;
 }
 
+function auditFor(memberId: string, actionType: string): Array<{ metadata_json: string | null }> {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const rows = db
+    .prepare(
+      `SELECT metadata_json FROM audit_entries
+       WHERE entity_id = ? AND action_type = ?`,
+    )
+    .all(memberId, actionType) as Array<{ metadata_json: string | null }>;
+  db.close();
+  return rows;
+}
+
 describe('getTierStatus', () => {
   it('returns tier0 with null underlying for a member with no ledger entry', () => {
     const id = freshMember();
@@ -475,6 +487,33 @@ describe('removeGovernanceTier3', () => {
 
     expect(mts.getTierStatus(id).tier_status).toBe('tier2');
   });
+
+  it('leaves an administrator who entered Tier 3 from Tier 1 at Tier 2, with the grant on the ledger', () => {
+    // An administrator always holds at least Tier 2. Reverting to the recorded
+    // underlying Tier 1 alone would leave an admin below the role's floor.
+    const id = freshMember({ is_admin: 1 });
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
+    mts.setGovernanceTier3(ADMIN_ID, id);
+    expect(mts.getTierStatus(id).underlying_tier_status).toBe('tier1');
+
+    mts.removeGovernanceTier3(ADMIN_ID, id);
+
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier2', underlying_tier_status: null });
+    // ordering-is-the-contract: member_tier_current reads the last row by (created_at, id), so the grant must land after the removal.
+    const [removed, restored] = tierGrants(id).slice(-2);
+    expect(removed).toMatchObject({
+      change_type: 'governance_removed', new_tier_status: 'tier1', reason_code: 'governance.tier3_removed',
+    });
+    expect(restored).toMatchObject({
+      change_type: 'grant', old_tier_status: 'tier1', new_tier_status: 'tier2',
+      reason_code: 'admin.role_tier2_invariant',
+    });
+    const audits = auditFor(id, 'tier.governance_removed');
+    expect(audits).toHaveLength(1);
+    expect(JSON.parse(audits[0].metadata_json ?? '{}')).toMatchObject({
+      revert_to: 'tier1', admin_tier2_invariant_to: 'tier2',
+    });
+  });
 });
 
 describe('applyAutoLinkRevertGrantInTx', () => {
@@ -525,6 +564,31 @@ describe('applyAutoLinkRevertGrantInTx', () => {
     expect(mts.getTierStatus(id)).toEqual({
       tier_status: 'tier3',
       underlying_tier_status: 'tier2',
+    });
+  });
+
+  it('leaves an administrator whose Tier 2 came only from the reverted claim at Tier 2', () => {
+    // The admin grant writes no Tier 2 row for a member already at Tier 2, so
+    // the claim was their only Tier 2 source; reverting it must not take an
+    // administrator below the role's floor.
+    const id = freshMember({ is_admin: 1 });
+    mts.applyLegacyClaimGrantInTx(id, id, { hasHof: true, hasBap: false, everPaidTier2: false, everPaidTier1Lifetime: false, tier1AnnualActive: false }, {});
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+
+    mts.applyAutoLinkRevertGrantInTx(id, id, {});
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    // ordering-is-the-contract: member_tier_current reads the last row by (created_at, id), so the grant must land after the revoke.
+    const [revoked, restored] = tierGrants(id).slice(-2);
+    expect(revoked).toMatchObject({ change_type: 'revoke', new_tier_status: 'tier0' });
+    expect(restored).toMatchObject({
+      change_type: 'grant', old_tier_status: 'tier0', new_tier_status: 'tier2',
+      reason_code: 'admin.role_tier2_invariant',
+    });
+    const audits = auditFor(id, 'tier.auto_link_revert');
+    expect(audits).toHaveLength(1);
+    expect(JSON.parse(audits[0].metadata_json ?? '{}')).toMatchObject({
+      to: 'tier0', admin_tier2_invariant_to: 'tier2',
     });
   });
 });

@@ -20,8 +20,8 @@
 #   terraform  local: plan -detailed-exitcode for drift, state list for the
 #              gated resources (backup-stale alarm, cutover login alarm,
 #              SES feedback subscription)
-#   aws        with --profile: Stripe key parameter shape (placeholder vs
-#              real; the value itself is never printed), first-admin
+#   aws        with --profile: Stripe key parameter mode (placeholder, test
+#              or live; the value itself is never printed), first-admin
 #              bootstrap-token presence, BackupAgeMinutes datapoint recency
 #
 # Usage (the remote probe reads the sudo password from stdin, line 1).
@@ -281,12 +281,17 @@ else
       if [[ -z "$STRIPE_VAL" ]]; then
         P[SSM_STRIPE_KEY]="$(probe_param "/footbag/$TARGET/secrets/stripe_secret_key")"
         [[ "${P[SSM_STRIPE_KEY]}" == "present" ]] && P[SSM_STRIPE_KEY]=unknown
-      elif [[ "$STRIPE_VAL" == TODO-* ]]; then
-        P[SSM_STRIPE_KEY]=placeholder
-      elif [[ "$STRIPE_VAL" == sk_* ]]; then
-        P[SSM_STRIPE_KEY]=live
       else
-        P[SSM_STRIPE_KEY]=unknown
+        # A test-mode key is not a live one: the Payments row reads DONE only
+        # on "live", so a test key leaves it pending and says so. Activation
+        # refuses any other shape, a restricted rk_ key included, so anything
+        # else reads unknown here.
+        case "$STRIPE_VAL" in
+          TODO-*)    P[SSM_STRIPE_KEY]=placeholder ;;
+          sk_live_*) P[SSM_STRIPE_KEY]=live ;;
+          sk_test_*) P[SSM_STRIPE_KEY]=test ;;
+          *)         P[SSM_STRIPE_KEY]=unknown ;;
+        esac
       fi
       unset STRIPE_VAL
 
@@ -344,7 +349,7 @@ case "${P[TF_PLAN]}" in
     ;;
   drift)
     row 2 "Terraform" PENDING "plan reports pending changes"
-    next_cmd "terraform -chdir=terraform/$TARGET plan   (review; terraform import any Console-created resource; then apply)"
+    next_cmd "bash scripts/terraform-apply.sh --target $TARGET   (review the plan; take any Console-created resource in with an import block, never delete it)"
     ;;
   *)
     row 2 "Terraform" UNKNOWN "plan not run or failed (credentials? init?)"
@@ -413,7 +418,7 @@ case "${P[TF_SES_SUBSCRIPTION]}" in
     ;;
   absent)
     row 5 "SES feedback" PENDING "no queue subscribed to the feedback topic in terraform state"
-    next_cmd "set enable_feed_queues = true in this environment's tfvars and apply, which creates the queue and subscribes it; then scripts/set-host-env.sh --target <env> to put SES_FEEDBACK_QUEUE_URL on the host, redeploy so the worker polls it, and prove it with scripts/verify-prod-email.sh --profile <profile> --confirm-production --bounce-probe"
+    next_cmd "set enable_feed_queues = true in this environment's tfvars and apply, which creates the queue and subscribes it; then scripts/set-host-env.sh --target <env> to put SES_FEEDBACK_QUEUE_URL on the host, redeploy so the worker polls it, and prove it with scripts/verify-prod-email.sh --profile <profile> --bounce-probe"
     ;;
   *)
     row 5 "SES feedback" UNKNOWN "terraform state unavailable"

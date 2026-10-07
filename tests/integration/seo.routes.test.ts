@@ -37,13 +37,23 @@ beforeAll(async () => {
   // A named gallery, so its detail URL appears in the sitemap.
   insertMemberGallery(db, { id: 'gallery_seo_test', owner_member_id: 'seo-member-1', name: 'SEO Test Gallery' });
 
-  // Two historical people: one canonical, with a public detail page, and one
-  // outside the canonical scope, which has no page for a crawler to reach.
-  insertHistoricalPerson(db, { person_id: 'person-seo-canonical', person_name: 'Canonical Player' });
+  // Historical people covering each answer the detail page gives a signed-out
+  // visitor: Hall of Fame and Big Add Posse records are public pages; an
+  // unhonoured record asks for a login; a record claimed by an honoured member
+  // redirects to the member profile; and a record outside the canonical scope
+  // has no page at all.
+  insertHistoricalPerson(db, { person_id: 'person-seo-hof', person_name: 'Hof Player', hof_member: 1 });
+  insertHistoricalPerson(db, { person_id: 'person-seo-bap', person_name: 'Bap Player', bap_member: 1 });
+  insertHistoricalPerson(db, { person_id: 'person-seo-unhonoured', person_name: 'Unhonoured Player' });
+  insertHistoricalPerson(db, { person_id: 'person-seo-claimed', person_name: 'Claimed Player', hof_member: 1 });
+  insertMember(db, {
+    id: 'seo-member-hof', slug: 'seo_member_hof', is_hof: 1, historical_person_id: 'person-seo-claimed',
+  });
   insertHistoricalPerson(db, {
     person_id: 'person-seo-noncanonical',
     person_name: 'Non-canonical Player',
     source_scope: 'MIRROR',
+    hof_member: 1,
   });
 
   db.close();
@@ -97,12 +107,37 @@ describe('GET /sitemap.xml', () => {
     expect(res.text).toMatch(new RegExp(`<loc>${ORIGIN}/ifpa/[^<]+</loc>`));
   });
 
-  it('lists historical-person detail URLs, which are the site long tail', async () => {
+  it('lists exactly the historical-person pages a signed-out visitor can read', async () => {
+    // Pinned by the page's own answer rather than by a list: every seeded
+    // record is listed exactly when its detail page answers 200 to a visitor,
+    // so a sitemap that points a crawler at a login prompt or a redirect fails.
     const res = await page('/sitemap.xml');
-    expect(res.text).toContain(`<loc>${ORIGIN}/history/person-seo-canonical</loc>`);
-    // A person outside the canonical scope has no detail page, so pointing a
-    // crawler at one would advertise a URL that does not serve.
+    const ids = ['person-seo-hof', 'person-seo-bap', 'person-seo-unhonoured', 'person-seo-claimed'];
+    const statuses: Record<string, number> = {};
+    for (const id of ids) {
+      const detail = await request(createApp()).get(`/history/${id}`);
+      statuses[id] = detail.status;
+      expect(res.text.includes(`<loc>${ORIGIN}/history/${id}</loc>`), `${id} answers ${detail.status}`)
+        .toBe(detail.status === 200);
+    }
+    // Both sides are reached, so the relation above cannot hold vacuously.
+    expect(statuses['person-seo-hof']).toBe(200);
+    expect(statuses['person-seo-bap']).toBe(200);
+    expect(statuses['person-seo-unhonoured']).toBe(302);
+    expect(statuses['person-seo-claimed']).toBe(301);
+    // A record outside the canonical scope is never listed, honoured or not.
     expect(res.text).not.toContain(`<loc>${ORIGIN}/history/person-seo-noncanonical</loc>`);
+  });
+
+  it('lists only freestyle modifier pages that render rather than redirect', async () => {
+    const res = await page('/sitemap.xml');
+    const modifierPaths = [...res.text.matchAll(new RegExp(`<loc>${ORIGIN}(/freestyle/modifier/[^<]+)</loc>`, 'g'))]
+      .map((m) => m[1]!);
+    expect(modifierPaths.length).toBeGreaterThan(0);
+    for (const p of modifierPaths) {
+      const detail = await request(createApp()).get(p);
+      expect(detail.status, `${p} -> ${detail.headers.location ?? ''}`).toBe(200);
+    }
   });
 
   it('lists freestyle set-detail and named-gallery URLs', async () => {

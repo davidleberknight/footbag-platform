@@ -5,7 +5,7 @@
 # ── Log groups ────────────────────────────────────────────────────────────────
 # Retention is longer than staging on purpose (app 90 vs 30 days, nginx 30 vs
 # 14): production logs feed incident investigation across the post-cutover
-# watch and the quarterly review.
+# watch and any threshold review an alert prompts.
 
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/footbag/${var.environment}/app"
@@ -218,7 +218,7 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_promotion" {
 }
 
 # ── Cross-region replication health ───────────────────────────────────────────
-# The DR copies of the snapshot and media buckets are maintained by S3
+# The DR copies of the snapshot, media and archive buckets are maintained by S3
 # replication and, until these, nothing watched it. A replication rule that
 # stops working is silent: the source bucket keeps accepting writes, every
 # backup still succeeds, and the copy that recovery depends on quietly falls
@@ -236,23 +236,33 @@ locals {
   # operations arriving is indistinguishable from none failing. The snapshots
   # bucket replicates through two rules, one per promoted retention generation, so it
   # takes two entries.
-  replicated_buckets = var.enable_replication_alarm ? {
-    "snapshots-hourly" = {
-      source      = aws_s3_bucket.snapshots.id
-      destination = aws_s3_bucket.dr.id
-      rule        = "replicate-hourly-tier-to-dr"
-    }
-    "snapshots-daily" = {
-      source      = aws_s3_bucket.snapshots.id
-      destination = aws_s3_bucket.dr.id
-      rule        = "replicate-daily-tier-to-dr"
-    }
-    media = {
-      source      = aws_s3_bucket.media.id
-      destination = aws_s3_bucket.media_dr.id
-      rule        = "replicate-all-to-media-dr"
-    }
-  } : {}
+  replicated_buckets = var.enable_replication_alarm ? merge(
+    {
+      "snapshots-hourly" = {
+        source      = aws_s3_bucket.snapshots.id
+        destination = aws_s3_bucket.dr.id
+        rule        = "replicate-hourly-tier-to-dr"
+      }
+      "snapshots-daily" = {
+        source      = aws_s3_bucket.snapshots.id
+        destination = aws_s3_bucket.dr.id
+        rule        = "replicate-daily-tier-to-dr"
+      }
+      media = {
+        source      = aws_s3_bucket.media.id
+        destination = aws_s3_bucket.media_dr.id
+        rule        = "replicate-all-to-media-dr"
+      }
+    },
+    # The archive pair exists only while the archive stack does.
+    var.enable_archive ? {
+      archive = {
+        source      = aws_s3_bucket.archive[0].id
+        destination = aws_s3_bucket.archive_dr[0].id
+        rule        = "replicate-all-to-archive-dr"
+      }
+    } : {},
+  ) : {}
 }
 
 # The alarms above detect. This queue diagnoses, and both are needed because
@@ -318,6 +328,17 @@ resource "aws_s3_bucket_notification" "snapshots_replication_failures" {
 resource "aws_s3_bucket_notification" "media_replication_failures" {
   count      = var.enable_replication_alarm ? 1 : 0
   bucket     = aws_s3_bucket.media.id
+  depends_on = [aws_sqs_queue_policy.replication_failures]
+
+  queue {
+    queue_arn = aws_sqs_queue.replication_failures[0].arn
+    events    = ["s3:Replication:OperationFailedReplication"]
+  }
+}
+
+resource "aws_s3_bucket_notification" "archive_replication_failures" {
+  count      = var.enable_replication_alarm && var.enable_archive ? 1 : 0
+  bucket     = aws_s3_bucket.archive[0].id
   depends_on = [aws_sqs_queue_policy.replication_failures]
 
   queue {
@@ -630,8 +651,8 @@ resource "aws_cloudfront_monitoring_subscription" "main" {
 # this host's memory, so it is not a production baseline. It errs loose rather
 # than tight: more memory and warmer caches should put production's origin
 # latency below what was measured, which costs sensitivity to a slow degradation
-# rather than producing false alarms. Re-read the number against real traffic at
-# the first quarterly threshold review after launch.
+# rather than producing false alarms. Re-read the number against real traffic
+# once launch traffic exists, or when the alarm proves too noisy or too quiet.
 resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-origin-latency"
@@ -680,8 +701,8 @@ resource "aws_cloudwatch_metric_alarm" "origin_latency" {
 # load check runs against staging, and a number it can trip is a number that
 # teaches the operator to ignore the alarm.
 #
-# Re-read the number against real traffic at the first quarterly threshold review
-# after launch, like the latency threshold above.
+# Re-read the number against real traffic once launch traffic exists, like the
+# latency threshold above.
 resource "aws_cloudwatch_metric_alarm" "origin_spike" {
   count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-origin-spike"

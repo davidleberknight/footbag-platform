@@ -246,7 +246,8 @@ import { type SimulatedEmailPreview } from './simulatedEmailService';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 const MIN_DISPLAY_NAME = 2;
-const MAX_DISPLAY_NAME = 64;
+const MAX_NAME_PART = 35;
+const MAX_DISPLAY_NAME = 70;
 
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
@@ -254,7 +255,7 @@ function normalizeEmail(email: string): string {
 
 import { slugify } from './slugify';
 import {
-  assembleFullName, latinFold, matchReservedNameWord, memberSurnameKey,
+  assembleFullName, latinFold, matchReservedNameWord, memberSurnameKey, normalizeNameCase,
   stripAccents, surnameKey, surnameKeyMatchesName,
 } from './nameUtils';
 import { normalizeImportedLocation } from './memberLocationRules';
@@ -636,12 +637,6 @@ async function attemptLogin(
 }
 
 /**
- * Validate a full legal name for registration. The name is expected NFC-normalized.
- * Rules: required, 2-64 chars, at least two words, at least one word 2+ chars, no
- * digits, no invisible/control/bidi characters, and a single script (the UTS #39
- * mixed-script restriction).
- */
-/**
  * Validate the two recorded parts of a member's legal name.
  *
  * The family name is required and the given names are not. The family name is
@@ -653,6 +648,9 @@ async function attemptLogin(
  * Nothing here restricts the character set beyond the existing safety check:
  * accents, apostrophes, hyphens, internal spaces and non-Latin scripts are all
  * real parts of real names.
+ *
+ * Lengths follow the UK Government Data Standards Catalogue person-name
+ * standard: each part at most 35 characters, the assembled name at most 70.
  */
 function validateNameParts(givenNames: string, familyName: string, opts: NameRuleOptions): void {
   if (!familyName) {
@@ -661,6 +659,12 @@ function validateNameParts(givenNames: string, familyName: string, opts: NameRul
         ? 'Enter your family name. If you have only one name, enter it as your family name.'
         : 'Enter your name.',
     );
+  }
+  if (familyName.length > MAX_NAME_PART) {
+    throw new ValidationError(`Family name must be ${MAX_NAME_PART} characters or fewer.`);
+  }
+  if (givenNames.length > MAX_NAME_PART) {
+    throw new ValidationError(`Given names must be ${MAX_NAME_PART} characters or fewer.`);
   }
   const assembled = assembleFullName(givenNames, familyName);
   if (assembled.length > MAX_DISPLAY_NAME) {
@@ -706,8 +710,8 @@ interface NameRuleOptions {
 }
 
 /**
- * Trim, NFC-normalize and assemble a member's names into the shape the rules
- * and the write both read.
+ * Trim, NFC-normalize, fix clearly careless capitalization (normalizeNameCase)
+ * and assemble a member's names into the shape the rules and the write both read.
  *
  * Deriving the assembled legal name and the surname key here, rather than at
  * each call site, is what keeps a name written at registration and a name
@@ -719,14 +723,14 @@ function normalizeMemberNames(
   familyName: string,
   displayName: string,
 ): MemberNames {
-  const trimmedGivenNames = givenNames.trim().normalize('NFC');
-  const trimmedFamilyName = familyName.trim().normalize('NFC');
+  const trimmedGivenNames = normalizeNameCase(givenNames.trim().normalize('NFC'));
+  const trimmedFamilyName = normalizeNameCase(familyName.trim().normalize('NFC'));
   const realName = assembleFullName(trimmedGivenNames, trimmedFamilyName);
   return {
     givenNames:  trimmedGivenNames,
     familyName:  trimmedFamilyName,
     realName,
-    displayName: displayName.trim().normalize('NFC') || realName,
+    displayName: normalizeNameCase(displayName.trim().normalize('NFC')) || realName,
     // Both name rules key on the recorded family name rather than the last word
     // of the full name. A member whose only name is a given name is held to that
     // name, so neither rule becomes unsatisfiable for them.
@@ -844,7 +848,9 @@ function assertSafeNameCharacters(name: string, label: string, opts: NameRuleOpt
 }
 
 const SLUG_PATTERN = /^[a-z0-9]([a-z0-9_]*[a-z0-9])?$/;
-const MAX_SLUG_LENGTH = 64;
+// Matches the display-name limit: the default profile URL derives from the
+// display name, so a registrant's generated URL must fit the URL rule.
+const MAX_SLUG_LENGTH = 70;
 const MIN_SLUG_LENGTH = 2;
 
 function validateSlug(

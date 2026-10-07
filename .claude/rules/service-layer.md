@@ -90,7 +90,7 @@ calling the service, but must not short-circuit around the service's existence c
 
 ## Auth-conditional shaping
 
-General policy: services return a complete shape; controllers gate access (404 / 403) before invoking. The exceptions are public surfaces with an authenticated enhancement, where the service takes viewer/auth state to shape conditionally: `mediaService` (`viewer: ViewerContext`) links member-gallery owner names to profiles only for a signed-in viewer; `memberService.getMemberProfilePage` takes a `viewer` (profiles are member-only); and `clubService.getPublicClubPage` takes `isAuthenticated`/`viewerMemberId` for the member-visible roster, contact, and affiliation state. Other services return full shapes and trust the controller's auth gate.
+General policy: services return a complete shape; controllers gate access (404 / 403) before invoking. The exceptions are public surfaces with an authenticated enhancement, where the service takes viewer/auth state to shape conditionally: `mediaService` (`viewer: ViewerContext`) links member-gallery owner names to profiles, and offers the item page's own-item and report controls, only for a member viewer (a registrant still onboarding is shaped as a signed-out visitor); `memberService.getMemberProfilePage` takes a `viewer` (profiles are member-only); and `clubService.getPublicClubPage` takes `isAuthenticated`/`viewerMemberId` for the member-visible roster, contact, and affiliation state. Other services return full shapes and trust the controller's auth gate.
 
 ## File-header JSDoc
 

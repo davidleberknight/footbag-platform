@@ -72,6 +72,35 @@ describe('GET /ifpa/articles', () => {
   });
 });
 
+describe('governance document pages carry one page subject', () => {
+  // Each document's markdown opens with its own top-level heading. Rendered as a
+  // second h1 beside the page title, a screen reader announces two page
+  // subjects; the document heading keeps its text but ranks below the title.
+  const docs: Array<{ path: string; ownHeading: string }> = [
+    { path: '/ifpa/membership-structure', ownHeading: 'IFPA Membership Rules' },
+    { path: '/ifpa/bylaws', ownHeading: "INTERNATIONAL FOOTBAG PLAYERS' ASSOCIATION, INC." },
+    { path: '/ifpa/articles', ownHeading: 'Articles of Incorporation' },
+  ];
+
+  it('renders exactly one h1 and keeps the document heading as an h2', async () => {
+    for (const { path, ownHeading } of docs) {
+      const res = await page(path);
+      expect(res.status, path).toBe(200);
+      expect(res.text.match(/<h1[\s>]/g)?.length, path).toBe(1);
+      const article = res.text.match(/<article class="markdown-body">[\s\S]*?<\/article>/)?.[0] ?? '';
+      expect(article, path).toMatch(new RegExp(`<h2[^>]*>${ownHeading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</h2>`));
+    }
+  });
+
+  it('keeps the demoted document heading out of the page table of contents', async () => {
+    // The table of contents lists the document's sections; the document's own
+    // title is not one of them, so demoting it must not add a TOC entry.
+    const res = await page('/ifpa/membership-structure');
+    const toc = res.text.match(/<nav class="rules-toc"[\s\S]*?<\/nav>/)?.[0] ?? '';
+    expect(toc).not.toContain('IFPA Membership Rules');
+  });
+});
+
 describe('GET /ifpa/:unknown', () => {
   it('returns 404 for an unknown doc slug', async () => {
     const res = await page('/ifpa/nonexistent-doc');

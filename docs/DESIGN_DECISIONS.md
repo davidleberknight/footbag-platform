@@ -2,7 +2,7 @@
 
 **Document Purpose:**
 
-This document captures technical decisions and rationale so that volunteers can understand why the design is the way it is, what trade-offs were made, and how future changes should be evaluated. Explains why major choices were made and which constraints are intentional. Source of Truth for design commitments from which the technical requirements follow. 
+This document captures technical decisions and rationale so that volunteers can understand why the design is the way it is, what trade-offs were made, and how future changes should be evaluated. Explains why major choices were made and which constraints are intentional. Source of Truth for technical and security design commitments from which the technical requirements follow. 
 
 Scoping note: Numeric values in this document may represent fixed technical constants, deployment/infrastructure resource allocations and thresholds, or implementation notes. For Administrator-configurable operational, security, reminder, pricing, and retention values, normative defaults are defined in the User Stories document and loaded via configuration seeds. DD may describe parameterization, ranges, and ownership, but if a value is Administrator-configurable, DD does not define the normative default. Any numeric value in this document that conflicts with the User Stories normative defaults section is an error; User Stories wins.
 
@@ -188,9 +188,9 @@ Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (a
 
 Health Endpoints: `/health/live` is a process check. `/health/ready` validates the dependencies required to serve traffic: SQLite connectivity and container memory pressure (§7.6). Broader readiness coverage (backup freshness, dependency fan-out) remains later-phase operational design.
 
-Recovery: Download the selected S3 snapshot, run `PRAGMA integrity_check`, replace the live file, restart services, and verify health plus smoke checks. Target RTO remains approximately five minutes for the common restore case.
+Recovery: Download the selected S3 snapshot, run `PRAGMA integrity_check`, replace the live file, re-apply the recorded erasures before anything serves it (a replay that does not complete leaves the site stopped), restart services, and verify health plus smoke checks. Target RTO remains approximately five minutes for the common restore case.
 
-Initial schema bootstrap for first public launch comes directly from `schema.sql`. A numbered migration chain is deferred until after the first stable deployed baseline (no migrations in scope).
+Initial schema bootstrap for first public launch comes directly from `schema.sql`. Every database but production is built from `schema.sql`; a schema change reaches production only as a numbered migration, also written into `schema.sql`, with a parity test holding the two in agreement.
 
 **Follow-on Decisions:**
 
@@ -198,7 +198,7 @@ Schema Design: Data Model document for design standards, and the schema sql code
 
 Complete Statement Catalog: All prepared statements with SQL, parameters, return types (src/db/db.ts)
 
-S3 Backup Configuration: Retry policy, alert thresholds, recovery drill schedule (DEVOPS_GUIDE.md (private GitHub repo))
+S3 Backup Configuration: Retry policy, alert thresholds, recovery drill triggers (DEVOPS_GUIDE.md (private GitHub repo))
 
 Migration Procedures: SQL conventions, maintenance mode, rollback strategies (DEVOPS_GUIDE.md (private GitHub repo))
 
@@ -227,9 +227,9 @@ Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds
 Requirements:
 
 - A host systemd backup timer writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes, per the backup-script description above). A dead timer or a failing upload stops the backup-age metric from refreshing, so the staleness alarm breaches and a silent backup gap cannot accrue.
-- The DR replica bucket has S3 Object Lock enabled in GOVERNANCE mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target. The runtime role holds read access plus one prefix-scoped write, for the pre-cutover rollback artifact it stages there, and cannot delete an object, remove a version, or lift retention in any mode, which is the threat this control is aimed at. The replica sits in the same account as the primary rather than a separate one: a second account would defend additionally against a compromised operator credential, which holds administrator access and can therefore lift a governance-mode lock, but it costs an organisation member account, cross-account replication with destination ownership, IAM on both sides, and permanent operator access separation. That is ongoing complexity a volunteer-run association pays forever, against a threat already bounded by the operator access posture, so the single-account arrangement is an accepted trade-off rather than an omission.
+- The DR replica bucket has S3 Object Lock enabled in GOVERNANCE mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target. The runtime role holds read access plus one write, scoped to a single prefix outside the replicated backup stream so it can add an object there but never overwrite a replicated one, and cannot delete an object, remove a version, or lift retention in any mode, which is the threat this control is aimed at. The replica sits in the same account as the primary rather than a separate one: a second account would defend additionally against a compromised operator credential, which holds administrator access and can therefore lift a governance-mode lock, but it costs an organisation member account, cross-account replication with destination ownership, IAM on both sides, and permanent operator access separation. That is ongoing complexity a volunteer-run association pays forever, against a threat already bounded by the operator access posture, so the single-account arrangement is an accepted trade-off rather than an omission.
 - Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in DEVOPS_GUIDE.md (private GitHub repo) and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
-- The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and any restore from backup re-applies the erasure log before the restored data is reachable, so erasure cannot be silently undone by routine recovery.
+- The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and a restore from backup re-applies the erasures that the restored snapshot records as due before the restored data is reachable. A deletion requested after the snapshot was taken is not in it, so neither that replay nor the daily retention pass, which reads the same restored state, can recover it. A replay that does not complete leaves the site stopped and backups paused, across a reboot or a deploy, rather than serving or backing up the restored data.
 
 ## 1.3 Transaction Model
 
@@ -251,7 +251,7 @@ Media is stored separately from the SQLite database. The database stores media m
 
 Rationale:
 
-Media data is handled separately from application data, in a dedicated AWS S3 bucket (instead of the SQLite database hosted on the main AWS Lightsail container). Media data is large and will grow over time, and storing it co-located with Lightsail would blow out the host size and therefore the cost; this is why we store media data in S3. Each uploaded photo generates two variants (thumbnail bounded at 600 pixels on the longest edge, display at 800px width) stored as JPEG at 85% quality on S3 (also processed to eliminate possible malware). System-account video bytes are stored as-is with no server-side transcoding (see §6.8 for the curator-video pipeline) alongside a Sharp-processed poster image. Original photo files are discarded after processing.
+Media data is handled separately from application data, in a dedicated AWS S3 bucket (instead of the SQLite database hosted on the main AWS Lightsail container). Media data is large and will grow over time, and storing it co-located with Lightsail would blow out the host size and therefore the cost; this is why we store media data in S3. Each uploaded photo generates two variants (thumbnail bounded at 600 pixels on the longest edge, display at 800px width) stored as JPEG at 85% quality on S3 (also processed to eliminate possible malware). System-account video bytes go through the curator ffmpeg full-transcode pipeline (see Image Processing) and are stored as the transcoded output alongside a Sharp-processed poster image. Original photo files are discarded after processing.
 
 Separates structured metadata (benefits from SQL queries, transactions, referential integrity) from large binary objects (benefits from object storage scalability, CDN delivery, independent backup/replication). SQLite handles relational data well but is not optimized for large binary storage. S3 provides dedicated photo infrastructure (replication, lifecycle policies, CDN integration) without database bloat. Development filesystem maintains parity without AWS credentials.
 
@@ -279,7 +279,7 @@ CloudFront OAC is configured with `signing_behavior = always`, which overrides a
 
 Trade-offs:
 
-- Members cannot download original high-resolution photos. (Curator-uploaded video bytes are stored as-is and remain re-downloadable, but the system account is the only uploader of video bytes.)
+- Members cannot download original high-resolution photos. (Curator-uploaded video is stored as its transcoded output; the system account is the only uploader of video bytes.)
 
 - S3 dependency in production (mitigated by cross-region backup).
 
@@ -640,7 +640,7 @@ Requirements:
 
 - The seeder is idempotent and runs only against a disposable DB (dev, CI, or a pre-go-live staging rebuild), never against the persistent production DB. Re-running against unchanged inputs produces zero net DB writes; orphan rows (whose sidecar was removed from `/curated/`) are deleted on the next run. Orphan cleanup is scoped to system-member-owned, sidecar-derived rows, so a run can never delete member-owned media.
 
-- A destructive run against a persistent database is refused mechanically, not procedurally: at cutover the operator writes a post-cutover marker into the database itself (a `system_config` row, key `post_cutover`), and every destructive seeder and loader checks it through one shared guard at database-open, before any mutation, with no bypass flag. Because the marker lives in the database, it travels with every copy, snapshot, and restore, refusing cases no environment variable, path allowlist, or host-file marker can see (a restored production snapshot on a developer machine); those other guards remain as defense in depth. Before cutover the same fail-closed posture applies from the other direction: every data-replacing production deploy requires the Terraform-owned production-live marker parameter to read exactly "false", and refuses independently when the target database already holds real member accounts, so the destructive path is dead from the go-live flip onward, before the post-cutover markers are even written.
+- A destructive run against a persistent database is refused mechanically, not procedurally: a persistent database carries an operator-written marker inside itself (a `system_config` row, key `post_cutover`), and every destructive seeder and loader checks it through one shared guard at database-open, before any mutation, with no bypass flag. Because the marker lives in the database, it travels with every copy, snapshot, and restore, refusing cases no environment variable, path allowlist, or host-file marker can see (a restored production snapshot on a developer machine); those other guards remain as defense in depth. Every data-replacing production deploy also requires the Terraform-owned production-live marker parameter to read exactly "false", and refuses independently when the target database already holds real member accounts.
 
 - Admin edit and delete on a sidecar-backed row resolve the sidecar at runtime; if the sidecar is missing on disk, edit fails (corruption guard) and delete proceeds best-effort with the DB row removal logged in audit.
 
@@ -889,13 +889,15 @@ Impact:
 
 Decision:
 
-Standard metadata columns (for example id, created_at, created_by, updated_at, updated_by, version, and deleted_at, where applicable) are required on mutable domain tables following consistent naming conventions. Immutable, append-only, and certain junction and reference tables intentionally omit some or all mutable-table metadata columns, for example, version, updated_at, and updated_by are omitted from append-only ledger and audit tables. Base tables (with _base suffix) contain all records for their entity, including soft-deleted rows where that entity uses soft-delete semantics. Public views filter deleted_at as required for soft-deleted entities. Entity-specific lifecycle exceptions (for example clubs using status-based archival instead of deleted_at, and media, news items, and events without results using hard delete) are documented in their respective decisions. Tables use TEXT for UUIDs and timestamps (ISO-8601 format) for portability and human readability. Every stored timestamp is UTC, and every surface that renders one to an admin names the zone on the face of the figure. The platform holds no per-member time zone and performs no conversion to a viewer's local clock: converting would need either a stored preference or client-side rendering, and the second breaks the rule that a page works without scripting. An unlabelled figure is worse than an unconverted one, because an admin reconstructing an incident or reconciling against a payment provider's dashboard reads it as their own clock and is wrong by their offset every time.
+Standard metadata columns (for example id, created_at, created_by, updated_at, updated_by, version, and deleted_at, where applicable) are required on mutable domain tables following consistent naming conventions. Immutable, append-only, and certain junction and reference tables intentionally omit some or all mutable-table metadata columns, for example, version, updated_at, and updated_by are omitted from append-only ledger and audit tables. Base tables (with _base suffix) contain all records for their entity, including soft-deleted rows where that entity uses soft-delete semantics. Public views filter deleted_at as required for soft-deleted entities. Entity-specific lifecycle exceptions (for example clubs using status-based archival instead of deleted_at, and media, news items, and events without results using hard delete) are documented in their respective decisions. Tables use TEXT for UUIDs and timestamps (ISO-8601 format) for portability and human readability. Every stored timestamp is UTC; how a timestamp is displayed is the "Times" rule under Global Behaviors in the user stories.
 
 Rationale:
 
 - Provides uniform metadata structure across mutable domain tables, enabling consistent tooling: migrations, audits, queries, debugging. The stamp answers from the row itself when it was created and last changed and by whom, which is the first question an admin screen, a migration, and a debugging session each ask; the audit ledger holds the account of what each change was, and the two are read together. The version field counts the updates a row has received, incremented on each update, which is also what gives a notification key its uniqueness when the same row carries a repeated event (see the Transaction Model decision).
 
 - Supports schema evolution without bespoke data migrations for each change.
+
+- The platform holds no per-member time zone and converts no stored time to a viewer's clock: converting would need either a stored preference or client-side rendering, and the second breaks the rule that a page works without scripting.
 
 Trade-offs:
 
@@ -913,7 +915,7 @@ Decision:
 
 All data access occurs through a single database module (db.ts) that exports the database connection, a collection of statement-group objects whose properties prepare SQL on first access, and a transaction helper function. Services import this module and execute queries by calling getters that resolve to prepared statements, then invoking `.all/.get/.run` with parameters. `db.prepare()` is only ever called inside a getter or a function body, never at module top level, so importing the database module against an unmigrated database does not fail at import time.
 
-The database module prepares all SQL statements during initialization: member queries (find by email, find by ID, create, update, delete/restore), event queries (find upcoming, find by ID, search by filters), registration queries, media queries, audit log queries, and all other data access operations. Each prepared statement is exported with a descriptive name that clearly indicates its purpose.
+The database module prepares all SQL statements during initialization: member queries (find by email, find by ID, create, update, delete), event queries (find upcoming, find by ID, search by filters), registration queries, media queries, audit log queries, and all other data access operations. Each prepared statement is exported with a descriptive name that clearly indicates its purpose.
 
 Services import the database module and call prepared statements directly, passing parameters as needed. For multi-step operations requiring atomicity, services use the exported transaction helper function which wraps operations in BEGIN/COMMIT with automatic ROLLBACK on error.
 
@@ -1000,8 +1002,6 @@ Foreign keys use ON DELETE NO ACTION for entities under the grace-period deletio
 
 Rationale:
 
-- Grace-period deletion for members protects against accidental account deletion and supports member-initiated restore within the configured window.
-
 - The grace period lets administrators reconcile audits and payments before PII is permanently purged.
 
 - Historical record for members is preserved as an anonymized row even after PII purge, maintaining referential integrity for audit logs, event results, and payments.
@@ -1036,17 +1036,13 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 - Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on the clubs database table. A club persists whether or not it currently has co-leaders, and a successful leadership claim or a new current affiliation returns a club of any status to `'active'`.  
 
-- Photos and video links: retained while member is active; when deleted by the member (or via account deletion), photo data is removed from primary storage immediately. Deleted items persist in backups until backup retention expiry (operational constraint).
-
-- News items: hard-deleted immediately on admin action. No grace period or restore. Deletion is audit-logged.
-
-- Events: events without published results are hard-deleted immediately by the organizer. Events with published results are preserved permanently and are never deleted. No grace period applies to events.
+- Media, news items, and events without published results: hard-deleted under the hard-delete pattern above, with no grace period; events with published results are never deleted. Deleted media persists in backups until backup retention expiry (operational constraint).
 
 - Audit logs: retained 7 years; entries include authenticated actor identity (member id) and event metadata, and intentionally exclude IP address.
 
 - Financial records: retained as required for reconciliation/compliance, but after deletion windows, personal identifiers are removed/anonymized where feasible while keeping transaction integrity.
 
-- Member-to-historical_person link: `members.historical_person_id` is a nullable foreign key with ON DELETE NO ACTION; historical_person rows are never deleted. The link is retained during the grace period to support member-initiated restore. On PII purge, `historical_person_id` is set to NULL on the anonymized member row, and subsequent person-context pages render from the historical_person record only (URL reverts from `/members/{slug}` to `/history/{historical_person_id}`). See §2.4 (entity rules), USER_STORIES `M_View_Profile`, and `M_Delete_Account`.
+- Member-to-historical_person link: `members.historical_person_id` is a nullable foreign key with ON DELETE NO ACTION; historical_person rows are never deleted. The link is held through the grace period and cleared at the PII purge, except for HoF and BAP honorees, per the reversion rule in Member, Legacy Member, and Historical Person Entity Types; once cleared, person-context pages render from the historical_person record only.
 
 ## 2.4 Member, Legacy Member, and Historical Person Entity Types
 
@@ -1082,11 +1078,11 @@ Rules:
 
    - `historical_persons.legacy_member_id` → `legacy_members(legacy_member_id)`. Non-NULL = the mirror/dump named this historical person with that legacy account id (archival provenance). Partial UNIQUE index enforces 1:1.
 
-4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (301) to `/members/{slug}`. Where the linked historical person's name differs from the member's display name, the historical name is shown on the member profile, so the competition record stays attributable to the name it was won under.
+4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (301) to `/members/{slug}`.
 
 5. Reversion on account deletion. When a member's PII is purged (after the grace period per §2.3 Soft Deletes), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`. A HoF or BAP honoree is exempt from both: the honor is for life, so the links and the claim survive the purge and their record goes on resolving to `/members/{slug}`. Returning an honoree's legacy account to the pool would offer their identity, and the honors that come with it, to the next person who shares the name.
 
-6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §3. A `historical_persons` row also carries an admin-settable `is_deceased` flag, independent of `members.is_deceased`, used only to suppress the direct historical-record claim CTA (a living member cannot self-claim a deceased person's identity); it drives no public memorial display.
+6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §3. A `historical_persons` row also carries its own admin-settable `is_deceased` flag, independent of `members.is_deceased`; its effect on claiming is specified in `M_Claim_Legacy_Account` and `A_Mark_Member_Deceased`.
 
 7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row (fill-if-empty merge semantics; the live account always wins for login and auth fields), and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
@@ -1129,9 +1125,7 @@ Impact:
 
 - Audit log display surfaces must render the 'reason' field (and any free-form admin-authored text) with Handlebars default escaping. Raw HTML rendering (triple-stache, SafeString, or client-side innerHTML) of admin-authored audit content is forbidden.
 
-- The audit log is read through an admin viewer that filters by actor, affected entity, member, date, action type, and category, with actor- and entity-scoped timelines and a self-action filter. Beyond routine debugging and fact-finding, this serves security review: threat-hunting over privileged actions, insider and anomaly detection (an admin acting on their own or a targeted member's record), and incident-response timeline reconstruction with CSV/JSON export.
-
-- Reading or exporting the audit log is itself an audited action (the audit-of-audit), so access to the log is accountable.
+- Reading or exporting the audit log is itself audited, so access to the log is accountable; the admin viewer, its filters and its export are specified in `A_View_Audit_Logs`. Beyond routine debugging and fact-finding, the viewer serves security review: threat-hunting over privileged actions, insider and anomaly detection (an admin acting on their own or a targeted member's record), and incident-response timeline reconstruction.
 
 - Integrity rests on the application-level append-only triggers and the WORM-protected off-host backups above; cryptographic per-row hash chaining, which would additionally detect direct-database tampering, is a compatible strengthening of this model.
 
@@ -1143,13 +1137,11 @@ Events and clubs must define unique, standardized hashtags. These are validated 
 
 Hashtag-driven coupling extends to freestyle tricks, sets, operators, families, and persons in addition to events and clubs. Trick slugs (e.g. `#ripwalk`) are stored as freeform tags (`tags.is_standard=0`); uniqueness is inherited from `freestyle_tricks.slug PRIMARY KEY` and the no-rename commitment makes the slug a stable canonical identity for life.
 
-A freestyle concept's hashtag form is decided by the *role* it plays, not by its row type. A trick takes the bare token: its slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase underscore token (the trick *double leg over* is slug `double_leg_over`, hashtag `#double_leg_over`, page `/freestyle/tricks/double_leg_over`). A non-trick concept takes a role prefix over that same body: a set is `#set_{slug}`, an operator or modifier is `#operator_{slug}`, and a trick family is `#family_{slug}`. The bare-token namespace is reserved for trick-role media — a concept that is only a set or only an operator never takes a bare hashtag. A concept that is genuinely both a performed trick and a set, namely pixie and fairy, carries both forms: the bare `#pixie` for the trick and `#set_pixie` for the set. Membership in that dual-role set is a curator decision, never derived from a row's stored type. Because modifiers and operators are not tricks, their detail page is the operator page, and the trick-detail route redirects a modifier or operator concept there rather than rendering it as a trick.
+A freestyle concept's hashtag form is decided by the *role* it plays, not by its row type. A trick takes the bare token: its slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase underscore token. A non-trick concept (a set, an operator or modifier, a trick family) takes a fixed role prefix over that same body, so the bare-token namespace is reserved for trick-role media. A concept that is genuinely both a performed trick and a set carries both forms, and membership in that dual-role set is a curator decision, never derived from a row's stored type. The concrete forms are specified in `V_View_Trick_Reference_Videos`, and the redirect of a modifier or operator to its own page in `V_View_Trick_Detail`.
 
 Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
 
-Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. a tag gallery link carrying an alias) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
-
-A trick hashtag and the trick detail page are separate read-side destinations. The plain-English trick name (e.g. *Double Leg Over*) links to the trick detail page. Further controls sit beside it: the hashtag (`#double_leg_over`) opens the trick's media gallery when the trick has at least one media item and renders as a plain non-clickable token otherwise; a distinct "Detail" link opens the same detail page at `/freestyle/tricks/double_leg_over`; and a "Media" link opens the same gallery as the hashtag, rendered only when the trick has media. Media presence therefore carries two agreeing signals, a live hashtag and a present Media control, rather than resting on the hashtag alone. This keeps the gallery path and the detail path as explicit controls that never collapse onto one ambiguous control.
+Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only, and `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
 Rationale:
 
@@ -1183,13 +1175,7 @@ Impact:
 
 - Popular hashtag views and the Browse page use aggregated hashtag statistics computed by background job.
 
-- Events use `#event_{year}_{event_slug}`.
-
-- Clubs use `#club_{location_slug}`.
-
-- Freestyle non-trick concepts use role prefixes: sets `#set_{slug}`, operators and modifiers `#operator_{slug}`, families `#family_{slug}`; tricks use the bare `#{slug}`.
-
-- Hashtag validation applies to all hashtags (standardized and freeform): maximum 100 characters per tag, must start with '#' character, and may contain letters, numbers, and underscores only after the leading '#'. Validation prevents excessively long tags, script injection, spaces/punctuation, and other disallowed special characters. Tag matching is case-insensitive but original capitalization is preserved for display quality.
+- Standardized event and club patterns, and the validation every hashtag passes, are specified in the user stories' Global Behaviors (hashtags, and security and validation).
 
 ## 2.7 Encryption at Rest
 
@@ -1299,11 +1285,7 @@ Requirements:
 
 - Two grant paths exist: in-app `A_Manage_Admin_Role` (steady state) and out-of-band bootstrap (initial admins only). No third path.
 
-- Both paths write, in one transaction, `is_admin=1` plus an `audit_entries` row plus the `admin-alerts` subscription. They differ on the admin↔Tier 2 prerequisite: bootstrap also writes a `member_tier_grants` row in the same transaction (tier data may not exist on day one), whereas steady-state requires the target to already hold Tier 2 or Tier 3 and therefore writes no tier grant. Bootstrap uses `actor_type='system'` for both the admin flag and the tier grant, with the mechanism-specific action_type described above; steady-state uses `actor_type='admin'`.
-
-- Tier 2 is an invariant of the admin role rather than a precondition on the person, and every grant path establishes it the same way: the Tier 2 row is written atomically alongside the admin flag when the target holds less, and a target already at Tier 2 or Tier 3 keeps the tier they hold. One rule, one implementation, so no path can turn away a grant it would then have to enable by hand through a tier override.
-
-- Every successful grant subscribes the member to the `admin-alerts` mailing list in the same transaction, on both the bootstrap and steady-state paths, so urgent work-queue notifications and stale-item escalations reach every administrator. A steady-state revoke unsubscribes the member from `admin-alerts` and changes none of their other subscriptions.
+- Both paths write, in one transaction, `is_admin=1`, an `audit_entries` row, the `admin-alerts` subscription, and, where the target holds less than Tier 2, a `member_tier_grants` row establishing the role's Tier 2 invariant; a target already at Tier 2 or Tier 3 keeps the tier they hold. One rule and one implementation serve every grant path, so no path turns away a grant it would then have to enable by hand through a tier override. Bootstrap uses `actor_type='system'` for both the admin flag and the tier grant, with the mechanism-specific action_type described above; steady-state uses `actor_type='admin'`.
 
 - Dev and staging bootstrap is an email allowlist matched at registration time. Source: an operator-local file in the maintainers' private operations checkout, reached through the canonical repo-root symlink because it carries maintainer email addresses, parsed by the deploy pipeline into the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var written to `/srv/footbag/env` on the target host. A deploy from a machine without that checkout leaves the host's value as it is. The env-config layer fails fast at boot if the var is set on a production host, and the deploy pipeline refuses to write the value to a production host. The runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
 
@@ -1313,7 +1295,7 @@ Requirements:
 
 - The bootstrap mechanism's input is operator-supplied at runtime and is never committed to the repository. Canonical docs, plans, code, and tests refer to the input by role only.
 
-- Admin entitlement implies tier entitlement. Tier predicates (`hasTier1Benefits`, `isTier2Plus`, `isTier3`) short-circuit to `true` when `members.is_admin = 1`, regardless of whether a `member_tier_grants` row exists for that member. The Tier 2 / Tier 3 gate on the grant path is the source of truth for the invariant; the predicate short-circuit makes the invariant explicit at every downstream gate site (curator media operations, member-owned gallery writes, member upload) so an admin acting in their admin capacity is not 403'd by a missing tier-grant row.
+- Admin entitlement implies tier entitlement. Tier predicates (`hasTier1Benefits`, `isTier2Plus`, `isTier3`) short-circuit to `true` when `members.is_admin = 1`, regardless of whether a `member_tier_grants` row exists for that member. The atomic Tier 2 write on the grant path is the source of truth for the invariant; the predicate short-circuit makes the invariant explicit at every downstream gate site (curator media operations, member-owned gallery writes, member upload) so an admin acting in their admin capacity is not 403'd by a missing tier-grant row.
 
 Trade-offs:
 
@@ -1335,7 +1317,7 @@ Impact:
 
 Decision:
 
-Registration collects the legal name as two recorded parts, `family_name` (required) and `given_names` (optional), plus `display_name` (optional, defaulting to the two assembled). The family name is recorded rather than guessed from the last word of one string, because that guess is wrong for a member with two surnames, a name particle, or a family name written first, and the family name is the private matching anchor every claim path gates on. It is the required half for the same reason, and a member whose legal name is a single word records it there. The display name must end with the recorded family name, after suffix stripping (Jr, Sr, II, III, IV); the slug is held to that name's final word, because a profile URL carries no spaces. That comparison folds the family name and the slug alike to letters and digits, since a slug carries nothing else, and a family name with no Latin form folds to nothing: it is exempt from the rule, and its owner chooses their profile URL at registration rather than receiving a generated one. The display name and its derived slug are permanent to the member: neither changes through any member-facing surface. An administrator can correct either on request, which is how a mistyped name or an unusable profile URL is put right. Imported legacy account rows (`legacy_members`) carry a single name string, are never split, and are exempt from the surname constraint; the surname on that side of any comparison is still derived from the whole name.
+Registration collects the legal name as two recorded parts, `family_name` (required) and `given_names` (optional), plus `display_name` (optional, defaulting to the two assembled). The family name is recorded rather than guessed from the last word of one string, because that guess is wrong for a member with two surnames, a name particle, or a family name written first, and the family name is the private matching anchor every claim path gates on. It is the required half for the same reason. The display name must end with the recorded family name after suffix stripping, and the slug is held to that name's final word, because a profile URL carries no spaces; the comparison folds both sides to letters and digits, since a slug carries nothing else. The display name and its slug are permanent to the member and change only through an audited administrator correction. The field rules and registration copy belong to `V_Register_Account`, `M_Edit_Profile` and `A_Override_Member_Data`. Imported legacy account rows (`legacy_members`) carry a single name string, are never split, and are exempt from the surname constraint; the surname on that side of any comparison is still derived from the whole name.
 
 Rationale:
 
@@ -1346,9 +1328,6 @@ Rationale:
 
 Requirements:
 
-- `real_name` is required: two words minimum, no digits, capitalization normalized on save rather than policed.
-- `display_name` is optional and defaults to `real_name`; the shared-surname constraint applies at registration and on every profile edit.
-- The slug derives from `display_name` at registration and never changes through a member-facing surface; only an administrator correction moves it, carrying the member's uploader tag with it.
 - `legacy_members` rows are exempt; the import preserves names as delivered.
 - Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the variants table covers first-name equivalences only, never surname changes.
 
@@ -1368,41 +1347,37 @@ Impact:
 
 Decision:
 
-`members` carries `first_competition_year` (nullable, member-editable, hidden when blank) and `show_competitive_results` (default on), a member-controlled toggle governing whether competitive results render on the member's public profile. The member always sees their own results regardless of the toggle.
+`members` carries `first_competition_year` (nullable, member-editable) with its display toggle, and `show_competitive_results` (default on). These toggles govern the member-profile surface only: published results remain on event and history pages per the data-governance policy for the historical record. Display rules and copy belong to `M_Edit_Profile` and `M_View_Profile`.
 
 Rationale:
 
 - Members deserve agency over the profile presentation of their competitive history without erasing the historical record: the toggle hides the profile section, never the underlying published results.
-- "Competing since {year}" gives profiles lightweight historical context; prefilling from a claimed historical person reduces friction while the member's own value always wins.
-- An explicit caveat on the results section manages expectations about incomplete historical data.
 
 Requirements:
 
-- `first_competition_year`: nullable; prefilled at claim time from `historical_persons.first_year` via COALESCE (member value wins); editable via `M_Edit_Profile`; clearing it hides the "Competing since" line.
-- `show_competitive_results`: default on; collected within the onboarding `personal_details` task; editable via `M_Edit_Profile`; own-profile view always shows results to the owner.
-- The results section renders the caveat: "Published event results only. Historical records may be incomplete."
-- The toggle governs the member-profile surface only; published results remain on event and history pages per the data-governance policy for the historical record.
+- `first_competition_year` is prefilled at claim time from `historical_persons.first_year` via COALESCE, so the member's own value always wins.
 
 Trade-offs:
 
-- Because event pages keep the historical record public, member-facing copy must not promise removal, only profile de-emphasis.
 - A self-asserted `first_competition_year` may disagree with the historical record; the profile displays the member's value.
 
 Impact:
 
-- Two columns on `members`; the onboarding `personal_details` task collects both; profile rendering branches on the toggle and on owner-view.
+- Profile rendering branches on the toggles and on owner-view; the onboarding `personal_details` task collects `first_competition_year` and `show_competitive_results`.
 
 ## 2.12 Groups, and the Board's Record
 
+<< V2 SCOPE >> Native groups and committees are version-two scope. This section is design intent
+for that build and is not part of the v1 launch. Board standing itself, set by an administrator,
+is v1.
+
 Decision:
 
-A group is a governance, working-group, or social entity with a roster, distinct from a club. The mechanism is general and data-driven: an administrator creates a group, and no group is named in code. One group is planned at launch: the IFPA Board of Directors, identified by its `type` rather than by a slug and the only group that may carry that type. The other standing committees are archived rather than carried onto the platform, and any committee IFPA later keeps is an ordinary committee. How many groups IFPA needs is IFPA's ruling and not the platform's: the platform carries any number as data and builds nothing further for a second or a tenth, and a body that would rather keep its conversation where its members already are is not argued with. Only the board's roster confers standing; a committee's roster confers no flag and no tier.
+A group is a governance, working-group, or social entity with a roster, distinct from a club. The mechanism is general and data-driven: an administrator creates a group, and no group is named in code. The IFPA Board of Directors is identified by its `type` rather than by a slug and is the only group that may carry that type. How many groups IFPA needs is IFPA's ruling and not the platform's: the platform carries any number as data and builds nothing further for a second or a tenth. Which groups exist, and how board standing relates to the board's roster, are specified under Group Membership in the user stories.
 
-Three rules follow, and they are what this decision is for.
+Two rules follow, and they are what this decision is for.
 
-**The roster is the record of who sits on the board.** Board standing is not a flag an administrator sets beside a roster that says the same thing differently. Writing a current row on the board's roster grants the IFPA Board flag and Tier 3 in the same transaction and records the underlying tier for reversion; ending the row reverts it. There is exactly one write path, and no other route sets that flag on a board member. Standing and voting are separate facts on the row: a seat filled by appointment under a bylaw provision, or elected but not yet seated, carries standing and casts no ballot. Each row also carries the office, the authority the seat rests on, its term, and its precedence, because a board record that cannot say who the secretary is, or by what authority a person sits, is a contact list rather than a record.
-
-**A group's deliberation happens on the platform and is complete by construction.** A group has no address of its own, the platform accepts no inbound mail, and a group's mailing list sends from a no-reply identity. Members compose on the group page; the platform delivers each message to the current roster and keeps it, threaded, as the group's discussion. Replying means composing again, so no part of a debate can end up in one person's mailbox and nowhere else. Messages are never edited and never deleted: a correction is a further message.
+**A group's record is complete by construction.** The platform accepts no inbound mail and a group's mailing list sends from a no-reply identity, so every message to a group is composed on the platform and kept there; messages are append-only, and a correction is a further message. How members compose, reply and read is specified under Group Membership in the user stories.
 
 **Nothing is aged out.** Messages, threads, ended roster rows with their offices and terms, and the audit trail are retained indefinitely, so both the composition of the board at any past date and the argument behind any decision remain recoverable. The single exception is account erasure clearing a sender identity, which leaves the message itself standing.
 
@@ -1410,15 +1385,15 @@ Rationale:
 
 The board's business is official rules debate, and IFPA's own governance is what the platform is recording. A board is a deliberative body: the decision is not the whole record, and asynchronous action between meetings is defensible only when the deliberation and the assent behind it are written down. Practice in this space, from board portals to the long argument between mailing lists and forums, points the same way: a record scattered across mailboxes is not a record, and the organisation that needs one keeps it where everyone entitled to it can read it.
 
-Making the roster authoritative removes the drift that two records of the same fact always produce, and it is the only one of the two that can carry an office, a term, or the difference between a seated and an unseated director. Deriving nothing and copying nothing means the group page, the mailing list, and later the ballot all read the same rows.
+Deriving nothing and copying nothing means the group page, the mailing list, and later the ballot all read the same roster rows.
 
-The legacy site had this feature and it is where the requirement comes from: 170 committees, 1,718 roster pairings, per-member titles, a voting marker and a display precedence, group mail with a subject prefix and restricted sending. What is deliberately not carried forward is its inbound address, its moderation, its file sharing, and its per-group switch for whether the archive was kept at all: a record that can be turned off is not one.
+A group deliberately has no inbound address, no message moderation, no file sharing, and no switch for whether its archive is kept: a record that can be turned off is not one.
 
 Trade-offs:
 
-- A member's reply by mail reaches nobody. That is the cost of a complete record, and the standing line at the foot of every group message says so in plain words rather than leaving it to be discovered.
+- A member's reply by mail reaches nobody. That is the cost of a complete record, and every group message says so in plain words (`M_Email_Group`).
 
-- The general mechanism is built for one group at launch. It is a table, a roster and a page rather than a product, and the alternative, hard-coding the board, would have cost more the moment IFPA kept a second body.
+- The general mechanism is built for one group at first. It is a table, a roster and a page rather than a product, and the alternative, hard-coding the board, would have cost more the moment IFPA kept a second body.
 
 - Retaining everything means a group's discussion accumulates without bound. At IFPA's scale that is measured in megabytes over decades, and the alternative loses exactly the material the record exists for.
 
@@ -1426,7 +1401,7 @@ Impact:
 
 - `groups` and `group_member_affiliations` per the data model, including the partial unique index admitting only one board group and the one-current-row-per-member-per-group index.
 
-- The service writing a board roster row owns the flag, the tier grant, and the audit entry in one transaction. The coupling is not a trigger, so all three commit or none do.
+- A change to board standing commits its flag, tier grant, roster row, and audit entry in one service transaction. The coupling is not a trigger, so all of them commit or none do.
 
 - `email_archives` gains a nullable self-reference carrying thread structure. Group mail rides the existing outbox, sender worker, suppression and deliverability path unchanged.
 
@@ -1451,9 +1426,7 @@ An administrator path is owed where one of six things is true, and not otherwise
 
 Every administrative write onto somebody else's record carries an audit row recording each changed field's value before and after, the administrator's identity, and the timestamp, and a mandatory reason wherever the act has more than one possible motive. The reason exists to make the write reviewable, so an act with exactly one motive collects none: marking a member deceased is the case, where a required note about a named person's death would be stored where no erasure path can reach it and read back nowhere. An act whose motive a reviewer could not otherwise guess always collects one.
 
-No administrator is the judge of their own case. Where an administrator would be both the subject of a decision and the person taking it, the platform refuses and says another administrator must review it: approving one's own legacy-identity help request, resolving one's own identity dispute, revoking one's own administrator role, settling a contact request one filed about one's own record, and deciding a report against one's own upload. A small administrative team makes this more necessary rather than less, because the alternative is a privileged role with no check on it at all. The bar is on being the subject, not on having touched the item: an administrator who reports an abusive item and then decides it is doing one act in two steps, which is the designed moderation path.
-
-The administrator corrects facts and removes content, and does not rewrite another person's words while leaving those words attributed to that person. A bio, a club note, a report's reason text, an answer to a question, a sent announcement, and a donation comment are the member's own voice; editing one and leaving the attribution standing is a misrepresentation rather than a correction. Removal, withdrawal, and redaction are available for every one of them, each with its own reason and audit row, so nothing is beyond reach.
+Two limits on administrative action are specified in the administrative stories, each of which names the decisions and fields it covers: no administrator decides a case they are the subject of, and a member's own words are removed or redacted, never rewritten under their name. A small administrative team makes the first more necessary rather than less, because the alternative is a privileged role with no check on it at all.
 
 Four classes sit outside this decision for structural reasons rather than as limits on administrative authority:
 
@@ -1466,7 +1439,7 @@ Rationale:
 
 - The administrative team is small and has no database access as an operating assumption. Every data problem arising from ordinary use must have a remedy inside the application, or it has no remedy at all. The member's own surface is that remedy wherever they can reach it, and an administrator path covers only the cases they cannot.
 - A correction made on someone else's behalf is reviewable and reversible only from a trail that says what the value actually was. That is why administrative corrections record values, not just field names, departing from the ordinary audit rule.
-- The authorship limit is what keeps the trail honest. A record that has been corrected says so; a sentence rewritten under its author's name does not.
+- The stories' authorship limit is what keeps the trail honest. A record that has been corrected says so; a sentence rewritten under its author's name does not.
 
 Trade-offs:
 
@@ -1477,7 +1450,6 @@ Impact:
 
 - A feature that gives a member, leader, or organizer a new field is complete when that person can maintain it themselves. It owes an administrator surface only where one of the six tests applies, and where one does, the feature carries that surface rather than deferring it.
 - Correction surfaces live in the ordinary trees under the established admin naming, behind the admin gate, per the internal-only subtree decision.
-- Each correction previews before it writes, and the confirmation names the reason and every changed value.
 
 # 3. Security, Authentication, and Sessions
 
@@ -1659,7 +1631,7 @@ JWT payload, emitted at sign time:
 - `sub`: the member id, matching `members.id`.
 - `passwordVersion`: the snapshot of `members.password_version` at sign time. Compared against the live DB value on every authenticated request; mismatch rejects the token (§3.2).
 - `role`: `"admin"` if `members.is_admin` is set, otherwise `"member"`. Carried for audit-log readability and template hints. Authorization is read from the DB row on every request, not from this claim.
-- `iat`, `exp`: standard JWT timestamps in seconds. `exp = iat + 86400`.
+- `iat`, `exp`: standard JWT timestamps in seconds. `exp = iat + jwt_expiry_hours × 3600` (86400 at the 24-hour default).
 
 JWT header, emitted at sign time:
 
@@ -1889,7 +1861,7 @@ Verification (M_Verify_Vote_And_View_Results): the member submits their raw toke
 
 The receipt token is distinct from ballot *content*. "No plaintext ballot contents are persisted" (above) refers to vote selections; receipt tokens are participation metadata, not selections, and are handled separately under this hashing scheme.
 
-Export: because the raw token is never persisted, the GDPR data export (M_Download_Data) cannot include it. The export includes vote participation metadata (vote ID, title, submission timestamp) with a note that receipt verification requires the original email.
+Export: because the raw token is never persisted, the GDPR data export cannot include it; the export's vote contents are specified in `M_Download_Data`.
 
 ## 3.8 Account Security Tokens
 
@@ -1931,7 +1903,7 @@ Privacy is part of the platform's security model. Current member data, discovera
 
 The platform preserves and publicly exposes official footbag history, including public event results, year archives, permanent honors such as Hall of Fame and Big Add Posse, and other explicitly approved historical-record surfaces such as world records.
 
-Public historical discoverability does not authorize a public current-member directory, public current-member search, public current-member profiles, or public contact discovery. A Hall of Fame or Big Add Posse honoree's profile is the single exception and is scoped to the honor record: display name, country, avatar, honor badges, the historical competition name, and the member-controlled competing-since year and competition results. Every other profile field stays member-only, so the exception publishes an honor, not a member profile.
+Public historical discoverability does not authorize a public current-member directory, public current-member search, public current-member profiles, or public contact discovery. The single exception is a Hall of Fame or Big Add Posse honoree, whose public page publishes the honor record and not a member profile; its exact fields are policy in `docs/DATA_GOVERNANCE.md` and behaviour in `M_View_Profile`.
 
 Imported historical people and result-linked identities may appear publicly only as historical-record surfaces. They do not thereby become activated members, profile owners, searchable current members, or publicly contactable accounts.
 
@@ -1945,9 +1917,9 @@ Visibility taxonomy; the platform uses five Sensitivities:
 4. **Internal/admin only**; full member history, remediation/audit workflows, broad exports, identity resolution.
 5. **Archived member-only legacy**; immutable old archive; authenticated only; no search; no public indexing.
 
-Implementation note; derived statistics and incomplete historical data:
+Derived statistics and incomplete historical data:
 
-Official result facts, honor rolls, and approved record tables are primary historical sources. Derived statistics are secondary editorial outputs and must not be treated as canonical merely because data fields exist in storage. The platform must not publish misleading or false-precision historical statistics from incomplete datasets. Public or member-visible stats are justified only when they are useful and interesting for historians of footbag or clearly valuable to the community's official historical record, and either (a) the underlying source scope is sufficiently complete for the claim being made, or (b) the UI presents clear caveats about scope, missing data, and interpretation limits. Where those conditions are not met, the platform must prefer raw official results, honors, and record listings over aggregate summaries.
+Official result facts, honor rolls, and approved record tables are primary historical sources. Derived statistics are secondary editorial outputs and are never canonical merely because data fields exist in storage. When a derived statistic may be published, and with what caveat, is policy in `docs/DATA_GOVERNANCE.md` (Derived statistics, data completeness, and caveats).
 
 Two distinct risks apply to incomplete historical statistics. **Statistical accuracy risk:** misleading or uncaveated aggregates make false claims about real people's competitive records. **Privacy pressure risk:** misleading aggregates create pressure to over-link person-level identities to fill data holes, driving the system toward overexposure of person-level data. Both risks share the same policy response (caveat clearly or suppress) but are separate failure modes.
 
@@ -1978,8 +1950,8 @@ For normative policy detail, implementation rules, and reference tables, see `do
 Requirements:
 
 - Historical-pipeline outputs that feed the database carry no member email addresses. Email addresses arrive only via member self-claim. The pipeline's intermediate artifacts and committed CSVs are scrubbed of email columns before they enter the working tree. If a pipeline output reaches the working tree containing email PII, the leak is purged from history (filter-repo, force-push, GitHub Support cache invalidation) before any public exposure.
-- A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via the erasure log re-application from §1.2), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
-- Anonymization tooling for production-data sharing exists and is documented. Production data is not shared with developers, support contractors, or external auditors without first running the anonymization tool against the snapshot. Sharing a raw production export is not a permitted operator path.
+- A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via re-application on restore of the erasures the restored snapshot records, from §1.2), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
+- Production member data never leaves AWS: it exists only in production and its encrypted backups, restore drills run inside AWS, and it never reaches a workstation. Staging runs on the legacy footbag.org dataset, the public historical data and synthetic personas, and no production data is shared with developers or third parties.
 
 ## 3.10 Trust-proxy strategy
 
@@ -2105,11 +2077,7 @@ Decision:
 
 All incoming request data is validated at the controller boundary before reaching services. A schema-validation library (Zod or equivalent) defines the input contract for each route: required fields, type correctness, allowed value ranges, string lengths, format patterns. Validation failures return HTTP 422 with field-level error details (JSON for API clients, HTML form re-render with inline messages for browser submissions). Excessively long inputs are capped at 10x the normal maximum for the field and rejected before reaching the schema validator, to prevent DoS by oversized payload.
 
-Representative validation contracts:
-
-- Registration: `{email: string (email format), password: string (min 8 chars, max 128 chars), displayName: string (max 64 chars)}`.
-- Event creation: `{title: string (max 200 chars), startDate: ISO8601, city: string, country: string, disciplines: array of strings}`.
-- Media caption: `{caption: string (max 500 chars), tags: array of strings (max 20 tags, each max 50 chars)}`.
+Each route's schema carries the field limits its owning user story states; the schema is the enforcement point, not a second source for the numbers.
 
 Failure response shape:
 
@@ -2216,7 +2184,7 @@ Restrictions enforced:
 1. Single-script requirement: characters primarily from one Unicode script (all Latin, all Cyrillic, all CJK, etc.). Allowed mixing: primary script plus the Common and Inherited script categories (spaces, digits, basic punctuation). Forbidden mixing: Latin and Cyrillic, Latin and Greek, and other cross-script combinations.
 2. Reserved name protection: reject a name one of whose own words is a reserved word. Words separate on whitespace and on the punctuation that joins name parts, and each is compared case-insensitively with accents and digit-for-letter substitutions folded away, so `adm1n` and `Supp0rt` are caught while a longer name that merely contains a reserved word, such as the surname Stafford, is accepted. The reserved set includes role-claim words ("admin", "administrator", "system", "support", "moderator", "staff") and platform-claim words ("IFPA", "footbag", "official").
 3. Invisible character prohibition: reject names containing zero-width characters (U+200B, U+200C, U+200D), bidirectional formatting (U+202A through U+202E, U+2066 through U+2069), and the byte-order mark (U+FEFF).
-4. Length: minimum 2 characters, maximum 64 characters, measured after normalization.
+4. Length: the limits are the registration story's (`V_Register_Account`), measured after normalization.
 
 Validation flow (in order):
 
@@ -2254,7 +2222,7 @@ Impact:
 
 Decision:
 
-User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links (maximum three per profile), club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
+User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links, club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
 
 Scheme allowlist:
 
@@ -2280,7 +2248,7 @@ Reachability check (optional, configurable):
 Safe Browsing lookup:
 
 - Each candidate URL is checked against a Safe Browsing dataset before acceptance.
-- A positive match is rejected with a generic "URL is not allowed" message; the matched threat category is logged for operator review.
+- A positive match is rejected with the generic message below; the matched threat category is logged for operator review.
 
 Public render gate:
 
@@ -2288,16 +2256,11 @@ Public render gate:
 
 Error responses:
 
-- "URL could not be reached. Please verify the link." for HEAD failures when the reachability check is enabled.
-- "This URL appears to use a disallowed protocol." for scheme rejections.
-- "This URL is not allowed." for private-IP, loopback, link-local, or Safe Browsing rejections.
-- A retry option is presented in the UI alongside the error.
+- Rejections for a private, loopback, unspecified, or link-local address and for a Safe Browsing match share one generic message, so the response never reveals which check fired or what lies behind an internal address. A scheme rejection and a reachability failure each carry their own message. The user-facing wording is in the user stories' Global Behaviors (external links).
 
 Display attributes:
 
 - All external links rendered with `target="_blank" rel="nofollow noopener noreferrer"`.
-- A small external-link icon indicates click-out, suppressed only where the URL itself is the visible anchor text.
-- The full URL is shown via the `title` attribute when JavaScript is enabled.
 
 Rationale:
 
@@ -2629,11 +2592,11 @@ Rationale:
 - DNS-TXT verification survives redeploys and template edits and covers every subdomain under one property.
 - `robots.txt` names no private paths: a `Disallow` line is publicly readable and would advertise the paths it hides, and `Disallow` does not stop indexing of a linked URL while a noindex directive does. Private content is therefore excluded by noindex, not by `robots.txt`.
 - All crawlers are allowed, including AI retrieval and AI training crawlers, because the mission is to spread footbag history. `llms.txt` gives AI agents a concise site map at low cost; search-engine indexing is unaffected by it.
-- Indexability follows the host a deployment is configured to speak for rather than its environment name, because the production build also answers on the temporary pre-cutover hostname, and that name is withdrawn once the canonical host takes over. Indexing it would leave search results pointing at a name that no longer resolves. The edge does not forward the viewer's `Host` header to the origin, so the request cannot answer which name was used; the configured public base URL can. The test requires the canonical host rather than excluding known temporary names, so an unrecognised hostname stays out of the index rather than falling into it.
+- Indexability follows the host a deployment is configured to speak for rather than its environment name, because one build can answer on more than one hostname and only the canonical host belongs in a search index. The edge does not forward the viewer's `Host` header to the origin, so the request cannot answer which name was used; the configured public base URL can. The test requires the canonical host rather than excluding known temporary names, so an unrecognised hostname stays out of the index rather than falling into it.
 
 Requirements:
 
-- `robots.txt` is served on the canonical public host, permits page resources (CSS, JavaScript, images), names the sitemap, and names no private paths. Every other deployment serves a `robots.txt` that disallows all crawling and advertises no sitemap: the non-production environments, and the production build for as long as it answers on the temporary pre-cutover hostname.
+- `robots.txt` is served on the canonical public host, permits page resources (CSS, JavaScript, images), names the sitemap, and names no private paths. Every other deployment serves a `robots.txt` that disallows all crawling and advertises no sitemap: any deployment whose configured public base URL is not the canonical host, which includes every non-production environment.
 - The shared layout emits a unique `<title>`, a `<meta name="description">`, a `<link rel="canonical">`, and Open Graph and Twitter Card tags for every public page, all sourced from the page view-model; the canonical and `og:url` are omitted on error and not-found responses.
 - An XML sitemap lists public pages only; member profiles and the member-only legacy archive are never listed.
 - Authenticated routes and the legacy archive carry a noindex directive; every deployment that is not the canonical public host returns `X-Robots-Tag: noindex` for the whole site.
@@ -2879,7 +2842,7 @@ Authorization Middleware Pattern:
 Authorization runs as a chain of middleware functions after `authMiddleware` (§3.2) populates `req.user`. The chain on a protected route is:
 
 1. `requireAuth` (`src/middleware/auth.ts`) checks `req.isAuthenticated`. If false on an HTML route, the middleware returns a 302 redirect to `/login?returnTo=<originalUrl>` so the browser user sees a login form rather than an opaque status code. A JSON API route returns 401 from the same gate.
-2. `requireMember` (`src/middleware/auth.ts`) checks `req.isMember`, the membership authorization level that sits above authentication. An account is pending from registration until every onboarding task is completed, and a pending registrant holds a session but no member authorization. An unauthenticated request takes the same 302-to-login as `requireAuth`; a pending request is redirected 303 to the registrant's next outstanding wizard task. Every member-capability route carries this guard; bare `requireAuth` remains only on the wizard's own routes and the historical-record claim routes, because claiming is part of finishing onboarding. `req.isMember` is derived from the task rows on every request rather than carried in the session, so membership takes effect the moment the completing transition lands, with no re-login.
+2. `requireMember` (`src/middleware/auth.ts`) checks `req.isMember`, the membership authorization level that sits above authentication; an account is pending, holding a session but no member authorization, until its onboarding tasks are completed (`M_Complete_Onboarding_Wizard`). An unauthenticated request takes the same 302-to-login as `requireAuth`; a pending request is redirected 303 to the registrant's next outstanding wizard task. Every member-capability route carries this guard; bare `requireAuth` remains only on the wizard's own routes and the historical-record claim routes, because claiming is part of finishing onboarding. `req.isMember` is derived from the task rows on every request rather than carried in the session, so membership takes effect the moment the completing transition lands, with no re-login.
 3. Tier middleware (e.g. `requireTier1Benefits`) checks `req.user`'s tier value, which the auth middleware sourced from the DB row on the current request. Insufficient tier returns 403 with a rendered tier-upsell page on an HTML route, or a JSON error on an API route.
 4. Admin middleware (e.g. `requireAdmin`) checks `req.user.role`, derived from `members.is_admin`. Non-admin returns 403.
 
@@ -3066,11 +3029,9 @@ Impact:
 
 - Every outbound email is sent through one email service that resolves a registered template, renders it, and stamps the template's `template_key` onto the outbox row, so each message records its email type and every email uses a registered template.
 
-- Email templates are logic-less plain text stored in the database (`email_templates`), one template per distinct message: a template carries `{token}` merge fields but no conditional syntax, and an email type whose wording genuinely branches (a payment receipt's succeeded and failed forms, a join and a leave notice) is registered as separate variant template keys, with code selecting the key and computing every merge value. Administrators edit a template's wording, enabled flag, and PII classification through the admin template editor, one audit entry per save; the editor is edit-only, because a template's existence, merge fields, and send site are code. Disabling a template suppresses that email type without deleting its content. Template content follows the Curator Content Source of Truth model: committed JSON sidecars under `/curated/email_templates/` seed `email_templates` before go-live, and the persistent production database is the sole source after.
+- Email templates are logic-less plain text stored in the database (`email_templates`), one template per distinct message: a template carries `{token}` merge fields but no conditional syntax, and an email type whose wording genuinely branches (a payment receipt's succeeded and failed forms, a join and a leave notice) is registered as separate variant template keys, with code selecting the key and computing every merge value. A template's existence, merge fields, and send site are code; only its wording, enabled flag, and PII classification are administrator-editable (`A_Manage_Email_Templates`). Template content follows the Curator Content Source of Truth model: committed JSON sidecars under `/curated/email_templates/` seed `email_templates` before go-live, and the persistent production database is the sole source after.
 
-- Admin work-queue notifications are routed by urgency rather than broadcast per event: urgent task types email the admin-alerts list immediately; routine task types are read on the work-queue dashboard and a periodic per-administrator digest of open items, with a claimed item leaving the other administrators' digests and a stale unclaimed item escalating once to the full list. This keeps the alert channel meaningful for a small volunteer team instead of training administrators to ignore it.
-
-- Each registered template carries a PII classification (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin may view: public and internal bodies may be shown, a confidential body only behind a justification-logged reveal, and a restricted (token-bearing) body never, because its `body_text` holds a live reset or magic-link token until the post-send scrub. The classification is a property of the template, not the individual message.
+- Each registered template carries a PII classification, a property of the template rather than of the individual message, that bounds how much of a sent message an admin may view (tiers in `A_Manage_Email_Templates`). A restricted, token-bearing body is never shown, because its `body_text` holds a live credential token until the post-send scrub.
 
 - Every outbound message, single or bulk, is enqueued through one path that takes an **audience**: one address, one member, a mailing list, a group's roster, or an event's confirmed participants. The path resolves the audience to recipients and writes one outbox row each. Everything that must hold for every message is applied there and only there: the mailbox suppression gate, the verified-and-deliverable filter, the stream, the broadcast archive row, and the unsubscribe headers. The audience is a value rather than a row or a method per shape, so a further audience later is one more resolver behind the same contract, and no second send mechanism exists to drift from the first.
 
@@ -3080,7 +3041,7 @@ Impact:
 
 - Bulk mail to a subscription-backed list that members are allowed to manage carries `List-Unsubscribe` and `List-Unsubscribe-Post`, so the recipient's mail client offers its own one-click unsubscribe control, which major receivers expect of a bulk sender. This sits with the link policy below rather than against it: the affordance lives in the envelope, where the mail client renders it as its own control, and the body still carries no clickable link. SES attaches no custom headers to its simple send call, so a message carrying them goes out as raw MIME while transactional mail keeps the simple call. The URL carries a signed token naming one member and one list and nothing else, verified before any write; it is stateless because the control must keep working for as long as the message survives, and a stored token per recipient per send would multiply the outbox by every send ever made. The endpoint answers identically to a valid, tampered, or absent token, so it cannot be used to probe membership, and firing it twice changes nothing the second time.
 
-- Four kinds of send deliberately carry no unsubscribe control, because in each the member has no mailing preference the control could withdraw. Transactional mail answers an action the member took, and offering to switch it off would let them turn off their own security mail. A list members cannot manage, which the `is_member_manageable` flag marks and the operational alert lists are, would otherwise hand an administrator a mail-client button removing them from urgent alerts, which the interface deliberately does not offer; the flag already means "members may self-subscribe and unsubscribe", so it is exactly the right condition to read. Group mail reaches a member because they are on the group's roster, so an unsubscribe would either leave them on the roster still receiving, or remove them from a committee, which is a governance act rather than something a mail client's button performs. Event-participant mail reaches them because they entered the event. The two bulk cases carry standing instructional text instead, telling the reader why they received the message and how to act on the site: leave the group from its page, or manage the registration from the event's page. That text is part of the message template rather than something a sender types, so it cannot be omitted or reworded per send.
+- Transactional mail, mail to a list members cannot manage, group mail, and event-participant mail carry no unsubscribe headers, for the reasons `M_Unsubscribe_One_Click` gives. For lists the condition read is the `is_member_manageable` flag, which already means "members may self-subscribe and unsubscribe". The standing instructional text that group and event-participant mail carry instead is part of the message template rather than something a sender types, so it cannot be omitted or reworded per send.
 
 - One drain pass fills with pending transactional rows first and gives bulk only the remainder, itself capped, so a bulk run paces itself and can never delay a password reset behind it; the two streams already carry the right value on every row. The priority is absolute rather than weighted, which means bulk mail can be starved for as long as transactional mail fills every pass, with no ageing and no reserved floor. That is accepted: the two carry opposite risk, a delayed newsletter costs nothing a member notices, and a delayed password reset locks somebody out. The sustained rate needed to starve bulk indefinitely is the whole pass limit every interval, which cutover day could plausibly reach for a while; a broadcast begun then simply waits, and the admin health page shows the bulk backlog and the reason it is not moving. Between passes the recent bounce and complaint rates are read and the bulk stream stops while either is at or above threshold, transactional mail continuing throughout. The sent row carries the provider's identifier for the message and the feedback notification names the same value, so a bounce is recorded against the send that produced it as well as against the address. The halt is judged on a windowed rate all the same: the right denominator for a per-batch rate is its own decision, taken against the data rather than ahead of it, and the windowed rate is judged only once a floor of messages has actually been sent.
 
@@ -3088,7 +3049,7 @@ Impact:
 
 - Services enqueue emails by creating outbox entities with recipient, subject, body, status. The background worker scans for pending entries on a system-wide configurable interval (default: every 30 seconds; configuration key `outbox_poll_interval_seconds`). After successful send via SES, it updates entry status. After failure, the worker classifies the error: provider throttling or quota exhaustion defers the entry with a delay without consuming a retry attempt (pressure is not a verdict on the email); an ambiguous outcome — an error that leaves delivery unknowable, such as a timeout mid-call — moves the entry to `manual_review` for an admin decision, because SES sends carry no idempotency token and an automatic retry could deliver the same email twice; a definitive failure increments retryCount and defers the entry with exponential backoff. Maximum retries are controlled by the system-wide configuration value outbox_max_retry_attempts (not a per-row outbox override field); when retryCount reaches the configured limit, the worker moves the entry to dead_letter for admin review. An entry stranded mid-send by a crashed worker likewise moves to `manual_review` rather than silently retrying, its outcome being equally unknowable.
 
-- Member profiles include subscription preferences derived from MailingList and MailingListSubscription: the UI renders checkboxes from MailingList records that are flagged as member-manageable (for example, newsletter, board-announcements, event-notifications, technical-updates), and changes are applied by updating MailingListSubscription and keeping Member.subscriptions in sync.
+- The member's subscription controls are rendered from the MailingList rows flagged member-manageable rather than from a fixed list, and a change writes MailingListSubscription and keeps the Member.subscriptions projection in sync.
 
 - Bounce and complaint notifications update MailingListSubscription records (status, bounce/complaint fields) and any global member email status as needed, and the projection in Member.subscriptions is updated accordingly so future sends skip problematic addresses. One-to-one mail honors the same fact at the outbox enqueue: a best-effort send whose target address is a member's current notification mailbox with a non-ok email status is suppressed, so a bounced or complained mailbox never receives routine mail again. Strict security sends (password reset, verification, account-change confirmations) bypass the suppression gate: they are member-initiated, rare, and refusing them would either strand the member or let an anti-enumeration surface answer differently for a bounced address. SES bounce and complaint notifications are published to an SNS topic and read from an SQS queue that the background worker polls; the platform exposes no endpoint for them. The read is authorized by the host's runtime IAM role, so the feed carries no shared secret and nothing about it reaches a proxy log. The worker rejects any message whose publishing topic is not the one configured for the feed, which is what remains worth asserting once the transport itself is authenticated: it establishes that the message belongs to this feed rather than to another subscription onto the same queue. A message the platform fails to record is left on the queue and delivered again; the queue's own dead-letter policy is what stops one the platform can never handle from blocking the rest, and the dead-letter queue is alarmed, because a notification sitting there is one that never reached the member's record. A queue rather than a pushed endpoint because an undelivered push is discarded once its retry window closes, and the notification most worth having is the one that arrived while the platform was down.
 
@@ -3098,16 +3059,10 @@ Impact:
 
 - Alerting: bounce rate at or above `bounce_rate_alarm_threshold_per_10k` and complaint rate at or above `complaint_rate_alarm_threshold_per_10k` (both in the user stories' configurable parameters, in ten-thousandths of messages sent) stop the bulk stream at the drain. The CloudWatch alarms under Monitoring and Alerting are a parallel signal on the provider's own account-level reputation metrics, with their own fixed thresholds; changing these values moves the drain halt and not those alarms.
 
-- Member soft-delete behavior for subscriptions and outbox: during the grace period, `MailingListSubscription` state (including `subscribed`, `unsubscribed`, `bounced`, and `complained` flags) is frozen and preserved. The soft-deleted member cannot change subscriptions because the account is inaccessible. New outbox entries are not enqueued for a soft-deleted member, with one exception: the message confirming the deletion itself, enqueued in the same transaction as the soft delete and addressed to the verified address read before it, because it is what tells the member what has happened and it is the last mail they receive. Queued entries addressed to them at the time of soft-delete are moved to `dead_letter` with reason `recipient_soft_deleted`. Missed sends during the grace period are not replayed.
+- Member soft-delete and the outbox: new outbox entries are not enqueued for a soft-deleted member, with one exception: the message confirming the deletion itself, enqueued in the same transaction as the soft delete and addressed to the verified address read before it, because it is what tells the member what has happened and it is the last mail they receive. Queued entries addressed to them at the time of soft-delete are moved to `dead_letter` with reason `recipient_soft_deleted`.
 - Deceased members receive no mail: new outbox entries are not enqueued for a member marked deceased, and entries queued for them when they are marked are moved to `dead_letter` with reason `recipient_deceased`. Like the soft-delete rule, this is applied on the single enqueue path, so it holds for every audience.
 
-- On member-initiated restore within the grace period: subscription states resume exactly as they were at soft-delete time. Intent is preserved; no re-opt-in is required. Outbox enqueuing reactivates immediately. Bounce and complaint flags persist across soft-delete and restore because they are facts about the email address, not about member intent.
-
-- On PII purge (grace period expiry or explicit purge): `MailingListSubscription` rows are hard-deleted along with other member PII. Restore is no longer possible after this point.
-
-- Admin dashboard shows basic email metrics: sent count, bounce rate, complaint rate, overall delivery health.
-
-- Operational dashboards track pending, sent, and failed outbox entries and expose a “pause sending” emergency toggle.
+- On PII purge (grace period expiry or explicit purge): `MailingListSubscription` rows are hard-deleted along with other member PII.
 
 - Email records are inserted into the outbox table within the same transaction as the business operation that triggers the email. This guarantees that if the transaction commits, the email is queued; if the transaction rolls back, neither the event nor the email record exists.
 
@@ -3129,7 +3084,7 @@ Outbound platform mail is sent by AWS SES (see §5.4); mail a person sends from 
 | `administrator@footbag.org`, `hostmaster@footbag.org`, `postmaster@footbag.org` | Three of the four further addresses the certificate authority accepts as proof of control over the domain, alongside `admin@`. They are aliases on the `admin@` group, whose members are all IFPA Workspace accounts, and carry no correspondence role of their own. They are bound by the certificate-validation delivery rule under Requirements. A request for a name beginning `www` is proved at this apex set (§6.13) | Receives | No platform code; held so that no one else holds them |
 | `webmaster@footbag.org` | The fourth further certificate-validation address. The primary maintainer is the site's webmaster, so this address is an alias on the maintainer's own `dleberknight@` account and is read there, inside Workspace. It is bound by the certificate-validation delivery rule under Requirements | Receives | No platform code; held so that no one else holds them |
 | `announce@footbag.org` | IFPA community announce list. A Tier 2+ member composes via the web form (not by emailing the address) and the platform distributes via SES under this address, because a message to the community comes from the community's own address rather than from a robot. It is a sending identity only: nobody reads it, and it is provisioned as a group with no members, restricted so that only members may post and so that a non-member message is rejected rather than held or archived, which makes a reply bounce immediately rather than land in a mailbox nobody reads. The rejection is the design's promise to the sender, so it is confirmed by a real message from outside rather than assumed from the empty membership. It is never given a reader and costs no Workspace seat. The platform never ingests inbound mail for this address | Sends (platform) | `BroadcastService.sendAnnouncement` (`M_Send_Announce_Email`) |
-| `brat@footbag.org` | Legacy footbag.org webmaster (operator of record for the pre-migration site). The webmaster's own address, held as an ordinary Workspace user account with no administrative role, which the webmaster reads and sends from; it must keep working in both directions through and after cutover for migration coordination and any ongoing legacy-recovery correspondence | Receives and sends (through Google Workspace, not the platform) | Carried over from the legacy site; in-use contact for the current webmaster |
+| `brat@footbag.org` | The legacy footbag.org webmaster's own address, held as an ordinary Workspace user account with no administrative role, which the legacy webmaster reads and sends from, so correspondence about the legacy site and its records keeps reaching them | Receives and sends (through Google Workspace, not the platform) | Carried over from the legacy site |
 | `dleberknight@footbag.org` | The primary maintainer's own address, carried over from the legacy site: an ordinary Workspace user account with no administrative role, set up exactly as `brat@`, which the maintainer reads and sends from. It carries no forward, and `webmaster@` is an alias on it | Receives and sends (through Google Workspace, not the platform) | Carried over from the legacy site, where it is published |
 | `directors@footbag.org` | IFPA Board of Directors contact for governance, board inquiries, and director correspondence | Receives | Carried over from the legacy site as an apex alias; not a published contact on the legacy site |
 | `dmarc-reports@footbag.org` | DMARC aggregate-report mailbox: receives the daily machine-readable XML each mail provider sends about messages claiming to be from the domain | Receives | The `rua` destination in the `_dmarc.footbag.org` record; the evidence SPF and DMARC policy tightening depends on |
@@ -3171,21 +3126,16 @@ Impact:
 Decision:
 
 Email-gated member-login pages render an in-page preview card of the
-captured mail, driven by the email adapter (SES_ADAPTER=stub in dev
-and staging; live in production only, where no card exists). The card
-shows the captured messages for the flow the visitor is completing,
-with subject, body, and the actionable link, so registration
-verification, password reset, and verify-resend each complete on the
-page itself, with no navigation to the outbox viewer. GET /dev/outbox
-remains the catch-all for captured notifications that have no host
-page (tier changes, vouches, receipts). The shared service
-(simulatedEmailService.getEmailPreview()) and Handlebars partial
-(simulated-email-card) produce the card on every one of these pages.
-
-| sesAdapter | Card | Purpose |
-|---|---|---|
-| stub | In-page preview on every email-gated login page | Captured messages for the flow being completed, with subject, body, and extracted action link. Newest first. Empty state when no messages have been sent. |
-| live | (no card) | Production. Pages render the standard 'check your email' copy with no preview affordance. |
+captured mail whenever the email adapter is the stub (SES_ADAPTER=stub:
+dev, staging, and a production email side still dark under its arming
+switch). The live adapter, which only an armed production runs,
+renders no card, and those pages show the standard 'check your email'
+copy. One shared service (simulatedEmailService.getEmailPreview()) and
+one Handlebars partial (simulated-email-card) produce the card on every
+such page, newest first, with an empty state when nothing has been captured, and
+GET /dev/outbox is the catch-all viewer for captured notifications
+that have no host page. What the card shows and how a tester uses it
+is in docs/TESTING.md, "Seeing captured email".
 
 Rationale:
 
@@ -3213,18 +3163,14 @@ Rationale:
 
 Requirements:
 
-- The card renders on every email-gated member-login page whenever
-  sesAdapter === 'stub': dev, staging, and a production email side
-  still dark under its arming switch; an armed production runs live
-  and has no card. Anti-enumeration response identity is a production
-  property, verified with the stub card's adapter gate off.
-- The card is scoped to the flow the visitor is completing (the
-  existing session/flow scoping mechanism, for example the
-  flash-carried address on registration), showing that flow's
-  captured messages with subject, body, and actionable link.
-- GET /dev/outbox remains the catch-all viewer for captured
-  notifications that have no host page; it merges the web process's
-  captured buffer with the worker's.
+- The card renders only when sesAdapter === 'stub'. Anti-enumeration
+  response identity is a production property, verified with the stub
+  card's adapter gate off.
+- The card is scoped to the flow the visitor is completing through the
+  existing session/flow scoping mechanism (for example, the
+  flash-carried address on registration).
+- GET /dev/outbox merges the web process's captured buffer with the
+  worker's.
 - Dev and staging previews read from the StubSesAdapter in-memory
   buffer, not from outbox_emails. This preserves the §5.4 body-text
   scrub contract: the scrub operates on the DB row, while adapter
@@ -3388,7 +3334,7 @@ Impact:
 
 - Both deploy paths sync all four switches on every deploy and refuse to proceed when a parameter is missing.
 
-- The pre-cutover Stripe test-mode exercise runs on a production whose payment side holds a test-mode key while the production-live marker reads pre-live; the key-match guard refuses a test key permanently once the marker flips at go-live.
+- The key-match guard admits a test-mode Stripe key in production only while the production-live marker reads exactly "false"; any other marker value, a missing marker, or an unreadable parameter store refuses it.
 
 ## 5.9 Member Action Sources
 
@@ -3486,10 +3432,9 @@ Rationale:
 
 - Offloads PCI compliance to Stripe (no card data touches our systems).
 
-- Stripe test mode on pre-cutover production enables safe end-to-end
-  payment testing before real money moves; dev and staging use the
-  stub adapter, and the config loader refuses the live payment SDK
-  outside production.
+- Stripe test mode enables end-to-end payment testing without moving
+  real money; dev and staging use the stub adapter, and the config
+  loader refuses the live payment SDK outside production.
 
 - Manual distribution provides IFPA oversight and reconciliation capability.
 
@@ -3503,7 +3448,7 @@ The platform uses two distinct Stripe payment models:
 
 Payment recurrence is derived from Stripe subscription linkage, not duplicated on individual payment rows. payments identifies recurring-donation charges via recurring_subscription_id and joins to the subscription tables for current subscription lifecycle state. The schema intentionally does not duplicate subscription recurrence fields (for example recurrence type/active/start state) on each payment row to avoid drift between payment records and subscription state.  
 
-- The platform offers no refunds. A membership, donation or event registration once paid is kept: no member or administrator surface issues a refund, and no member-facing text promises one. A refund issued at the provider anyway, from the Stripe Dashboard, is recorded so the books stay true; the platform never initiates one.
+- The platform never initiates a refund: no code path asks the provider for one. A refund issued at the provider, from the Stripe Dashboard, is recorded from its webhook so the local books match the provider's. The refund policy members see is in the user stories' Global Behaviors.
 
 - Money moving outside a payment's own lifecycle is recorded rather than applied. Card disputes through every stage the provider reports (charge.dispute.created, charge.dispute.updated, charge.dispute.closed, charge.dispute.funds_withdrawn, charge.dispute.funds_reinstated) and rejected payouts to the organization bank account (payout.failed) are decided provider-side: dispute evidence is submitted and ruled on at Stripe, and a rejected payout is repaired in the account details. Each writes an audit entry carrying every identifier needed to find the case at the provider and leaves the local payment at the status it earned; every stage other than an evidence update also raises an administrator work-queue item, so money leaving the account and money coming back are both put in front of someone. The audit entry and the work item are written in the same transaction as the event's idempotency claim, so a failure between them cannot leave a claimed event with no record. Recording them is what makes them visible: a disputed charge's payment intent still reads succeeded, so the nightly reconciliation pass compares clean and a chargeback would otherwise pass unseen.
 
@@ -3659,6 +3604,8 @@ Requirements:
 
 - The S3 archive bucket is private behind Origin Access Control. The bucket policy permits only the archive CloudFront distribution to read, granting it `s3:ListBucket` alongside `s3:GetObject` so a key the mirror does not hold returns 404; an object-only grant makes S3 answer 403 for a missing key, which the edge cannot tell apart from a refused credential.
 
+- The archive bucket is replicated cross-region exactly as the media bucket is.
+
 - The archive CloudFront distribution uses 1-year edge TTL on its content (immutable archive per §6.2). A request with no signed cookies, or whose cookie is expired or invalid, draws CloudFront's 403, which a custom error response maps to a denied-access page served from a dedicated unauthenticated cache behavior carrying the login link. CloudFront validates the cookie signature before the viewer-request function runs, and custom error responses serve a page from the distribution's own origins and cannot redirect to an external URL, so no edge login redirect is possible; the denied-access page is the whole refusal surface. A request for a path the archive does not hold draws a 404, mapped to its own not-found page on that same unauthenticated behavior, so a broken link inside the mirror reads as a missing page rather than as a refused sign-in.
 
 - DNS for archive.footbag.org is a Route 53 record pointing at the archive distribution.
@@ -3703,11 +3650,10 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 **Tier handling.** At claim, a member receives one membership-tier grant for the standing their legacy account held, written as a single `member_tier_grants` ledger row (`reason_code = 'legacy.claim_tier_grant'`) under the IFPA-approved blanket policy that maps each legacy standing (honors, paid history) to its 2026 equivalent, annual to lifetime. The per-standing mapping is the success criteria of `M_Claim_Legacy_Account`; a record showing only honors is granted on that basis as one outcome of that mapping, not a separate mode. Unclaimed `legacy_members` rows have no ledger row. No tier cache columns exist on `members`; membership-tier reads go through `MembershipTieringService.getTierStatus(memberId)`; Active Player reads go through `ActivePlayerService.getStatus(memberId)`.
 
-**Operational sequencing.** The archive capture completes first: the top-up crawl runs and the mirror freezes with it, because the crawler reaches the legacy site only by name and nothing after the record switch can. Then the legacy site enters write freeze; the records switch to the platform, which serves the migration notice from that moment (the notice mechanism is described under how the namespace is served, §6.11); the production database is built soup-to-nuts from the frozen mirror and the committed schema; the final export is imported; clubs are bootstrapped; the notice is withdrawn and the platform goes live. Preview serves the real site on the real database throughout the window, which is what lets administrators seat themselves and test through the front door before launch. Rollback lever before the records switch: abort and retry. Rollback lever afterwards: fix-forward, or a platform restore from the pre-flip snapshot, with any DNS change operator-made on the low-TTL zone. No automated rollback is provided once the records have moved.
 
 **Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`). Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row regardless of classification strength and regardless of registrant tier; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Decline transitions the bootstrap row to `'rejected'`. Claim eligibility is independent of club status; a successful claim returns an inactive or archived club to `'active'`, audit-logged as a revival. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
 
-**Legacy-data cleanup.** Club-roster reads show confirmed members and unconfirmed `'pending'` legacy affiliations in one member-visible list on the club detail page; a `'pending'` row carries a per-entry unconfirmed label and is never asserted as current. The club detail page applies the same labeled-display approach to leadership: clubs outside the bootstrap-eligible cohort carry no `club_bootstrap_leaders` rows, so their mirror-inferred `leader` / `co-leader` / `contact` affiliations surface there as provisional leaders, labeled and never contact-exposed, deduplicated by person id against any bootstrap rows and cleared once a real member claims leadership; the legacy dump and mirror are the only leadership data for those clubs. Cleanup of that residue is admin-driven, not a background process: when an admin opens the `A_Periodic_Club_Cleanup` queue, the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` rules are evaluated on demand; the club rules demote what they settle and surface one-click recommendations for the rest; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden, and is retired only alongside the club it belongs to or by an explicit admin de-list; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, force-keep requests). Club content is edited directly by co-leaders with no review queue; activity signals are collected only in the onboarding wizard, counted one vote per member, and the cleanup queue names negative voters to the admin while authorship never renders publicly.
+**Legacy-data cleanup.** Club-roster reads include unconfirmed `'pending'` legacy affiliations alongside confirmed members. Clubs outside the bootstrap-eligible cohort carry no `club_bootstrap_leaders` rows, so their mirror-inferred `leader` / `co-leader` / `contact` affiliations are read as provisional leaders, deduplicated by person id against any bootstrap rows and cleared once a real member claims leadership; the legacy dump and mirror are the only leadership data for those clubs. How both are labelled and shown is specified in `M_View_Club`. Cleanup of that residue is admin-driven, not a background process: when an admin opens the `A_Periodic_Club_Cleanup` queue, the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` rules are evaluated on demand; the club rules demote what they settle and surface one-click recommendations for the rest; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden, and is retired only alongside the club it belongs to or by an explicit admin de-list; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, force-keep requests). Club content is edited directly by co-leaders with no review queue; activity signals are collected only in the onboarding wizard, counted one vote per member, and the cleanup queue names negative voters to the admin while authorship never renders publicly.
 
 Rationale:
 
@@ -3730,7 +3676,7 @@ Trade-offs:
 - Treating an old address as a key without proof means anyone who knows a person's old address can claim that person's old account; the evidence recorded on every claim and the administrator dispute path are the remedy.
 - A person whose account and record the pipeline left unlinked claims one half self-serve and asks an administrator for the other.
 - Club bootstrap depends on mirror-derived data quality; clubs with ambiguous or low-confidence leader data require admin review.
-- No automated rollback after the records switch; recovery is fix-forward or an operator-run platform restore from the pre-flip snapshot.
+- No automated rollback of the migration; recovery is fix-forward or an operator-run platform restore.
 - Matching only on an explicit claim, with no notification emails, means a member who never signs in to the new platform never has effects applied. Pre-existing identity stays unclaimed for never-signed-in members; passive members get nothing automatically. The trade-off favors correctness (no silent grants) over coverage (some legitimate members go unconfirmed).
 - Adjusting bootstrap gate rules requires a code revision rather than a data update.
 
@@ -3888,15 +3834,15 @@ Upload controller validates format and size limits. Image processing occurs serv
 
 Malformed image protection: Attackers can upload crafted images with corrupted headers that cause image processing libraries to allocate excessive memory or enter infinite loops. Protection measures for synchronous image processing:
 
-Pre-processing validation: Reject uploads exceeding the per-type byte cap (5MB avatar, 25MB photo) before processing begins. Validate magic bytes to ensure only JPEG and PNG formats are accepted, preventing processing of disguised executables. Reject images smaller than 200×200 pixels or with an aspect ratio more extreme than 4:1, with a clear validation error.
+Pre-processing validation: Reject uploads exceeding the per-type byte cap (5MB avatar, 25MB photo) before processing begins. Validate magic bytes to ensure only JPEG and PNG formats are accepted, preventing processing of disguised executables. Minimum dimensions and aspect ratio are upload rules set in `M_Upload_Photo`.
 
 Processing resource limits: Set processing timeout of 30 seconds per image via sharp's timeout option. Any processing exceeding this duration throws an exception, preventing infinite loops. Configure sharp library with limitInputPixels(16777216) preventing processing of images larger than 4096×4096 pixels (enforces the documented size policy limit).
 
 Concurrency control: Limit concurrent image processing via a semaphore sized per host (one on the small staging instance, two in production). If the semaphore is full, the worker returns 503 with a Retry-After signal so the caller retries shortly. This prevents resource exhaustion when multiple users upload simultaneously during high-traffic events.
 
-Error handling: Processing failures return clear user-facing errors ('Image processing failed, please try a different image') without exposing implementation details or library error messages that could aid attackers.
+Error handling: Processing failures reach the uploader without implementation details or library error messages that could aid attackers.
 
-Both processed variants are stored in S3 and edge-cached under the single immutable `/media-store/*` cache policy, versioned by the `?v={media_id}` token (§6.7). Error responses: 400 for validation errors, 500 for processing errors, 504 for S3 timeout.
+Both processed variants are stored in S3 and edge-cached under the single immutable `/media-store/*` cache policy, versioned by the `?v={media_id}` token (§6.7). Error responses: 422 with an inline form error for a limit rejection, 429 for a rate-limited upload, and 503 when the image worker is unavailable.
 
 Curator Media Processing:
 
@@ -3904,11 +3850,11 @@ Curator-uploaded photos go through the standard Sharp pipeline (the same re-enco
 
 Curator-uploaded video (uploaded by the system member account, see §2.8) goes through an ffmpeg full-transcode pipeline that provides the equivalent malware-mitigation property: re-encoding the streams through ffmpeg, with explicit stream selection and metadata stripping, destroys container-, codec-, and metadata-level malware by rebuilding the bytes from the essential signal. Pipeline:
 
-- Input format whitelist: mp4, webm, mov (operator/admin-provided; literal at slice).
+- Input format whitelist: mp4, webm, mov (operator/admin-provided; a code constant).
 
 - Magic byte verification: file headers must match declared type.
 
-- Size limit: configurable upper bound on input size (literal at slice; nominal target on the order of tens of MB for typical curator content), enforced before any processing.
+- Size limit: configurable upper bound on input size (a code constant; nominal target on the order of tens of MB for typical curator content), enforced before any processing.
 
 - ffmpeg full transcode with explicit malware-stripping options:
     - `-map 0:v -map 0:a?`: select only video and audio streams (drops subtitle, data, and attachment streams that can carry payloads).
@@ -3917,7 +3863,7 @@ Curator-uploaded video (uploaded by the system member account, see §2.8) goes t
     - `-c:v libx264 -c:a aac`: re-encode video and audio streams (no `-c copy` shortcuts; re-encoding destroys codec-level malware).
     - `-pix_fmt yuv420p`: web-safe pixel format.
     - `-movflags +faststart`: streaming-friendly output.
-    - Encoder-quality knobs (CRF, preset, audio bitrate, frame rate) literal at slice; nominal targets parallel the existing mirror program's first-attempt settings (`legacy_data/legacy_mirror/create_mirror_footbag_org.py`).
+    - Encoder-quality knobs (CRF, preset, audio bitrate, frame rate) are code constants; nominal targets parallel the existing mirror program's first-attempt settings (`legacy_data/legacy_mirror/create_mirror_footbag_org.py`).
     - Every ffmpeg run is time-bounded and the bound is deploy-time config. A malformed input can put the encoder into a loop that consumes a core and produces no output; unbounded, it holds the worker's video slot indefinitely and the media job neither completes nor fails. On expiry the encoder is killed, the temp directory removed, the slot released, and the job marked failed like any other transcode error. The bound is required to be shorter than the HTTP boundary the caller waits on, so the encoder always dies before the caller abandons the request; the inverted ordering is refused at boot.
 
   Operator/admin delivers any reasonable input; platform produces a standardized output with stream selection, metadata, chapters, and codec-level malware all stripped.
@@ -3978,13 +3924,13 @@ S3 layout for pending uploads under the asynchronous flow:
 
 Trade-offs specific to curator video:
 
-- ffmpeg dependency added to the image-processor container (~50MB; modest growth in the constrained Lightsail nano envelope). Same ffmpeg the historical mirror program already uses for archive ingestion; consolidation via shared utility is plausible at slice.
+- ffmpeg dependency added to the image-processor container (~50MB; modest growth in the constrained Lightsail nano envelope). Same ffmpeg the historical mirror program already uses for archive ingestion, so a shared utility can serve both.
 
 - Transcode time is typically 1-2 min per video. The operator seeder accepts this synchronously, since seeding has no HTTP-timeout window. The interactive admin path accepts the same transcode cost asynchronously via the orchestration above, so the user-visible HTTP request returns immediately and the admin watches progress on the status page.
 
 - Asynchronous orchestration adds moving parts: a media_jobs table, a worker dispatch endpoint, a server-side event bus on web, and an SSE channel. Justified by the user-visible latency that the synchronous shape cannot avoid through nginx and CloudFront. The seeder retains the simpler synchronous shape because it does not face that constraint.
 
-- Asynchronous browser flow requires JavaScript. The admin upload form surfaces this via a noscript banner; the photo and URL-reference paths on the same form remain JavaScript-optional.
+- Asynchronous browser flow requires JavaScript, an exception to progressive enhancement confined to curator video upload.
 
 - Small quality loss possible at the chosen output bitrate. Mitigated by selecting reasonable encoder settings.
 
@@ -3998,11 +3944,11 @@ Detached photo (no gallery, e.g., avatar): `s3://footbag-media/{member-id}/detac
 
 Curator video (always system-account-owned; gallery-attached or detached): bytes at `s3://footbag-media/{system-member-id}/{gallery-name-or-detached}/{media-id}-video.{mp4|webm}`; poster at `s3://footbag-media/{system-member-id}/{gallery-name-or-detached}/{media-id}-poster-{variant}.jpg`.
 
-The `detached` path segment is a sentinel for `gallery_id IS NULL`; literal at slice. Path literals (segment names, file extensions) are confirmed at slice activation.
+The `detached` path segment is a sentinel for `gallery_id IS NULL`. Path literals (segment names, file extensions) are code constants.
 
-Named galleries are URL bookmarks, not buckets. A `member_galleries` row provides a stable URL slug, owner, name, and description; content membership is computed at request time by tag-AND match against the gallery's `member_gallery_tags` set (per `docs/DATA_MODEL.md` §4.17 and `docs/USER_STORIES.md` §V_View_Gallery). Curator URL-reference content (YouTube/Vimeo) is uploaded as detached and surfaces in named galleries purely via tag matching. The hub at `/media` links to named galleries through collection cards (FH-owned galleries via the curated collection cards, member-owned via the Member galleries card and its `/media/member-galleries` list page); per-bookmark URLs follow the `gallery_<descriptive_slug>` convention (parallel to `event_{year}_{slug}`). Storage URLs use a dedicated `/media-store/*` prefix, disjoint from the `/media` app section, so the CDN cache-behavior layer routes binary bytes to the S3 origin and the app section to the app origin without sharing a URL namespace.
+Named galleries are URL bookmarks, not buckets. A `member_galleries` row provides a stable URL slug, owner, name, and description; content membership is computed at request time by tag-AND match against the gallery's `member_gallery_tags` set (per `docs/DATA_MODEL.md` §4.17 and `docs/USER_STORIES.md` §V_View_Gallery). Curator URL-reference content (YouTube/Vimeo) is uploaded as detached and surfaces in named galleries purely via tag matching. Per-bookmark URLs follow the `gallery_<descriptive_slug>` convention (parallel to `event_{year}_{slug}`). Storage URLs use a dedicated `/media-store/*` prefix, disjoint from the `/media` app section, so the CDN cache-behavior layer routes binary bytes to the S3 origin and the app section to the app origin without sharing a URL namespace.
 
-External-platform reference videos (YouTube and Vimeo) are linked rather than embedded on the gallery list view: tile thumbnails are fetched directly from the platform CDN (`i.ytimg.com` for YouTube, derivable from the video id; `i.vimeocdn.com` for Vimeo, supplied per-asset because Vimeo thumbnails are not derivable). The CSP `img-src` allowlist permits both CDNs. Click-through opens the platform page in a new tab; embedded inline players remain reserved for the trick detail page (`/freestyle/tricks/{slug}`).
+External-platform reference video thumbnails are fetched directly from the platform CDN (`i.ytimg.com` for YouTube, derivable from the video id; `i.vimeocdn.com` for Vimeo, supplied per-asset because Vimeo thumbnails are not derivable). The CSP `img-src` allowlist permits both CDNs.
 
 Availability of external-platform reference URLs is verified via the platform oEmbed endpoint (`https://www.youtube.com/oembed?url=...&format=json` for YouTube; `https://vimeo.com/api/oembed.json?url=...` for Vimeo) at every ingestion path (operator-run curator seed, admin act-as upload, one-shot migration scripts). Page-URL HEAD checks are insufficient because both platforms serve HTTP 200 for removed, private, or unavailable videos, and YouTube serves a generic placeholder for the derived `i.ytimg.com/vi/{video_id}/hqdefault.jpg` thumbnail of some removed videos. Sidecars whose oEmbed call fails are rejected at ingestion. Verification runs at ingest only; stale URLs that decay post-ingest surface as broken thumbnails and are corrected by removing or rehosting the affected sidecar.
 
@@ -4621,7 +4567,7 @@ Requirements:
 
 - The dependency audit reports advisories at moderate severity and above, and the pull-request dependency review inspects what each change introduces. Both report as warnings and never fail CI: an advisory is published upstream on its own schedule and can land on a commit that changed nothing, so acting on it is the maintainer's patching decision, not a red build.
 
-- Host operating-system packages and container base images are patched on the documented operational cadence, with the health endpoints and logs verified after any restart.
+- Host operating-system packages and container base images are patched when an advisory or an upstream fix applies to them, with the health endpoints and logs verified after any restart.
 
 Trade-offs:
 
@@ -4791,7 +4737,7 @@ Impact:
 
 Decision:
 
-Member-flagging system for inappropriate content with admin review queue. No automated content moderation. All moderation actions logged immutably.
+Moderation is human: members flag and administrators decide, as specified in `M_Flag_Media` and `A_Moderate_Media`. No automated or AI content moderation runs, and every moderation action is logged immutably.
 
 Rationale:
 
@@ -4812,8 +4758,6 @@ Trade-offs:
 - No proactive detection of problematic content.
 
 Impact:
-
-- Admin interface provides flag queue with context for review decisions.
 
 - Moderation actions recorded in audit logs.
 
@@ -4967,17 +4911,17 @@ Container shutdown (SIGTERM): On shutdown signal, the application performs grace
 
 Backup failure handling: Retry with exponential backoff (3 attempts: 1s, 2s, 4s delays). Alert CRITICAL after 3 consecutive failures. CloudWatch alarm if backup age exceeds 15 minutes. This ensures operators are immediately aware of backup issues.
 
-Recovery procedure: Download the latest S3 snapshot, run PRAGMA integrity_check to validate database integrity, replace local database file, restart application containers, verify health endpoints return OK. Target RTO (Recovery Time Objective): ~5 minutes from failure detection to service restoration.
+Recovery procedure: Download the latest S3 snapshot, run PRAGMA integrity_check to validate database integrity, replace local database file, re-apply the recorded erasures while the application is stopped (a replay that does not complete leaves it stopped), restart application containers, verify health endpoints return OK. Target RTO (Recovery Time Objective): ~5 minutes from failure detection to service restoration.
 
-Continuous replication verification: CloudWatch alarms watch the S3 replication metrics on every rule that carries a snapshot or media object to its off-region copy, and each failed replication also lands on a dedicated queue as an event naming the object key and the reason. S3 does not retry a failed replication, so recovery is re-uploading the object or running a batch replication job to clear the backlog.
+Continuous replication verification: CloudWatch alarms watch the S3 replication metrics on every rule that carries a snapshot, media or archive object to its off-region copy, and each failed replication also lands on a dedicated queue as an event naming the object key and the reason. S3 does not retry a failed replication, so recovery is re-uploading the object or running a batch replication job to clear the backlog. Objects written before a rule exists are copied by a batch replication job.
 
-Quarterly restoration drills: Download backup, verify integrity, restore to test environment, run smoke tests, document results and update procedures. These drills validate that recovery procedures work correctly and identify gaps in runbooks.
+Restoration drills, run when there is a reason (before go-live, after any change to the backup or restore path, after an incident that touched the database): on the production host, `scripts/restore-db.sh --drill` restores a snapshot from the primary bucket or the off-region bucket into a scratch copy that is never served, verifies its integrity, confirms the member and payment data answer queries, records how recent the restored point is and how long the restore took, and destroys the copy. Production data never leaves the production host for a drill, and no person handles it. Each drill's results are recorded and the runbooks updated from what it found. These drills validate that recovery procedures work correctly and identify gaps in runbooks.
 
 Rationale: Five minute backup interval provides acceptable RPO (Recovery Point Objective), which is acceptable for community site operations. SQLite backup API guarantees consistency by handling WAL files correctly during snapshot creation. Single file upload is simple and reliable compared to multi-file or incremental approaches. Timestamped snapshots aged by per-generation lifecycle rules provide point-in-time recovery. Graceful shutdown with final WAL checkpoint prevents data loss during deployments and restarts.
 
 The selected approach keeps snapshots in S3 Standard and thins them by age, which costs approximately $1/month while providing acceptable RPO (5-10 minutes) and recovery points reaching back just over a year, at a cost appropriate for a volunteer-maintained platform. Storage-class automation is not used: the fine-grained stream is deleted at two days, well inside the thirty days any automatic tiering waits before moving an object, so it would transition nothing while adding a per-object monitoring charge, and the off-region copy already sits in a cheaper class than tiering would select.
 
-Daily automated verification provides continuous confidence that backups are actually working without waiting for a disaster to discover issues. Quarterly restoration drills validate end-to-end recovery procedures and uncover gaps in runbooks before they matter. This balanced approach provides assurance without excessive operational burden.
+Daily automated verification provides continuous confidence that backups are actually working without waiting for a disaster to discover issues. Restoration drills, run when a change or an incident gives a reason, validate end-to-end recovery procedures and uncover gaps in runbooks before they matter. Work on a volunteer project is done as needed rather than on a calendar: the backup alarms catch a broken backup between drills, and a drill nobody has a reason to run proves nothing new.
 
 Trade-offs:
 
@@ -4987,13 +4931,13 @@ Trade-offs:
 
 - RTO of 5 minutes requires manual intervention (download, verify, restore, restart). There is no automated failover to a standby instance. This trade-off favors operational simplicity over automatic recovery, which is appropriate for volunteer-maintained community platform.
 
-- Manual recovery procedures introduce human error risk. This is mitigated through comprehensive runbooks, quarterly drills, and automated verification that catches backup issues before recovery is needed.
+- Manual recovery procedures introduce human error risk. This is mitigated through comprehensive runbooks, drills run when a change or incident calls for one, and automated verification that catches backup issues before recovery is needed.
 
 Impact:
 
 A host-side systemd timer runs the backup script every five minutes. CloudWatch monitors backup success rate, backup age. Alerts trigger on backup failures (3 consecutive) or stale backups (\>15 minutes old).
 
-DEVOPS_GUIDE.md (private GitHub repo) documents step-by-step recovery procedures with validation checklists. Quarterly drills validate recovery process works as documented and identify needed updates to procedures.
+DEVOPS_GUIDE.md (private GitHub repo) documents step-by-step recovery procedures with validation checklists. Drills, run when a change or incident calls for one, validate that the recovery process works as documented and identify needed updates to procedures.
 
 Integration tests validate the S3 upload contract (retry logic, error handling, promotion into the hourly and daily tiers). The replication alarms provide ongoing assurance that the off-region copies keep pace.
 
@@ -5112,7 +5056,7 @@ Impact:
 - Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per §3.6), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state; and one account-level tree, `terraform/identity/`, which declares what a dev-and-tester may do and is applied only by the directly authenticated bootstrap principal, because a role able to rewrite its own policy has no least-privilege story. Who the dev-and-testers are is not a tree, because joining and leaving mint and revoke key material that must not enter Terraform state, and revoking somebody's access must never be the slower half.
-- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE.md (private GitHub repo), "Emergency console changes". A clean `terraform plan` is the check for drift within declared resources, and it is not a completeness check: a policy, role, or rule created outside Terraform is invisible to it, because a plan reconciles only what the configuration declares. Detecting an undeclared resource requires enumerating what the account actually holds and comparing it against the configuration, which is an audit step rather than a plan.
+- Resources are created only by Terraform: one made outside it is declared with an import block beside its definition and taken in through `scripts/terraform-apply.sh`, never by a hand-typed terraform import and never deleted to be recreated. The drift reconciliation procedure (plan-clean verification, PR review) lives in DEVOPS_GUIDE.md (private GitHub repo), "Emergency console changes". A clean `terraform plan` is the check for drift within declared resources, and it is not a completeness check: a policy, role, or rule created outside Terraform is invisible to it, because a plan reconciles only what the configuration declares. Detecting an undeclared resource requires enumerating what the account actually holds and comparing it against the configuration, which is an audit step rather than a plan.
 - Any agent or daemon needing host-level access (e.g. CloudWatch Agent reading host CPU/memory/disk) is bootstrapped through an idempotent script under `scripts/`, not through Terraform provisioners or AWS Console clicks.
 
 
@@ -5128,7 +5072,7 @@ Rationale:
 
 - Additional cost (financial and volunteer time) of redundant infrastructure outweighs benefit of avoiding approximately 52 minutes of downtime per year.
 
-- The recovery this trades redundancy for is bounded, not merely asserted: the recovery-time objective for host or application failure in-region is four hours, and for a cross-region disaster two to four hours, both recorded with the per-scenario recovery objectives in DEVOPS_GUIDE.md (private GitHub repo). Four hours reflects what a volunteer-run community site can tolerate while a maintenance page is served, rather than the fastest achievable restore; setting it to the achievable figure would force recovery work more elaborate than the workload warrants. Host-level recovery is what makes the objective reachable at all — restore the instance from its automatic snapshot and reattach the static IP, then restore the database from its own continuous stream — which is why host snapshots are one of the three backup operations rather than an optional extra.
+- The recovery this trades redundancy for is bounded, not merely asserted: the recovery-time objective for host or application failure in-region is four hours, and for a cross-region disaster up to twenty-four hours, because that path rebuilds the host in the recovery region and outbound email there waits on sending access, both recorded with the per-scenario recovery objectives in DEVOPS_GUIDE.md (private GitHub repo). Four hours reflects what a volunteer-run community site can tolerate while a maintenance page is served, rather than the fastest achievable restore; setting it to the achievable figure would force recovery work more elaborate than the workload warrants. Host-level recovery is what makes the objective reachable at all — restore the instance from its automatic snapshot and reattach the static IP, then restore the database from its own continuous stream — which is why host snapshots are one of the three backup operations rather than an optional extra.
 
 - Design prioritizes rapid recovery over failure prevention through comprehensive monitoring, automated alerting, and documented recovery procedures.
 
@@ -5152,7 +5096,7 @@ Impact:
 
 - Complete recovery procedures documented in DEVOPS_GUIDE.md (private GitHub repo) with diagnostic commands, rollback procedures, and validation checklists.
 
-- Use AWS tools and DEVOPS_GUIDE.md (private GitHub repo) to get infrastructure details and perform operational actions. Admin user dashboard remains application-level only: active alarms summary, system health, recent application-visible errors, and origin availability indicators. No AWS console links or infrastructure quick actions are exposed in the Application Administrator UI.
+- Infrastructure details and operational actions are reached through AWS tools and DEVOPS_GUIDE.md (private GitHub repo), never through the application: infrastructure operations belong to the System Administrator role, so the Application Administrator UI carries no AWS console links and no infrastructure actions.
 
 ## 9.8 Monitoring and Alerting
 
@@ -5182,6 +5126,6 @@ Operations Dashboard: a CloudWatch dashboard carrying distribution error rates, 
 
 Alert Configuration Principle:
 
-Alerts are tuned to minimize false positives while catching real issues. Warning alerts use 5-10 minute windows to avoid flapping on transient spikes. Critical alerts use shorter windows (1-5 minutes) for rapid response. Thresholds are reviewed quarterly based on operational experience and adjusted as usage patterns evolve.
+Alerts are tuned to minimize false positives while catching real issues. Warning alerts use 5-10 minute windows to avoid flapping on transient spikes. Critical alerts use shorter windows (1-5 minutes) for rapid response. Thresholds are adjusted when an alert proves too noisy or too quiet, as usage patterns evolve.
 
 **END OF Design Decisions DOCUMENT**

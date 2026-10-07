@@ -126,7 +126,7 @@ describe('bootstrap-shared-state.sh — where the account stands', () => {
     bucketExists();
     const r = run(['--yes']);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('import the bucket and its settings');
+    expect(r.stderr).toContain('--restore-state');
     expect(calls()).toBe('');
   });
 
@@ -215,5 +215,144 @@ describe('bootstrap-shared-state.sh — the two steps', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('the state object is not in the bucket');
     expect(existsSync(join(workRoot, 'shared', 'terraform.tfstate'))).toBe(true);
+  });
+});
+
+describe('bootstrap-shared-state.sh — restoring lost state from a bucket version', () => {
+  // The state bucket is versioned, so lost or wrong state is recovered by making
+  // an earlier version current again, not by importing every resource by hand.
+  // These pin which version is chosen, that it is verified before it is made
+  // current, that nothing changes without a confirmation, and that the outcome
+  // is proved by reading the bucket back and planning the tree.
+
+  const STATE = (serial: number) =>
+    JSON.stringify({ version: 4, serial, lineage: 'lineage-1', resources: [{ type: 'aws_s3_bucket' }] });
+
+  /** Versions as [id, LastModified, body]; the stand-in serves and copies them. */
+  function versioned(
+    versions: Array<[string, string, string]>,
+    opts: { planExit?: number; badReadBack?: boolean } = {},
+  ) {
+    bucketExists();
+    const rows = versions.map(([id, date]) => `${id}\t${date}`).join('\n');
+    writeFileSync(join(world, 'versions'), rows ? `${rows}\n` : '');
+    for (const [id, , body] of versions) writeFileSync(join(world, `v_${id}`), body);
+    stub(
+      'aws',
+      [
+        `echo "aws $*" >> ${callLog}`,
+        'if [[ "$1" == "configure" && "$2" == "list-profiles" ]]; then echo footbag-operator; exit 0; fi',
+        `if [[ "$1" == "sts" ]]; then echo ${OPERATOR_ARN}; exit 0; fi`,
+        'vid=""; src=""; prev=""; last=""',
+        'for a in "$@"; do case "$prev" in --version-id) vid="$a" ;; --copy-source) src="$a" ;; esac; prev="$a"; last="$a"; done',
+        'case "$1 $2" in',
+        '  "s3api head-bucket") exit 0 ;;',
+        `  "s3api head-object") [[ -e ${world}/object ]] && exit 0; echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2; exit 254 ;;`,
+        `  "s3api list-object-versions") cat ${world}/versions; exit 0 ;;`,
+        '  "s3api get-object")',
+        `    if [[ -n "$vid" ]]; then cp ${world}/v_"$vid" "$last"; else ${opts.badReadBack ? 'echo tampered > "$last"' : `cp ${world}/current "$last"`}; fi; exit 0 ;;`,
+        `  "s3api copy-object") cp ${world}/v_"\${src##*versionId=}" ${world}/current; touch ${world}/object; exit 0 ;;`,
+        'esac',
+        'exit 0',
+      ].join('\n'),
+    );
+    stub(
+      'terraform',
+      [`echo "$*" >> ${callLog}`, `if [[ " $* " == *" plan "* ]]; then exit ${opts.planExit ?? 0}; fi`, 'exit 0'].join('\n'),
+    );
+  }
+
+  it('makes the newest earlier version current, then proves it by reading it back and planning clean', () => {
+    // The state object was deleted: the versions remain, and the newest wins.
+    versioned([
+      ['v-old', '2026-09-01T00:00:00+00:00', STATE(7)],
+      ['v-new', '2026-10-01T00:00:00+00:00', STATE(9)],
+    ]);
+    const r = run(['--restore-state', '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('serial:    9');
+    expect(calls()).toContain('versionId=v-new');
+    expect(calls()).toMatch(/plan -input=false -detailed-exitcode/);
+    expect(r.stdout).toContain('plans with no changes');
+  });
+
+  it('changes nothing without a confirmation', () => {
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(1)]]);
+    const r = run(['--restore-state']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('nothing was restored');
+    expect(calls()).not.toContain('copy-object');
+  });
+
+  it('refuses a version that is not Terraform state, before copying anything', () => {
+    // Defect caught: restoring a truncated or foreign object as the shared
+    // state would leave every later plan of the tree reading garbage.
+    // Not JSON, and JSON missing the version, lineage or resources a plan reads.
+    for (const body of [
+      'not json at all',
+      JSON.stringify({ lineage: 'lineage-1', resources: [] }),
+      JSON.stringify({ version: 4, resources: [] }),
+      JSON.stringify({ version: 4, lineage: 'lineage-1' }),
+    ]) {
+      versioned([['v-bad', '2026-10-01T00:00:00+00:00', body]]);
+      const r = run(['--restore-state', '--yes']);
+      expect(r.status, body).toBe(1);
+      expect(r.stderr, body).toContain('not readable Terraform state');
+    }
+    expect(calls()).not.toContain('copy-object');
+  });
+
+  it('refuses when there is no earlier version to restore from', () => {
+    versioned([]);
+    const r = run(['--restore-state', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no earlier version');
+    expect(calls()).not.toContain('copy-object');
+  });
+
+  it('refuses to guess a rollback while a current state object exists', () => {
+    // With a current object, the newest version is the one already in place;
+    // restoring "the newest" would change nothing and report a recovery.
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(1)]]);
+    stateInBucket();
+    const r = run(['--restore-state', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('--version-id');
+    expect(calls()).not.toContain('copy-object');
+  });
+
+  it('restores the named version when a current object exists and one is named', () => {
+    versioned([
+      ['v-good', '2026-09-01T00:00:00+00:00', STATE(4)],
+      ['v-wrong', '2026-10-01T00:00:00+00:00', STATE(5)],
+    ]);
+    stateInBucket();
+    const r = run(['--restore-state', '--version-id', 'v-good', '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(calls()).toContain('versionId=v-good');
+  });
+
+  it('refuses a version id the key does not have', () => {
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(1)]]);
+    const r = run(['--restore-state', '--version-id', 'v-elsewhere', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('is not a version of');
+    expect(calls()).not.toContain('copy-object');
+  });
+
+  it('fails when the bucket does not read back the version that was verified', () => {
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(1)]], { badReadBack: true });
+    const r = run(['--restore-state', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not the version restored');
+  });
+
+  it('fails, saying what to do, when the tree plans changes against the restored state', () => {
+    // A version older than the last apply is a valid restore and a stale one;
+    // reporting it as a clean recovery would hide the drift until the next apply.
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(1)]], { planExit: 2 });
+    const r = run(['--restore-state', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('plans changes against it');
   });
 });

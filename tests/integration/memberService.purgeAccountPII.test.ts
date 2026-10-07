@@ -17,7 +17,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
   insertPayment, insertRecurringDonationSubscription, insertMediaItem, insertMediaFlag,
-  insertMemberDeclaredAnchor, insertWorkQueueItem, insertEmailArchive,
+  insertMemberDeclaredAnchor, insertWorkQueueItem, insertEmailArchive, insertMailingListSubscription,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -219,6 +219,29 @@ describe('memberService.purgeAccountPII', () => {
       }),
     ).not.toThrow();
     d.close();
+  });
+
+  // Defect caught: an erased member's list subscriptions survive, so their
+  // bounce and complaint history and their membership of each list outlive the
+  // erasure they asked for.
+  it('deletes every mailing-list subscription the member holds, and no one else\'s', () => {
+    seedClaimedMember('purge-lists');
+    const d = db();
+    insertMember(d, { id: 'purge-lists-other', slug: 'purge_lists_other', login_email: 'other-lists@example.com' });
+    insertMailingListSubscription(d, { member_id: 'purge-lists', list_slug: 'announce' });
+    insertMailingListSubscription(d, { member_id: 'purge-lists', list_slug: 'events', status: 'bounced' });
+    insertMailingListSubscription(d, { member_id: 'purge-lists-other', list_slug: 'announce' });
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-lists').status).toBe('purged');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const count = (memberId: string) => (r.prepare(
+      'SELECT COUNT(*) AS n FROM mailing_list_subscriptions WHERE member_id = ?',
+    ).get(memberId) as { n: number }).n;
+    expect(count('purge-lists')).toBe(0);
+    expect(count('purge-lists-other')).toBe(1);
+    r.close();
   });
 
   it('redacts member contact-request free text in work_queue_items on purge', () => {

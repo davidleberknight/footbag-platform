@@ -176,8 +176,10 @@ publicRouter.get('/ifpa',           ifpaController.index);
 //
 // The tier gate is the IFPA membership rules' own grant: Tier 2 (IFPA
 // Organizer Member) and above may access the roster for official IFPA event
-// and organizer purposes. Site administrators must already hold Tier 2 or
-// Tier 3, so this one gate serves administrators, directors and organizers.
+// and organizer purposes. Granting the site administrator role also grants
+// Tier 2 to a member holding less, and the tier check passes every
+// administrator, so this one gate serves administrators, directors and
+// organizers.
 publicRouter.get('/ifpa/roster',    requireMember, requireTier2Plus(), officialRosterController.index);
 publicRouter.get('/ifpa/:docSlug',  ifpaController.detail);
 

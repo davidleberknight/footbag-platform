@@ -493,15 +493,26 @@ export const publicPlayers = {
     LIMIT ?
   `); },
 
-  // Every historical person with a public detail page, for the sitemap. Scoped
-  // to CANONICAL exactly as the search and detail reads are: a non-canonical
-  // row has no page to point a crawler at. Ordered by id so the sitemap is
-  // stable between builds rather than reshuffling on every regeneration.
-  get listAllCanonicalIds() { return db.prepare(`
-    SELECT person_id
-    FROM historical_persons
-    WHERE source_scope = 'CANONICAL'
-    ORDER BY person_id
+  // Every historical person whose detail page a signed-out visitor can read,
+  // for the sitemap. Scoped to CANONICAL exactly as the search read and the
+  // detail page's public gate are: a non-canonical row is never a public page,
+  // so there is nothing to point a crawler at. Only a canonical Hall of Fame or
+  // Big Add Posse record is public; any other record sends a visitor to log in. A record claimed by a live Hall of Fame or Big Add Posse member
+  // redirects to that member's profile, which the sitemap never lists, so it is
+  // left out too. Ordered by id so the sitemap is stable between builds rather
+  // than reshuffling on every regeneration.
+  get listPublicDetailIds() { return db.prepare(`
+    SELECT hp.person_id
+    FROM historical_persons AS hp
+    WHERE hp.source_scope = 'CANONICAL'
+      AND (hp.hof_member = 1 OR hp.bap_member = 1)
+      AND NOT EXISTS (
+        SELECT 1 FROM members AS m
+        WHERE m.historical_person_id = hp.person_id
+          AND m.deleted_at IS NULL
+          AND (m.is_hof = 1 OR m.is_bap = 1)
+      )
+    ORDER BY hp.person_id
   `); },
 
   get getById() { return db.prepare(`
@@ -516,7 +527,8 @@ export const publicPlayers = {
       hp.bap_induction_year,
       hp.hof_member,
       hp.hof_induction_year,
-      hp.is_deceased
+      hp.is_deceased,
+      hp.source_scope
     FROM historical_persons AS hp
     LEFT JOIN event_result_entry_participants AS erp
       ON erp.historical_person_id = hp.person_id
@@ -526,7 +538,7 @@ export const publicPlayers = {
     GROUP BY
       hp.person_id, hp.person_name, hp.country,
       hp.bap_member, hp.bap_nickname, hp.bap_induction_year,
-      hp.hof_member, hp.hof_induction_year, hp.is_deceased
+      hp.hof_member, hp.hof_induction_year, hp.is_deceased, hp.source_scope
   `); },
 
   get listResultsByPersonId() { return db.prepare(`
@@ -9173,6 +9185,12 @@ export const activePlayerExpiry = {
 };
 
 export const mailingListSubscriptions = {
+  // PII purge: every subscription row the member holds, bounce and complaint
+  // state included, goes with the rest of their personal data.
+  get deleteAllForMember() { return db.prepare(`
+    DELETE FROM mailing_list_subscriptions WHERE member_id = ?
+  `); },
+
   get findStatus() { return db.prepare(`
     SELECT status
     FROM mailing_list_subscriptions

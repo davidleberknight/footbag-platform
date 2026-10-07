@@ -9683,10 +9683,12 @@ export const freestyleService = {
   /**
    * Modifier slugs whose /freestyle/modifier/:slug page renders directly. The
    * known-modifier universe is the operator index, the modifier table, and the
-   * operator reference (the same gate as the detail route). Set-first slugs are
-   * excluded because they 301-redirect to /freestyle/sets/:slug, which the set
-   * collector already lists. Drives the sitemap enumeration of modifier pages,
-   * parallel to the freestyle trick and set pages.
+   * operator reference (the same gate as the detail route). Every slug the
+   * route 301-redirects is excluded (set-first slugs and retired set nicknames,
+   * which land on a /freestyle/sets/:slug page the set collector already
+   * lists), using the route's own redirect decision so the two cannot drift.
+   * Drives the sitemap enumeration of modifier pages, parallel to the freestyle
+   * trick and set pages.
    */
   listSitemapModifierSlugs(): string[] {
     const rows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
@@ -9695,7 +9697,7 @@ export const freestyleService = {
     const slugs = new Set<string>(OPERATOR_INDEX_SLUGS);
     for (const r of rows) slugs.add(r.slug);
     for (const e of OPERATOR_REFERENCE_ENTRIES) slugs.add(e.slug);
-    return [...slugs].filter((s) => !isSetFirstSlug(s)).sort();
+    return [...slugs].filter((s) => !this.modifierRouteRedirectTarget(s)).sort();
   },
 
   /**

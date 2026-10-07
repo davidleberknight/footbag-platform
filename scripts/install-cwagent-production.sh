@@ -284,7 +284,7 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
   printf 'CWAGENT_PROFILE=%q\n' "$CWAGENT_PROFILE_NAME"
   printf 'CWAGENT_NAMESPACE=%q\n' "$NAMESPACE"
   cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+} | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 iam_key_commit
 

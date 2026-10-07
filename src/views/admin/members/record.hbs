@@ -81,15 +81,15 @@
       <form method="POST" action="{{content.nameAction}}" class="form-block">
         <div class="form-field">
           <label for="given_names">Given names</label>
-          <input type="text" id="given_names" name="given_names" value="{{content.form.givenNames}}" maxlength="64" />
+          <input type="text" id="given_names" name="given_names" value="{{content.form.givenNames}}" maxlength="35" />
         </div>
         <div class="form-field">
           <label for="family_name">Family name</label>
-          <input type="text" id="family_name" name="family_name" value="{{content.form.familyName}}" maxlength="64" required />
+          <input type="text" id="family_name" name="family_name" value="{{content.form.familyName}}" maxlength="35" required />
         </div>
         <div class="form-field">
           <label for="display_name">Display name</label>
-          <input type="text" id="display_name" name="display_name" value="{{content.form.displayName}}" maxlength="64" />
+          <input type="text" id="display_name" name="display_name" value="{{content.form.displayName}}" maxlength="70" />
         </div>
         <div class="form-field">
           <label for="name_reason">Reason (required)</label>
@@ -105,7 +105,7 @@
       <form method="POST" action="{{content.slugAction}}" class="form-block">
         <div class="form-field">
           <label for="slug">Profile URL</label>
-          <input type="text" id="slug" name="slug" value="{{content.form.slug}}" maxlength="64" required />
+          <input type="text" id="slug" name="slug" value="{{content.form.slug}}" maxlength="70" required />
         </div>
         <div class="form-field">
           <label for="slug_reason">Reason (required)</label>

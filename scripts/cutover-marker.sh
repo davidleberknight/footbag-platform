@@ -33,6 +33,16 @@
 #   scripts/cutover-marker.sh --set reversed
 #   scripts/cutover-marker.sh --set complete --dry-run
 #
+# From a workstation, scripts/cutover-marker-host.sh runs this over the shared
+# wire. That run takes the typed APPLY at the operator's own terminal and passes
+# --confirmed-at-workstation, which skips the prompt below. The flag is honoured
+# only when stdin is not a terminal, so a person at an interactive host shell is
+# always prompted, and it is a flag rather than an environment variable, so
+# nothing exported in a shell can stand in for the confirmation. The flag guards
+# against a mistaken run, not against root on the host, who can pass it with
+# stdin redirected or write both records directly; sudo on a host is already an
+# administrator's route.
+#
 # Overrides, for the tests and for a non-standard host layout:
 #   ENV_PATH   path to the host env file   (default /srv/footbag/env)
 #   DB_PATH    path to the live database   (default: FOOTBAG_DB_PATH from the
@@ -42,6 +52,7 @@ set -euo pipefail
 MARKER_ENV_PATH="${ENV_PATH:-/srv/footbag/env}"
 ACTION=""
 DRY_RUN="no"
+CONFIRMED_AT_WORKSTATION="no"
 # One word for every confirmation in the tree. The direction comes from --set and
 # is stated in full, with its consequences, immediately before the prompt; it was
 # once also encoded in the phrase, which meant an operator had two phrases to look
@@ -53,7 +64,8 @@ while [[ $# -gt 0 ]]; do
     --status)   ACTION="status" ;;
     --set)      shift; ACTION="set-${1:-}" ;;
     --dry-run)  DRY_RUN="yes" ;;
-    -h|--help)  sed -n '2,42p' "$0"; exit 0 ;;
+    --confirmed-at-workstation) CONFIRMED_AT_WORKSTATION="yes" ;;
+    -h|--help)  sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"; exit 0 ;;
     *)          echo "ERROR: unknown flag: $1" >&2; exit 2 ;;
   esac
   shift
@@ -64,6 +76,16 @@ case "$ACTION" in
   "")  echo "ERROR: one of --status or --set complete|reversed is required." >&2; exit 2 ;;
   *)   echo "ERROR: --set takes 'complete' or 'reversed'." >&2; exit 2 ;;
 esac
+
+# The workstation flag stands for a confirmation already typed elsewhere. At an
+# interactive host shell nothing was typed elsewhere, so the flag is refused there
+# rather than allowed to shorten the prompt a person in front of it should answer.
+if [[ "$CONFIRMED_AT_WORKSTATION" == "yes" && -t 0 ]]; then
+  echo "ERROR: --confirmed-at-workstation is for scripts/cutover-marker-host.sh, which" >&2
+  echo "       asks for the confirmation at the operator's terminal. Run this without" >&2
+  echo "       it at an interactive shell and answer the prompt. Neither marker was moved." >&2
+  exit 2
+fi
 
 marker_env() {
   # The env file is absent anywhere but the host, and --status is meant to be
@@ -232,7 +254,10 @@ fi
 # and an operator credential file is exactly the kind of thing that gets
 # redirected into scripts around here. Refusing costs nothing, because moving a
 # marker is a deliberate interactive act and is not scriptable in any case.
-if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
+if [[ "$CONFIRMED_AT_WORKSTATION" == "yes" ]]; then
+  echo ""
+  echo "Confirmed at the operator's workstation; moving both markers to: $TARGET"
+elif ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
   echo "" >&2
   echo "ERROR: moving the cutover marker requires an interactive terminal for its" >&2
   echo "       typed confirmation, but stdin/stdout/stderr are not all TTYs." >&2
@@ -241,6 +266,7 @@ if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
   exit 1
 fi
 
+if [[ "$CONFIRMED_AT_WORKSTATION" != "yes" ]]; then
 echo ""
 if [[ "$TARGET" == "complete" ]]; then
   echo "This records the cutover as complete, on this host and inside the database."
@@ -262,6 +288,7 @@ read -r TYPED
 if [[ "$TYPED" != "$CONFIRM_WORD" ]]; then
   echo "Aborted: confirmation phrase not entered. Neither marker was moved." >&2
   exit 1
+fi
 fi
 
 # The database first. If it fails the env file is untouched and the two still

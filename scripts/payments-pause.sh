@@ -89,7 +89,7 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)  TARGET="${2:-}"; shift 2 ;;
+    --target)  TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an environment name." >&2; exit 2; } ;;
     --status)  ACTION="status"; shift ;;
     --pause)   ACTION="pause";  shift ;;
     --resume)  ACTION="resume"; shift ;;
@@ -133,12 +133,10 @@ if [[ "$ACTION" != "status" ]]; then
   fi
   echo "  Reason recorded: ${REASON}"
   echo ""
-  if [[ "$ASSUME_YES" == "yes" ]]; then
-    echo "  Confirmation skipped (--yes)."
-  else
-    confirm_from_tty "Type 'APPLY' to ${verb}: " "APPLY" \
-      || die "not confirmed; nothing was changed"
-  fi
+  # The shared helper honours --yes itself, so the skip and the prompt are one
+  # path and the confirmation cannot be answered any way the helper does not allow.
+  confirm_from_tty "Type 'APPLY' to ${verb}: " "APPLY" \
+    || die "not confirmed; nothing was changed"
 fi
 
 result=""
@@ -153,7 +151,7 @@ if ! result="$(
     printf 'REASON=%q\n' "${REASON:-status read}"
     printf 'ACTOR=%q\n' "${ACTOR:-}"
     cat "$REMOTE_HALF"
-  } | ssh "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
+  } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 )"; then
   die "the remote step failed; nothing is assumed about the switch state"
 fi

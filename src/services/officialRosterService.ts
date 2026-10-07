@@ -12,9 +12,10 @@
  * Authorization runs at the route layer, not here: the roster route binds
  * `requireTier2Plus` from src/middleware/requireTier.ts. That gate is the IFPA
  * membership rules' own grant, which lets Tier 2 (IFPA Organizer Member) and
- * above reach the roster for official IFPA event and organizer purposes. Site
- * administrators must already hold Tier 2 or Tier 3, so the one gate serves
- * administrators, directors and organizers alike.
+ * above reach the roster for official IFPA event and organizer purposes. Every
+ * site administrator holds at least Tier 2, because the admin-role grant
+ * establishes it, so the one gate serves administrators, directors and
+ * organizers alike.
  *
  * The roster is never exported. The IFPA governing documents grant access and
  * say nothing about taking a copy, and they require the roster stay not

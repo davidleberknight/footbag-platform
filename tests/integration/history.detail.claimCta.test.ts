@@ -37,6 +37,13 @@ const HP_NON_HONOR = 'hp-nonhonor-cta-001';
 
 const VIEWER_MATCH = 'mem-viewer-match';
 
+// Records outside the canonical results-derived cohort that nonetheless carry
+// an honor flag: a provisional record from club or membership material, and an
+// unresolved-name placeholder.
+const HP_PROVISIONAL_HOF = 'hp-provisional-hof';
+const HP_STUB_BAP        = 'hp-stub-bap';
+const MEMBER_VIEWER      = 'mem-scope-viewer';
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
@@ -59,6 +66,18 @@ beforeAll(async () => {
     real_name: 'Chris Smith',
     display_name: 'Chris Smith',
     login_email: 'match@example.com',
+  });
+  insertHistoricalPerson(db, {
+    person_id: HP_PROVISIONAL_HOF, person_name: 'Provisional Honoree',
+    hof_member: 1, source_scope: 'PROVISIONAL',
+  });
+  insertHistoricalPerson(db, {
+    person_id: HP_STUB_BAP, person_name: 'Stub Honoree',
+    bap_member: 1, source_scope: 'UNRESOLVED_STUB',
+  });
+  insertMember(db, {
+    id: MEMBER_VIEWER, slug: 'scope_viewer', display_name: 'Scope Viewer',
+    login_email: 'scope-viewer@example.com',
   });
 
   db.close();
@@ -147,6 +166,28 @@ describe('GET /history/:personId — auth gate', () => {
     const res = await request(createApp()).get(`/history/${HP_NON_HONOR}`);
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
+  });
+});
+
+describe('GET /history/:personId — only a canonical record is a public page', () => {
+  // The search and the sitemap read the canonical cohort only. An honor flag
+  // on a record outside it must not make that record a public page the sitemap
+  // never lists, while the member-visible club rosters and result tables that
+  // link such records keep resolving for a signed-in member.
+  it('sends a signed-out visitor to log in for an honored non-canonical record', async () => {
+    for (const id of [HP_PROVISIONAL_HOF, HP_STUB_BAP]) {
+      const res = await request(createApp()).get(`/history/${id}`);
+      expect(res.status, id).toBe(302);
+      expect(res.headers.location, id).toBe(`/login?returnTo=${encodeURIComponent(`/history/${id}`)}`);
+    }
+  });
+
+  it('still renders that record for a signed-in member who follows a link to it', async () => {
+    const res = await request(createApp())
+      .get(`/history/${HP_PROVISIONAL_HOF}`)
+      .set('Cookie', cookieFor(MEMBER_VIEWER));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Provisional Honoree');
   });
 });
 

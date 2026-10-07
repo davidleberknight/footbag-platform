@@ -109,6 +109,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # then reported a smoke failure that was really a missing file.
 cd "$REPO_ROOT"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-code-remote.sh"
+# Travels ahead of the remote half on the same stream and defines the function
+# that deletes set-aside database copies once they are more than seven days old.
+PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
 
 # shellcheck source=lib/terminal.sh
 source "${REPO_ROOT}/scripts/lib/terminal.sh"
@@ -226,6 +229,7 @@ aws_profile_ensure || exit 1
 dev_tester_identity_agreement_require || exit 1
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
+[[ -r "$PRUNE_LIB" ]] || { echo "ERROR: missing pruning helper: $PRUNE_LIB" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
 
 HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}')
@@ -332,6 +336,8 @@ echo "==> Rsyncing source to host (code only, no database)..."
 # production host read showed why: its remote half invokes it out of the release
 # tree and errors "It ships with the deploy", which was not true of either half,
 # so the cutover's own rollback-artifact step failed on every host.
+# assert-no-erasure-replay-pending.sh is the fourth: the main unit runs it by
+# relative path before every start, so a host without it cannot start the site.
 # The rest of scripts/ is operator tooling that has no business on a host, so the
 # directory is included only far enough for rsync to descend into it.
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
@@ -344,6 +350,7 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/scripts/backup-db.sh' \
   --include='/scripts/cutover-marker.sh' \
   --include='/scripts/take-pre-cutover-snapshot.sh' \
+  --include='/scripts/assert-no-erasure-replay-pending.sh' \
   --include='/package.json' \
   --include='/package-lock.json' \
   --include='/tsconfig.json' \
@@ -554,7 +561,9 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'MIGRATION_SQL=%q\n'               "${MIGRATION_SQL:-}"
   printf 'MIGRATION_NAME=%q\n'              "${MIGRATION_NAME:-}"
   printf 'MIGRATION_CHECKSUM=%q\n'          "${MIGRATION_CHECKSUM:-}"
-  cat "$REMOTE_HALF"
+  # The pruning helper defines a function and runs nothing, so the remote half
+  # can call it once the new release reports ready.
+  cat "$PRUNE_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # ── Step 5: Smoke check ───────────────────────────────────────────────────────

@@ -1,10 +1,10 @@
 /**
  * scripts/internal/runtime-pause-remote.sh -- the platform's runtime kill switches.
  *
- * A real run reaches a deployed host over ssh, which CI cannot exercise. The
- * root-side body is the whole of the behaviour, though: it takes its inputs as
- * shell variables and operates on a SQLite file, so it runs here directly
- * against a temporary database built from the real schema.
+ * The root-side body takes its inputs as shell variables and operates on a
+ * SQLite file, so it runs here directly against a temporary database built from
+ * the real schema. The workstation halves (the three levers) are driven end to
+ * end through a stand-in ssh client in their own suites.
  *
  * What these pin: the switch reads the same view the application reads; setting
  * it is an INSERT of a newer effective row rather than an UPDATE, because the
@@ -339,24 +339,5 @@ describe('the wire the operator half actually uses', () => {
     for (const word of ['duplicate', 'sends', 'reported', 'members', "operator's"]) {
       expect(rows[0].reason_text).toContain(word);
     }
-  });
-
-  it('the payments lever never reports a clear switch as money moving', () => {
-    // Read as source because the workstation half of this lever reaches a host and
-    // this suite drives the root-side body only. What is pinned is the wording,
-    // because the wording was wrong in the way that matters on a money surface:
-    // this lever decides whether a checkout is refused, while a separate arming
-    // switch decides whether the live payment adapter boots at all. Before go-live
-    // the correct state is this lever clear and payments dark, and the old line
-    // read "payments: LIVE / New purchases and donations are being accepted",
-    // which describes that state as its opposite to anyone reading a production
-    // host.
-    const lever = readFileSync(join(process.cwd(), 'scripts/payments-pause.sh'), 'utf8');
-    const notPaused = lever.slice(lever.indexOf('payments on ${TARGET}: NOT PAUSED'));
-    expect(notPaused).toMatch(/NOT PAUSED/);
-    expect(notPaused).not.toMatch(/donations are being accepted/);
-    expect(notPaused).toMatch(/arming switch/);
-    expect(notPaused).toMatch(/stub adapter/);
-    expect(notPaused).toMatch(/bringup-status\.sh --target/);
   });
 });

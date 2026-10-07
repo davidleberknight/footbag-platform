@@ -118,6 +118,7 @@
  *   member_declared_anchors (deleted on PII purge and deceased scrub),
  *   legacy_members (claim-state columns cleared on PII purge),
  *   legacy_claim_declines (deleted on PII purge),
+ *   mailing_list_subscriptions (deleted on PII purge, bounce and complaint state included),
  *   erasure_log (append-only; one row per applied erasure shape),
  *   audit_entries,
  *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
@@ -139,7 +140,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, legacyClaimDeclines, emailArchives, erasureLog, legacyMembers, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, legacyClaimDeclines, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
   assembleBirthDate,
@@ -1079,6 +1080,9 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
       legacyMembers.clearClaim.run(row.legacy_member_id);
     }
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
+    // Their mailing-list subscriptions, bounce and complaint state included, are
+    // personal data with nothing a record needs to keep, so the rows go.
+    mailingListSubscriptions.deleteAllForMember.run(memberId);
     // Member-authored contact-request free text lives in work_queue_items, not
     // the audit ledger, so erasure must redact it here.
     workQueue.scrubTextForMember.run(now, memberId);

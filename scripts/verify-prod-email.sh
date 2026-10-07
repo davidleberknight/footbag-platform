@@ -22,11 +22,19 @@
 # A run started without the redirect names the one it needs.
 #
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
-#       --profile <p> --confirm-production --outbox --inbox <addr>
+#       --profile <p> --outbox --inbox <addr>
 #
 # This sends REAL email via the production SES identity. It refuses to run
-# without an explicit production profile and an explicit confirmation flag.
+# without an explicit production profile, and before the first send it states
+# what it is about to send and asks for a typed APPLY on the terminal. --yes
+# answers that prompt in advance; it exists for the pre-cutover checklist, which
+# captures this script's output and so takes the typed APPLY itself first.
 set -euo pipefail
+
+# confirm_from_tty and the host wire. Sourced before the flags are parsed,
+# because the library assigns the accept-without-asking flag and --yes sets it.
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 # Canonical transactional sender. Overridable with --sender because the sender
 # identity is not always the canonical one: it must be an address SES has
@@ -40,7 +48,6 @@ SIMULATOR="success@simulator.amazonses.com"
 BOUNCE_SIMULATOR="bounce@simulator.amazonses.com"
 INBOX=""
 PROFILE=""
-CONFIRMED=0
 BOUNCE_PROBE=0
 OUTBOX=0
 OUTBOX_TIMEOUT_SECONDS=""
@@ -49,7 +56,7 @@ OUTBOX_TIMEOUT_SECONDS=""
 HOST_ALIAS="footbag-production"
 
 usage() {
-  echo "Usage: $0 --profile <aws-profile> --confirm-production [--sender <address>] [--inbox <address>] [--bounce-probe] [--outbox [--outbox-timeout-seconds <n>]]" >&2
+  echo "Usage: $0 --profile <aws-profile> [--sender <address>] [--inbox <address>] [--bounce-probe] [--outbox [--outbox-timeout-seconds <n>]] [--yes]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -57,7 +64,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="$2"; shift 2 ;;
     --sender) SENDER="$2"; shift 2 ;;
     --inbox) INBOX="$2"; shift 2 ;;
-    --confirm-production) CONFIRMED=1; shift ;;
+    --yes) ASSUME_YES="yes"; shift ;;
     --bounce-probe) BOUNCE_PROBE=1; shift ;;
     --outbox) OUTBOX=1; shift ;;
     --outbox-timeout-seconds) OUTBOX_TIMEOUT_SECONDS="$2"; shift 2 ;;
@@ -69,16 +76,11 @@ done
 if [[ -z "$PROFILE" ]]; then
   echo "ERROR: --profile <production-runtime-profile> is required" >&2; exit 2
 fi
-if [[ "$CONFIRMED" -ne 1 ]]; then
-  echo "ERROR: this sends real production email; pass --confirm-production to proceed" >&2; exit 2
-fi
 
 # The outbox leg opens a privileged remote session, so its credential is read
 # from stdin before anything else runs: a failure here should cost nothing.
 if (( OUTBOX )); then
-  # shellcheck source=lib/host-env-remote.sh
-  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
-  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --confirm-production --outbox" \
+  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --outbox" \
     "$HOST_ALIAS" production || exit 2
   require_ssh_alias "$HOST_ALIAS" || exit 2
   require_host_is "$HOST_ALIAS" production || exit 2
@@ -191,6 +193,19 @@ else
   printf '%s\n' "$MAIL_FROM_STATUS" | sed 's/^/  /'
 fi
 
+# Every check that sends nothing has passed; everything below sends real mail
+# through the production identity, so this is where the operator confirms it.
+echo ""
+echo "About to send REAL email through production SES as ${SENDER}:"
+echo "  to the mailbox simulator (${SIMULATOR})"
+[[ -n "$INBOX" ]] && echo "  to the inbox ${INBOX}"
+(( OUTBOX )) && echo "  through the outbox on ${HOST_ALIAS}, to ${INBOX:-$SIMULATOR}"
+(( BOUNCE_PROBE )) && echo "  to the bounce simulator (${BOUNCE_SIMULATOR})"
+if ! confirm_from_tty "Type APPLY to send: " "APPLY"; then
+  echo "Not confirmed; nothing was sent." >&2
+  exit 1
+fi
+
 echo "Sending to mailbox simulator ($SIMULATOR)..."
 echo "  MessageId: $(send_one "$SIMULATOR")"
 
@@ -216,7 +231,7 @@ if (( OUTBOX )); then
         printf 'SMOKE_TO=%q\n' "$OUTBOX_TO"
         printf 'SMOKE_TIMEOUT_SECONDS=%q\n' "$OUTBOX_TIMEOUT_SECONDS"
         cat "$OUTBOX_REMOTE_HALF"
-      } | ssh "${HOST_SSH_OPTS[@]}" "$HOST_ALIAS" 'sudo -k -S -p "" bash'; then
+      } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$HOST_ALIAS" 'sudo -k -S -p "" bash'; then
     echo "ERROR: the outbox send-path smoke failed; its GATE: line above names where the row stopped." >&2
     exit 1
   fi

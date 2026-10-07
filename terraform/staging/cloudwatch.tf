@@ -217,23 +217,33 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_promotion" {
 }
 
 # ── Cross-region replication health ───────────────────────────────────────────
-# The DR copy of the media bucket is maintained by S3 replication and, until
-# these, nothing watched it. A replication rule that stops working is silent:
-# the source bucket keeps accepting writes and the copy that recovery depends on
-# quietly falls behind. Staging replicates media only; its snapshot bucket has no
-# DR copy, which is the one shape difference from production here.
+# The DR copies of the media and archive buckets are maintained by S3
+# replication and, until these, nothing watched them. A replication rule that
+# stops working is silent: the source bucket keeps accepting writes and the copy
+# that recovery depends on quietly falls behind. Staging's snapshot bucket has
+# no DR copy, which is the one shape difference from production here.
 #
 # A failed replication is not retried by S3. Recovery is re-uploading the object
 # or running S3 Batch Replication to clear the backlog.
 
 locals {
-  replicated_buckets = var.enable_replication_alarm ? {
-    media = {
-      source      = aws_s3_bucket.media.id
-      destination = aws_s3_bucket.media_dr.id
-      rule        = "replicate-all-to-media-dr"
-    }
-  } : {}
+  replicated_buckets = var.enable_replication_alarm ? merge(
+    {
+      media = {
+        source      = aws_s3_bucket.media.id
+        destination = aws_s3_bucket.media_dr.id
+        rule        = "replicate-all-to-media-dr"
+      }
+    },
+    # The archive pair exists only while the archive stack does.
+    var.enable_archive ? {
+      archive = {
+        source      = aws_s3_bucket.archive[0].id
+        destination = aws_s3_bucket.archive_dr[0].id
+        rule        = "replicate-all-to-archive-dr"
+      }
+    } : {},
+  ) : {}
 }
 
 # The alarms above detect. This queue diagnoses, and both are needed because
@@ -284,6 +294,17 @@ resource "aws_sqs_queue_policy" "replication_failures" {
 resource "aws_s3_bucket_notification" "media_replication_failures" {
   count      = var.enable_replication_alarm ? 1 : 0
   bucket     = aws_s3_bucket.media.id
+  depends_on = [aws_sqs_queue_policy.replication_failures]
+
+  queue {
+    queue_arn = aws_sqs_queue.replication_failures[0].arn
+    events    = ["s3:Replication:OperationFailedReplication"]
+  }
+}
+
+resource "aws_s3_bucket_notification" "archive_replication_failures" {
+  count      = var.enable_replication_alarm && var.enable_archive ? 1 : 0
+  bucket     = aws_s3_bucket.archive[0].id
   depends_on = [aws_sqs_queue_policy.replication_failures]
 
   queue {

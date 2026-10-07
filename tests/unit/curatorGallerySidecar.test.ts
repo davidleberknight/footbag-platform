@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import { committedBasenames } from '../fixtures/committedFiles';
+import { listFiles } from '../fixtures/sourceTree';
 import {
   validateGallerySidecarData,
   formatGallerySidecarJson,
@@ -240,13 +240,11 @@ describe('externalLinks (sidecar contract extension)', () => {
 
   it('shipped /curated/galleries/*.json all have externalLinks: []', async () => {
     const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
-    // "shipped" is the word in the title, so ask git rather than the directory.
-    // Every test database sets ALLOW_CURATED_SIDECAR_WRITES, so a sidecar
-    // another suite wrote into this very directory while this one was reading
-    // would be judged here as though the repository shipped it.
-    const files = committedBasenames('curated/galleries').filter((f) => f.endsWith('.json'));
+    // No suite writes here: in test mode the curator service refuses to touch
+    // the real curated tree unless a test hands it a scratch root.
+    const files = listFiles('curated/galleries', /\.json$/);
     // A scan that finds no sidecars passes having checked nothing.
-    expect(files.length, 'no committed gallery sidecars found').toBeGreaterThan(0);
+    expect(files.length, 'no gallery sidecars found').toBeGreaterThan(0);
     for (const f of files) {
       const txt = await fs.readFile(path.join(galleriesDir, f), 'utf-8');
       const data = JSON.parse(txt);
@@ -269,12 +267,9 @@ describe('catch-all gallery does not double-list its sibling source galleries', 
 
   async function loadGalleries(): Promise<Map<string, GallerySidecarData>> {
     const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
-    // Committed sidecars only, for the reason given on the externalLinks case
-    // above: this directory is writable by every test database in the suite.
-    const files = committedBasenames('curated/galleries');
+    const files = listFiles('curated/galleries', /\.json$/);
     const out = new Map<string, GallerySidecarData>();
     for (const f of files) {
-      if (!f.endsWith('.json')) continue;
       const data = JSON.parse(await fs.readFile(path.join(galleriesDir, f), 'utf-8')) as GallerySidecarData;
       out.set(f, data);
     }

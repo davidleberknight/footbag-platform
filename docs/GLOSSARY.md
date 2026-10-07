@@ -144,8 +144,6 @@
 
 **Magic Byte Verification**: Security check that reads the first bytes of an uploaded file and confirms they match the known binary signature (magic bytes) for the declared file type (e.g., JPEG starts with FF D8 FF). Footbag.org rejects uploads whose magic bytes don't match their declared MIME type, preventing disguised executables from being processed by the Sharp image library.
 
-**Migration notice**: The small page the public footbag.org names serve during the one-time cutover window, returned as a 503 directly from the CloudFront edge function so the legacy host is untouched and the platform origin is not exposed. Distinct from the maintenance page (an S3 object served on origin failure and in deliberate post-launch windows): the notice is per-hostname, so the preview subdomain serves the real site through the same window. Go-live is the notice lifting.
-
 **MX (Mail Exchanger) record**: The DNS record naming which servers accept mail for a domain. It is independent of the address records the web uses in mechanism, so changing where the website points does not touch where mail goes and either is changed without the other. They are not independent in requirement: the site needs both the zone and the apex mail records under IFPA control to be fully functional, because the zone gates the certificates and authenticated sending while the mail records gate every address the site publishes to receive on. Mail stops reaching an address the moment its domain's mail record moves, not when the previous server is later switched off, so an address that does not exist at the new destination loses mail from the change itself.
 
 **Middleware**: Express function executing during request/response cycle before reaching route handlers. Footbag.org uses middleware for authentication (JWT validation), logging (request/response tracking), error handling (consistent error responses), and request parsing (JSON body parsing).
@@ -176,7 +174,7 @@
 
 **Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5-10 minutes through a host-side systemd timer that uploads a consistent SQLite database snapshot to S3 every 5 minutes. Cross-region disaster recovery sync runs nightly providing a 24-hour RPO for catastrophic regional failures.
 
-**Recovery Time Objective (RTO)**: The maximum acceptable time to restore normal service after a failure. Footbag.org targets an RTO of approximately 5 minutes: download the latest S3 backup, run PRAGMA integrity_check to validate the snapshot, replace the local database file, restart application containers, and verify health endpoints return OK.
+**Recovery Time Objective (RTO)**: The maximum acceptable time to restore normal service after a failure. Footbag.org targets an RTO of approximately 5 minutes: download the latest S3 backup, run PRAGMA integrity_check to validate the snapshot, replace the local database file, re-apply the erasures the restored snapshot records as due, restart application containers, and verify health endpoints return OK.
 
 **REST (Representational State Transfer)**: Architectural style for web APIs using HTTP methods and stateless communication. Footbag.org does not have a REST API but could add on in the future to support a phone app for example.
 

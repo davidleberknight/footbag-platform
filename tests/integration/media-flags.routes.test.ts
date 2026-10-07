@@ -24,6 +24,8 @@ import {
   completeOnboarding,
   insertMemberTierGrant,
   insertMediaItem,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
   insertSystemConfig,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -36,6 +38,9 @@ const UPLOADER_ID = 'aaaaaaaa-0000-0000-0000-0000000mf001';
 const REPORTER_ID = 'bbbbbbbb-0000-0000-0000-0000000mf002';
 const REPORTER2_ID = 'cccccccc-0000-0000-0000-0000000mf003';
 const TIER0_ID = 'dddddddd-0000-0000-0000-0000000mf004';
+// Holds Tier 1 standing but has not finished onboarding, so is not a member.
+const PENDING_T1_ID = 'eeeeeeee-0000-0000-0000-0000000mf005';
+const GALLERY_ID = 'gallery_mf_uploader';
 
 const ITEM_ID = 'media_mf_main';
 const OWN_ITEM_ID = 'media_mf_own';
@@ -93,6 +98,11 @@ beforeAll(async () => {
   insertMember(db, { id: REPORTER2_ID, slug: 'mf_reporter_two', display_name: 'MF Reporter Two', login_email: 'mf-reporter2@example.com' });
   insertMember(db, { id: TIER0_ID, slug: 'mf_tier0', display_name: 'MF Tier Zero', login_email: 'mf-tier0@example.com' });
   for (const id of [UPLOADER_ID, REPORTER_ID, REPORTER2_ID, TIER0_ID]) completeOnboarding(db, id);
+  insertMember(db, {
+    id: PENDING_T1_ID, slug: 'mf_pending', display_name: 'MF Pending',
+    login_email: 'mf-pending@example.com', onboarding: 'none',
+  });
+  insertMemberTierGrant(db, { member_id: PENDING_T1_ID, new_tier_status: 'tier1' });
 
   insertMemberTierGrant(db, { member_id: UPLOADER_ID, new_tier_status: 'tier1' });
   insertMemberTierGrant(db, { member_id: REPORTER_ID, new_tier_status: 'tier1' });
@@ -103,6 +113,11 @@ beforeAll(async () => {
   for (const id of SPARE_ITEMS) {
     insertMediaItem(db, { id, uploader_member_id: UPLOADER_ID, caption: `Spare ${id}`, tags: ['#by_mf_uploader'] });
   }
+  // A named gallery holding the uploader's items, so the item page is also
+  // reached through the gallery viewer route.
+  const byTag = db.prepare("SELECT id FROM tags WHERE tag_normalized = '#by_mf_uploader'").get() as { id: string };
+  insertMemberGallery(db, { id: GALLERY_ID, owner_member_id: UPLOADER_ID, created_by: UPLOADER_ID, name: 'MF Uploads' });
+  insertGalleryCriterionTag(db, GALLERY_ID, byTag.id);
 
   // A low ceiling so the rate-limit case costs three requests rather than
   // eleven. The key and the window are the production ones.
@@ -368,5 +383,36 @@ describe('the reporting control on the item page', () => {
     const res = await request(createApp()).get(`/media/item/${ITEM_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Report This Item');
+  });
+
+  // A registrant still onboarding reads the item pages as a signed-out visitor
+  // does, even when they hold Tier 1 standing: the report form would post to a
+  // members-only route that sends them back into the wizard.
+  it('offers nothing to a registrant still onboarding, on either item route', async () => {
+    for (const path of [`/media/item/${SPARE_ITEMS[1]}`, `/media/${GALLERY_ID}/${SPARE_ITEMS[1]}`]) {
+      const res = await request(createApp()).get(path).set('Cookie', cookieFor(PENDING_T1_ID));
+      expect(res.status, path).toBe(200);
+      expect(res.text, path).toContain(`Spare ${SPARE_ITEMS[1]}`);
+      expect(res.text, path).not.toContain(`/media/item/${SPARE_ITEMS[1]}/flag`);
+    }
+  });
+
+  it('offers the control on the gallery item route to an eligible member', async () => {
+    const res = await request(createApp())
+      .get(`/media/${GALLERY_ID}/${SPARE_ITEMS[1]}`)
+      .set('Cookie', cookieFor(REPORTER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`/media/item/${SPARE_ITEMS[1]}/flag`);
+  });
+
+  it('refuses the report form to that registrant, so offering it would be a dead end', async () => {
+    const res = await request(createApp())
+      .post(`/media/item/${SPARE_ITEMS[1]}/flag`)
+      .set('Cookie', cookieFor(PENDING_T1_ID))
+      .type('form')
+      .send({ reason_code: 'spam' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toMatch(/^\/register\/wizard/);
+    expect(flagsFor(SPARE_ITEMS[1]).filter((f) => f.reporter_member_id === PENDING_T1_ID)).toHaveLength(0);
   });
 });

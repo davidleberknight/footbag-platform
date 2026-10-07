@@ -12,8 +12,11 @@
  *   - build* methods return plain strings; the route sets the content type.
  *   - Sitemap URLs are absolute, built from config.publicBaseUrl, and cover only
  *     public content: static hubs, plus per-row event, club, net-team, freestyle
- *     trick, set-detail, modifier-detail and family-detail, historical-person,
- *     rules, IFPA, and named-gallery pages. Member profiles are excluded: the
+ *     trick, set-detail, modifier-detail and family-detail, public
+ *     historical-person (Hall of Fame and Big Add Posse), rules, IFPA, and
+ *     named-gallery pages. Every listed URL answers 200 to a signed-out
+ *     visitor: a page that asks for a login or redirects elsewhere is not
+ *     listed. Member profiles are excluded: the
  *     member listing is a welcome page rather than a public directory, and
  *     member enumeration is a privacy boundary. Individual media-item pages are
  *     excluded too -- high-volume and reachable from the named-gallery and
@@ -123,11 +126,11 @@ function collectPublicPaths(): string[] {
     paths.add(`/net/teams/${row.team_id}`);
   }
 
-  // History: every canonical historical person's detail page. This is the
-  // largest single family in the sitemap and the long tail of the site's
-  // competitive record, reachable from the year archives and event pages but
-  // otherwise invisible to a crawler that never walks them.
-  for (const row of publicPlayers.listAllCanonicalIds.all() as Array<{ person_id: string }>) {
+  // History: every historical person's detail page a signed-out visitor can
+  // read (the Hall of Fame and Big Add Posse records). Any other record asks a
+  // visitor to log in, and a record claimed by an honoured member redirects to
+  // the member profile, so neither is a public page to list.
+  for (const row of publicPlayers.listPublicDetailIds.all() as Array<{ person_id: string }>) {
     paths.add(`/history/${row.person_id}`);
   }
 

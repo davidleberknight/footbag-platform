@@ -279,13 +279,16 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
 # password line -> bash inherits the rest, runs the assignments, then the body.
 # Argv stays clean of secrets on every hop. This host keeps the remote-half's
 # default namespace, which production deliberately overrides. The password is
-# the one line read before the host was confirmed.
+# the one line read before the host was confirmed. The client is the one the
+# host check above used, so the session that carries the key goes where the
+# confirmed one went, and a stand-in client under test is announced by the
+# shared library.
 {
   printf '%s\n' "$SUDO_PASS"
   printf 'CWAGENT_AKID=%q\n' "$IAM_KEY_AKID"
   printf 'CWAGENT_SAK=%q\n' "$IAM_KEY_SAK"
   cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+} | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 iam_key_commit
 

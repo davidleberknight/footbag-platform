@@ -46,9 +46,11 @@
 #                  is the operator's own build -- fine for a rehearsal, and the
 #                  wrong thing entirely for a run whose output is read as
 #                  "production is ready". With it, the snapshot is taken on the
-#                  host against the live database and pulled back, and every
-#                  later data gate reads that artifact. The gates then attest to
-#                  exactly the object the rollback would restore.
+#                  host against the live database, and every data gate runs on
+#                  the host against that snapshot: the check scripts travel to
+#                  the data, only their verdicts come back, and no copy of the
+#                  database ever reaches this workstation. The gates then attest
+#                  to exactly the object the rollback would restore.
 #
 #                  Needs the credential file on stdin, the same way every other
 #                  script that opens a privileged session does. Which file that
@@ -58,6 +60,11 @@
 #                  the one it needs.
 #                    < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
 #                        bash scripts/pre-cutover-checklist.sh --target production
+#   --no-snapshot  with --target only: take no snapshot and run the data gates on
+#                  the host against the live database, read-only. For a check
+#                  before cutover day, when writing a rollback artifact into the
+#                  object-locked pre-flip prefix would be wrong. The summary
+#                  reports the snapshot step as skipped.
 #
 # Exit codes:
 #   0  no gate failed. The final line distinguishes the two ways that happens:
@@ -70,6 +77,7 @@ cd "$(dirname "$0")/.."
 
 MOCK_AWS=0
 SKIP_TESTS=0
+NO_SNAPSHOT=0
 TARGET=""
 [[ "${FOOTBAG_PRECUTOVER_MOCK_AWS:-0}" == "1" ]] && MOCK_AWS=1
 [[ "${FOOTBAG_PRECUTOVER_SKIP_TESTS:-0}" == "1" ]] && SKIP_TESTS=1
@@ -77,6 +85,7 @@ while [[ $# -gt 0 ]]; do
   case "${1}" in
     --mock-aws)   MOCK_AWS=1 ;;
     --skip-tests) SKIP_TESTS=1 ;;
+    --no-snapshot) NO_SNAPSHOT=1 ;;
     --target)     shift; TARGET="${1:-}" ;;
     *) echo "unknown arg: ${1}" >&2; exit 2 ;;
   esac
@@ -100,8 +109,13 @@ if [[ -n "${TARGET}" && "${MOCK_AWS}" -eq 1 ]]; then
   exit 2
 fi
 
-# A run that names a target reaches the host and pulls the snapshot object back,
-# so the identity it will use is settled and proved here rather than discovered
+if [[ "${NO_SNAPSHOT}" -eq 1 && -z "${TARGET}" ]]; then
+  echo "--no-snapshot applies only with --target: without one there is no host to read." >&2
+  exit 2
+fi
+
+# A run that names a target reaches the host and AWS, so the identity it will
+# use is settled and proved here rather than discovered
 # in the middle of a gate, where a credential failure reads as a failed gate. A
 # mocked run, and a run with no target, attest to nothing outside this
 # workstation and need no credential at all.
@@ -115,21 +129,21 @@ results=()
 fail=0
 
 # ── Where the data gates read from ───────────────────────────────────────────
-# Set for the whole run, before any gate. Without --target this is the
-# workstation build and the summary says so; with it, this becomes the snapshot
-# pulled back from the host, so every gate reads the deployed data.
+# Without --target the gates read the workstation build and the summary says so.
+# With it they run on the host, against the snapshot this run took there or,
+# with --no-snapshot, the live database read-only; nothing comes back but their
+# verdicts.
 GATE_DB="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 SNAPSHOT_URI=""
-PULLED_DB=""
+SNAPSHOT_PATH=""
+SNAPSHOT_SHA256=""
+HOST_SUBJECT=""
 PAYMENTS_ENV_DIR=""
 
 cleanup_run_artifacts() {
-  # The pulled artifact is a copy of the production member database, and the
-  # fetched env file is the host's entire secret set. Both exist only for the
-  # length of this run and are removed on every exit path, including a failed
-  # gate, rather than left in a temp directory for whatever comes next. The env
-  # file is shredded rather than unlinked, because its bytes are secrets.
-  [[ -n "${PULLED_DB}" && -d "${PULLED_DB}" ]] && rm -rf "${PULLED_DB}"
+  # The fetched env file is the host's entire secret set. It exists only for the
+  # length of this run and is shredded on every exit path, including a failed
+  # gate, rather than left in a temp directory for whatever comes next.
   if [[ -n "${PAYMENTS_ENV_DIR}" && -d "${PAYMENTS_ENV_DIR}" ]]; then
     find "${PAYMENTS_ENV_DIR}" -type f -exec shred -u {} + 2>/dev/null || true
     rm -rf "${PAYMENTS_ENV_DIR}"
@@ -187,41 +201,112 @@ else
       cat "${REMOTE_HALF}"
     } | ssh "${HOST_SSH_OPTS[@]}" "${SSH_ALIAS}" 'sudo -k -S -p "" bash'
   }
-  SNAPSHOT_OUT="$(remote_snapshot 2>&1)" && SNAPSHOT_RC=0 || SNAPSHOT_RC=$?
-  printf -- '--- SNAPSHOT (host %s, exit %d) ---\n%s\n' "${SSH_ALIAS}" "${SNAPSHOT_RC}" "${SNAPSHOT_OUT}"
-
-  SNAPSHOT_URI="$(printf '%s' "${SNAPSHOT_OUT}" | sed -n 's/^PRECUTOVER_SNAPSHOT_URI=//p' | tail -1)"
-  if [[ "${SNAPSHOT_RC}" -ne 0 || -z "${SNAPSHOT_URI}" ]]; then
-    results+=("GATE: SNAPSHOT FAIL: the host snapshot did not complete; nothing was pulled back")
-    fail=$((fail + 1))
+  if [[ "${NO_SNAPSHOT}" -eq 1 ]]; then
+    HOST_SUBJECT="live"
+    results+=("GATE: SNAPSHOT SKIP: --no-snapshot passed; the data gates read the live ${TARGET} database read-only and no rollback artifact was written")
   else
-    # Pull the exact object the host just uploaded, by key. Not "the newest
-    # thing under the prefix": that is a search, and a search can select an
-    # artifact from a different run while reporting success.
-    PULLED_DB="$(mktemp -d)"
-    if aws s3 cp --only-show-errors "${SNAPSHOT_URI}" "${PULLED_DB}/snapshot.db.gz" \
-       && gunzip -f "${PULLED_DB}/snapshot.db.gz"; then
-      GATE_DB="${PULLED_DB}/snapshot.db"
-      export FOOTBAG_DB_PATH="${GATE_DB}"
-      results+=("GATE: SNAPSHOT PASS: ${TARGET} snapshot taken on the host and pulled back (${SNAPSHOT_URI})")
-    else
-      results+=("GATE: SNAPSHOT FAIL: ${SNAPSHOT_URI} could not be pulled back or did not decompress")
+    SNAPSHOT_OUT="$(remote_snapshot 2>&1)" && SNAPSHOT_RC=0 || SNAPSHOT_RC=$?
+    printf -- '--- SNAPSHOT (host %s, exit %d) ---\n%s\n' "${SSH_ALIAS}" "${SNAPSHOT_RC}" "${SNAPSHOT_OUT}"
+
+    SNAPSHOT_URI="$(printf '%s' "${SNAPSHOT_OUT}" | sed -n 's/^PRECUTOVER_SNAPSHOT_URI=//p' | tail -1)"
+    SNAPSHOT_PATH="$(printf '%s' "${SNAPSHOT_OUT}" | sed -n 's/^PRECUTOVER_SNAPSHOT_PATH=//p' | tail -1)"
+    SNAPSHOT_SHA256="$(printf '%s' "${SNAPSHOT_OUT}" | sed -n 's/^PRECUTOVER_SNAPSHOT_SHA256=//p' | tail -1)"
+    if [[ "${SNAPSHOT_RC}" -ne 0 || -z "${SNAPSHOT_URI}" || -z "${SNAPSHOT_PATH}" || -z "${SNAPSHOT_SHA256}" ]]; then
+      results+=("GATE: SNAPSHOT FAIL: the host snapshot did not complete, so the data gates have no subject")
       fail=$((fail + 1))
+    else
+      HOST_SUBJECT="snapshot"
+      results+=("GATE: SNAPSHOT PASS: ${TARGET} snapshot taken on the host (${SNAPSHOT_URI})")
     fi
   fi
 fi
 
-# 2. G1-G6: legacy import gates
-run_step "G1-G6" bash scripts/validate-legacy-import-gates.sh
+# 2-5 and 7. The data gates. With a target they run on the host in one session,
+# against the subject chosen above, and only their verdicts come back: the
+# check scripts travel to the data, never the data to the checks. Without a
+# subject (the snapshot failed) they report FAIL and never fall back to a
+# database on this workstation, which would certify the wrong thing under the
+# target's heading.
+DATA_CHECKS=(
+  "G1_6:G1-G6:scripts/validate-legacy-import-gates.sh"
+  "CLUBS:G7:scripts/validate-club-candidates.sh"
+  "LEADERS:G8:scripts/validate-bootstrap-leaders.sh"
+  "VARIANTS:G11:scripts/validate-name-variants.sh"
+  "AUDIT:DEV-ADMIN-AUDIT:scripts/audit-dev-shortcuts.sh"
+  "SHOWCASE:SHOWCASE-PRESENCE:scripts/validate-showcase-presence.sh"
+)
+# Every line kept from the host must be one of these shapes; anything else the
+# host said is dropped unprinted.
+# The reason is held to printable text with no '@', so neither an address nor a
+# terminal escape sequence can ride in on a line that otherwise looks like a gate.
+HOST_GATE_RE='^GATE: (G[1-9]|G1[1-3]|G1-G6|DEV-ADMIN-AUDIT|SHOWCASE-PRESENCE) (PASS|FAIL): [^[:cntrl:]@]+$'
+HOST_RC_RE='^DG_(G1_6|CLUBS|LEADERS|VARIANTS|AUDIT|SHOWCASE)_RC=([0-9]+)$'
 
-# 3. G7: club candidates
-run_step "G7" bash scripts/validate-club-candidates.sh
+run_host_data_gates() {
+  local reply rc=0 line entry label fallback
+  local -A seen_rc=()
+  reply="$(
+    {
+      printf '%s\n' "${SUDO_PASS}"
+      printf 'DG_SUBJECT=%q\n' "${HOST_SUBJECT}"
+      printf 'DG_SNAPSHOT_PATH=%q\n' "${SNAPSHOT_PATH}"
+      printf 'DG_SNAPSHOT_SHA256=%q\n' "${SNAPSHOT_SHA256}"
+      for entry in "${DATA_CHECKS[@]}"; do
+        printf 'DG_%s_B64=%q\n' "${entry%%:*}" "$(base64 -w0 "${entry##*:}")"
+      done
+      cat scripts/internal/data-gates-remote.sh
+    } | ssh "${HOST_SSH_OPTS[@]}" "${SSH_ALIAS}" 'sudo -k -S -p "" bash'
+  )" || rc=$?
+  printf -- '--- DATA GATES (host %s, %s, exit %d) ---\n' "${SSH_ALIAS}" "${HOST_SUBJECT}" "${rc}"
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ${HOST_GATE_RE} ]]; then
+      printf '%s\n' "${line}"
+      results+=("${line}")
+      [[ "${line}" == *" FAIL: "* ]] && fail=$((fail + 1))
+    elif [[ "${line}" =~ ${HOST_RC_RE} ]]; then
+      seen_rc["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+    fi
+  done <<< "${reply}"
+  # A check that reported no exit status did not run to an answer, however clean
+  # the rest of the reply looks.
+  for entry in "${DATA_CHECKS[@]}"; do
+    label="${entry%%:*}"
+    fallback="${entry#*:}"; fallback="${fallback%%:*}"
+    if [[ -z "${seen_rc[${label}]:-}" ]]; then
+      results+=("GATE: ${fallback} FAIL: the ${TARGET} host reported no result for this check")
+      fail=$((fail + 1))
+    elif [[ "${seen_rc[${label}]}" != "0" ]]; then
+      # A check that printed only PASS lines and still exited non-zero stopped
+      # part way, so its silence about the rest is not a pass.
+      results+=("GATE: ${fallback} FAIL: the check exited ${seen_rc[${label}]} on the host")
+      fail=$((fail + 1))
+    fi
+  done
+}
 
-# 4. G8: bootstrap leaders
-run_step "G8" bash scripts/validate-bootstrap-leaders.sh
+if [[ -n "${TARGET}" ]]; then
+  if [[ -n "${HOST_SUBJECT}" ]]; then
+    run_host_data_gates
+  else
+    for entry in "${DATA_CHECKS[@]}"; do
+      fallback="${entry#*:}"; fallback="${fallback%%:*}"
+      results+=("GATE: ${fallback} FAIL: no snapshot to check, so this gate read nothing")
+      fail=$((fail + 1))
+    done
+  fi
+else
+  # 2. G1-G6: legacy import gates
+  run_step "G1-G6" bash scripts/validate-legacy-import-gates.sh
 
-# 5. G11: name variants
-run_step "G11" bash scripts/validate-name-variants.sh
+  # 3. G7: club candidates
+  run_step "G7" bash scripts/validate-club-candidates.sh
+
+  # 4. G8: bootstrap leaders
+  run_step "G8" bash scripts/validate-bootstrap-leaders.sh
+
+  # 5. G11: name variants
+  run_step "G11" bash scripts/validate-name-variants.sh
+fi
 
 # 6. Claim-safety integration suite + smoke/e2e. The integration suite
 # re-runs the claim-flow safety gates (anti-enumeration, rate limiting,
@@ -265,11 +350,13 @@ else
   results+=("GATE: E2E SKIP: --skip-tests passed")
 fi
 
-# 7. Dev-admin-shortcut audit (must be clean before production)
-run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
-
-# 7a. Permanent showcase event + Footbag Hacky persona must be present
-run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
+# 7. Dev-admin-shortcut audit (must be clean before production), and 7a, the
+#    permanent showcase event and Footbag Hacky persona. With a target both ran
+#    on the host with the other data gates above.
+if [[ -z "${TARGET}" ]]; then
+  run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
+  run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
+fi
 
 # NOTE: the data-review sign-off is not asserted here. It is a human
 # coordination contract between the maintainers, confirmed and tracked with the
@@ -315,12 +402,24 @@ fi
 if [[ "${MOCK_AWS}" -eq 0 && -n "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE:-}" ]]; then
   # shellcheck source=scripts/lib/operator-credential.sh
   source scripts/lib/operator-credential.sh
+  # The send script asks for a typed APPLY, but run_step captures its output, so
+  # it would find no terminal. The confirmation is taken here instead, on this
+  # run's terminal, and handed on as --yes only once it has been typed.
+  # shellcheck source=scripts/lib/host-env-remote.sh
+  source scripts/lib/host-env-remote.sh
   if require_operator_credential footbag-production production; then
-    run_step "G10-OUTBOX" bash -c \
-      'bash scripts/verify-prod-email.sh --profile "$1" --confirm-production --outbox ${2:+--inbox "$2"} < "$3"' _ \
-      "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
-      "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
-      "${OPERATOR_CREDENTIAL_FILE}"
+    echo "G10-OUTBOX sends REAL email through production SES and the outbox on"
+    echo "footbag-production, to ${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-the SES success simulator}."
+    if confirm_from_tty "Type APPLY to send: " "APPLY"; then
+      run_step "G10-OUTBOX" bash -c \
+        'bash scripts/verify-prod-email.sh --profile "$1" --outbox --yes ${2:+--inbox "$2"} < "$3"' _ \
+        "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
+        "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
+        "${OPERATOR_CREDENTIAL_FILE}"
+    else
+      results+=("GATE: G10-OUTBOX FAIL: not confirmed, so no mail was sent")
+      fail=$((fail + 1))
+    fi
   else
     results+=("GATE: G10-OUTBOX FAIL: no usable production operator credential, so the live outbox smoke did not run (the reason is printed above)")
     fail=$((fail + 1))
@@ -371,8 +470,10 @@ echo "=== pre-cutover summary ==="
 # and a rehearsal. Stating it here means a report pasted into a cutover log
 # carries its own scope, rather than depending on the reader knowing which flags
 # the run was given.
-if [[ -n "${TARGET}" ]]; then
-  echo "subject: ${TARGET}, via the snapshot taken on the host and pulled back"
+if [[ -n "${TARGET}" && "${HOST_SUBJECT}" == "live" ]]; then
+  echo "subject: ${TARGET}'s live database, read-only, checked on the host; nothing pulled back"
+elif [[ -n "${TARGET}" ]]; then
+  echo "subject: ${TARGET}, via the snapshot taken and checked on the host; nothing pulled back"
   echo "         ${SNAPSHOT_URI:-(no artifact; the snapshot step failed)}"
 else
   echo "subject: this workstation's own build at ${GATE_DB}"

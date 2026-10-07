@@ -14,7 +14,10 @@ export const mediaController = {
 
   memberGalleries(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = mediaService.getMemberGalleriesPage({ authenticated: req.user != null });
+      // Every media surface keys its member enhancements off membership, not
+      // bare authentication: a registrant still onboarding reads these pages as
+      // a signed-out visitor does, and every profile link would 404 for them.
+      const vm = mediaService.getMemberGalleriesPage({ authenticated: req.isMember });
       res.render('media/member-galleries', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'media controller (member galleries)');
@@ -43,7 +46,7 @@ export const mediaController = {
           rawExcludes: collectQueryArg(req.query.exclude),
           curated: typeof req.query.curated === 'string' ? req.query.curated : undefined,
         },
-        { authenticated: req.user != null },
+        { authenticated: req.isMember },
       );
       res.render('media/gallery', vm);
     } catch (err) {
@@ -56,7 +59,7 @@ export const mediaController = {
       const vm = mediaService.getNamedGalleryItemPage(
         req.params.galleryId,
         req.params.mediaId,
-        { authenticated: req.user != null, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
+        { authenticated: req.isMember, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
       );
       res.render('media/gallery-item', vm);
     } catch (err) {
@@ -74,7 +77,7 @@ export const mediaController = {
           rawSort: req.query.sort,
           rawBack: req.query.back,
         },
-        { authenticated: req.user != null, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
+        { authenticated: req.isMember, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
       );
       res.render('media/gallery-item', vm);
     } catch (err) {
@@ -103,7 +106,7 @@ export const mediaController = {
           rawContext: collectQueryArg(req.query.context),
           rawPage: req.query.page,
         },
-        { authenticated: req.user != null },
+        { authenticated: req.isMember },
       );
       res.render('media/browse', vm);
     } catch (err) {

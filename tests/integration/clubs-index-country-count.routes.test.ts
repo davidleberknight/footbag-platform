@@ -54,6 +54,9 @@ beforeAll(async () => {
   // A country whose only club is not listed. It must not reach the count, or the
   // number would promise a destination with nothing at it.
   club('Georgia', 'Count Club Hidden', 'inactive');
+  // A listed club with no country. It names no country page to link to, so it
+  // must neither reach the count nor render a nameless link to the bare index.
+  club('', 'Count Club Countryless', 'active');
 
   db.close();
   createApp = await importApp();
@@ -91,6 +94,13 @@ describe('the clubs landing page states its country coverage', () => {
     const country = await page('/clubs/usa');
     expect(country.status).toBe(200);
     expect(country.text).not.toMatch(/\d+ clubs/);
+  });
+
+  it('renders no country link for a club with no country', async () => {
+    const res = await page('/clubs');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/href="\/clubs\/"/);
+    expect(res.text).toContain('href="/clubs/usa"');
   });
 
   it('still lists every country it counts', async () => {

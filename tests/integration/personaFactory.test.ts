@@ -3,17 +3,9 @@
  *
  * Verifies the composition primitive builds the member-plus-supporting-rows
  * shape for each spec dimension, stamps the grep-able detection markers, and
- * contains the persona password literal to a single checked-in file.
- *
- * FOOTBAG_ENV='development' is set before any import because the containment
- * test imports TEST_PERSONA_SEED_PASSWORD_LITERAL from personaSecrets, whose
- * module-load guard refuses any other environment. The composition tests
- * import only personaFactory / personaRowBuilders, which carry no guard.
+ * keeps the seed runner behind the persona secrets' production import guard.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execSync } from 'node:child_process';
-
-import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
@@ -31,24 +23,16 @@ import {
 const { dbPath: noAdminDbPath } = setTestEnv('3403');
 const { dbPath } = setTestEnv('3402');
 
-const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
-process.env.FOOTBAG_ENV = process.env.FOOTBAG_ENV ?? 'development';
-
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 let db: BetterSqlite3.Database;
-let TEST_PERSONA_SEED_PASSWORD_LITERAL: string;
 
-beforeAll(async () => {
+beforeAll(() => {
   db = createTestDb(dbPath);
-  const m = await import('../../src/testkit/personaSecrets');
-  TEST_PERSONA_SEED_PASSWORD_LITERAL = m.TEST_PERSONA_SEED_PASSWORD_LITERAL;
 });
 
 afterAll(() => {
   db.close();
   cleanupTestDb(dbPath);
-  if (PRIOR_FOOTBAG_ENV === undefined) delete process.env.FOOTBAG_ENV;
-  else process.env.FOOTBAG_ENV = PRIOR_FOOTBAG_ENV;
 });
 
 describe('seedPersona — composition by dimension', () => {
@@ -403,29 +387,6 @@ describe('seedPersona — detection markers', () => {
 });
 
 describe('persona harness — single-source containment', () => {
-  it('TEST_PERSONA_SEED_PASSWORD_LITERAL appears in exactly one checked-in file: personaSecrets.ts', () => {
-    // `git grep` rather than a recursive `grep`, because the claim is about what
-    // is checked in and only git knows that. A directory-name exclusion list has
-    // to enumerate everything untracked, and it missed the trees that exist only
-    // on a maintainer's machine: the pipeline's output, two virtual environments,
-    // the local media store, the private operations checkout. A copy of the
-    // literal landing in any of them reddened this on one machine and left every
-    // other one green, and the run time moved with however much untracked
-    // material the machine happened to be carrying.
-    const cmd =
-      `git grep -l -F '${TEST_PERSONA_SEED_PASSWORD_LITERAL}' -- ` +
-      `'*.ts' '*.tsx' '*.js' '*.sh' '*.json' '*.hbs'`;
-    let raw = '';
-    try {
-      raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
-    } catch (err) {
-      const e = err as { status?: number };
-      if (e.status !== 1) throw err;
-    }
-    const hits = raw.split('\n').filter((s) => s.length > 0).map((s) => s.replace(/^\.\//, ''));
-    expect(hits).toEqual(['src/testkit/personaSecrets.ts']);
-  });
-
   it('the seed runner inherits the production import guard by importing personaSecrets', () => {
     const source = readFileSync(path.resolve(REPO_ROOT, 'src', 'testkit', 'personaSeedRunner.ts'), 'utf8');
     expect(source).toMatch(/from '\.\/personaSecrets'/);

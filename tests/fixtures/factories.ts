@@ -2140,3 +2140,96 @@ export function insertSesEvent(db: BetterSqlite3.Database, o: SesEventOverrides 
   return messageId;
 }
 
+// ── Private-field canaries ───────────────────────────────────────────────────
+
+/**
+ * Two members carrying distinctive fake values in every private field a page
+ * could leak, so a privacy check can search rendered pages for the value
+ * itself rather than for a label.
+ *
+ * `hidden` keeps every opt-in field switched off and also holds the fields that
+ * have no opt-in at all (birth date, declared former surname and old email, a
+ * donation dedication, an administrator's message). `shown` is a Hall of Fame
+ * honoree, so it has a public profile, with every contact field opted in to
+ * members and a biography and city, which stay members-only even on an
+ * honoree's profile. The values are fake and appear nowhere else in any
+ * fixture, so a hit is never a coincidence. Who may see each value is decided
+ * by the caller, not here.
+ */
+export interface PrivateFieldCanarySubject {
+  id: string;
+  slug: string;
+  loginEmail: string;
+  phone: string;
+  whatsapp: string;
+  bio: string;
+  city: string;
+}
+
+export interface PrivateFieldCanaries {
+  hidden: PrivateFieldCanarySubject & {
+    birthDate: string;
+    formerSurname: string;
+    oldEmail: string;
+    donationNote: string;
+    adminMessageBody: string;
+  };
+  shown: PrivateFieldCanarySubject;
+}
+
+export function seedPrivateFieldCanaries(
+  db: BetterSqlite3.Database,
+  prefix = 'canary',
+): PrivateFieldCanaries {
+  const p = prefix.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const subject = (kind: 'hidden' | 'shown', digit: string): PrivateFieldCanarySubject => ({
+    id: `${p}-${kind}`,
+    slug: `${p}_${kind}`,
+    loginEmail: `${p}-${kind}-login@example.test`,
+    phone: `+1 555 01${digit}4 7731`,
+    whatsapp: `+1 555 01${digit}4 7742`,
+    bio: `Zqx${p}${kind}bio private biography`,
+    city: `Zqx${p}${kind}city`,
+  });
+  const hidden = {
+    ...subject('hidden', '1'),
+    birthDate: '1931-02-03',
+    formerSurname: `Zqx${p}formersurname`,
+    oldEmail: `${p}-old-email@example.test`,
+    donationNote: `Zqx${p} donation dedication`,
+    adminMessageBody: `Zqx${p} administrator message body`,
+  };
+  const shown = subject('shown', '2');
+
+  insertMember(db, {
+    id: hidden.id, slug: hidden.slug, real_name: 'Hidden Canary', display_name: 'Hidden Canary',
+    login_email: hidden.loginEmail, bio: hidden.bio, city: hidden.city,
+    birth_date: hidden.birthDate, whatsapp: hidden.whatsapp, whatsapp_visible: 0,
+  });
+  insertMember(db, {
+    id: shown.id, slug: shown.slug, real_name: 'Shown Canary', display_name: 'Shown Canary',
+    login_email: shown.loginEmail, bio: shown.bio, city: shown.city,
+    whatsapp: shown.whatsapp, whatsapp_visible: 1, is_hof: 1, hof_inducted_year: 1999,
+  });
+  // The member row builder has no phone or email-visibility override; these
+  // are the same columns the profile edit writes.
+  const contact = db.prepare(
+    'UPDATE members SET phone = ?, phone_visible = ?, email_visibility = ? WHERE id = ?',
+  );
+  contact.run(hidden.phone, 0, 'private', hidden.id);
+  contact.run(shown.phone, 1, 'members', shown.id);
+
+  insertMemberDeclaredAnchor(db, { member_id: hidden.id, anchor_type: 'former_surname', anchor_value: hidden.formerSurname });
+  insertMemberDeclaredAnchor(db, { member_id: hidden.id, anchor_type: 'old_email', anchor_value: hidden.oldEmail });
+  insertPayment(db, {
+    member_id: hidden.id, payment_type: 'donation', status: 'succeeded',
+    amount_cents: 2500, donation_note: hidden.donationNote,
+  });
+  const item = insertWorkQueueItem(db, { entity_id: hidden.id, entity_type: 'member' });
+  insertMemberMessage(db, {
+    recipient_member_id: hidden.id, work_queue_item_id: item,
+    subject: 'A question from an administrator', body_text: hidden.adminMessageBody,
+  });
+  return { hidden, shown };
+}
+

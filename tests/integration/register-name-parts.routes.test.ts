@@ -71,6 +71,15 @@ describe('the two parts are recorded as given', () => {
     expect(row.real_name).toBe('José Reynel Reynel López');
   });
 
+  it('fixes a name typed all in capitals, in every stored form', async () => {
+    const email = 'all-caps@example.com';
+    expect((await register({ givenNames: 'MARY', familyName: "O'BRIEN", email })).status).toBe(303);
+    const row = readByEmail(email)!;
+    expect(row.given_names).toBe('Mary');
+    expect(row.family_name).toBe("O'Brien");
+    expect(row.real_name).toBe("Mary O'Brien");
+  });
+
   it('keeps a family name that begins with a particle whole', async () => {
     const email = 'particle@example.com';
     expect((await register({ givenNames: 'Aaron', familyName: 'de Glanville', email })).status).toBe(303);
@@ -285,6 +294,94 @@ describe('the two rules that key on the surname read the recorded part', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('must contain your family name');
     expect(readByEmail('slug-apostrophe-bad@example.com')).toBeUndefined();
+  });
+});
+
+/**
+ * Name lengths follow the published person-name standard: each part at most 35
+ * characters, the assembled name and the display name at most 70. A limit set
+ * too tight refuses real long names; one set too loose lets an oversized name
+ * through to every surface that renders it.
+ */
+describe('name lengths follow the person-name standard', () => {
+  const part = (n: number): string => 'a'.repeat(n);
+
+  it('accepts a family name of exactly 35 characters', async () => {
+    const email = 'family-35@example.com';
+    const family = 'B' + part(34);
+    expect((await register({ givenNames: 'Jo', familyName: family, email })).status).toBe(303);
+    expect(readByEmail(email)!.family_name).toBe(family);
+  });
+
+  it('refuses a family name of 36 characters and says which part is too long', async () => {
+    const email = 'family-36@example.com';
+    const res = await register({ givenNames: 'Jo', familyName: 'B' + part(35), email });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Family name must be 35 characters or fewer');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  it('accepts given names of exactly 35 characters', async () => {
+    const email = 'given-35@example.com';
+    const given = 'C' + part(34);
+    expect((await register({ givenNames: given, familyName: 'Lee', email })).status).toBe(303);
+    expect(readByEmail(email)!.given_names).toBe(given);
+  });
+
+  it('refuses given names of 36 characters and says which part is too long', async () => {
+    const email = 'given-36@example.com';
+    const res = await register({ givenNames: 'C' + part(35), familyName: 'Lee', email });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Given names must be 35 characters or fewer');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  it('refuses two full-length parts whose assembled name passes 70', async () => {
+    const email = 'assembled-71@example.com';
+    const res = await register({ givenNames: 'C' + part(34), familyName: 'B' + part(34), email });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('70 characters or fewer in total');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  it('accepts a display name of exactly 70 characters, and its generated profile URL', async () => {
+    const email = 'display-70@example.com';
+    const display = 'D' + part(63) + ' Smith';
+    expect(display).toHaveLength(70);
+    expect((await register({
+      givenNames: 'Dee', familyName: 'Smith', displayName: display, email,
+    })).status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe(`d${part(63)}_smith`);
+  });
+
+  // The default profile URL derives from the display name, so a member who
+  // types that same 70-character URL must not be refused it.
+  it('accepts a chosen profile URL as long as the longest display name, and refuses one longer', async () => {
+    const okEmail = 'slug-70@example.com';
+    const slug70 = `e${part(63)}_smith`;
+    expect(slug70).toHaveLength(70);
+    expect((await register({
+      givenNames: 'Eve', familyName: 'Smith', slug: slug70, email: okEmail,
+    })).status).toBe(303);
+    expect(readByEmail(okEmail)!.slug).toBe(slug70);
+
+    const badEmail = 'slug-71@example.com';
+    const res = await register({
+      givenNames: 'Eve', familyName: 'Smith', slug: `f${part(64)}_smith`, email: badEmail,
+    });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Profile URL must be 70 characters or fewer');
+    expect(readByEmail(badEmail)).toBeUndefined();
+  });
+
+  it('refuses a display name of 71 characters', async () => {
+    const email = 'display-71@example.com';
+    const res = await register({
+      givenNames: 'Dee', familyName: 'Smith', displayName: 'D' + part(64) + ' Smith', email,
+    });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Display name must be 70 characters or fewer');
+    expect(readByEmail(email)).toBeUndefined();
   });
 });
 

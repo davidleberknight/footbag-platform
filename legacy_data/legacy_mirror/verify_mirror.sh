@@ -10,8 +10,8 @@
 # verifier auto-loads the fourth, exact-match one itself, the same as a real
 # crawl does), and the personal details
 # come out of create_mirror.sh itself, which is the single home for them and
-# is not committed. Anything missing is reported and skipped rather than
-# silently passing.
+# is not committed. A missing exclusion list refuses the run; missing personal
+# details are reported and that check skipped, never silently passed.
 #
 #   ./verify_mirror.sh                 # the capture beside this script
 #   ./verify_mirror.sh --examples 20   # more offending paths per failed check
@@ -33,14 +33,27 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
     exit 1
 fi
 
+# Every list is required. A missing one does not fail the excluded-surface check:
+# that check runs against whichever lists remain and reads ok, so a capture still
+# holding the missing list's surfaces verifies green and the publisher, which
+# refuses only a check reported as skipped, ships it.
 ARGS=()
+missing_lists=0
 for list in "$GROUP_EXCLUSIONS" "$MEMBER_EXCLUSIONS" "$SUPERSEDED_EXCLUSIONS"; do
     if [[ -f "$list" ]]; then
         ARGS+=(--exclusion-list "$list")
     else
-        echo "Note: exclusion list not found, its surfaces go unchecked: $list" >&2
+        echo "Error: exclusion list not found, so its surfaces cannot be checked: $list" >&2
+        missing_lists=1
     fi
 done
+if [[ "$missing_lists" -ne 0 ]]; then
+    echo "Refusing to verify: a check run without one of its exclusion lists reads ok" >&2
+    echo "while checking less than it claims. The committee list arrives with the" >&2
+    echo "private checkout (the repo-root footbag_private_repo symlink); the other two" >&2
+    echo "are committed beside this script." >&2
+    exit 1
+fi
 
 # The values live in the crawl wrapper because they are personal data that is
 # never committed. Read them out rather than keeping a second copy here, which

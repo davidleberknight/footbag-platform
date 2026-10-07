@@ -1,462 +1,321 @@
 /**
- * Route-wiring crawl: every link and form target the app renders must
- * resolve to a registered route for the persona it was rendered to.
+ * Route-wiring crawl: every page the app renders, walked as a visitor, a
+ * member, an administrator and the owner of the private-field canaries, and
+ * checked by the crawl oracles.
  *
- * For each persona (anonymous, member, admin) the crawler starts at the
- * section roots, follows every same-origin href it discovers breadth-first,
- * and fails on:
- *   - a 404 (the page rendered a link to a route that does not exist or is
- *     not reachable by the persona it was rendered for)
- *   - any 5xx
- *   - rendered template artifacts in a 200 HTML body: a stray mustache or
- *     an [object Object] means a template emitted internal syntax (a
- *     short-form Handlebars comment that terminated early renders exactly
- *     this way). JSON data islands are stripped before the check since
- *     nested JSON legitimately contains brace runs.
+ * Each crawl starts at the section roots and follows every same-origin link,
+ * form and asset breadth-first. It fails on:
+ *   - a 5xx, or an operator-alert error logged while a request was served;
+ *   - a rendered link, form or asset that resolves to 404;
+ *   - a rendered link or form the same persona is then refused;
+ *   - a redirect that leaves the site, including a path-carrying query
+ *     parameter replayed with an off-site value;
+ *   - template artifacts, invalid markup, a missing or doubled title or h1;
+ *   - a public page without its canonical link and description, an error page
+ *     claiming a canonical address, a signed-in page not kept out of indexes;
+ *   - a seeded private value shown to a viewer outside its audience.
+ * Across the crawls it also proves every served route was reached or carries a
+ * reasoned exemption, every sitemap entry is live and indexable, distinct
+ * pages carry distinct titles, and every private value does render for its own
+ * audience (otherwise the leak check would pass on a value nobody renders).
  *
- * POST form targets are probed with an empty body: any response except 404
- * and 5xx proves the route is wired (422/4xx validation responses are the
- * expected answer to an empty body). A POST that redirects (a create that
- * 302s to the resource it made) has its Location enqueued, so a GET page
- * reachable only through a POST is still crawled rather than silently missed.
+ * POST form targets are probed with an empty body: any response except 404 and
+ * 5xx proves the route is wired. A POST that redirects has its Location
+ * enqueued, so a page reachable only through a POST is still crawled.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
-import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import {
-  insertMember,
-  insertClub,
-  insertTag,
-  insertEvent,
-  insertHistoricalPerson,
-  insertFreestyleTrick,
-  insertFreestyleTrickAlias,
-  insertFreestyleTrickModifier,
-  insertFreestyleTrickModifierLink,
-  insertFreestyleTrickSource,
-  insertFreestyleTrickSourceLink,
-  insertFreestyleRecord,
-  insertConsecutiveKicksRecord,
-  insertMemberGallery,
-  completeOnboarding,
-  createTestSessionJwt,
-} from '../fixtures/factories';
-
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import request from '../fixtures/supertestWithOrigin';
+import { cleanupTestDb, importApp } from '../fixtures/testDb';
+import { createTestSessionJwt } from '../fixtures/factories';
+import { loadServedRoutes, type ServedRoute } from '../fixtures/routeTable';
+import {
+  crawl,
+  supertestFetcher,
+  switchTo,
+  type CrawlPersona,
+  type CrawlResult,
+} from '../fixtures/crawl/core';
+import {
+  canariesShown,
+  canonicalOf,
+  duplicateTitleFindings,
+  ledgerFindings,
+  pageTitle,
+  storyIdsFrom,
+  sitemapEntryFindings,
+  sitemapPaths,
+  unreachedRouteFindings,
+  type Canary,
+  type Finding,
+} from '../fixtures/crawl/oracles';
+import { errorPageChecks, pageChecks } from '../fixtures/crawl/pageChecks';
+import { canariesFor } from '../fixtures/crawl/canaries';
+import { ROUTE_STORIES, STORIES_WITHOUT_ROUTE } from '../fixtures/crawl/routeStories';
+import {
+  applyFindingExemptions,
+  CANARY_CONTROL_EXEMPTIONS,
+  CRAWL_FINDING_EXEMPTIONS,
+  ROUTE_EXEMPTIONS,
+  SITEMAP_FINDING_EXEMPTIONS,
+  TITLE_FINDING_EXEMPTIONS,
+} from '../fixtures/crawl/exemptions';
+import {
+  CRAWL_ADMIN_ID,
+  CRAWL_MEMBER_ID,
+  SEED_ROOTS,
+  prepareCrawlEnv,
+  seedCrawlFixture,
+  shouldSkip,
+  teardownCrawlFixture,
+} from '../fixtures/crawl/seedCrawlFixture';
 
-const { dbPath } = setTestEnv('3171');
-// Mount the /dev persona harness so its catalog page and switch links are
-// wiring-checked too (the dev router registers only for development/staging).
-process.env.FOOTBAG_ENV = 'development';
-// The admin curator upload page touches the curated/media roots at render
-// time; point both at tmp so the crawl never reaches repo paths.
-const MEDIA_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-crawl-media-'));
-process.env.FOOTBAG_MEDIA_DIR = MEDIA_TMP;
-process.env.FOOTBAG_CURATED_MEDIA_DIR = MEDIA_TMP;
+const env = prepareCrawlEnv('3171');
+const SELF_ORIGIN = 'http://localhost:3171';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+let canaries: Canary[] = [];
+let canaryOwnerId = '';
+let served: ServedRoute[] = [];
 
-const MEMBER_ID = 'crawl-member-001';
-const ADMIN_ID  = 'crawl-admin-001';
+// Hard bound per persona so a link explosion fails fast instead of hanging the
+// suite. The widest run (the administrator, who sees every member record) sits
+// near 700 pages with the full persona catalog and the canaries seeded; the
+// bound keeps headroom so a persona or two costs nothing while a genuine link
+// explosion still trips it. Raise it when the crawl reports the cap, never
+// lower it to make a run fit.
+const MAX_PAGES = 1000;
 
-// Hard bound per persona so a link explosion fails fast instead of hanging
-// the suite. High enough to cover every section root plus the freestyle index,
-// static pages, the operator QC pages, and the discovered freestyle reference
-// surfaces (browse views, set and operator and family details) reachable from
-// the small seed corpus; the crawl logs what it visited on failure.
-//
-// The crawl seeds the whole persona catalog, so each added persona brings its
-// profile and any seeded resource pages with it, and every admin surface that
-// names a member by their record adds that record too: the widest run sits
-// between 610 and 650 pages today. The bound keeps roughly a quarter of that as
-// headroom, so a persona or two costs nothing while a genuine link explosion
-// still trips it. Raise it when the crawl reports the cap, never lower it to
-// make a run fit.
-const MAX_PAGES = 800;
-
-const SEED_ROOTS = [
-  '/', '/members', '/clubs', '/events', '/media', '/media/browse', '/hof',
-  '/bap', '/history', '/freestyle', '/net', '/records', '/rules', '/ifpa',
-  '/legal', '/login', '/register', '/password/forgot', '/dev/personas',
-  // Admin claim form: requireAuth-only, above the admin gate, linked from no
-  // page. Anonymous/non-admin see the redirect/gate; the crawl confirms it wires.
-  '/admin/bootstrap-claim',
-];
-
-// The freestyle tricks this fixture seeds; trick-detail links outside this set
-// are content-authored references into the full real dictionary and are
-// skipped rather than reported as dead (see shouldSkip).
-const SEEDED_TRICK_SLUGS = new Set(['whirl', 'paradox_whirl']);
+/**
+ * Ceiling for the case that runs the crawls, derived from the crawls' own
+ * budget rather than from how long a walk happens to take here: four walks of
+ * up to MAX_PAGES at tens of milliseconds a page, plus markup validation once
+ * per distinct body, with margin for a workstation several times slower.
+ */
+const CRAWL_TIMEOUT_MS = 600_000;
 
 beforeAll(async () => {
-  const db = createTestDb(dbPath);
-
-  insertMember(db, {
-    id: MEMBER_ID, slug: 'crawl_member', display_name: 'Crawl Member',
-    login_email: 'crawl-member@example.com',
-  });
-  completeOnboarding(db, MEMBER_ID);
-  insertMember(db, {
-    id: ADMIN_ID, slug: 'crawl_admin', display_name: 'Crawl Admin',
-    login_email: 'crawl-admin@example.com', is_admin: 1,
-  });
-  completeOnboarding(db, ADMIN_ID);
-  insertMember(db, {
-    id: 'crawl-hof-001', slug: 'crawl_hof', display_name: 'Crawl Hof',
-    login_email: 'crawl-hof@example.com', is_hof: 1,
-  });
-  completeOnboarding(db, 'crawl-hof-001');
-
-  const clubTag = insertTag(db, {
-    tag_normalized: '#club_crawlville', tag_display: '#club_crawlville', standard_type: 'club',
-  });
-  // A real (non-fixture) club in the same country the persona clubs use, so the
-  // country directory (/clubs/usa) has a visible club and the persona clubs'
-  // country links resolve even though the persona fixtures are excluded from it.
-  insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'USA', hashtag_tag_id: clubTag });
-
-  insertEvent(db, { title: 'Crawl Open', status: 'reg_open' });
-
-  insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
-
-  // Minimal freestyle corpus so the freestyle surfaces (index views, trick
-  // detail, records, and the links they render) are crawlable instead of
-  // excluded. whirl is an official Family Parent, so the family links its
-  // pages render resolve; the compound carries an alias, a modifier link,
-  // and a source link so those rendered blocks emit their links too.
-  insertFreestyleTrick(db, {
-    slug: 'whirl', canonical_name: 'Whirl', adds: '3',
-    trick_family: 'whirl', base_trick: 'whirl', category: 'dex',
-    review_status: 'curated', is_active: 1,
-  });
-  insertFreestyleTrick(db, {
-    slug: 'paradox_whirl', canonical_name: 'Paradox Whirl', adds: '4',
-    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
-    review_status: 'curated', is_active: 1,
-  });
-  insertFreestyleTrickAlias(db, 'crawl_alias', 'paradox_whirl', 'Crawl Alias');
-  insertFreestyleTrickModifier(db, { slug: 'paradox', modifier_name: 'paradox', add_bonus: 1, modifier_type: 'body' });
-  insertFreestyleTrickModifierLink(db, 'paradox_whirl', 'paradox', 1);
-  const crawlSourceId = insertFreestyleTrickSource(db, { source_label: 'Crawl Source', source_type: 'curated' });
-  insertFreestyleTrickSourceLink(db, 'paradox_whirl', crawlSourceId, {});
-  insertFreestyleRecord(db, {
-    id: 'crawl_record', display_name: 'Crawl Holder', trick_name: 'Whirl', value_numeric: 12,
-  });
-  insertConsecutiveKicksRecord(db, {
-    id: 'crawl_ck_wr', sort_order: 401, section: 'Official World Records',
-    subsection: 'Current', division: 'Open Singles', player_1: 'Crawl Kicker', score: 50000,
-  });
-  insertConsecutiveKicksRecord(db, {
-    id: 'crawl_ck_ms', sort_order: 1301, section: 'Milestone Firsts',
-    subsection: 'Firsts', division: 'Open Singles', player_1: 'Crawl Kicker', score: 10000,
-  });
-
-  // FH system member + the catalog FH galleries the freestyle landing links
-  // statically. Empty galleries render fine; what matters is that the links
-  // the landing renders resolve.
-  insertMember(db, {
-    id: 'crawl-fh-system', slug: 'crawl_fh', display_name: 'Footbag Hacky', is_system: 1,
-  });
-  const TS = '2026-01-01T00:00:00.000Z';
-  for (const galleryId of [
-    'gallery_tricks_of_the_trade',
-    'gallery_shred_global',
-    'gallery_passback_tutorials',
-    'gallery_anz_trikz',
-    'gallery_footbag_finland',
-    'gallery_footbag_org',
-  ]) {
-    insertMemberGallery(db, {
-      id: galleryId,
-      created_at: TS,
-      owner_member_id: 'crawl-fh-system',
-      name: galleryId.replace(/_/g, ' '),
-      description: '',
-      is_default: 0,
-    });
-  }
-
-  // Seed the full canonical persona catalog so every /dev/switch link on
-  // /dev/personas resolves to a loadable session.
-  const { seedPersona } = await import('../../src/testkit/personaFactory');
-  const { CANONICAL_PERSONAS } = await import('../../src/testkit/canonicalPersonas');
-  for (const spec of CANONICAL_PERSONAS) {
-    seedPersona(db, spec);
-  }
-
-  db.close();
-
-  // The admin curator pages exercise disk paths at render time; point the
-  // curated root at tmp via the service's explicit test seam.
-  const svcMod = await import('../../src/services/curatorMediaService');
-  svcMod.setCuratedRootDirForTests(MEDIA_TMP);
-
+  const fixture = await seedCrawlFixture(env);
+  canaries = canariesFor(fixture.canaries);
+  canaryOwnerId = fixture.canaries.hidden.id;
   createApp = await importApp();
+  served = await loadServedRoutes();
 });
 
 afterAll(async () => {
-  const svcMod = await import('../../src/services/curatorMediaService');
-  svcMod.resetCuratedRootDirForTests();
-  fs.rmSync(MEDIA_TMP, { recursive: true, force: true });
-  cleanupTestDb(dbPath);
+  await teardownCrawlFixture(env);
+  cleanupTestDb(env.dbPath);
 });
 
-interface CrawlFailure {
-  persona: string;
-  url: string;
-  via: string;
-  problem: string;
+async function loggedErrorCounter(): Promise<() => number> {
+  const { logger } = await import('../../src/config/logger');
+  return () => (vi.isMockFunction(logger.error) ? vi.mocked(logger.error).mock.calls.length : 0);
 }
 
-function shouldSkip(path: string): boolean {
-  if (path.startsWith('/media-store/')) return true;
-  if (/^\/admin\/curator\/upload\/jobs\/.+\/events$/.test(path)) return true;
-  if (path === '/logout') return true;
-  // Harness action: refreshing re-seeds personas mid-crawl, so the crawler
-  // skips it; a dedicated test probes it after the crawls complete.
-  if (path === '/dev/personas/refresh') return true;
-  // Trick-detail links are checked only for the seeded corpus. The freestyle
-  // reference pages (ADD analysis, glossary, learn, sets) are content modules
-  // authored against the full real dictionary, so they legitimately link
-  // trick slugs this fixture does not carry; following those would report the
-  // fixture's smallness as dead links. Every other freestyle surface (index
-  // views, set, family, operator, records, search) is crawled in full.
-  const trickDetail = path.match(/^\/freestyle\/tricks\/([^/?#]+)$/);
-  if (trickDetail && !SEEDED_TRICK_SLUGS.has(decodeURIComponent(trickDetail[1]))) return true;
-  return false;
+function jwtPersona(name: string, memberId: string, isAdmin = false): CrawlPersona {
+  const jwt = createTestSessionJwt({ memberId, role: isAdmin ? 'admin' : 'member' });
+  return {
+    name, cookie: `__Host-footbag_session=${jwt}`,
+    authenticated: true, onboarded: true, memberId, isAdmin,
+  };
 }
 
-// Handlebars HTML-escapes attribute values, so a query-string href renders
-// with entities: `=` becomes the numeric reference `&#x3D;`, `&` becomes
-// `&amp;`. The raw markup must be decoded back to the real URL before parsing,
-// or the `#` inside `&#x3D;` truncates the href at the fragment split and every
-// `?key=value` link collapses to `?key`, silently never getting probed.
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+interface CrawlSet {
+  byPersona: Map<string, CrawlResult>;
 }
 
-function normalize(href: string): string | null {
-  const decoded = decodeEntities(href);
-  if (!decoded.startsWith('/')) return null;     // external, mailto, anchors
-  if (decoded.startsWith('//')) return null;     // protocol-relative external
-  const noHash = decoded.split('#')[0];
-  return noHash === '' ? null : noHash;
+// The crawls run once, inside the first case that needs them, so the
+// operator-alert spy the shared setup installs per case is in place and every
+// logged error is attributed to the request that produced it.
+// The canary subjects' own profiles are seeded directly: a member profile is
+// reached by search or by a link from somewhere the subject appears, and the
+// canaries appear nowhere else.
+const CANARY_ROOTS = ['/members/canary_hidden', '/members/canary_hidden/edit', '/members/canary_shown'];
+
+// Personas whose own surfaces the full crawls cannot reach, walked within the
+// part of the site that differs for them: a registrant still in the wizard, and
+// a club leader on the club pages they lead. Scoping keeps each walk small.
+const SCOPED_PERSONAS: ReadonlyArray<{ slug: string; onboarded: boolean; seeds: string[]; scope: RegExp }> = [
+  {
+    slug: 'onb_unstarted', onboarded: false,
+    seeds: ['/', '/register/wizard/personal_details'],
+    scope: /^\/(?:register\/wizard(?:\/|$)|$)/,
+  },
+  {
+    slug: 'onb_partial', onboarded: false,
+    seeds: ['/register/wizard/legacy_claim'],
+    scope: /^\/register\/wizard(?:\/|$)/,
+  },
+  {
+    slug: 'club_leader', onboarded: true,
+    seeds: ['/clubs', '/members/club_leader'],
+    scope: /^\/(?:clubs|members\/club_leader)(?:[/?]|$)/,
+  },
+];
+const SCOPED_MAX_PAGES = 200;
+
+let crawlSet: Promise<CrawlSet> | null = null;
+function crawls(): Promise<CrawlSet> {
+  crawlSet ??= (async () => {
+    const fetcher = supertestFetcher(createApp());
+    const loggedErrorCount = await loggedErrorCounter();
+    const common = {
+      fetcher, selfOrigin: SELF_ORIGIN, loggedErrorCount, replayOpenRedirects: true,
+      pageOracles: pageChecks({ canaries }), errorPageOracles: errorPageChecks,
+    };
+    const personas: CrawlPersona[] = [
+      { name: 'anonymous', cookie: null, authenticated: false, onboarded: false },
+      jwtPersona('member', CRAWL_MEMBER_ID),
+      jwtPersona('admin', CRAWL_ADMIN_ID, true),
+      jwtPersona('canary-owner', canaryOwnerId),
+    ];
+    const byPersona = new Map<string, CrawlResult>();
+    for (const persona of personas) {
+      byPersona.set(persona.name, await crawl({
+        ...common, persona, seeds: [...SEED_ROOTS, ...CANARY_ROOTS], maxPages: MAX_PAGES, shouldSkip,
+      }));
+    }
+    for (const s of SCOPED_PERSONAS) {
+      const cookie = await switchTo(fetcher, s.slug);
+      expect(cookie, `switch to ${s.slug} issues a session`).toBeTruthy();
+      const persona: CrawlPersona = {
+        name: s.slug, cookie, authenticated: true, onboarded: s.onboarded,
+        memberId: `member_persona_${s.slug}`,
+      };
+      byPersona.set(s.slug, await crawl({
+        ...common, persona, seeds: s.seeds, maxPages: SCOPED_MAX_PAGES,
+        shouldSkip: (p) => shouldSkip(p) || !s.scope.test(p),
+      }));
+    }
+    return { byPersona };
+  })();
+  return crawlSet;
 }
 
-function extractTargets(html: string): { gets: string[]; posts: string[] } {
-  const gets: string[] = [];
-  const posts: string[] = [];
-  for (const m of html.matchAll(/href="([^"]+)"/g)) {
-    const p = normalize(m[1]);
-    if (p) gets.push(p);
-  }
-  for (const m of html.matchAll(/<form\b[^>]*>/g)) {
-    const tag = m[0];
-    const action = /action="([^"]+)"/.exec(tag)?.[1];
-    const method = (/method="([^"]+)"/.exec(tag)?.[1] ?? 'get').toLowerCase();
-    if (!action) continue;
-    const p = normalize(action);
-    if (!p) continue;
-    if (method === 'post') posts.push(p);
-    else gets.push(p);
-  }
-  return { gets, posts };
-}
-
-// Brace runs inside JSON data islands are legitimate; everything else in a
-// rendered page must be mustache-free.
-function stripJsonIslands(html: string): string {
-  return html.replace(/<script type="application\/json"[^>]*>[\s\S]*?<\/script>/g, '');
-}
-
-async function crawlAs(
-  persona: string,
-  cookie: string | null,
-): Promise<{ failures: CrawlFailure[]; visited: Set<string> }> {
-  const app = createApp();
-  const failures: CrawlFailure[] = [];
-  const visited = new Set<string>();
-  const queue: Array<{ url: string; via: string }> = SEED_ROOTS.map((url) => ({ url, via: '(seed)' }));
-  const postProbed = new Set<string>();
-
-  while (queue.length > 0 && visited.size < MAX_PAGES) {
-    const { url, via } = queue.shift()!;
-    if (visited.has(url) || shouldSkip(url)) continue;
-    visited.add(url);
-
-    let req = request(app).get(url).redirects(0);
-    if (cookie) req = req.set('Cookie', cookie);
-    const res = await req;
-
-    if (res.status >= 500) {
-      failures.push({ persona, url, via, problem: `GET ${res.status}` });
-      continue;
-    }
-    if (res.status === 404 && via !== '(seed)') {
-      // A 404 on a seed root is route-shape knowledge (e.g. /history has no
-      // index by design); a 404 on a RENDERED link is a broken target.
-      failures.push({ persona, url, via, problem: 'rendered link resolves to 404' });
-      continue;
-    }
-    if (res.status >= 300 && res.status < 400) {
-      const loc = normalize(String(res.headers.location ?? ''));
-      if (loc && !visited.has(loc)) queue.push({ url: loc, via: `${url} (redirect)` });
-      continue;
-    }
-    if (res.status !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) {
-      continue;
-    }
-
-    const body = stripJsonIslands(res.text);
-    if (body.includes('[object Object]')) {
-      failures.push({ persona, url, via, problem: 'rendered [object Object]' });
-    }
-    if (/\{\{|\}\}/.test(body)) {
-      failures.push({ persona, url, via, problem: 'rendered raw mustache artifact' });
-    }
-
-    const { gets, posts } = extractTargets(res.text);
-    for (const target of gets) {
-      if (!visited.has(target) && !shouldSkip(target)) queue.push({ url: target, via: url });
-    }
-    for (const target of posts) {
-      if (postProbed.has(target) || shouldSkip(target)) continue;
-      postProbed.add(target);
-      let post = request(app).post(target).redirects(0).type('form');
-      if (cookie) post = post.set('Cookie', cookie);
-      const postRes = await post.send({});
-      if (postRes.status === 404) {
-        failures.push({ persona, url: target, via: `form on ${url}`, problem: 'form action resolves to 404' });
-      } else if (postRes.status >= 500) {
-        failures.push({ persona, url: target, via: `form on ${url}`, problem: `form action POST ${postRes.status}` });
-      } else if (postRes.status >= 300 && postRes.status < 400) {
-        // A create/action POST that 302s to the resource it produced: follow
-        // the Location so a GET page reachable only via this POST is crawled.
-        const loc = normalize(String(postRes.headers.location ?? ''));
-        if (loc && !visited.has(loc)) queue.push({ url: loc, via: `form on ${url} (redirect)` });
-      }
-    }
-  }
-
-  // Reaching the page budget means coverage was capped: links beyond it were
-  // never probed, so an unfollowed broken link could hide in the tail. Fail
-  // loudly and raise the budget rather than let truncation pass silently.
-  if (visited.size >= MAX_PAGES) {
-    failures.push({ persona, url: '(crawl)', via: '(budget)', problem: `hit MAX_PAGES=${MAX_PAGES}; coverage truncated, raise the budget` });
-  }
-
-  return { failures, visited };
-}
-
-/**
- * Ceiling for a crawl case, derived from the crawl's own budget rather than from
- * how long a walk happens to take here. MAX_PAGES is what decides when a crawl
- * stops, and exceeding it is reported as a named failure, so this has to clear a
- * full-budget walk or the runner interrupts before the budget can report and the
- * verdict becomes a statement about the machine. A page costs on the order of
- * twenty milliseconds, so the full 800 are seconds rather than minutes, and the
- * margin here is for a workstation several times slower than the one that
- * measured it.
- */
-const CRAWL_TIMEOUT_MS = 120_000;
-
-// The persona-switch route issues a real session cookie on its 302; pulling it
-// out lets the crawl render pages AS the switched persona instead of only
-// confirming the switch link resolves.
-function sessionCookieFrom(setCookie: string[] | string | undefined): string | null {
-  const cookies = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
-  for (const c of cookies) {
-    const m = /^__Host-footbag_session=[^;]+/.exec(c);
-    if (m) return m[0];
-  }
-  return null;
-}
-
-async function renderProblem(
-  app: ReturnType<typeof createApp>,
-  cookie: string,
-  url: string,
-): Promise<string | null> {
-  const res = await request(app).get(url).set('Cookie', cookie).redirects(0);
-  if (res.status >= 500) return `GET ${res.status}`;
-  if (res.status !== 200) return `expected 200, got ${res.status}`;
-  if (!String(res.headers['content-type'] ?? '').includes('text/html')) return 'not html';
-  const body = stripJsonIslands(res.text);
-  if (body.includes('[object Object]')) return 'rendered [object Object]';
-  if (/\{\{|\}\}/.test(body)) return 'rendered raw mustache artifact';
-  return null;
+function allFindings(set: CrawlSet): Finding[] {
+  return [...set.byPersona.values()].flatMap((r) => r.findings);
 }
 
 describe('route wiring crawl', () => {
-  it('anonymous: every rendered link and form target resolves; no template artifacts', async () => {
-    const { failures } = await crawlAs('anonymous', null);
-    expect(failures).toEqual([]);
+  it('every rendered page, link, form and asset passes the page oracles for every crawled persona', async () => {
+    const set = await crawls();
+    const { open, stale } = applyFindingExemptions(allFindings(set), CRAWL_FINDING_EXEMPTIONS);
+    expect(open, 'crawl findings').toEqual([]);
+    expect(stale.map((e) => e.why), 'finding exemptions that no longer match anything').toEqual([]);
   }, CRAWL_TIMEOUT_MS);
 
-  it('authenticated member: every rendered link and form target resolves; no template artifacts', async () => {
-    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
-    const { failures } = await crawlAs('member', cookie);
-    expect(failures).toEqual([]);
-  }, CRAWL_TIMEOUT_MS);
-
-  it('admin: every rendered link and form target resolves; no template artifacts', async () => {
-    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
-    const { failures, visited } = await crawlAs('admin', cookie);
-    expect(failures).toEqual([]);
-    // The retired operator surface stays unreachable even for an admin, who is
-    // the one persona that could have rendered it.
+  it('the walk follows HTML-escaped query links and login-blocked persona rows', async () => {
+    const admin = (await crawls()).byPersona.get('admin')!;
+    // A query-string link carries an HTML-escaped `=`; it must be followed with
+    // its value intact, not truncated at the escape.
+    expect(admin.visited.has('/dev/switch?as=t0_fresh')).toBe(true);
+    // A login-blocked persona is an exercisable link, not a dead row.
+    expect(admin.visited.has('/dev/login?as=unverified')).toBe(true);
+    // The retired operator surface stays unreachable even for an administrator.
+    const cookie = jwtPersona('admin', CRAWL_ADMIN_ID, true).cookie!;
     const retired = await request(createApp()).get('/internal/persons/qc').set('Cookie', cookie);
     expect(retired.status).toBe(404);
-    // Guards the entity-decode path: a query-string link (the `?as=` carries an
-    // HTML-escaped `=`) must be followed with its value intact, not truncated.
-    expect(visited.has('/dev/switch?as=t0_fresh')).toBe(true);
-    // A login-blocked persona is an exercisable link, not a dead row: its
-    // /dev/login target is followed and resolves (it lands on /login).
-    expect(visited.has('/dev/login?as=unverified')).toBe(true);
   }, CRAWL_TIMEOUT_MS);
 
-  // Adopting the session cookie the switch route issues renders pages AS each
-  // persona, so tier, honor, and club-role conditional surfaces are actually
-  // walked rather than only having their switch link confirmed to resolve. A
-  // role-diverse, onboarding-complete sample keeps this proportionate; the full
-  // route-by-persona authorization matrix lives in its own suite.
-  it('each role-distinct persona renders its own conditional surfaces', async () => {
-    const app = createApp();
-    const personaSlugs = [
-      't0_fresh', 't1_paid', 't2_paid', 't3_comped',
-      'honors_hof', 'club_leader', 'club_coleader', 'legacy_linked',
-    ];
-    const failures: CrawlFailure[] = [];
-    for (const slug of personaSlugs) {
-      const sw = await request(app).get(`/dev/switch?as=${slug}`).redirects(0);
-      expect(sw.status, `switch to ${slug} redirects`).toBe(302);
-      const cookie = sessionCookieFrom(sw.headers['set-cookie']);
-      expect(cookie, `switch to ${slug} issues a session cookie`).toBeTruthy();
-      for (const url of ['/', `/members/${slug}`, `/members/${slug}/edit`]) {
-        const problem = await renderProblem(app, cookie!, url);
-        if (problem) failures.push({ persona: slug, url, via: 'persona-switch walk', problem });
+  it('every served route is reached by a crawl or carries a reasoned exemption', async () => {
+    const set = await crawls();
+    const reached: Array<{ method: string; path: string }> = [];
+    for (const r of set.byPersona.values()) {
+      for (const [p, status] of r.getStatus) if (status !== 404 && status < 500) reached.push({ method: 'GET', path: p });
+      for (const [p, status] of r.postStatus) if (status !== 404 && status < 500) reached.push({ method: 'POST', path: p });
+    }
+    // A router missing from the table would leave every route on it outside
+    // the coverage check without a single unreached finding.
+    expect([...new Set(served.map((r) => r.router))].sort(), 'routers the coverage check reads')
+      .toEqual(['admin', 'dev', 'health', 'ipc', 'public', 'seo']);
+    expect(unreachedRouteFindings(served, reached, ROUTE_EXEMPTIONS)).toEqual([]);
+  }, CRAWL_TIMEOUT_MS);
+
+  it('distinct public pages carry distinct titles', async () => {
+    const anon = (await crawls()).byPersona.get('anonymous')!;
+    const pages = anon.pages.map((p) => ({ url: p.url, canonical: canonicalOf(p.res.body), title: pageTitle(p.res.body) }));
+    const { open, stale } = applyFindingExemptions(
+      duplicateTitleFindings(pages).map((d) => ({ persona: 'anonymous', url: d.url, via: '(titles)', oracle: 'seo' as const, problem: d.problem })),
+      TITLE_FINDING_EXEMPTIONS,
+    );
+    expect(open).toEqual([]);
+    expect(stale.map((e) => e.why), 'title exemptions that no longer match anything').toEqual([]);
+  }, CRAWL_TIMEOUT_MS);
+
+  it('every private value renders for its own audience, so the leak check is not vacuous', async () => {
+    const set = await crawls();
+    const shownTo = new Map<string, Set<string>>();
+    for (const [name, r] of set.byPersona) {
+      if (name === 'anonymous') continue;
+      for (const page of r.pages) {
+        for (const c of canariesShown(page.res.body, canaries)) {
+          const key = `${c.subjectMemberId} ${c.field}`;
+          shownTo.set(key, (shownTo.get(key) ?? new Set()).add(name));
+        }
       }
     }
-    expect(failures).toEqual([]);
-  });
+    const exempt = new Set(CANARY_CONTROL_EXEMPTIONS.map((e) => e.field));
+    const neverShown = canaries
+      .filter((c) => !shownTo.has(`${c.subjectMemberId} ${c.field}`) && !exempt.has(c.field))
+      .map((c) => `${c.subjectMemberId} ${c.field}`);
+    expect(neverShown, 'private values no in-audience viewer ever saw').toEqual([]);
+    const staleControls = CANARY_CONTROL_EXEMPTIONS
+      .filter((e) => canaries.some((c) => c.field === e.field && shownTo.has(`${c.subjectMemberId} ${c.field}`)))
+      .map((e) => e.field);
+    expect(staleControls, 'control exemptions for values that now render').toEqual([]);
+  }, CRAWL_TIMEOUT_MS);
+});
 
-  // Probed after the crawls because a successful refresh re-seeds every
-  // persona; the crawler skips it mid-walk for the same reason.
-  it('persona refresh form action executes and redirects back to the listing', async () => {
+describe('route-to-story ledger', () => {
+  // Read from the working tree, because the catalogue under test is the one
+  // this checkout serves.
+  it('maps every served route to a story and accounts for every story, both ways', () => {
+    const catalogue = fs.readFileSync(path.join(process.cwd(), 'docs', 'USER_STORIES.md'), 'utf8');
+    const storyIds = storyIdsFrom(catalogue);
+    expect(storyIds.length, 'no story headings read from the catalogue').toBeGreaterThan(100);
+    expect(ledgerFindings({
+      servedRoutes: served.map((r) => `${r.method} ${r.path}`),
+      storyIds,
+      routeStories: ROUTE_STORIES,
+      storiesWithoutRoute: STORIES_WITHOUT_ROUTE,
+    })).toEqual([]);
+  });
+});
+
+describe('sitemap', () => {
+  it('lists only live, indexable, non-member pages', async () => {
     const app = createApp();
-    const res = await request(app).post('/dev/personas/refresh').redirects(0).type('form').send({});
+    const xml = await request(app).get('/sitemap.xml');
+    expect(xml.status).toBe(200);
+    const paths = sitemapPaths(xml.text, SELF_ORIGIN);
+    expect(paths.length, 'sitemap lists no pages').toBeGreaterThan(0);
+    const problems: string[] = [];
+    const used = new Set<(typeof SITEMAP_FINDING_EXEMPTIONS)[number]>();
+    for (const p of paths) {
+      const res = await request(app).get(p).redirects(0);
+      const location = res.headers.location as string | undefined;
+      for (const problem of sitemapEntryFindings(p, res.status, res.text ?? '', location)) {
+        const ex = SITEMAP_FINDING_EXEMPTIONS.find((e) => e.entry.test(p) && e.problem.test(problem));
+        if (ex) used.add(ex);
+        else problems.push(`${p}: ${problem}`);
+      }
+    }
+    expect(problems).toEqual([]);
+    const stale = SITEMAP_FINDING_EXEMPTIONS.filter((e) => !used.has(e)).map((e) => e.why);
+    expect(stale, 'sitemap exemptions that no longer match anything').toEqual([]);
+  });
+});
+
+describe('persona harness refresh', () => {
+  // Probed on its own because a successful refresh re-seeds every persona; the
+  // crawler skips it mid-walk for the same reason.
+  it('persona refresh form action executes and redirects back to the listing', async () => {
+    await crawls();
+    const res = await request(createApp()).post('/dev/personas/refresh').redirects(0).type('form').send({});
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/dev/personas');
-  });
+  }, CRAWL_TIMEOUT_MS);
 });
 
 // ── Button-destination integrity ─────────────────────────────────────────────

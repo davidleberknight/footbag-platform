@@ -451,6 +451,7 @@ RSYNC_INCLUDES=(
   --include='/scripts/backup-db.sh'
   --include='/scripts/cutover-marker.sh'
   --include='/scripts/take-pre-cutover-snapshot.sh'
+  --include='/scripts/assert-no-erasure-replay-pending.sh'
   --include='/package.json'
   --include='/package-lock.json'
   --include='/tsconfig.json'

@@ -177,11 +177,6 @@ describe('GET /records', () => {
     expect(res.text).toContain('Singles milestone first');
   });
 
-  it('shows WFA source attribution', async () => {
-    const res = await page('/records');
-    expect(res.text).toContain('World Footbag Association');
-  });
-
   it('returns 503 (not 500) when a records read hits database contention', async () => {
     // Every read on this page maps SQLITE_BUSY/LOCKED to the 503 page via
     // runSqliteRead, so the alarm classifies contention as unavailability

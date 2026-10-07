@@ -39,11 +39,11 @@ export interface JwtSigningAdapter {
   preloadPublicKey?(): Promise<void>;
 }
 
-// Fallback for calls that omit ttlSeconds. `src/services/jwtService.ts` is
-// the authoritative TTL source for production session cookies and always
-// passes its own ttlSeconds explicitly; this default exists only for test
-// call sites that don't care about TTL. Changing this value does not affect
-// session lifetime in the running app.
+// Fallback for calls that omit ttlSeconds. The session lifetime is the
+// `jwt_expiry_hours` system setting, read at each sign-in, and every session
+// token is minted with that lifetime passed explicitly; this default exists
+// only for test call sites that don't care about TTL. Changing this value
+// does not affect session lifetime in the running app.
 const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 const PUBLIC_KEY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 

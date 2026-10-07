@@ -13,7 +13,7 @@ import { copyFileSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { committedFiles } from '../fixtures/committedFiles';
+import { listFiles } from '../fixtures/sourceTree';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
 const SCRIPT = join(process.cwd(), 'scripts/test-targets.sh');
@@ -136,7 +136,7 @@ describe('test-targets.sh — non-test checks and limits', () => {
   });
 
   it('flags a set over the budget instead of quietly running it', () => {
-    const files = committedFiles('tests/unit/*.test.ts').slice(0, 26);
+    const files = listFiles('tests/unit', /\.test\.ts$/).slice(0, 26).map((f) => `tests/unit/${f}`);
     expect(files).toHaveLength(26);
     const r = run(files);
     expect(r.tests).toHaveLength(26);

@@ -6,7 +6,8 @@
  * carries (a soft-deleted account past its grace window has its personal data
  * purged again), reports zero and succeeds when there is nothing to replay, and
  * exits non-zero with a line naming the failure when an account could not be
- * re-erased, so the operator restoring the database knows to act by hand.
+ * re-erased, naming the one command that finishes the replay, so the operator
+ * restoring the database is sent to the resume path rather than a hand edit.
  *
  * Cases run in file order: the success cases see a clean database, the payment
  * and outbox failure cases each arm a fault that is disarmed before the next
@@ -166,5 +167,8 @@ describe('runErasureReplay', () => {
     }
     expect(code).toBe(1);
     expect(out.lines()).toContain('erasure-replay: FAILED for 1 row(s)');
+    // An operator told to re-apply by hand edits a live database outside the
+    // resume path, which is the only path that clears the hold marker.
+    expect(out.lines()).toMatch(/scripts\/restore-db\.sh --target \S+ --resume-erasure-replay/);
   });
 });

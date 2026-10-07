@@ -13,7 +13,11 @@
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db).
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# Streamed to a host and run from a process substitution, $0 is not a file and
+# there is no checkout to move into; the database then comes from FOOTBAG_DB_PATH.
+if [[ -f "$0" ]]; then
+  cd "$(dirname "$0")/.."
+fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 
@@ -22,8 +26,8 @@ if [[ ! -f "${DB_FILE}" ]]; then
   exit 1
 fi
 
-hacky=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM historical_persons WHERE person_name = 'Footbag Hacky';")
-beaver=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM tags WHERE tag_normalized = '#event_2025_beaver_open';")
+hacky=$(sqlite3 -readonly "${DB_FILE}" "SELECT COUNT(*) FROM historical_persons WHERE person_name = 'Footbag Hacky';")
+beaver=$(sqlite3 -readonly "${DB_FILE}" "SELECT COUNT(*) FROM tags WHERE tag_normalized = '#event_2025_beaver_open';")
 
 if [[ "${hacky}" -eq 0 || "${beaver}" -eq 0 ]]; then
   echo "GATE: SHOWCASE-PRESENCE FAIL: showcase records missing (Footbag Hacky rows: ${hacky}; #event_2025_beaver_open tags: ${beaver}). Rebuild the database so script 08 seeds them." >&2

@@ -12,10 +12,9 @@
  * `publicBaseUrl`. Callers invoke this after `importApp()` has booted the app
  * with the test environment in place.
  *
- * Only the routers that ship in the production image are listed here; the
- * development-only `/dev` and `/internal` surfaces are covered by their own
- * targeted tests and are intentionally excluded so the sweep reflects the real
- * public attack surface.
+ * `loadRouteTable` lists only the public and admin routers, so the CSRF and
+ * authorization sweeps reflect the real public attack surface. `loadServedRoutes`
+ * lists every router the app mounts, for the crawl's reach coverage.
  */
 import type { Router } from 'express';
 
@@ -70,6 +69,74 @@ export async function loadRouteTable(): Promise<RouteTable> {
     exemptExact: [...pin.EXEMPT_EXACT],
     exemptPrefixes: [...pin.EXEMPT_PREFIXES],
   };
+}
+
+// ── Every served route, for reach coverage ───────────────────────────────────
+//
+// The sweeps above judge the production attack surface, so they read only the
+// public and admin routers. A crawl that proves every route was reached has to
+// see every router the app mounts in the environment it boots: health, the
+// search-engine files, the internal hook and the development harness as well.
+// Each route keeps its own compiled matcher, so a requested path is attributed
+// to the route that would serve it, parameters and array paths included,
+// without re-deriving Express's path syntax here.
+
+export type RouterName = 'public' | 'admin' | 'health' | 'seo' | 'ipc' | 'dev';
+
+export interface ServedRoute {
+  method: string;
+  /** The registered pattern with its mount prefix, as a readable key. */
+  path: string;
+  router: RouterName;
+  /** Whether this route's own matcher accepts a request path (no query). */
+  matches(requestPath: string): boolean;
+}
+
+interface MatchableLayer {
+  regexp?: RegExp;
+  route?: { path: string | string[]; methods?: Record<string, boolean> };
+}
+
+function collectServed(router: Router, prefix: string, name: RouterName, out: ServedRoute[]): void {
+  const stack = (router as unknown as { stack: MatchableLayer[] }).stack ?? [];
+  for (const layer of stack) {
+    const route = layer.route;
+    const regexp = layer.regexp;
+    if (!route || !regexp) continue;
+    const shown = Array.isArray(route.path) ? route.path.join('|') : route.path;
+    const matches = (requestPath: string): boolean => {
+      if (prefix && requestPath !== prefix && !requestPath.startsWith(`${prefix}/`)) return false;
+      const rel = requestPath.slice(prefix.length) || '/';
+      regexp.lastIndex = 0;
+      return regexp.test(rel);
+    };
+    for (const [m, on] of Object.entries(route.methods ?? {})) {
+      if (!on) continue;
+      out.push({ method: m === '_all' ? 'ALL' : m.toUpperCase(), path: prefix + shown, router: name, matches });
+    }
+  }
+}
+
+/**
+ * Every route the app mounts when it boots in development, in mount order. The
+ * development harness is included only when its module exports a router, which
+ * it does in every build that mounts it.
+ */
+export async function loadServedRoutes(): Promise<ServedRoute[]> {
+  const health = await import('../../src/routes/healthRoutes');
+  const seo = await import('../../src/routes/seoRoutes');
+  const ipc = await import('../../src/routes/ipcRoutes');
+  const adm = await import('../../src/routes/adminRoutes');
+  const dev = await import('../../src/testkit/devRoutes');
+  const pub = await import('../../src/routes/publicRoutes');
+  const out: ServedRoute[] = [];
+  collectServed(health.healthRouter, '/health', 'health', out);
+  collectServed(seo.seoRouter, '', 'seo', out);
+  collectServed(ipc.ipcRouter, '/ipc', 'ipc', out);
+  collectServed(adm.adminRouter, '/admin', 'admin', out);
+  if (dev.devRouter) collectServed(dev.devRouter, '/dev', 'dev', out);
+  collectServed(pub.publicRouter, '', 'public', out);
+  return out;
 }
 
 /** Replace `:param` segments with a concrete value so the path is requestable. */

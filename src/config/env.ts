@@ -158,8 +158,8 @@ export interface AppConfig {
   // tree. Null when unset; production falls through to <repo-root>/curated.
   curatedRootDirOverride: string | null;
   // Maximum number of external URLs that can be attached to a single
-  // gallery. Distinct from the DD §3.17 per-profile cap (3) — galleries
-  // and items have their own caps, tunable by the operator. Service
+  // gallery. Distinct from the fixed per-profile external-link cap:
+  // galleries and items have their own caps, tunable by the operator. Service
   // validates submitted count <= cap; form renders that many slots.
   galleryMaxExternalLinks: number;
   imageProcessorUrl: string;

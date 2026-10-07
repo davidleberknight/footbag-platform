@@ -279,3 +279,23 @@ describe('thinning the snapshot history by age', () => {
     expect(calls()).toContain('--metric-name BackupPromotionFailures --value 0');
   });
 });
+
+describe('backing up while a restore\'s erasure replay is pending', () => {
+  // Defect caught: a restored database whose erasures were never re-applied was
+  // backed up like any other, copying personal data members asked to have
+  // erased into the snapshot stream, whose promoted generations replicate to an
+  // object-locked bucket, and making it the newest restore point. The refusal
+  // has to count as a failed run, or the paused backups go unnoticed.
+  it('uploads nothing and counts the run as a failure', () => {
+    writeFileSync(join(dbDir, '.erasure-replay-pending'), 'snapshot=routine/x.db.gz\n');
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('')).toEqual([]);
+    expect(calls()).not.toMatch(/aws s3 cp /);
+    expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
+    expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
+    expect(res.stderr).toContain('--resume-erasure-replay');
+  });
+});

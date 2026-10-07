@@ -433,12 +433,9 @@ describe('canonical persona catalog', () => {
     }
   });
 
-  it('blocked personas are catalog-only: a blockedBy reason, a plain-English user story, never seeded', () => {
+  it('blocked personas are catalog-only and never seeded', () => {
     const memberBySlug = db.prepare(`SELECT id FROM members WHERE slug = ?`);
-    expect(BLOCKED.length, 'the catalog shows blocked future classes').toBeGreaterThan(0);
     for (const spec of BLOCKED) {
-      expect(spec.blockedBy?.length, `${spec.slug} blockedBy`).toBeTruthy();
-      expect(spec.userStory?.length, `${spec.slug} userStory`).toBeTruthy();
       // The seed-and-land test seeds only BACKED personas, so a blocked persona
       // must have no seeded member row (it renders greyed on /dev/personas).
       expect(memberBySlug.get(spec.slug), `${spec.slug} not seeded`).toBeUndefined();

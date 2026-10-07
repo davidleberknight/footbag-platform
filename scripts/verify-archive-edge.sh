@@ -51,6 +51,11 @@
 #   --signing-key <pem>        Private key (default the environment's own,
 #                              ~/AWS/archive-signing-key-<env>.pem).
 #   --check-logs               Also assert access-log delivery.
+#
+# Test seams: VERIFY_ARCHIVE_EDGE_CURL_BIN, VERIFY_ARCHIVE_EDGE_TERRAFORM_BIN and
+# VERIFY_ARCHIVE_EDGE_AWS_BIN replace curl, Terraform and the AWS CLI. A run
+# using any of them says so on stderr, because a stubbed run proves nothing
+# about the distribution.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -102,6 +107,13 @@ fi
 
 : "${SIGNING_KEY:=${HOME}/AWS/archive-signing-key-${TARGET_ENV}.pem}"
 
+CURL_BIN="${VERIFY_ARCHIVE_EDGE_CURL_BIN:-curl}"
+TF_BIN="${VERIFY_ARCHIVE_EDGE_TERRAFORM_BIN:-terraform}"
+AWS_BIN="${VERIFY_ARCHIVE_EDGE_AWS_BIN:-aws}"
+[[ -n "${VERIFY_ARCHIVE_EDGE_CURL_BIN:-}" ]] && echo "NOTE: using a stand-in for curl; this run proves nothing about the distribution." >&2
+[[ -n "${VERIFY_ARCHIVE_EDGE_TERRAFORM_BIN:-}" ]] && echo "NOTE: using a stand-in for Terraform; the identifiers this run uses are not the environment's." >&2
+[[ -n "${VERIFY_ARCHIVE_EDGE_AWS_BIN:-}" ]] && echo "NOTE: using a stand-in for the AWS CLI; this run proves nothing about the bucket." >&2
+
 AWS_ARGS=()
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
   AWS_ARGS+=(--profile "$AWS_PROFILE_ARG")
@@ -120,7 +132,7 @@ if [[ ! -r "$SIGNING_KEY" ]]; then
 fi
 
 TF_DIR="${REPO_ROOT}/terraform/${TARGET_ENV}"
-tf_out() { terraform -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true; }
+tf_out() { "$TF_BIN" -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true; }
 DOMAIN="$(tf_out archive_domain)"
 KEY_PAIR_ID="$(tf_out archive_key_pair_id)"
 BUCKET="$(tf_out archive_bucket_name)"
@@ -156,7 +168,7 @@ cleanup() {
   # Remove the probe object even on failure, so a failed run never leaves
   # content in an otherwise-empty archive bucket.
   if [[ -n "$PROBE_KEY" ]]; then
-    aws s3 rm "s3://${BUCKET}/${PROBE_KEY}" "${AWS_ARGS[@]}" >/dev/null 2>&1 || true
+    "$AWS_BIN" s3 rm "s3://${BUCKET}/${PROBE_KEY}" "${AWS_ARGS[@]}" >/dev/null 2>&1 || true
   fi
   rm -rf "$WORK_DIR"
 }
@@ -177,9 +189,17 @@ touch "$COOKIE_FILE" "$BAD_COOKIE_FILE"
 chmod 600 "$COOKIE_FILE" "$BAD_COOKIE_FILE"
 printf 'Cookie: CloudFront-Policy=%s; CloudFront-Signature=%s; CloudFront-Key-Pair-Id=%s\n' \
   "$POLICY_B64" "$SIGNATURE" "$KEY_PAIR_ID" > "$COOKIE_FILE"
-# Same cookie with one signature character transposed, so the signature is
-# well-formed but invalid: that is what exercises the CloudFront-generated 403.
-BAD_SIGNATURE="$(printf '%s' "$SIGNATURE" | sed 's/^\(.\)\(.\)/\2\1/')"
+# Same cookie with the first signature character replaced by a different one,
+# so the signature is well-formed but invalid: that is what exercises the
+# CloudFront-generated 403. Replaced rather than swapped with its neighbour,
+# because a swap changes nothing when the two characters are equal, which
+# happens about one run in sixty-four, and the proof then fails a healthy
+# distribution on this row.
+if [[ "${SIGNATURE:0:1}" == "A" ]]; then
+  BAD_SIGNATURE="B${SIGNATURE:1}"
+else
+  BAD_SIGNATURE="A${SIGNATURE:1}"
+fi
 printf 'Cookie: CloudFront-Policy=%s; CloudFront-Signature=%s; CloudFront-Key-Pair-Id=%s\n' \
   "$POLICY_B64" "$BAD_SIGNATURE" "$KEY_PAIR_ID" > "$BAD_COOKIE_FILE"
 
@@ -187,12 +207,12 @@ printf 'Cookie: CloudFront-Policy=%s; CloudFront-Signature=%s; CloudFront-Key-Pa
 
 CONTENT_KEY="index.html"
 DIR_URL="https://${DOMAIN}/"
-if ! aws s3api head-object --bucket "$BUCKET" --key "$CONTENT_KEY" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
+if ! "$AWS_BIN" s3api head-object --bucket "$BUCKET" --key "$CONTENT_KEY" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
   # Empty archive (first bring-up): stand up a probe object under its own
   # prefix. Never under _gate/, which Terraform owns.
   PROBE_KEY="edge-proof/index.html"
   printf '<h1>edge proof</h1>\n' > "${WORK_DIR}/probe.html"
-  aws s3 cp "${WORK_DIR}/probe.html" "s3://${BUCKET}/${PROBE_KEY}" \
+  "$AWS_BIN" s3 cp "${WORK_DIR}/probe.html" "s3://${BUCKET}/${PROBE_KEY}" \
     --content-type "text/html" "${AWS_ARGS[@]}" >/dev/null
   CONTENT_KEY="$PROBE_KEY"
   DIR_URL="https://${DOMAIN}/edge-proof/"
@@ -207,9 +227,9 @@ check() {
   local body_file="${WORK_DIR}/body.$$"
   local code
   if [[ -n "$cookie" ]]; then
-    code="$(curl -sS -o "$body_file" -w '%{http_code}' -H "@${cookie}" "$url")"
+    code="$("$CURL_BIN" -sS -o "$body_file" -w '%{http_code}' -H "@${cookie}" "$url")"
   else
-    code="$(curl -sS -o "$body_file" -w '%{http_code}' "$url")"
+    code="$("$CURL_BIN" -sS -o "$body_file" -w '%{http_code}' "$url")"
   fi
   local detail=""
   if [[ -n "$expect_body" ]] && ! grep -qi -- "$expect_body" "$body_file"; then
@@ -240,7 +260,7 @@ check "valid cookies, directory URL" 200 "$DIR_URL"                            "
 
 # The noindex header must reach the gate pages both directly and when one is
 # served as an error body, or the archive risks being indexed.
-robots="$(curl -sSI "https://${DOMAIN}/_gate/denied.html" | tr -d '\r' | grep -i '^x-robots-tag:' || true)"
+robots="$("$CURL_BIN" -sSI "https://${DOMAIN}/_gate/denied.html" | tr -d '\r' | grep -i '^x-robots-tag:' || true)"
 if [[ "$robots" == *noindex* ]]; then
   printf '  PASS  %-34s %s\n' "noindex on gate page" "${robots#*: }"
 else
@@ -250,8 +270,8 @@ fi
 
 if [[ "$CHECK_LOGS" -eq 1 ]]; then
   LOG_BUCKET="${BUCKET}-logs"
-  account="$(aws sts get-caller-identity --query Account --output text "${AWS_ARGS[@]}" 2>/dev/null || true)"
-  count="$(aws s3 ls "s3://${LOG_BUCKET}/AWSLogs/${account}/" --recursive "${AWS_ARGS[@]}" 2>/dev/null | grep -c . || true)"
+  account="$("$AWS_BIN" sts get-caller-identity --query Account --output text "${AWS_ARGS[@]}" 2>/dev/null || true)"
+  count="$("$AWS_BIN" s3 ls "s3://${LOG_BUCKET}/AWSLogs/${account}/" --recursive "${AWS_ARGS[@]}" 2>/dev/null | grep -c . || true)"
   if [[ "${count:-0}" -gt 0 ]]; then
     printf '  PASS  %-34s %s objects\n' "access-log delivery" "$count"
   else
