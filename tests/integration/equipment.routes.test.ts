@@ -153,6 +153,39 @@ describe('GET /equipment', () => {
   });
 });
 
+describe('equipment as a top-level section', () => {
+  it('shows Equipment in the site navigation, active only on the equipment page', async () => {
+    const equipment = await page('/equipment');
+    const rules = await page('/rules');
+    // A major page missing from the navigation is reachable only by deep
+    // link; a highlight on the wrong page tells the visitor they are elsewhere.
+    expect(equipment.text).toMatch(/<a href="\/equipment" class="active">Equipment<\/a>/);
+    expect(rules.text).toMatch(/<a href="\/equipment">Equipment<\/a>/);
+    expect(rules.text).not.toMatch(/<a href="\/equipment" class="active">/);
+  });
+
+  it('opens the page and every section with orientation copy', async () => {
+    const res = await page('/equipment');
+    // A heading followed straight by a list of measurements gives the visitor
+    // no idea what the section is for.
+    expect(res.text).toMatch(/<p class="hero-subtitle">[^<]+<\/p>/);
+    const sections = [...res.text.matchAll(/<section class="content-section equipment-section" id="([^"]+)">([\s\S]*?)<\/section>/g)];
+    expect(sections.length).toBeGreaterThan(0);
+    for (const [, id, body] of sections) {
+      expect(body, id).toMatch(/<\/h2><\/div>\s*<p>[^<]+<\/p>/);
+    }
+  });
+
+  it('points to the rules page by the title that page carries', async () => {
+    const res = await page('/equipment');
+    const rules = await page('/rules');
+    const rulesTitle = rules.text.match(/<h1>([^<]+)<\/h1>/)?.[1];
+    // A pointer naming a page that does not exist (or the site itself) leaves
+    // the visitor unsure where the click lands.
+    expect(mainOf(res.text)).toContain(`<a href="/rules">${rulesTitle}</a>`);
+  });
+});
+
 describe('game pages link to their rules and equipment', () => {
   const GAME_PAGES: Record<string, { rules: string[]; equipment: string[] }> = {
     '/net': { rules: ['/rules/net/footbag-net'], equipment: ['net'] },

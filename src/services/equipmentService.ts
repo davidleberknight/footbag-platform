@@ -2,7 +2,8 @@
  * EquipmentService -- public equipment page (read-only).
  *
  * Serves:
- *   - GET /equipment (public, unauthenticated): what you need to play each footbag game.
+ *   - GET /equipment (public, unauthenticated): what you need to play each footbag game. It is the
+ *     `equipment` top-level nav section, beside Rules.
  *
  * Rendering contract:
  *   - getEquipmentPage() returns PageViewModel<EquipmentContent>.
@@ -118,8 +119,8 @@ const SECTIONS: EquipmentSectionViewModel[] = [
   },
   {
     id: 'net',
-    heading: 'Footbag Net',
-    paragraphs: [],
+    heading: 'Net Equipment',
+    paragraphs: ['Footbag net is played on a badminton-sized court with a 5-foot net.'],
     items: [
       {
         lead: 'Court',
@@ -164,8 +165,8 @@ const SECTIONS: EquipmentSectionViewModel[] = [
   },
   {
     id: 'freestyle',
-    heading: 'Freestyle',
-    paragraphs: [],
+    heading: 'Freestyle Equipment',
+    paragraphs: ['Freestyle needs no court or net, just a footbag and a flat, open space to play in.'],
     items: [
       {
         lead: 'Playing area',
@@ -177,8 +178,8 @@ const SECTIONS: EquipmentSectionViewModel[] = [
   },
   {
     id: 'golf',
-    heading: 'Footbag Golf',
-    paragraphs: [],
+    heading: 'Golf Equipment',
+    paragraphs: ['A footbag golf course is a set of holes, each with a tee box to start from and a target to finish at.'],
     items: [
       {
         lead: 'Hole (target)',
@@ -208,8 +209,8 @@ const SECTIONS: EquipmentSectionViewModel[] = [
   },
   {
     id: 'square-games',
-    heading: '4-Square',
-    paragraphs: [],
+    heading: '2-Square and 4-Square Equipment',
+    paragraphs: ['Both games are played on a court of squares chalked or taped on any flat surface.'],
     items: [
       {
         lead: 'Court',
@@ -237,8 +238,8 @@ const SECTIONS: EquipmentSectionViewModel[] = [
 ];
 
 const RULES_POINTER: EquipmentRulesPointerViewModel = {
-  before: 'For the full rules of each game, see ',
-  linkLabel: 'footbag.org\'s rules pages',
+  before: 'For the full rules of each game, see the ',
+  linkLabel: 'Footbag Rules',
   href: '/rules',
   after: '.',
 };
@@ -252,12 +253,13 @@ export const equipmentService = {
     return {
       seo: {
         title: 'Equipment',
-        description: 'What you need to play footbag: footbags, shoes, and how to set up net, freestyle, golf and square-game courts.',
+        description: 'What you need to play footbag: footbags, shoes, and how to set up net, freestyle, golf, 2-square and 4-square courts.',
       },
       page: {
-        sectionKey: '',
+        sectionKey: 'equipment',
         pageKey: 'equipment_index',
         title: 'Footbag Equipment',
+        intro: 'What you need to play each footbag game, from the footbag and shoes to setting up a court or course.',
       },
       content: {
         introParagraphs: INTRO_PARAGRAPHS,

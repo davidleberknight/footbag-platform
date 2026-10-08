@@ -42,7 +42,11 @@ let fakeBin: string;
  * whether the identity check passes; `mailFrom` is the bounce-domain status the
  * report is built from.
  */
-function writeFakeAws(arn: string, mailFrom: string, opts: { warn?: boolean; sesDenied?: boolean } = {}): void {
+function writeFakeAws(
+  arn: string,
+  mailFrom: string,
+  opts: { warn?: boolean; sesDenied?: boolean; domainOnly?: boolean } = {},
+): void {
   fakeBin = path.join(dir, 'bin');
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.writeFileSync(
@@ -62,6 +66,16 @@ function writeFakeAws(arn: string, mailFrom: string, opts: { warn?: boolean; ses
         ? [
             'if [[ "$args" == *"get-email-identity"* ]]; then',
             '  echo "An error occurred (AccessDeniedException) when calling the GetEmailIdentity operation: not authorized" >&2',
+            '  exit 254',
+            'fi',
+          ]
+        : []),
+      // `domainOnly` is production after the sender cutover: the address has no
+      // identity of its own, and SES answers for it through footbag.org.
+      ...(opts.domainOnly
+        ? [
+            'if [[ "$args" == *"get-email-identity --email-identity noreply@"* ]]; then',
+            '  echo "An error occurred (NotFoundException) when calling the GetEmailIdentity operation: Email identity <noreply@footbag.org> does not exist." >&2',
             '  exit 254',
             'fi',
           ]
@@ -236,6 +250,25 @@ describe('verify-prod-email.sh custom bounce-domain report', () => {
     expect(r.status, String(r.stderr)).toBe(0);
     expect(r.stdout).toMatch(/status not readable by this profile; sending anyway/);
     expect(r.stdout).toMatch(/Custom bounce domain: status not readable by this profile/);
+    // Only a not-found read moves to the domain; a denied one stays on the address.
+    const reads = fs.readFileSync(path.join(dir, 'aws-calls.log'), 'utf8').split('\n')
+      .filter((l) => l.includes('VerifiedForSendingStatus') || l.includes('MailFromAttributes'));
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every((l) => l.includes('--email-identity noreply@'))).toBe(true);
+  });
+
+  // Defect caught: on the day sending moves under the domain identity, the check
+  // reports the canonical sender missing and refuses to prove the move worked.
+  it('reads a sender with no identity of its own through its domain', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { domainOnly: true });
+    const r = run(['--profile', 'footbag-production', '--sender', 'noreply@footbag.org', '--yes']);
+    expect(r.status, String(r.stderr)).toBe(0);
+    expect(r.stdout).toMatch(/Sender identity: noreply@footbag\.org \(verified through the footbag\.org domain identity\)/);
+    expect(r.stdout).toMatch(/Custom bounce domain: healthy/);
+    const reads = fs.readFileSync(path.join(dir, 'aws-calls.log'), 'utf8').split('\n')
+      .filter((l) => l.includes('MailFromAttributes'));
+    expect(reads).toHaveLength(1);
+    expect(reads[0]).toContain('--email-identity footbag.org');
   });
 
   it('distinguishes not-yet-configured from unhealthy', () => {

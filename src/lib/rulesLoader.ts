@@ -20,8 +20,6 @@ export interface ParsedRulePage {
   effective: string | null;
   parentHref: string;
   parentLabel: string;
-  alternateLanguageLabel: string | null;
-  alternateLanguageHref: string | null;
   bodyHtml: string;
   headings: { id: string; text: string }[];
 }
@@ -101,8 +99,6 @@ function buildCache(): Map<string, ParsedRulePage> {
     const effective = fm['effective'] ?? null;
     const parentHref = fm['parentHref'] ?? '/rules';
     const parentLabel = fm['parentLabel'] ?? 'Rules';
-    const alternateLanguageLabel = fm['alternateLanguageLabel'] ?? null;
-    const alternateLanguageHref = fm['alternateLanguageHref'] ?? null;
 
     for (const { headingText, segment } of splitByH1(body)) {
       const slug = slugifyHeading(headingText);
@@ -117,8 +113,6 @@ function buildCache(): Map<string, ParsedRulePage> {
         effective,
         parentHref,
         parentLabel,
-        alternateLanguageLabel,
-        alternateLanguageHref,
         bodyHtml: html,
         headings: extractHeadings(html),
       });

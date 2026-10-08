@@ -4,8 +4,6 @@ disciplineLabel: Footbag Net
 authority: IFPA Article III
 parentHref: /net
 parentLabel: Footbag Net
-alternateLanguageLabel: Lire en français
-alternateLanguageHref: /rules/net/jeu-au-filet
 ---
 
 # Footbag Net

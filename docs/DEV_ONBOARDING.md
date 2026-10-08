@@ -716,7 +716,7 @@ How they relate:
 The events + health slice below was the original proof-of-stack; the platform now serves the full public site. The routers mounted in `src/app.ts` are:
 
 - `/health` — liveness and readiness (`/health/live`, `/health/ready`)
-- `/` (public) — the public site: events, clubs, freestyle, net, sideline, records, hof, bap, media, rules, ifpa, history, legal, plus member auth and onboarding (login, register, verify, password, members, payments, tags)
+- `/` (public) — the public site: events, clubs, freestyle, net, sideline, records, hof, bap, media, rules, equipment, ifpa, history, legal, plus member auth and onboarding (login, register, verify, password, members, payments, tags)
 - `/admin` — admin and curator workflows (authentication + admin gated)
 - `/ipc` — internal worker channel (shared-secret auth)
 - `/dev` — development and staging only (the persona-switch harness); never mounted in production

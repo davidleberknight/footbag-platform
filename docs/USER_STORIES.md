@@ -491,6 +491,7 @@ Success Criteria:
 - Developers provide initial content as static files for the website.
 - Rules pages are served from the IFPA-governed `ifpa/rules/` content, which IFPA authors and maintains; the published pages are the IFPA rules, and no separate ratification notice is required.
 - The equipment page (`/equipment`) is the site's own practical guidance on footbags, shoes, and setting up each game's court or targets, a sibling of the rules rather than part of them. Official equipment requirements live only in the rules: where the equipment page states an official figure, it states it as the rule does and links to the rule section that governs it. Vendors and brands are named for information only, and the page links nowhere offsite.
+- Rules and Equipment are sibling top-level sections in the site navigation.
 - Members can create their own tutorial galleries freely using photo and video upload features with descriptive captions, hashtags, and named galleries (suggest hashtag tutorial among others). Visitors can view this content too.
 
 ### V_View_Gallery

@@ -5198,9 +5198,6 @@ a.hashtag--media:hover {
   font-style: italic;
   color: var(--text-muted);
 }
-.rules-detail .rules-language-toggle {
-  margin: 16px 0 0;
-}
 .rules-detail .rules-toc {
   background: var(--bg-light);
   border-left: 3px solid var(--primary);

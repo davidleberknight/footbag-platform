@@ -97,7 +97,7 @@ How often, per the rule's demonstrated-failure requirement: once per test for a 
 
 ## Step 7: Review, run and report
 
-**Reviewer.** Run a fresh read-only reviewer subagent when the change touches auth and session, payments, member privacy, identity claim or erasure, or adds more than five test cases. Give it the test diff and the code under test, and this brief: "Report only tests that would still pass with the code they guard broken, each with the one-line code change that proves it. Do not comment on style or ask for more tests." Fix what it reports.
+**Reviewer.** Run a fresh read-only reviewer subagent when the new tests guard auth and session, payments, member privacy, identity claim or erasure, or a destructive, irreversible or outward-facing action (deleting data, overwriting, retiring a resource, sending mail, deploying, applying infrastructure). The size of the change does not decide it; what an undetected false green would let through does. Give it the test diff and the code under test, and this brief: "Report only tests that would still pass with the code they guard broken, each with the one-line code change that proves it. Do not comment on style or ask for more tests." Fix what it reports.
 
 **Run.** Per the Verification default in root `CLAUDE.md`.
 

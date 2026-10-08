@@ -32,7 +32,7 @@ After reading docs, read:
 - nearby integration tests in `tests/integration/`
 
 If this task adds a **new top-level nav section**, also read:
-- `src/app.ts`: the site header/footer nav is the `NAV_SECTIONS` array (exposed as `res.locals.navLinks`, rendered by the `nav-links` partial); a new top-level section must be added there.
+- `src/app.ts`: the site header/footer nav is the `NAV_SECTIONS` array (exposed as `res.locals.navLinks`, rendered by the `nav-links` partial); a new top-level section must be added there, together with its branch in the request-path-to-`currentSection` mapping a few lines below, or its nav entry never shows as active.
 - `src/services/homeService.ts`: `primaryLinks[]` is the home-page body's featured-section list (separate from the header nav); add the section there too only if it should be featured on the home page.
 
 ## Step 3: Architecture context
@@ -66,7 +66,7 @@ Before touching any file, state:
 - view-model fields required by the route's page contract (from the owning service's file-header JSDoc)
 - service method(s) that will own the page shaping (from the owning service's file-header JSDoc)
 - if content comes from an external URL: the fetched content structure and how it maps to `content.sections[]`
-- if a new top-level nav section: which files need a nav item added (home controller, nav partial/layout, and the view-layer standard in `.claude/rules/view-layer.md`)
+- if a new top-level nav section: which files need a nav item added (`NAV_SECTIONS` and the request-path-to-`currentSection` mapping in `src/app.ts`; `homeService.ts` `primaryLinks` only if the section is featured on the home page)
 - crawler exposure: a new public page is indexed by default and joins the XML sitemap; set `seo.noindex` for a thin auth page, and add any new top-level public section to the sitemap source list in `siteMetaService.ts`
 - complete list of files expected to change
 - verification plan

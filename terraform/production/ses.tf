@@ -1,45 +1,51 @@
 # =============================================================================
 # SES sender identity + domain authentication.
 #
-# Two layers of SES authentication, and two flags, because the records land on
-# two different days:
+# Two layers of SES authentication, switched by four flags in order, because
+# creating the domain identity, publishing its records, retiring the interim
+# sender and moving inbound mail are four different moments, and only the
+# third destroys anything:
 #
 # 1. Email identity (`aws_ses_email_identity.sender`).
 #    Sufficient for sending on its own. Operator supplies the verified
 #    address in terraform.tfvars; SES emails a verification click-link to
-#    that address after first apply. It exists only while
-#    var.ses_enable_domain_auth is false: once the domain identity is in
-#    play, sending happens under the domain and no verification link is sent
-#    to an address that is deliberately never monitored.
+#    that address after first apply. It exists until
+#    var.ses_sender_on_domain_identity retires it: from then on sending
+#    happens under the domain and no verification link is sent to an address
+#    that is deliberately never monitored.
 #
-# 2. Domain identity + DKIM (var.ses_enable_domain_auth) go in first. They
-#    are invisible to whoever currently holds the domain's mail: nothing at
-#    the apex changes, so SES domain verification and the production-access
-#    request complete ahead of the mail move rather than waiting on it.
+# 2. Domain identity + DKIM, in two steps. var.ses_enable_domain_identity
+#    creates the identity and its DKIM tokens and publishes nothing, so it
+#    touches no record and no sender. var.ses_enable_domain_auth then writes
+#    the verification TXT and the three DKIM CNAMEs into the zone and waits
+#    for SES to verify, which only works once the registrar delegates to that
+#    zone. Neither changes the apex, so both are invisible to whoever holds
+#    the domain's mail, and verification completes ahead of the mail move
+#    rather than waiting on it.
 #
-#    That is a statement about which records this flag writes, not about
+#    That is a statement about which records these flags write, not about
 #    whether the mail move is required. It is: the site is not fully
 #    functional until the apex mail records are IFPA's, because they gate
 #    every address it publishes to receive on. The two are needed together
 #    and changed separately, which is why they land on different days.
 #
-#    This once said to flip the flag while the application still ran the
-#    stub adapter, so the identity swap could not interrupt live sending.
-#    That window closed when email was armed early on the interim sender.
-#    Flipping this now sets aws_ses_email_identity.sender to count = 0,
-#    destroying the verified interim identity, while the domain identity it
-#    creates does not authorise that interim address -- and the verification
-#    resource below can hold the apply for up to 45 minutes. So the flip and
-#    the sender cutover are ONE window, not two steps: PAUSE the outbox and
-#    confirm it is empty, then apply and move the sender in the same sitting.
-#    Pausing matters as much as the count: the reconciliation digest enqueues
-#    on a schedule, so a row landing inside a hold that can run 45 minutes can
-#    exhaust its retries and dead-letter. Counting an empty outbox proves only
-#    that nothing has enqueued yet. The identity destroy is one-way; recreating
-#    the interim address later needs a fresh click-link verification sent to an
-#    address the design keeps unmonitored.
+# 3. Retiring the interim sender (var.ses_sender_on_domain_identity) is the
+#    one destructive step, so it has a flag of its own. It sets
+#    aws_ses_email_identity.sender to count = 0, and the destroy is one-way:
+#    recreating the interim address later needs a fresh click-link sent to an
+#    address the design keeps unmonitored. The validation blocks refuse it
+#    unless the domain-auth flag is on and ses_sender_identity moves to an
+#    address at the domain in the same change, because the domain identity
+#    does not authorise the interim address. What they cannot see is whether
+#    SES has finished verifying the domain, because that is a fact about AWS
+#    at one moment rather than about this configuration. That check belongs
+#    to the sender cutover operation, which runs it before this apply: the
+#    domain verified for sending in an earlier apply, the outbox paused, and
+#    the host re-reading the sender from this configuration's outputs before
+#    sending resumes. Kept out of every plan on purpose: a plan-time read of
+#    the domain would also refuse the plan that repairs a deleted identity.
 #
-# 3. The mail-day records (var.ses_enable_mail_records): the apex SPF, the
+# 4. The mail-day records (var.ses_enable_mail_records): the apex SPF, the
 #    DMARC record, the custom MAIL FROM subdomain records and the repoint of
 #    the apex MX to Google, all in one apply. The MX repoint is what ties the
 #    group to the day inbound mail moves, because it redirects live delivery.
@@ -48,6 +54,11 @@
 #    authorised sender at this apply. The Workspace signing key is not in
 #    this group: it publishes ahead of it (var.google_dkim_txt). This flag
 #    requires the domain-auth flag to be on.
+#
+# The order between the flags is enforced in their validation blocks, which
+# always evaluate. A precondition on a counted resource would not do: it is
+# checked only while the resource exists, and the sender identity ceases to
+# exist at exactly the step that most needs the check.
 #
 # Without DKIM-aligned DMARC the platform's password-reset / claim / verify
 # emails land in spam at Gmail / Outlook / iCloud.
@@ -61,9 +72,11 @@
 variable "ses_sender_identity" {
   description = <<-EOT
     SES-verified sender email address used as the From: header for outbound
-    mail. Production canonical value: noreply@footbag.org. Operator supplies
-    the verified identity in terraform.tfvars; verification happens via the
-    SES email loop after the resource is created.
+    mail. Production canonical value: noreply@footbag.org, which is sent under
+    the domain identity and accepted only with ses_sender_on_domain_identity
+    on. Before that, an interim address off the domain, verified as an email
+    identity of its own through the SES email loop after the resource is
+    created.
   EOT
   type        = string
 
@@ -107,23 +120,84 @@ variable "ses_permitted_from_addresses" {
   default     = []
 }
 
-variable "ses_enable_domain_auth" {
+variable "ses_enable_domain_identity" {
   description = <<-EOT
-    Set to true to provision the SES domain identity, its DNS verification
-    token, and the DKIM CNAMEs. Not required for production sending access,
-    which this account already holds without a domain identity; what it buys
-    is signing under the domain, which is what lets the reporting policy
-    tighten past monitor-only. Touches no apex record, so it is
-    safe to flip while another host still handles the domain's mail. Turning
-    it on retires the single-address sender identity, so flip it before
-    production sending goes live. Default FALSE: until the zone move
-    completes, the records these resources create would not resolve; flip to
-    true only once the registrar delegates the domain to the zone this
-    configuration creates, so that what Route 53 serves is what resolvers ask
-    it for.
+    Set to true to create the SES domain identity and its three DKIM tokens.
+    Publishes no record and leaves the interim sender identity alone, so it is
+    safe at any time; the verification token and the DKIM name/value pairs
+    become readable as outputs. Flip it close to the zone move rather than
+    weeks ahead: SES gives up on a domain that stays unverified for about 72
+    hours, and the verification wait never accepts an identity SES has marked
+    failed, so the domain-auth apply then fails after its 45-minute wait. If
+    that happens, turn this flag and ses_enable_domain_auth off in one apply,
+    which destroys the unused identity, its tokens and their records, and both
+    on again in the next, so a fresh identity verifies against records
+    published at once.
   EOT
   type        = bool
   default     = false
+}
+
+variable "ses_enable_domain_auth" {
+  description = <<-EOT
+    Set to true to publish the domain identity's verification TXT and DKIM
+    CNAMEs into the zone, wait for SES to verify the domain, and attach the
+    bounce and complaint notifications to it. Not required for production
+    sending access, which this account already holds without a domain
+    identity; what it buys is signing under the domain, which is what lets the
+    reporting policy tighten past monitor-only. Touches no apex record and no
+    sender, so it is safe while another host still handles the domain's mail.
+    Flip it at the zone move, once the registrar delegates the domain to the
+    zone this configuration creates: before that the records do not resolve,
+    and the verification wait holds the apply for up to 45 minutes and fails.
+    Requires ses_enable_domain_identity.
+  EOT
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.ses_enable_domain_auth || var.ses_enable_domain_identity
+    error_message = "ses_enable_domain_auth requires ses_enable_domain_identity: the records it publishes carry that identity's verification token and DKIM tokens."
+  }
+}
+
+variable "ses_sender_on_domain_identity" {
+  description = <<-EOT
+    Set to true to retire the single-address sender identity and send under
+    the domain identity. This is the one-way step: the interim identity is
+    destroyed, and recreating it needs a click-link sent to an address the
+    design keeps unmonitored. Flip it in the same change that moves
+    ses_sender_identity and ses_permitted_from_addresses to the domain, with
+    the outbox paused, and only once SES reports the domain verified for
+    sending after an earlier domain-auth apply: never in the same apply as
+    ses_enable_domain_auth, whose verification wait can fail after this
+    apply has already destroyed the interim identity. Requires
+    ses_enable_domain_auth.
+  EOT
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.ses_sender_on_domain_identity || var.ses_enable_domain_auth
+    error_message = "ses_sender_on_domain_identity requires ses_enable_domain_auth: retiring the interim sender before the domain identity is published and verified leaves no identity that authorises sending."
+  }
+
+  validation {
+    condition     = !var.ses_sender_on_domain_identity || endswith(lower(var.ses_sender_identity), "@${lower(var.domain_name)}")
+    error_message = "ses_sender_on_domain_identity is on, so ses_sender_identity must be an address at ${var.domain_name}: the domain identity does not authorise the interim sender, and this apply destroys that interim identity one-way. Move the sender in the same change that sets the flag."
+  }
+
+  # The other direction. Changing the address alone replaces the email
+  # identity: the verified one is destroyed and a new one is created that
+  # nobody can verify, because the canonical address is never monitored. An
+  # address at the domain belongs to the domain identity, so it moves only with
+  # this flag, which retires the email identity instead of replacing it. Both
+  # directions sit on this variable because Terraform refuses two validations
+  # that each read the other's variable.
+  validation {
+    condition     = var.ses_sender_on_domain_identity || !endswith(lower(var.ses_sender_identity), "@${lower(var.domain_name)}")
+    error_message = "ses_sender_identity is an address at ${var.domain_name}, but ses_sender_on_domain_identity is off, so it would become an email identity of its own that nobody can verify, replacing any verified interim identity. Until the domain identity has verified, keep the sender on an interim address off the domain; afterwards, move it in the same change that sets ses_sender_on_domain_identity."
+  }
 }
 
 variable "ses_enable_mail_records" {
@@ -139,6 +213,11 @@ variable "ses_enable_mail_records" {
   EOT
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.ses_enable_mail_records || (var.ses_enable_domain_identity && var.ses_enable_domain_auth)
+    error_message = "ses_enable_mail_records requires ses_enable_domain_identity and ses_enable_domain_auth: the MAIL FROM subdomain hangs off the SES domain identity, and the apex SPF without the DKIM records leaves outbound mail authorised by SPF alone."
+  }
 }
 
 variable "apex_txt_records" {
@@ -186,13 +265,22 @@ variable "ses_dmarc_policy" {
   }
 }
 
+locals {
+  # The validation blocks already refuse domain auth without the identity, so
+  # in a valid configuration this equals ses_enable_domain_auth. Written as the
+  # conjunction so that every resource indexing the identity is counted on the
+  # identity existing, and an invalid combination fails on its validation
+  # message rather than on an index error.
+  ses_domain_auth_on = var.ses_enable_domain_identity && var.ses_enable_domain_auth
+}
+
 # The single-address identity covers sending before the domain identity
 # exists. AWS verifies it by emailing a click-link to the address itself, so
-# it is retired the moment domain auth is on: the canonical design keeps that
-# address unmonitored, and a domain identity authorises the same From address
-# without any inbound route.
+# it is retired once sending moves under the domain: the canonical design keeps
+# that address unmonitored, and a domain identity authorises the same From
+# address without any inbound route.
 resource "aws_ses_email_identity" "sender" {
-  count = var.ses_enable_domain_auth ? 0 : 1
+  count = var.ses_sender_on_domain_identity ? 0 : 1
   email = var.ses_sender_identity
 }
 
@@ -201,29 +289,12 @@ resource "aws_ses_email_identity" "sender" {
 # The verification token is a TXT record at _amazonses.<domain>.
 
 resource "aws_ses_domain_identity" "main" {
-  count  = var.ses_enable_domain_auth ? 1 : 0
+  count  = var.ses_enable_domain_identity ? 1 : 0
   domain = var.domain_name
-
-  # The header above requires the flag flip and the sender cutover to be one
-  # window rather than two steps, because flipping alone destroys the interim
-  # single-address identity one-way while the domain identity it creates does
-  # not authorise that interim address. Until now that requirement lived only
-  # in prose, so an apply that moved the flag and left the sender behind
-  # succeeded, and every send then failed at the outbox drain as an
-  # authorisation error naming a recipient resource rather than a sender.
-  #
-  # The precondition only evaluates when this resource exists, so it is inert
-  # while domain auth is off and binds exactly at the flip.
-  lifecycle {
-    precondition {
-      condition     = endswith(var.ses_sender_identity, "@${var.domain_name}")
-      error_message = "ses_enable_domain_auth is on, so ses_sender_identity must be an address at ${var.domain_name}: the domain identity does not authorise the interim sender, and this apply destroys that interim identity one-way. Move the sender in the same change that sets the flag."
-    }
-  }
 }
 
 resource "aws_route53_record" "ses_domain_verification" {
-  count   = var.ses_enable_domain_auth ? 1 : 0
+  count   = local.ses_domain_auth_on ? 1 : 0
   zone_id = local.zone_id
   name    = "_amazonses.${var.domain_name}"
   type    = "TXT"
@@ -232,7 +303,7 @@ resource "aws_route53_record" "ses_domain_verification" {
 }
 
 resource "aws_ses_domain_identity_verification" "main" {
-  count      = var.ses_enable_domain_auth ? 1 : 0
+  count      = local.ses_domain_auth_on ? 1 : 0
   domain     = aws_ses_domain_identity.main[0].id
   depends_on = [aws_route53_record.ses_domain_verification]
 }
@@ -243,12 +314,12 @@ resource "aws_ses_domain_identity_verification" "main" {
 # resolve to <token>.dkim.amazonses.com.
 
 resource "aws_ses_domain_dkim" "main" {
-  count  = var.ses_enable_domain_auth ? 1 : 0
+  count  = var.ses_enable_domain_identity ? 1 : 0
   domain = aws_ses_domain_identity.main[0].domain
 }
 
 resource "aws_route53_record" "ses_dkim" {
-  count   = var.ses_enable_domain_auth ? 3 : 0
+  count   = local.ses_domain_auth_on ? 3 : 0
   zone_id = local.zone_id
   name    = "${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
   type    = "CNAME"
@@ -272,7 +343,7 @@ resource "aws_ses_domain_mail_from" "main" {
   lifecycle {
     precondition {
       condition     = var.ses_enable_domain_auth
-      error_message = "ses_enable_mail_records requires ses_enable_domain_auth: the MAIL FROM subdomain hangs off the SES domain identity, which the domain-auth flag creates."
+      error_message = "ses_enable_mail_records requires ses_enable_domain_auth: the MAIL FROM subdomain hangs off the SES domain identity, whose records the domain-auth flag publishes."
     }
   }
 }
@@ -491,8 +562,9 @@ resource "aws_ses_configuration_set" "bulk" {
 #
 # The flag does NOT gate this whole section, and the difference matters. The
 # topic below and the identity notification settings that publish into it stand
-# unconditionally (the notification settings follow ses_enable_domain_auth,
-# which decides which identity they attach to, not whether they exist). Only the
+# unconditionally (each pair of notification settings follows whether its own
+# identity exists, which decides which identity they attach to, not whether any
+# feedback is published). Only the
 # queue, its dead-letter queue, their policies and the subscription are counted
 # on enable_feed_queues.
 #
@@ -564,8 +636,12 @@ resource "aws_sns_topic_policy" "ses_feedback" {
   })
 }
 
+# Each identity carries its own pair, counted on that identity existing, so the
+# two pairs coexist while both identities do: the interim sender keeps
+# reporting its bounces while the domain identity verifies, and mail sent from
+# a domain address before the sender moves reports through the domain pair.
 resource "aws_ses_identity_notification_topic" "sender_bounce" {
-  count                    = var.ses_enable_domain_auth ? 0 : 1
+  count                    = var.ses_sender_on_domain_identity ? 0 : 1
   identity                 = aws_ses_email_identity.sender[0].arn
   notification_type        = "Bounce"
   topic_arn                = aws_sns_topic.ses_feedback.arn
@@ -573,29 +649,47 @@ resource "aws_ses_identity_notification_topic" "sender_bounce" {
 }
 
 resource "aws_ses_identity_notification_topic" "sender_complaint" {
-  count                    = var.ses_enable_domain_auth ? 0 : 1
+  count                    = var.ses_sender_on_domain_identity ? 0 : 1
   identity                 = aws_ses_email_identity.sender[0].arn
   notification_type        = "Complaint"
   topic_arn                = aws_sns_topic.ses_feedback.arn
   include_original_headers = false
 }
 
-# When domain-level auth is enabled, mail sends under the domain identity;
-# its feedback must reach the same topic.
+# Mail sent under the domain identity reports to the same topic. SES refuses a
+# notification topic on an identity that has not verified, so these name the
+# identity through the verification resource: that orders them after the
+# verification wait, and keeps them off while the identity merely exists.
 resource "aws_ses_identity_notification_topic" "domain_bounce" {
-  count                    = var.ses_enable_domain_auth ? 1 : 0
-  identity                 = aws_ses_domain_identity.main[0].arn
+  count                    = local.ses_domain_auth_on ? 1 : 0
+  identity                 = aws_ses_domain_identity_verification.main[0].arn
   notification_type        = "Bounce"
   topic_arn                = aws_sns_topic.ses_feedback.arn
   include_original_headers = false
 }
 
 resource "aws_ses_identity_notification_topic" "domain_complaint" {
-  count                    = var.ses_enable_domain_auth ? 1 : 0
-  identity                 = aws_ses_domain_identity.main[0].arn
+  count                    = local.ses_domain_auth_on ? 1 : 0
+  identity                 = aws_ses_domain_identity_verification.main[0].arn
   notification_type        = "Complaint"
   topic_arn                = aws_sns_topic.ses_feedback.arn
   include_original_headers = false
+}
+
+# A new identity also mails every bounce and complaint to the sending address,
+# which here is an address nobody reads, so the topics above are the only feedback
+# path and forwarding is turned off. SES refuses that until both topics are
+# attached, hence the ordering. Declared here rather than left as a console step,
+# because a step done by hand is the one done out of order or not at all.
+resource "aws_sesv2_email_identity_feedback_attributes" "domain" {
+  count                    = local.ses_domain_auth_on ? 1 : 0
+  email_identity           = aws_ses_domain_identity_verification.main[0].domain
+  email_forwarding_enabled = false
+
+  depends_on = [
+    aws_ses_identity_notification_topic.domain_bounce,
+    aws_ses_identity_notification_topic.domain_complaint,
+  ]
 }
 
 # SES feedback loop -- bounce/complaint notifications to the worker's queue

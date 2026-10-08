@@ -159,26 +159,70 @@ describe('GET /rules/net/footbag-net (full English Article III)', () => {
     expect(res.text).not.toContain('Le footbag net se joue');
   });
 
-  it('renders a language toggle to /rules/net/jeu-au-filet', async () => {
+  it('offers no link to a translated rulebook the site does not publish', async () => {
     const res = await page('/rules/net/footbag-net');
-    expect(res.text).toContain('class="rules-language-toggle"');
-    expect(res.text).toContain('href="/rules/net/jeu-au-filet"');
+    // The rules are published in English only; a language toggle here would
+    // send the visitor to a page that returns not found.
+    expect(res.text).not.toContain('rules-language-toggle');
+    expect(res.text).not.toContain('/rules/net/jeu-au-filet');
   });
 });
 
-describe('GET /rules/net/jeu-au-filet (bilingual Article III)', () => {
-  it('returns 200 and renders the verbatim bilingual Article III', async () => {
+describe('GET /rules/net/jeu-au-filet', () => {
+  it('is not published', async () => {
     const res = await page('/rules/net/jeu-au-filet');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('301. Interprétation');
-    expect(res.text).toContain('303. Règles de Jeu');
-    expect(res.text).toContain('305. Glossaire');
+    expect(res.status).toBe(404);
+  });
+});
+
+// The rule pages the index links to, read from the rendered index so a page
+// added to the IFPA rules files is covered without editing this list.
+async function indexedRuleLinks(): Promise<Array<{ href: string; text: string }>> {
+  const res = await page('/rules');
+  return [...res.text.matchAll(/<a href="(\/rules\/[^"]+)"><strong>([^<]+)<\/strong><\/a>/g)]
+    .map((m) => ({ href: m[1]!, text: m[2]! }));
+}
+
+describe('rule page titles and orientation', () => {
+  it('titles every rule page as that game\'s rules, matching its index link', async () => {
+    const links = await indexedRuleLinks();
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      const res = await page(link.href);
+      expect(res.status, link.href).toBe(200);
+      const h1 = res.text.match(/<h1>([^<]+)<\/h1>/)?.[1];
+      // A bare game name ("2-Square") reads as a page about the game, not its
+      // rules; an index link naming something else than the page it opens
+      // misleads the visitor about where the click lands.
+      expect(h1, `${link.href} h1`).toMatch(/ Rules$/);
+      expect(link.text, `${link.href} index link`).toBe(h1);
+    }
   });
 
-  it('renders a toggle back to the English summary', async () => {
-    const res = await page('/rules/net/jeu-au-filet');
-    expect(res.text).toContain('class="rules-language-toggle"');
-    expect(res.text).toContain('href="/rules/net/footbag-net"');
+  it('opens every rule page with an orientation sentence under its title', async () => {
+    for (const link of await indexedRuleLinks()) {
+      const res = await page(link.href);
+      // Without it the visitor lands on a title followed straight by rulebook
+      // text, with nothing saying what the game is.
+      expect(res.text, link.href).toMatch(/<p class="hero-subtitle">[^<]+<\/p>/);
+    }
+  });
+
+  it('introduces every discipline group on the index', async () => {
+    const res = await page('/rules');
+    const groups = [...res.text.matchAll(/<section class="content-section rules-group" id="([^"]+)">([\s\S]*?)<\/section>/g)];
+    expect(groups.length).toBeGreaterThan(0);
+    for (const [, id, body] of groups) {
+      // A bare heading over a link list says nothing about what the group covers.
+      expect(body, id).toMatch(/<\/h2><\/div>\s*<p>[^<]+<\/p>/);
+    }
+  });
+
+  it('links the rules index to the equipment page', async () => {
+    const res = await page('/rules');
+    // Equipment is the rules' sibling; without this link a visitor reading the
+    // rules has no path from them to what they need to play.
+    expect(res.text).toMatch(/<a href="\/equipment" class="action-link">[^<]+<\/a>/);
   });
 });
 

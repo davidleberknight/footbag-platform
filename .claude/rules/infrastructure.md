@@ -35,7 +35,7 @@ before it flips, not merely what it creates.
 
 Match an existing resource's gate rather than assuming its shape. Some invert the
 ternary deliberately, existing only while a flag is off, as the single-address
-sender identity does until domain auth takes over; some key off string emptiness
+sender identity does until the sender moves onto the domain identity; some key off string emptiness
 instead of a bool; and some read a computed local that combines two flags, which
 is still the same family. Rewriting one of these to `? 1 : 0` inverts its meaning.
 

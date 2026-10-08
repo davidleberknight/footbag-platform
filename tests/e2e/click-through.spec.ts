@@ -149,6 +149,7 @@ const PUBLIC_NAV_PATHS = [
   '/freestyle',
   '/sideline',
   '/rules',
+  '/equipment',
   '/records',
   '/hof',
   '/bap',

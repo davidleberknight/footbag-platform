@@ -120,6 +120,23 @@ output "ses_sender_identity" {
   value       = var.ses_sender_identity
 }
 
+# Null rather than empty while the domain identity is off, so a plan that
+# changes nothing reports no change to the outputs either.
+output "ses_domain_verification_token" {
+  description = "TXT value SES expects at _amazonses.<domain> to verify the domain identity. Null until ses_enable_domain_identity is on."
+  value       = one(aws_ses_domain_identity.main[*].verification_token)
+}
+
+output "ses_domain_dkim_records" {
+  description = "The three DKIM CNAMEs the domain identity needs, as name/value pairs. Null until ses_enable_domain_identity is on."
+  value = var.ses_enable_domain_identity ? [
+    for token in aws_ses_domain_dkim.main[0].dkim_tokens : {
+      name  = "${token}._domainkey.${var.domain_name}"
+      value = "${token}.dkim.amazonses.com"
+    }
+  ] : null
+}
+
 output "ses_configuration_set_bulk" {
   description = "SES configuration set carrying the bulk sending reputation. Read by scripts/test-smoke.sh so the raw-MIME probe names a set that exists in the environment under test."
   value       = aws_ses_configuration_set.bulk.name

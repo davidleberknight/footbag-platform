@@ -821,7 +821,6 @@ rules-detail
 rules-footer-back
 rules-group
 rules-index
-rules-language-toggle
 rules-link-list
 rules-meta
 rules-toc

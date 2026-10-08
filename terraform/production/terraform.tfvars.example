@@ -27,9 +27,15 @@ ssh_public_key = "ssh-ed25519 AAAAC3Nza... TODO-your-production-deploy-key"
 # its value is vault-governed and lives in the gitignored secrets.auto.tfvars
 # beside the values file, which Terraform auto-loads.
 
-# Operator-supplied; verification happens via the SES email loop after apply.
-# Real verified address (e.g. noreply@footbag.org). The TODO- prefix is
-# rejected by ses_sender_identity's variable validation in ses.tf.
+# Operator-supplied. The canonical value below is the domain sender, which is
+# accepted only with ses_sender_on_domain_identity on, because an address at
+# the domain cannot be verified as an email identity of its own: the canonical
+# address is never monitored, so the click-link SES sends it is never opened.
+# Until the domain flags reach that step, set an interim address off the
+# domain, verified through the SES email loop after apply, and name it in the
+# permitted list below; the plan refuses the canonical value until then. A
+# value with the TODO- prefix is rejected by ses_sender_identity's variable
+# validation in ses.tf.
 ses_sender_identity = "noreply@footbag.org"
 
 # Every From address the runtime role may send as. The list replaces the
@@ -215,20 +221,30 @@ enable_planned_maintenance    = false
 # Pass 1 (first apply): both false. Pass 2: enable_cwagent_alarms = true
 # AFTER scripts/install-cwagent-remote.sh has run and CWAgent is confirmed
 # emitting metrics. Pass 3: enable_backup_alarm = true AFTER the snapshot
-# job emits BackupAgeMinutes. ses_enable_domain_auth: keep false until the
-# registrar has delegated the domain to this zone (the previous mail
-# host answers for it until the zone move), else its records
-# will not resolve; flip to true at the zone move, ahead of live sending,
-# since it retires the single-address sender identity. ses_enable_mail_records
+# job emits BackupAgeMinutes. The SES domain flags go in order.
+# ses_enable_domain_identity creates the domain identity and its DKIM tokens
+# and publishes nothing; flip it close to the zone move, since SES gives up on
+# a domain left unverified for about 72 hours. ses_enable_domain_auth publishes
+# the verification and DKIM records and waits for SES to verify: keep false
+# until the registrar has delegated the domain to this zone (the previous mail
+# host answers for it until the zone move), else its records will not resolve.
+# ses_sender_on_domain_identity retires the single-address sender identity,
+# one-way, in a later apply than the domain-auth one: set it in the same change
+# that moves ses_sender_identity and ses_permitted_from_addresses to the domain,
+# with the outbox paused, and only once SES reports the domain verified for
+# sending; the sender cutover step checks that before this apply.
+# ses_enable_mail_records
 # publishes the apex SPF, DMARC, and MAIL FROM records and belongs to the day
 # inbound mail moves to the new provider, because it replaces the apex SPF the
 # previous host published. enable_cutover_login_alarm: true for the cutover
 # monitoring window only, back to false after.
-enable_cwagent_alarms      = false
-enable_backup_alarm        = false
-ses_enable_domain_auth     = false
-ses_enable_mail_records    = false
-enable_cutover_login_alarm = false
+enable_cwagent_alarms         = false
+enable_backup_alarm           = false
+ses_enable_domain_identity    = false
+ses_enable_domain_auth        = false
+ses_sender_on_domain_identity = false
+ses_enable_mail_records       = false
+enable_cutover_login_alarm    = false
 
 # ── Legacy archive (archive.footbag.org) ──────────────────────────────────────
 # Independent of enable_cloudfront and of the apex alias flip: archive.footbag.org

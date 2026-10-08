@@ -11,7 +11,8 @@
 
   {{#each content.groups}}
   <section class="content-section rules-group" id="{{discipline}}">
-    <h2>{{label}}</h2>
+    <div class="section-heading"><h2>{{label}}</h2></div>
+    {{#if intro}}<p>{{intro}}</p>{{/if}}
     <ul class="rules-link-list">
       {{#each links}}
       <li>
@@ -22,5 +23,9 @@
     </ul>
   </section>
   {{/each}}
+
+  <section class="content-section">
+    <p>{{content.equipmentLink.lead}} <a href="{{content.equipmentLink.href}}" class="action-link">{{content.equipmentLink.label}}</a></p>
+  </section>
 
 </div>

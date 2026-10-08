@@ -1,6 +1,6 @@
 ---
 discipline: freestyle
-disciplineLabel: Freestyle
+disciplineLabel: Footbag Freestyle
 authority: IFPA Article V
 parentHref: /freestyle
 parentLabel: Freestyle

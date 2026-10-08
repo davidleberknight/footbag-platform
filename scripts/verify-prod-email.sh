@@ -122,19 +122,40 @@ send_one() {
 # stderr beside a successful answer would otherwise be compared as the status.
 # The error text a failure is judged on comes from reading again, answer
 # discarded.
+#
+# Which identity to read. An address verified on its own is its own identity; an
+# address at a verified domain has none, and SES authorises it through the
+# domain's. The canonical sender is the second kind, so reading the address
+# alone would report it missing on the day it starts working. Only a read that
+# SES answers "not found" moves to the domain: a denied read stays on the address
+# and is reported as denied below.
+IDENTITY="$SENDER"
+if ! aws sesv2 get-email-identity --email-identity "$SENDER" --region "$REGION" \
+     --profile "$PROFILE" --query IdentityType --output text >/dev/null 2>&1; then
+  identity_err="$(aws sesv2 get-email-identity --email-identity "$SENDER" --region "$REGION" \
+     --profile "$PROFILE" --query IdentityType --output text 2>&1 >/dev/null || true)"
+  if grep -qi 'NotFoundException' <<< "$identity_err"; then
+    IDENTITY="${SENDER#*@}"
+  fi
+fi
+
 SENDER_CALL=(aws sesv2 get-email-identity
-  --email-identity "$SENDER"
+  --email-identity "$IDENTITY"
   --region "$REGION"
   --profile "$PROFILE"
   --query VerifiedForSendingStatus --output text)
 if SENDER_STATUS="$("${SENDER_CALL[@]}" 2>/dev/null)" \
    || { SENDER_STATUS="$("${SENDER_CALL[@]}" 2>&1 >/dev/null)" || true; false; }; then
   if [[ "$SENDER_STATUS" != "True" && "$SENDER_STATUS" != "true" ]]; then
-    echo "ERROR: sender '$SENDER' is not a verified SES identity in $REGION (status: $SENDER_STATUS)." >&2
+    echo "ERROR: sender '$SENDER' is not verified for sending in $REGION through identity '$IDENTITY' (status: $SENDER_STATUS)." >&2
     echo "       Verify it, or pass --sender with the identity production is configured to send from." >&2
     exit 1
   fi
-  echo "Sender identity: $SENDER (verified)"
+  if [[ "$IDENTITY" == "$SENDER" ]]; then
+    echo "Sender identity: $SENDER (verified)"
+  else
+    echo "Sender identity: $SENDER (verified through the $IDENTITY domain identity)"
+  fi
 elif grep -qiE 'accessdenied|not authorized' <<< "$SENDER_STATUS"; then
   echo "Sender identity: $SENDER (status not readable by this profile; sending anyway)"
   echo "  The send principal grants sending only, so it cannot read an identity."
@@ -162,7 +183,7 @@ fi
 # running this before mail day has no bounce domain configured at all. This
 # reports, and says plainly what an unhealthy state costs.
 MAIL_FROM_CALL=(aws sesv2 get-email-identity
-  --email-identity "$SENDER"
+  --email-identity "$IDENTITY"
   --region "$REGION"
   --profile "$PROFILE"
   --query 'MailFromAttributes.MailFromDomainStatus' --output text)
@@ -260,7 +281,8 @@ Manual confirmation checklist:
      DKIM=pass and SPF=pass. Read the signing DOMAIN before calling it a
      failure: while production sends under the interim address identity with
      domain-level signing off, the pass is for amazonses.com, which is correct.
-     It becomes footbag.org when the domain identity and its DKIM records land.
+     It becomes footbag.org at the sender cutover, when sending moves onto the
+     domain identity.
   2. An email-gated production page (e.g. /register/check-email after a real
      registration) renders the standard "check your email" copy with NO in-page
      preview card. The preview card is a development and staging affordance

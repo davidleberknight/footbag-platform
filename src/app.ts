@@ -36,6 +36,7 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/sideline',  section: 'sideline',  label: 'Sideline' },
   { href: '/ifpa',      section: 'ifpa',      label: 'IFPA' },
   { href: '/rules',     section: 'rules',     label: 'Rules' },
+  { href: '/equipment', section: 'equipment', label: 'Equipment' },
   { href: '/records',   section: 'records',   label: 'Records' },
   { href: '/hof',       section: 'hof',       label: 'HoF' },
   { href: '/bap',       section: 'bap',       label: 'BAP' },
@@ -394,6 +395,7 @@ export function createApp(): express.Express {
       : req.path.startsWith('/sideline') ? 'sideline'
       : req.path.startsWith('/ifpa') ? 'ifpa'
       : req.path.startsWith('/rules') ? 'rules'
+      : req.path.startsWith('/equipment') ? 'equipment'
       : req.path.startsWith('/admin') ? 'admin'
       : '';
     res.locals.navLinks = NAV_SECTIONS.map(item => ({

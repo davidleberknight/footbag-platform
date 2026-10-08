@@ -233,9 +233,9 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
         # divergence that breaks sending rather than tightening it.
         #
         # The reason: which identity object covers the sender address changes
-        # when domain authentication is enabled, so a grant naming the address
-        # identity silently stops authorising the moment sending moves under the
-        # domain identity, at send time rather than at apply time.
+        # when the sender moves onto the domain identity, so a grant naming the
+        # address identity silently stops authorising at that moment, at send
+        # time rather than at apply time.
         Resource = "*"
         # And the address, not only the identity that covers it. While the
         # identity is a single verified address the resource above already

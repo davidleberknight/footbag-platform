@@ -28,7 +28,7 @@ compile error at every call site.
   thin auth pages), rendered as a robots noindex meta. The layout also emits a self-referencing
   canonical and Open Graph / Twitter Card tags from request-derived `res.locals` (canonical and
   `og:url` are omitted on error and not-found responses); services own only the `seo` fields.
-- `page.sectionKey` selects the active nav section; `page.pageKey` is a unique page id; `page.title`
+- `page.sectionKey` names the page's section (the active nav entry is derived by middleware from the request path, as `currentSection`); `page.pageKey` is a unique page id; `page.title`
   is the displayed h1 (distinct from `seo.title`); `eyebrow` / `intro` / `notice` are optional.
 - `navigation` (breadcrumbs / siblings / contextLinks) is service-provided. Middleware separately
   provides `currentSection`, `isAuthenticated`, and `isMember` via `res.locals`; those are not part of the

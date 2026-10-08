@@ -2,17 +2,12 @@
 
 <div class="hero hero-sm">
   <div>
-    <h1>{{content.page.title}}</h1>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
   </div>
 </div>
 
 <div class="wrapper rules-detail">
-
-  {{#if content.page.alternateLanguageHref}}
-  <p class="rules-language-toggle">
-    <a href="{{content.page.alternateLanguageHref}}" class="btn btn-outline">{{content.page.alternateLanguageLabel}}</a>
-  </p>
-  {{/if}}
 
   <p class="rules-meta">{{content.page.authority}}{{#if content.page.effective}}, {{content.page.effective}}{{/if}}</p>
 
@@ -32,7 +27,7 @@
   </article>
 
   <section class="content-section rules-footer-back">
-    <p><a href="{{content.page.parentHref}}" class="btn btn-outline">Back to {{content.page.parentLabel}}</a></p>
+    <p><a href="{{content.page.parentHref}}" class="action-link">Back to {{content.page.parentLabel}}</a></p>
   </section>
 
 </div>
