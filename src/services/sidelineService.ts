@@ -10,7 +10,7 @@
  *     Kicks, Footbag Golf), each with optional cartoon icon and optional demo .webm clip.
  *   - Each game may carry internal "MORE INFO" links (its rules page, e.g.
  *     /rules/sideline/2-square; its equipment section, e.g. /equipment#golf; or another internal
- *     page such as /records); the page renders zero offsite links.
+ *     page such as /records).
  */
 import { PageViewModel } from '../types/page';
 

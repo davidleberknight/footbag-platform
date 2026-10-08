@@ -62,6 +62,11 @@ cleanup_env_tempfiles() {
   fi
 }
 trap cleanup_env_tempfiles EXIT
+# A signal ends the run through the EXIT trap, never through bash's own
+# fatal-signal handling, where a second signal can cut the cleanup short.
+trap "trap '' HUP INT TERM; exit 129" HUP
+trap "trap '' HUP INT TERM; exit 130" INT
+trap "trap '' HUP INT TERM; exit 143" TERM
 
 # Appending to a file whose last line carries no newline concatenates onto that
 # line, producing one malformed variable and silently losing another. The

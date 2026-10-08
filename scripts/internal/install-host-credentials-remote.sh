@@ -54,6 +54,11 @@ umask 077
 _cred_tmp=$(mktemp)
 _conf_tmp=$(mktemp)
 trap 'shred -u "$_cred_tmp" "$_conf_tmp" 2>/dev/null || rm -f "$_cred_tmp" "$_conf_tmp"' EXIT
+# A signal ends the run through the EXIT trap, never through bash's own
+# fatal-signal handling, where a second signal can cut the cleanup short.
+trap "trap '' HUP INT TERM; exit 129" HUP
+trap "trap '' HUP INT TERM; exit 130" INT
+trap "trap '' HUP INT TERM; exit 143" TERM
 
 cat > "$_cred_tmp" <<EOF
 [${SOURCE_PROFILE}]

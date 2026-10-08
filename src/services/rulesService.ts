@@ -15,7 +15,6 @@
  *     " Rules" ("2-Square Rules"). Rule detail: title hero with a one-sentence intro, authority and
  *     effective-date meta line, optional on-this-page TOC, markdown bodyHtml; each H2 gets a
  *     slugified anchor id.
- *   - Rule pages render zero offsite hyperlinks.
  *
  * Governance:
  *   - Rules content is IFPA-governed: IFPA authors and maintains it, and these pages publish it as

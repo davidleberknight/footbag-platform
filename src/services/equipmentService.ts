@@ -12,7 +12,8 @@
  *     deep-link to these anchors, so the ids are a stable contract.
  *   - An item stating an official figure carries `officialRule`, a link to the exact rule section
  *     that governs it; items without one are practical guidance.
- *   - The vendor is named as plain text: the page renders zero offsite hyperlinks.
+ *   - The vendor notice links to the vendor's site; the template renders that link through the
+ *     shared external-link helper, like every other offsite link on the site.
  *
  * Governance:
  *   - Equipment is the site's own practical guidance, written by the IFPA secretary, and a sibling
@@ -42,7 +43,7 @@ export interface EquipmentSectionViewModel {
   closingParagraphs: string[];
 }
 
-export interface EquipmentRulesPointerViewModel {
+export interface EquipmentLinkedSentenceViewModel {
   before: string;
   linkLabel: string;
   href: string;
@@ -51,8 +52,9 @@ export interface EquipmentRulesPointerViewModel {
 
 export interface EquipmentContent {
   introParagraphs: string[];
+  vendorNotice: EquipmentLinkedSentenceViewModel;
   sections: EquipmentSectionViewModel[];
-  rulesPointer: EquipmentRulesPointerViewModel;
+  rulesPointer: EquipmentLinkedSentenceViewModel;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,8 +71,14 @@ function rule(rulePageHref: string, label: string, anchor: string): EquipmentRul
 
 const INTRO_PARAGRAPHS = [
   'To play footbag you need a footbag and a pair of shoes you can kick in. Net, golf and 4-square (also 2-square and 5-square) need a court or targets, laid out as below.',
-  'footbag.org doesn\'t sell equipment. For footbags, nets and other gear, see World Footbag (worldfootbag.com). This is listed for information only and isn\'t an endorsement by IFPA.',
 ];
+
+const VENDOR_NOTICE: EquipmentLinkedSentenceViewModel = {
+  before: 'footbag.org doesn\'t sell equipment. For footbags, nets and other gear, see World Footbag (',
+  linkLabel: 'worldfootbag.com',
+  href: 'https://worldfootbag.com',
+  after: '). This is listed for information only and isn\'t an endorsement by IFPA.',
+};
 
 const SECTIONS: EquipmentSectionViewModel[] = [
   {
@@ -237,7 +245,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
   },
 ];
 
-const RULES_POINTER: EquipmentRulesPointerViewModel = {
+const RULES_POINTER: EquipmentLinkedSentenceViewModel = {
   before: 'For the full rules of each game, see the ',
   linkLabel: 'Footbag Rules',
   href: '/rules',
@@ -263,6 +271,7 @@ export const equipmentService = {
       },
       content: {
         introParagraphs: INTRO_PARAGRAPHS,
+        vendorNotice: VENDOR_NOTICE,
         sections: SECTIONS,
         rulesPointer: RULES_POINTER,
       },

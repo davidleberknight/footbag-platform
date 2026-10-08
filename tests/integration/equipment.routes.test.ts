@@ -11,7 +11,7 @@
  *   - every "Official IFPA rule" note links to a rule section that exists
  *   - every official figure the page states matches the rule it cites, so the
  *     rules stay the single source for official equipment requirements
- *   - the vendor is named as plain text, with no offsite link
+ *   - the vendor name links to the vendor site through the shared external-link markup
  *   - every equipment deep link from a game page lands on a real section
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -143,13 +143,17 @@ describe('GET /equipment', () => {
     }
   });
 
-  it('names the vendor as plain text and links nowhere offsite', async () => {
+  it('links the vendor name to the vendor site as a safe external link', async () => {
     const res = await page('/equipment');
     const main = mainOf(res.text);
-    // An offsite link from IFPA's site to a vendor reads as an endorsement the
-    // page explicitly disclaims.
-    expect(main).toContain('World Footbag (worldfootbag.com)');
-    expect(main).not.toMatch(/href="(https?:)?\/\//);
+    // A visitor looking for gear follows the link instead of retyping the
+    // domain; the shared external-link markup keeps the opener and referrer
+    // from leaking to the vendor, and the disclaimer stays beside it.
+    const link = main.match(/<a href="https:\/\/worldfootbag\.com"[^>]*>([^<]*)<\/a>/);
+    expect(link?.[1]).toBe('worldfootbag.com');
+    expect(link?.[0]).toContain('rel="nofollow noopener noreferrer"');
+    expect(main).toContain('World Footbag (<a href="https://worldfootbag.com"');
+    expect(main).toContain('an endorsement by IFPA.');
   });
 });
 

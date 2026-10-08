@@ -13,6 +13,7 @@
     {{#each content.introParagraphs}}
       <p>{{this}}</p>
     {{/each}}
+    <p>{{content.vendorNotice.before}}{{{externalLink content.vendorNotice.href label=content.vendorNotice.linkLabel noIcon=true}}}{{content.vendorNotice.after}}</p>
   </section>
 
   {{#each content.sections}}

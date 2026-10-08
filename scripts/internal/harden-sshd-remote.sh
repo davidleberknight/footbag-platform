@@ -265,9 +265,17 @@ restore_previous() {
     rm -f "$SAVED" || true
   fi
 }
-# One EXIT trap covers interrupts too: bash runs it when a TERM, INT or HUP ends
-# the script. A separate signal handler would only risk returning into the run.
+# An interrupt reaches the restore through these handlers, never through bash's
+# default handling of a fatal signal. Left to the default, bash runs the EXIT
+# trap from inside its own signal handling, and a second signal landing before
+# the restore's first line has made signals ignored ends the shell with the
+# file not put back (bash 5.2 does this). A trapped signal is only queued and
+# run between commands, so each handler makes further signals ignored before
+# anything else, then exits through the restore, never returning into the run.
 trap restore_previous EXIT
+trap "trap '' PIPE HUP INT TERM; exit 129" HUP
+trap "trap '' PIPE HUP INT TERM; exit 130" INT
+trap "trap '' PIPE HUP INT TERM; exit 143" TERM
 
 if [[ -e "$DROPIN" ]]; then
   cp -a "$DROPIN" "$SAVED"

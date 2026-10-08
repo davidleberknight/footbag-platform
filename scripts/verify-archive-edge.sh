@@ -173,6 +173,11 @@ cleanup() {
   rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
+# A signal ends the run through the EXIT trap, never through bash's own
+# fatal-signal handling, where a second signal can cut the cleanup short.
+trap "trap '' HUP INT TERM; exit 129" HUP
+trap "trap '' HUP INT TERM; exit 130" INT
+trap "trap '' HUP INT TERM; exit 143" TERM
 
 # ---- Sign a short-lived cookie set --------------------------------------------
 

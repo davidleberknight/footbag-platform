@@ -559,6 +559,11 @@ if (( MODE_REUSE == 1 )) \
   _drift_tmp_db=$(mktemp -t schema_check.XXXXXX.db)
   # shellcheck disable=SC2064
   trap "rm -f '${_drift_tmp_db}' '${_drift_tmp_db}-wal' '${_drift_tmp_db}-shm'" EXIT
+  # A signal ends the run through the EXIT trap, never through bash's own
+  # fatal-signal handling, where a second signal can cut the cleanup short.
+  trap "trap '' HUP INT TERM; exit 129" HUP
+  trap "trap '' HUP INT TERM; exit 130" INT
+  trap "trap '' HUP INT TERM; exit 143" TERM
   if ! sqlite3 "${_drift_tmp_db}" < database/schema.sql >/dev/null 2>&1; then
     echo "WARNING: schema-drift preflight could not apply database/schema.sql to a tmp DB; skipping drift check." >&2
   else
@@ -626,7 +631,7 @@ if (( MODE_REUSE == 1 )) \
     fi
   fi
   rm -f "${_drift_tmp_db}" "${_drift_tmp_db}-wal" "${_drift_tmp_db}-shm"
-  trap - EXIT
+  trap - EXIT HUP INT TERM
 fi
 
 # Operator credential source, for staging only. Production has none: its host

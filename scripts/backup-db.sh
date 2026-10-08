@@ -106,6 +106,11 @@ command -v aws >/dev/null     || fail "aws CLI not installed"
 
 WORK_DIR=$(mktemp -d /tmp/footbag-backup.XXXXXX)
 trap 'rm -rf "${WORK_DIR}"' EXIT
+# A signal ends the run through the EXIT trap, never through bash's own
+# fatal-signal handling, where a second signal can cut the cleanup short.
+trap "trap '' HUP INT TERM; exit 129" HUP
+trap "trap '' HUP INT TERM; exit 130" INT
+trap "trap '' HUP INT TERM; exit 143" TERM
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 # Derived from TS rather than read from a second clock call, so the key and the
