@@ -1495,13 +1495,11 @@ export function insertAccountToken(
   return id;
 }
 
-// Row in event_organizers: the member or members who run an event. One member
-// may hold the 'organizer' role per event and any number may co-organize, both
-// enforced by unique indexes, so a fixture that wants a second person on an
-// event passes 'co-organizer'.
+// Row in event_organizers: the member or members who run an event. Organizers
+// are equals with no primary, so every row carries the one role the schema
+// allows and an event can take as many as a test needs.
 export interface EventOrganizerOverrides {
   id?: string;
-  role?: 'organizer' | 'co-organizer';
 }
 
 export function insertEventOrganizer(
@@ -1516,7 +1514,7 @@ export function insertEventOrganizer(
       id, created_at, created_by, updated_at, updated_by, version,
       event_id, member_id, role, added_at
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(id, TS, SYS, TS, SYS, eventId, memberId, o.role ?? 'organizer', TS);
+  `).run(id, TS, SYS, TS, SYS, eventId, memberId, 'organizer', TS);
   return id;
 }
 

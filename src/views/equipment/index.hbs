@@ -1,0 +1,45 @@
+{{! /equipment — what you need to play each footbag game }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section class="content-section">
+    {{#each content.introParagraphs}}
+      <p>{{this}}</p>
+    {{/each}}
+  </section>
+
+  {{#each content.sections}}
+    <section class="content-section equipment-section" id="{{id}}">
+      <div class="section-heading"><h2>{{heading}}</h2></div>
+      {{#each paragraphs}}
+        <p>{{this}}</p>
+      {{/each}}
+      {{#if items.length}}
+        <ul class="equipment-list">
+          {{#each items}}
+            <li>
+              <strong>{{lead}}:</strong> {{text}}
+              {{#if officialRule}}
+                <span class="equipment-rule">Official IFPA rule: <a href="{{officialRule.href}}">{{officialRule.label}}</a></span>
+              {{/if}}
+            </li>
+          {{/each}}
+        </ul>
+      {{/if}}
+      {{#each closingParagraphs}}
+        <p>{{this}}</p>
+      {{/each}}
+    </section>
+  {{/each}}
+
+  <section class="content-section">
+    <p>{{content.rulesPointer.before}}<a href="{{content.rulesPointer.href}}">{{content.rulesPointer.linkLabel}}</a>{{content.rulesPointer.after}}</p>
+  </section>
+
+</div>

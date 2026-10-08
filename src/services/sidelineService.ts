@@ -8,9 +8,9 @@
  *   - getSidelineLandingPage() returns PageViewModel<SidelineLandingContent>.
  *   - Static hero plus a fixed per-game list (Circle Kicking, 2-Square, 4-Square, Consecutive
  *     Kicks, Footbag Golf), each with optional cartoon icon and optional demo .webm clip.
- *   - Each game may carry an optional internal "MORE INFO" link (its rules page, e.g.
- *     /rules/sideline/2-square, or another internal page such as /records); the page renders zero
- *     offsite links.
+ *   - Each game may carry internal "MORE INFO" links (its rules page, e.g.
+ *     /rules/sideline/2-square; its equipment section, e.g. /equipment#golf; or another internal
+ *     page such as /records); the page renders zero offsite links.
  */
 import { PageViewModel } from '../types/page';
 
@@ -67,7 +67,13 @@ const SIDELINE_GAMES: SidelineGame[] = [
       webmUrl: '/video/sideline/hackysack.webm',
       caption: 'Circle kicking demo',
     },
-    moreInfo: [],
+    moreInfo: [
+      {
+        label: 'Footbag Equipment',
+        href: '/equipment#footbags',
+        external: false,
+      },
+    ],
   },
   {
     slug: 'two-square',
@@ -82,6 +88,11 @@ const SIDELINE_GAMES: SidelineGame[] = [
       {
         label: '2-Square Rules',
         href: '/rules/sideline/2-square',
+        external: false,
+      },
+      {
+        label: 'Court Setup',
+        href: '/equipment#square-games',
         external: false,
       },
     ],
@@ -102,6 +113,11 @@ const SIDELINE_GAMES: SidelineGame[] = [
       {
         label: '4-Square Rules',
         href: '/rules/sideline/4-square',
+        external: false,
+      },
+      {
+        label: 'Court Setup',
+        href: '/equipment#square-games',
         external: false,
       },
     ],
@@ -139,6 +155,11 @@ const SIDELINE_GAMES: SidelineGame[] = [
       {
         label: 'IFPA Footbag Golf Rules (Article IV)',
         href: '/rules/golf/footbag-golf',
+        external: false,
+      },
+      {
+        label: 'Golf Equipment',
+        href: '/equipment#golf',
         external: false,
       },
     ],

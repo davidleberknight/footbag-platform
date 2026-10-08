@@ -88,6 +88,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /sideline': { stories: ['V_Browse_Static_Content'] },
   'GET /rules': { stories: ['V_View_Tutorials'] },
   'GET /rules/:disciplineSlug/:ruleSlug': { stories: ['V_View_Tutorials'] },
+  'GET /equipment': { stories: ['V_View_Tutorials'] },
   'GET /ifpa': { none: 'needs-ruling', why: 'Public index of the IFPA governance documents, which no user story names or gives success criteria.' },
   'GET /ifpa/roster': { stories: ['A_View_Official_Roster_Reports'] },
   'GET /ifpa/:docSlug': { none: 'needs-ruling', why: 'Public page for one IFPA governance document, which no user story names or gives success criteria.' },

@@ -4,9 +4,18 @@
 #
 # Modes:
 #   (default)  all of history, which is what the push gate and the full local
-#              runner check, matching the job continuous integration runs.
+#              runner check, matching the job continuous integration runs; then
+#              every uncommitted change a commit would carry, so the local run
+#              judges the code on disk rather than only what is already committed.
 #   --staged   only what is about to be committed, which is what the pre-commit
 #              hook checks.
+#
+# Why the default mode scans the working tree too: the history scan reads commits
+# only, so a credential in a modified or new file passed the full local run and
+# was first seen by the push gate. The uncommitted set is tracked files changed
+# since HEAD plus new files git does not ignore, the same set the clean room
+# carries. Ignored trees (the mirror, dependencies, the virtualenv) are never
+# committed, so they are left out rather than walked.
 #
 # Why the staged mode earns its place: it is the only point at which this problem
 # can be prevented rather than recorded. Once a credential-shaped string sits in a
@@ -44,6 +53,12 @@ else
   native_args="detect --source . --config .gitleaks.toml --no-banner --redact -v"
   docker_args="detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact -v"
 fi
+# The working-tree pass scans a copy of the uncommitted set, run from inside it so
+# reported paths are repository-relative and the path allowlist in .gitleaks.toml
+# matches them as it does in history.
+REPO_DIR="$PWD"
+tree_native_args=(dir . --config "${REPO_DIR}/.gitleaks.toml" --gitleaks-ignore-path "${REPO_DIR}/.gitleaksignore" --no-banner --redact -v)
+tree_docker_args=(dir . --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --no-banner --redact -v)
 
 # The scanner version the runner installs, read from the workflow so there is
 # one place it is written down.
@@ -84,8 +99,10 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   docker_ok=1
 fi
 
+scanner=""
 if [ -n "$native_version" ] && [ "$native_version" = "$PINNED_VERSION" ]; then
   echo "  gitleaks ${PINNED_VERSION} (native), matching the runner" >&2
+  scanner=native
   # shellcheck disable=SC2086
   gitleaks $native_args
   rc=$?
@@ -103,6 +120,7 @@ elif [ "$docker_ok" -eq 1 ]; then
     exit 1
   fi
   echo "  gitleaks ${PINNED_VERSION} (container), matching the runner" >&2
+  scanner=docker
   # shellcheck disable=SC2086
   docker run --rm -v "$PWD:/repo" -w /repo "zricethezav/gitleaks:v${PINNED_VERSION}@${IMAGE_DIGEST}" $docker_args
   rc=$?
@@ -123,6 +141,47 @@ else
   echo "  Install gitleaks ${PINNED_VERSION}, or start docker, to run the same scan the push gate runs." >&2
   [ "$skip_ok" -eq 1 ] && exit 0
   exit 77
+fi
+
+# The working-tree pass. A deleted file has nothing to scan and a symlink is not
+# followed out of the tree, so only regular files are copied.
+tree_rc=0
+if [ "$staged" -eq 0 ]; then
+  mapfile -t uncommitted < <(
+    { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard; } | sort -u
+  )
+  if [ "${#uncommitted[@]}" -eq 0 ]; then
+    echo "  working tree: no uncommitted changes to scan" >&2
+  else
+    SCAN_DIR="$(mktemp -d -t footbag-secret-scan-XXXXXX)"
+    trap 'rm -rf "$SCAN_DIR"' EXIT INT TERM
+    copied=0
+    for f in "${uncommitted[@]}"; do
+      if [ -f "$f" ] && [ ! -L "$f" ]; then
+        mkdir -p "${SCAN_DIR}/$(dirname "$f")"
+        cp "$f" "${SCAN_DIR}/${f}"
+        copied=$((copied + 1))
+      fi
+    done
+    echo "  working tree: scanning ${copied} uncommitted file(s)" >&2
+    if [ "$copied" -gt 0 ]; then
+      if [ "$scanner" = native ]; then
+        (cd "$SCAN_DIR" && gitleaks "${tree_native_args[@]}")
+        tree_rc=$?
+      else
+        docker run --rm -v "$SCAN_DIR:/scan:ro" -v "$PWD:/repo:ro" -w /scan \
+          "zricethezav/gitleaks:v${PINNED_VERSION}@${IMAGE_DIGEST}" "${tree_docker_args[@]}"
+        tree_rc=$?
+      fi
+    fi
+  fi
+  if [ "$tree_rc" -ne 0 ]; then
+    echo >&2
+    echo "SECRET SCAN FAILED on uncommitted changes: each finding above names its file," >&2
+    echo "line and rule. Remove a real value. A synthetic AWS key id in a test is" >&2
+    echo "allowed when its body spells FIXTURE or EXAMPLE." >&2
+    [ "$rc" -eq 0 ] && rc=$tree_rc
+  fi
 fi
 
 # The guidance belongs beside the check rather than in the hook, so the hook stays

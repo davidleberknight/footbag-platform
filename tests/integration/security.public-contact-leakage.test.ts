@@ -33,6 +33,7 @@ const PUBLIC_ROUTES = [
   '/hof',
   '/bap',
   '/rules',
+  '/equipment',
   '/legal',
   '/freestyle/glossary',
 ];

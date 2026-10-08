@@ -91,7 +91,7 @@ describe('GET /sitemap.xml', () => {
 
   it('lists static public hubs as absolute URLs', async () => {
     const res = await page('/sitemap.xml');
-    for (const path of ['/', '/events', '/clubs', '/freestyle', '/records', '/hof', '/bap', '/legal', '/rules', '/ifpa']) {
+    for (const path of ['/', '/events', '/clubs', '/freestyle', '/records', '/hof', '/bap', '/legal', '/rules', '/equipment', '/ifpa']) {
       expect(res.text).toContain(`<loc>${ORIGIN}${path}</loc>`);
     }
   });

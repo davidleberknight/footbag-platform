@@ -12,6 +12,8 @@
  *   - privacy disclosures match what the site actually loads: every cookie the
  *     app sets, the Cloudflare human-verification check and the pages it runs
  *     on, and the video-thumbnail requests behind the click-to-load facade
+ *   - promises it makes stay tied to the routes that keep them true:
+ *     self-service export and deletion, and opt-in announcement mail
  *   - includes last-updated date
  *   - footer legal-link row is present on the page layout
  */
@@ -100,6 +102,20 @@ describe('GET /legal', () => {
     expect(deployed.has('POST /members/:memberKey/download')).toBe(true);
     expect(deployed.has('GET /members/:memberKey/delete')).toBe(true);
     expect(deployed.has('POST /members/:memberKey/delete')).toBe(true);
+  });
+
+  it('promises announcements only to members who opted in, and the opt-in control the promise rests on exists', async () => {
+    const res = await page('/legal');
+    // The page tells members that IFPA announcement mail reaches only those
+    // who opted in. That is true only while members have somewhere to opt in
+    // and out, so the sentence and the email-preferences routes are pinned
+    // together: dropping either leaves a public promise nothing answers.
+    expect(res.text).toContain('IFPA announcements to members who have opted in');
+
+    const routes = await loadRouteTable();
+    const deployed = new Set(routes.allRoutes.map((r) => `${r.method.toUpperCase()} ${r.path}`));
+    expect(deployed.has('GET /members/:memberKey/email-preferences')).toBe(true);
+    expect(deployed.has('POST /members/:memberKey/email-preferences')).toBe(true);
   });
 
   it('discloses the human-verification check and the pages it runs on', async () => {

@@ -9,15 +9,19 @@
  *
  * Does not own:
  *   - Creating or editing the event itself.
- *   - Raising the queue item when a member's own account deletion orphans an
- *     event: AccountDeletionService does that, because it is the act that causes
- *     it. This service is the other end, closing the item when the event has
+ *   - Raising the queue item when a member's account deletion or deceased
+ *     marking orphans an event: AccountDeletionService and
+ *     DeceasedMarkingService do that, because each is the act that causes it.
+ *     This service is the other end, closing the item when the event has
  *     someone again.
  *
  * Required patterns:
- *   - An organizer row outlives the member's account, matching club leadership,
- *     so "has an organizer" is decided by joining members and filtering the
- *     deleted rather than by the row existing.
+ *   - Organizers are a flat set of equals with no primary, matching club
+ *     leadership, so every assignment writes the same role and nothing an
+ *     earlier organizer's row holds can block a new one.
+ *   - An organizer row outlives the member, matching club leadership, so "has
+ *     an organizer" is decided by the current-organizer view, which leaves out
+ *     deleted and deceased members, rather than by the row existing.
  *   - Both writes take a mandatory reason, as the sibling club-leadership
  *     surface does: an administrator changing who runs somebody else's event is
  *     reviewable only from a trail that says why.
@@ -52,7 +56,6 @@ interface EventRow {
 
 interface OrganizerRow {
   member_id: string;
-  role: string;
   added_at: string;
   display_name: string;
   slug: string | null;
@@ -61,8 +64,6 @@ interface OrganizerRow {
 export interface EventOrganizerRowView {
   memberId: string;
   displayName: string;
-  roleLabel: string;
-  isPrimaryOrganizer: boolean;
   addedAt: string;
   profileHref: string | null;
 }
@@ -105,12 +106,10 @@ function loadEvent(eventId: string): EventRow {
 
 function shapeOrganizers(eventId: string): EventOrganizerRowView[] {
   return (eventOrganizers.listForEvent.all(eventId) as OrganizerRow[]).map((r) => ({
-    memberId:           r.member_id,
-    displayName:        r.display_name,
-    roleLabel:          r.role === 'organizer' ? 'Organizer' : 'Co-organizer',
-    isPrimaryOrganizer: r.role === 'organizer',
-    addedAt:            r.added_at,
-    profileHref:        r.slug ? `/members/${r.slug}` : null,
+    memberId:    r.member_id,
+    displayName: r.display_name,
+    addedAt:     r.added_at,
+    profileHref: r.slug ? `/members/${r.slug}` : null,
   }));
 }
 
@@ -170,9 +169,9 @@ export const adminEventOrganizerService = {
   },
 
   /**
-   * Give an event an organizer. The first live organizer also closes the
-   * work-queue item that said it had none, in the same transaction, so the queue
-   * cannot go on asking for something that has been done.
+   * Give an event an organizer. Any open work-queue item saying it had none is
+   * closed in the same transaction, so the queue cannot go on asking for
+   * something that has been done.
    */
   assignOrganizer(adminMemberId: string, eventId: string, memberKey: string, reason: string): void {
     const trimmedReason = requireReason(reason);
@@ -187,26 +186,19 @@ export const adminEventOrganizerService = {
       throw new ValidationError('That member already organizes this event.');
     }
 
-    // One member holds the primary role per event, enforced by a unique index;
-    // whoever is assigned to an event that currently has nobody becomes it, and
-    // anyone joining an event that already has one co-organizes.
-    const liveCount = (eventOrganizers.countLiveForEvent.get(eventId) as { c: number }).c;
-    const role = liveCount === 0 ? 'organizer' : 'co-organizer';
     const now = new Date().toISOString();
 
     transaction(() => {
       eventOrganizers.insertRow.run(
         `eorg_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
         now, adminMemberId, now, adminMemberId,
-        eventId, member.id, role, now,
+        eventId, member.id, 'organizer', now,
       );
-      if (liveCount === 0) {
-        workQueue.resolveOpenByEntity.run(
-          now, adminMemberId, 'assigned', `Organizer assigned: ${member.display_name}.`,
-          now, adminMemberId,
-          NEEDS_ORGANIZER_TASK, 'event', eventId,
-        );
-      }
+      workQueue.resolveOpenByEntity.run(
+        now, adminMemberId, 'assigned', `Organizer assigned: ${member.display_name}.`,
+        now, adminMemberId,
+        NEEDS_ORGANIZER_TASK, 'event', eventId,
+      );
       appendAuditEntry({
         actionType:    'event.organizer_assigned',
         category:      'event',
@@ -215,7 +207,7 @@ export const adminEventOrganizerService = {
         entityType:    'event',
         entityId:      eventId,
         reasonText:    trimmedReason,
-        metadata:      { organizer_member_id: member.id, role, event_title: event.title },
+        metadata:      { organizer_member_id: member.id, event_title: event.title },
       });
     });
   },
@@ -228,7 +220,7 @@ export const adminEventOrganizerService = {
   removeOrganizer(adminMemberId: string, eventId: string, memberId: string, reason: string): void {
     const trimmedReason = requireReason(reason);
     const event = loadEvent(eventId);
-    const existing = eventOrganizers.findRow.get(eventId, memberId) as { id: string; role: string } | undefined;
+    const existing = eventOrganizers.findRow.get(eventId, memberId) as { id: string } | undefined;
     if (!existing) throw new NotFoundError('That member does not organize this event.');
 
     transaction(() => {
@@ -254,7 +246,7 @@ export const adminEventOrganizerService = {
         entityType:    'event',
         entityId:      eventId,
         reasonText:    trimmedReason,
-        metadata:      { organizer_member_id: memberId, role: existing.role, event_title: event.title },
+        metadata:      { organizer_member_id: memberId, event_title: event.title },
       });
     });
   },

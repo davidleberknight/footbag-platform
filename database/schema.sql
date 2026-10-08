@@ -3004,12 +3004,11 @@ JOIN members AS m ON m.id = cl.member_id
 WHERE m.deleted_at IS NULL
   AND m.is_deceased = 0;
 
--- Event organizer assignments: one organizer and up to 4 co-organizers per event
--- (max 5 total; application-enforced). DB enforces that only one member holds
--- role='organizer' per event and that a member appears at most once per event.
--- Uniqueness invariants (DB-enforced):
---   ux_one_organizer_per_event  → only one member may hold role='organizer' per event
---   ux_event_organizers         → a member appears at most once per event
+-- Event organizer assignments: a flat set of equal organizers per event (max 5
+-- total; application-enforced). There is no primary organizer; every row is
+-- role='organizer'.
+-- Uniqueness invariant (DB-enforced):
+--   ux_event_organizers → a member appears at most once per event
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
 -- event_id reassignments that would exceed 5 total rows per event.
 CREATE TABLE event_organizers (
@@ -3021,13 +3020,27 @@ CREATE TABLE event_organizers (
   version    INTEGER NOT NULL DEFAULT 1,
   event_id   TEXT NOT NULL REFERENCES events(id),
   member_id  TEXT NOT NULL REFERENCES members(id),
-  role TEXT NOT NULL DEFAULT 'organizer' CHECK (role IN ('organizer','co-organizer')),
+  role TEXT NOT NULL DEFAULT 'organizer' CHECK (role IN ('organizer')),
   added_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX ux_event_organizers        ON event_organizers(event_id, member_id);
 -- idx_event_organizers_event dropped (left-prefix redundant with ux_event_organizers)
-CREATE UNIQUE INDEX ux_one_organizer_per_event ON event_organizers(event_id) WHERE role = 'organizer';
+
+-- Organizers an event can actually rely on: rows whose member still has a live,
+-- non-deceased account. An organizer row outlives the member's account by
+-- design, so historical organizing stays attributable, which means the raw
+-- table answers "who has ever organized this event" and this view answers "who
+-- runs it now". Every read that means the second one selects from here; without
+-- it an event whose only organizer has died or deleted their account still
+-- reads as run, by someone who cannot act, and never reaches the
+-- needs-organizer queue.
+CREATE VIEW event_organizers_current AS
+SELECT eo.*
+FROM event_organizers AS eo
+JOIN members AS m ON m.id = eo.member_id
+WHERE m.deleted_at IS NULL
+  AND m.is_deceased = 0;
 
 -- Member registration for an event (competitor or attendee/supporter).
 -- Tracks registration type, payment, status lifecycle, and optional attendance

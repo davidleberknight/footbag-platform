@@ -30,6 +30,7 @@ import { rulesController } from '../controllers/rulesController';
 import { ifpaController } from '../controllers/ifpaController';
 import { officialRosterController } from '../controllers/officialRosterController';
 import { legalController } from '../controllers/legalController';
+import { equipmentController } from '../controllers/equipmentController';
 import { tagSuggestController } from '../controllers/tagSuggestController';
 import { requireAuth, requireMember, requireWizardOpen } from '../middleware/auth';
 import { requireTier1Benefits, requireMayCreateClub, requireTier2Plus } from '../middleware/requireTier';
@@ -288,6 +289,7 @@ publicRouter.get('/members/:memberKey/:section',
                  memberController.rejectUnknownSection, requireMember, memberController.getStub);
 
 publicRouter.get('/legal',      legalController.index);
+publicRouter.get('/equipment',  equipmentController.index);
 
 publicRouter.get('/login',      authController.getLogin);
 publicRouter.post('/login',     authController.postLogin);

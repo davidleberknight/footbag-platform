@@ -5008,10 +5008,11 @@ export const account = {
     ORDER BY id
   `); },
 
-  // Events this member organizes that would have no organizer left once their
-  // account goes. The organizer row itself stays, so historical attribution
-  // survives the account the way a club leadership row does; what decides the
-  // matter is whether any other organizer still resolves to a live member.
+  // Events this member organizes that would have no organizer left once they
+  // stop being one, by deleting their account or by dying. The organizer row
+  // itself stays, so historical attribution survives the way a club leadership
+  // row does; what decides the matter is whether any other organizer is still a
+  // live, non-deceased member.
   get listEventsLosingLastOrganizer() { return db.prepare(`
     SELECT eo.event_id AS event_id, e.title AS event_title
     FROM event_organizers AS eo
@@ -5019,11 +5020,9 @@ export const account = {
     WHERE eo.member_id = ?
       AND NOT EXISTS (
         SELECT 1
-        FROM event_organizers AS other
-        INNER JOIN members AS om ON om.id = other.member_id
+        FROM event_organizers_current AS other
         WHERE other.event_id = eo.event_id
           AND other.member_id <> eo.member_id
-          AND om.deleted_at IS NULL
       )
     ORDER BY eo.event_id
   `); },
@@ -10551,26 +10550,33 @@ export const candidateEvidence = {
 
 // The administrator's view of who runs an event, and the writes that change it.
 //
-// An organizer row outlives the member's account the way a club leadership row
-// does, so historical attribution survives; what decides whether an event has
-// anyone running it now is whether any of its organizers still resolves to a
-// live member. Every read here therefore joins members and filters the deleted,
-// rather than trusting the presence of a row.
+// An organizer row outlives the member the way a club leadership row does, so
+// historical attribution survives; what decides whether an event has anyone
+// running it now is whether any of its organizers is still a live, non-deceased
+// member. Every read that means "who runs it now" therefore selects from
+// event_organizers_current rather than trusting the presence of a row.
 export const eventOrganizers = {
   get findEvent() { return db.prepare(`
     SELECT id, title, start_date, status FROM events WHERE id = ?
   `); },
 
   get listForEvent() { return db.prepare(`
-    SELECT eo.member_id, eo.role, eo.added_at, m.display_name, m.slug
-    FROM event_organizers AS eo
+    SELECT eo.member_id, eo.added_at, m.display_name, m.slug
+    FROM event_organizers_current AS eo
     INNER JOIN members AS m ON m.id = eo.member_id
-    WHERE eo.event_id = ? AND m.deleted_at IS NULL
-    ORDER BY eo.role, eo.added_at, eo.member_id
+    WHERE eo.event_id = ?
+    ORDER BY eo.added_at, eo.member_id
   `); },
 
   get findRow() { return db.prepare(`
-    SELECT id, role FROM event_organizers WHERE event_id = ? AND member_id = ?
+    SELECT id FROM event_organizers WHERE event_id = ? AND member_id = ?
+  `); },
+
+  // Every event the member has an organizer row on, whatever their state; the
+  // reversal of a deceased marking reads it to close the requests that marking
+  // raised.
+  get listEventIdsForMember() { return db.prepare(`
+    SELECT event_id FROM event_organizers WHERE member_id = ? ORDER BY event_id
   `); },
 
   get insertRow() { return db.prepare(`
@@ -10588,23 +10594,17 @@ export const eventOrganizers = {
   `); },
 
   get countLiveForEvent() { return db.prepare(`
-    SELECT COUNT(*) AS c
-    FROM event_organizers AS eo
-    INNER JOIN members AS m ON m.id = eo.member_id
-    WHERE eo.event_id = ? AND m.deleted_at IS NULL
+    SELECT COUNT(*) AS c FROM event_organizers_current WHERE event_id = ?
   `); },
 
-  // Events an administrator has to find someone for. An event with organizer
-  // rows that all point at deleted accounts belongs here exactly as much as one
-  // with no rows at all.
+  // Events an administrator has to find someone for. An event whose organizer
+  // rows all point at deleted or deceased members belongs here exactly as much
+  // as one with no rows at all.
   get listEventsNeedingOrganizer() { return db.prepare(`
     SELECT e.id, e.title, e.start_date, e.status
     FROM events AS e
     WHERE NOT EXISTS (
-      SELECT 1
-      FROM event_organizers AS eo
-      INNER JOIN members AS m ON m.id = eo.member_id
-      WHERE eo.event_id = e.id AND m.deleted_at IS NULL
+      SELECT 1 FROM event_organizers_current AS eo WHERE eo.event_id = e.id
     )
     ORDER BY e.start_date DESC, e.id
   `); },

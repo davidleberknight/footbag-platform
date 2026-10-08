@@ -291,6 +291,9 @@ doctrine-note-status-chip
 doctrine-note-title
 email-log-template
 empty-state
+equipment-list
+equipment-rule
+equipment-section
 equivalence-chain
 equivalence-chain-glyph
 equivalence-chain-left

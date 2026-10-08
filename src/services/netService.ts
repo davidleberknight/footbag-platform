@@ -3,7 +3,9 @@
  *
  * Serves (all public):
  *   - GET /net: portal landing (hero/mascot, narrative, Singles/Doubles competition-format cards,
- *     data-driven Explore-card grey-out, notable teams, notable players, recent events).
+ *     Explore cards for teams and events greyed out when their data is thin, plus always-live cards
+ *     linking the net rules and the net equipment section; notable teams, notable players, recent
+ *     events).
  *   - GET /net/teams: doubles teams ordered by appearance count descending.
  *   - GET /net/teams/:teamId: team detail; appearances grouped by year descending; unknown id
  *     throws NotFoundError (renders 404).
@@ -94,7 +96,7 @@ interface NetDemoVideo {
 }
 
 interface NetExploreCard {
-  slug:       'teams' | 'events';
+  slug:       'teams' | 'events' | 'rules' | 'equipment';
   label:      string;
   href:       string;
   paragraph:  string;
@@ -498,6 +500,8 @@ export const netService = {
     const exploreCards: NetExploreCard[] = [
       { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by discipline or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
       { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event Archive',  comingSoon: !hasEvents },
+      { slug: 'rules',     label: 'Rules',     href: '/rules/net/footbag-net', paragraph: 'The official IFPA rules of footbag net: court, service, scoring and fouls.', linkLabel: 'Net Rules',     comingSoon: false },
+      { slug: 'equipment', label: 'Equipment', href: '/equipment#net',         paragraph: 'Net footbags, shoes, and how to set up a court and net.',                 linkLabel: 'Net Equipment', comingSoon: false },
     ];
 
     return {

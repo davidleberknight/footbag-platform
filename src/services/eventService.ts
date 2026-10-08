@@ -26,7 +26,7 @@
  *   - HD guard: events with public result rows are preserved permanently. Draft and
  *     canceled events HD immediately. Cannot delete an event with confirmed registrations.
  *   - Sanction approval requires organizer active Tier 2 at approval time.
- *   - Max 5 organizers per event; one `role='organizer'` per event; anti-self-removal.
+ *   - Max 5 organizers per event, all equal with no primary; anti-self-removal.
  *   - Standard tag (`#event_{year}_{slug}`) persisted via `mediaTags.insertStandardTag` at
  *     creation; permanent (not HD).
  *   - Public archive year derives from `events.start_date`; year archives are not paginated.

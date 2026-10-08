@@ -4665,6 +4665,27 @@ a.hashtag--media:hover {
   font-style: italic;
 }
 
+/* ── Equipment page (/equipment) ──────────────────────────────────────── */
+/* Sections are deep-link targets from the game pages, so they clear the
+   sticky header; the list restores the bullets the global reset removes;
+   the official-rule note is a source note under its item, in metadata grey. */
+.equipment-section {
+  scroll-margin-top: var(--anchor-offset);
+}
+.equipment-list {
+  margin: 0 0 12px 24px;
+  max-width: 55ch;
+}
+.equipment-list li {
+  margin: 0 0 8px;
+  line-height: 1.6;
+}
+.equipment-rule {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 /* ── Moves reference table ──────────────────────────────────────────────── */
 .moves-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .moves-table {

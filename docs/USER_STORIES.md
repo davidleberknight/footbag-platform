@@ -409,8 +409,8 @@ Success Criteria:
 - The current footbagworldwide.com implementation is the basis of the new and improved footbag.org; domain and URL details for the final layout are deferred to the detailed design document.
 - Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they open the Legacy Archive, they see an access-denied page with a link to log in; only members can proceed to archive.footbag.org.
 - The top-level sport sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`, `/net/events`, `/net/teams`, `/net/teams/:teamId`), the Sideline landing page (`/sideline`), the cross-sport Records page (`/records`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
-- The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights; `/net/teams` lists teams with discipline and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
-- `/sideline` is an editorial landing page presenting the sideline games (circle kicking, 2-square, 4-square, consecutive kicks, footbag golf) with demonstration clips and internal links to the matching rules pages and to `/records`; the page renders zero offsite links.
+- The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights, and links the net rules and the net section of the equipment page; `/net/teams` lists teams with discipline and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
+- `/sideline` is an editorial landing page presenting the sideline games (circle kicking, 2-square, 4-square, consecutive kicks, footbag golf) with demonstration clips and internal links to the matching rules pages, to the matching sections of the equipment page, and to `/records`; the page renders zero offsite links.
 - `/records` presents the official cross-sport records: consecutive-kicks current world records, highest official scores, record progression, and milestone firsts, plus the freestyle passback records. A passback record's trick name links to the canonical trick page only when the recorded name resolves to a canonical trick directly or through an alias; an unresolvable name renders as plain text, never a broken link. Record holders link per the standard person-link rule.
 - `/hof` and `/bap` are editorial landing pages telling each honor's history and linking to its authoritative external home; in-site inductee rosters and per-person honor pages are out of scope by design, and honor badges on member and historical-person surfaces are governed by the Hall of Fame and Big Add Posse global behavior.
 - The freestyle encyclopedia is a separate regime: its visitor surfaces are specified by the Freestyle Encyclopedia stories, and its content is curated in-app after cutover rather than served as read-only pipeline content.
@@ -490,6 +490,7 @@ Success Criteria:
 - Initial educational pages (trick tutorials, rules, equipment guides, etc.) are static content.
 - Developers provide initial content as static files for the website.
 - Rules pages are served from the IFPA-governed `ifpa/rules/` content, which IFPA authors and maintains; the published pages are the IFPA rules, and no separate ratification notice is required.
+- The equipment page (`/equipment`) is the site's own practical guidance on footbags, shoes, and setting up each game's court or targets, a sibling of the rules rather than part of them. Official equipment requirements live only in the rules: where the equipment page states an official figure, it states it as the rule does and links to the rule section that governs it. Vendors and brands are named for information only, and the page links nowhere offsite.
 - Members can create their own tutorial galleries freely using photo and video upload features with descriptive captions, hashtags, and named galleries (suggest hashtag tutorial among others). Visitors can view this content too.
 
 ### V_View_Gallery
@@ -721,7 +722,7 @@ Story: As a visitor new to freestyle, I can start from the freestyle landing pag
 
 Success Criteria:
 
-- `/freestyle` is the landing page: it previews and links into the encyclopedia's surfaces (dictionary, search, records, learning, media, reference) without embedding any of them wholesale.
+- `/freestyle` is the landing page: it previews and links into the encyclopedia's surfaces (dictionary, search, records, learning, media, reference) without embedding any of them wholesale, and links the freestyle rules and the freestyle section of the equipment page.
 - `/freestyle/start` is the novice entry page targeted by the landing page's "Start here" call to action; `/freestyle/learn` presents the broader index of learning pathways and observational educational surfaces; `/freestyle/progression/walking-family` presents a worked progression through one family.
 - `/freestyle/families/{slug}` renders a family detail page for each official family. A lineage below the family-page threshold has no page (404), and no other surface links to it.
 - Family pages own same-family progression: ladders and next-step guidance within a family live on the family page, and trick pages link into them rather than duplicating them.
@@ -1937,8 +1938,11 @@ Success Criteria:
 
 - Only Tier 2 or Tier 3 organizers can request sanction.
 - Sanctioning is requested and decided entirely in the platform. The organizer submits no application by email, and the request reaches the administrator as a work-queue item rather than as correspondence.
+- A World Footbag Championships whose host bid the IFPA Board has granted is sanctioned by that grant and makes no request: an administrator records the sanction on the event, citing the Board's decision. Worlds host bids are taken and decided outside the platform, on a form IFPA maintains that the site links to.
 - Submitting the request emails the IFPA Sanctioning Director directly, carrying the event details and the organizer's details, so the officeholder can take it up with the organizer before the decision is made. The Sanctioning Director also holds an administrator account and sees the request in the admin work queue like any other administrator; the direct email is required in addition, because a queue entry alone does not reach the officeholder. It is addressed to the officeholder's own address, because the apex sanctioning alias carries inbound correspondence and forwards it onward, and platform mail keeps its bounce and complaint signal by going direct. It is sent through the platform's own mail path so it is templated, logged and bounce-tracked like every other platform mail.
 - The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use IFPA-approved formats and judging systems or disclose where it deviates, and that any alternative judging system will be communicated to all players in advance of competition.
+- The sanction request records which organizer submitted it. The obligations it carries, including uploading results within 20 days, belong to the event: any organizer of the event can meet them, and every organizer sees the work item and the "sanctioning requirements not met" badge.
+- The Tier 2 or Tier 3 requirement is checked when the request is submitted and when it is approved. Once approved, the sanction belongs to the event; it is not withdrawn if the submitting organizer later leaves or their tier lapses.
 - The request form carries a fee justification when the organizer has configured registration fees.
 - Organizer receives email confirmation that request is pending.
 - Sanction status visible on event detail page: pending, approved, rejected.
@@ -1999,13 +2003,13 @@ Success Criteria:
 
 Access: Any organizer of an event can manage co-organizers for that event.
 
-Story: As an event organizer, I can add, view, and remove co-organizers so that I manage my event team. An event organizer cannot remove oneself if the only organizer, but first must promote someone else.
+Story: As an event organizer, I can add, view, and remove co-organizers so that I manage my event team. An event organizer cannot remove oneself if the only organizer, but must first add another organizer.
 
 Success Criteria:
 
 - An organizer can add up to 4 co-organizers by member id.
 - System sends email to new organizer with key points: event name, event date, co-organizer responsibilities.
-- Co-organizer gains identical event management permissions as original organizer.
+- Co-organizer gains identical event management permissions as every other organizer of the event; there is no primary organizer.
 - Maximum 5 total organizers per event.
 - Organizer can view list of all current co-organizers. List shows: co-organizer name, member id, date added.
 - Co-organizer can opt out of leadership role via the member dashboard.
@@ -2720,7 +2724,7 @@ Success Criteria:
 - Admin cannot approve sanction if organizer lacks Tier 2 or Tier 3 status.
 - Admin sees a clear success message when approval/rejection completes successfully.
 - Admin sees a clear error message when action fails, including a short explanation.
-- The actual payment of funds to the Event Organizer’s bank account happens outside of this system by the IFPA Treasurer.
+- The actual payment of funds to the bank account the event's organizers designate happens outside of this system by the IFPA Treasurer, who agrees the payee with the organizers directly; the platform stores no bank details.
 
 ### A_Reconcile_Payments
 
@@ -2879,12 +2883,12 @@ Success Criteria:
 
 Access: Only admins can reassign event leadership.
 
-Story: As an Administrator, I can reassign event leadership so that events remain operable if an event organizer leaves or deletes their account, leaving no more organizers.
+Story: As an Administrator, I can reassign event leadership so that events remain operable if an event organizer leaves, deletes their account or dies, leaving no more organizers.
 
 Success Criteria:
 
 - Admin can assign an event organizer from the member base (audit-logged).
-- Events with zero organizers are flagged "Needs Organizer" and appear in an admin work queue.
+- Events with no living organizer (every organizer has left, deleted their account or been marked deceased) are flagged "Needs Organizer" and appear in an admin work queue.
 - Reassignment restores normal event management capabilities.
 
 ### A_Fix_Event_Results
@@ -2931,6 +2935,7 @@ Success Criteria:
 - System adds a deceased: true flag and deceasedAt timestamp to the member record.
 - If the member has a linked `historical_person_id`, the same action sets `historical_persons.is_deceased = 1` on that record (cascade), audit-logged, so the member and historical surfaces stay consistent.
 - Deceased member accounts are immediately removed from active member search results, removed from club rosters, and unregistered from any upcoming events.
+- If the member was the last living organizer of an event, the event is added to the admin work queue with the "Needs Organizer" label for reassignment; reversing the marking withdraws that queue item.
 - Any active recurring donation is cancelled at the end of its current period.
 - If member has HoF or BAP status, these honors remain visible with the member's name and brief bio to preserve community history.
 - Member's uploaded media (photos/videos) remains published with attribution preserved to honor their contributions.

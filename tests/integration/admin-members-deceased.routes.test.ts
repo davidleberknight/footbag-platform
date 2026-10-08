@@ -21,7 +21,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember, insertHistoricalPerson, insertEvent, createTestSessionJwt,
   insertRegistration, insertOutboxEmail, insertRecurringDonationSubscription,
-  insertSystemConfig,
+  insertSystemConfig, insertEventOrganizer,
 } from '../fixtures/factories';
 import { expectLoggedError } from '../setup-env';
 
@@ -475,5 +475,67 @@ describe('reversing a marking made in error', () => {
     expect(await revert(STALE_ID)).toBe(303);
     expect(memberRow(STALE_ID).is_deceased).toBe(1);
     expect(auditCount('member.deceased_reverted', STALE_ID)).toBe(0);
+  });
+});
+
+describe('an event organized by a member who is marked deceased', () => {
+  function seedOrganizer(id: string): void {
+    db((conn) => insertMember(conn, {
+      id, slug: id, display_name: id, real_name: id, login_email: `${id}@example.com`,
+    }));
+  }
+
+  function seedEvent(id: string, organizerIds: string[]): void {
+    db((conn) => {
+      insertEvent(conn, { id, title: id, start_date: '2099-09-01', end_date: '2099-09-02' });
+      for (const memberId of organizerIds) insertEventOrganizer(conn, id, memberId);
+    });
+  }
+
+  function needsOrganizerItems(eventId: string, status: string): number {
+    return (db((conn) => conn.prepare(
+      `SELECT COUNT(*) AS c FROM work_queue_items
+       WHERE task_type = 'needs_organizer' AND entity_type = 'event' AND entity_id = ? AND status = ?`,
+    ).get(eventId, status)) as { c: number }).c;
+  }
+
+  it('asks an administrator for a new organizer when the sole organizer is marked deceased', async () => {
+    seedOrganizer('dm_org_sole');
+    seedEvent('dm_event_sole', ['dm_org_sole']);
+
+    expect(await mark('dm_org_sole')).toBe(303);
+    expect(needsOrganizerItems('dm_event_sole', 'open')).toBe(1);
+  });
+
+  it('asks nothing while another living organizer still runs the event', async () => {
+    seedOrganizer('dm_org_shared_dies');
+    seedOrganizer('dm_org_shared_lives');
+    seedEvent('dm_event_shared', ['dm_org_shared_dies', 'dm_org_shared_lives']);
+
+    expect(await mark('dm_org_shared_dies')).toBe(303);
+    expect(needsOrganizerItems('dm_event_shared', 'open')).toBe(0);
+  });
+
+  it('counts an organizer who died earlier as gone when the last living one is marked', async () => {
+    seedOrganizer('dm_org_first_dies');
+    seedOrganizer('dm_org_second_dies');
+    seedEvent('dm_event_both_die', ['dm_org_first_dies', 'dm_org_second_dies']);
+
+    expect(await mark('dm_org_first_dies')).toBe(303);
+    expect(needsOrganizerItems('dm_event_both_die', 'open')).toBe(0);
+    expect(await mark('dm_org_second_dies')).toBe(303);
+    expect(needsOrganizerItems('dm_event_both_die', 'open')).toBe(1);
+  });
+
+  it('withdraws the request again when the marking is reversed', async () => {
+    seedOrganizer('dm_org_reverted');
+    seedEvent('dm_event_reverted', ['dm_org_reverted']);
+
+    expect(await mark('dm_org_reverted')).toBe(303);
+    expect(needsOrganizerItems('dm_event_reverted', 'open')).toBe(1);
+
+    expect(await revert('dm_org_reverted')).toBe(303);
+    expect(needsOrganizerItems('dm_event_reverted', 'open')).toBe(0);
+    expect(needsOrganizerItems('dm_event_reverted', 'resolved')).toBe(1);
   });
 });

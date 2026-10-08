@@ -38,7 +38,7 @@ export interface LegalContent {
 // Static content
 // ---------------------------------------------------------------------------
 
-const LAST_UPDATED = '2026-08-26';
+const LAST_UPDATED = '2026-10-08';
 
 const PRIVACY_SECTION: LegalSection = {
   id: 'privacy',
@@ -67,7 +67,7 @@ const PRIVACY_SECTION: LegalSection = {
     {
       subheading: 'Email',
       bodyHtml:
-        'Transactional email is used for account-related actions only (verification, password reset, receipts). We do not send marketing email and do not share member email addresses with third parties.',
+        'Email is used for account-related actions (verification, password reset, receipts) and for IFPA announcements to members who have opted in, including a one-time announcement about the move to the new footbag.org. We do not send marketing email and do not share member email addresses with third parties.',
     },
     {
       subheading: 'Third-party embeds',
@@ -161,7 +161,7 @@ const COPYRIGHT_SECTION: LegalSection = {
     {
       subheading: 'Copyright',
       bodyHtml:
-        'Site content, including rules of play, governance documents, historical records, event archives, and IFPA marks, is &copy; 1983&ndash;2026 International Footbag Players Association Incorporated. All rights reserved.',
+        'Site content, including rules of play, governance documents, historical records, event archives, and IFPA marks, is &copy; 1994&ndash;2026 International Footbag Players Association Incorporated. All rights reserved.',
     },
     {
       subheading: 'Source code',

@@ -12,6 +12,9 @@
  *   - Deciding that the member's active recurring donations end at the close of
  *     their current period (PaymentService performs each cancellation, after
  *     the marking commits, attributed to the administrator)
+ *   - Raising the needs-organizer work-queue item for each event the member
+ *     was the last living organizer of, and closing those items again when the
+ *     marking is reversed
  *
  * Does not own:
  *   - Clearing the member's contact data afterwards (MemberService owns the
@@ -28,10 +31,13 @@
  * Required patterns:
  *   - Every consumer of the flag already exists and reads it directly, so this
  *     service writes it and propagates nothing beyond the cascade, the
- *     withdrawals, the queued-mail dead-lettering and the recurring-donation
- *     cancellations listed here.
- *   - The member write, the cascade and the withdrawals land in one
- *     transaction, so a record can never be half-marked.
+ *     withdrawals, the queued-mail dead-lettering, the needs-organizer items
+ *     and the recurring-donation cancellations listed here. The organizer
+ *     reads leave a deceased member out on their own; the work-queue item is
+ *     the one thing they cannot produce, because it is a record of the moment
+ *     the event lost its last organizer.
+ *   - The member write, the cascade, the withdrawals and the work-queue items
+ *     land in one transaction, so a record can never be half-marked.
  *   - Both writes are guarded on the flag's current value, which makes a repeat
  *     a no-op rather than a second audit row.
  *   - No free text is collected on any of these actions, and none reaches the
@@ -48,10 +54,11 @@
  *     restore.
  *
  * Persistence: members, historical_persons, registrations, outbox_emails,
- * audit_entries; recurring_donation_subscriptions is read here and written by
- * PaymentService.
+ * work_queue_items, audit_entries; event_organizers is read;
+ * recurring_donation_subscriptions is read here and written by PaymentService.
  *
- * Side effects: audit_entries append; mail queued to the member is moved to
+ * Side effects: audit_entries append; work-queue raise on marking and resolve
+ * on reversal (`needs_organizer`); mail queued to the member is moved to
  * dead_letter in the marking transaction. No email: the platform sends nothing
  * to a member it has marked deceased, which the outbox enqueue gate enforces
  * for every audience. A reversal does not replay the dead-lettered mail. After
@@ -64,13 +71,17 @@
  * PaymentService, after its own transaction has committed.
  */
 import {
-  account, deceasedMarking, outbox, recurringDonationSubscriptions, transaction,
+  account, deceasedMarking, eventOrganizers, outbox, recurringDonationSubscriptions,
+  transaction, workQueue,
 } from '../db/db';
 import { logger } from '../config/logger';
 import { appendAuditEntry } from './auditService';
 import { readIntConfig } from './configReader';
 import { paymentService } from './paymentService';
 import { ConflictError, NotFoundError } from './serviceErrors';
+import { workQueueService } from './workQueueService';
+
+const NEEDS_ORGANIZER_TASK = 'needs_organizer';
 
 const DECEASED_GRACE_DAYS_DEFAULT = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -146,7 +157,32 @@ export const deceasedMarkingService = {
     const today = now.slice(0, 10);
 
     const marked = transaction(() => {
+      // Read before the flag flips, though the answer is the same after: it asks
+      // only about the event's other organizers.
+      const orphanedEvents = account.listEventsLosingLastOrganizer.all(memberId) as {
+        event_id: string;
+        event_title: string;
+      }[];
+
       deceasedMarking.markMember.run(now, now, actorId, memberId);
+
+      // An event whose last living organizer has died has nobody left who can
+      // enter its results, which is the same matter as an account deletion
+      // leaving it empty, so it reaches the administrator the same way. An event
+      // already queued is the same matter twice and gets no second card.
+      for (const event of orphanedEvents) {
+        if (workQueue.findOpenByEntity.get(NEEDS_ORGANIZER_TASK, 'event', event.event_id)) continue;
+        workQueueService.enqueue({
+          taskType:      NEEDS_ORGANIZER_TASK,
+          queueCategory: 'events',
+          entityType:    'event',
+          entityId:      event.event_id,
+          priority:      0,
+          actorId,
+          reasonText:    `${event.event_title} has no organizer: the last one was marked deceased.`,
+          detailText:    null,
+        });
+      }
 
       const cascaded = Boolean(row.historical_person_id);
       if (row.historical_person_id) {
@@ -183,6 +219,7 @@ export const deceasedMarkingService = {
           historical_person_id:          row.historical_person_id,
           registrations_withdrawn:       withdrawn,
           recurring_donations_to_cancel: donations.map((d) => d.id),
+          events_needing_organizer:      orphanedEvents.length,
         },
       });
 
@@ -247,6 +284,19 @@ export const deceasedMarkingService = {
     const now = new Date().toISOString();
     return transaction(() => {
       deceasedMarking.revertMember.run(now, actorId, memberId);
+
+      // The member is a living organizer again, so every event they organize
+      // has someone running it, and a request the marking raised for one of
+      // them is no longer true.
+      const eventIds = eventOrganizers.listEventIdsForMember.all(memberId) as { event_id: string }[];
+      for (const { event_id } of eventIds) {
+        workQueue.resolveOpenByEntity.run(
+          now, actorId, 'deceased_marking_reverted',
+          'The organizer\'s deceased marking was reversed.',
+          now, actorId,
+          NEEDS_ORGANIZER_TASK, 'event', event_id,
+        );
+      }
 
       const cascaded = Boolean(row.historical_person_id);
       if (row.historical_person_id) {

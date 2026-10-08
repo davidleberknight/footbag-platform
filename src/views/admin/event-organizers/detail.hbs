@@ -23,7 +23,7 @@
 
     {{#each content.organizers}}
       <div class="card">
-        <div class="card-title">{{displayName}} <span class="badge">{{roleLabel}}</span></div>
+        <div class="card-title">{{displayName}}</div>
         <p class="card-meta">Added {{addedAt}}</p>
         <form method="POST" action="{{../content.removeHref}}" class="form-block">
           <input type="hidden" name="member_id" value="{{memberId}}" />
@@ -50,7 +50,6 @@
       </div>
       <button type="submit" class="btn btn-primary">Assign Organizer</button>
     </form>
-    <p class="text-muted fs-sm">The first person assigned to an event with nobody running it becomes its organizer; anyone added afterwards co-organizes.</p>
   </section>
 
   <p class="mt-4"><a href="{{content.queueHref}}">Back to Events Needing an Organizer</a></p>

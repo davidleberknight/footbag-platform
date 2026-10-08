@@ -48,7 +48,7 @@ function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
-function makeMember(opts: { slug: string; isAdmin?: 0 | 1; isHof?: 0 | 1 }): string {
+function makeMember(opts: { slug: string; isAdmin?: 0 | 1; isHof?: 0 | 1; isDeceased?: 0 | 1 }): string {
   return withDb((db) => {
     const id = insertMember(db, {
       slug:         opts.slug,
@@ -56,6 +56,7 @@ function makeMember(opts: { slug: string; isAdmin?: 0 | 1; isHof?: 0 | 1 }): str
       login_email:  `${opts.slug}@example.com`,
       is_admin:     opts.isAdmin ?? 0,
       is_hof:       opts.isHof ?? 0,
+      is_deceased:  opts.isDeceased ?? 0,
     });
     completeOnboarding(db, id);
     return id;
@@ -229,7 +230,7 @@ describe('the deletion itself', () => {
     const eventId = withDb((db) => {
       const e = insertEvent(db, { start_date: '2099-03-03' });
       insertEventOrganizer(db, e, leaving);
-      insertEventOrganizer(db, e, staying, { role: 'co-organizer' });
+      insertEventOrganizer(db, e, staying);
       return e;
     });
 
@@ -239,6 +240,24 @@ describe('the deletion itself', () => {
       "SELECT id FROM work_queue_items WHERE task_type = 'needs_organizer' AND entity_id = ?",
     ).all(eventId));
     expect(items).toHaveLength(0);
+  });
+
+  it('raises the card when the only other organizer has died', async () => {
+    const leaving = makeMember({ slug: 'del_organizer_beside_deceased' });
+    const died = makeMember({ slug: 'del_deceased_co_organizer', isDeceased: 1 });
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { start_date: '2099-03-04' });
+      insertEventOrganizer(db, e, leaving);
+      insertEventOrganizer(db, e, died);
+      return e;
+    });
+
+    await deleteAccount('del_organizer_beside_deceased', leaving);
+
+    const items = withDb((db) => db.prepare(
+      "SELECT status FROM work_queue_items WHERE task_type = 'needs_organizer' AND entity_id = ?",
+    ).all(eventId) as { status: string }[]);
+    expect(items).toEqual([{ status: 'open' }]);
   });
 
   it('keeps an honoree publishing after their account goes', async () => {

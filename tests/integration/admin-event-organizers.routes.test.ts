@@ -2,12 +2,13 @@
  * The administrator surface for deciding who runs an event.
  *
  * The contract: an event with nobody live running it is listed, including one
- * whose only organizer has deleted their account, because an organizer row
- * outlives the account and the row alone does not mean the event is covered;
- * assigning the first person closes the work-queue item that asked for one and
- * makes them the organizer, while anyone added afterwards co-organizes; removing
- * the last one queues the event again rather than leaving it silently unrunnable;
- * and every change takes a reason that is kept on the record.
+ * whose only organizer has deleted their account or died, because an organizer
+ * row outlives the member and the row alone does not mean the event is covered;
+ * every organizer has the same standing, so assigning someone to such an event
+ * works however many departed organizers' rows it still holds, and closes the
+ * work-queue item that asked for one; removing the last live one queues the
+ * event again rather than leaving it silently unrunnable; and every change takes
+ * a reason that is kept on the record.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -45,13 +46,15 @@ function adminCookie(): string {
   return cookieFor(adminId);
 }
 
-function makeMember(slug: string, opts: { deletedAt?: string } = {}): string {
+function makeMember(slug: string, opts: { deletedAt?: string; isDeceased?: boolean } = {}): string {
   return withDb((db) => {
     const id = insertMember(db, {
       slug,
       display_name: slug,
       login_email:  `${slug}@example.com`,
       deleted_at:   opts.deletedAt ?? null,
+      is_deceased:  opts.isDeceased ? 1 : 0,
+      deceased_at:  opts.isDeceased ? new Date().toISOString() : null,
     });
     completeOnboarding(db, id);
     return id;
@@ -60,7 +63,7 @@ function makeMember(slug: string, opts: { deletedAt?: string } = {}): string {
 
 function organizersOf(eventId: string): { member_id: string; role: string }[] {
   return withDb((db) => db.prepare(
-    'SELECT member_id, role FROM event_organizers WHERE event_id = ? ORDER BY role',
+    'SELECT member_id, role FROM event_organizers WHERE event_id = ? ORDER BY member_id',
   ).all(eventId) as { member_id: string; role: string }[]);
 }
 
@@ -118,6 +121,17 @@ describe('the queue of events with nobody running them', () => {
     expect(res.text).toContain('Abandoned Classic');
   });
 
+  it('lists an event whose only organizer has died', async () => {
+    const died = makeMember('org_died', { isDeceased: true });
+    withDb((db) => {
+      const e = insertEvent(db, { title: 'Memorial Jam', start_date: '2099-05-06' });
+      insertEventOrganizer(db, e, died);
+    });
+    const res = await request(createApp()).get('/admin/events/organizers').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Memorial Jam');
+  });
+
   it('does not list an event that has a live organizer', async () => {
     const live = makeMember('org_live');
     withDb((db) => {
@@ -150,15 +164,72 @@ describe('assigning an organizer', () => {
     expect(audit?.reason_text).toBe('Volunteered at the club meeting.');
   });
 
-  it('makes a later assignee a co-organizer', async () => {
+  it('gives a later assignee the same standing as the first', async () => {
     makeMember('org_second_a');
     makeMember('org_second_b');
     const eventId = withDb((db) => insertEvent(db, { title: 'Two Runners', start_date: '2099-08-08' }));
 
     await assign(eventId, 'org_second_a', 'First organizer.');
-    await assign(eventId, 'org_second_b', 'Second pair of hands.');
+    const res = await assign(eventId, 'org_second_b', 'Second pair of hands.');
+    expect(res.status).toBe(303);
 
-    expect(organizersOf(eventId).map((r) => r.role).sort()).toEqual(['co-organizer', 'organizer']);
+    expect(organizersOf(eventId).map((r) => r.role)).toEqual(['organizer', 'organizer']);
+  });
+
+  it('assigns someone to an event whose only organizer deleted their account, keeping the departed row', async () => {
+    const gone = makeMember('org_gone_assign', { deletedAt: new Date().toISOString() });
+    const member = makeMember('org_replacement');
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { title: 'Orphaned By Deletion', start_date: '2099-08-09' });
+      insertEventOrganizer(db, e, gone);
+      insertWorkQueueItem(db, {
+        task_type: 'needs_organizer', queue_category: 'events',
+        entity_type: 'event', entity_id: e, status: 'open',
+      });
+      return e;
+    });
+
+    const res = await assign(eventId, 'org_replacement', 'Taking over the event.');
+    expect(res.status).toBe(303);
+
+    const rows = organizersOf(eventId);
+    expect(rows.map((r) => r.member_id).sort()).toEqual([gone, member].sort());
+    expect(openQueueItems(eventId)).toHaveLength(0);
+  });
+
+  it('assigns someone to an event whose only organizer died, and closes its queue item', async () => {
+    const died = makeMember('org_died_assign', { isDeceased: true });
+    const member = makeMember('org_successor');
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { title: 'Orphaned By Death', start_date: '2099-08-10' });
+      insertEventOrganizer(db, e, died);
+      insertWorkQueueItem(db, {
+        task_type: 'needs_organizer', queue_category: 'events',
+        entity_type: 'event', entity_id: e, status: 'open',
+      });
+      return e;
+    });
+
+    const res = await assign(eventId, 'org_successor', 'Carrying it on.');
+    expect(res.status).toBe(303);
+    expect(organizersOf(eventId).map((r) => r.member_id).sort()).toEqual([died, member].sort());
+    expect(openQueueItems(eventId)).toHaveLength(0);
+  });
+
+  it('does not show an organizer who has died among the people running the event', async () => {
+    const died = makeMember('org_died_hidden', { isDeceased: true });
+    const live = makeMember('org_alive_shown');
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { title: 'Shared Running', start_date: '2099-08-11' });
+      insertEventOrganizer(db, e, died);
+      insertEventOrganizer(db, e, live);
+      return e;
+    });
+
+    const res = await request(createApp()).get(`/admin/events/${eventId}/organizers`).set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`value="${live}"`);
+    expect(res.text).not.toContain(`value="${died}"`);
   });
 
   it('refuses a change with no reason, and writes nothing', async () => {
@@ -218,6 +289,21 @@ describe('removing an organizer', () => {
     await remove(eventId, leaving, 'Handing over.');
     expect(organizersOf(eventId)).toHaveLength(1);
     expect(openQueueItems(eventId)).toHaveLength(0);
+  });
+
+  it('queues the event again when the last live one goes and only an organizer who died remains', async () => {
+    const died = makeMember('org_died_remaining', { isDeceased: true });
+    const leaving = makeMember('org_last_living');
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { title: 'Last Living Organizer', start_date: '2100-01-02' });
+      insertEventOrganizer(db, e, died);
+      insertEventOrganizer(db, e, leaving);
+      return e;
+    });
+
+    const res = await remove(eventId, leaving, 'Stepped down.');
+    expect(res.status).toBe(303);
+    expect(openQueueItems(eventId)).toHaveLength(1);
   });
 
   it('refuses to remove someone who does not organize the event', async () => {
