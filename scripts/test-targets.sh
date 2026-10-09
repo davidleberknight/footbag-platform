@@ -131,7 +131,7 @@ pytests_naming() {
 # none of those is reached by grepping for the schema file itself.
 schema_tables_changed() {
   git diff HEAD -- "$1" 2>/dev/null \
-    | grep -E '^[-+]CREATE TABLE' \
+    | grep -E '^[+]CREATE TABLE' \
     | sed -E 's/^[-+]CREATE TABLE (IF NOT EXISTS )?([A-Za-z0-9_]+).*/\2/' \
     | sort -u || true
 }

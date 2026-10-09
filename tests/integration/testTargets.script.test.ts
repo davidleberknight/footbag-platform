@@ -33,6 +33,8 @@ function run(args: string[], script = SCRIPT, cwd = process.cwd()) {
   };
 }
 
+const e2eCheck = (checks: string[]) => checks.find((c) => c.startsWith('npm run test:e2e -- ')) ?? '';
+
 const CANARY = [
   'tests/integration/authorization-matrix.test.ts',
   'tests/integration/csrf.sweep.test.ts',
@@ -145,9 +147,8 @@ describe('test-targets.sh — non-test checks and limits', () => {
 });
 
 describe('test-targets.sh — browser specs and legacy pytest files', () => {
-  // Both tiers used to print only a full-gate note, so a change to a wizard
-  // template or a dropped table reached CI with none of its failing tests run.
-  const e2eCheck = (checks: string[]) => checks.find((c) => c.startsWith('npm run test:e2e -- ')) ?? '';
+  // A change to a wizard template or a legacy module must reach the browser
+  // spec or pytest file that drives it, not just a note deferring to the gate.
 
   it('runs a changed browser spec on its own', () => {
     const r = run(['tests/e2e/member-onboarding-legacy-claim.spec.ts']);
