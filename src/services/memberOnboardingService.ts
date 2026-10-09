@@ -66,15 +66,15 @@
  *     candidate that already carries a state keeps it; that value descends from the
  *     curated club seed and outranks an answer supplied now.
  *   - The personal_details task precedes and gates the legacy_claim task: no resolving
- *     action (confirm, decline, direct record claim, anchor addition, or the
+ *     action (confirm, direct record claim, anchor addition, or the
  *     continue-without-linking decision) runs until personal_details is
  *     completed, so the required personal details including date of birth are on file
  *     before any matching. The gate is task-level only and never applies to the admin
  *     link-help apply path. Date of birth is collected only in personal_details, not the
  *     claim task; the continue-without-linking decision additionally requires the member to
  *     choose which of its two answers is true (never had an old-site account, or had one and
- *     cannot find it), and each is recorded as given, on the task's audit row and on every
- *     card it declines.
+ *     cannot find it), and each is recorded as given on the task's audit row, with the
+ *     cards it passed over.
  *   - The claim step is answered only when its task is completed and no answerable card in
  *     it is still open. This governs sequencing only: isOnboardingComplete reads the task
  *     rows alone, so an open row never takes membership away from a member who has already
@@ -1527,19 +1527,6 @@ function processAddAnchor(memberId: string, anchorType: string, anchorValue: str
 // added before its re-check refused; caught at once by the caller.
 class ClaimRefusedSignal extends Error {}
 
-/**
- * "This Is Not Me": the member's standing answer for one card. The step
- * re-renders without it; a target the step does not show records nothing and
- * re-renders the same, so the response reveals nothing.
- */
-function processDeclineCandidate(memberId: string, target: ClaimTarget): WizardActionResult<null> {
-  if (legacyClaimPrerequisiteUnmet(memberId) || !claimStepTakesAnswers(memberId)) {
-    return { kind: 'retry_same', flash: null };
-  }
-  identityAccessService.declineCandidate(memberId, target);
-  return { kind: 'retry_same', flash: null };
-}
-
 function processPersonalDetailsSubmit(
   memberId: string,
   city: string,
@@ -1632,10 +1619,9 @@ function recordNoLinkAnswer(memberId: string, answer: NoLinkAnswer): void {
  * two explicit negative answers, gated on the personal-details prerequisite
  * like every other resolution of the task.
  *
- * Neither answer declines anything: a card the member leaves on screen stays
- * undeclined, and the answer records which cards were shown alongside it, with
- * the claim evidence block, so an administrator later sees what the member
- * passed over. Which answer was given is recorded in the same transaction that
+ * Passing over a card is the answer that it is not the member's: the answer
+ * records which cards were shown alongside it, with the claim evidence block,
+ * so an administrator later sees what the member passed over. Which answer was given is recorded in the same transaction that
  * completes the task.
  *
  * The cannot-find-it answer additionally opens the one last attempt at the
@@ -2161,7 +2147,6 @@ export const memberOnboardingService = {
   listWizardCardsForMember,
   processPersonalDetailsSubmit,
   processClaimCandidate,
-  processDeclineCandidate,
   processLegacyClaimBirthDate,
   processAddAnchor,
   lastAttemptOpen,

@@ -1776,42 +1776,6 @@ export function insertMemberDeclaredAnchor(
   return id;
 }
 
-// ── Legacy claim decline ──────────────────────────────────────────────────────
-
-// A member's standing "This Is Not Me" answer for one claim candidate. At least
-// one target must be named, as the table requires.
-export interface LegacyClaimDeclineOverrides {
-  id?: string;
-  member_id: string;
-  legacy_member_id?: string | null;
-  historical_person_id?: string | null;
-  confidence?: 'high' | 'medium' | 'low';
-  evidence_json?: string;
-  created_at?: string;
-}
-
-export function insertLegacyClaimDecline(
-  db: BetterSqlite3.Database,
-  o: LegacyClaimDeclineOverrides,
-): string {
-  const id = o.id ?? `lcd-test-${uid()}`;
-  const at = o.created_at ?? TS;
-  db.prepare(`
-    INSERT INTO legacy_claim_declines (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, legacy_member_id, historical_person_id, confidence, evidence_json
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-  `).run(
-    id, at, o.member_id, at, o.member_id,
-    o.member_id,
-    o.legacy_member_id ?? null,
-    o.historical_person_id ?? null,
-    o.confidence ?? 'medium',
-    o.evidence_json ?? '{}',
-  );
-  return id;
-}
-
 // ── Stripe event (webhook idempotency claim) ─────────────────────────────────
 
 // The row the webhook writes once it has processed a delivery. The payments

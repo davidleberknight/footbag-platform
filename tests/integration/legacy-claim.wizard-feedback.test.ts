@@ -234,7 +234,6 @@ describe('the wizard closes to a member who has finished signing up', () => {
     const targets: Array<[string, Record<string, string>]> = [
       ['/register/wizard/legacy_claim/continue-without-linking', { no_link_answer: 'never_had_one' }],
       ['/register/wizard/legacy_claim/anchors/add', { anchorType: 'old_email', anchorValue: 'x@old.example.com' }],
-      ['/register/wizard/legacy_claim/decline', { accountId: f.legacyId, recordId: f.personId }],
       ['/register/wizard/legacy_claim/claim-with-surname', { accountId: f.legacyId, recordId: f.personId }],
     ];
     for (const [path, body] of targets) {
@@ -243,10 +242,7 @@ describe('the wizard closes to a member who has finished signing up', () => {
       expect(res.status, path).toBe(303);
       expect(res.headers.location, path).toContain('contact-admin?category=identity_link_issue');
     }
-    // Nothing was declared or declined along the way: the refusal is before the write.
+    // Nothing was declared along the way: the refusal is before the write.
     expect(svc.listDeclaredAnchors(f.memberId)).toHaveLength(0);
-    const declines = db.prepare('SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?')
-      .get(f.memberId) as { n: number };
-    expect(declines.n).toBe(0);
   });
 });

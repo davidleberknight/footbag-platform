@@ -224,7 +224,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'GET /members/:memberKey/media/:mediaId/edit', 'POST /members/:memberKey/media/:mediaId/edit',
       'POST /members/:memberKey/media/:mediaId/delete',
       'POST /register/wizard/legacy_claim/claim', 'POST /register/wizard/legacy_claim/claim-with-surname',
-      'POST /register/wizard/legacy_claim/decline', 'POST /register/wizard/legacy_claim/birth-date',
+      'POST /register/wizard/legacy_claim/birth-date',
       'POST /register/wizard/club_affiliations/submit', 'POST /register/wizard/club_affiliations/none',
     ]),
 ];

@@ -53,9 +53,8 @@
   - [4.28 Name-matching utilities](#428-name-matching-utilities)
   - [4.29 Member Onboarding Tasks](#429-member-onboarding-tasks)
   - [4.30 Member Declared Anchors](#430-member-declared-anchors)
-  - [4.31 Legacy Claim Declines](#431-legacy-claim-declines)
-  - [4.32 Pipeline-produced canonical content](#432-pipeline-produced-canonical-content-out-of-this-enumeration)
-  - [4.33 Groups & Group Affiliations](#433-groups--group-affiliations)
+  - [4.31 Pipeline-produced canonical content](#431-pipeline-produced-canonical-content-out-of-this-enumeration)
+  - [4.32 Groups & Group Affiliations](#432-groups--group-affiliations)
 - [5. View Reference](#5-view-reference)
   - [Computed views](#computed-views)
   - [Semantic filter views](#semantic-filter-views)
@@ -442,7 +441,7 @@ Emitted values, grouped by namespace:
 
 - **`auth.*`**: `register`, `register_rate_limited`, `register_notification_failed`, `email_verified`, `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset`, `password_reset_notification_failed`, `register_duplicate_email` (a registration attempt on an address already held, recorded without revealing that fact to the caller), `account_deleted` (a member deleting their own account; the metadata records the grace period they were told, how much media and how many galleries went with it, how many upcoming registrations were withdrawn, how many events were left without an organizer, whether a recurring gift was cancelled, and whether the record keeps publishing under an honour).
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed), `refused` (a claim submit the server-side re-check refused, with the reason and the evidence block), `dispute_opened` and `revert_applied` (the forensic pair written when a conflict dispute is upheld and the holder's claim is stripped; both land together with the state change, per A_Review_Member_Link_Help_Requests).
-- **`legacy.*`**: `claim_candidate_declined` (the member answered "This Is Not Me"), `claim_step_answered` (one of the two non-claiming answers, with the candidates shown), `anchor_declared` (a former surname or old email added, by anchor id), `auto_link_revert`, `registration_conflict_prompted`, `registration_conflict_disputed`. Every claim, decline, refusal and answer row carries the claim evidence block described under `M_Claim_Legacy_Account`: email addresses as keyed hashes and anchors by id, never a name or a date of birth.
+- **`legacy.*`**: `claim_step_answered` (one of the two non-claiming answers, with the candidates shown), `anchor_declared` (a former surname or old email added, by anchor id), `auto_link_revert`, `registration_conflict_prompted`, `registration_conflict_disputed`. Every claim, refusal and answer row carries the claim evidence block described under `M_Claim_Legacy_Account`: email addresses as keyed hashes and anchors by id, never a name or a date of birth.
 - **`wizard.*`**: `start`, `complete`, `task.started`, `task.completed`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.cap_hit`, `club_affiliations.idempotent`, `club_affiliations.promoted`, `club_insight.recorded` (a note the registrant gave about a club during onboarding, kept for the cleanup queue), `legacy_claim.never_had_account` and `legacy_claim.cannot_find_record` (which of the two non-claiming answers finished the claim task, written in the transaction that completes it; two values rather than one carrying the answer in metadata, because the ledger is read back by action type and the members who held an old account and cannot find it are the population an administrator can help, marked nowhere else); historical, no current writer: `task.skipped`, `task.not_applicable`, `task.detour_paused`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `admin_leader_assigned` and `admin_leader_demoted` (an administrator assigning or demoting a club leader), `promoted_from_candidate` (a candidate club promoted to a real one), `coleader_invited` and `coleader_volunteered` (a co-leader invited by an existing leader, and a member offering to co-lead a club that has none), `auto_demoted` (the cleanup sweep demoting a club that met the inactivity predicate), `content_edited` (a leader editing their own club's details: name, description, city, region, country and external URL), `content_corrected` and `hashtag_corrected` (an administrator correcting those same details, or moving the hashtag that is the club's address, on behalf of co-leaders who cannot or will not; each carries the mandatory reason and, for a content correction, every changed field's value before and after, and they are distinct from the co-leader's own `content_edited` and `hashtag_updated` because the surface that reads the ledger is looking for what was done on somebody else's behalf), `revived_by_affiliation` and `revived_by_leadership_claim` (an inactive club returning to active because a member affiliated with it or claimed its leadership).
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`, `hof_grant` and `bap_grant` (an administrator granting a Hall of Fame or Big Add Posse honour, which carries the Tier 2 membership the honour confers, the badge, and the induction year), `hof_grant_removed` and `bap_grant_removed` (taking back a grant made in error, which clears the badge and its year and leaves the membership tier alone, because a member may hold that tier for reasons unconnected to the honour). These four are written from a conditional expression rather than a bare literal, so the convention gate's scan does not see them; they are listed here because the catalogue, not the scan, is the inventory.
@@ -1429,18 +1428,7 @@ Former surnames and old email addresses declared by members to broaden the claim
 - **PII purge**: all of a member's anchors delete when the account's personal data is purged.
 - **Anchor additions are rate-limited** per member (`declared_anchor_rate_limit_max_per_member`, default 10 per `declared_anchor_rate_limit_window_minutes`, default 60).
 
-### 4.31 Legacy Claim Declines
-
-**Table:** `legacy_claim_declines`
-
-A member's standing "This Is Not Me" answers in the claim step (per `M_Claim_Legacy_Account`). Matching is computed live and nothing is staged, so the only claim-step state the platform keeps is what the member refused: a declined candidate is never offered to them again. Migration-scope; droppable once onboarding of migrated members is over.
-
-- **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; nullable targets `legacy_member_id` (FK `legacy_members`) and `historical_person_id` (FK `historical_persons`), together naming the declined candidate (both for an account and record the pipeline linked); `confidence` CHECK in (`high`, `medium`, `low`); `evidence_json` (the claim evidence block at the moment of the decline).
-- **CHECKs**: at least one target column is non-NULL.
-- **`UNIQUE(member_id, COALESCE(legacy_member_id,''), COALESCE(historical_person_id,''))`**: a repeated decline is a no-op.
-- **PII purge**: a member's declines delete when the account's personal data is purged; the audit row (`legacy.claim_candidate_declined`) remains.
-
-### 4.32 Pipeline-produced canonical content (out of this enumeration)
+### 4.31 Pipeline-produced canonical content (out of this enumeration)
 
 The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-sport records tables (`freestyle_records`, `consecutive_kicks_records`), and the six symbolic-grammar tables (`symbolic_*`, backing the public `/freestyle/learn` surface) are populated before go-live by the pre-go-live data-load pipelines and read by `FreestyleService`, `NetService`, `RecordsService`, and `SymbolicGrammarService` for the public `/freestyle/*`, `/net/*`, `/records`, and `/freestyle/learn` surfaces. After cutover the database is their only source: freestyle and records content is changed through the audited admin curation surfaces, the symbolic layers derived from trick data are regenerated in the app, and the code-managed registries change through a reviewed database migration. The freestyle, records, and symbolic tables' table-level semantics are owned by the freestyle maintainer guide, `docs/FREESTYLE.md` (column-level detail in `database/schema.sql`); the Net team-appearance tables stay with the legacy_data track (`legacy_data/README.md`, the net enrichment phase). The freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
 
@@ -1450,7 +1438,7 @@ Display-only community advice recovered from the legacy Footbag.org `moves2.move
 
 ---
 
-### 4.33 Groups & Group Affiliations
+### 4.32 Groups & Group Affiliations
 
 << V2 SCOPE >> Ships with native groups in v2; not part of the v1 launch.
 

@@ -4372,6 +4372,8 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2026_bilbao_individual,open_singles_net,Open Singles Net,net,singles,1,partial,
 2026_de_france_de,singles_net,Singles Net,net,singles,1,partial,
 2026_de_france_de,doubles_net,Doubles Net,net,doubles,2,partial,
+2026_rnh_contest,singles_net,Singles Net,net,singles,1,partial,
+2026_rnh_contest,doubles_net,Doubles Net,net,doubles,2,partial,
 2026_basque_bilbao_2,open_doubles_net,Open Doubles Net,net,doubles,1,partial,
 2026_basque_bilbao,open_singles_net,Open Singles Net,net,singles,1,complete,
 2002_montreal_hivernal,open_singles_net,Open Singles Net,net,singles,1,complete,

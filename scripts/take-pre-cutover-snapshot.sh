@@ -83,7 +83,6 @@ count_legacy=$(q  "SELECT COUNT(*) FROM legacy_members;")
 count_hp=$(q      "SELECT COUNT(*) FROM historical_persons;")
 count_clubs=$(q   "SELECT COUNT(*) FROM clubs;")
 count_audit=$(q   "SELECT COUNT(*) FROM audit_entries;")
-count_lcd=$(q     "SELECT COUNT(*) FROM legacy_claim_declines;")
 count_nv=$(q      "SELECT COUNT(*) FROM name_variants;")
 count_cbl=$(q     "SELECT COUNT(*) FROM club_bootstrap_leaders;")
 count_ft=$(q      "SELECT COUNT(*) FROM freestyle_tricks;")
@@ -137,7 +136,6 @@ cat > "${MANIFEST_PATH}" <<EOF
     "historical_persons": ${count_hp},
     "clubs": ${count_clubs},
     "audit_entries": ${count_audit},
-    "legacy_claim_declines": ${count_lcd},
     "name_variants": ${count_nv},
     "club_bootstrap_leaders": ${count_cbl},
     "freestyle_tricks": ${count_ft},

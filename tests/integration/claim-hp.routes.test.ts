@@ -397,8 +397,8 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
       birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, scenarioEClaimerId, 'personal_details', 'completed');
-    // A record with an old account behind it needs the member's own evidence
-    // on that account, not a name alone: here, the old address it carried.
+    // The linked old account carries an email, so the member's own evidence
+    // must corroborate it: here, the old address it carried.
     insertMemberDeclaredAnchor(testDb, {
       member_id: scenarioEClaimerId, anchor_type: 'old_email', anchor_value: 'e@oldsite.test',
     });

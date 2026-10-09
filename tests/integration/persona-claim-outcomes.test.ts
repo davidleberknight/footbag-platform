@@ -57,10 +57,20 @@ describe('claim personas reach the outcomes their catalog text promises', () => 
     expect(shownFor('claim_email_pair')).toHaveLength(1);
   });
 
-  // Defect caught: an old account found by name alone offers a claim control.
-  it('an account found by name alone needs an administrator', () => {
-    expect(accountCard('claim_name_only')).toMatchObject({ status: 'needs_admin', refusal: 'uncorroborated' });
-    expect(accountCard('claim_old_email')).toMatchObject({ status: 'needs_admin', refusal: 'uncorroborated' });
+  // Defect caught: an old account with no record, found by name alone, offers
+  // a claim control.
+  it('an account with no record found by name alone needs an administrator', () => {
+    expect(accountCard('claim_old_email')).toMatchObject({
+      status: 'needs_admin', refusal: 'uncorroborated', recordId: null,
+    });
+  });
+
+  // Defect caught: the name-only persona's record is withheld because the
+  // pipeline linked an old account to it, so the tester finds no claim control.
+  it('a record with a linked account found by name alone is claimable at the floor tier', () => {
+    const c = accountCard('claim_name_only');
+    expect(c).toMatchObject({ status: 'claimable', corroborated: false, curatedPair: true });
+    expect(matching.evidenceTier(c!)).toBe('declared_anchor_only');
   });
 
   // Defect caught: the old-email persona stays stuck after the tester adds the
@@ -100,12 +110,6 @@ describe('claim personas reach the outcomes their catalog text promises', () => 
     expect(shown.map((c) => c.status)).toEqual(['claimable', 'claimable']);
     expect(shown.some((c) => c.accountId === 'legmem_persona_claim_split_pair' && c.recordId === null)).toBe(true);
     expect(shown.some((c) => c.recordId === 'person_persona_claim_split_pair_rec' && c.accountId === null)).toBe(true);
-  });
-
-  // Defect caught: a declined candidate comes back on the claim step.
-  it('a standing decline hides its candidate', () => {
-    expect(shownFor('claim_declined')).toEqual([]);
-    expect(accountCard('claim_declined')).toMatchObject({ status: 'hidden', refusal: 'declined' });
   });
 
   // Defect caught: a shared address corroborates one of the accounts it sits on,

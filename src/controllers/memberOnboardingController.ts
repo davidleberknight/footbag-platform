@@ -536,14 +536,6 @@ export const memberOnboardingController = {
     await claimFromCard(req, res, next, true);
   },
 
-  // "This Is Not Me" on any card.
-  async postDeclineCandidate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const target = readClaimTarget(req.body);
-    await dispatch<null>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processDeclineCandidate(req.user!.userId, target),
-    });
-  },
-
   async postPersonalDetailsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
     const city = String(req.body.city ?? '');
     const region = String(req.body.region ?? '');

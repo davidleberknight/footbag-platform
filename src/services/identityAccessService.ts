@@ -20,8 +20,6 @@
  *       - The claim under a surname the member used before: the surname is
  *         recorded as a declared former surname and the candidate claimed, in
  *         one transaction.
- *       - The decline: a standing legacy_claim_declines row for a shown card;
- *         the matching never offers that candidate to the member again.
  *       - The record of a refused claim (after its rollback) and of a
  *         non-claiming answer, each with its evidence.
  *   - The claim step's view-model: the cards built from the matching's shown
@@ -120,8 +118,10 @@
  *     record's name. A matching email alone never suffices, because a family's
  *     shared address sits on one member's account. Only admin-vetted evidence
  *     stands in for it.
- *   - A name alone never makes an old account claimable: the account needs the
- *     member's email or an identical date of birth.
+ *   - An old account that carries an email or a date of birth needs the
+ *     member's email or an identical date of birth, however it is reached. An
+ *     account carrying neither (built from the site mirror) and a record with
+ *     no account are claimable on the name and the surname rule.
  *   - Every row a claim writes names who acted: the member on a self-serve
  *     claim, the approving administrator on an applied link.
  *   - No card offers a control that can only be refused: the cards are the
@@ -183,7 +183,7 @@
  *   matching; written only by a claim revert clearing a deceased flag that the
  *   member's own deceased marking cascaded onto the record),
  *   account_tokens,
- *   audit_entries, outbox_emails, legacy_claim_declines (insert),
+ *   audit_entries, outbox_emails,
  *   member_declared_anchors (add-only; deleted wholesale on PII purge by
  *   MemberService), work_queue_items (link help requests: insert + resolve).
  *   Tier-grant writes delegated to MembershipTieringService.
@@ -214,7 +214,7 @@
 import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
 import { hashPassword } from '../lib/passwordHash';
-import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, declaredAnchors, legacyClaimDeclines, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
+import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { legacyMatchingService, type Candidate, type Confidence } from './legacyMatchingService';
 import { transaction, auditEntries } from '../db/db';
 import { accountTokenService } from './accountTokenService';
@@ -413,20 +413,29 @@ export interface ClaimHpConfirmContent {
  * account, a competition record, or an account and the record the pipeline
  * linked to it, presented as one.
  *
- * Every card has two answers. `cardKind` decides the first; "This Is Not Me"
- * posts to the decline route on every card:
+ * `cardKind` decides the card's one claim control, or that it has none. A
+ * member who claims no card answers the step instead, which completes it:
  *  - `claim`: an old account (with its linked record, if any) the member's own
- *    evidence corroborates. Posts to the claim route.
- *  - `claim_record_page`: a competition record with no old account behind it.
- *    Links to its confirmation page.
+ *    evidence corroborates, or an old account with no record that carries
+ *    nothing to corroborate against. Posts to the claim route.
+ *  - `claim_record_page`: a competition record reached by name, alone or with
+ *    an old account that carries nothing to corroborate against. Links to its
+ *    confirmation page, which carries the first-name warning; confirming
+ *    claims the linked account too.
  *  - `claim_with_surname`: reached by the member's evidence but carrying a
  *    different surname. Posts to the route that records that surname as a
  *    former surname and claims in one step.
- *  - `needs_admin`: an old account reached by name alone. No claim control;
- *    an administrator can link it after signing up.
+ *  - `needs_admin`: an old account carrying an email or a date of birth that
+ *    nothing of the member's matches. No claim control; adding the old email
+ *    that reaches it makes it claimable here, during signup.
  */
 export interface LinkHistoryCandidate {
   cardKind: 'claim' | 'claim_record_page' | 'claim_with_surname' | 'needs_admin';
+  /**
+   * A `claim` card reached by name alone, which carries the same-name caution
+   * the record page's card does.
+   */
+  nameMatchOnly: boolean;
   /** Display copy: the name as it appears on the record, or the account. */
   displayName: string;
   /** How strong the match is and what found it. Never an anchor value. */
@@ -486,12 +495,6 @@ export interface LinkHistoryContent {
   candidates: LinkHistoryCandidate[];
   /** True when the member's evidence reaches nothing the step can show. */
   lowConfidenceBanner: boolean;
-  /**
-   * The cards a non-claiming answer leaves unanswered, by name, so the
-   * member sees what they are leaving before they give it. The answer
-   * declines none of them.
-   */
-  unansweredCardNames: string[];
   /**
    * Inline message surfaced as a banner when a claim-step action returns a
    * validation_error. Threaded through by the controller; null/undefined
@@ -1397,10 +1400,11 @@ function cardFor(candidate: Candidate): LinkHistoryCandidate {
   const cardKind: LinkHistoryCandidate['cardKind'] =
     candidate.status === 'needs_admin' ? 'needs_admin'
       : candidate.status === 'needs_former_surname' ? 'claim_with_surname'
-        : candidate.accountId ? 'claim' : 'claim_record_page';
+        : candidate.accountId && (candidate.corroborated || !candidate.recordId) ? 'claim' : 'claim_record_page';
   const found = foundThroughLabel(candidate);
   return {
     cardKind,
+    nameMatchOnly: cardKind === 'claim' && !candidate.corroborated,
     accountId: candidate.accountId,
     recordId: candidate.recordId,
     displayName: record?.person_name ?? account?.real_name ?? account?.display_name ?? 'Unknown',
@@ -1555,14 +1559,6 @@ const SURNAME_MISMATCH_MESSAGE =
   + 'or a different email address on the old footbag.org, add either one in the claim step '
   + 'and we will look again.';
 
-// Appended to the refusals a registrant cannot act on themselves: a record held
-// by someone else, or one tied to a legacy account that is not theirs. There is
-// no self-serve remedy for either, so the only honest next step is the
-// administrator, and it is stated in the future tense because the contact form
-// is a member-only surface a registrant cannot reach until signing up is done.
-const ASK_ADMIN_AFTER_SIGNUP =
-  ' Finish signing up and then ask an IFPA administrator, who can sort this out for you.';
-
 /**
  * The member's date of birth against the date reachable for a historical
  * record. A historical person carries no date of its own; the only date the
@@ -1644,7 +1640,6 @@ const CLAIM_OUTCOME_LABELS: Record<string, string> = {
   'claim.legacy_account':            'Linked an old footbag.org account',
   'claim.historical_person':         'Linked a competition record',
   'claim.refused':                   'Refused: the member\'s evidence no longer made it claimable',
-  'legacy.claim_candidate_declined': 'Said a candidate is not them',
   'legacy.claim_step_answered':      'Finished the claim step without linking',
   'legacy.anchor_declared':          'Added a former surname or an old email address',
   'legacy.auto_link_revert':         'A claim was reverted',
@@ -2149,44 +2144,10 @@ function claimWithFormerSurnameInTx(memberId: string, target: ClaimTarget): Clai
 }
 
 /**
- * Record the member's standing "This Is Not Me" for one shown candidate. A
- * target the step does not show them right now (a forged id, a candidate
- * already declined or hidden) records nothing, which is the same non-revealing
- * outcome. A decline naming an account and its linked record hides each half.
- */
-function declineCandidate(memberId: string, target: ClaimTarget): { status: 'declined' | 'not_found' } {
-  return transaction(() => {
-    const evidence = legacyMatchingService.readMemberEvidence(memberId);
-    if (!evidence) return { status: 'not_found' as const };
-    const shown = legacyMatchingService.shownCandidates(legacyMatchingService.match(evidence));
-    const candidate = shown.find((c) => c.accountId === target.accountId && c.recordId === target.recordId);
-    if (!candidate) return { status: 'not_found' as const };
-    const block = legacyMatchingService.auditEvidence(candidate, evidence, shown);
-    const now = new Date().toISOString();
-    const res = legacyClaimDeclines.insertIfMissing.run(
-      `lcd_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
-      now, memberId, now, memberId,
-      memberId, candidate.accountId, candidate.recordId, candidate.confidence, JSON.stringify(block),
-    );
-    if (res.changes === 0) return { status: 'not_found' as const };
-    appendAuditEntry({
-      actionType:    'legacy.claim_candidate_declined',
-      category:      'identity',
-      actorType:     'member',
-      actorMemberId: memberId,
-      entityType:    'member',
-      entityId:      memberId,
-      reasonText:    null,
-      metadata:      block,
-    });
-    return { status: 'declined' as const };
-  });
-}
-
-/**
  * A non-claiming answer to the claim step, with the cards it left on screen.
- * Inside the caller's transaction. The answer declines none of them; the row
- * records what was shown so an administrator later sees what was passed over.
+ * Inside the caller's transaction. Passing over a card is the answer that it
+ * is not theirs; the row records what was shown so an administrator later sees
+ * what was passed over.
  */
 function recordClaimStepAnswered(memberId: string, answer: 'never_had_one' | 'cannot_find_it'): void {
   const evidence = legacyMatchingService.readMemberEvidence(memberId);
@@ -2443,8 +2404,7 @@ function claimHistoricalPersonInTx(
     claimHistoricalPersonInTxInner(requestingMemberId, personId, evidenceStrength, actor, evidence);
   } catch (err) {
     if (isUniqueConstraintError(err)) {
-      throw new ConflictError('This historical record has already been claimed by another member.'
-        + ASK_ADMIN_AFTER_SIGNUP);
+      throw new ConflictError('This historical record has already been claimed by another member.');
     }
     throw err;
   }
@@ -2484,8 +2444,7 @@ function claimHistoricalPersonInTxInner(
   // the surfaces already refuse to offer.
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
-    throw new ValidationError('This historical record has already been claimed by another member.'
-      + ASK_ADMIN_AFTER_SIGNUP);
+    throw new ValidationError('This historical record has already been claimed by another member.');
   }
 
   // The surname gate constrains self-serve claiming. Admin-vetted evidence
@@ -2529,8 +2488,7 @@ function claimHistoricalPersonInTxInner(
   if (hp.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
       throw new ValidationError(
-        'This historical record is tied to a different legacy account than the one already linked to your profile.'
-        + ASK_ADMIN_AFTER_SIGNUP,
+        'This historical record is tied to a different legacy account than the one already linked to your profile.',
       );
     }
     const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
@@ -2550,8 +2508,7 @@ function claimHistoricalPersonInTxInner(
       const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
       if (marked.changes === 0) {
         throw new ValidationError(
-          'The legacy account tied to this historical record has already been claimed by another member.'
-        + ASK_ADMIN_AFTER_SIGNUP,
+          'The legacy account tied to this historical record has already been claimed by another member.',
         );
       }
       if (!member.legacy_member_id) {
@@ -2559,8 +2516,7 @@ function claimHistoricalPersonInTxInner(
       }
     } else if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
       throw new ValidationError(
-        'The legacy account tied to this historical record has already been claimed by another member.'
-        + ASK_ADMIN_AFTER_SIGNUP,
+        'The legacy account tied to this historical record has already been claimed by another member.',
       );
     }
   }
@@ -3103,7 +3059,6 @@ async function getLinkHistoryViewForWizard(memberId: string): Promise<LinkHistor
       return records.length > 0 ? { records } : null;
     })(),
     lowConfidenceBanner: !holdsSomething && candidates.length === 0,
-    unansweredCardNames: candidates.map((c) => c.displayName),
   };
 }
 
@@ -4574,4 +4529,4 @@ async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<b
   return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
 }
 
-export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, declineCandidate, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

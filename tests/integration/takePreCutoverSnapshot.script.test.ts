@@ -39,7 +39,6 @@ const REQUIRED_COUNTS = [
   'historical_persons',
   'clubs',
   'audit_entries',
-  'legacy_claim_declines',
   'name_variants',
   'club_bootstrap_leaders',
   'freestyle_tricks',

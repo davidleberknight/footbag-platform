@@ -427,13 +427,10 @@ describe('transitive legacy claim through HP back-link', () => {
   it('HP claim transitively marks the back-linked legacy row claimed', async () => {
     const stamp = Date.now();
     const legacyId = `LM-HPBT-${stamp}`;
-    // The old account carries the member's sign-in address, which corroborates
-    // it: a record linked to an old account is claimable only so.
     insertLegacyMember(db, {
       legacy_member_id: legacyId,
       real_name: 'Backlink Target',
       country: 'AU',
-      legacy_email: `hp-bt-${stamp}@example.com`,
     });
     const personId = insertHistoricalPerson(db, {
       legacy_member_id: legacyId,

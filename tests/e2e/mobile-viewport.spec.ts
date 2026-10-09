@@ -125,7 +125,7 @@ test('every onboarding step is usable at phone width with its submit control rea
 
   const steps: Array<[Persona, string, RegExp]> = [
     [details, '/register/wizard/personal_details', /Save and (Continue|Complete) Onboarding/],
-    [claim, '/register/wizard/legacy_claim', /This Is Me, Link My History|Claim This Record|This Is Me, I Used the Surname|This Is Not Me|I Never Had an Old Account|I Had One but Cannot Find It|Add Old Email|Add Former Name/],
+    [claim, '/register/wizard/legacy_claim', /This Is Me, Link My History|Claim This Record|This Is Me, I Used the Surname|I Never Had an Old Account|I Had One but Cannot Find It|Add Old Email|Add Former Name/],
     [club, '/register/wizard/club_affiliations', /Save Answers/],
     [wrap, '/register/wizard/club_affiliations', /Finish Without a Club/],
   ];

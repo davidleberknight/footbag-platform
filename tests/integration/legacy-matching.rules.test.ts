@@ -15,7 +15,6 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   insertMemberDeclaredAnchor,
-  insertLegacyClaimDecline,
   insertGivenNameVariant,
   insertNameVariant,
 } from '../fixtures/factories';
@@ -351,7 +350,7 @@ describe('R14 order', () => {
 
 describe('R15 to R23 status', () => {
   // Defect caught: a candidate that must never be offered (held, deceased,
-  // declined, already the member's, a second account or record, a nameless
+  // already the member's, a second account or record, a nameless
   // stub) is offered; or an uncorroborated account or a surname that differs is
   // offered a claim control.
   it('applies the first matching row', () => {
@@ -377,18 +376,13 @@ describe('R15 to R23 status', () => {
     const stub = insertLegacyMember(db, { real_name: null, display_name: `ivy${sn}`, legacy_email3: stubEmail });
     expect(candidateFor(m, { accountId: stub })).toMatchObject({ status: 'hidden', refusal: 'no_account_name' });
 
-    const declined = insertHistoricalPerson(db, { person_name: `Ivy ${sn}` });
-    insertLegacyClaimDecline(db, { member_id: m, historical_person_id: declined });
-    // Already holding a record, so a second record is incompatible; the decline row wins first.
-    expect(candidateFor(m, { recordId: declined })).toMatchObject({ status: 'hidden', refusal: 'declined' });
-
     const second = insertHistoricalPerson(db, { person_name: `Ivy ${sn}` });
     expect(candidateFor(m, { recordId: second })).toMatchObject({ status: 'hidden', refusal: 'incompatible_with_held' });
 
     const fresh = insertMember(db, { real_name: `Jon ${surname()}`, birth_date: '1960-02-03' });
     const sj = surname();
     db.prepare('UPDATE members SET real_name = ? WHERE id = ?').run(`Jon ${sj}`, fresh);
-    const nameOnly = insertLegacyMember(db, { real_name: `Jon ${sj}` });
+    const nameOnly = insertLegacyMember(db, { real_name: `Jon ${sj}`, legacy_email: `r21-${sj}@old.example.com`.toLowerCase() });
     expect(candidateFor(fresh, { accountId: nameOnly })).toMatchObject({ status: 'needs_admin', refusal: 'uncorroborated' });
 
     const married = surname();
@@ -411,8 +405,33 @@ describe('R15 to R23 status', () => {
     const sn = surname();
     const m = insertMember(db, { real_name: `Lou ${sn}` });
     insertMemberDeclaredAnchor(db, { member_id: m, anchor_type: 'former_surname', anchor_value: `Old${sn}` });
-    const acct = insertLegacyMember(db, { real_name: `Lou Old${sn}` });
+    const acct = insertLegacyMember(db, { real_name: `Lou Old${sn}`, legacy_email: `lou-${sn}@old.example.com`.toLowerCase() });
     expect(candidateFor(m, { accountId: acct })).toMatchObject({ status: 'needs_admin', refusal: 'uncorroborated' });
+  });
+
+  // Defect caught: an old account built from the site mirror, which carries no
+  // email and no date of birth, is withheld for corroboration no member could
+  // ever give, so the member cannot claim it or the record linked to it; or an
+  // account from the legacy member data is claimable on a name alone.
+  it('needs corroboration only for an account that carries something to corroborate against', () => {
+    const sn = surname();
+    const m = insertMember(db, { real_name: `Max ${sn}` });
+    const mirrorPair = insertLegacyMember(db, { real_name: `Max ${sn}` });
+    const rec = insertHistoricalPerson(db, { person_name: `Max ${sn}`, legacy_member_id: mirrorPair });
+    expect(candidateFor(m, { recordId: rec })).toMatchObject({
+      accountId: mirrorPair, status: 'claimable', refusal: null, corroborated: false,
+    });
+    const mirrorLone = insertLegacyMember(db, { real_name: `Max ${sn}` });
+    expect(candidateFor(m, { accountId: mirrorLone })).toMatchObject({ status: 'claimable', corroborated: false });
+    // A placeholder date corroborates nothing, so it is nothing to corroborate against.
+    const placeholderDob = insertLegacyMember(db, { real_name: `Max ${sn}`, birth_date: '1900-01-01' });
+    expect(candidateFor(m, { accountId: placeholderDob })).toMatchObject({ status: 'claimable' });
+
+    const dumpLone = insertLegacyMember(db, { real_name: `Max ${sn}`, birth_date: '1971-04-05' });
+    expect(candidateFor(m, { accountId: dumpLone })).toMatchObject({ status: 'needs_admin', refusal: 'uncorroborated' });
+    const dumpPair = insertLegacyMember(db, { real_name: `Max ${sn}`, legacy_email: `max-${sn}@old.example.com`.toLowerCase() });
+    const dumpRec = insertHistoricalPerson(db, { person_name: `Max ${sn}`, legacy_member_id: dumpPair });
+    expect(candidateFor(m, { recordId: dumpRec })).toMatchObject({ status: 'needs_admin', refusal: 'uncorroborated' });
   });
 });
 

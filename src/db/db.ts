@@ -5400,7 +5400,6 @@ export const auditEntries = {
         'claim.legacy_account',
         'claim.historical_person',
         'claim.refused',
-        'legacy.claim_candidate_declined',
         'legacy.claim_step_answered',
         'legacy.anchor_declared',
         'legacy.auto_link_revert'
@@ -8431,40 +8430,6 @@ export const legacyMembers = {
     FROM legacy_members
     WHERE claimed_by_member_id = ?
     ORDER BY claimed_at ASC
-  `); },
-};
-
-
-// ── legacyClaimDeclines ─────────────────────────────────────────────────────
-//
-// A member's standing "This Is Not Me" answers in the claim step. Insert-only
-// for the member; the personal-data purge deletes a member's rows.
-// ---------------------------------------------------------------------------
-export interface LegacyClaimDeclineRow {
-  id: string;
-  member_id: string;
-  legacy_member_id: string | null;
-  historical_person_id: string | null;
-}
-
-export const legacyClaimDeclines = {
-  // A repeated decline of the same target is a no-op through the unique index.
-  get insertIfMissing() { return db.prepare(`
-    INSERT OR IGNORE INTO legacy_claim_declines (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, legacy_member_id, historical_person_id, confidence, evidence_json
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-  `); },
-
-  // Unpaginated, so no tiebreaker is needed.
-  get listByMember() { return db.prepare(`
-    SELECT id, member_id, legacy_member_id, historical_person_id
-    FROM legacy_claim_declines
-    WHERE member_id = ?
-  `); },
-
-  get deleteAllForMember() { return db.prepare(`
-    DELETE FROM legacy_claim_declines WHERE member_id = ?
   `); },
 };
 

@@ -31,7 +31,6 @@ import {
   insertActivePlayerReminderSent,
   insertCandidateCleanupResolution,
   insertClubCleanupClaim,
-  insertLegacyClaimDecline,
 } from '../../src/testkit/personaRowBuilders';
 import {
   insertOutboxEmail,
@@ -100,31 +99,15 @@ describe('refreshAllPersonas', () => {
     expect(grants.some((g) => g.created_at === '2026-01-01T00:00:00.000Z')).toBe(false);
   });
 
-  // Defect caught: a refresh drops a persona's old records, nickname pair or
-  // standing decline, so the claim journey it exists for no longer reproduces.
-  it('rebuilds persona-owned claim rows: accounts, records, nickname pairs and declines', () => {
+  // Defect caught: a refresh drops a persona's old records or nickname pair,
+  // so the claim journey it exists for no longer reproduces.
+  it('rebuilds persona-owned claim rows: accounts, records and nickname pairs', () => {
     expect(count(`SELECT COUNT(*) AS n FROM legacy_members WHERE legacy_member_id = ?`, 'legmem_persona_legacy_linked')).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, 'member_persona_legacy_linked')).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE person_id = ?`, 'person_persona_claim_record_only_rec')).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE person_id = ?`, 'person_persona_claim_namesakes_alt_1')).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM legacy_members WHERE legacy_member_id = ?`, 'legmem_persona_claim_shared_email_twin')).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM given_name_variants WHERE short_form_normalized = 'lulo'`)).toBe(1);
-    expect(count(`SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?`, 'member_persona_claim_declined')).toBe(1);
-  });
-
-  // Defect caught: a real member's decline of a persona record blocks the
-  // record's delete, so the whole refresh rolls back and personas cannot be
-  // reset after a tester said "This Is Not Me" to one.
-  it('clears a real member\'s decline of a persona record so the refresh still converges', () => {
-    insertMember(db, { id: 'member-outsider-decliner', slug: 'outsider_decliner' });
-    insertLegacyClaimDecline(db, {
-      member_id: 'member-outsider-decliner',
-      historical_person_id: 'person_persona_claim_record_only_rec',
-    });
-    expect(() => refreshAllPersonas(db)).not.toThrow();
-    expect(count(`SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = 'member-outsider-decliner'`)).toBe(0);
-    expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = 'member-outsider-decliner'`)).toBe(1);
-    expect(count(`SELECT COUNT(*) AS n FROM historical_persons WHERE person_id = ?`, 'person_persona_claim_record_only_rec')).toBe(1);
   });
 
   // Defect caught: a real member who claimed a persona namesake record keeps a

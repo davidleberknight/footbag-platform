@@ -137,7 +137,6 @@ test('an old account found by name alone shows no claim control until the member
   const card = wizard.card(persona.accountName);
   await expect(card).toHaveCount(1);
   await expect(wizard.claimButton(card)).toHaveCount(0);
-  await expect(wizard.declineButton(card)).toBeVisible();
 
   await wizard.oldEmailInput.fill(persona.oldEmail);
   await wizard.addOldEmailButton.click();
@@ -155,37 +154,6 @@ test('an old account found by name alone shows no claim control until the member
   });
 
   await ctx.close();
-});
-
-test('This Is Not Me removes the card for good', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
-  const persona = withDb((db) => seedMemberWithNameOnlyAccount(db));
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = await openClaimStep(page);
-
-  await wizard.declineButton(wizard.card(persona.accountName)).click();
-  await expect(page).toHaveURL(CLAIM_STEP);
-  await expect(wizard.card(persona.accountName)).toHaveCount(0);
-
-  await page.reload();
-  await expect(wizard.card(persona.accountName)).toHaveCount(0);
-
-  // Adding the account's own old address would reach it again; the decline
-  // still stands, and the step still needs its answer.
-  await wizard.oldEmailInput.fill(persona.oldEmail);
-  await wizard.addOldEmailButton.click();
-  await expect(page).toHaveURL(/anchor=saved$/);
-  await expect(wizard.card(persona.accountName)).toHaveCount(0);
-  await expect(wizard.neverHadOldAccountButton).toBeVisible();
-  await ctx.close();
-
-  // A fresh session sees the same.
-  const ctx2 = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page2 = await ctx2.newPage();
-  const wizard2 = await openClaimStep(page2);
-  await expect(wizard2.card(persona.accountName)).toHaveCount(0);
-  await ctx2.close();
 });
 
 test('the cannot-find-it answer finishes the claim step and opens one last attempt, where a corrected date of birth turns up a claimable card', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
@@ -223,7 +191,7 @@ test('the cannot-find-it answer finishes the claim step and opens one last attem
   await ctx.close();
 });
 
-test('I Never Had an Old Account with a card on screen names that card, completes the step and declines nothing', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
+test('I Never Had an Old Account with a card on screen completes the step without linking it', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const persona = withDb((db) => {
     const p = seedMemberWithEmailMatchedPair(db);
     completePersonalDetails(db, p.memberId);
@@ -234,16 +202,12 @@ test('I Never Had an Old Account with a card on screen names that card, complete
   const page = await ctx.newPage();
   const wizard = await openClaimStep(page);
 
-  const cardName = (await wizard.cards.first().locator('.candidate-card-name').textContent())!.trim();
-  await expect(page.locator('form[action$="continue-without-linking"]')).toContainText(cardName);
+  await expect(wizard.cards).toHaveCount(1);
   await wizard.answerCurrentTask(CLUB_STEP);
 
   withDb((db) => {
     expect(getTaskState(db, persona.memberId, 'legacy_claim')).toBe('completed');
     expect(getMemberField(db, persona.memberId, 'legacy_member_id')).toBeNull();
-    const declines = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?')
-      .get(persona.memberId) as { c: number };
-    expect(declines.c).toBe(0);
   });
 
   await ctx.close();

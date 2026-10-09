@@ -321,11 +321,6 @@ export function refreshAllPersonas(
     // token is ever left pointing at a deleted row.
     delIn('account_tokens', 'member_id', memberIds);
     delIn('member_declared_anchors', 'member_id', memberIds);
-    // Claim-step declines go before the members, accounts and records they name:
-    // a persona's own, and a real member's decline of a persona record, which
-    // would otherwise block that record's delete.
-    delIn('legacy_claim_declines', 'member_id', memberIds);
-    delIn2('legacy_claim_declines', 'legacy_member_id', legacyRoots, 'historical_person_id', personHpIds);
     delIn2('outbox_emails', 'recipient_member_id', memberIds, 'sender_member_id', memberIds);
     // An administrator's questions go before the queue items and the members
     // they both reference, so neither delete is left blocked by a message

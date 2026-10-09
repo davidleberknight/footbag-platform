@@ -50,10 +50,6 @@ export class WizardPage {
     return card.getByRole('button', { name: /This Is Me, I Used the Surname/i });
   }
 
-  declineButton(card: Locator): Locator {
-    return card.getByRole('button', { name: /This Is Not Me/i });
-  }
-
   get oldEmailInput() {
     return this.page.locator('#oldEmail');
   }

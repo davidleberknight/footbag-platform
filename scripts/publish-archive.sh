@@ -602,9 +602,84 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
+# Video is nearly all of the bytes a publish moves, and on a first upload it
+# runs for hours. The sync prints one line per finished operation, which is tens
+# of thousands of page lines that say nothing about pace, so the terminal gets
+# the videos instead: each one as it lands, with the bytes done, the rate since
+# the first video started and the time left. Everything else is counted and
+# summarized now and then, and every line still goes to the log the later
+# steps read.
+#
+# The videos expected are the ones the bucket lacks at the same size. A video
+# the sync re-sends only for a newer modification time is not foreseen, so the
+# counter can pass the expected total; it is an estimate, and says so.
+declare -A VIDEO_SIZE=()
+find "$WWW_ROOT" -type f -iname '*.mp4' -printf '%P\t%s\n' \
+  | LC_ALL=C sort > "${WORK_DIR}/videos_local.txt"
+while IFS=$'\t' read -r video_key video_bytes; do
+  VIDEO_SIZE["$video_key"]="$video_bytes"
+done < "${WORK_DIR}/videos_local.txt"
+sed -nE 's/^[0-9-]+ [0-9:]+ +([0-9]+) (.*\.[mM][pP]4)$/\2\t\1/p' "$BUCKET_LISTING" \
+  | LC_ALL=C sort > "${WORK_DIR}/videos_bucket.txt"
+VIDEO_TOTAL=0
+VIDEO_TOTAL_BYTES=0
+while IFS=$'\t' read -r video_key video_bytes; do
+  VIDEO_TOTAL=$((VIDEO_TOTAL + 1))
+  VIDEO_TOTAL_BYTES=$((VIDEO_TOTAL_BYTES + video_bytes))
+done < <(LC_ALL=C comm -23 "${WORK_DIR}/videos_local.txt" "${WORK_DIR}/videos_bucket.txt")
+
+format_gb() {
+  local tenths=$(( $1 / 100000000 ))
+  printf '%d.%d GB' $((tenths / 10)) $((tenths % 10))
+}
+
+format_duration() {
+  local seconds="$1"
+  if [[ "$seconds" -ge 3600 ]]; then
+    printf '%dh%02dm' $((seconds / 3600)) $((seconds % 3600 / 60))
+  else
+    printf '%dm' $(( (seconds + 59) / 60 ))
+  fi
+}
+
+# Reads the sync's output, writes every line to the log, and prints the video
+# progress. Time comes from the printf builtin rather than date: this runs once
+# per operation, and a fork per page would slow the reader on a full publish.
+report_sync_progress() {
+  local log="$1" line key now others=0 videos=0 bytes=0 since=0 last_line=0
+  local rate_tenths eta
+  printf -v last_line '%(%s)T' -1
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >&3
+    printf -v now '%(%s)T' -1
+    key="${line##* to s3://"${BUCKET}"/}"
+    if [[ "$line" == upload:* && "${key,,}" == *.mp4 ]]; then
+      # The first video started no later than the line before it finished.
+      [[ "$videos" -eq 0 ]] && since="$last_line"
+      videos=$((videos + 1))
+      bytes=$((bytes + ${VIDEO_SIZE["$key"]:-0}))
+      rate_tenths=$(( bytes * 10 / ((now - since) > 0 ? (now - since) : 1) / 1000000 ))
+      eta="?"
+      if [[ "$bytes" -gt 0 && "$VIDEO_TOTAL_BYTES" -gt "$bytes" ]]; then
+        eta="$(format_duration $(( (VIDEO_TOTAL_BYTES - bytes) * (now - since) / bytes )))"
+      fi
+      printf '  video %d of about %d  %s of %s  %d.%d MB/s  %s left  %s\n' \
+        "$videos" "$VIDEO_TOTAL" "$(format_gb "$bytes")" "$(format_gb "$VIDEO_TOTAL_BYTES")" \
+        $((rate_tenths / 10)) $((rate_tenths % 10)) "$eta" "$key"
+    else
+      others=$((others + 1))
+      if [[ $((others % 2000)) -eq 0 ]]; then
+        echo "  ${others} page, image and delete operations so far"
+      fi
+    fi
+    last_line="$now"
+  done 3> "$log"
+}
+
 echo "Applying sync to s3://${BUCKET} ..."
+echo "Videos to upload: about ${VIDEO_TOTAL}, $(format_gb "$VIDEO_TOTAL_BYTES")"
 SYNC_START="$(date +%s)"
-"$AWS_BIN" "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" > "${WORK_DIR}/sync.txt"
+"$AWS_BIN" "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" | report_sync_progress "${WORK_DIR}/sync.txt"
 SYNC_SECONDS="$(( $(date +%s) - SYNC_START ))"
 echo "Sync complete in ${SYNC_SECONDS}s: $(wc -l < "${WORK_DIR}/sync.txt") operations"
 

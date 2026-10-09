@@ -211,23 +211,6 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
     expect(bounce.headers.location).toBe('/register/wizard/personal_details');
   });
 
-  it('declining a suggested match does not run until personal_details is completed', async () => {
-    const { memberId, legacyId, hpId } = claimFixture({ realName: 'Gate Decline' });
-
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/decline')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ accountId: legacyId, recordId: hpId });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
-    // A decline is a standing decision that is never re-offered; one recorded
-    // before the matcher's anchors exist would lose the member their record.
-    const row = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?')
-      .get(memberId) as { c: number };
-    expect(row.c).toBe(0);
-  });
-
   it('the competition-record claim page and its confirm send an early registrant to personal_details, not a 500', async () => {
     const stamp = nextId('hpgate');
     const name = `Casey ${stamp}`;
@@ -452,7 +435,8 @@ describe('a corroborating date strengthens a name match on an old account', () =
     const memberSilent = candidateFor(variantFixture(null, '1977-02-02'));
     expect(mismatched!.confidence).toBe(silent!.confidence);
     expect(memberSilent!.confidence).toBe(silent!.confidence);
-    // Nothing corroborates the account, so it waits for an administrator.
+    // The account carries a date, so it needs corroborating, and a date that
+    // disagrees does not: it waits for an administrator.
     expect(mismatched!.status).toBe('needs_admin');
   });
 });
@@ -506,9 +490,10 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
       // The account the email reached is claimable whatever the date says.
       expect(a?.status, `${memberDob}`).toBe('claimable');
       expect(a?.dob === 'identical', `${memberDob}`).toBe(corroborates);
-      // The namesake is offered too, and claimable only where its own account
-      // carries something of the member's: here it carries nothing.
-      expect(b?.status, `${memberDob}`).toBe('needs_admin');
+      // The namesake's record is offered too, claimable on the name; its own
+      // account carries nothing of the member's, so nothing corroborates it.
+      expect(b?.status, `${memberDob}`).toBe('claimable');
+      expect(b?.corroborated, `${memberDob}`).toBe(false);
     }
   });
 

@@ -333,8 +333,12 @@ describe('registration-time conflict prompt', () => {
       .set('Cookie', cookieFor(memberId));
     expect(page.status).toBe(200);
     expect(page.text).toContain('We already have a claim under this name');
-    expect(page.text).toContain('finish signing up and then ask an IFPA administrator');
-    expect(page.text).not.toContain("tell an administrator and we'll investigate");
+    // The claim step is the member's one chance to link: the conflict note
+    // sends no one to an administrator, and the page names one exactly once,
+    // last, after the forms that let the member link it themselves.
+    const mentions = page.text.match(/administrator/gi) ?? [];
+    expect(mentions).toHaveLength(1);
+    expect(page.text.lastIndexOf('administrator')).toBeGreaterThan(page.text.indexOf('Add Former Name'));
     expect(page.text).not.toContain('Yes, One of These Is Me');
     expect(page.text).not.toContain('/register/wizard/legacy_claim/help-request');
   });

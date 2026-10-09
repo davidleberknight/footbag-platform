@@ -124,10 +124,6 @@ const DECISIONS: Record<string, Decision> = {
   'hof_nominations.decided_by_admin_member_id': ACTOR,
   'hof_nominations.nominator_member_id': { export: { unruled: NOT_LISTED }, erasure: { unruled: NO_ERASURE_RULE } },
   'hof_nominations.nominee_member_id': { export: { unruled: NOT_LISTED }, erasure: { unruled: NO_ERASURE_RULE } },
-  'legacy_claim_declines.member_id': {
-    export: { unruled: NOT_LISTED },
-    erasure: { cleared: 'legacyClaimDeclines.deleteAllForMember', on: 'purge' },
-  },
   'legacy_members.claimed_by_member_id': {
     export: { exported: 'legacyMembers.findByLegacyMemberId' },
     erasure: { cleared: 'legacyMembers.clearClaim', on: 'purge' },

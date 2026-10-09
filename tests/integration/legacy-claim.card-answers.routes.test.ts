@@ -1,11 +1,10 @@
 /**
- * The claim step's two answers on a card, through the wizard routes.
+ * The claim step's answers, through the wizard routes.
  *
  * A card the member's own evidence makes claimable is claimed whole from its
  * card: the account and the record the pipeline linked to it, the tier grant,
- * the evidence-tagged claim audit, and the step completes. "This Is Not Me" is
- * a standing answer that hides the card for good and leaves the step pending.
- * The non-claiming answers complete the step and decline nothing. A target the
+ * the evidence-tagged claim audit, and the step completes. The non-claiming
+ * answers complete the step and record the cards passed over. A target the
  * step does not offer is refused uniformly, recorded, and writes nothing.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -78,13 +77,12 @@ function seedPair(): { memberId: string; legacyId: string; personId: string; nam
 
 describe('a claimable card', () => {
   // Defect caught: the card the member's evidence reaches is missing, or its
-  // forms carry no target, so neither answer can be given.
-  it('renders with both answers carrying the candidate ids', async () => {
+  // claim form carries no target, so the member cannot claim it.
+  it('renders its claim form carrying the candidate ids', async () => {
     const t = seedPair();
     const res = await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(t.memberId));
     expect(res.status).toBe(200);
     expect(res.text).toContain('action="/register/wizard/legacy_claim/claim"');
-    expect(res.text).toContain('action="/register/wizard/legacy_claim/decline"');
     expect(res.text).toContain(`value="${t.legacyId}"`);
     expect(res.text).toContain(`value="${t.personId}"`);
   });
@@ -133,53 +131,10 @@ describe('a claimable card', () => {
   });
 });
 
-describe('This Is Not Me', () => {
-  // Defect caught: a decline is not standing, so the record comes back under
-  // another card shape, or the decline completes the step on its own.
-  it('records a standing decline, hides the record, and leaves the step to be answered', async () => {
-    const t = seedPair();
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/decline')
-      .set('Cookie', cookieFor(t.memberId))
-      .type('form')
-      .send({ accountId: t.legacyId, recordId: t.personId });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
-
-    const rows = db.prepare('SELECT legacy_member_id, historical_person_id FROM legacy_claim_declines WHERE member_id = ?')
-      .all(t.memberId);
-    expect(rows).toEqual([{ legacy_member_id: t.legacyId, historical_person_id: t.personId }]);
-    const declined = auditRows(t.memberId, 'legacy.claim_candidate_declined');
-    expect(declined).toHaveLength(1);
-    expect(declined[0].metadata_json).not.toContain(t.name);
-    expect(taskState(t.memberId)).not.toBe('completed');
-
-    const after = await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(t.memberId));
-    expect(after.text).not.toContain(t.personId);
-    expect(after.text).not.toContain(t.legacyId);
-  });
-
-  // Defect caught: a forged target records a decline, which would reveal that
-  // the target exists and plant a standing answer the member never gave.
-  it('records nothing for a target the step does not show the member', async () => {
-    const owner = seedPair();
-    const other = seedPair();
-    const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/decline')
-      .set('Cookie', cookieFor(other.memberId))
-      .type('form')
-      .send({ accountId: owner.legacyId, recordId: owner.personId });
-    expect(res.status).toBe(303);
-    const rows = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?')
-      .get(other.memberId) as { c: number };
-    expect(rows.c).toBe(0);
-  });
-});
-
 describe('the non-claiming answers', () => {
-  // Defect caught: answering "I never had an old account" declines the cards
-  // left on screen, or records nothing about what was shown.
-  it('complete the step, decline nothing, and record the cards that were shown', async () => {
+  // Defect caught: answering "I never had an old account" leaves the step
+  // pending, or records nothing about the cards that were passed over.
+  it('complete the step and record the cards that were shown', async () => {
     const t = seedPair();
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
@@ -188,9 +143,6 @@ describe('the non-claiming answers', () => {
       .send({ no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(taskState(t.memberId)).toBe('completed');
-    const declines = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?')
-      .get(t.memberId) as { c: number };
-    expect(declines.c).toBe(0);
     const answered = auditRows(t.memberId, 'legacy.claim_step_answered');
     expect(answered).toHaveLength(1);
     const meta = JSON.parse(answered[0].metadata_json);

@@ -57,7 +57,6 @@ import {
   insertMemberMessage,
   insertGivenNameVariant,
   insertMemberDeclaredAnchor,
-  insertLegacyClaimDecline,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertPersonaNamedGallery,
@@ -167,11 +166,6 @@ export interface PersonaLegacySpec {
    * the record's (long). Persona-owned: the refresh runner removes it.
    */
   nicknamePair?: { short: string; long: string };
-  /**
-   * The member has already said "This Is Not Me" to this candidate: a standing
-   * decline naming the account and its record.
-   */
-  declined?: boolean;
   /**
    * Sets legacy_members.legacy_is_admin=1 on this persona's legacy row. With
    * `linked: true` it seeds the claimed-legacy-admin case: the legacy admin flag
@@ -614,14 +608,6 @@ export function seedPersona(
       member_id: memberId,
       anchor_type: anchor.type,
       anchor_value: anchor.type === 'old_email' ? anchor.value.toLowerCase() : anchor.value,
-    });
-  }
-
-  if (spec.legacy?.declined) {
-    insertLegacyClaimDecline(db, {
-      member_id: memberId,
-      legacy_member_id: legacyMemberId ?? null,
-      historical_person_id: personId ?? null,
     });
   }
 

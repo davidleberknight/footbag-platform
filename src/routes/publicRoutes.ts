@@ -311,7 +311,6 @@ publicRouter.post('/verify/resend',         authController.postVerifyResend);
 publicRouter.post('/register/wizard/personal_details/submit',           requireAuth, memberOnboardingController.postPersonalDetailsSubmit);
 publicRouter.post('/register/wizard/legacy_claim/claim',                requireAuth, requireWizardOpen, memberOnboardingController.postClaimCandidate);
 publicRouter.post('/register/wizard/legacy_claim/claim-with-surname',   requireAuth, requireWizardOpen, memberOnboardingController.postClaimWithSurname);
-publicRouter.post('/register/wizard/legacy_claim/decline',              requireAuth, requireWizardOpen, memberOnboardingController.postDeclineCandidate);
 // The last attempt at the match offers the date on file for correction: the
 // matcher runs on it, and a registrant who mistyped it had no way to put it
 // right once the details step closed behind them.

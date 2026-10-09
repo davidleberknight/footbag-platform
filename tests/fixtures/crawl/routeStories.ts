@@ -148,7 +148,6 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /register/wizard/personal_details/submit': { stories: ['M_Complete_Onboarding_Wizard'] },
   'POST /register/wizard/legacy_claim/claim': { stories: ['M_Claim_Legacy_Account', 'M_Complete_Onboarding_Wizard'] },
   'POST /register/wizard/legacy_claim/claim-with-surname': { stories: ['M_Claim_Legacy_Account', 'M_Complete_Onboarding_Wizard'] },
-  'POST /register/wizard/legacy_claim/decline': { stories: ['M_Claim_Legacy_Account', 'M_Complete_Onboarding_Wizard'] },
   'POST /register/wizard/legacy_claim/birth-date': { stories: ['M_Claim_Legacy_Account', 'M_Complete_Onboarding_Wizard'] },
   'POST /register/wizard/legacy_claim/anchors/add': { stories: ['M_Claim_Legacy_Account', 'M_Complete_Onboarding_Wizard'] },
   'POST /register/wizard/club_affiliations/submit': { stories: ['M_Complete_Onboarding_Wizard'] },

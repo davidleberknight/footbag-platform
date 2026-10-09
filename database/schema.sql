@@ -4516,39 +4516,6 @@ CREATE INDEX idx_legacy_members_birth_date
   ON legacy_members(birth_date)
   WHERE birth_date IS NOT NULL;
 
--- Migration-scope: a member's standing "This Is Not Me" answers in the claim
--- step. Matching is computed live and nothing is staged, so what the member
--- refused is the only claim-step state kept: a declined candidate is never
--- offered to them again. A decline naming both an account and the record the
--- pipeline linked to it hides each half on its own, so a later relink cannot
--- bring either back. Droppable once onboarding of migrated members is over.
-CREATE TABLE legacy_claim_declines (
-  id         TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL,
-  created_by TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  updated_by TEXT NOT NULL,
-  version    INTEGER NOT NULL DEFAULT 1,
-
-  member_id            TEXT NOT NULL REFERENCES members(id),
-  legacy_member_id     TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
-  historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
-  confidence           TEXT NOT NULL CHECK (confidence IN ('high','medium','low')),
-  -- The claim evidence block at the moment of the decline: ids, keys, signals
-  -- and outcomes only, never a name, a date of birth or a raw address.
-  evidence_json        TEXT NOT NULL DEFAULT '{}',
-
-  CHECK (legacy_member_id IS NOT NULL OR historical_person_id IS NOT NULL)
-);
-
--- A repeated decline is a no-op. COALESCE folds the nullable targets so
--- SQLite's NULLs-are-distinct UNIQUE semantics cannot admit duplicates.
-CREATE UNIQUE INDEX ux_legacy_claim_declines_target
-  ON legacy_claim_declines(
-    member_id,
-    COALESCE(legacy_member_id, ''),
-    COALESCE(historical_person_id, '')
-  );
 
 -- Migration-only staging table: normalized mirror-derived club identities.
 -- May be dropped once all bootstrap decisions are finalized and no staging

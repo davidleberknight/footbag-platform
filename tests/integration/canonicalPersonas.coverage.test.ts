@@ -219,7 +219,6 @@ describe('canonical persona catalog', () => {
          FROM members WHERE id = ?`,
     );
     const anchorN = db.prepare(`SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?`);
-    const declineN = db.prepare(`SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?`);
     const claimMarkersOf = db.prepare(
       `SELECT birth_date_changes, last_attempt_opened_at FROM member_onboarding_tasks
         WHERE member_id = ? AND task_type = 'legacy_claim'`,
@@ -309,7 +308,6 @@ describe('canonical persona catalog', () => {
       if (spec.declaredAnchors) {
         expect(countN(anchorN, id), `${spec.slug} declared anchors`).toBe(spec.declaredAnchors.length);
       }
-      expect(countN(declineN, id), `${spec.slug} standing declines`).toBe(spec.legacy?.declined ? 1 : 0);
       if (spec.legacyClaimTask) {
         const markers = claimMarkersOf.get(id) as
           { birth_date_changes: number | null; last_attempt_opened_at: string | null } | undefined;

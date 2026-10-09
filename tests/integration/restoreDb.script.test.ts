@@ -49,7 +49,6 @@ const FIXTURE_SCHEMA = `
   CREATE TABLE historical_persons (id TEXT PRIMARY KEY);
   CREATE TABLE clubs (id TEXT PRIMARY KEY);
   CREATE TABLE audit_entries (id TEXT PRIMARY KEY, occurred_at TEXT);
-  CREATE TABLE legacy_claim_declines (id TEXT PRIMARY KEY);
   CREATE TABLE payments (id TEXT PRIMARY KEY);
 `;
 

@@ -67,7 +67,6 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
   const postRoutes = [
     '/register/wizard/legacy_claim/claim',
     '/register/wizard/legacy_claim/claim-with-surname',
-    '/register/wizard/legacy_claim/decline',
     '/register/wizard/legacy_claim/birth-date',
     '/register/wizard/legacy_claim/anchors/add',
     '/register/wizard/personal_details/submit',
@@ -95,7 +94,6 @@ describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', (
   const postRoutes = [
     '/register/wizard/legacy_claim/claim',
     '/register/wizard/legacy_claim/claim-with-surname',
-    '/register/wizard/legacy_claim/decline',
     '/register/wizard/legacy_claim/birth-date',
     '/register/wizard/legacy_claim/anchors/add',
     '/register/wizard/personal_details/submit',

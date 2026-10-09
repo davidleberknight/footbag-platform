@@ -9,18 +9,89 @@
   <section>
     <p>Link your account to your history on the old footbag.org so your past results show on your profile. Do one of these: pick a suggested match below, or add an email or surname you used on the old site to find more matches.</p>
 
+    {{#if content.validationMessage}}
+      <p class="form-error-banner" role="alert">{{content.validationMessage}}</p>
+    {{/if}}
+
+    {{#if (eq content.anchorSavedNotice 'saved')}}
+      <p class="form-success-banner" role="status">Saved. We re-checked for matches with your updated details.</p>
+    {{/if}}
+
+    {{! The matches lead the page: they are what the step is for. A card offers
+        one claim control where the member's own evidence allows one, and none
+        otherwise; a member who claims none answers below instead. }}
+    {{#if content.candidates.length}}
+      <div class="section-heading"><h2>Suggested Matches</h2></div>
+      <ul class="candidate-list">
+        {{#each content.candidates}}
+          <li class="candidate-card">
+            <div class="candidate-card-name">{{this.displayName}}</div>
+            <div class="candidate-card-provenance">{{this.provenanceLabel}}</div>
+            {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
+            {{#if this.firstYear}}<div class="candidate-card-meta">First competed: {{this.firstYear}}</div>{{/if}}
+            {{#if this.clubAffiliations.length}}
+              <div class="candidate-card-meta text-muted fs-sm">Clubs: {{#each this.clubAffiliations}}{{#if @index}}, {{/if}}{{this}}{{/each}}</div>
+            {{/if}}
+            {{#if this.eventsAttended.length}}
+              <div class="candidate-card-meta text-muted fs-sm">Events: {{#each this.eventsAttended}}{{#if @index}}, {{/if}}{{this.title}} ({{this.year}}){{/each}}</div>
+            {{/if}}
+            {{#if this.bioExcerpt}}<div class="candidate-card-meta text-muted fs-sm">{{this.bioExcerpt}}</div>{{/if}}
+            {{#if this.isHof}}<div class="candidate-card-meta">Hall of Fame</div>{{/if}}
+            {{#if this.isBap}}<div class="candidate-card-meta">Big Add Posse</div>{{/if}}
+            {{#if (eq this.cardKind 'claim')}}
+              {{#if this.nameMatchOnly}}
+                <p class="text-muted fs-sm">This old account was found by name match, and same-name coincidences happen. Only claim it if it is really yours.</p>
+              {{/if}}
+              <form method="POST" action="/register/wizard/legacy_claim/claim" class="candidate-card-action">
+                <input type="hidden" name="accountId" value="{{this.accountId}}" />
+                <input type="hidden" name="recordId" value="{{this.recordId}}" />
+                <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
+              </form>
+            {{else if (eq this.cardKind 'claim_record_page')}}
+              <p class="text-muted fs-sm">This record was found by name match, and same-name coincidences happen. Only claim it if these results are really yours.</p>
+              <p class="candidate-card-action"><a href="{{this.claimRecordHref}}" class="btn btn-primary">Claim This Record</a></p>
+            {{else if (eq this.cardKind 'claim_with_surname')}}
+              <p class="text-muted fs-sm">The surname on this record is {{this.differingSurname}}, not the one on your account.</p>
+              <form method="POST" action="/register/wizard/legacy_claim/claim-with-surname" class="candidate-card-action">
+                <input type="hidden" name="accountId" value="{{this.accountId}}" />
+                <input type="hidden" name="recordId" value="{{this.recordId}}" />
+                <button type="submit" class="btn btn-primary">This Is Me, I Used the Surname {{this.differingSurname}}</button>
+              </form>
+            {{else if (eq this.cardKind 'needs_admin')}}
+              <p class="text-muted fs-sm">We found this old account by name only. If it is yours, add the email address you used on the old site below to link it here.</p>
+            {{/if}}
+          </li>
+        {{/each}}
+      </ul>
+    {{/if}}
+
+    {{#if content.lowConfidenceBanner}}
+      {{! The closing sentence points at the answer controls, so it is dropped
+          for a reader who has already answered and no longer sees them. }}
+      <p class="form-notice" role="status">We didn't find a match for you. If you had an account on the old footbag.org, add an email address or a surname you used there below.{{#if content.showNoLinkAnswers}} If you never had one, you can continue without linking.{{/if}}</p>
+    {{/if}}
+
+    {{#if content.conflictPrompt}}
+      <div class="card card-static mb-4">
+        <div class="card-title">We already have a claim under this name. Is one of these you?</div>
+        <ul>
+          {{#each content.conflictPrompt.records}}
+            <li><strong>{{this.displayName}}</strong> <span class="text-muted fs-sm">({{this.sourceLabel}})</span></li>
+          {{/each}}
+        </ul>
+        <p class="text-muted fs-sm">These records are already linked to another account.</p>
+      </div>
+    {{/if}}
+
     {{! Two honest answers, both of which finish this step. A registrant who did
         hold an old account is never asked to say they did not in order to get
         past it, and is never pushed into claiming a record that may not be
-        theirs. Neither answer declines a card; the cards still on screen are
-        named so the member sees what they leave. Offered only while the step
-        still needs an answer. }}
+        theirs. Not claiming a card is the answer that it is not theirs; the
+        step is answered once. Offered only while the step still needs an
+        answer. }}
     {{#if content.showNoLinkAnswers}}
       <form method="POST" action="/register/wizard/legacy_claim/continue-without-linking" class="card card-static mb-4">
-        <p>If nothing here is yours, tell us which of these is true and carry on.</p>
-        {{#if content.unansweredCardNames.length}}
-          <p class="text-muted fs-sm">These suggestions stay unanswered: {{#each content.unansweredCardNames}}{{#if @index}}, {{/if}}{{this}}{{/each}}.</p>
-        {{/if}}
+        <p>This is your one chance to link your old footbag.org history to your account. Check the matches above, and add any email or surname you used on the old site below, before you carry on. If none of these suggestions is you, tell us which of these is true and carry on.</p>
         <button type="submit" name="no_link_answer" value="never_had_one" class="btn btn-outline">I Never Had an Old Account</button>
         <button type="submit" name="no_link_answer" value="cannot_find_it" class="btn btn-outline">I Had One but Cannot Find It</button>
       </form>
@@ -41,87 +112,6 @@
         {{> wizard-birth-date-correction content}}
         <p class="mt-2"><a href="{{content.continueHref}}">Carry on with signing up</a></p>
       </div>
-    {{/if}}
-
-    {{#if content.validationMessage}}
-      <p class="form-error-banner" role="alert">{{content.validationMessage}}</p>
-    {{/if}}
-
-    {{#if (eq content.anchorSavedNotice 'saved')}}
-      <p class="form-success-banner" role="status">Saved. We re-checked for matches with your updated details.</p>
-    {{/if}}
-
-    {{#if content.conflictPrompt}}
-      <div class="card card-static mb-4">
-        <div class="card-title">We already have a claim under this name. Is one of these you?</div>
-        <ul>
-          {{#each content.conflictPrompt.records}}
-            <li><strong>{{this.displayName}}</strong> <span class="text-muted fs-sm">({{this.sourceLabel}})</span></li>
-          {{/each}}
-        </ul>
-        {{! Writing to an administrator is a member capability: the surface an
-            administrator answers on is member-only, so a registrant who filed
-            here could never be answered. They finish signing up first, and the
-            dispute they raise afterwards carries the records the platform
-            detects for itself. }}
-        <p class="text-muted fs-sm">These records are already linked to another account. If one of them is yours, finish signing up and then ask an IFPA administrator to look into it.</p>
-      </div>
-    {{/if}}
-
-    {{#if content.lowConfidenceBanner}}
-      {{! The closing sentence points at the answer controls, so it is dropped
-          for a reader who has already answered and no longer sees them. }}
-      <p class="form-notice" role="status">We didn't find a match for you. If you had an account on the old footbag.org, add an email address or a surname you used there below.{{#if content.showNoLinkAnswers}} If you never had one, you can continue without linking.{{/if}}</p>
-    {{/if}}
-
-    {{#if content.candidates.length}}
-      <div class="section-heading"><h2>Suggested Matches</h2></div>
-      <ul class="candidate-list">
-        {{#each content.candidates}}
-          <li class="candidate-card">
-            <div class="candidate-card-name">{{this.displayName}}</div>
-            <div class="candidate-card-provenance">{{this.provenanceLabel}}</div>
-            {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
-            {{#if this.firstYear}}<div class="candidate-card-meta">First competed: {{this.firstYear}}</div>{{/if}}
-            {{#if this.clubAffiliations.length}}
-              <div class="candidate-card-meta text-muted fs-sm">Clubs: {{#each this.clubAffiliations}}{{#if @index}}, {{/if}}{{this}}{{/each}}</div>
-            {{/if}}
-            {{#if this.eventsAttended.length}}
-              <div class="candidate-card-meta text-muted fs-sm">Events: {{#each this.eventsAttended}}{{#if @index}}, {{/if}}{{this.title}} ({{this.year}}){{/each}}</div>
-            {{/if}}
-            {{#if this.bioExcerpt}}<div class="candidate-card-meta text-muted fs-sm">{{this.bioExcerpt}}</div>{{/if}}
-            {{#if this.isHof}}<div class="candidate-card-meta">Hall of Fame</div>{{/if}}
-            {{#if this.isBap}}<div class="candidate-card-meta">Big Add Posse</div>{{/if}}
-            {{! Every card has two answers. The first depends on what the
-                member's own evidence allows; "This Is Not Me" is on every card
-                and is a standing answer. }}
-            {{#if (eq this.cardKind 'claim')}}
-              <form method="POST" action="/register/wizard/legacy_claim/claim" class="candidate-card-action">
-                <input type="hidden" name="accountId" value="{{this.accountId}}" />
-                <input type="hidden" name="recordId" value="{{this.recordId}}" />
-                <button type="submit" class="btn btn-primary">This Is Me, Link My History</button>
-              </form>
-            {{else if (eq this.cardKind 'claim_record_page')}}
-              <p class="text-muted fs-sm">This record was found by name match, and same-name coincidences happen. Only claim it if these results are really yours.</p>
-              <p class="candidate-card-action"><a href="{{this.claimRecordHref}}" class="btn btn-primary">Claim This Record</a></p>
-            {{else if (eq this.cardKind 'claim_with_surname')}}
-              <p class="text-muted fs-sm">The surname on this record is {{this.differingSurname}}, not the one on your account.</p>
-              <form method="POST" action="/register/wizard/legacy_claim/claim-with-surname" class="candidate-card-action">
-                <input type="hidden" name="accountId" value="{{this.accountId}}" />
-                <input type="hidden" name="recordId" value="{{this.recordId}}" />
-                <button type="submit" class="btn btn-primary">This Is Me, I Used the Surname {{this.differingSurname}}</button>
-              </form>
-            {{else if (eq this.cardKind 'needs_admin')}}
-              <p class="text-muted fs-sm">We found this old account by name only, so it cannot be linked from here. If it is yours, add an email address you used on the old site below, or finish signing up and then ask an IFPA administrator to link it.</p>
-            {{/if}}
-            <form method="POST" action="/register/wizard/legacy_claim/decline" class="candidate-card-action">
-              <input type="hidden" name="accountId" value="{{this.accountId}}" />
-              <input type="hidden" name="recordId" value="{{this.recordId}}" />
-              <button type="submit" class="btn btn-outline">This Is Not Me</button>
-            </form>
-          </li>
-        {{/each}}
-      </ul>
     {{/if}}
 
     {{! The standing invitation to add a former surname or an old email, shown
@@ -158,6 +148,11 @@
       </div>
       <button type="submit" class="btn btn-outline">Add Former Name</button>
     </form>
+
+    {{! The one place onboarding names an administrator, last on the page:
+        linking happens here, and an administrator's link is the rare
+        exception for a member this step genuinely could not serve. }}
+    <p class="text-muted fs-sm">If you have tried everything on this page and still cannot link your old record, you can ask an IFPA administrator once you are a member.</p>
 
   </section>
 </div>

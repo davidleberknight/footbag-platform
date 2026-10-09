@@ -452,8 +452,7 @@ if [[ -n "$TO_LOCAL" ]]; then
         || ' legacy_members=' || (SELECT COUNT(*) FROM legacy_members)
         || ' historical_persons=' || (SELECT COUNT(*) FROM historical_persons)
         || ' clubs=' || (SELECT COUNT(*) FROM clubs)
-        || ' audit_entries=' || (SELECT COUNT(*) FROM audit_entries)
-        || ' legacy_claim_declines=' || (SELECT COUNT(*) FROM legacy_claim_declines);
+        || ' audit_entries=' || (SELECT COUNT(*) FROM audit_entries);
   " 2>/dev/null || echo '(counts unavailable)')"
 
   cp -a "${work}/snapshot.db" "$TO_LOCAL"

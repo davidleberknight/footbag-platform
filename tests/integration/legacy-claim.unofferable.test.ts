@@ -1,12 +1,10 @@
 /**
- * The claim step never offers a card that could only be refused, and a
- * member's standing declines leave with their personal data.
+ * The claim step never offers a card that could only be refused.
  *
  * A record flagged deceased or held by another member, and an old account
  * whose linked record is, never reaches the member as a card, whichever key
  * found it. A claim by one member takes the candidate off every other member's
- * claim step at once. A personal-data purge deletes the member's declines; the
- * ledger rows recording them remain.
+ * claim step at once.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -17,7 +15,6 @@ import {
   insertHistoricalPerson,
   insertOnboardingTask,
   insertMemberDeclaredAnchor,
-  insertLegacyClaimDecline,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4244');
@@ -25,14 +22,11 @@ const { dbPath } = setTestEnv('4244');
 let db: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let svc: typeof import('../../src/services/identityAccessService').identityAccessService;
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let memberSvc: typeof import('../../src/services/memberService');
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
   await importApp();
   svc = (await import('../../src/services/identityAccessService')).identityAccessService;
-  memberSvc = await import('../../src/services/memberService');
 });
 
 afterAll(() => {
@@ -122,23 +116,5 @@ describe('no card offers a control that can only be refused', () => {
     expect((await offered(second)).records).toContain(`${t}_rec`);
     svc.claimHistoricalPerson(first, `${t}_rec`);
     expect((await offered(second)).records).not.toContain(`${t}_rec`);
-  });
-});
-
-describe('a member who leaves takes their declines with them', () => {
-  // Defect caught: a purged member's standing answers survive the erasure of
-  // everything else personal about them.
-  it('a personal-data purge deletes the declines and keeps the ledger rows', () => {
-    const t = tag('purge');
-    const name = `Purged Lunpurge${t.slice(-1)}`;
-    const { personId } = linkedRecord(t, name, `${t}@example.com`);
-    const memberId = registrant(t, name);
-    insertLegacyClaimDecline(db, { member_id: memberId, historical_person_id: personId });
-    db.prepare('UPDATE members SET deleted_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', memberId);
-
-    memberSvc.memberService.purgeAccountPII(memberId);
-
-    const left = db.prepare('SELECT COUNT(*) AS c FROM legacy_claim_declines WHERE member_id = ?').get(memberId) as { c: number };
-    expect(left.c).toBe(0);
   });
 });

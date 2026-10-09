@@ -97,7 +97,6 @@ const ROUTES: readonly Row[] = [
   // Onboarding wizard submits (requireAuth).
   { name: 'wizard-claim',          method: 'post', path: '/register/wizard/legacy_claim/claim',                body: { accountId: 'x' }, requiresAuth: true },
   { name: 'wizard-claim-surname',  method: 'post', path: '/register/wizard/legacy_claim/claim-with-surname',   body: { accountId: 'x' }, requiresAuth: true },
-  { name: 'wizard-decline',        method: 'post', path: '/register/wizard/legacy_claim/decline',              body: { accountId: 'x' }, requiresAuth: true },
   { name: 'wizard-club-affil',     method: 'post', path: '/register/wizard/club_affiliations/submit',         body: {}, requiresAuth: true },
   { name: 'wizard-no-link-answer', method: 'post', path: '/register/wizard/legacy_claim/continue-without-linking', body: { no_link_answer: 'never_had_one' }, requiresAuth: true },
   { name: 'wizard-birth-date',     method: 'post', path: '/register/wizard/legacy_claim/birth-date',           body: { birthDay: '1', birthMonth: '1', birthYear: '1980' }, requiresAuth: true },

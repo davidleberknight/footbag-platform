@@ -1,6 +1,6 @@
 /**
  * The claim step's own answers, through HTTP: claiming a card, claiming under
- * the surname a card carries, declining, the two non-claiming answers, the one
+ * the surname a card carries, the two non-claiming answers, the one
  * last attempt with its date-of-birth correction, and the refusals.
  *
  * Every claim re-checks the member's own evidence inside its transaction, so a
@@ -18,7 +18,6 @@ import {
   insertHistoricalPerson,
   insertOnboardingTask,
   insertMemberDeclaredAnchor,
-  insertLegacyClaimDecline,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -133,15 +132,16 @@ describe('claiming a card', () => {
     expect(meta.evidence_strength).toBe('declared_anchor_only');
   });
 
-  // Defect caught: an old account found by name alone is claimable by
-  // posting its ids, which would let anyone take an account by asserting a name.
-  it('refuses an account found by name alone, uniformly, and records the refusal', async () => {
+  // Defect caught: an old account carrying an email nothing of the member's
+  // matches is claimable by posting its ids, which would let anyone take a
+  // legacy member's account by asserting a name.
+  it('refuses an uncorroborated account found by name alone, uniformly, and records the refusal', async () => {
     const sn = surname();
-    const account = insertLegacyMember(db, { real_name: `Cid ${sn}` });
+    const account = insertLegacyMember(db, { real_name: `Cid ${sn}`, legacy_email: `cid-${sn}@old.example.com`.toLowerCase() });
     const m = registrant({ real_name: `Cid ${sn}` });
 
     const view = await page(m);
-    expect(view.text).toContain(`value="${account}"`);
+    expect(view.text).toContain(`Cid ${sn}`);
     expect(view.text).not.toContain('action="/register/wizard/legacy_claim/claim"');
 
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
@@ -151,6 +151,49 @@ describe('claiming a card', () => {
     const refused = auditRows(m, 'claim.refused');
     expect(refused).toHaveLength(1);
     expect(JSON.parse(refused[0].metadata_json)).toMatchObject({ account_id: account, refusal: 'uncorroborated' });
+  });
+
+  // Defect caught: a competition record reached by name, with an old account
+  // the pipeline linked to it, renders with no claim control, so a member
+  // cannot claim their own results; or it posts straight to the wizard claim
+  // and skips the confirmation page's first-name warning.
+  it('offers a name-matched record with a linked account through its confirmation page, claiming both', async () => {
+    const sn = surname();
+    const account = insertLegacyMember(db, { real_name: `Cal ${sn}` });
+    const record = insertHistoricalPerson(db, { person_name: `Cal ${sn}`, legacy_member_id: account });
+    const m = registrant({ real_name: `Cal ${sn}` });
+
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(view.text).toContain(`href="/history/${record}/claim"`);
+    expect(view.text).not.toContain('action="/register/wizard/legacy_claim/claim"');
+
+    const res = await post(`/history/${record}/claim/confirm`, m, {});
+    expect(res.status).toBe(303);
+    expect(links(m)).toEqual({ legacy_member_id: account, historical_person_id: record });
+    const meta = JSON.parse(auditRows(m, 'claim.legacy_account')[0].metadata_json) as Record<string, unknown>;
+    expect(meta.evidence_strength).toBe('declared_anchor_only');
+  });
+
+  // Defect caught: an old account built from the site mirror (no email, no
+  // date of birth) found by name shows no claim control, so its member can
+  // never link it; or it is offered without the same-name caution.
+  it('offers a mirror-built account found by name with its caution, and claims it', async () => {
+    const sn = surname();
+    const account = insertLegacyMember(db, { real_name: `Dov ${sn}` });
+    const m = registrant({ real_name: `Dov ${sn}` });
+
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(view.text).toContain('action="/register/wizard/legacy_claim/claim"');
+    expect(view.text).toContain(`value="${account}"`);
+    expect(view.text).toContain('This old account was found by name match');
+
+    const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
+    expect(res.status).toBe(303);
+    expect(links(m).legacy_member_id).toBe(account);
+    const meta = JSON.parse(auditRows(m, 'claim.legacy_account')[0].metadata_json) as Record<string, unknown>;
+    expect(meta.evidence_strength).toBe('declared_anchor_only');
   });
 
   // Defect caught: a forged or unknown id gets an answer that differs from a
@@ -300,70 +343,30 @@ describe('claiming under the surname a card carries', () => {
   });
 });
 
-describe('This Is Not Me', () => {
-  // Defect caught: a declined card comes back on a later render, including
-  // after the member adds an anchor that reaches it again.
-  it('is a standing answer that no later evidence undoes', async () => {
-    const sn = surname();
-    const email = `cs-decl-${sn}@example.com`.toLowerCase();
-    const old = `cs-decl-old-${sn}@example.com`.toLowerCase();
-    const account = insertLegacyMember(db, { real_name: `Joy ${sn}`, legacy_email: email, legacy_email2: old });
-    const record = insertHistoricalPerson(db, { person_name: `Joy ${sn}`, legacy_member_id: account });
-    const m = registrant({ real_name: `Joy ${sn}`, login_email: email });
-
-    const res = await post(`${CLAIM_STEP}/decline`, m, { accountId: account, recordId: record });
-    expect(res.status).toBe(303);
-    expect(count(`SELECT COUNT(*) AS n FROM legacy_claim_declines
-                  WHERE member_id = ? AND legacy_member_id = ? AND historical_person_id = ?`, m, account, record)).toBe(1);
-    expect(auditRows(m, 'legacy.claim_candidate_declined')).toHaveLength(1);
-
-    await post(`${CLAIM_STEP}/anchors/add`, m, { anchorType: 'old_email', anchorValue: old });
-    const after = await page(m);
-    expect(after.status).toBe(200);
-    expect(after.text).not.toContain(`value="${account}"`);
-    expect(after.text).not.toContain(`value="${record}"`);
-    // Declining does not answer the step.
-    expect(after.text).toContain('I Never Had an Old Account');
-  });
-
-  // Defect caught: a decline of something the step never showed records a
-  // standing answer about it, which a member could use to probe for ids.
-  it('records nothing for a target the step does not show', async () => {
-    const m = registrant({ real_name: `Kit ${surname()}` });
-    const res = await post(`${CLAIM_STEP}/decline`, m, { accountId: 'lm-never-shown', recordId: '' });
-    expect(res.status).toBe(303);
-    expect(count('SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?', m)).toBe(0);
-    expect(auditRows(m, 'legacy.claim_candidate_declined')).toHaveLength(0);
-  });
-
-  // Defect caught: a decline the member made earlier is offered back to them.
-  it('hides a candidate declined before', async () => {
-    const sn = surname();
-    const record = insertHistoricalPerson(db, { person_name: `Lou ${sn}` });
-    const m = registrant({ real_name: `Lou ${sn}` });
-    insertLegacyClaimDecline(db, { member_id: m, historical_person_id: record });
-    const view = await page(m);
-    expect(view.text).not.toContain(`/history/${record}/claim`);
-  });
-});
-
 describe('the two non-claiming answers', () => {
-  // Defect caught: answering "never had one" quietly declines the cards on
-  // screen, or does not show the member what they are leaving, or records
-  // nothing of what was shown.
-  it('declines nothing, names the cards left, and records what was shown', async () => {
+  // Defect caught: a card offers a "This Is Not Me" control, so passing over
+  // a card is a separate per-card answer rather than the step's one answer.
+  it('are the only way past the cards: no card carries a decline control', async () => {
+    const sn = surname();
+    const record = insertHistoricalPerson(db, { person_name: `Joy ${sn}` });
+    const m = registrant({ real_name: `Joy ${sn}` });
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(view.text).toContain(`/history/${record}/claim`);
+    expect(view.text).not.toContain('/register/wizard/legacy_claim/decline');
+    expect(view.text).toContain('action="/register/wizard/legacy_claim/continue-without-linking"');
+  });
+
+  // Defect caught: answering "never had one" leaves the step pending, or
+  // records nothing of the cards that were passed over.
+  it('completes the step and records what was shown', async () => {
     const sn = surname();
     const record = insertHistoricalPerson(db, { person_name: `Max ${sn}` });
     const m = registrant({ real_name: `Max ${sn}` });
 
-    const view = await page(m);
-    expect(view.text).toContain('These suggestions stay unanswered');
-    expect(view.text).toContain(`Max ${sn}`);
-
     const res = await post(`${CLAIM_STEP}/continue-without-linking`, m, { no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
-    expect(count('SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?', m)).toBe(0);
     const [answered] = auditRows(m, 'legacy.claim_step_answered');
     const meta = JSON.parse(answered.metadata_json) as { answer: string; shown: Array<{ record_id: string | null }> };
     expect(meta.answer).toBe('never_had_one');
@@ -438,10 +441,7 @@ describe('answers the step no longer takes', () => {
 
     const claim = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(claim.status).toBe(303);
-    const decline = await post(`${CLAIM_STEP}/decline`, m, { accountId: account, recordId: '' });
-    expect(decline.status).toBe(303);
     expect(links(m).legacy_member_id).toBeNull();
-    expect(count('SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?', m)).toBe(0);
   });
 
   // Defect caught: a claim runs before the date of birth the matching depends
@@ -454,10 +454,7 @@ describe('answers the step no longer takes', () => {
 
     const claim = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(claim.status).toBe(303);
-    const decline = await post(`${CLAIM_STEP}/decline`, m, { accountId: account, recordId: '' });
-    expect(decline.status).toBe(303);
     expect(links(m).legacy_member_id).toBeNull();
-    expect(count('SELECT COUNT(*) AS n FROM legacy_claim_declines WHERE member_id = ?', m)).toBe(0);
   });
 
   // Defect caught: claim attempts are unlimited, so a member can script

@@ -23,7 +23,7 @@
  *     write records.
  *
  * Does not own:
- *   - Any write. The claim transactions, declines, anchor additions and the
+ *   - Any write. The claim transactions, anchor additions and the
  *     wizard task state belong to IdentityAccessService and
  *     MemberOnboardingService, which call this module to decide and then write.
  *   - Rendering. The wizard and the administrator's views shape their own
@@ -33,15 +33,18 @@
  *   - Every rule is its own named function, so each is tested on its own and
  *     no other file computes a match, a confidence, corroboration or a surname
  *     result.
- *   - A name alone never makes an old account claimable: an account needs an
- *     email hit or an identical, non-placeholder date of birth.
+ *   - An old account that carries an email address or a non-placeholder date
+ *     of birth is claimable only when the member's email or identical date
+ *     corroborates it, however it is reached, alone or through the record
+ *     linked to it. An account carrying neither (built from the site mirror)
+ *     and a record with no account are claimable on the name and the surname
+ *     rule.
  *   - The audit evidence block carries ids, keys, signals and outcomes only:
  *     never a name, a date of birth or a raw address. Addresses appear as
  *     login-or-anchor references plus a keyed hash.
  *   - Rendering writes nothing; the module only reads.
  *
- * Persistence: reads members, member_declared_anchors, legacy_claim_declines,
- * member_onboarding_tasks, legacy_members, historical_persons, name_variants
+ * Persistence: reads members, member_declared_anchors, member_onboarding_tasks, legacy_members, historical_persons, name_variants
  * and given_name_variants. Writes nothing.
  *
  * Side effects: none.
@@ -51,12 +54,10 @@
 import {
   declaredAnchors,
   legacyClaim,
-  legacyClaimDeclines,
   legacyMembers,
   memberOnboarding,
   nameVariants,
   type HistoricalPersonClaimRow,
-  type LegacyClaimDeclineRow,
   type LegacyMemberRow,
 } from '../db/db';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
@@ -81,7 +82,6 @@ export interface MemberEvidence {
   country: string | null;
   heldAccountId: string | null;
   heldRecordId: string | null;
-  declinedIds: ReadonlySet<string>;
 }
 
 export type SurnameBasis =
@@ -107,7 +107,7 @@ export type CandidateStatus = 'claimable' | 'needs_former_surname' | 'needs_admi
 
 export type Refusal =
   | 'already_mine' | 'deceased' | 'held_by_other' | 'no_account_name'
-  | 'declined' | 'incompatible_with_held'
+  | 'incompatible_with_held'
   | 'surname_mismatch'
   | 'uncorroborated';
 
@@ -168,15 +168,9 @@ function readMemberEvidence(memberId: string): MemberEvidence | null {
   const anchors = declaredAnchors.listByMember.all(memberId) as Array<{
     id: string; anchor_type: string; anchor_value: string;
   }>;
-  const declines = legacyClaimDeclines.listByMember.all(memberId) as LegacyClaimDeclineRow[];
   const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
     | { birth_date_changes: number | null } | undefined;
   const parts = nameMatchParts(m.real_name);
-  const declinedIds = new Set<string>();
-  for (const d of declines) {
-    if (d.legacy_member_id) declinedIds.add(d.legacy_member_id);
-    if (d.historical_person_id) declinedIds.add(d.historical_person_id);
-  }
   return {
     memberId: m.id,
     realName: m.real_name,
@@ -195,7 +189,6 @@ function readMemberEvidence(memberId: string): MemberEvidence | null {
     country: m.country,
     heldAccountId: m.legacy_member_id,
     heldRecordId: m.historical_person_id,
-    declinedIds,
   };
 }
 
@@ -490,6 +483,20 @@ function corroborated(unit: Unit, sig: readonly Signal[]): boolean {
 }
 
 /**
+ * R12. Whether an old account carries anything to corroborate against: an
+ * email address or a non-placeholder date of birth. Accounts from the legacy
+ * member data carry them; accounts the pipeline built from the site mirror
+ * carry neither, so no member could ever corroborate one.
+ */
+function canBeCorroborated(account: LegacyMemberRow | null): boolean {
+  if (!account) return false;
+  if ([account.legacy_email, account.legacy_email2, account.legacy_email3].some((e) => (e ?? '').trim() !== '')) {
+    return true;
+  }
+  return account.birth_date !== null && !isPlaceholderBirthDate(account.birth_date);
+}
+
+/**
  * R13. Two or more signals is high. One signal is medium when it is an email,
  * a date of birth or an exact name, and low when it is a name variant. A
  * disagreeing date or country never lowers it.
@@ -524,15 +531,11 @@ function statusFor(
   if (unit.accountId && !unit.recordId && !(unit.account?.real_name ?? '').trim()) {
     return { status: 'hidden', refusal: 'no_account_name', heldBy: null };
   }
-  if ((unit.accountId && evidence.declinedIds.has(unit.accountId))
-    || (unit.recordId && evidence.declinedIds.has(unit.recordId))) {
-    return { status: 'hidden', refusal: 'declined', heldBy: null };
-  }
   if ((unit.accountId && evidence.heldAccountId && evidence.heldAccountId !== unit.accountId)
     || (unit.recordId && evidence.heldRecordId && evidence.heldRecordId !== unit.recordId)) {
     return { status: 'hidden', refusal: 'incompatible_with_held', heldBy: null };
   }
-  if (unit.accountId && !isCorroborated) return { status: 'needs_admin', refusal: 'uncorroborated', heldBy: null };
+  if (unit.accountId && canBeCorroborated(unit.account) && !isCorroborated) return { status: 'needs_admin', refusal: 'uncorroborated', heldBy: null };
   if (!surnameOk) return { status: 'needs_former_surname', refusal: 'surname_mismatch', heldBy: null };
   return { status: 'claimable', refusal: null, heldBy: null };
 }
