@@ -4,9 +4,8 @@ Real in-memory SQLite with the referencing tables and their unique indexes:
 
   * build-time pipeline references (historical_persons, club affiliations,
     club bootstrap leaders) remap loser -> survivor;
-  * live-entity references (members, legacy_claim_declines,
-    an existing legacy_members row, a claimed bootstrap leadership) hard-abort
-    before any mutation;
+  * live-entity references (members, an existing legacy_members row, a
+    claimed bootstrap leadership) hard-abort before any mutation;
   * a uniqueness collision that is an exact duplicate is deduplicated, one that
     is not is aborted, and two different canonical persons never fuse;
   * the collapsed loser's own legacy_members row is deleted after the remap, but
@@ -33,10 +32,6 @@ CREATE TABLE legacy_members (
   import_source TEXT
 );
 CREATE TABLE members (
-  id TEXT PRIMARY KEY,
-  legacy_member_id TEXT
-);
-CREATE TABLE legacy_claim_declines (
   id TEXT PRIMARY KEY,
   legacy_member_id TEXT
 );
@@ -131,7 +126,6 @@ def test_pipeline_references_remap_to_survivor():
     lambda cur: _ins(cur, "legacy_members", legacy_member_id="200",
                      import_source="legacy_site_data"),
     lambda cur: _ins(cur, "members", id="m1", legacy_member_id="200"),
-    lambda cur: _ins(cur, "legacy_claim_declines", id="d1", legacy_member_id="200"),
     lambda cur: _ins(cur, "club_bootstrap_leaders", id="b1", club_id="cl1",
                      legacy_member_id="200", role="leader", claimed_member_id="m9"),
 ])
@@ -158,7 +152,7 @@ def test_a_bootstrap_fixture_row_is_not_live_evidence():
     _seed_survivor(cur, "100")
     _ins(cur, "historical_persons", person_id="pX", legacy_member_id="200")
     _ins(cur, "legacy_members", legacy_member_id="200", import_source="system_fixture")
-    # Does not raise: the four checks that name an actual live entity are empty.
+    # Does not raise: the three checks that name an actual live entity are empty.
     mm.precheck_live_references(cur, {"200"})
 
 
@@ -292,7 +286,7 @@ def test_abort_inside_transaction_rolls_everything_back():
 
 def test_verify_flags_a_dangling_loser():
     conn = _db(); cur = conn.cursor()
-    _ins(cur, "legacy_claim_declines", id="d1", legacy_member_id="200")
+    _ins(cur, "members", id="m1", legacy_member_id="200")
     with pytest.raises(mm.MergeAbort):
         mm.verify_no_loser_remains(cur, {"200"})
 
@@ -372,7 +366,6 @@ def test_synthetic_final_apply_leaves_no_dangling_loser(tmp_path):
         ("legacy_person_club_affiliations", "legacy_member_id"),
         ("club_bootstrap_leaders", "legacy_member_id"),
         ("members", "legacy_member_id"),
-        ("legacy_claim_declines", "legacy_member_id"),
     ])
     con.close()
     assert dangling == 0

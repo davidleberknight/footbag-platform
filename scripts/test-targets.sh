@@ -28,6 +28,12 @@
 #     of the suite and grep to hundreds of false hits on names like `db` and
 #     `env`. They get their own suite plus the three app-wide sweeps as a canary,
 #     and a note that the full gate is needed at the end of the session.
+#   - Browser specs and the legacy pytest files are targeted too, as CHECK
+#     lines: a changed spec runs itself, a page object the specs naming it, a
+#     page template the specs named for it, a legacy Python module the pytest
+#     files naming it. A schema change that creates or drops a table reaches
+#     every vitest, browser and pytest file naming that table, because a test
+#     still naming a dropped table fails wherever it lives.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -76,6 +82,8 @@ else
 fi
 
 TESTS=()
+SPECS=()
+PYTESTS=()
 CHECKS=()
 NOTES=()
 
@@ -86,14 +94,46 @@ add_check() {
 }
 note() { NOTES+=("$1"); }
 
-# A vitest target: an existing unit or integration *.test.ts. The browser, smoke
-# and dev tiers need their own stack or environment and are not targeted runs.
+# A vitest target: an existing unit or integration *.test.ts. The browser tier
+# is targeted separately below; the smoke and dev tiers need a live environment
+# or a real local member load and are not targeted runs.
 add_test() {
   case "$1" in
     tests/e2e/*|tests/smoke/*|tests/dev/*) return 0 ;;
     *.test.ts) [ -f "$1" ] && TESTS+=("$1") ;;
   esac
   return 0
+}
+
+# A browser spec, run on its own through Playwright, which starts its own stack.
+# The deployed-site checks point at a live environment and are never targeted.
+add_spec() {
+  case "$1" in
+    tests/e2e/deployed/*) return 0 ;;
+    tests/e2e/*.spec.ts) [ -f "$1" ] && SPECS+=("$1") ;;
+  esac
+  return 0
+}
+
+add_pytest() { [ -f "$1" ] && PYTESTS+=("$1"); return 0; }
+
+# Browser specs and legacy pytest files that name $1 as a whole word.
+specs_naming() {
+  grep -rlwF --include='*.spec.ts' -- "$1" tests/e2e 2>/dev/null || true
+}
+pytests_naming() {
+  grep -rlwF --include='test_*.py' -- "$1" legacy_data/tests legacy_data/legacy_mirror/tests 2>/dev/null || true
+}
+
+
+# Tables a working-tree change to the schema creates or drops. A dropped table
+# breaks every test that still names it, in whichever tier that test lives, and
+# none of those is reached by grepping for the schema file itself.
+schema_tables_changed() {
+  git diff HEAD -- "$1" 2>/dev/null \
+    | grep -E '^[-+]CREATE TABLE' \
+    | sed -E 's/^[-+]CREATE TABLE (IF NOT EXISTS )?([A-Za-z0-9_]+).*/\2/' \
+    | sort -u || true
 }
 
 # Test files that name $1 as a whole word (fixed string).
@@ -139,16 +179,21 @@ camel() {
   printf '%s' "$out"
 }
 
-# Collect the output of a command as test targets; true when any were found.
-collect() {
-  local f found=1
+# Collect the output of a command as targets of one tier, through that tier's
+# add function; true when any were found.
+collect_with() {
+  local adder="$1" f found=1
+  shift
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    add_test "$f"
+    "$adder" "$f"
     found=0
   done < <("$@")
   return "$found"
 }
+collect() { collect_with add_test "$@"; }
+collect_specs() { collect_with add_spec "$@"; }
+collect_pytests() { collect_with add_pytest "$@"; }
 
 script_tests() {
   local base="$1" stem
@@ -181,6 +226,15 @@ map_path() {
     package.json|package-lock.json|tsconfig*.json)
       add_check "npm run build"
       high_fan_out "$p"
+      if [ "$p" = database/schema.sql ]; then
+        local t
+        while IFS= read -r t; do
+          [ -n "$t" ] || continue
+          collect naming "$t" || true
+          collect_specs specs_naming "$t" || true
+          collect_pytests pytests_naming "$t" || true
+        done < <(schema_tables_changed "$p")
+      fi
       return ;;
   esac
 
@@ -199,12 +253,23 @@ map_path() {
       add_check "bash scripts/ci/check_ci_parity.sh"
       note "$p runs in CI on push"
       return ;;
-    tests/e2e/*|tests/smoke/*|tests/dev/*)
+    tests/e2e/deployed/*|tests/smoke/*|tests/dev/*)
       note "$p is checked only by the full gate"
+      return ;;
+    tests/e2e/*.spec.ts)
+      add_spec "$p"
+      return ;;
+    tests/e2e/*)
+      # A page object or helper reaches the browser specs that import it.
+      collect_specs specs_naming "$stem" || note "$p is checked only by the full gate"
       return ;;
     legacy_data/*|freestyle/*|*.py)
       collect naming "$base" || true
-      note "$p: the Python suites and database guards run only in the full gate"
+      case "$base" in
+        test_*.py) add_pytest "$p" ;;
+        *.py) collect_pytests pytests_naming "$stem" || true ;;
+      esac
+      note "$p: the whole Python suites and database guards run only in the full gate"
       return ;;
     terraform/*)
       collect naming "$p" || true
@@ -257,6 +322,11 @@ map_path() {
       for g in "${CONFORMANCE_GLOBS[@]}"; do
         collect find tests/unit -maxdepth 1 -name "$g" -type f || true
       done
+      # A browser spec named for the page drives the template a route suite
+      # only renders: the wizard steps are the case this exists for.
+      case "$base" in
+        *.hbs) collect_specs find tests/e2e -maxdepth 1 -name "*${stem}*.spec.ts" -type f || true ;;
+      esac
       return ;;
     src/services/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"
@@ -298,6 +368,21 @@ if [ "${#TESTS[@]}" -gt 0 ]; then
   echo "VITEST: npx vitest run --reporter=dot ${TESTS[*]}"
   if [ "${#TESTS[@]}" -gt "$BUDGET" ]; then
     note "over budget (${#TESTS[@]} files, budget $BUDGET); re-target to the suites of the changed behaviour"
+  fi
+fi
+if [ "${#SPECS[@]}" -gt 0 ]; then
+  mapfile -t SPECS < <(printf '%s\n' "${SPECS[@]}" | sort -u)
+  add_check "npm run test:e2e -- ${SPECS[*]}"
+fi
+if [ "${#PYTESTS[@]}" -gt 0 ]; then
+  mapfile -t PYTESTS < <(printf '%s\n' "${PYTESTS[@]}" | sort -u)
+  # The legacy suites write bytecode and a cache beside the source unless both
+  # are pointed away, the same as the full gate's own pytest invocation.
+  if py="$(source scripts/lib/python-env.sh 2>/dev/null && footbag_python pipeline fail 2>/dev/null)"; then
+    py="${py#"$REPO_ROOT"/}"
+    add_check "PYTHONPYCACHEPREFIX=\"\${TMPDIR:-/tmp}/footbag-pytest-pycache\" $py -m pytest -q -p no:cacheprovider ${PYTESTS[*]}"
+  else
+    note "pytest files reached (${PYTESTS[*]}), but the legacy pipeline environment is missing; build it with: bash legacy_data/run_pipeline.sh venv"
   fi
 fi
 for c in "${CHECKS[@]+"${CHECKS[@]}"}"; do echo "CHECK: $c"; done

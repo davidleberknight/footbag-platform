@@ -122,7 +122,7 @@ describe('test-targets.sh — non-test checks and limits', () => {
     expect(r.notes).toEqual(['docs/TESTING.md: verify by re-reading']);
   });
 
-  it('never targets the browser or staging smoke tiers', () => {
+  it('never targets the staging smoke tier', () => {
     const r = run(['tests/smoke/captcha.smoke.test.ts']);
     expect(r.tests).toEqual([]);
     expect(r.notes).toEqual(['tests/smoke/captcha.smoke.test.ts is checked only by the full gate']);
@@ -141,6 +141,75 @@ describe('test-targets.sh — non-test checks and limits', () => {
     const r = run(files);
     expect(r.tests).toHaveLength(26);
     expect(r.notes.join('\n')).toContain('over budget (26 files, budget 25)');
+  });
+});
+
+describe('test-targets.sh — browser specs and legacy pytest files', () => {
+  // Both tiers used to print only a full-gate note, so a change to a wizard
+  // template or a dropped table reached CI with none of its failing tests run.
+  const e2eCheck = (checks: string[]) => checks.find((c) => c.startsWith('npm run test:e2e -- ')) ?? '';
+
+  it('runs a changed browser spec on its own', () => {
+    const r = run(['tests/e2e/member-onboarding-legacy-claim.spec.ts']);
+    expect(r.tests).toEqual([]);
+    expect(e2eCheck(r.checks)).toBe('npm run test:e2e -- tests/e2e/member-onboarding-legacy-claim.spec.ts');
+  });
+
+  it('reaches the browser spec named for a wizard template', () => {
+    const r = run(['src/views/register/wizard/legacy-claim.hbs']);
+    expect(e2eCheck(r.checks)).toContain('tests/e2e/member-onboarding-legacy-claim.spec.ts');
+  });
+
+  it('never targets the deployed-site checks, which point at a live environment', () => {
+    const r = run(['tests/e2e/deployed/deployed-browser.spec.ts']);
+    expect(e2eCheck(r.checks)).toBe('');
+    expect(r.notes).toEqual(['tests/e2e/deployed/deployed-browser.spec.ts is checked only by the full gate']);
+  });
+
+  it('reaches the pytest file naming a changed legacy module', () => {
+    // The pipeline environment is machine-local: with it the file is a CHECK,
+    // without it a NOTE naming the file. Either way it is not silently dropped.
+    const r = run(['legacy_data/member_data_scripts/member_merge.py']);
+    expect([...r.checks, ...r.notes].join('\n')).toContain('legacy_data/tests/test_member_merge.py');
+  });
+});
+
+describe('test-targets.sh — a schema change reaches the tests naming its tables', () => {
+  const repo = createScratchDir('test-targets-schema');
+  afterAll(() => removeScratch(repo));
+
+  it('reaches every tier naming a dropped table, and nothing naming an untouched one', () => {
+    for (const d of ['scripts', 'database', 'tests/e2e', 'tests/integration', 'legacy_data/tests']) {
+      mkdirSync(join(repo, d), { recursive: true });
+    }
+    copyFileSync(SCRIPT, join(repo, 'scripts/test-targets.sh'));
+    const schema = 'CREATE TABLE kept_table (\n  id TEXT\n);\nCREATE TABLE dropped_table (\n  id TEXT\n);\n';
+    writeFileSync(join(repo, 'database/schema.sql'), schema);
+    writeFileSync(join(repo, 'legacy_data/tests/test_dropped.py'), 'SQL = "SELECT 1 FROM dropped_table"\n');
+    writeFileSync(join(repo, 'legacy_data/tests/test_kept.py'), 'SQL = "SELECT 1 FROM kept_table"\n');
+    writeFileSync(join(repo, 'tests/e2e/dropped.spec.ts'), "const t = 'dropped_table';\n");
+    writeFileSync(join(repo, 'tests/integration/dropped.test.ts'), "const t = 'dropped_table';\n");
+    const git = (...a: string[]) =>
+      spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], {
+        cwd: repo,
+        encoding: 'utf8',
+        ...SPAWN_GUARD,
+      });
+    expect(git('init', '-q').status).toBe(0);
+    expect(git('add', '.').status).toBe(0);
+    expect(git('commit', '-qm', 'base').status).toBe(0);
+
+    writeFileSync(join(repo, 'database/schema.sql'), 'CREATE TABLE kept_table (\n  id TEXT\n);\n');
+
+    const r = run(['database/schema.sql'], join(repo, 'scripts/test-targets.sh'), repo);
+    expect(r.status).toBe(0);
+    expect(r.tests).toContain('tests/integration/dropped.test.ts');
+    expect(e2eCheck(r.checks)).toBe('npm run test:e2e -- tests/e2e/dropped.spec.ts');
+    // The scratch repository has no pipeline environment, so the pytest file
+    // arrives in the note that says so.
+    const pytestNote = r.notes.find((n) => n.startsWith('pytest files reached')) ?? '';
+    expect(pytestNote).toContain('legacy_data/tests/test_dropped.py');
+    expect(pytestNote).not.toContain('test_kept.py');
   });
 });
 

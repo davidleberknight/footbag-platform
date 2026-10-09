@@ -128,7 +128,6 @@ ADMINISTRATOR_OWNED_COLUMNS = ("is_deceased", "aliases", "notes", "source")
 # is reported as an unknown owner rather than silently trusted.
 HISTORICAL_PERSON_REFERENCE_OWNERS = {
     "members": "app / member claim",
-    "legacy_claim_declines": "app / claim-step declines",
     "legacy_person_club_affiliations": "enrichment (loader 09)",
     "freestyle_records": "freestyle records (loader 10)",
     "net_team": "net teams (loader 13)",

@@ -160,7 +160,7 @@ def test_notice_replaces_the_dashboard_on_every_member_area_page(env):
         # actually live.
         assert 'static snapshot of the legacy footbag.org' in after
         assert 'member sign-in and member search do not work here' in after
-        assert '/members/profile/11983' in after
+        assert '/members/profile/11983/index.html' in after
         assert mirror_script.LIVE_SITE_URL in after
 
 

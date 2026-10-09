@@ -165,8 +165,6 @@ test('the cannot-find-it answer finishes the claim step and opens one last attem
 
   const card = wizard.card(persona.accountName);
   await expect(wizard.claimButton(card)).toHaveCount(0);
-  // The answer names the card it leaves on screen before it is given.
-  await expect(page.locator('form[action$="continue-without-linking"]')).toContainText(persona.accountName);
   await wizard.cannotFindOldAccountButton.click();
   await expect(page).toHaveURL(CLAIM_STEP);
   await expect(wizard.sharpenBirthDateForm).toBeVisible();

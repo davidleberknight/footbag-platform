@@ -6413,7 +6413,7 @@ MEMBER_AREA_NOTICE_BODY = (
     'and member search do not work here.</p>\n'
     '<p>Legacy member pages are still here for club members, event participants '
     'and media publishers. If you know a member&#39;s legacy id you can type it '
-    'into the address bar, for example /members/profile/11983.</p>\n'
+    'into the address bar, for example /members/profile/11983/index.html.</p>\n'
     f'<p>For current members, go to the live site: '
     f'<a href="{LIVE_SITE_URL}">www.footbag.org</a></p>\n'
     '</div>\n</div>'
