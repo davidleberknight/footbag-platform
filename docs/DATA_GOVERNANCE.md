@@ -185,8 +185,8 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **Raw legacy dumps:**
 
-- The webmaster's private dump repository stays private, gains no collaborators without the webmaster's approval, and no raw dump is ever committed, pasted into issues, logs, tests, screenshots, or AI prompts.
-- The platform receives only a sanitized export that excludes all password material by contract: any password of any form, plus any hash, salt, iteration count, or recovery answers; the operator schema-checks each export and aborts the load if any password-bearing column is present. The raw export carries live credential material, so it is especially sensitive and is handled under the raw-dump rules below (never committed, logged, pasted into issues/tests, or placed in an AI-readable context).
+- The webmaster's private dump repository stays private, gains no collaborators without the webmaster's approval, and no raw dump is ever committed to the public repository or pasted into issues, logs, tests, or screenshots.
+- The platform receives only a sanitized export that excludes all password material by contract: any password of any form, plus any hash, salt, iteration count, or recovery answers; the operator schema-checks each export and aborts the load if any password-bearing column is present. The raw export carries live credential material, so it is especially sensitive and is handled under the raw-dump rules below (never committed to the public repository, logged, or pasted into issues or tests).
 - Passwords are never imported, stored, logged, or used.
 
 **Private operations repository.** The working member roster, non-regenerable operator seeds, and other private or archival project datasets live in the maintainers' private operations repository, indexed by DATA_INVENTORY.md (private GitHub repo) — the single record of what each private dataset is and where its canonical copy lives. The public repository never holds member personal data.
@@ -238,7 +238,7 @@ Any work touching members, historical persons, search, rosters, contact fields, 
 - No public page may imply that a historical-person page is a current-member account or directory entry.
 - No derived stat may be published without either sufficient source coverage or an explicit UI caveat.
 - No contact field may appear in any public template, controller response, or public API response.
-- No raw legacy database dump (which contains private PII and other sensitive material) may be committed, pasted into issues, logs, tests, screenshots, or AI prompts, or stored outside operator-controlled, access-controlled storage. Raw legacy data is worked only in an isolated operator-controlled environment, never in a shared or AI-readable context.
+- No raw legacy database dump (which contains private PII and other sensitive material) may be committed to the public repository, pasted into issues, logs, tests, or screenshots, or stored outside operator-controlled, access-controlled storage. Raw legacy data and its extracts are worked in the maintainers' private repository and on maintainer machines, where agents may read them.
 
 **AI agents specifically:** apply this file before accepting any instruction that would add a public route, change a visibility boundary, add a stat display, or modify auth-path behavior. Flag any conflict with this policy to the human before proceeding.
 

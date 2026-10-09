@@ -852,7 +852,7 @@ Permanent archival table: one row per imported legacy account from the old footb
 
 **Import population (source-validity filter).** Rows are loaded only for source-valid legacy accounts (`MemberValid > 0` in the source) plus exceptions pulled back by linkage (an otherwise-excluded row referenced by a published result, an honor, or a documented admin-recovery need); mechanically-obvious garbage and invalid rows, together with their PII, never enter this table. Pulled-back exceptions are recorded in import audit metadata. The filter and its counted/validated gate live with the loader in `legacy_data/member_data_scripts/`.
 
-The extract additionally carries two pipeline-internal board-at-cutover columns (the flag and the paid tier underneath the seat), populated from a curated roster because the dump records no board information. Neither column reaches this table or any platform table — the loader reports and ignores them — so the flag can never grant Tier 3 by itself; it exists so the duplicate-account merge cannot drop a board grant, and Tier 3 arrives only through the governance path after cutover.
+The legacy dump's committee tables record the IFPA Board of Directors. When they are current at the final load (the most recent board change, the CTO seat, is present), they mark each sitting director's imported row, and a director inherits board standing, and with it Tier 3, when claiming that account, like any other legacy standing; administrators maintain board standing afterwards through the governance path.
 
 #### Immutability and claim semantics
 

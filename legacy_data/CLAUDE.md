@@ -19,12 +19,12 @@ upstream only, QC before done) and this file does not restate them.
 
 ## Source of truth
 
-- **Curated data outranks the dump and the mirror where they disagree about the same row's value**,
+- **Curated data outranks the dump and the mirror whenever they leave a choice**,
   because a curated file is a human decision about what is true while the other two record what the
   old system happened to store, damage included. This is a per-row override precedence for club and
   member data, not a global ranking: the results lanes are split by era, so a cross-source collision
   there is an error to fix rather than a disagreement to adjudicate.
-- **The dump stays authoritative for whether a row exists**, and supplies the values for rows that
+- **Where no curated decision exists, the dump decides whether a row exists**, and supplies the values for rows that
   exist nowhere else. Legacy deletion was soft (the approval flag set false, the row kept), so a
   deleted club has no page left to crawl and the dump is the only source that knows it existed.
 - **A correction belongs upstream, never in a regenerated artifact.** No stage of

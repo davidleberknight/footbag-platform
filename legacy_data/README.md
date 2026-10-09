@@ -104,8 +104,8 @@ snapshot lives under `database/snapshots/` instead.
 
 **Testing.** CI's `db-load-smoke` gate and `npm test` run against committed Tier-1
 data only. A small set of tests needs Tier-2 data — the persona-crawl gate needs the
-roster and skips on a clone without it; a tester who must run those gets the gitignored
-roster from the maintainer who owns the legacy-data handoff.
+roster and skips on a clone without it; a tester who must run those gets access
+to the maintainers' private repository, which holds the roster.
 
 ---
 
@@ -126,7 +126,7 @@ script reads is committed.
 
 | CSV (path / glob) | Git | Read by | What it is |
 |---|---|---|---|
-| `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); operator handoff, not regenerable |
+| `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); lives in the maintainers' private repository; not regenerable |
 | `stage_a_adjudication.csv`, `entitlement_dispositions.csv` (in `private_data/stage_a_overrides/`) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` (which resolves them by canonical path and passes them to the reconciler's final merge) | recorded human rulings about which duplicate legacy accounts are the same person, and the entitlement disposition per merged set; fingerprinted, failing closed against an extract they were not adjudicated on |
 | `board_at_cutover.csv` (same private directory) | **private checkout, never committed here** | `member_data_scripts/extract_legacy_members.py`, resolved and passed by the runner | the directors sitting at cutover, each with the paid tier underneath the seat; validated and fingerprinted against the dump it is applied to, same fail-closed contract as the rulings |
 | `person_link_holds.csv`, `review_resolutions.csv` (same private directory) | **private checkout, never committed here** | accepted by the reconciler; not passed by the runner today (whether the production load applies them is an open ruling in the maintainers' private tracker) | recorded holds on historical-person links, and review-outcome rulings |
