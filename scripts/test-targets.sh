@@ -23,6 +23,12 @@
 #   - Services and controllers are mostly tested through route suites named by
 #     kebab-case domain (`hofService` -> `hof-bap-index.routes.test.ts`); about
 #     40% of services and nearly every controller are never named by a test.
+#   - A page template is followed to the routes that render it (its render
+#     call, the handler around that call, the route registered with the
+#     handler), and every suite requesting one of those paths is selected:
+#     route suites reach a page by its URL, rarely by its file name. Those
+#     suites count toward the budget but are reported as required, never as
+#     candidates to trim.
 #   - High-fan-out modules (the database layer, the schema, the app, routes,
 #     middleware, env config, the shared factories and test database) reach most
 #     of the suite and grep to hundreds of false hits on names like `db` and
@@ -82,6 +88,7 @@ else
 fi
 
 TESTS=()
+PAGE_TESTS=()
 SPECS=()
 PYTESTS=()
 CHECKS=()
@@ -203,6 +210,78 @@ script_tests() {
   naming "$base"
 }
 
+# The URL paths of the routes that render the page template $1, one per line.
+# The render call names the view; the nearest handler signature above it names
+# the controller method; the route registered with that method names the path.
+# A parameterized path is cut to its fixed prefix (`/freestyle/tricks/:slug`
+# -> `/freestyle/tricks/`); a prefix of `/` alone would match every page and is
+# dropped.
+template_routes() {
+  local view ctl var line method rfile rline from path router mount
+  view="${1#src/views/}"; view="${view%.hbs}"
+  while IFS= read -r ctl; do
+    var="$(basename "${ctl%.ts}")"
+    while IFS= read -r line; do
+      # A handler is an object method, an arrow assigned to a name, or a
+      # function declaration, whose first parameter is the request and whose
+      # line opens its body; a call passing `req` on ends in `;` instead.
+      method="$(head -n "$line" "$ctl" \
+        | sed -nE 's/^[[:space:]]*(export[[:space:]]+)?(const[[:space:]]+)?(async[[:space:]]+)?(function[[:space:]]+)?([A-Za-z0-9_]+)[[:space:]]*(\(|[:=][[:space:]]*(async[[:space:]]*)?\()_?req\b.*\{[[:space:]]*$/\5/p' \
+        | tail -n 1)"
+      [ -n "$method" ] || continue
+      while IFS=: read -r rfile rline; do
+        from=$(( rline > 3 ? rline - 3 : 1 ))
+        path="$(sed -n "${from},${rline}p" "$rfile" | grep -oE "['\"]/[^'\"]*['\"]" | tail -n 1 | tr -d "'\"")"
+        [ -n "$path" ] || continue
+        # A router mounted under a prefix (`app.use('/admin', adminRouter)`)
+        # registers its paths relative to it.
+        router="$(sed -nE 's/^export const ([A-Za-z0-9_]+)[[:space:]]*=[[:space:]]*Router\(.*/\1/p' "$rfile" | head -n 1)"
+        mount=""
+        if [ -n "$router" ]; then
+          mount="$(sed -nE "s/.*app\.use\(['\"](\/[^'\"]*)['\"],[[:space:]]*${router}\b.*/\1/p" src/app.ts | head -n 1)"
+        fi
+        if [ -n "$mount" ] && [ "$mount" != "/" ]; then
+          if [ "$path" = "/" ]; then path="$mount"; else path="${mount}${path}"; fi
+        fi
+        path="${path%%:*}"
+        [ -n "$path" ] && [ "$path" != "/" ] && printf '%s\n' "$path"
+      done < <(grep -nwE "${var}\.${method}" src/routes/*.ts 2>/dev/null | cut -d: -f1,2)
+    done < <(grep -nE "render\(['\"]${view}['\"]" "$ctl" | cut -d: -f1)
+  done < <(grep -lE "render\(['\"]${view}['\"]" src/controllers/*.ts 2>/dev/null)
+}
+
+# Suites that request the URL path $1 as a quoted string, optionally followed by
+# a query string; a path ending in `/` is a parameterized route's prefix and
+# needs at least one more character. Anchor links into the page from other
+# pages (`#...`) render a different page and are not counted.
+route_suites() {
+  local re
+  # Route paths carry letters, digits, `/`, `-`, `_` and `.`; only the dot is
+  # special in a pattern.
+  re="$(printf '%s' "$1" | sed 's/\./\\./g')"
+  case "$1" in
+    */) re="['\"\`]${re}[^'\"\`]" ;;
+    *)  re="['\"\`]${re}['\"\`?]" ;;
+  esac
+  grep -rlE --include='*.test.ts' -- "$re" tests/unit tests/integration 2>/dev/null || true
+}
+
+# A page template's suites: those requesting a route that renders it. Each is
+# recorded as a page suite so the budget can say it is required coverage.
+page_suites() {
+  local p="$1" route f found=1
+  while IFS= read -r route; do
+    [ -n "$route" ] || continue
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      add_test "$f"
+      PAGE_TESTS+=("$f")
+      found=0
+    done < <(route_suites "$route")
+  done < <(template_routes "$p" | sort -u)
+  return "$found"
+}
+
 high_fan_out() {
   local p="$1" stem
   stem="$(basename "${p%.*}")"
@@ -306,18 +385,28 @@ map_path() {
       collect naming "$base" || collect naming "$stem" || no_tests "$p"
       return ;;
     src/views/*|*.css)
-      # A page template maps to the domain suite named for it, else the
-      # domain's own route suite; a partial or layout to the suites naming it
-      # and the route crawl, which renders every reachable page.
+      # A page template maps to every suite requesting a route that renders
+      # it, plus the domain suite named for it, else the domain's own route
+      # suite; a partial or layout to the suites naming it and the route crawl,
+      # which renders every reachable page.
       domain="$(printf '%s' "$p" | sed -nE 's#^src/views/([^/]+)/.*#\1#p')"
       case "$domain" in
         partials|layouts)
           collect naming "$stem" || true
           add_test "${CANARY[0]}" ;;
         ?*)
-          collect named_like "${domain}*${stem}*.test.ts" \
-            || collect named_like "${domain}.routes.test.ts" \
-            || no_tests "$p" ;;
+          local named=0 routed=0
+          if collect named_like "${domain}*${stem}*.test.ts" \
+            || collect named_like "${domain}.routes.test.ts"; then
+            named=1
+          fi
+          # A suite reading the template file itself names it by file name.
+          if collect naming "$base"; then named=1; fi
+          if page_suites "$p"; then routed=1; fi
+          if [ "$routed" -eq 0 ]; then
+            note "$p: no route found that renders it; suites chosen by file name only"
+            if [ "$named" -eq 0 ]; then no_tests "$p"; fi
+          fi ;;
       esac
       for g in "${CONFORMANCE_GLOBS[@]}"; do
         collect find tests/unit -maxdepth 1 -name "$g" -type f || true
@@ -366,8 +455,20 @@ done
 if [ "${#TESTS[@]}" -gt 0 ]; then
   mapfile -t TESTS < <(printf '%s\n' "${TESTS[@]}" | sort -u)
   echo "VITEST: npx vitest run --reporter=dot ${TESTS[*]}"
-  if [ "${#TESTS[@]}" -gt "$BUDGET" ]; then
-    note "over budget (${#TESTS[@]} files, budget $BUDGET); re-target to the suites of the changed behaviour"
+  # Suites a changed page's routes require are counted, and the count is
+  # reported, but they are never offered for trimming: dropping one is the
+  # false green this selection exists to prevent. The re-target advice covers
+  # only the rest.
+  page_count=0
+  if [ "${#PAGE_TESTS[@]}" -gt 0 ]; then
+    page_count="$(printf '%s\n' "${PAGE_TESTS[@]}" | sort -u | wc -l)"
+  fi
+  other_count=$(( ${#TESTS[@]} - page_count ))
+  if [ "${#TESTS[@]}" -gt "$BUDGET" ] && [ "$page_count" -gt 0 ]; then
+    note "over budget (${#TESTS[@]} files, budget $BUDGET): page route requires $page_count suites; full route coverage retained"
+  fi
+  if [ "$other_count" -gt "$BUDGET" ]; then
+    note "over budget ($other_count files, budget $BUDGET); re-target to the suites of the changed behaviour"
   fi
 fi
 if [ "${#SPECS[@]}" -gt 0 ]; then

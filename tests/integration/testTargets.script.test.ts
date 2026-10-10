@@ -7,13 +7,13 @@
  * nothing sends a change to verification with no test run, and a row that
  * over-reaches turns the per-change loop back into the full suite.
  */
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { listFiles } from '../fixtures/sourceTree';
+import { listFiles, scanSource } from '../fixtures/sourceTree';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
 const SCRIPT = join(process.cwd(), 'scripts/test-targets.sh');
@@ -105,6 +105,73 @@ describe('test-targets.sh — application source', () => {
     expect(r.tests).toContain('tests/integration/freestyle.add-analysis.routes.test.ts');
     expect(r.tests).toContain('tests/unit/template-no-nested-forms.test.ts');
     expect(r.tests.length).toBeLessThanOrEqual(25);
+  });
+});
+
+/** Suites that request `path` as a quoted string, optionally with a query. */
+function suitesRequesting(path: string, prefixOnly = false): string[] {
+  const escaped = path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const pattern = new RegExp(prefixOnly ? `['"\`]${escaped}[^'"\`]` : `['"\`]${escaped}['"\`?]`);
+  return scanSource(path, { roots: ['tests/unit', 'tests/integration'], exts: ['.ts'] })
+    .filter((f) => f.endsWith('.test.ts'))
+    .filter((f) => pattern.test(readFileSync(join(process.cwd(), f), 'utf8')));
+}
+
+describe('test-targets.sh — a page template reaches the suites requesting its route', () => {
+  // Route suites reach a page by its URL and rarely name its template, so a
+  // selector matching file names alone left most of a page's suites out and
+  // reported a change green while those suites were red.
+  let concepts: ReturnType<typeof run>;
+  beforeAll(() => {
+    concepts = run(['src/views/freestyle/concepts.hbs']);
+  });
+
+  it('selects every suite that requests the route a changed page template renders', () => {
+    const expected = suitesRequesting('/freestyle/concepts');
+    expect(expected.length).toBeGreaterThan(25);
+    const missing = expected.filter((f) => !concepts.tests.includes(f));
+    expect(missing, 'suites requesting /freestyle/concepts left out').toEqual([]);
+  });
+
+  it('includes the suites that request the page by URL but never name its template', () => {
+    for (const f of [
+      'tests/integration/freestyle.routes.test.ts',
+      'tests/integration/freestyle.glossary-connective-panels.routes.test.ts',
+    ]) {
+      expect(concepts.tests, f).toContain(f);
+    }
+  });
+
+  it('includes a suite that reads the template file directly rather than requesting the page', () => {
+    const expected = scanSource('concepts.hbs', { roots: ['tests/unit', 'tests/integration'], exts: ['.ts'] })
+      .filter((f) => f.endsWith('.test.ts') && f !== 'tests/integration/testTargets.script.test.ts');
+    expect(expected).toContain('tests/integration/concepts-difficulty-frontier.test.ts');
+    const missing = expected.filter((f) => !concepts.tests.includes(f));
+    expect(missing, 'suites naming concepts.hbs left out').toEqual([]);
+  });
+
+  it('reports the page suites as required coverage, never as candidates to trim', () => {
+    const note = concepts.notes.find((n) => n.startsWith('over budget')) ?? '';
+    expect(note).toMatch(/page route requires \d+ suites; full route coverage retained/);
+    expect(concepts.notes.join('\n')).not.toContain('re-target');
+  });
+
+  it('follows a parameterized route by its fixed prefix', () => {
+    // /freestyle/sets/:slug renders the set detail page; its suites request
+    // a concrete slug under /freestyle/sets/.
+    const r = run(['src/views/freestyle/set-detail.hbs']);
+    const expected = suitesRequesting('/freestyle/sets/', true);
+    expect(expected.length).toBeGreaterThan(0);
+    const missing = expected.filter((f) => !r.tests.includes(f));
+    expect(missing, 'suites requesting a /freestyle/sets/ page left out').toEqual([]);
+  });
+
+  it('says so when a template cannot be traced to a route, rather than passing on file names quietly', () => {
+    // The error page is rendered by the error handler, never by a route.
+    const r = run(['src/views/errors/error.hbs']);
+    expect(r.notes).toContain(
+      'src/views/errors/error.hbs: no route found that renders it; suites chosen by file name only',
+    );
   });
 });
 
