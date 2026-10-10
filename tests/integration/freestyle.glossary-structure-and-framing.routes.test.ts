@@ -45,41 +45,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/concepts — Reading the layer labels section', () => {
-  it('renders the subsection anchor and heading', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    // Anchor preserved; the heading is "Reading the layer labels", distinct
-    // from the top intro card's title.
-    expect(res.text).toMatch(/id="how-to-read"/);
-    expect(res.text).toMatch(/Reading the layer labels/);
-  });
-
-  it('enumerates the six publication-state vocabulary terms', async () => {
-    const res = await page('/freestyle/concepts');
-    const startIdx = res.text.indexOf('glossary-publication-states');
-    expect(startIdx).toBeGreaterThan(0);
-    const endIdx = res.text.indexOf('</dl>', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).toContain('Canonical');
-    expect(region).toContain('Observational');
-    expect(region).toContain('Doctrine-sensitive');
-    expect(region).toContain('Historical');
-    expect(region).toContain('Alternate derivation');
-    expect(region).toContain('Pending');
-  });
-
-  it('does NOT leak curator-internal vocabulary', async () => {
-    const res = await page('/freestyle/concepts');
-    const startIdx = res.text.indexOf('id="how-to-read"');
-    const endIdx = res.text.indexOf('id="derivation-atlas"', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).not.toMatch(/curatorConfirmPending/i);
-    expect(region).not.toMatch(/curatorNote/i);
-    expect(region).not.toMatch(/freestyleEquivalenceTopology\.ts/);
-  });
-});
-
 describe('GET /freestyle/concepts — Family-anchor terminology (Families chapter)', () => {
   it('defines family-anchor trick in the Families intro', async () => {
     const res = await page('/freestyle/concepts');
@@ -166,23 +131,15 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
 });
 
 describe('GET /freestyle/concepts — no curator-internal language across new subsections', () => {
-  it('the full page does not expose pt## tags, Wave-N tracking, or sprint labels', async () => {
+  it('the full page does not expose pt## tags, Wave-N tracking, sprint labels or curator field names', async () => {
     const res = await page('/freestyle/concepts');
-    // Public prose must not carry pt##/Red/James/adjudication/dated
-    // curator-review language. The subsections this suite covers must
-    // not introduce such language.
-    const newAdditionsRegion = (() => {
-      const a = res.text.indexOf('id="how-to-read"');
-      const b = res.text.indexOf('id="derivation-atlas"', a);
-      const c = res.text.indexOf('family-anchor trick');
-      const d = res.text.indexOf('id="generative-insight"');
-      const e = res.text.indexOf('Generative insight', d) + 3000;
-      // Concatenate the three new regions for a focused scan.
-      return res.text.slice(a, b) + res.text.slice(c, c + 2000) + res.text.slice(d, e);
-    })();
-    expect(newAdditionsRegion).not.toMatch(/\bpt\d+\b/i);
-    expect(newAdditionsRegion).not.toMatch(/Wave[- ]?\d/i);
-    expect(newAdditionsRegion).not.toMatch(/Slice [A-Z]\b/);
-    expect(newAdditionsRegion).not.toMatch(/Sprint/i);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/\bpt\d+\b/i);
+    expect(res.text).not.toMatch(/Wave[- ]?\d/i);
+    expect(res.text).not.toMatch(/Slice [A-Z]\b/);
+    expect(res.text).not.toMatch(/Sprint/i);
+    expect(res.text).not.toMatch(/curatorConfirmPending/i);
+    expect(res.text).not.toMatch(/curatorNote/i);
+    expect(res.text).not.toMatch(/freestyleEquivalenceTopology\.ts/);
   });
 });

@@ -1471,7 +1471,6 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
 
 describe('Freestyle Concepts framing paragraphs + history page contracts', () => {
   // The Concepts chapters carry framing prose that must keep rendering:
-  //   §1 vocabulary-stabilization framing
   //   §6 compositional layering opening + evolved-ADD-value annotation
   //   §5 whirl network-attractor note
   //   §10 anchor IDs (Sick3 / Shred:30 / BOP and run-quality tiers)
@@ -1483,11 +1482,13 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   // the composition and structure sections, the institutions, and the onward
   // links); the earlier condensed-history assertions were retired with that page.
 
-  it('Concepts §1 carries the vocabulary-stabilization framing paragraph', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/vocabulary stabilized by roughly 2007.{0,15}2008/);
-    expect(res.text).toContain('glossary-vocabulary-stabilization-note');
-    expect(res.text).toContain('href="/freestyle/history"');
+  it('neither Concepts nor History claims new tricks stopped appearing after the vocabulary matured', async () => {
+    for (const path of ['/freestyle/concepts', '/freestyle/history']) {
+      const res = await page(path);
+      expect(res.status, path).toBe(200);
+      expect(res.text, path).not.toMatch(/no (genuinely )?new base tricks/i);
+      expect(res.text, path).not.toMatch(/vocabulary stabilized/i);
+    }
   });
 
   it('Concepts §6 carries the compositional-layering opening paragraph', async () => {
@@ -2008,16 +2009,6 @@ describe('Freestyle Concepts — [PDX] component-flag definition', () => {
     expect(slice).toMatch(/common entry example, not the definition/);
     // The old circular phrasing is gone.
     expect(slice).not.toMatch(/performed in the paradox direction/);
-  });
-});
-
-describe('Freestyle Concepts — intro philosophy', () => {
-  it('renders the welcoming Movement Basics intro + compositional framing', async () => {
-    // The opening Concepts chapter is a welcoming "Movement Basics" intro.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/the language of freestyle footbag/);
-    expect(res.text).toMatch(/vocabulary is compositional/);
-    expect(res.text).toMatch(/shortest clear name/);
   });
 });
 

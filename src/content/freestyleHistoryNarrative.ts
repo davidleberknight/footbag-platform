@@ -75,6 +75,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
       paragraphs: [
         'The clearest sign that freestyle grew as a language is how the tricks multiplied. They did not multiply because players invented hundreds of unrelated moves. They multiplied by composition: a small set of operators, ways of modifying a trick, layered onto a small set of base movements.',
         'A single operator can generate a whole family of tricks. In the dictionary today, the most productive operators, symposium, ducking, spinning, and paradox, each appear on roughly eighty to a hundred and ten different tricks. Learn the operator once, and every base it touches becomes a new trick you can name. This way of building, by naming what you do to a trick rather than inventing a wholly new one, took hold once modifiers like paradox and symposium came into common use, and it became the engine of the whole vocabulary: not endless invention, but the systematic combination of a few good ideas.',
+        'By roughly 2007 to 2008, much of the modern vocabulary and the compositional system behind it had matured. New tricks and new ideas have kept appearing since, alongside new combinations of the moves that already existed.',
       ],
       links: [
         { label: 'Operators', href: '/freestyle/operators' },

@@ -176,29 +176,22 @@ describe('Freestyle Concepts framing — surfaces and advanced-reference notes (
     expect(html).toMatch(/<strong>contact substitution<\/strong>/);
   });
 
-  it('advanced-reference adds a "tracking is not canonization" governance note', async () => {
+  it('keeps internal vocabulary and promises about later out of the page copy', async () => {
     const html = await concepts();
-    expect(html).toContain('id="tracking-vs-canonization"');
-    expect(html).toMatch(/<strong>Documentation is not canonization\.<\/strong>/);
-    expect(html).toMatch(/<strong>promoted<\/strong>/);
-  });
-
-  it('advanced-reference adds the source-divergence case study (cohort vs single-trick)', async () => {
-    const html = await concepts();
-    expect(html).toContain('id="source-divergence"');
-    // Single-trick case (Big Apple Sauce) contrasted with a systematic cohort
-    // (furious / railing) whose source over-count is a convention, not an error.
-    expect(html).toMatch(/Big Apple Sauce/);
-    expect(html).toMatch(/<code>furious<\/code>/);
-    expect(html).toMatch(/<code>railing<\/code>/);
-    expect(html).toMatch(/cataloguing a number and understanding a grammar/);
+    for (const phrase of [
+      'display tier', 'claim scope', 'teaching layer', 'teaches without resolving',
+      'interpretation doctrine', 'editorial equivalence', 'embodied cousins',
+      'difficulty frontier', 'cohort test', 'Forthcoming', 'not yet built',
+      'Will expand', 'Reference Media',
+    ]) {
+      expect(html).not.toContain(phrase);
+    }
   });
 });
 
 describe('Freestyle Concepts framing — Phase D2 step 5 (interpretation doctrine)', () => {
-  it('names the interpretation doctrine and states the descriptive-not-productive core', async () => {
+  it('states the descriptive-not-productive core of an equivalence reading', async () => {
     const html = await concepts();
-    expect(html).toMatch(/<strong>interpretation doctrine<\/strong>/);
     expect(html).toMatch(/<em>descriptive, never a recipe<\/em>/);
   });
 
@@ -209,18 +202,9 @@ describe('Freestyle Concepts framing — Phase D2 step 5 (interpretation doctrin
     expect(html).toMatch(/eggbeater-ing/);
   });
 
-  it('uses blender as the compositional-descent reading example', async () => {
+  it('uses blender as the example of a reading built from other tricks', async () => {
     const html = await concepts();
-    expect(html).toMatch(/<strong>compositional descent<\/strong>/);
     expect(html).toMatch(/&equiv; whirling osis/);
-  });
-
-  it('enumerates the reading provenances (editorial / historical / compositional / parser / policy)', async () => {
-    const html = await concepts();
-    expect(html).toMatch(/<strong>editorial equivalence<\/strong>/);
-    expect(html).toMatch(/<strong>historical derivation<\/strong>/);
-    expect(html).toMatch(/<strong>structural parse<\/strong>/);
-    expect(html).toMatch(/<strong>policy-dependent<\/strong>/);
   });
 
   it('preserves the existing four-relationship taxonomy + its legacy anchors', async () => {
@@ -357,8 +341,7 @@ describe('Freestyle Concepts — media claim-scope (L6)', () => {
 
   it('states the media-is-not-ontology firewall', async () => {
     const html = await concepts();
-    expect(html).toMatch(/teaching layer/);
-    expect(html).toMatch(/never overrides the dictionary/);
+    expect(html).toMatch(/It does not decide the\s+move&rsquo;s structure, ADD, or family/);
   });
 
   it('defines the three claim scopes (tutorial / demonstration / record)', async () => {
@@ -368,9 +351,8 @@ describe('Freestyle Concepts — media claim-scope (L6)', () => {
     }
   });
 
-  it('frames media as teaching-without-resolving and links out to the galleries', async () => {
+  it('links out to the media galleries', async () => {
     const html = await concepts();
-    expect(html).toMatch(/teaches without resolving/);
     expect(html).toContain('href="/media"');
   });
 });
@@ -550,9 +532,8 @@ describe('Freestyle Concepts X-Dex term — notation-authoritative', () => {
     expect(html).not.toMatch(/open per-base question/);
   });
 
-  it('marks the X-Dex trigger as ratified, links the term, and does not gate it by operator name', async () => {
+  it('does not gate the X-Dex trigger by operator name', async () => {
     const html = await concepts();
-    expect(html).toMatch(/<a href="#term-x-dex">X-Dex<\/a> trigger/);
     // X-Dex is notation-driven ([XDEX]), not an atomic/quantum operator whitelist.
     expect(html).not.toMatch(/atomic \/ quantum <a href="#term-x-dex">X-Dex/);
   });

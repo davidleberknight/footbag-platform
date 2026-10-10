@@ -470,7 +470,6 @@ glossary-family-tree-member-adds
 glossary-family-tree-members
 glossary-family-trees
 glossary-flagship-marker
-glossary-future-note
 glossary-generative-formula
 glossary-glyph-quickref
 glossary-glyph-quickref-cell
@@ -545,7 +544,6 @@ glossary-thesis
 glossary-timing-clock
 glossary-timing-clock-caption
 glossary-timing-clock-figure
-glossary-vocabulary-stabilization-note
 glossary-walking-family-formula
 glossary-walking-family-note
 glossary-walking-family-progression

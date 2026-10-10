@@ -53,13 +53,20 @@ const read = (p: string) => readFileSync(p, 'utf8').replace(/\s+/g, ' ');
  * the claim the passage exists to make, which survives rewording of everything
  * around it.
  */
-function difficultyNote(text: string): string {
-  const start = text.indexOf('video-corroborated landing');
+function difficultyNote(text: string, from: string, to: string): string {
+  const start = text.indexOf(from);
   expect(start, 'the difficulty-frontier passage is no longer recognisable').toBeGreaterThan(-1);
-  const end = text.indexOf('corroborating footage', start);
+  const end = text.indexOf(to, start);
   expect(end, 'the passage no longer ends where it did').toBeGreaterThan(start);
   return text.slice(start, end);
 }
+
+// Each copy words the claim its own way: the Concepts page in plain words, the
+// combo-analysis glossary in its fuller form.
+const NOTE_BOUNDS: ReadonlyArray<[string, string, string]> = [
+  [CONCEPTS_VIEW, 'highest landing in the dictionary that video confirms', 'never confirmed on video'],
+  [CONCEPTS_CONTENT, 'video-corroborated landing', 'corroborating footage'],
+];
 
 describe('the name the difficulty note used to carry', () => {
   it('is absent from both public copies of the note', () => {
@@ -86,8 +93,8 @@ describe('the name the difficulty note used to carry', () => {
     // Scoped to the sentence, not the file: the page discusses other tricks
     // elsewhere for unrelated reasons, and a whole-file assertion would forbid
     // that too.
-    for (const file of [CONCEPTS_VIEW, CONCEPTS_CONTENT]) {
-      const note = difficultyNote(read(file));
+    for (const [file, from, to] of NOTE_BOUNDS) {
+      const note = difficultyNote(read(file), from, to);
       expect(note).toContain('Surging Ducking Paradox Torque');
       for (const other of ['Montage Swirl', 'Big Apple Sauce', 'Gyro Shooting Star']) {
         expect(note).not.toContain(other);

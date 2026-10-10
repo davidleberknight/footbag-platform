@@ -60,7 +60,6 @@ describe('GET /freestyle/concepts — reading spine', () => {
   it('opens with the Movement Basics intro and keeps the reference sections', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/the language of freestyle footbag/);
     expect(res.text).toMatch(/Movement Basics/);
     expect(res.text).toMatch(/ADD Accounting/);
     expect(res.text).toMatch(/ADD \(Additional Degree of Difficulty\)/);

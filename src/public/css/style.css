@@ -9765,17 +9765,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   border-radius: var(--radius-2xs);
 }
 
-/* §8 future-facing note */
-.glossary-future-note {
-  margin: 1rem 0 0;
-  padding: 0.6rem 0.9rem;
-  background: var(--parch-100);
-  border-left: 3px solid var(--border);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--earth-500);
-}
 
 /* §7 Notation in practice: three compact symbol-first examples.
    Sits at the top of §7 so the section opens
@@ -11596,7 +11585,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0 0 12px;
   line-height: 1.6;
 }
-.glossary-vocabulary-stabilization-note,
 .glossary-family-roster {
   margin-top: 8px;
 }
