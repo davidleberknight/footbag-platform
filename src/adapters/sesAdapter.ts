@@ -7,6 +7,11 @@
  */
 import { randomUUID } from 'node:crypto';
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
+import {
+  SESv2Client,
+  DeleteSuppressedDestinationCommand,
+  NotFoundException,
+} from '@aws-sdk/client-sesv2';
 import { config } from '../config/env';
 
 /**
@@ -69,6 +74,14 @@ export interface SesSendResult {
 
 export interface SesAdapter {
   sendEmail(msg: SesMessage): Promise<SesSendResult>;
+  /**
+   * Takes one address off the provider's account-level suppression list. The
+   * provider silently drops every send to a listed address, verification and
+   * password-reset mail included, so a member proving their address works
+   * again could never receive the proof without this. An address that is not
+   * listed is already in the state asked for, so that answer is success.
+   */
+  liftSuppression(address: string): Promise<void>;
   captureCurrentMessageIndex(): number | null;
 }
 
@@ -79,19 +92,34 @@ interface StubSentMessage extends SesMessage {
 
 export interface StubSesAdapter extends SesAdapter {
   readonly sentMessages: readonly StubSentMessage[];
+  readonly liftedAddresses: readonly string[];
   clear(): void;
   failNext(error: Error): void;
+  failNextLift(error: Error): void;
 }
 
 export function createLiveSesAdapter(opts: {
   region?: string;
   fromIdentity: string;
   sesClient?: SESClient;
+  sesv2Client?: SESv2Client;
 }): SesAdapter {
   const client =
     opts.sesClient ?? new SESClient(opts.region ? { region: opts.region } : {});
+  // The suppression list exists only in the provider's second API generation;
+  // the send calls stay on the first, which the sending stack is built on.
+  const v2 =
+    opts.sesv2Client ?? new SESv2Client(opts.region ? { region: opts.region } : {});
   const defaultFrom = opts.fromIdentity;
   return {
+    async liftSuppression(address) {
+      try {
+        await v2.send(new DeleteSuppressedDestinationCommand({ EmailAddress: address }));
+      } catch (err) {
+        if (err instanceof NotFoundException) return;
+        throw err;
+      }
+    },
     async sendEmail(msg) {
       const source = msg.from ?? defaultFrom;
       // A message carrying custom headers goes out as raw MIME, because the
@@ -129,17 +157,35 @@ export function createLiveSesAdapter(opts: {
 
 export function createStubSesAdapter(): StubSesAdapter {
   const sent: StubSentMessage[] = [];
+  const lifted: string[] = [];
   let pendingError: Error | null = null;
+  let pendingLiftError: Error | null = null;
   return {
     get sentMessages() {
       return sent;
     },
+    get liftedAddresses() {
+      return lifted;
+    },
     clear() {
       sent.length = 0;
+      lifted.length = 0;
       pendingError = null;
+      pendingLiftError = null;
     },
     failNext(error: Error) {
       pendingError = error;
+    },
+    failNextLift(error: Error) {
+      pendingLiftError = error;
+    },
+    async liftSuppression(address) {
+      if (pendingLiftError) {
+        const err = pendingLiftError;
+        pendingLiftError = null;
+        throw err;
+      }
+      lifted.push(address);
     },
     async sendEmail(msg) {
       if (pendingError) {

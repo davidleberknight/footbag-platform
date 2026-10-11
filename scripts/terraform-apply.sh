@@ -62,10 +62,11 @@
 # secret, scripts/rotate-jwt-signing-key.sh for the JWT signing key.
 #
 # --firewall-only and --require-empty-plan are for callers that know in advance
-# what the plan may contain, on staging only. The first, run by the dev-and-tester
-# address path, applies only when the firewall rule set is the whole change; the
-# rule set is written in place (see "The firewall, written in place"). The second, run
-# when proving the job role, applies nothing and refuses unless there is nothing
+# what the plan may contain. The first, run by the dev-and-tester address path on
+# staging only, applies only when the firewall rule set is the whole change; the
+# rule set is written in place (see "The firewall, written in place"). The second,
+# run when proving the job role and by every deploy (scripts/lib/infra-sync.sh),
+# on staging or production, applies nothing and refuses unless there is nothing
 # to apply. Either refuses any other change as drift it did not come to apply.
 #
 # --firewall-only also takes each SSH address the caller is adding
@@ -394,10 +395,16 @@ if [[ -n "$REPLACE_ADDR" ]]; then
   PLAN_EXTRA_ARGS=("-replace=${REPLACE_ADDR}")
 fi
 
-# Both shapes are staging-only: the dev-and-tester path exists on staging alone,
-# and a restriction on the plan is not a reason to apply any other tree.
-if [[ -n "$PLAN_SHAPE" && "$TARGET" != "staging" ]]; then
-  echo "ERROR: --firewall-only and --require-empty-plan apply to staging only." >&2
+# The firewall shape is staging-only: the dev-and-tester address path exists on
+# staging alone, and a restriction on the plan is not a reason to apply any other
+# tree. The empty-plan shape applies nothing on any tree, so it also serves the
+# deploy's check that production runs the infrastructure its tree describes.
+if [[ "$PLAN_SHAPE" == "firewall-only" && "$TARGET" != "staging" ]]; then
+  echo "ERROR: --firewall-only applies to staging only." >&2
+  exit 2
+fi
+if [[ "$PLAN_SHAPE" == "empty" && "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
+  echo "ERROR: --require-empty-plan applies to staging or production only." >&2
   exit 2
 fi
 if [[ -n "$PLAN_SHAPE" ]] && (( BREAK_LOCK )); then

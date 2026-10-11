@@ -501,6 +501,7 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
           'synthetic enqueue failure for password-reset confirmation',
         );
       },
+      liftAddressSuppression: async () => {},
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
         suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,

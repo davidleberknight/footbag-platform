@@ -140,8 +140,9 @@ describe('length caps apply on the profile edit path too', () => {
 
   it('accepts a city at exactly the cap', async () => {
     const { id, slug } = seedMember({ country: 'United States', region: 'OR', city: 'Portland' });
-    await svc.updateOwnProfile(slug, editInput({ city: 'y'.repeat(64) }));
-    expect(stored(id).city).toBe('y'.repeat(64));
+    const atCap = 'Y'.repeat(64);
+    await svc.updateOwnProfile(slug, editInput({ city: atCap }));
+    expect(stored(id).city).toBe(atCap);
   });
 });
 
@@ -153,6 +154,15 @@ describe('the same rules hold on the onboarding wizard path', () => {
       gender: 'undisclosed', yearValue: '',
     });
     expect(stored(id).country).toBe('United States');
+  });
+
+  it('capitalizes an all-lowercase city, as the edit form does', () => {
+    const { id } = seedMember({ country: null, region: null, city: null });
+    svc.setPersonalDetails(id, {
+      city: 'tauranga', region: '', country: 'New Zealand', birthDay: '1', birthMonth: '1', birthYear: '1990',
+      gender: 'undisclosed', yearValue: '',
+    });
+    expect(stored(id).city).toBe('Tauranga');
   });
 
   it('refuses a country that names nothing', () => {

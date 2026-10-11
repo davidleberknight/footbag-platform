@@ -3,7 +3,8 @@
  *
  * The companion-checkout root link, four values-file links, and three
  * secrets-file links. The read-only legacy clone is considered only when
- * `--legacy-repo` is passed. The secrets files are gitignored in the companion
+ * `--legacy-repo` is passed, and its untouched pre-pull copy only when
+ * `--legacy-repo-original` is. The secrets files are gitignored in the companion
  * checkout as well, so no clone carries them: an operator creates them, and a
  * developer's checkout lacks them by design, which must not stop the root link
  * every developer with access needs.
@@ -273,6 +274,27 @@ describe('setup_private_repo.sh — a checkout without the operator-only secrets
     expect(readlinkSync(join(fakeRepo, 'terraform/shared/secrets.auto.tfvars'))).toBe(
       '../../footbag_private_repo/terraform/shared.secrets.auto.tfvars',
     );
+  });
+});
+
+describe('setup_private_repo.sh — the untouched copy of the legacy clone', () => {
+  it('links the copy under its canonical name and verifies it resolves', () => {
+    // A refresh compares the pulled clone against this copy; without the link
+    // it has no baseline to detect rewritten history or injected rows against.
+    mkdirSync(join(root, 'legacy-original'), { recursive: true });
+    const r = wire(['--legacy-repo-original', '../legacy-original']);
+    expect(r.status, r.stderr).toBe(0);
+    const link = join(fakeRepo, 'footbag_legacy_repo_original_data');
+    expect(readlinkSync(link)).toBe('../legacy-original');
+    expect(r.stdout).toMatch(/Verifying every link resolves[\s\S]*footbag_legacy_repo_original_data/);
+  });
+
+  it('refuses a copy path that is not a directory and creates nothing', () => {
+    // A link to a mistyped path dangles and fails only when the refresh reads it.
+    const r = wire(['--legacy-repo-original', '../no-such-copy']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/no-such-copy is not a directory/);
+    expect(existsSync(join(fakeRepo, 'footbag_private_repo'))).toBe(false);
   });
 });
 

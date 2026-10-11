@@ -238,6 +238,7 @@ publicRouter.get('/members/:memberKey/announce',  requireMember, requireTier2Plu
 publicRouter.post('/members/:memberKey/announce', requireMember, requireTier2Plus(), memberAnnounceController.postSend);
 publicRouter.get('/members/:memberKey/email-preferences',  requireMember, emailPreferenceController.getSubscriptions);
 publicRouter.post('/members/:memberKey/email-preferences', requireMember, emailPreferenceController.postSubscription);
+publicRouter.post('/members/:memberKey/email-preferences/recover', requireMember, emailPreferenceController.postRecover);
 publicRouter.get('/members/:memberKey/contact-admin',  requireMember, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireMember, contactRequestController.postSubmit);
 // The other direction: questions an administrator has put to this member.

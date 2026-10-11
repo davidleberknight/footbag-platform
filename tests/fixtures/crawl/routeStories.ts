@@ -119,6 +119,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /members/:memberKey/announce': { stories: ['M_Send_Announce_Email'] },
   'GET /members/:memberKey/email-preferences': { stories: ['M_Manage_Email_Subscriptions'] },
   'POST /members/:memberKey/email-preferences': { stories: ['M_Manage_Email_Subscriptions'] },
+  'POST /members/:memberKey/email-preferences/recover': { stories: ['M_Manage_Email_Subscriptions'] },
   'GET /members/:memberKey/contact-admin': { stories: ['M_Contact_IFPA_Admin'] },
   'POST /members/:memberKey/contact-admin': { stories: ['M_Contact_IFPA_Admin'] },
   'GET /members/:memberKey/questions': { stories: ['A_Message_Member'] },

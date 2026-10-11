@@ -668,14 +668,32 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     expect(calls()).not.toMatch(/ apply \//);
   });
 
-  it('refuses either mode on any tree but staging, before terraform runs', () => {
+  it('refuses the firewall mode on any tree but staging, before terraform runs', () => {
     writeTerraformStub();
-    for (const flag of ['--firewall-only', '--require-empty-plan']) {
-      const res = run(['--target', 'production', flag]);
-      expect(res.exitCode, flag).toBe(2);
-      expect(res.stderr).toMatch(/apply to staging only/);
+    const res = run(['--target', 'production', '--firewall-only', '--firewall-add', '203.0.113.7/32']);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/applies to staging only/);
+    expect(calls()).toBe('');
+  });
+
+  it('refuses the empty-plan mode on the shared and identity trees, before terraform runs', () => {
+    writeTerraformStub();
+    for (const target of ['shared', 'identity']) {
+      const res = run(['--target', target, '--require-empty-plan']);
+      expect(res.exitCode, target).toBe(2);
+      expect(res.stderr).toMatch(/applies to staging or production only/);
     }
     expect(calls()).toBe('');
+  });
+
+  it('holds production to an empty plan too, refusing any change and applying nothing', () => {
+    // Every deploy runs this mode, production included, so a deploy whose tree
+    // carries an unapplied change stops instead of shipping code that needs it.
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_iam_role_policy', address: 'aws_iam_role_policy.runtime', actions: ['update'] }] });
+    const res = run(['--target', 'production', '--require-empty-plan']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/required to be empty, and it changes:\n\s+aws_iam_role_policy\.runtime/);
+    expect(calls()).not.toMatch(/ apply \//);
   });
 });
 

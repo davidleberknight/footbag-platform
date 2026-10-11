@@ -45,7 +45,6 @@
       "Bash(bash scripts/ci/assert_conventions.sh)",
       "Bash(bash scripts/test-targets.sh*)",
       "Bash(bash scripts/e2e/reclaim-e2e-ports.sh)",
-      "Bash(bash footbag_private_repo/track-issues.sh:*)",
       "Bash(gh issue edit -R \"$FOOTBAG_PRIVATE_REPO\":*)",
       "Bash(gh issue comment -R \"$FOOTBAG_PRIVATE_REPO\":*)",
       "Bash(gh issue close -R \"$FOOTBAG_PRIVATE_REPO\":*)",
@@ -170,6 +169,7 @@
     ],
     "deny": [
       "Edit(./footbag_legacy_repo/**)",
+      "Edit(./footbag_legacy_repo_original_data/**)",
       "Edit(./.env)",
       "Edit(./.env.local)",
       "Edit(./.env.production)",

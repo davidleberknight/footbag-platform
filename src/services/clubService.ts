@@ -43,6 +43,10 @@
  *     happens at the write path only: correcting a misspelling already on a row
  *     stays a curated-data fix made at source, so the render layer is never
  *     taught a geography table.
+ *   - Every path that writes a club row's city (creation, co-leader edit,
+ *     administrator correction, promotion) applies the member city casing
+ *     rule: a city with no capital letter has each word capitalized, and any
+ *     other city is stored as written.
  *   - Every club row names a country: creation requires one, and promotion
  *     refuses a candidate that carries none, since nobody triggering it can
  *     supply one. The clubs index lists only countries that name a country
@@ -156,6 +160,7 @@ import { getTierStatus, tierBadgeShort } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { countryCode, subdivisionsForCountry } from './countryUtils';
+import { capitalizeLowercaseCity } from './memberLocationRules';
 import { slugifyForTag } from './slugify';
 import { deriveClubTag, stableClubId } from './clubTag';
 import { randomUUID } from 'crypto';
@@ -2193,7 +2198,7 @@ export class ClubService {
         clubs.insertClub.run(
           clubId, now, 'club_service', now, 'club_service',
           candidate.display_name, candidate.description ?? '',
-          candidate.city ?? '', promotedRegion, candidate.country ?? '',
+          capitalizeLowercaseCity(candidate.city ?? ''), promotedRegion, candidate.country ?? '',
           tagId,
         );
         if (externalUrl) {
@@ -2293,7 +2298,7 @@ export class ClubService {
   ): CreateClubResult {
     const name = input.name.trim();
     const description = input.description.trim();
-    const city = input.city.trim();
+    const city = capitalizeLowercaseCity(input.city.trim());
     const region = input.region.trim() || null;
     const country = input.country.trim();
 
@@ -2762,8 +2767,9 @@ export class ClubService {
       if (!name) fieldErrors.name = 'Club name is required.';
       else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
     }
-    const city = input.city?.trim();
-    if (city !== undefined && !city) fieldErrors.city = 'City is required.';
+    const trimmedCity = input.city?.trim();
+    if (trimmedCity !== undefined && !trimmedCity) fieldErrors.city = 'City is required.';
+    const city = trimmedCity === undefined ? undefined : capitalizeLowercaseCity(trimmedCity);
     const country = input.country?.trim();
     if (country !== undefined && !country) fieldErrors.country = 'Country is required.';
 

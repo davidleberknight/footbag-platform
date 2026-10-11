@@ -189,6 +189,12 @@ SUDO_PASS="$_deploy_sudo_pass"
 unset _deploy_sudo_pass
 require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 
+# The infrastructure this tree's Terraform describes is live before its code and
+# database are shipped onto it. Mirrors deploy-code.sh.
+# shellcheck source=lib/infra-sync.sh
+source "${REPO_ROOT}/scripts/lib/infra-sync.sh"
+infra_sync_require "$REPO_ROOT" "$FOOTBAG_ENV" || exit 1
+
 # The second half of the production gate, the first being the terminal check above.
 #
 # The ack stays beside that check rather than being replaced by it, because the two

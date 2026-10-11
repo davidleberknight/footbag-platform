@@ -26,6 +26,11 @@ import {
 } from '@aws-sdk/client-kms';
 import { SendEmailCommand, SendRawEmailCommand, type SESClient } from '@aws-sdk/client-ses';
 import {
+  DeleteSuppressedDestinationCommand,
+  NotFoundException,
+  type SESv2Client,
+} from '@aws-sdk/client-sesv2';
+import {
   createLocalJwtAdapter,
   createKmsJwtAdapter,
 } from '../../src/adapters/jwtSigningAdapter';
@@ -470,6 +475,71 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
     await stub.sendEmail({ to: 'u@example.com', subject: 'S', bodyText: 'B' });
     expect(stub.captureCurrentMessageIndex()).toBe(1);
     expect(live.captureCurrentMessageIndex()).toBeNull();
+  });
+
+  // The provider drops every send to an address on its suppression list, so a
+  // member resuming mail is stuck unless this call names exactly their address.
+  // An address that is not listed answers not-found, which is the state asked
+  // for; any other refusal must reach the caller, or a failed lift would be
+  // reported to the member as mail resuming.
+  function makeFakeSesv2Client(fail?: Error): {
+    client: SESv2Client;
+    captured: DeleteSuppressedDestinationCommand[];
+  } {
+    const captured: DeleteSuppressedDestinationCommand[] = [];
+    const fake = {
+      send: async (cmd: unknown): Promise<unknown> => {
+        if (!(cmd instanceof DeleteSuppressedDestinationCommand)) {
+          throw new Error('unexpected SESv2 command');
+        }
+        captured.push(cmd);
+        if (fail) throw fail;
+        return {};
+      },
+    };
+    return { client: fake as unknown as SESv2Client, captured };
+  }
+
+  it('liftSuppression: live removes exactly the named address, stub records it', async () => {
+    const stub = createStubSesAdapter();
+    const fakeV2 = makeFakeSesv2Client();
+    const live = createLiveSesAdapter({
+      fromIdentity: 'default@footbag.org',
+      sesClient: makeFakeSesClient().client,
+      sesv2Client: fakeV2.client,
+    });
+
+    await stub.liftSuppression('member@example.com');
+    await live.liftSuppression('member@example.com');
+
+    expect(stub.liftedAddresses).toEqual(['member@example.com']);
+    expect(fakeV2.captured.map((c) => c.input.EmailAddress)).toEqual(['member@example.com']);
+  });
+
+  it('liftSuppression: an address the provider does not list counts as lifted', async () => {
+    const notListed = new NotFoundException({ message: 'not on the suppression list', $metadata: {} });
+    const live = createLiveSesAdapter({
+      fromIdentity: 'default@footbag.org',
+      sesClient: makeFakeSesClient().client,
+      sesv2Client: makeFakeSesv2Client(notListed).client,
+    });
+
+    await expect(live.liftSuppression('member@example.com')).resolves.toBeUndefined();
+  });
+
+  it('liftSuppression: any other provider refusal reaches the caller, on both implementations', async () => {
+    const denied = new Error('AccessDenied');
+    const stub = createStubSesAdapter();
+    stub.failNextLift(denied);
+    const live = createLiveSesAdapter({
+      fromIdentity: 'default@footbag.org',
+      sesClient: makeFakeSesClient().client,
+      sesv2Client: makeFakeSesv2Client(denied).client,
+    });
+
+    await expect(stub.liftSuppression('member@example.com')).rejects.toBe(denied);
+    await expect(live.liftSuppression('member@example.com')).rejects.toBe(denied);
+    expect(stub.liftedAddresses).toEqual([]);
   });
 });
 

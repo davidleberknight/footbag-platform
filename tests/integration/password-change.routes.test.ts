@@ -409,6 +409,7 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
           'synthetic enqueue failure for password-change confirmation',
         );
       },
+      liftAddressSuppression: async () => {},
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
         suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,

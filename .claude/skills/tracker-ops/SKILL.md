@@ -51,16 +51,9 @@ the human's instruction as given.
     An open issue covering the work is the scope record; its absence for significant new work is
     a question for the human, not a blocker to invent around. Before filing a "gap", classify it per
     `.claude/skills/deployed-surface/SKILL.md`; a not-yet-built status is never an issue.
-- **Optional convenience when the `footbag_private_repo/` symlink is present:** the shipped
-  `footbag_private_repo/track-issues.sh` viewer wraps these same read-only API calls behind
-  presets (no arg dashboard, `<label>`, `actionable`, `mine`, `blocked`, `all`, `<number>`).
-  It costs one approval prompt per call, because the private checkout resolves outside the
-  project tree and no portable repo rule can cover a per-developer path. Reach for it only
-  when the human asks for it by name.
 - **"What's assigned to <person>":** translate the name to a GitHub handle via the assignee
   roster in the private `TRACKER_GUIDE.md` (its single home), then
-  `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --assignee <handle>` (the script's `mine` preset
-  covers only yourself). Degradation: symlink absent (no roster to read) -> derive handles live
+  `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --assignee <handle>`. Degradation: symlink absent (no roster to read) -> derive handles live
   from `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --json assignees`; fully unwired -> ask the
   human for the handle. Never hard-code a handle in this file.
 - Non-mutating `gh api` GETs are fine; the `gh` read forms auto-approve, run them freely.

@@ -8,11 +8,19 @@
  *     subscription that token names.
  *   - The member's subscription screen: which lists they are offered, the state
  *     they hold on each, and the subscribe and withdraw writes they make there.
+ *   - The member's own way back from a bounce or a spam report on their
+ *     address: lifting the mail provider's block on it, withdrawing a spam
+ *     report when they turn a mailing back on, and clearing a bounce, with the
+ *     lists it paused, once they prove the address works.
  *
  * Does not own:
  *   - Admin list management, or the exceptional adjustment an administrator
  *     makes to a member's subscription on their behalf.
  *   - Minting the token or attaching the headers, which belong to the send path.
+ *   - Recording a bounce or a complaint (SesFeedbackService), and sending the
+ *     verification link that proves a bounced address works
+ *     (IdentityAccessService, which calls the bounce recovery here inside its
+ *     token-consume transaction).
  *
  * Required patterns:
  *   - The one-click caller is unauthenticated by design: a mail client fires the
@@ -34,19 +42,38 @@
  *   - Only lists a member may manage are offered: an archived list is no longer
  *     offered at all, and a group-backed list's membership is the group roster,
  *     so leaving the group is the real action rather than a mail preference.
+ *   - Every way back from a bounce or a spam report is the member's own act on
+ *     their own address. Each clears only its own mark, so an administrator's
+ *     'suppressed' block on the address is never lifted from here. The
+ *     provider's block is lifted before any transaction opens, and a failure
+ *     there changes nothing on the platform side.
+ *   - A bounce clears only on proof, never on the asking: turning a list on
+ *     while bounced moves the row and resumes nothing.
  *
- * Persistence: mailing_lists (read), mailing_list_subscriptions (read/write).
+ * Persistence: mailing_lists (read), mailing_list_subscriptions (read/write),
+ * members (email_status, read/write).
  *
- * Side effects: audit_entries append on a write that moves a row.
+ * Side effects: audit_entries append on a write that moves a row, on a
+ * withdrawn spam report and on a recovered address; SES suppression lift
+ * through CommunicationService; recordOperationalError when that lift fails.
  */
 import { randomUUID } from 'crypto';
 
-import { mailingListSubscriptions, transaction } from '../db/db';
+import { account, mailingListSubscriptions, sesFeedback, transaction } from '../db/db';
 import { readUnsubscribeToken } from '../lib/unsubscribeToken';
 import { appendAuditEntry } from './auditService';
-import { ValidationError } from './serviceErrors';
+import { getCommunicationService } from './communicationService';
+import { recordOperationalError } from './operationalErrors';
+import { ServiceUnavailableError, ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
+
+interface EmailRecoveryStateRow {
+  id: string;
+  login_email: string | null;
+  login_email_normalized: string | null;
+  email_status: string;
+}
 
 interface MemberSubscriptionRow {
   slug: string;
@@ -71,6 +98,12 @@ export interface EmailSubscriptionsContent {
   backHref: string;
   lists: EmailSubscriptionListViewModel[];
   hasLists: boolean;
+  /** Why mailings to the member's address are stopped; empty while it receives mail. */
+  addressNotice: string;
+  hasAddressNotice: boolean;
+  /** Offered only for a bounced address, which the member can prove works again. */
+  showRecover: boolean;
+  recoverAction: string;
   notice: string;
   noticeTone?: OutcomeTone;
   errorMessage: string;
@@ -97,8 +130,8 @@ const STATE_LABELS: Record<string, string> = {
 const STATE_EXPLANATIONS: Record<string, string> = {
   subscribed: 'You receive messages sent to this list.',
   unsubscribed: 'You are not receiving these, and will not until you turn them back on.',
-  bounced: 'Mail to your address came back undelivered, so this list is paused. Turning it on again will not resume delivery while your address is marked as undeliverable.',
-  complained: 'A message from this list was reported as spam, so it is paused. Turning it on again will not resume delivery while your address is marked as having reported spam.',
+  bounced: 'Mail to your address came back undelivered, so this list is paused. It resumes when you confirm your address works.',
+  complained: 'A message from this list was reported as spam, so it is paused. Turn it on again to resume it.',
   suppressed: 'An administrator set this one aside for your address. Contact us if you would like it restored.',
   none: 'You are not receiving these.',
 };
@@ -113,7 +146,67 @@ const SUBSCRIPTION_NOTICES: Record<string, [OutcomeTone, string]> = {
   subscribed:   ['ok',   'Turned on. You will receive the next message sent to that list.'],
   unsubscribed: ['ok',   'Turned off. You will not receive any further messages from that list.'],
   unchanged:    ['info', 'That was already how it was set, so nothing changed.'],
+  recovery_sent:     ['ok',   'We sent a link to your address. Open it to confirm the address works and resume your mailings.'],
+  recovery_unneeded: ['info', 'Your address is already receiving mail, so nothing changed.'],
 };
+
+/** What the member's screen says about their address while mailings to it are stopped. */
+const ADDRESS_NOTICES: Record<string, string> = {
+  bounced: 'Mail to your address came back undelivered, so we have stopped sending you mailings. If your address works again, confirm it and we will send you a link.',
+  complained: 'You reported one of our messages as spam, so we have stopped sending you mailings. Turn on any list below to start receiving it again.',
+};
+
+/**
+ * Takes the member's address off the mail provider's own suppression list, on
+ * that member's own request. The provider drops every send to a listed address,
+ * so clearing the platform's mark without this would resume nothing. Runs
+ * before any transaction, because it is a call to the provider; a failure is
+ * recorded for an operator and reported to the member as a temporary outage,
+ * with nothing on the platform side changed.
+ */
+export async function liftOwnAddressSuppression(memberId: string, address: string): Promise<void> {
+  try {
+    await getCommunicationService().liftAddressSuppression(address);
+  } catch (err) {
+    recordOperationalError({
+      actionType: 'email.suppression_lift_failed',
+      category: 'system',
+      entityType: 'member',
+      entityId: memberId,
+      actorType: 'member',
+      actorMemberId: memberId,
+      reasonText: 'The mail provider refused to take a member\'s address off its suppression list.',
+      cause: err,
+    });
+    throw new ServiceUnavailableError(
+      'We could not resume mail to your address just now. Please try again in a few minutes.',
+    );
+  }
+}
+
+/**
+ * Clears a bounce once the member has opened a verification link sent to the
+ * address, and turns back on the lists that bounce paused. Runs inside the
+ * caller's token-consume transaction, so the proof and its effect land
+ * together. A member whose address was not bounced is left as they are.
+ */
+export function recoverBouncedAddressInTx(memberId: string, nowIso: string): void {
+  const cleared = sesFeedback.clearBouncedForMember.run(nowIso, memberId, memberId);
+  if (cleared.changes === 0) return;
+  const restored = mailingListSubscriptions.restoreBouncedForMember.run(
+    nowIso, nowIso, memberId, memberId,
+  );
+  appendAuditEntry({
+    actionType: 'email.address_recovered',
+    category: 'system',
+    actorType: 'member',
+    actorMemberId: memberId,
+    entityType: 'member',
+    entityId: memberId,
+    reasonText: 'Member confirmed a bounced address works again through a verification link',
+    metadata: { restored_lists: restored.changes },
+  });
+}
 
 export type UnsubscribeOutcome =
   /** The token was valid and the subscription is now withdrawn, or already was. */
@@ -184,6 +277,9 @@ export const emailSubscriptionService = {
       };
     });
 
+    const address = account.emailRecoveryStateById.get(memberId) as EmailRecoveryStateRow | undefined;
+    const addressNotice = address ? ADDRESS_NOTICES[address.email_status] ?? '' : '';
+
     const outcome = opts.notice ? SUBSCRIPTION_NOTICES[opts.notice] : undefined;
 
     return {
@@ -198,6 +294,10 @@ export const emailSubscriptionService = {
         backHref: `/members/${memberKey}`,
         lists,
         hasLists: lists.length > 0,
+        addressNotice,
+        hasAddressNotice: addressNotice.length > 0,
+        showRecover: address?.email_status === 'bounced',
+        recoverAction: `/members/${memberKey}/email-preferences/recover`,
         notice: outcome ? outcome[1] : '',
         ...(outcome ? { noticeTone: outcome[0] } : {}),
         errorMessage: opts.errorMessage ?? '',
@@ -211,11 +311,11 @@ export const emailSubscriptionService = {
    * The member is named by the session, never by the request body, so this can
    * only ever act on the caller's own subscriptions.
    */
-  setOwnSubscription(
+  async setOwnSubscription(
     memberId: string,
     slug: string,
     subscribe: boolean,
-  ): SubscriptionChangeOutcome {
+  ): Promise<SubscriptionChangeOutcome> {
     const offered = (mailingListSubscriptions.listMemberManageableForMember.all(memberId) as
       MemberSubscriptionRow[]).find((row) => row.slug === slug);
     // A list the screen does not offer is not one a member may act on, whether
@@ -232,13 +332,44 @@ export const emailSubscriptionService = {
       );
     }
 
+    // A member who reported spam and now turns a mailing on has opted back in,
+    // which is the one act that withdraws the report. The provider holds its
+    // own block on the address, so that is lifted first; the mark and the list
+    // then change together below. Only the list chosen resumes: every other
+    // list the report paused waits for its own choice.
+    let withdrawsComplaint = false;
+    if (subscribe) {
+      const address = account.emailRecoveryStateById.get(memberId) as EmailRecoveryStateRow | undefined;
+      if (address?.email_status === 'complained' && address.login_email) {
+        await liftOwnAddressSuppression(memberId, address.login_email);
+        withdrawsComplaint = true;
+      }
+    }
+
     const nowIso = new Date().toISOString();
     let changed = 0;
+    let complaintWithdrawn = false;
 
     // The write and its audit row are one fact: a subscription that moved with
     // nothing in the ledger saying so leaves no account of a member's own
     // consent decision.
     transaction(() => {
+      if (withdrawsComplaint) {
+        complaintWithdrawn = sesFeedback.clearComplainedForMember.run(nowIso, memberId, memberId).changes > 0;
+        if (complaintWithdrawn) {
+          appendAuditEntry({
+            actionType: 'email.complaint_withdrawn',
+            category: 'system',
+            actorType: 'member',
+            actorMemberId: memberId,
+            entityType: 'member',
+            entityId: memberId,
+            reasonText: 'Member turned a mailing back on after reporting a message as spam',
+            metadata: { list_slug: slug },
+          });
+        }
+      }
+
       const result = subscribe
         ? mailingListSubscriptions.memberSubscribe.run(
           `mls_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
@@ -277,7 +408,9 @@ export const emailSubscriptionService = {
       }
     });
 
-    return changed > 0
+    // Withdrawing a spam report resumes mail even where the list row itself
+    // already read as on, so it is reported as the change it is.
+    return changed > 0 || complaintWithdrawn
       ? { status: subscribe ? 'subscribed' : 'unsubscribed' }
       : { status: 'noop', reason: 'unchanged' };
   },

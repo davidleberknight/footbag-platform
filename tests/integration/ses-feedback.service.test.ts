@@ -140,6 +140,33 @@ describe('bounce and complaint notifications', () => {
     expect(sub.status).toBe('bounced');
   });
 
+  it('a bounce or complaint on a soft-deleted member\'s address is still recorded on that member', async () => {
+    // A member in their deletion grace window keeps their address and can still be mailed (the
+    // deletion confirmation is strict). Dropping the report would let a restored account read as
+    // deliverable while the provider goes on discarding every message sent to it.
+    insertMember(db, {
+      id: 'sf-del-b', slug: 'sf_del_b', login_email: 'gone-bouncer@example.com',
+      deleted_at: '2026-01-01T00:00:00.000Z',
+    });
+    insertMember(db, {
+      id: 'sf-del-c', slug: 'sf_del_c', login_email: 'gone-complainer@example.com',
+      deleted_at: '2026-01-01T00:00:00.000Z',
+    });
+    insertMailingListSubscription(db, {
+      id: 'mls-sf-del-b', list_slug: 'newsletter', member_id: 'sf-del-b', status: 'subscribed',
+    });
+
+    feedback.processSnsMessage(bounceBody(['gone-bouncer@example.com']));
+    feedback.processSnsMessage(complaintBody(['gone-complainer@example.com']));
+
+    expect(statusOf('sf-del-b')).toBe('bounced');
+    expect(statusOf('sf-del-c')).toBe('complained');
+    const sub = db.prepare(
+      `SELECT status FROM mailing_list_subscriptions WHERE id = 'mls-sf-del-b'`,
+    ).get() as { status: string };
+    expect(sub.status).toBe('bounced');
+  });
+
   it('a transient bounce changes nothing', async () => {
     feedback.processSnsMessage(bounceBody(['complainer@example.com'], 'Transient'));
     expect(statusOf('sf-2')).toBe('ok');

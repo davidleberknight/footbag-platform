@@ -172,6 +172,20 @@ describe('the full club field set', () => {
     expect(clubRow(clubId).region).toBe('New York');
   });
 
+  it('an all-lowercase city is stored and audited with each word capitalized', async () => {
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/content/edit`)
+      .set('Cookie', cookieFor(leaderId))
+      .type('form')
+      .send(fullForm(name, { city: 'san luis obispo' }));
+    expect(res.status).toBe(303);
+    expect(clubRow(clubId).city).toBe('San Luis Obispo');
+    // The trail records the value the row now holds, not the raw submission.
+    expect(auditChanges(clubId).city).toEqual({ before: 'Testville', after: 'San Luis Obispo' });
+  });
+
   it('an unrecognized state is refused and the club is untouched', async () => {
     const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
 

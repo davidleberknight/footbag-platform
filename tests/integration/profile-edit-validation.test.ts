@@ -186,6 +186,22 @@ describe('region must be an official state or province code', () => {
   });
 });
 
+// ── City casing ──────────────────────────────────────────────────────────────
+
+describe('city casing on save', () => {
+  it('stores an all-lowercase city with each word capitalized', async () => {
+    const res = await postEdit({ city: 'tauranga', region: '', country: 'New Zealand' });
+    expect(res.status).toBe(303);
+    expect(readMember().city).toBe('Tauranga');
+  });
+
+  it('stores a city carrying any capital exactly as typed', async () => {
+    const res = await postEdit({ city: 'McAllen', region: 'TX' });
+    expect(res.status).toBe(303);
+    expect(readMember().city).toBe('McAllen');
+  });
+});
+
 // ── Legacy-claim anchors removed from Edit Profile ───────────────────────────
 
 describe('Edit Profile offers a route to the missing linkage', () => {

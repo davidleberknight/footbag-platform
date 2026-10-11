@@ -370,15 +370,20 @@ describe('POST /clubs/create', () => {
     expect(res.text).toContain('already taken');
   });
 
-  it('derives slug from city when slug field is empty', async () => {
+  it('derives slug from city when slug field is empty, and capitalizes an all-lowercase city', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/clubs/create')
       .set('Cookie', authCookie(SLUG_DERIVE_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ name: 'Portland FC', city: 'Portland', slug: '', country: 'US' }));
+      .send(formData({ name: 'Portland FC', city: 'portland', slug: '', country: 'US' }));
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/clubs/club_portland');
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const club = db.prepare(`SELECT city FROM clubs WHERE name = 'Portland FC'`).get() as { city: string };
+    db.close();
+    expect(club.city).toBe('Portland');
   });
 
   it('preserves form values on validation error', async () => {

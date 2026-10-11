@@ -195,6 +195,19 @@ describe('promotion cannot create the region-less club that flattens a country p
     const result = await svc.promoteCandidate(candidateId, actor, { actorType: 'admin' });
     expect(result.branch).toBe('promoted');
   });
+
+  it('capitalizes an all-lowercase candidate city on the club it creates', async () => {
+    // Legacy records carry free text, and a club promoted from one would
+    // otherwise list its city as typed twenty years ago.
+    const actor = seedCreator();
+    const candidateId = seedCandidate({ country: 'France', city: 'saint etienne' });
+    const result = await svc.promoteCandidate(candidateId, actor, { actorType: 'admin' });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT city FROM clubs WHERE id = ?').get(result.clubId) as
+      { city: string };
+    db.close();
+    expect(row.city).toBe('Saint Etienne');
+  });
 });
 
 describe('promotion cannot create a club with no country', () => {

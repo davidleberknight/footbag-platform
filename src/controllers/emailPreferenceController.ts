@@ -11,12 +11,14 @@
  * session and the path's member key must be their own, so the route can only
  * ever read or change the caller's own subscriptions; a mismatch is a 404
  * rather than a 403, so the path cannot be used to discover which member slugs
- * exist.
+ * exist. The recovery route on the same screen is the member's way back after
+ * their address bounced, under the same ownership check.
  */
 import { Request, Response, NextFunction } from 'express';
 import { emailSubscriptionService } from '../services/emailSubscriptionService';
-import { NotFoundError, ValidationError } from '../services/serviceErrors';
-import { renderNotFound } from '../lib/controllerErrors';
+import { identityAccessService } from '../services/identityAccessService';
+import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 
 export const emailPreferenceController = {
@@ -53,7 +55,7 @@ export const emailPreferenceController = {
   },
 
   /** POST /members/:memberKey/email-preferences */
-  postSubscription(req: Request, res: Response, next: NextFunction): void {
+  async postSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
@@ -64,7 +66,7 @@ export const emailPreferenceController = {
     const subscribe = body.subscribe === '1';
 
     try {
-      const outcome = emailSubscriptionService.setOwnSubscription(req.user!.userId, slug, subscribe);
+      const outcome = await emailSubscriptionService.setOwnSubscription(req.user!.userId, slug, subscribe);
       const notice = outcome.status === 'noop' ? outcome.reason : outcome.status;
       res.redirect(303, `/members/${memberKey}/email-preferences?notice=${notice}`);
     } catch (err) {
@@ -84,7 +86,36 @@ export const emailPreferenceController = {
         );
         return;
       }
-      next(err);
+      handleControllerError(err, res, next, 'email preference controller');
+    }
+  },
+
+  /** POST /members/:memberKey/email-preferences/recover */
+  async postRecover(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!isOwnMemberRoute(req)) {
+      renderNotFound(res);
+      return;
+    }
+    const memberKey = String(req.params.memberKey);
+    const memberId = req.user!.userId;
+    try {
+      const outcome = await identityAccessService.requestAddressRecovery(memberId);
+      const notice = outcome.status === 'sent' ? 'recovery_sent' : 'recovery_unneeded';
+      res.redirect(303, `/members/${memberKey}/email-preferences?notice=${notice}`);
+    } catch (err) {
+      if (err instanceof ValidationError || err instanceof RateLimitedError) {
+        if (err instanceof RateLimitedError && err.retryAfterSeconds !== undefined) {
+          res.set('Retry-After', String(err.retryAfterSeconds));
+        }
+        res.status(err instanceof RateLimitedError ? 429 : 422).render(
+          'members/email-preferences',
+          emailSubscriptionService.getSubscriptionsPage(memberKey, memberId, {
+            errorMessage: err.message,
+          }),
+        );
+        return;
+      }
+      handleControllerError(err, res, next, 'email preference controller');
     }
   },
 };

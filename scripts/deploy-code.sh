@@ -228,6 +228,13 @@ operator_credential_select "$REMOTE" "$FOOTBAG_ENV" || exit 1
 aws_profile_ensure || exit 1
 dev_tester_identity_agreement_require || exit 1
 
+# The infrastructure this tree's Terraform describes is live before its code is
+# shipped onto it. Checked here, once the identity is settled and before anything
+# is built.
+# shellcheck source=lib/infra-sync.sh
+source "${REPO_ROOT}/scripts/lib/infra-sync.sh"
+infra_sync_require "$REPO_ROOT" "$FOOTBAG_ENV" || exit 1
+
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
 [[ -r "$PRUNE_LIB" ]] || { echo "ERROR: missing pruning helper: $PRUNE_LIB" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }

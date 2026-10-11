@@ -98,6 +98,10 @@
  *     path alone, so a row that never sent and a row parked for manual review
  *     both carry none. Holding it grants no retry: the send still has no
  *     idempotency token.
+ *   - The provider keeps its own suppression list and silently drops every
+ *     send to a listed address, strict sends included. Lifting an address
+ *     from it happens only on that member's own request to resume mail, and
+ *     the platform's own email_status is changed by the caller, never here.
  *
  * Persistence:
  *   outbox_emails; mailing_lists, mailing_list_subscriptions, registrations
@@ -109,6 +113,7 @@
  *
  * Side effects:
  *   - SES adapter sendEmail per claimed row
+ *   - SES adapter liftSuppression, once per member-requested recovery
  *   - logger.error on dead-letter and on manual-review parking (drives the
  *     CloudWatch alarm)
  *   - logger.warn when the bulk halt withholds queued bulk mail
@@ -391,6 +396,14 @@ export interface CommunicationService {
    * test can drive a boundary without writing config.
    */
   processSendQueue(opts?: { limit?: number; bulkLimit?: number }): Promise<ProcessBatchResult>;
+  /**
+   * Takes one address off the provider's own suppression list, so mail the
+   * platform decides to send can reach it again. Called only on a member's own
+   * request to resume mail to their address; the platform's own suppression
+   * state is the caller's to change, in its own transaction, after this
+   * succeeds. A provider failure propagates as itself, so the caller records it.
+   */
+  liftAddressSuppression(address: string): Promise<void>;
 }
 
 type SendErrorOutcome = 'throttle' | 'ambiguous' | 'failure';
@@ -758,6 +771,10 @@ export function createCommunicationService(
   }
 
   const service: CommunicationService = {
+    async liftAddressSuppression(address) {
+      await adapter.liftSuppression(address);
+    },
+
     enqueue(input) {
       if (!input.subject || !input.bodyText) {
         throw new ValidationError('subject and bodyText are required.');

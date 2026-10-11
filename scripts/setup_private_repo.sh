@@ -2,7 +2,7 @@
 # setup_private_repo.sh
 #
 # Wires this checkout to the companion operations checkout: the repo-root
-# symlink (and the legacy-clone one when asked), the four Terraform values-file
+# symlink (and the legacy-clone ones when asked), the four Terraform values-file
 # symlinks, and the three secrets-file symlinks where this checkout carries them.
 #
 # WHY THIS EXISTS.
@@ -49,6 +49,7 @@
 # Usage:
 #   bash scripts/setup_private_repo.sh
 #   bash scripts/setup_private_repo.sh --legacy-repo ../legacy
+#   bash scripts/setup_private_repo.sh --legacy-repo-original ../legacy-original
 #   bash scripts/setup_private_repo.sh --check
 #
 # Flags:
@@ -59,10 +60,16 @@
 #   --legacy-repo <path>   The read-only legacy site clone. Optional: it is
 #                          needed only for historical-pipeline work, and a
 #                          developer without it is a supported configuration.
+#   --legacy-repo-original <path>
+#                          The untouched copy of the legacy clone taken before
+#                          its next pull, linked as
+#                          footbag_legacy_repo_original_data. A refresh compares
+#                          the pulled clone against it, so only a maintainer who
+#                          runs the refresh needs it; optional like the clone.
 #   --check                Report the state of every link this run considers and
 #                          exit: the root link, the four values links, and each
-#                          secrets link this checkout carries, plus the
-#                          legacy-clone link only when --legacy-repo is given.
+#                          secrets link this checkout carries, plus each
+#                          legacy-clone link only when its flag is given.
 #                          Changes nothing, takes no confirmation, and exits
 #                          non-zero if any link is missing, broken or blocked.
 #   --yes                  Accept the typed confirmation in advance.
@@ -82,6 +89,7 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 
 PRIVATE_REPO=""
 LEGACY_REPO=""
+LEGACY_ORIGINAL=""
 CHECK_ONLY=0
 
 while [[ $# -gt 0 ]]; do
@@ -93,6 +101,10 @@ while [[ $# -gt 0 ]]; do
     --legacy-repo)
       LEGACY_REPO="${2:-}"
       shift 2 || { echo "ERROR: --legacy-repo requires a path" >&2; exit 2; }
+      ;;
+    --legacy-repo-original)
+      LEGACY_ORIGINAL="${2:-}"
+      shift 2 || { echo "ERROR: --legacy-repo-original requires a path" >&2; exit 2; }
       ;;
     --check) CHECK_ONLY=1; shift ;;
     --yes) ASSUME_YES="yes"; shift ;;
@@ -229,6 +241,7 @@ echo ""
 
 [[ -n "$PRIVATE_REPO" ]] && consider "footbag_private_repo" "$PRIVATE_REPO"
 [[ -n "$LEGACY_REPO" ]] && consider "footbag_legacy_repo" "$LEGACY_REPO"
+[[ -n "$LEGACY_ORIGINAL" ]] && consider "footbag_legacy_repo_original_data" "$LEGACY_ORIGINAL"
 
 for entry in "${VALUES_LINKS[@]}"; do
   consider "${entry%%|*}" "${entry##*|}"
@@ -297,6 +310,12 @@ if [[ -n "$LEGACY_REPO" && ! -d "$LEGACY_REPO" ]]; then
   echo "       and fail only when something reads through it. Nothing done." >&2
   exit 1
 fi
+if [[ -n "$LEGACY_ORIGINAL" && ! -d "$LEGACY_ORIGINAL" ]]; then
+  echo "ERROR: ${LEGACY_ORIGINAL} is not a directory." >&2
+  echo "       A link to it would resolve to nothing, pass every casual check," >&2
+  echo "       and fail only when something reads through it. Nothing done." >&2
+  exit 1
+fi
 
 # Every committed values file must be there, and so must every secrets file
 # this run did not skip: one it kept is either carried by the checkout or
@@ -355,6 +374,7 @@ verify_one() {
 
 [[ -n "$PRIVATE_REPO" ]] && verify_one "footbag_private_repo"
 [[ -n "$LEGACY_REPO" ]] && verify_one "footbag_legacy_repo"
+[[ -n "$LEGACY_ORIGINAL" ]] && verify_one "footbag_legacy_repo_original_data"
 for entry in "${VALUES_LINKS[@]}" "${SECRETS_LINKS[@]}"; do
   [[ " ${SKIPPED_SECRETS[*]} " == *" ${entry%%|*} "* ]] && continue
   verify_one "${entry%%|*}"

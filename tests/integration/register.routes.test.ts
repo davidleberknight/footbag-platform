@@ -820,6 +820,7 @@ describe('POST /register — verify-email enqueue failure', () => {
       enqueue: () => {
         throw new ServiceUnavailableError('synthetic enqueue failure for verify-email');
       },
+      liftAddressSuppression: async () => {},
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
         suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,

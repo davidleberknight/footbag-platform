@@ -3,6 +3,10 @@
  *
  * Owns:
  *   - Registration, email verification, credential check, password change/reset
+ *   - Re-verifying a bounced address on its member's request: the verification
+ *     link that proves the address works, and the call, inside the
+ *     token-consume transaction, that clears the bounce (EmailSubscriptionService
+ *     owns what clearing it changes)
  *   - The member name rules, and every write of a member's recorded legal name
  *     and display name: the registration write and an administrator's
  *     correction both reach them through one shared validator, so a correction
@@ -193,7 +197,9 @@
  *     claim step answered, anchor declared, dev/staging admin allowlist grant,
  *     revert, dispute opened / revert applied, help request submitted /
  *     approved / rejected, registration conflict prompted / disputed,
- *     registration duplicate email)
+ *     registration duplicate email, address recovery requested)
+ *   - SES suppression lift for a bounced address, on its member's request,
+ *     through EmailSubscriptionService
  *   - outbox_emails enqueue (verification, account-exists notice on a duplicate
  *     registration, reset, password-change confirmation, resend,
  *     and the reply telling a
@@ -236,6 +242,7 @@ import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birt
 import { isUniqueConstraintError } from './sqliteRetry';
 import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
+import { liftOwnAddressSuppression, recoverBouncedAddressInTx } from './emailSubscriptionService';
 import {
   applyAutoLinkRevertGrantInTx, applyLegacyClaimGrantInTx, hasHonorGrant,
 } from './membershipTieringService';
@@ -1228,6 +1235,9 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
       entityId: c.memberId,
       ...(update.changes > 0 ? {} : { metadata: { alreadyVerified: true } }),
     });
+    // Opening a link sent to the address proves it receives mail, so a bounce
+    // on it clears here, in the same transaction that spends the proof.
+    recoverBouncedAddressInTx(c.memberId, now);
     return c;
   });
   if (!consumed) return null;
@@ -1475,6 +1485,61 @@ async function resendVerifyEmail(email: string): Promise<void> {
     // auth.register_notification_failed (operator alarm preserved); swallow here
     // so the route returns 200 in both branches, matching requestPasswordReset.
   }
+}
+
+export type AddressRecoveryOutcome =
+  /** The provider's block is lifted and a verification link is on its way. */
+  | { status: 'sent' }
+  /** The address is already receiving mail, so nothing was lifted or sent. */
+  | { status: 'noop'; reason: 'deliverable' };
+
+/**
+ * A signed-in member whose address bounced asks to resume mail to it. The
+ * provider's block on the address is lifted, because it would otherwise drop
+ * the link too, and a verification link goes to the same address on the strict
+ * path. Opening it is the proof that clears the bounce, in verifyEmailByToken.
+ * Shares the verify-resend bucket, since each request mails a verify link to
+ * the address.
+ */
+async function requestAddressRecovery(memberId: string): Promise<AddressRecoveryOutcome> {
+  const row = account.emailRecoveryStateById.get(memberId) as
+    | { id: string; login_email: string | null; login_email_normalized: string | null; email_status: string }
+    | undefined;
+  if (!row || !row.login_email || !row.login_email_normalized) {
+    throw new NotFoundError('Member not found.');
+  }
+  if (row.email_status === 'ok') return { status: 'noop', reason: 'deliverable' };
+  if (row.email_status === 'suppressed') {
+    throw new ValidationError(
+      'Mail to your address was stopped by an administrator. Contact us if you would like it restored.',
+    );
+  }
+  if (row.email_status === 'complained') {
+    throw new ValidationError('Turn on any list below to start receiving it again.');
+  }
+
+  const maxAttempts = readIntConfig('verify_resend_rate_limit_max_attempts', 3);
+  const windowMinutes = readIntConfig('verify_resend_rate_limit_window_minutes', 60);
+  const rl = rateLimitHit(`verify-resend:${row.login_email_normalized}`, maxAttempts, windowMinutes);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many requests to confirm your address. Please try again later.',
+      rl.retryAfterSeconds,
+    );
+  }
+
+  await liftOwnAddressSuppression(memberId, row.login_email);
+  await issueAndEnqueueVerifyEmail(memberId, row.login_email);
+  appendAuditEntry({
+    actionType: 'email.recovery_requested',
+    category: 'system',
+    actorType: 'member',
+    actorMemberId: memberId,
+    entityType: 'member',
+    entityId: memberId,
+    reasonText: 'Member asked to resume mail to a bounced address',
+  });
+  return { status: 'sent' };
 }
 
 // ── Legacy account claim flow (three-table design) ──────────────────────────
@@ -4529,4 +4594,4 @@ async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<b
   return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
 }
 
-export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

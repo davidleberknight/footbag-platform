@@ -18,6 +18,9 @@ paths = [
   # working-tree or --no-git scan must skip it too rather than report the
   # legacy secrets.
   '''footbag_legacy_repo/.*''',
+  # The untouched pre-pull copy of that clone (the gitignored
+  # footbag_legacy_repo_original_data symlink), skipped for the same reason.
+  '''footbag_legacy_repo_original_data/.*''',
   # Curated email templates: long snake_case templateKey values (for example
   # honor_congratulation_bap_tier3) trip the generic-api-key rule. The tree
   # holds template text and keys only, no credentials by design.

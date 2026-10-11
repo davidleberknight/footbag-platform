@@ -183,18 +183,21 @@ describe('what the screen offers', () => {
     const res = await request(createApp()).get(PREFS).set('Cookie', memberCookie());
     expect(res.text).toMatch(/Paused, mail bounced/);
     expect(res.text).toContain('Turn This On');
-    // Re-subscribing flips only the list row; the address mark still blocks delivery, so a page
-    // promising that turning it on resumes mail would mislead the member whose mail is failing.
-    expect(res.text).toContain('Turning it on again will not resume delivery while your address is marked as undeliverable.');
+    // Re-subscribing flips only the list row; a bounce clears only once the address is proven to
+    // work, so a page promising that turning the list on resumes mail would mislead the member.
+    expect(res.text).not.toMatch(/Turn it on again to resume it/);
   });
 
-  it('tells a member whose address reported spam that turning the list on will not resume delivery', async () => {
+  it('does not tell a member whose address reported spam that turning the list on is useless', async () => {
     withDb((db) => insertMailingListSubscription(db, {
       member_id: MEMBER_ID, list_slug: 'newsletter', status: 'complained',
     }));
 
     const res = await request(createApp()).get(PREFS).set('Cookie', memberCookie());
-    expect(res.text).toContain('Turning it on again will not resume delivery while your address is marked as having reported spam.');
+    // Turning the list on is exactly what withdraws the report, so the old "will not resume"
+    // sentence would talk the member out of the one act that brings their mail back.
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/will not resume delivery/);
   });
 
   it('shows a list an administrator set aside as locked, with no control', async () => {

@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Choose which IFPA mailings you receive. Turning one off stops it until you turn it back on. Mail about your own account, such as a password reset or a receipt, is not a mailing and is always sent.</p>
+    <p>Choose which IFPA mailings you receive. Turning one off stops it until you turn it back on. Mail about your own account, such as a password reset or a receipt, is not a mailing, so turning mailings off does not stop it.</p>
   </div>
 </div>
 
@@ -10,6 +10,18 @@
   <div class="form-error-banner" role="alert"><p>{{content.errorMessage}}</p></div>
   {{/if}}
   {{> outcome-notice text=content.notice tone=content.noticeTone}}
+
+  {{#if content.hasAddressNotice}}
+  <div class="card mb-2">
+    <div class="card-title">Your Address</div>
+    <p>{{content.addressNotice}}</p>
+    {{#if content.showRecover}}
+    <form method="POST" action="{{content.recoverAction}}" class="form-block">
+      <button type="submit" class="btn btn-primary">Confirm My Address Works</button>
+    </form>
+    {{/if}}
+  </div>
+  {{/if}}
 
   {{#if content.hasLists}}
   {{#each content.lists}}

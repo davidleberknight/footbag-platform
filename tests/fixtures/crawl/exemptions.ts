@@ -190,7 +190,9 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     'The crawl fixture seeds no row or state that renders a link or form to this route (no '
     + 'avatar, deceased record, work-queue item of this kind, payment report, flagged media, curator '
     + 'media, trick tip, notation candidate, net team, past event, recurring donation, '
-    + 'organizer task, archive configuration, claimable record, or second club for the persona).', [
+    + 'organizer task, archive configuration, claimable record, second club for the persona, or '
+    + 'bounced address).', [
+      'POST /members/:memberKey/email-preferences/recover',
       'POST /admin/members/:memberId/avatar/remove', 'POST /admin/members/:memberId/deceased/revert',
       'POST /admin/historical-records/:personId/deceased', 'POST /admin/historical-records/:personId/deceased/revert',
       'POST /admin/work-queue/:id/resolve', 'POST /admin/work-queue/:id/dismiss', 'POST /admin/work-queue/:id/unpark',

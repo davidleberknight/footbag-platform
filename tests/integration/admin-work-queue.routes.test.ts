@@ -456,6 +456,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
             'synthetic strict-send failure for contact-request-resolve',
           );
         },
+        liftAddressSuppression: async () => {},
         processSendQueue: async () => ({
           claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
           suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
@@ -522,6 +523,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
           enqueue: () => {
             throw new ServiceUnavailableError('should not be called when member has no email');
           },
+          liftAddressSuppression: async () => {},
           processSendQueue: async () => ({
             claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
           suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,

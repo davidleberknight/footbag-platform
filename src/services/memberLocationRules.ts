@@ -22,6 +22,9 @@
  * values out of an imported record the member did not write, and must never
  * refuse: see `normalizeImportedLocation`.
  *
+ * The city casing rule, `capitalizeLowercaseCity`, also governs a club's city,
+ * so every path that writes a city anywhere applies the same one.
+ *
  * Two deliberate asymmetries a reader will otherwise try to "fix":
  *
  *   - Only a CHANGED country is held to the canonical rule. A migrated profile
@@ -48,6 +51,19 @@ export const COUNTRY_CHOICE_MESSAGE =
 
 function trimmed(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
+}
+
+// A city typed with no capital letter at all ("tauranga") is someone who never
+// pressed shift, so each word is capitalized. A city carrying any capital is
+// kept exactly as typed, because only its writer knows whether "McAllen",
+// "La Jolla" or "NYC" is right, and re-casing it would damage a correct name.
+// This never refuses: casing is not a reason to send anyone back to a form.
+export function capitalizeLowercaseCity(city: string): string {
+  if (city !== city.toLowerCase() || city === city.toUpperCase()) return city;
+  return city.replace(
+    /(^|[\s-])(\p{Ll})/gu,
+    (_match, separator: string, letter: string) => separator + letter.toUpperCase(),
+  );
 }
 
 // In the USA and Canada a location without its state or province is ambiguous
@@ -161,7 +177,7 @@ export function validateMemberLocationAndYear(input: {
   }
 
   return {
-    city: input.city,
+    city: capitalizeLowercaseCity(input.city),
     region,
     country,
     firstCompetitionYear: parseFirstCompetitionYearOrThrow(input.rawYear),
@@ -191,7 +207,9 @@ export interface ImportedLocation {
  */
 export function normalizeImportedLocation(input: ImportedLocation): ImportedLocation {
   const country = input.country ? canonicalCountryName(input.country) : null;
-  const city = input.city && input.city.length <= MAX_LOCATION_FIELD ? input.city : null;
+  const city = input.city && input.city.length <= MAX_LOCATION_FIELD
+    ? capitalizeLowercaseCity(input.city)
+    : null;
 
   let region: string | null = null;
   if (input.region) {

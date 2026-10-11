@@ -252,6 +252,23 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
             "ses:FromAddress" = local.ses_from_addresses
           }
         }
+      },
+      {
+        Sid    = "LiftMemberAddressSuppression"
+        Effect = "Allow"
+        # The account-level suppression list silently drops every send to a
+        # listed address, verification and password-reset mail included. A
+        # member whose address bounced or who reported spam resumes mail only
+        # by their own act on their own address, and the application lifts that
+        # one address here when they do. The grant can only remove a block; it
+        # sends nothing and lists nothing.
+        Action = ["ses:DeleteSuppressedDestination"]
+        # The action takes no resource ARN: the suppression list belongs to the
+        # account, so "*" is the only form AWS accepts.
+        #
+        # Staging has no counterpart: its application sends through the stub
+        # adapter, which never reaches the provider.
+        Resource = "*"
       }
     ]
   })

@@ -4563,6 +4563,14 @@ export const account = {
     WHERE login_email_normalized = ?
   `); },
 
+  // The member's own login mailbox and its deliverability, read when they ask
+  // to resume mail to it or turn a mailing back on.
+  get emailRecoveryStateById() { return db.prepare(`
+    SELECT id, login_email, login_email_normalized, email_status
+    FROM members_active
+    WHERE id = ?
+  `); },
+
   get listAdminMemberIds() { return db.prepare(`
     SELECT id FROM members_active
     WHERE is_admin = 1
@@ -9141,16 +9149,36 @@ export interface ActivePlayerExpiryCandidateRow {
 export const sesFeedback = {
   // Escalation-only: 'bounced' applies to ok rows; 'complained' applies to
   // ok or bounced rows; 'suppressed' (admin-set) is never overwritten.
+  // A soft-deleted member is marked too: they keep the address through the
+  // grace window, the provider blocks it all the same, and a restored account
+  // must not read as deliverable while every send to it is discarded. The
+  // address is unique among unpurged members, so at most one row matches.
   get markBounced() { return db.prepare(`
     UPDATE members
     SET email_status = 'bounced', updated_at = ?, updated_by = 'ses_feedback', version = version + 1
-    WHERE login_email_normalized = ? AND deleted_at IS NULL AND email_status = 'ok'
+    WHERE login_email_normalized = ? AND email_status = 'ok'
   `); },
 
   get markComplained() { return db.prepare(`
     UPDATE members
     SET email_status = 'complained', updated_at = ?, updated_by = 'ses_feedback', version = version + 1
-    WHERE login_email_normalized = ? AND deleted_at IS NULL AND email_status IN ('ok','bounced')
+    WHERE login_email_normalized = ? AND email_status IN ('ok','bounced')
+  `); },
+
+  // The only ways back to 'ok', each started by the member: a bounce clears
+  // once they open a verification link sent to the address, a spam report once
+  // they turn a mailing back on. Each clears only its own mark, so an
+  // administrator's 'suppressed' block is never lifted from the member's side.
+  get clearBouncedForMember() { return db.prepare(`
+    UPDATE members
+    SET email_status = 'ok', updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND deleted_at IS NULL AND email_status = 'bounced'
+  `); },
+
+  get clearComplainedForMember() { return db.prepare(`
+    UPDATE members
+    SET email_status = 'ok', updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND deleted_at IS NULL AND email_status = 'complained'
   `); },
 };
 
@@ -9274,14 +9302,15 @@ export const mailingListSubscriptions = {
   // SES bounce/complaint feedback flips the subscriber's mailing-list rows so
   // status stays consistent with deliverability. Only currently-subscribed rows
   // are touched; admin-set 'unsubscribed'/'suppressed' states are never
-  // overwritten. Keyed on login_email_normalized to match the SES feedback path.
+  // overwritten. Keyed on login_email_normalized to match the SES feedback path,
+  // and covering a soft-deleted member for the reason the member marks do.
   get markBouncedForEmail() { return db.prepare(`
     UPDATE mailing_list_subscriptions
     SET status = 'bounced', status_updated_at = ?,
         updated_at = ?, updated_by = 'ses_feedback', version = version + 1,
         bounce_detail = ?
     WHERE status = 'subscribed'
-      AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
+      AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ?)
   `); },
 
   get markComplainedForEmail() { return db.prepare(`
@@ -9290,7 +9319,18 @@ export const mailingListSubscriptions = {
         updated_at = ?, updated_by = 'ses_feedback', version = version + 1,
         complaint_detail = ?
     WHERE status = 'subscribed'
-      AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
+      AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ?)
+  `); },
+
+  // A member whose bounced address is proven to work again gets back exactly
+  // the lists the bounce paused. Rows they withdrew, rows paused by a spam
+  // report and rows an administrator suppressed hold other statuses and are
+  // left as they stand.
+  get restoreBouncedForMember() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = 'subscribed', status_updated_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE member_id = ? AND status = 'bounced'
   `); },
 
   // Idempotent subscribe used when a member is provisioned or granted the admin
