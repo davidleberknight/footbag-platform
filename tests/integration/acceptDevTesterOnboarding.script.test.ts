@@ -641,6 +641,10 @@ describe('accept-dev-tester-onboarding.sh — failures it must not misreport', (
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/could not log in to 203\.0\.113\.10 on port 2222 as james_leberknight/);
     expect(r.out).toMatch(/checkip\.amazonaws\.com/);
+    // A joiner has no access to the maintainers' private tracker, so the way
+    // back to the holder is the holder, not a card the joiner cannot open.
+    expect(r.out).toMatch(/send your\s+current one to the holder who onboarded you/);
+    expect(r.out).not.toMatch(/onboarding card/);
     expect(r.out).not.toMatch(/no delivery waiting/);
     expectUntouched();
   });

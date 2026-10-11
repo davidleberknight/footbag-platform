@@ -325,6 +325,13 @@ def test_url_bearing_meta_is_still_localized(env, monkeypatch):
         _soup('<meta http-equiv="Content-Type" content="x">').find('meta'))
 
 
+def test_a_refresh_meta_is_treated_as_carrying_a_url():
+    # Refused, the redirect branch never ran and a refresh kept sending readers
+    # back to the legacy host. Content-Type stays refused alongside it.
+    assert mirror_script._meta_content_is_url(
+        _soup('<meta http-equiv="Refresh" content="1; url=x">').find('meta'))
+
+
 def test_a_commented_out_script_is_removed_too():
     # Not a conditional comment, just a script an author commented out. It does
     # not execute, but it leaves a script tag in the served bytes, which is what

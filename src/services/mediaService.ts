@@ -8,8 +8,11 @@
  * Owns:
  *   - /media hub page read (collection cards; the Member galleries card links
  *     to the member-galleries list page)
- *   - /media/member-galleries list page read (member-owned named galleries,
- *     oldest first, excluding the auto-default Personal Gallery)
+ *   - /media/member-galleries list page read (member-owned named galleries
+ *     with at least one matching item, newest matching upload first, paged
+ *     with `?page=` at the shared page size, excluding the auto-default
+ *     Personal Gallery; a page past the last is not found); the hub's Member
+ *     galleries card appears on the same has-items rule
  *   - Profile Media section view-model (getMemberProfileMedia, consumed by
  *     memberService): the member's named galleries as link cards plus a view-all
  *     link, not an inline thumbnail grid
@@ -118,6 +121,7 @@ import {
   queryStyleTermTagIds,
   queryTagIdsByNormalized,
   resolveTrickTags,
+  summarizeGalleryItemsByCriteria,
 } from '../db/db';
 import { tierBadgeShort } from './membershipTieringService';
 import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
@@ -468,6 +472,7 @@ export interface MemberGalleryListItem {
 export interface MemberGalleriesContent {
   galleries: MemberGalleryListItem[];
   hasGalleries: boolean;
+  pagination: GalleryPagination;
 }
 
 // One folder in the Freestyle Media section. A null href is a folder whose
@@ -834,6 +839,17 @@ function shapeOwner(row: NamedGalleryWithOwnerRow): GalleryOwner {
   };
 }
 
+// How many items a stored named gallery shows, and when its newest one was
+// uploaded, by the same tag-AND match its page renders. Membership is computed
+// at request time, so a gallery can be empty at creation and again later when
+// its items are deleted or retagged.
+function namedGallerySummary(galleryId: string): { n: number; latest: string | null } {
+  const tagIds = (media.listFhNamedGalleryTags.all(galleryId) as FhNamedGalleryTagRow[]).map((t) => t.id);
+  const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[])
+    .map((t) => t.id);
+  return summarizeGalleryItemsByCriteria(tagIds, excludeTagIds);
+}
+
 // Upper bound on resolved include/exclude tags carried into the standalone item
 // viewer. The viewer route is public and attacker-facing; each tag adds a query
 // placeholder, so an unbounded list is a mild query-size vector. Overflow is
@@ -1100,11 +1116,13 @@ export const mediaService = {
       // The hub no longer lists each gallery inline: member-owned named
       // galleries live behind the Member galleries card and its list page, and
       // FH-owned galleries are reached through the curated collection cards.
-      // Only two facts drive the cards here: whether any member gallery exists
-      // (the card links to the list page when so, otherwise it shows a "none
-      // yet" note) and whether the chinlone collection is seeded (the Related
-      // Sports link).
-      const hasMemberGalleries = galleries.some((g) => g.is_system === 0);
+      // Only two facts drive the cards here: whether any member gallery has at
+      // least one matching item (the card links to the list page when so; an
+      // empty gallery offers a visitor nothing, so it does not count) and
+      // whether the chinlone collection is seeded (the Related Sports link).
+      const hasMemberGalleries = galleries.some(
+        (g) => g.is_system === 0 && namedGallerySummary(g.id).n > 0,
+      );
       const relatedSportsHref = galleries.some((g) => g.id === 'gallery_chinlone')
         ? '/media/gallery_chinlone' : null;
 
@@ -1158,7 +1176,7 @@ export const mediaService = {
       // categories (Net, Sideline, an empty Member galleries, or an unseeded Related
       // Sports) are hidden until they have content, so the hub never reads as a
       // list of "Coming soon" / "None yet" placeholders. Each reappears the moment
-      // its href resolves (a member creates a gallery, the Net collection is seeded).
+      // its href resolves (a member gallery gains its first item, the Net collection is seeded).
       const liveCards = cards.filter((c) => c.href != null);
 
       return {
@@ -1174,7 +1192,10 @@ export const mediaService = {
     });
   },
 
-  getMemberGalleriesPage(viewer: ViewerContext = { authenticated: false }): PageViewModel<MemberGalleriesContent> {
+  getMemberGalleriesPage(
+    viewer: ViewerContext = { authenticated: false },
+    rawPage?: unknown,
+  ): PageViewModel<MemberGalleriesContent> {
     return runSqliteRead('mediaService.getMemberGalleriesPage', () => {
       const rows = media.listMemberOwnedNamedGalleries.all() as Array<{
         id: string;
@@ -1184,12 +1205,41 @@ export const mediaService = {
         owner_slug: string;
         owner_display_name: string;
       }>;
-      const galleries: MemberGalleryListItem[] = rows.map((g) => {
-        const tagIds = (media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[]).map((t) => t.id);
-        const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[]).map(
-          (t) => t.id,
-        );
-        const itemCount = countGalleryItemsByCriteria(tagIds, excludeTagIds);
+      // A gallery with no matching items offers a visitor nothing, so it is
+      // left off the list; it stays reachable from its owner's management page
+      // and at its own URL, and reappears here once an item matches. The rest
+      // order by their newest matching upload, newest first, so a gallery that
+      // just gained an item rises and an abandoned one sinks; the gallery id
+      // breaks ties so the order, and so every page boundary, is stable.
+      const listed = rows
+        .map((g) => ({ g, summary: namedGallerySummary(g.id) }))
+        .filter(({ summary }) => summary.n > 0)
+        .sort((a, b) => {
+          const byLatest = (b.summary.latest ?? '').localeCompare(a.summary.latest ?? '');
+          return byLatest !== 0 ? byLatest : b.g.id.localeCompare(a.g.id);
+        });
+
+      const total = listed.length;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const page = sanitizePage(rawPage);
+      if (page > totalPages) throw new NotFoundError('Member galleries page out of range');
+      const hasPrev = page > 1;
+      const hasNext = page < totalPages;
+      const pageHref = (p: number): string =>
+        p === 1 ? '/media/member-galleries' : `/media/member-galleries?page=${p}`;
+      const pagination: GalleryPagination = {
+        page,
+        pageSize: PAGE_SIZE,
+        total,
+        hasNext,
+        hasPrev,
+        ...(hasPrev ? { prevHref: pageHref(page - 1) } : {}),
+        ...(hasNext ? { nextHref: pageHref(page + 1) } : {}),
+      };
+
+      const offset = (page - 1) * PAGE_SIZE;
+      const galleries: MemberGalleryListItem[] = listed.slice(offset, offset + PAGE_SIZE).map(({ g, summary }) => {
+        const itemCount = summary.n;
         return {
           id: g.id,
           name: g.name,
@@ -1212,7 +1262,7 @@ export const mediaService = {
           title: 'Member Galleries',
           intro: 'Photo and video galleries created by IFPA members.',
         },
-        content: { galleries, hasGalleries: galleries.length > 0 },
+        content: { galleries, hasGalleries: galleries.length > 0, pagination },
       };
     });
   },

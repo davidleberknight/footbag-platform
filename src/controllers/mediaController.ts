@@ -17,7 +17,8 @@ export const mediaController = {
       // Every media surface keys its member enhancements off membership, not
       // bare authentication: a registrant still onboarding reads these pages as
       // a signed-out visitor does, and every profile link would 404 for them.
-      const vm = mediaService.getMemberGalleriesPage({ authenticated: req.isMember });
+      const rawPage = typeof req.query.page === 'string' ? req.query.page : undefined;
+      const vm = mediaService.getMemberGalleriesPage({ authenticated: req.isMember }, rawPage);
       res.render('media/member-galleries', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'media controller (member galleries)');

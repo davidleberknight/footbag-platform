@@ -629,6 +629,81 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
     for (const line of lines) expect(line).toBe('fixture-sudo-password');
   });
 
+  it('installs the key labelled with the account, whatever comment it arrived with', () => {
+    // The comment is what a reader of authorized_keys takes as whose key this
+    // is and what it is for. Left as sent, a key made under an old instruction
+    // would sit on the host calling a dev-and-tester an operator.
+    const stream = join(WORK_DIR, 'key-stream');
+    const cred = join(WORK_DIR, 'cred-label');
+    writeFileSync(cred, 'fixture-sudo-password\n');
+    chmodSync(cred, 0o600);
+    const stub = join(WORK_DIR, 'ssh-stream');
+    writeFileSync(
+      stub,
+      [
+        '#!/usr/bin/env bash',
+        hostIdentityAnswer(),
+        'for a in "$@"; do',
+        '  case "$a" in',
+        "    *\"echo 'SSH OK'\"*) echo '    SSH OK'; exit 0 ;;",
+        '    *"id -u"*) echo ABSENT; exit 0 ;;',
+        `    *"sudo -k -S"*) IFS= read -r _; cat >> ${JSON.stringify(stream)}; exit 0 ;;`,
+        '  esac',
+        'done',
+        'cat > /dev/null',
+        'exit 0',
+      ].join('\n'),
+    );
+    chmodSync(stub, 0o755);
+
+    const sent = readFileSync(VALID_KEY, 'utf-8').trim().split(/\s+/);
+    const keyFile = join(WORK_DIR, 'key-old-comment.pub');
+    writeFileSync(keyFile, `${sent[0]} ${sent[1]} robin footbag operator\n`);
+
+    const inner = [
+      'bash',
+      JSON.stringify(SCRIPT),
+      ...sealed({ '--key-file': keyFile }).map((a) => JSON.stringify(a)),
+      '<',
+      JSON.stringify(cred),
+    ].join(' ');
+    spawnSync('script', ['-qec', inner, '/dev/null'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: '',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        FAKE_SSH_USER: 'footbag',
+        PATH: `${ALIAS_BIN}:${process.env.PATH ?? ''}`,
+        FOOTBAG_PROVISION_SSH: stub,
+        FOOTBAG_KNOWN_HOSTS: PIN,
+        DTACC_SEALED_OUT: outFile(),
+      },
+      ...SPAWN_GUARD,
+    });
+
+    expect(existsSync(stream), 'no privileged session reached the host').toBe(true);
+    const assignment = readFileSync(stream, 'utf-8')
+      .split('\n')
+      .find((l) => l.startsWith('DTACC_KEY_LINE='));
+    expect(assignment, 'the key line never reached the remote half').toBeDefined();
+    const decoded = spawnSync('bash', ['-c', `${assignment}; printf '%s' "$DTACC_KEY_LINE"`], {
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    }).stdout;
+    expect(decoded).toBe(`${sent[0]} ${sent[1]} robin_fielder footbag`);
+  });
+
+  it('refuses a key line led by options rather than guessing where they end', () => {
+    const sent = readFileSync(VALID_KEY, 'utf-8').trim();
+    const keyFile = join(WORK_DIR, 'key-with-options.pub');
+    writeFileSync(keyFile, `restrict ${sent}\n`);
+    const result = runScript(sealed({ '--key-file': keyFile }));
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/not a plain public key line: it starts with\s+'restrict'/);
+  });
+
   it('does not report a finished run as unfinished', () => {
     // A run that has handed the password back disarms the cleanup. Left armed,
     // it would close on a removal of the account beneath its own success

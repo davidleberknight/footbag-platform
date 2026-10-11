@@ -308,3 +308,72 @@ def test_webcal_ical_links_are_discovered_and_enqueued_as_http(mirror_env):
     assert f'{BASE}/events/ical' in links
     assert f'{BASE}/events/vcal/9.ics' in links
     assert not any(u.startswith('webcal://') for u in links)
+
+
+# ── Image sources a browser fetches that are not a plain src ─────────────────
+
+def _recording_media_stub(monkeypatch):
+    fetched = []
+
+    def stub(url, session, referrer=None, thumbnail_or_poster=False):
+        fetched.append(url)
+        target = mirror_script.url_to_filepath(mirror_script.strip_query(url))
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
+        Path(target).write_bytes(b'x')
+        return target
+    monkeypatch.setattr(mirror_script, 'download_and_process_media', stub)
+    monkeypatch.setattr(mirror_script, 'session', _RaisingSession())
+    return fetched
+
+
+def test_an_img_srcset_on_the_wordpress_host_is_brought_home(mirror_env, monkeypatch):
+    # A browser loads from srcset in preference to src. A candidate left on the
+    # legacy host breaks the image on the published archive even though src was
+    # localized, which is how every WordPress page lost its pictures.
+    fetched = _recording_media_stub(monkeypatch)
+    html = ('<html><body><img src="files/a.jpg" sizes="100vw" srcset='
+            '"http://sites.footbag.org/reference/files/a.jpg 640w, '
+            'http://sites.footbag.org/reference/files/a-300x187.jpg 300w"/>'
+            '</body></html>')
+    out = mirror_script.rewrite_links(html, 'http://sites.footbag.org/reference/')
+    assert 'sites.footbag.org' not in out
+    assert 'http://sites.footbag.org/reference/files/a-300x187.jpg' in fetched
+    assert 'a-300x187.jpg 300w' in out
+
+
+def test_a_srcset_with_nothing_capturable_falls_back_to_src(mirror_env, monkeypatch):
+    # Every candidate known broken: the set goes, with its sizes, so the browser
+    # uses src rather than an empty or dangling set.
+    _recording_media_stub(monkeypatch)
+    dead = 'http://sites.footbag.org/reference/files/gone.jpg'
+    mirror_env.failed_urls.add(dead)
+    html = (f'<html><body><img src="files/a.jpg" sizes="100vw" '
+            f'srcset="{dead} 640w"/></body></html>')
+    out = mirror_script.rewrite_links(html, 'http://sites.footbag.org/reference/')
+    img = mirror_script.BeautifulSoup(out, 'html.parser').find('img')
+    assert 'srcset' not in img.attrs
+    assert 'sizes' not in img.attrs
+    assert img['src'] == 'files/a.jpg'
+
+
+def test_a_table_cell_background_is_fetched_and_localized(mirror_env, monkeypatch):
+    # The gallery frames are painted by td backgrounds. Never fetched, every
+    # gallery page on the archive lost its filmstrip artwork.
+    fetched = _recording_media_stub(monkeypatch)
+    html = ('<html><body><table><tr><td background="/img/gallery/filmstrip-l.jpg">'
+            '</td></tr></table></body></html>')
+    out = mirror_script.rewrite_links(html, f'{BASE}/gallery/showset/Taram')
+    assert f'{BASE}/img/gallery/filmstrip-l.jpg' in fetched
+    assert 'img/gallery/filmstrip-l.jpg' in out
+
+
+def test_a_refresh_to_the_bare_apex_is_pointed_into_the_archive(mirror_env, monkeypatch):
+    # The refresh sent a reader back to the legacy site a second after arriving;
+    # the target is a captured page, so the redirect must stay inside the archive.
+    monkeypatch.setattr(mirror_script, 'session', _RaisingSession())
+    html = ('<html><head><meta http-equiv="refresh" '
+            'content="1; url=http://footbag.org/worlds2008/"/></head>'
+            '<body>moved</body></html>')
+    out = mirror_script.rewrite_links(html, f'{BASE}/worlds2008/cz/')
+    assert 'footbag.org/worlds2008' not in out
+    assert 'url=../index.html' in out

@@ -54,11 +54,11 @@ Comment: The first official game of footbag golf was played in Delta Park, Portl
 
 ### 402.02. Markers
 
-Each player must mark his lie with a marker having a diameter of between 2 and 6 and a height not exceeding 3. A non-playing footbag or mini disc is suggested.
+Each player must mark his lie with a marker having a diameter of between 2" and 6" and a height not exceeding 3". A non-playing footbag or mini disc is suggested.
 
 ### 402.03. Targets
 
-**A. Dimensions**: The regulation size for a footbag golf hole is 18 in diameter, and standing 18 off the ground.
+**A. Dimensions**: The regulation size for a footbag golf hole is 18" in diameter, and standing 18" off the ground.
 
 **B. Completion**: To complete a hole the footbag must land inside the designated hole and come to rest. If the footbag comes to rest on the edge of the hole, it is considered in. If the footbag spirals within the hole and comes out, it must be played from where it comes to rest, and is not considered in.
 
@@ -92,7 +92,7 @@ Play will begin on each hole by the player kicking from the teeing area. All kic
 
 ### 403.04. Stance
 
-**A. General**: During a kick while on the fairway, one of the player's supporting points (or foot) must be placed within 12 behind the lie marker and on the imaginary line running from the hole through the center of the marker. This is illustrated in Fig. 6. When the footbag is kicked, no supporting point contact may be made with the marker or any other object closer to the hole than the rear edge of the marker. Stepping past the marker is permitted after the footbag is kicked, except when putting within the marked area of the green surrounding the hole.
+**A. General**: During a kick while on the fairway, one of the player's supporting points (or foot) must be placed within 12" behind the lie marker and on the imaginary line running from the hole through the center of the marker. This is illustrated in Fig. 6. When the footbag is kicked, no supporting point contact may be made with the marker or any other object closer to the hole than the rear edge of the marker. Stepping past the marker is permitted after the footbag is kicked, except when putting within the marked area of the green surrounding the hole.
 
 > **Figure 8 — Foot Placement for Fairway Drive**: Allowed footbag placement during a drive. The foot must contact an imaginary line extending 12 inches behind the footbag on a line drawn from the hole (or nearest "mandatory") through the lie of the footbag. NOTE: for on-green putting, the 12-inch line does not exist, and the foot must be placed ON the lie, but not past it.
 

@@ -35,6 +35,7 @@ const SYSTEM_ID = 'member-media-system-001';
 const MEMBER_ID = 'member-media-regular-001';
 const FH_GALLERY_ID = 'gallery_curated_freestyle_tricks';
 const MEMBER_GALLERY_ID = 'gallery_member_personal_001';
+const EMPTY_MEMBER_GALLERY_ID = 'gallery_member_unfilled_001';
 
 const TS = '2026-04-29T12:00:00.000Z';
 
@@ -226,18 +227,20 @@ beforeAll(async () => {
   insertGalleryCriteria(db, FH_GALLERY_ID, [CURATED_TAG_ID, FREESTYLE_TAG_ID, TRICK_TAG_ID]);
   insertGalleryExcludeTag(db, FH_GALLERY_ID, UNRANKED_TAG_ID);
 
-  // Member-owned gallery with same criteria. Used to verify the hub +
-  // detail anti-enumeration filter (FH-only).
+  // Member-owned galleries list publicly only once an item matches them, so the
+  // listed member galleries share a criterion that one member photo carries.
+  const beachTagId = freeform('#beach');
+  attachTag(db, insertPhoto(db, { uploader_member_id: MEMBER_ID, caption: 'Beach kick' }), beachTagId, '#beach');
+
   insertNamedGallery(db, {
     id: MEMBER_GALLERY_ID,
     ownerId: MEMBER_ID,
     name: 'Personal Vacation 2026',
     description: 'My private vacation photos.',
   });
-  insertGalleryCriteria(db, MEMBER_GALLERY_ID, [CURATED_TAG_ID]);
+  insertGalleryCriteria(db, MEMBER_GALLERY_ID, [beachTagId]);
 
-  // A second member-owned named gallery, created earlier than the first, so the
-  // list page can assert oldest-first ordering.
+  // A second member-owned named gallery, so the list page shows more than one.
   insertNamedGallery(db, {
     id: 'gallery_member_beach_001',
     ownerId: MEMBER_ID,
@@ -245,7 +248,16 @@ beforeAll(async () => {
     description: 'Shots from the beach.',
     createdAt: '2024-06-01T00:00:00.000Z',
   });
-  insertGalleryCriteria(db, 'gallery_member_beach_001', [CURATED_TAG_ID]);
+  insertGalleryCriteria(db, 'gallery_member_beach_001', [beachTagId]);
+
+  // A member-owned named gallery no item matches: it stays off the public list
+  // while its own URL keeps working.
+  insertNamedGallery(db, {
+    id: EMPTY_MEMBER_GALLERY_ID,
+    ownerId: MEMBER_ID,
+    name: 'Unfilled Gallery',
+  });
+  insertGalleryCriteria(db, EMPTY_MEMBER_GALLERY_ID, [freeform('#nothing_here')]);
 
   // Auto-materialized Personal Gallery (is_default=1). The hub should
   // exclude these so the public list isn't polluted with one row per
@@ -328,18 +340,21 @@ describe('GET /media/member-galleries (member galleries list page)', () => {
     expect(res.text).toContain('href="/media/gallery_member_beach_001"');
   });
 
-  it('orders galleries oldest first by creation date', async () => {
-    const app = createApp();
-    const res = await request(app).get('/media/member-galleries');
-    // Beach Session 2024 was created before Personal Vacation 2026.
-    expect(res.text.indexOf('Beach Session 2024')).toBeLessThan(res.text.indexOf('Personal Vacation 2026'));
-  });
-
   it('excludes the auto-default Personal Gallery (is_default=1)', async () => {
     const app = createApp();
     const res = await request(app).get('/media/member-galleries');
     expect(res.text).not.toContain('Personal Gallery');
     expect(res.text).not.toContain('Everything I have uploaded.');
+  });
+
+  it('leaves a gallery no item matches off the list, while its own URL still renders', async () => {
+    const app = createApp();
+    const list = await request(app).get('/media/member-galleries');
+    expect(list.status).toBe(200);
+    expect(list.text).not.toContain(`href="/media/${EMPTY_MEMBER_GALLERY_ID}"`);
+    const direct = await request(app).get(`/media/${EMPTY_MEMBER_GALLERY_ID}`);
+    expect(direct.status).toBe(200);
+    expect(direct.text).toContain('Unfilled Gallery');
   });
 
   it('shows owner attribution and an item count, without a profile link for visitors', async () => {

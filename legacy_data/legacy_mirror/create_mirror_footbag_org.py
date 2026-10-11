@@ -201,6 +201,26 @@ HOST_TREE_PREFIX = {
 }
 RESERVED_HOST_PREFIXES = frozenset(HOST_TREE_PREFIX.values())
 
+# Images captured from other websites live under one more reserved top-level
+# prefix, one directory per host. Kept apart from RESERVED_HOST_PREFIXES because
+# the passes that read that set treat each entry as a vhost's site root, and
+# this subtree holds pictures only. Underscore-led like the publisher's own
+# reserved prefix, so no legacy path can ever name it.
+OFFSITE_IMAGE_PREFIX = '_offsite'
+# Hosts whose images are never captured and never printed as text. An avatar
+# URL is a hash of the commenter's e-mail address, so keeping either the
+# picture's address or a copy named after it publishes that hash.
+OFFSITE_IMAGE_REFUSED_HOST_SUFFIXES = ('gravatar.com',)
+# Another site's server is not bound by the legacy site's sizes, and a body
+# with no Content-Length could otherwise stream forever.
+OFFSITE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
+# Image hosts answer a removed picture with one stock "unavailable" image. The
+# same bytes behind this many different addresses on one host is that stock
+# image, not a photograph, and archiving it would present it as the original.
+OFFSITE_PLACEHOLDER_REPEATS = 3
+# The pause before the single retry of a connection that never came up.
+OFFSITE_CONNECT_RETRY_PAUSE_SECONDS = 5
+
 # DNS aliases of the main site (CNAME to www or the apex, same content).
 # normalize_url folds them onto www so one page has one key, one file, and one
 # rewritten link target; an alias hostname therefore never reaches the mirror.
@@ -550,6 +570,19 @@ def parse_args():
             "supplementary-site pages carrying nothing but a title. A crawl runs "
             "all of these at its end; this is how a correction to any of them "
             "reaches a finished capture without re-reading the site. Idempotent."
+        ),
+    )
+    parser.add_argument(
+        "--capture-offsite-images-only",
+        dest="capture_offsite_images_only",
+        action="store_true",
+        help=(
+            "No crawl, no login, no request to the legacy site: capture every "
+            "picture the tree still loads from another website (re-encoded, "
+            "under the reserved _offsite/ prefix), remove what no longer "
+            "loads, remove every embed, player and avatar from another site, "
+            "then exit. Contacts only those other sites' image hosts. Re-run "
+            "until it reports nothing left to retry. Idempotent."
         ),
     )
     parser.add_argument(
@@ -3144,6 +3177,206 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
         logging.error(f"General failure in download_and_process_media: {url} → {e}")
         return None
 
+
+# ---------- Images from other websites ----------
+#
+# Separate from download_and_process_media on purpose. That path is built for
+# the legacy site: its admin-route and exclusion guards match path segments on
+# any host (a foreign '/ranking/x.jpg' would be refused), it records failures in
+# the saved crawl state, and a failed re-encode hands back the raw bytes. Here a
+# picture either ends up re-encoded with its sidecar, or not at all.
+
+_OFFSITE_HOST_RE = re.compile(r'^[a-z0-9-]+(?:\.[a-z0-9-]+)+$')
+_OFFSITE_SLUG_RE = re.compile(r'[^a-z0-9]+')
+_OFFSITE_DNS_FAILURE_RE = re.compile(
+    r'Name or service not known|Failed to resolve|nodename nor servname|'
+    r'getaddrinfo failed|No address associated', re.IGNORECASE)
+
+
+def _offsite_host(url):
+    host = (urlsplit(url).hostname or '').lower()
+    return host if _OFFSITE_HOST_RE.match(host) else None
+
+
+def offsite_image_refused(url):
+    host = _offsite_host(url) or ''
+    return any(host == s or host.endswith('.' + s)
+               for s in OFFSITE_IMAGE_REFUSED_HOST_SUFFIXES)
+
+
+def offsite_image_base(url):
+    """Where a picture from another site is stored, without its extension.
+
+    One flat, escape-free name per address: a readable slug of the file name
+    plus a digest of the whole URL. Nothing a foreign name holds (a '#', a '%',
+    a space, a query string, upper case, a .png beside a .jpg of the same stem)
+    can then break the href or make two pictures share a file.
+    """
+    host = _offsite_host(url)
+    if not host:
+        return None
+    stem = Path(unquote(urlsplit(url).path)).stem.lower()
+    slug = _OFFSITE_SLUG_RE.sub('-', stem).strip('-')[:60] or 'image'
+    digest = hashlib.sha1(url.encode('utf-8')).hexdigest()[:10]
+    root = os.path.abspath(os.path.join(_www_root(), OFFSITE_IMAGE_PREFIX))
+    base = os.path.abspath(os.path.join(root, host, f'{slug}-{digest}'))
+    if not base.startswith(root + os.sep):
+        return None
+    return base
+
+
+def offsite_captured_copy(url):
+    # Only a re-encoded copy counts: a file without its sidecar is unscanned
+    # bytes the publisher refuses, so it must never be linked.
+    base = offsite_image_base(url)
+    if not base:
+        return None
+    for ext in ('.jpg', '.gif'):
+        if _is_already_sanitized(base + ext):
+            return base + ext
+    return None
+
+
+def _remove_quietly(*paths):
+    for path in paths:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _fetch_offsite_image_bytes(url, dead_hosts):
+    """Download one picture to its storage name, unconverted.
+
+    Returns ('fetched', path, ext, digest), ('dead',) or ('transient',). A
+    dead host is remembered so its other pictures fail without another wait;
+    a slow answer, a 429 or a server error is transient and leaves nothing
+    behind.
+    """
+    host = _offsite_host(url)
+    base = offsite_image_base(url)
+    if not host or not base or host in dead_hosts:
+        return ('dead',)
+    ext = get_extension(url)
+    if ext == '.jpeg':
+        ext = '.jpg'
+    if ext and ext not in IMAGE_EXTENSIONS:
+        return ('dead',)
+    os.makedirs(os.path.dirname(base), exist_ok=True)
+    partial = base + '.part'
+    response = None
+    for attempt in (1, 2):
+        try:
+            polite_wait(url)
+            response = public_session.get(url, stream=True, timeout=15)
+            break
+        except requests.exceptions.SSLError:
+            dead_hosts.add(host)
+            return ('dead',)
+        except requests.exceptions.ConnectionError as e:
+            # No connection at all: the name does not resolve, the host never
+            # answers, or it hangs up without a reply. Long-gone hosts do exactly
+            # this every time, so counting it as temporary would hold the tree
+            # unpublishable forever. One pause and retry separates them from a
+            # blip on this end.
+            if attempt == 1 and not _OFFSITE_DNS_FAILURE_RE.search(str(e)):
+                time.sleep(OFFSITE_CONNECT_RETRY_PAUSE_SECONDS)
+                continue
+            dead_hosts.add(host)
+            return ('dead',)
+        except requests.exceptions.RequestException:
+            # Connected, then slow: the server exists and may answer later.
+            return ('transient',)
+
+    with response:
+        status = response.status_code
+        if status == 429 or status >= 500:
+            return ('transient',)
+        if status != 200:
+            return ('dead',)
+        total = 0
+        digest = hashlib.sha1()
+        try:
+            with open(partial, 'wb') as out:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > OFFSITE_IMAGE_MAX_BYTES:
+                        out.close()
+                        _remove_quietly(partial)
+                        logging.warning(f"Image from another site over the size cap: {url}")
+                        return ('dead',)
+                    digest.update(chunk)
+                    out.write(chunk)
+        except requests.exceptions.RequestException:
+            _remove_quietly(partial)
+            return ('transient',)
+
+    try:
+        with open(partial, 'rb') as handle:
+            sniffed = sniff_image_ext(handle.read(16))
+    except OSError:
+        sniffed = None
+    # The bytes outrank the URL: a server that answers an image address with a
+    # page, or a .jpg address with a PNG, is common off the legacy site.
+    real_ext = sniffed or ext
+    if not real_ext or not verify_magic_bytes(partial, real_ext):
+        _remove_quietly(partial)
+        return ('dead',)
+    path = base + real_ext
+    os.replace(partial, path)
+    return ('fetched', path, real_ext, digest.hexdigest())
+
+
+def capture_offsite_images(urls):
+    """Fetch, screen and re-encode pictures from other sites.
+
+    Returns {url: local path | 'dead' | 'transient'}. Every address is fetched
+    before any is kept, because a host's stock "picture removed" image can only
+    be recognized by how many different addresses return the same bytes.
+    """
+    outcome, fetched, dead_hosts = {}, {}, set()
+    for url in urls:
+        if offsite_image_refused(url):
+            outcome[url] = 'dead'
+            continue
+        local = offsite_captured_copy(url)
+        if local:
+            outcome[url] = local
+            continue
+        result = _fetch_offsite_image_bytes(url, dead_hosts)
+        if result[0] == 'fetched':
+            fetched[url] = result[1:]
+        else:
+            outcome[url] = result[0]
+
+    repeats = Counter((_offsite_host(url), digest) for url, (_p, _e, digest) in fetched.items())
+    for url, (path, ext, digest) in fetched.items():
+        if repeats[(_offsite_host(url), digest)] >= OFFSITE_PLACEHOLDER_REPEATS:
+            _remove_quietly(path)
+            outcome[url] = 'dead'
+            continue
+        result = convert_and_cleanup(path, ext)
+        if result and _is_already_sanitized(result):
+            outcome[url] = result
+            continue
+        # A failed re-encode returns the raw bytes; they are never kept.
+        _remove_quietly(path)
+        if result:
+            _remove_quietly(result)
+        outcome[url] = 'dead'
+
+    kept = Counter(_offsite_host(u) for u, v in outcome.items() if v not in ('dead', 'transient'))
+    for host, count in sorted(kept.items()):
+        logging.info(f"Images from another site captured: {host}: {count}")
+    logging.info(
+        f"Images from other sites: {sum(kept.values())} captured, "
+        f"{sum(1 for v in outcome.values() if v == 'dead')} unavailable, "
+        f"{sum(1 for v in outcome.values() if v == 'transient')} to retry")
+    return outcome
+
+
 def _general_url_path(parsed, url):
     # Map an arbitrary URL path to a mirror-relative file path: strip traversal,
     # append index.html for directory-style paths, and clean legacy cacheBuster
@@ -3610,6 +3843,11 @@ _URL_BEARING_META_KEYS = frozenset({
 
 
 def _meta_content_is_url(element):
+    # A refresh carries its destination after 'url=' and is the one http-equiv
+    # kind that names a URL. Refusing it here left the redirect pointing at the
+    # legacy host, sending a reader out of the archive a second after arriving.
+    if (element.get('http-equiv') or '').strip().lower() == 'refresh':
+        return True
     for key in ('property', 'name', 'itemprop'):
         value = element.get(key)
         if value and value.strip().lower() in _URL_BEARING_META_KEYS:
@@ -4478,7 +4716,15 @@ def rewrite_links(html, page_url, link_base=None):
 
         url_attributes = {
             'a': ['href'],
-            'img': ['src'],
+            # srcset too: a browser prefers it to src, so a candidate left on
+            # the legacy host breaks the image even when src was localized.
+            'img': ['src', 'srcset'],
+            # Legacy table layouts paint their frames with background images;
+            # never fetched, they leave every gallery page without its artwork.
+            'td': ['background'],
+            'th': ['background'],
+            'table': ['background'],
+            'body': ['background'],
             'script': ['src'],
             'link': ['href'],
             'iframe': ['src'],
@@ -4719,7 +4965,14 @@ def rewrite_links(html, page_url, link_base=None):
                                 new_items.append(relative_path + (' ' + descriptor if descriptor else ''))
                             else:
                                 new_items.append(item)
-                        element[attr_name] = ', '.join(new_items)
+                        if new_items:
+                            element[attr_name] = ', '.join(new_items)
+                        else:
+                            # Nothing left to offer: src is what the browser falls
+                            # back to, and sizes describes a set that is gone.
+                            del element[attr_name]
+                            if 'sizes' in element.attrs:
+                                del element['sizes']
                         continue
 
                     # Now handle all other internal URLs
@@ -5388,7 +5641,8 @@ def is_in_scope(url):
     # reserved vhost prefix as its top segment, and a vhost slug must never BE a
     # reserved prefix, or the two host namespaces would overwrite each other in
     # the single served tree.
-    if segs and segs[0].lower() in RESERVED_HOST_PREFIXES:
+    if segs and (segs[0].lower() in RESERVED_HOST_PREFIXES
+                 or segs[0].lower() == OFFSITE_IMAGE_PREFIX):
         logging.warning(f"Refusing reserved-prefix collision: {url}")
         return False
     # WordPress crawl traps and non-content endpoints. These apply on EVERY crawl
@@ -6485,8 +6739,11 @@ def replace_member_area_with_notice():
 # The negated class cannot leave its own attribute, and an apostrophe stays
 # legal inside a double-quoted value (O'Brien.jpg) because that alternative
 # only stops at a double quote.
+#
+# A table or body background is fetched like an img src, so a missing one is a
+# missing image and is counted with the rest.
 _LOCAL_REF_RE = re.compile(
-    rb'(?:href|src|xlink:href)=(?:"([^"]{1,400})"|\'([^\']{1,400})\')',
+    rb'(?:href|src|xlink:href|background)=(?:"([^"]{1,400})"|\'([^\']{1,400})\')',
     re.IGNORECASE)
 # Markup the legacy site commented out and left in place. No browser requests it,
 # so counting it as a reference reports links that do not exist: one commented
@@ -6503,7 +6760,9 @@ _MARKUP_COMMENT_RE = re.compile(rb'<!--.*?-->', re.DOTALL)
 # ('&lt;<a href="...">...</a>&gt;'), and matching that as escaped text hid a
 # link every browser requests from both the dead-link pass and the verifier.
 _ESCAPED_MARKUP_RE = re.compile(rb'&lt;[A-Za-z/!][^&]{0,400}?&gt;', re.IGNORECASE)
-_OFFSITE_REF_PREFIXES = ('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')
+# '//' too: a protocol-relative address names another host, and read as a
+# root-relative path it was judged missing and deleted with its address lost.
+_OFFSITE_REF_PREFIXES = ('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:', '//')
 
 
 def _page_local_refs(blob):
@@ -6912,6 +7171,27 @@ def neutralize_dead_internal_links():
                     element.insert_before(NavigableString(text))
                 element.decompose()
                 neutralized += 1
+            changed = True
+
+        # A background the capture does not hold is a broken image the reader
+        # never sees as a box, only as missing artwork. The cell itself is
+        # content, so only the attribute goes.
+        for element in list(soup.find_all(background=True)):
+            if _already_removed(element):
+                continue
+            ref = element.get('background')
+            if not isinstance(ref, str) or not ref or ref.startswith(_OFFSITE_REF_PREFIXES):
+                continue
+            dangling = _dangling_ref(ref, page.parent, www_root)
+            if not dangling:
+                continue
+            if dangling[1]:
+                element['background'] = dangling[1]
+                repaired += 1
+            else:
+                element.insert_before(Comment("Mirror: background image not captured, reference removed"))
+                del element['background']
+                images += 1
             changed = True
 
         if changed:
@@ -7347,6 +7627,345 @@ def settle_vhost_placeholder_pages():
 
 _RETIRED_HOST_ATTRS = ('href', 'src', 'poster', 'altsrc')
 
+# 'N; url=target', with the target optionally quoted. Legacy pages also write a
+# comma for the semicolon, which browsers accept.
+_META_REFRESH_RE = re.compile(
+    r'^\s*([^;,]*)[;,]\s*url\s*=\s*([\'"]?)(.*?)\2\s*$', re.IGNORECASE)
+
+
+def srcset_candidates(value):
+    # (url, descriptor) per candidate. Split on commas the way the crawl-time
+    # rewrite does, so both read a set identically.
+    out = []
+    for item in (value or '').split(','):
+        parts = item.strip().split()
+        if parts:
+            out.append((parts[0], ' '.join(parts[1:])))
+    return out
+
+
+def meta_refresh_target(element):
+    # (delay, url) for a refresh meta that names a destination, else None.
+    if getattr(element, 'name', None) != 'meta':
+        return None
+    if (element.get('http-equiv') or '').strip().lower() != 'refresh':
+        return None
+    match = _META_REFRESH_RE.match(element.get('content') or '')
+    if not match or not match.group(3).strip():
+        return None
+    return match.group(1).strip(), match.group(3).strip()
+
+
+def names_retired_host(url):
+    # An absolute address that lands on a crawled host once its alias spelling
+    # is folded, such as the bare footbag.org apex. The site root is the
+    # banner's deliberate way out of the archive and never counts.
+    if not isinstance(url, str) or not url.lower().startswith(('http://', 'https://')):
+        return False
+    parsed = urlparse(normalize_url(url))
+    return parsed.netloc.lower() in CRAWL_HOSTS and parsed.path not in ('', '/')
+
+
+def _captured_copy(url):
+    # Where the capture holds a retired-host address, or None. A still image is
+    # stored re-encoded, so a .png address names a file that was written as .jpg.
+    try:
+        local = url_to_filepath(strip_query(normalize_url(url)))
+    except ValueError:
+        return None
+    if not local:
+        return None
+    if os.path.exists(local):
+        return local
+    path = Path(local)
+    ext = path.suffix.lower()
+    if ext in IMAGE_EXTENSIONS:
+        stored = path.with_suffix('.gif' if ext == '.gif' else '.jpg')
+        if stored.exists():
+            return str(stored)
+    return None
+
+
+def _settle_retired_srcset(element, page):
+    # Each candidate on a crawled host is pointed at the captured file or
+    # dropped; anything else is left as written. With nothing left the set goes,
+    # with its sizes, and the browser falls back to src. Returns whether the
+    # element changed.
+    value = element.get('srcset')
+    if not isinstance(value, str):
+        return False
+    kept, changed = [], False
+    for url, descriptor in srcset_candidates(value):
+        if not names_retired_host(url):
+            kept.append(url + (' ' + descriptor if descriptor else ''))
+            continue
+        changed = True
+        local = _captured_copy(url)
+        if local:
+            rel = calculate_relative_path(str(page), local)
+            kept.append(rel + (' ' + descriptor if descriptor else ''))
+    if not changed:
+        return False
+    if kept:
+        element['srcset'] = ', '.join(kept)
+    else:
+        del element['srcset']
+        if 'sizes' in element.attrs:
+            del element['sizes']
+    return True
+
+
+def _settle_retired_refresh(element, page):
+    # A redirect into the capture is pointed at the local page; one to a page
+    # the capture never held goes entirely, since a redirect to nothing strands
+    # the reader a second after arriving. Returns whether the element changed.
+    target = meta_refresh_target(element)
+    if not target or not names_retired_host(target[1]):
+        return False
+    local = _captured_copy(target[1])
+    if local:
+        delay = target[0] or '0'
+        element['content'] = f'{delay}; url={calculate_relative_path(str(page), local)}'
+        return True
+    element.insert_before(Comment("Mirror: redirect to the retired legacy host removed"))
+    element.decompose()
+    return True
+
+
+# Every attribute a browser fetches to render a page. A third-party value in
+# any of them is a request from a members-only archive to someone else's server.
+_OFFSITE_RESOURCE_ATTRS = {
+    'img': ('src', 'srcset'), 'iframe': ('src',), 'frame': ('src',),
+    'embed': ('src',), 'object': ('data',), 'param': ('value',),
+    'source': ('src', 'srcset'), 'track': ('src',),
+    'video': ('src', 'poster'), 'audio': ('src',), 'input': ('src',),
+}
+_OFFSITE_REF_HINT = re.compile(
+    rb'(?:src|srcset|data|value|poster|background)\s*=\s*["\']?\s*(?:https?:)?//',
+    re.IGNORECASE)
+
+
+def offsite_url(value):
+    """The absolute third-party address a value names, or None.
+
+    Tabs and line breaks inside the value are dropped first, as a browser drops
+    them, so an address the legacy editor wrapped across lines is still read.
+    """
+    if not isinstance(value, str):
+        return None
+    url = _collapse_amp_entities(re.sub(r'[\t\r\n]', '', value).strip())
+    if url.startswith('//'):
+        url = 'http:' + url
+    if not url.lower().startswith(('http://', 'https://')):
+        return None
+    if is_footbag_domain(url):
+        return None
+    return url
+
+
+def offsite_resource_refs(soup):
+    """(element, attribute, url) for every resource a page loads from another site."""
+    refs = []
+    for element in soup.find_all(True):
+        attrs = list(_OFFSITE_RESOURCE_ATTRS.get(element.name, ()))
+        if 'background' in element.attrs:
+            attrs.append('background')
+        for attr in attrs:
+            value = element.get(attr)
+            values = ([u for u, _ in srcset_candidates(value)] if attr == 'srcset'
+                      else [value])
+            for candidate in values:
+                url = offsite_url(candidate)
+                if url:
+                    refs.append((element, attr, url))
+    return refs
+
+
+def _offsite_text(url):
+    # The address stays readable, as an outbound link's does, unless it was
+    # never a usable address at all.
+    return '' if outbound_url_is_malformed(url) else url
+
+
+def _replace_with_note(element, comment, text):
+    element.insert_before(Comment(comment))
+    if text:
+        element.insert_before(NavigableString(text))
+    element.decompose()
+
+
+def _settle_offsite_img(element, url, page, outcome, capture, counts):
+    if offsite_image_refused(url):
+        _replace_with_note(element, "Mirror: avatar from another site removed", '')
+        counts['refused'] += 1
+        return True
+    local = offsite_captured_copy(url)
+    if not local and isinstance(outcome.get(url), str) and outcome[url] not in ('dead', 'transient'):
+        local = outcome[url]
+    if local:
+        element['src'] = calculate_relative_path(str(page), local)
+        counts['captured'] += 1
+        return True
+    if not capture:
+        counts['pending'] += 1
+        return False
+    if outcome.get(url) == 'transient':
+        counts['transient'] += 1
+        return False
+    alt = (element.get('alt') or '').strip()
+    address = _offsite_text(url)
+    text = f'{alt} ({address})' if alt and address else (alt or (f'({address})' if address else ''))
+    _replace_with_note(element, "Mirror: image from another site no longer available, removed", text)
+    counts['removed'] += 1
+    return True
+
+
+def _settle_offsite_page(soup, page, outcome, capture, counts):
+    changed = False
+    by_element = {}
+    for element, attr, url in offsite_resource_refs(soup):
+        by_element.setdefault(id(element), (element, []))[1].append((attr, url))
+
+    for element, refs in by_element.values():
+        if _already_removed(element):
+            continue
+        name = element.name
+        urls = dict(refs)
+
+        if 'background' in urls:
+            del element['background']
+            counts['removed'] += 1
+            changed = True
+
+        if name == 'img':
+            if 'src' in urls and _settle_offsite_img(element, urls['src'], page,
+                                                     outcome, capture, counts):
+                changed = True
+            if _already_removed(element):
+                continue
+            # The alternates are never captured: src is the fallback a browser
+            # uses once the set is gone, and it was settled just above.
+            if any(attr == 'srcset' for attr, _ in refs):
+                kept = [f'{u} {d}'.strip() for u, d in srcset_candidates(element.get('srcset'))
+                        if not offsite_url(u)]
+                if kept:
+                    element['srcset'] = ', '.join(kept)
+                else:
+                    del element['srcset']
+                    if 'sizes' in element.attrs:
+                        del element['sizes']
+                changed = True
+            continue
+
+        if name in ('param', 'embed') and element.find_parent('object') is not None:
+            # Settled as part of its object, which goes as one piece.
+            element = element.find_parent('object')
+            name = 'object'
+            if _already_removed(element):
+                continue
+
+        if name == 'object':
+            address = urls.get('data') or next(iter(urls.values()), '')
+            _replace_with_note(element, "Mirror: content embedded from another site removed",
+                               f'({_offsite_text(address)})' if _offsite_text(address) else '')
+            counts['embeds'] += 1
+            changed = True
+            continue
+
+        if name in ('source', 'track'):
+            parent = element.find_parent(['video', 'audio'])
+            address = next(iter(urls.values()))
+            element.decompose()
+            counts['embeds'] += 1
+            changed = True
+            if (parent is not None and not _already_removed(parent)
+                    and not parent.get('src')
+                    and not any(s.get('src') or s.get('srcset')
+                                for s in parent.find_all('source'))):
+                # Nothing left to play. The address keeps the page from reading
+                # as empty where the clip used to be.
+                _replace_with_note(parent, "Mirror: media from another site removed",
+                                   f'({_offsite_text(address)})' if _offsite_text(address) else '')
+            continue
+
+        if name in ('video', 'audio') and 'poster' in urls and 'src' not in urls:
+            del element['poster']
+            changed = True
+            continue
+
+        if name == 'input':
+            if 'src' in urls:
+                del element['src']
+                changed = True
+            continue
+
+        if name in ('iframe', 'frame', 'embed', 'video', 'audio', 'param') and (
+                set(urls) - {'background'}):
+            address = urls.get('src') or next(iter(urls.values()))
+            _replace_with_note(element, "Mirror: content embedded from another site removed",
+                               f'({_offsite_text(address)})' if _offsite_text(address) else '')
+            counts['embeds'] += 1
+            changed = True
+    return changed
+
+
+def settle_offsite_resources(capture=False):
+    """Nothing a page renders may come from another website.
+
+    The archive is static and members-only: an embedded player runs script, and
+    every request to another server tells that server who is reading. Pictures
+    that still load are captured and re-encoded like any other image when
+    capture is on; everything else from another site goes, keeping its address
+    as text the way an outbound link does. Without capture (the no-network
+    settling mode) a picture not yet captured is left exactly as it is, so a
+    settle run can never destroy what a later capture run would have kept; the
+    verifier refuses the tree until that run happens.
+    """
+    www_root = Path(_www_root()).resolve()
+    pages = []
+    for page in www_root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        # An XML document filed under a page name is served as stored; parsing
+        # and re-serializing it as HTML would corrupt it.
+        if blob.lstrip()[:5] == b'<?xml':
+            continue
+        if _OFFSITE_REF_HINT.search(blob):
+            pages.append((page, blob))
+
+    def parse(blob):
+        return BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+
+    outcome = {}
+    if capture:
+        wanted = set()
+        for page, blob in pages:
+            for element, attr, url in offsite_resource_refs(parse(blob)):
+                if (element.name == 'img' and attr == 'src'
+                        and not offsite_image_refused(url)
+                        and not outbound_url_is_malformed(url)):
+                    wanted.add(url)
+        outcome = capture_offsite_images(sorted(wanted))
+
+    counts = Counter()
+    touched = 0
+    for page, blob in pages:
+        soup = parse(blob)
+        if _settle_offsite_page(soup, page, outcome, capture, counts):
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+    logging.info(
+        f"Other-site resources: {touched} page(s) rewritten, "
+        f"{counts['captured']} image reference(s) pointed at a captured copy, "
+        f"{counts['removed']} unavailable image(s) removed, "
+        f"{counts['refused']} avatar(s) removed, {counts['embeds']} embed(s) removed, "
+        f"{counts['transient']} to retry, {counts['pending']} awaiting a capture run")
+    return counts
+
 
 def _pending_backfill_urls():
     # A video the backfill will still act on keeps its original address, which
@@ -7379,7 +7998,10 @@ def neutralize_retired_host_links():
     address, and anything else keeps its words and loses the link.
     """
     www_root = Path(_www_root()).resolve()
-    hosts = tuple(f'//{host}'.encode() for host in CRAWL_HOSTS)
+    # The alias spellings too: a refresh written against the bare apex lands on
+    # www once folded, and a page carrying only that spelling is never parsed
+    # unless the scan looks for it.
+    hosts = tuple(f'//{host}'.encode() for host in CRAWL_HOSTS | WWW_ALIAS_HOSTS)
     exempt = _pending_backfill_urls()
     repaired = neutralized = dropped = touched = 0
 
@@ -7399,6 +8021,14 @@ def neutralize_retired_host_links():
             continue
         changed = False
         for element in list(soup.find_all(True)):
+            if _already_removed(element):
+                continue
+            if _settle_retired_srcset(element, page):
+                changed = True
+            if _settle_retired_refresh(element, page):
+                changed = True
+                if _already_removed(element):
+                    continue
             for attr in _RETIRED_HOST_ATTRS:
                 value = element.get(attr)
                 if not isinstance(value, str) or not value.startswith(('http://', 'https://')):
@@ -7485,6 +8115,10 @@ def generate_reachability_pages(seeds_dir=None):
     # A withheld post's listing entries go before the dead-link pass, which then
     # settles the links that remain to it, such as a neighbour's "newer post".
     drop_withheld_post_entries()
+    # Resources from other websites before the dead-link pass, so a captured
+    # picture is already on disk when that pass judges what is missing. A crawl
+    # has the network, so pictures that still load are captured here.
+    settle_offsite_resources(capture=True)
     # Dead links next: the generated pages below are written from what is on disk
     # and must not themselves be rewritten afterwards, and the pass has to see
     # the tree as everything above it left it.
@@ -8808,6 +9442,7 @@ def _run_crawler():
                 ('--rebuild-directory-only', args.rebuild_directory_only),
                 ('--wrap-plain-text-only', args.wrap_plain_text_only),
                 ('--settle-for-publication-only', args.settle_for_publication_only),
+                ('--capture-offsite-images-only', args.capture_offsite_images_only),
                 ('--relink-nav-items-only', args.relink_nav_items_only),
             ) if on]
         if conflicting:
@@ -8862,6 +9497,7 @@ def _run_crawler():
                      f"entries from {len(paths)} file(s): {', '.join(paths)}")
     elif not (args.apply_exclusions_only or args.rebuild_directory_only
               or args.wrap_plain_text_only or args.settle_for_publication_only
+              or args.capture_offsite_images_only
               or args.relink_nav_items_only or args.strip_unservable_only):
         sys.exit(
             "ERROR: --exclusion-list is required for any crawl or backfill:\n"
@@ -8928,8 +9564,20 @@ def _run_crawler():
         relink_restored_nav_items()
         neutralize_dead_script_controls()
         drop_withheld_post_entries()
+        # No network here, so a picture from another site not yet captured is
+        # left for --capture-offsite-images-only; embeds still go.
+        settle_offsite_resources(capture=False)
         neutralize_dead_internal_links()
         neutralize_retired_host_links()
+        return
+
+    if args.capture_offsite_images_only:
+        # No login and no request to the legacy site; the only network traffic
+        # is to the other sites whose pictures the pages still load, through
+        # the cookie-less session. The dead-link pass follows so a picture
+        # removed here leaves nothing dangling.
+        settle_offsite_resources(capture=True)
+        neutralize_dead_internal_links()
         return
 
     if args.relink_nav_items_only:

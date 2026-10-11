@@ -557,6 +557,22 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     expect(r.stdout).toContain('address:      203.0.113.7/32');
   });
 
+  it('tells the joiner to send the fingerprint apart from the key it vouches for', () => {
+    // Sent with the key, the fingerprint proves nothing: whoever could alter
+    // the key in transit alters the fingerprint to match, and the holder's
+    // check then passes on a key that is not the joiner's.
+    awsMachine();
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
+    expect(r.status, r.stderr).toBe(0);
+    const lines = r.stdout.split('\n');
+    const keyAt = lines.findIndex((l) => l.startsWith('  public key:'));
+    const apartAt = lines.findIndex((l) => /different channel/.test(l));
+    const fpAt = lines.findIndex((l) => l.startsWith('  fingerprint:'));
+    expect(keyAt).toBeGreaterThan(-1);
+    expect(apartAt, 'no instruction to send the fingerprint separately').toBeGreaterThan(keyAt);
+    expect(fpAt, 'the fingerprint is listed with the key, not after the separate-channel line').toBeGreaterThan(apartAt);
+  });
+
   it('keeps an existing pair, which an onboarding may already be sealed to', () => {
     awsMachine();
     const sha = makePair();

@@ -6557,7 +6557,8 @@ export const media = {
   `); },
 
   // Member-owned named galleries (non-default, non-system) oldest first.
-  // Powers the /media/member-galleries list page; the per-member auto-default
+  // Feeds the /media/member-galleries list page, which re-orders them by newest
+  // matching upload once it has each gallery's items; the per-member auto-default
   // Personal Gallery (is_default=1) is excluded so the list shows only
   // deliberately-named galleries.
   get listMemberOwnedNamedGalleries() { return db.prepare(`
@@ -6599,7 +6600,7 @@ export const media = {
   // A member's named galleries for the profile Media section: the galleries the
   // member deliberately created, excluding the auto-default Personal Gallery
   // (whose content the profile's "View all media" link already covers). Oldest
-  // first, matching the public member-galleries list ordering.
+  // first, so a member's galleries keep the order they were created in.
   get listMemberNamedGalleriesByOwner() { return db.prepare(`
     SELECT g.id, g.name, g.description
     FROM member_galleries g
@@ -7087,6 +7088,43 @@ export function countGalleryItemsByCriteria(
     )
   `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number };
   return row.n;
+}
+
+// Count plus the newest matching item's upload instant, by the same tag-AND
+// match as countGalleryItemsByCriteria. The member-galleries list orders by that
+// instant, so a gallery that just gained an item rises to the top. latest is
+// null when nothing matches.
+export function summarizeGalleryItemsByCriteria(
+  tagIds: string[],
+  excludeTagIds: string[] = [],
+): { n: number; latest: string | null } {
+  if (tagIds.length === 0) return { n: 0, latest: null };
+  const placeholders = tagIds.map(() => '?').join(',');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
+  return db.prepare(`
+    SELECT COUNT(*) AS n, MAX(uploaded_at) AS latest FROM (
+      SELECT mi.id, mi.uploaded_at
+      FROM media_items mi
+      JOIN media_tags mt ON mt.media_id = mi.id
+      WHERE mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND mt.tag_id IN (${placeholders})
+        ${excludeClause}
+        AND NOT EXISTS (
+          SELECT 1 FROM media_tags mtu
+          JOIN tags tu ON tu.id = mtu.tag_id
+          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+        )
+      GROUP BY mi.id
+      HAVING COUNT(DISTINCT mt.tag_id) = ?
+    )
+  `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number; latest: string | null };
 }
 
 // Tags that co-occur on the items matching the current criteria/exclude set,

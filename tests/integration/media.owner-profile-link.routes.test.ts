@@ -14,6 +14,8 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertMemberGallery,
+  insertMediaItem,
+  attachMediaTag,
   insertFreeformTag,
   insertGalleryCriterionTag,
   createTestSessionJwt,
@@ -43,10 +45,12 @@ beforeAll(async () => {
 
   // A named gallery whose only criterion is the owner's uploader tag, so the
   // gallery page heads itself with the owner's name (the identity header) and
-  // the member-galleries list attributes it to the owner.
+  // the member-galleries list attributes it to the owner. The list shows only
+  // galleries with a matching item, so the owner has one upload.
   const byTag = insertFreeformTag(db, { tag_normalized: `#by_${OWNER_SLUG}`, tag_display: `#by_${OWNER_SLUG}` });
   insertMemberGallery(db, { id: GALLERY_ID, owner_member_id: OWNER_ID, created_by: OWNER_ID, name: 'Owner Link Gallery' });
   insertGalleryCriterionTag(db, GALLERY_ID, byTag);
+  attachMediaTag(db, insertMediaItem(db, { uploader_member_id: OWNER_ID }), byTag);
 
   db.close();
   createApp = await importApp();

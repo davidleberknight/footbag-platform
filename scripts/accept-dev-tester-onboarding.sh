@@ -370,8 +370,8 @@ case "${FETCH_RCS[0]}" in
     echo "ERROR: could not log in to ${HOST} on port ${DELIVERY_SSH_PORT} as ${ACCOUNT}." >&2
     echo "       Nothing was changed. Check that --host is the address the" >&2
     echo "       onboarding printed. If it is, and the holder has said you are" >&2
-    echo "       onboarded, your own address has probably changed: post your" >&2
-    echo "       current one on the onboarding card, from" >&2
+    echo "       onboarded, your own address has probably changed: send your" >&2
+    echo "       current one to the holder who onboarded you, from" >&2
     echo "         curl -s https://checkip.amazonaws.com" >&2
     exit 1
     ;;

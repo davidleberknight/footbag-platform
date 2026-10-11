@@ -575,11 +575,16 @@ if [[ -n "$ACCOUNT" ]]; then
       address="${address}/32"
     fi
     echo ""
-    echo "Post these on your onboarding card, for the holder who onboards you:"
+    # The fingerprint is how the holder proves the key arrived unchanged, which
+    # it proves only when it travels apart from the key: sent together, whoever
+    # can alter the one can alter the other to match.
+    echo "Send these to the holder who onboards you:"
     echo "  account:      ${ACCOUNT}"
     echo "  public key:   $(grep -m1 . "${NAMED_KEY}.pub")"
-    echo "  fingerprint:  ${key_sha}"
     echo "  address:      ${address}"
+    echo "Send this one through a different channel (a text message or a call, not"
+    echo "the same email or thread), so they can check the key was not changed on the way:"
+    echo "  fingerprint:  ${key_sha}"
     echo "The address is the one this machine reaches the internet from now; onboard"
     echo "from where you will work."
   fi

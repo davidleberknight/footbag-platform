@@ -401,6 +401,20 @@ if [[ -z "$KEY_LINE" ]]; then
   echo "ERROR: '${KEY_FILE}' is empty." >&2
   exit 1
 fi
+# The comment a key arrives with is whatever its maker typed, and a reader of
+# authorized_keys takes it as the statement of whose key this is and what it is
+# for. The account decides that, so the installed line carries the label
+# setup-dev-workstation.sh gives a key it makes. The comment is not part of the
+# key, so the fingerprint checked above still describes this line. A line led
+# by options is refused rather than relabelled: options are not something a
+# dev-and-tester sends, and keeping them would mean guessing where they end.
+if [[ ! "${KEY_LINE%% *}" =~ ^(ssh-|ecdsa-|sk-) ]]; then
+  echo "ERROR: '${KEY_FILE}' is not a plain public key line: it starts with" >&2
+  echo "       '${KEY_LINE%% *}' rather than the key type. Send the .pub file as" >&2
+  echo "       ssh-keygen wrote it." >&2
+  exit 1
+fi
+KEY_LINE="$(awk '{print $1, $2}' <<<"$KEY_LINE") ${ACCOUNT} footbag"
 
 fi  # end of the key section, skipped when offboarding or inspecting
 

@@ -184,6 +184,76 @@ def test_a_live_host_reference_with_a_path_fails(tmp_path):
     assert failures and 'sites.footbag.org' in failures[0]
 
 
+def test_a_srcset_candidate_on_the_live_host_fails(tmp_path):
+    # The browser prefers srcset to src, so this is a broken image on the
+    # published archive however well src was localized.
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'reference2/index.html',
+          '<meta charset="utf-8"/><img src="files/a.jpg" srcset='
+          '"http://sites.footbag.org/reference/files/a.jpg 640w"/>')
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_no_live_host_references(
+        report, verify_tree.pages(www), www, tmp_path)
+    failures = _row(report, 'no reference still addresses the live hosts')[1]
+    assert failures == [
+        'reference2/index.html -> srcset '
+        'http://sites.footbag.org/reference/files/a.jpg']
+
+
+def test_a_refresh_to_the_bare_apex_fails(tmp_path):
+    # Sends the reader out of the archive a second after arriving, and is
+    # spelled without www, so a scan for the crawl hosts alone misses it.
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'worlds2008/cz/index.html',
+          '<meta charset="utf-8"/><meta http-equiv="refresh" '
+          'content="1; url=http://footbag.org/worlds2008/"/>')
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_no_live_host_references(
+        report, verify_tree.pages(www), www, tmp_path)
+    failures = _row(report, 'no reference still addresses the live hosts')[1]
+    assert failures == [
+        'worlds2008/cz/index.html -> refresh http://footbag.org/worlds2008/']
+
+
+def test_a_missing_background_image_fails_the_dead_link_check(tmp_path):
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'gallery/showset/1/index.html',
+          '<meta charset="utf-8"/><td background="/img/gallery/filmstrip-l.jpg"></td>')
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_dead_links(report, verify_tree.pages(www), www)
+    assert _row(report, 'no link points at a file that is not there')[1] == [
+        'gallery/showset/1/index.html -> /img/gallery/filmstrip-l.jpg']
+
+
+def _offsite_failures(tmp_path, body):
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'news/index.html', f'<meta charset="utf-8"/>{body}')
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_no_offsite_resources(report, verify_tree.pages(www), www)
+    return _row(report, 'no page loads anything from another website')[1]
+
+
+def test_a_page_loading_from_another_site_fails(tmp_path):
+    # A hotlinked picture, an embedded player or a Flash movie each make a
+    # members-only archive call another server and ship unscanned content.
+    failures = _offsite_failures(
+        tmp_path,
+        '<img src="http://bigaddposse.com/img/a.jpg"/>'
+        '<iframe src="https://www.youtube.com/embed/x"></iframe>'
+        '<object><param name="movie" value="http://vimeo.com/moogaloop.swf"/></object>')
+    assert failures == [
+        'news/index.html -> <img src> http://bigaddposse.com/img/a.jpg',
+        'news/index.html -> <iframe src> https://www.youtube.com/embed/x',
+        'news/index.html -> <param value> http://vimeo.com/moogaloop.swf']
+
+
+def test_markup_inside_a_comment_and_a_captured_copy_pass(tmp_path):
+    assert _offsite_failures(
+        tmp_path,
+        '<!-- <img src="http://bigaddposse.com/img/a.jpg"> -->'
+        '<img src="../_offsite/bigaddposse.com/a-0123456789.jpg"/>') == []
+
+
 def test_the_banners_root_link_is_the_one_deliberate_exception(tmp_path):
     www = tmp_path / 'www.footbag.org'
     _page(www, 'index.html',

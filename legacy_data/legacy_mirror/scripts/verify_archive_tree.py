@@ -415,7 +415,8 @@ def check_no_live_host_references(report, html_pages, www_root, mirror_root):
     if manifest_path.is_file():
         crawler.mirror_state.skipped_videos = crawler._load_skipped_video_manifest()
         exempt = crawler._pending_backfill_urls()
-    hosts = tuple(f'//{host}'.encode() for host in crawler.CRAWL_HOSTS)
+    hosts = tuple(f'//{host}'.encode()
+                  for host in crawler.CRAWL_HOSTS | crawler.WWW_ALIAS_HOSTS)
     carriers = []
     for page in html_pages:
         try:
@@ -426,6 +427,15 @@ def check_no_live_host_references(report, html_pages, www_root, mirror_root):
             continue
         soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
         for element in soup.find_all(True):
+            # A srcset holds several addresses and a browser prefers it to src,
+            # and a refresh hides its destination after 'url='; neither reads as
+            # one URL, so each is unpacked by the crawler's own parser.
+            for url, _descriptor in crawler.srcset_candidates(element.get('srcset')):
+                if crawler.names_retired_host(url):
+                    carriers.append(f'{rel(page, www_root)} -> srcset {url}')
+            refresh = crawler.meta_refresh_target(element)
+            if refresh and crawler.names_retired_host(refresh[1]):
+                carriers.append(f'{rel(page, www_root)} -> refresh {refresh[1]}')
             for attr in crawler._RETIRED_HOST_ATTRS:
                 value = element.get(attr)
                 if not isinstance(value, str) or not value.startswith(('http://', 'https://')):
@@ -441,6 +451,27 @@ def check_no_live_host_references(report, html_pages, www_root, mirror_root):
     report.add('no reference still addresses the live hosts', carriers,
                f'{len(exempt)} video(s) exempt as awaiting the backfill'
                if exempt else '')
+
+
+def check_no_offsite_resources(report, html_pages, www_root):
+    # The archive is static and members-only: a player embedded from another
+    # site runs script, a hotlinked picture never went through the re-encode,
+    # and every such request tells another server who is reading. A picture a
+    # settle run left for the capture run shows up here until that run happens.
+    carriers = []
+    for page in html_pages:
+        if is_xml(page):
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if not crawler._OFFSITE_REF_HINT.search(blob):
+            continue
+        soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        for element, attr, url in crawler.offsite_resource_refs(soup):
+            carriers.append(f'{rel(page, www_root)} -> <{element.name} {attr}> {url}')
+    report.add('no page loads anything from another website', carriers)
 
 
 def check_no_empty_pages(report, html_pages, www_root):
@@ -646,6 +677,7 @@ def main():
     check_charset_declared(report, html_pages, www_root)
     check_no_binary_under_page_name(report, html_pages, www_root)
     check_no_live_host_references(report, html_pages, www_root, mirror_root)
+    check_no_offsite_resources(report, html_pages, www_root)
     check_no_empty_pages(report, html_pages, www_root)
     check_nothing_stored_that_should_have_been_refused(report, html_pages, www_root)
     check_refusals_were_reviewed(report, mirror_root)

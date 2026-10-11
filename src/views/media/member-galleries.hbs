@@ -16,6 +16,13 @@
       </div>
       {{/each}}
     </div>
+    {{#if (or content.pagination.hasPrev content.pagination.hasNext)}}
+      <nav class="gallery-pagination" aria-label="Pagination">
+        {{#if content.pagination.hasPrev}}<a href="{{content.pagination.prevHref}}" rel="prev">Previous</a>{{/if}}
+        <span class="gallery-pagination-status">Page {{content.pagination.page}}</span>
+        {{#if content.pagination.hasNext}}<a href="{{content.pagination.nextHref}}" rel="next">Next</a>{{/if}}
+      </nav>
+    {{/if}}
   {{else}}
     <div class="empty-state">No member galleries yet.</div>
   {{/if}}

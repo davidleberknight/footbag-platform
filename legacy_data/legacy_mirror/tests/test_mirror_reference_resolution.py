@@ -147,6 +147,38 @@ def test_a_dead_sprite_reference_is_cleared(monkeypatch, www):
     assert 'icons.svg' not in out
 
 
+def test_a_background_the_capture_does_not_hold_is_removed(monkeypatch, www):
+    # A missing background is a missing image a reader sees only as absent
+    # artwork. The cell is content, so it stays; only the reference goes.
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+    page = _page(www, 'events/show/1088671012/index.html',
+                 '<table><tr><td background="bg1.gif">Results</td></tr></table>')
+    mirror_script.neutralize_dead_internal_links()
+    out = page.read_text(encoding='utf-8')
+    assert 'background=' not in out
+    assert 'Results' in out
+
+
+def test_a_background_the_capture_holds_is_kept(monkeypatch, www):
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+    (www / 'img' / 'gallery').mkdir(parents=True)
+    (www / 'img' / 'gallery' / 'white.gif').write_text('x', encoding='utf-8')
+    page = _page(www, 'clubs/show/1/index.html',
+                 '<td background="/img/gallery/white.gif">x</td>'
+                 '<a href="missing.html">gone</a>')
+    mirror_script.neutralize_dead_internal_links()
+    assert 'background="/img/gallery/white.gif"' in page.read_text(encoding='utf-8')
+
+
+def test_a_missing_background_counts_as_a_dangling_reference(www):
+    # What the publish gate reads: without it a capture missing every gallery
+    # frame passes as having no dead links.
+    page = _page(www, 'gallery/showset/1/index.html',
+                 '<td background="/img/gallery/filmstrip-l.jpg"></td>')
+    assert mirror_script._dangling_refs(page, www) == [
+        ('/img/gallery/filmstrip-l.jpg', None)]
+
+
 class TestReferencesStillNamingTheRetiredHost:
     """An absolute address on the crawled hosts is a reference the capture did
     not bring home. It worked while the legacy site answered; once that name
@@ -217,6 +249,77 @@ class TestReferencesStillNamingTheRetiredHost:
         page = _page(www, 'gallery/showset/3/index.html', f'<img src="{url}"/>')
         mirror_script.neutralize_retired_host_links()
         assert 'footbag.org/media/withheld.mov' not in page.read_text(encoding='utf-8')
+
+    def test_a_srcset_candidate_the_capture_holds_is_pointed_at_it(self, www):
+        # Including a .png candidate whose file was stored re-encoded as .jpg.
+        (www / 'sites' / 'reference' / 'files').mkdir(parents=True)
+        (www / 'sites' / 'reference' / 'files' / 'logo.jpg').write_text('x', encoding='utf-8')
+        page = _page(www, 'sites/reference/index.html',
+                     '<img src="files/logo.jpg" srcset="http://sites.footbag.org/'
+                     'reference/files/logo.png 248w"/>')
+        mirror_script.neutralize_retired_host_links()
+        img = mirror_script.BeautifulSoup(page.read_text(encoding='utf-8'),
+                                          'html.parser').find('img')
+        assert img['srcset'] == 'files/logo.jpg 248w'
+
+    def test_uncaptured_srcset_candidates_go_and_src_takes_over(self, www):
+        # The shape that broke every WordPress image on the archive: the src was
+        # localized, the srcset still named the legacy host, and the browser
+        # preferred the srcset.
+        (www / 'reference2' / 'files').mkdir(parents=True)
+        (www / 'reference2' / 'files' / 'a.jpg').write_text('x', encoding='utf-8')
+        page = _page(www, 'reference2/index.html',
+                     '<img src="files/a.jpg" sizes="100vw" srcset="'
+                     'http://sites.footbag.org/reference/files/a.jpg 640w, '
+                     'http://sites.footbag.org/reference/files/a-300x187.jpg 300w"/>')
+        mirror_script.neutralize_retired_host_links()
+        img = mirror_script.BeautifulSoup(page.read_text(encoding='utf-8'),
+                                          'html.parser').find('img')
+        assert 'srcset' not in img.attrs
+        assert 'sizes' not in img.attrs
+        assert img['src'] == 'files/a.jpg'
+
+    def test_a_partly_captured_srcset_keeps_only_what_is_there(self, www):
+        (www / 'sites' / 'reference' / 'files').mkdir(parents=True)
+        (www / 'sites' / 'reference' / 'files' / 'a.jpg').write_text('x', encoding='utf-8')
+        page = _page(www, 'sites/reference/index.html',
+                     '<img src="files/a.jpg" srcset="'
+                     'http://sites.footbag.org/reference/files/a.jpg 640w, '
+                     'http://sites.footbag.org/reference/files/a-300x187.jpg 300w"/>')
+        mirror_script.neutralize_retired_host_links()
+        img = mirror_script.BeautifulSoup(page.read_text(encoding='utf-8'),
+                                          'html.parser').find('img')
+        assert img['srcset'] == 'files/a.jpg 640w'
+
+    def test_a_third_party_srcset_candidate_is_left_as_written(self, www):
+        gravatar = 'http://1.gravatar.com/avatar/x?s=68 2x'
+        page = _page(www, 'sites/worlds2014/index.html',
+                     f'<img src="http://1.gravatar.com/avatar/x" srcset="{gravatar}"/>'
+                     '<a href="http://www.footbag.org/gone/">gone</a>')
+        mirror_script.neutralize_retired_host_links()
+        img = mirror_script.BeautifulSoup(page.read_text(encoding='utf-8'),
+                                          'html.parser').find('img')
+        assert img['srcset'] == gravatar
+
+    def test_a_refresh_to_the_bare_apex_is_pointed_at_the_captured_page(self, www):
+        # Written against footbag.org, not www, so the page carries no crawl-host
+        # spelling at all; it must still be found and settled.
+        _page(www, 'worlds2008/index.html', 'Worlds 2008')
+        page = _page(www, 'worlds2008/cz/index.html',
+                     '<meta http-equiv="refresh" content="1; url=http://footbag.org/worlds2008/"/>')
+        mirror_script.neutralize_retired_host_links()
+        meta = mirror_script.BeautifulSoup(page.read_text(encoding='utf-8'),
+                                           'html.parser').find('meta')
+        assert meta['content'] == '1; url=../index.html'
+
+    def test_a_refresh_to_a_page_never_captured_is_removed(self, www):
+        page = _page(www, 'worlds2008/cz/index.html',
+                     '<meta http-equiv="refresh" content="1; url=http://footbag.org/nowhere/"/>'
+                     '<p>moved</p>')
+        mirror_script.neutralize_retired_host_links()
+        out = page.read_text(encoding='utf-8')
+        assert 'http-equiv' not in out
+        assert 'moved' in out
 
     def test_a_non_standard_attribute_is_dropped_and_the_real_one_kept(self, www):
         (www / 'media').mkdir()
