@@ -582,6 +582,28 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     expect(r.stdout).toContain(`fingerprint:  ${sha}`);
   });
 
+  it('says an existing pair has a passphrase, and how to remove it, keeping the pair', () => {
+    // A kept pair with a passphrase makes onboarding and every deploy ask for
+    // it, though the staging key is meant to have none.
+    awsMachine();
+    mkdirSync(join(home, '.ssh'), { recursive: true });
+    spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', 'a-fixture-passphrase', '-f', namedKey()], SPAWN_GUARD);
+    const sha = fingerprint(`${namedKey()}.pub`);
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(fingerprint(`${namedKey()}.pub`)).toBe(sha);
+    expect(r.stdout).toMatch(/NOTE: your existing key \S+ has a passphrase/);
+    expect(r.stdout).toContain(`ssh-keygen -p -f ~/.ssh/id_ed25519_${ACCOUNT} -N ''`);
+  });
+
+  it('says nothing about a passphrase when the pair has none', () => {
+    awsMachine();
+    makePair();
+    const r = run(['--yes', '--aws', '--account', ACCOUNT]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/has a passphrase/);
+  });
+
   it('replaces only the pair named by fingerprint, once, setting the old one aside', () => {
     awsMachine();
     const old = makePair();

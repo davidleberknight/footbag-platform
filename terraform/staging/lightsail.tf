@@ -34,10 +34,11 @@ locals {
   ]
 }
 
-# Each dev-and-tester's address, one parameter per person, written and deleted
-# only by onboarding and offboarding as the directly authenticated identity. The
-# administrators' own entries stay in operator_cidrs, in the values file, and are
-# never read from here. Outside /footbag/<env>/ on purpose: the runtime role reads
+# Each dev-and-tester's addresses, one parameter per person holding a
+# comma-separated list of single hosts, written and deleted only by onboarding
+# and offboarding as the directly authenticated identity. The administrators'
+# own entries stay in operator_cidrs, in the values file, and are never read
+# from here. Outside /footbag/<env>/ on purpose: the runtime role reads
 # that whole prefix, and a dev-and-tester's home address is nothing the application
 # should see. An empty path reads as an empty list, so with nobody onboarded the
 # firewall is exactly operator_cidrs.
@@ -53,19 +54,27 @@ locals {
   dev_tester_address_names  = data.aws_ssm_parameters_by_path.dev_tester_addresses.names
   dev_tester_address_values = nonsensitive(data.aws_ssm_parameters_by_path.dev_tester_addresses.values)
 
+  # One entry per address, carrying the parameter it came from, so a bad entry
+  # is reported against its person while their other addresses still apply.
+  dev_tester_entries = flatten([
+    for i, v in local.dev_tester_address_values : [
+      for cidr in split(",", v) : { name = local.dev_tester_address_names[i], cidr = cidr }
+    ]
+  ])
+
   # Only a canonical single IPv4 host is admitted, so a malformed or widened
-  # value in someone's parameter can neither open the port to a range nor fail
+  # entry in someone's parameter can neither open the port to a range nor fail
   # an administrator's plan; it is left out and reported by the check below.
   dev_tester_valid = [
-    for v in local.dev_tester_address_values :
-    can(regex("^[0-9.]+/32$", v)) && try("${cidrhost(v, 0)}/32" == v, false)
+    for e in local.dev_tester_entries :
+    can(regex("^[0-9.]+/32$", e.cidr)) && try("${cidrhost(e.cidr, 0)}/32" == e.cidr, false)
   ]
   dev_tester_cidrs = [
-    for i, v in local.dev_tester_address_values : v if local.dev_tester_valid[i]
+    for i, e in local.dev_tester_entries : e.cidr if local.dev_tester_valid[i]
   ]
-  dev_tester_invalid_names = [
-    for i, n in local.dev_tester_address_names : n if !local.dev_tester_valid[i]
-  ]
+  dev_tester_invalid_names = distinct([
+    for i, e in local.dev_tester_entries : e.name if !local.dev_tester_valid[i]
+  ])
 
   # The SSH allow-list: the administrators' entries first, as they always were,
   # then each dev-and-tester address not already present. An address both an
@@ -75,11 +84,11 @@ locals {
 }
 
 # A warning, never a failure: a bad value in one person's parameter must not stop
-# anybody's apply. The address is simply not admitted until it is corrected.
+# anybody's apply. The bad entry is simply not admitted until it is corrected.
 check "dev_tester_addresses_are_single_hosts" {
   assert {
     condition     = length(local.dev_tester_invalid_names) == 0
-    error_message = "These dev-and-tester address parameters hold something other than a single IPv4 host (a.b.c.d/32) and are not admitted to SSH: ${join(", ", local.dev_tester_invalid_names)}. Re-run onboarding for that person to correct it."
+    error_message = "These dev-and-tester address parameters hold an entry other than a single IPv4 host (a.b.c.d/32, comma-separated), which is not admitted to SSH: ${join(", ", local.dev_tester_invalid_names)}. Re-run onboarding for that person to correct it."
   }
 }
 

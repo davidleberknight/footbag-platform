@@ -84,10 +84,10 @@
 # Steps, referenced by --from-step so a run that stopped part way is resumable:
 #   1  the Linux account on the host
 #   2  the AWS identity, and the job-role sessions already issued to it
-#   3  their address on this environment's SSH allow-list: their own address
+#   3  their addresses on this environment's SSH allow-list: their own address
 #      parameter, removed through the allow-list step's dev-and-tester path,
 #      which never opens the values file holding the administrators' entries.
-#      When this machine connects from that very address, it warns first and
+#      When this machine connects from one of those addresses, it warns first and
 #      asks, since removing it can end this machine's own SSH to staging
 # Whatever the step, this workstation is cleaned last, and that detects what is
 # already done.
@@ -371,9 +371,11 @@ if (( FROM_STEP <= 3 )); then
     fi
     HERE="${HERE//[[:space:]]/}"
     [[ -n "$HERE" && "$HERE" != */* ]] && HERE="${HERE}/32"
-    if [[ -n "$HERE" && "$HERE" == "$OWN_ADDRESS" ]]; then
+    # The parameter lists every address the person connects from, so this
+    # machine's is looked for among them.
+    if [[ -n "$HERE" && ",${OWN_ADDRESS}," == *",${HERE},"* ]]; then
       echo ""
-      echo "  WARNING: this machine connects from ${OWN_ADDRESS}, the address being removed."
+      echo "  WARNING: this machine connects from ${HERE}, the address being removed."
       echo "  If no administrator entry also admits it, this machine loses SSH to"
       echo "  ${TARGET} when it is removed. An administrator's own entry stays exactly"
       echo "  as it is; the removal report says whether one still admits this address."

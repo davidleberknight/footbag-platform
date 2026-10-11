@@ -786,6 +786,15 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(existsSync(hostDelivery)).toBe(false);
   });
 
+  it('accepts a short password of their own choosing, refusing only an empty one', () => {
+    devMachine();
+    const SHORT = 'abc';
+    const r = runInTerminal(FIRST_RUN.map((a) => (a === NEW_PASSWORD ? SHORT : a)));
+    expect(r.status, r.out).toBe(0);
+    expect(readFileSync(hostPassword, 'utf-8')).toBe(`${SHORT}\n`);
+    expect(read('AWS', 'DEV_TESTER_HOST.txt')).toBe(`${SHORT}\n`);
+  });
+
   it('shows no secret on the terminal and leaves no cleartext in temp', () => {
     const r = runInTerminal(FIRST_RUN);
     expect(r.status, r.out).toBe(0);

@@ -33,9 +33,10 @@
 # TWO KINDS OF ENTRY.
 #
 # The administrators' addresses live in the values file and are edited here as
-# described above. Each dev-and-tester's staging address lives in a parameter of
-# its own, /footbag-ops/staging/dev-testers/<account>, which the staging
-# Terraform joins to the administrators' list. --dev-tester writes or deletes
+# described above. Each dev-and-tester's staging addresses live in a parameter
+# of their own, /footbag-ops/staging/dev-testers/<account>, as a comma-separated
+# list of single hosts, which the staging Terraform joins to the administrators'
+# list. --dev-tester writes the whole list, replacing what was there, or deletes
 # that one parameter, applies staging's firewall alone (terraform-apply.sh
 # --firewall-only), and proves the result; it never opens the values file, so
 # nothing a dev-and-tester's onboarding or offboarding does can touch an
@@ -76,13 +77,17 @@
 #   bash scripts/authorize-operator-address.sh --target staging \
 #     --list-for <account>
 #   bash scripts/authorize-operator-address.sh --target staging \
-#     --dev-tester <account> --address 203.0.113.7/32 [--for '<account>; <where>']
+#     --dev-tester <account> --address 203.0.113.7/32 [--address 198.51.100.8/32] \
+#     [--for '<account>; <where>']
 #   bash scripts/authorize-operator-address.sh --target staging \
 #     --dev-tester <account> --remove
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default
-#   --address <cidr>               the address, with or without a /32
+#   --address <cidr>               the address, with or without a /32. With
+#                                  --dev-tester it repeats, one per address the
+#                                  person connects from, and the set given
+#                                  replaces the one their parameter holds
 #   --for <who>                    whose address it is; required to add one
 #   --remove                       take it off instead of putting it on
 #   --list-for <account>           print, one per line, each address whose
@@ -142,6 +147,9 @@ SSH_PORTS=(22 2222)
 
 TARGET=""
 ADDRESS_RAW=""
+# Every --address given, in order. Only a dev-and-tester's run takes more than
+# one; the values file is edited one entry at a time.
+ADDRESS_RAWS=()
 ATTRIBUTION=""
 REMOVE=0
 LIST_FOR=""
@@ -166,7 +174,7 @@ flag_value() {
 while (( $# )); do
   case "$1" in
     --target) flag_value "$1" "${2:-}"; TARGET="$2"; shift 2 ;;
-    --address) flag_value "$1" "${2:-}"; ADDRESS_RAW="$2"; shift 2 ;;
+    --address) flag_value "$1" "${2:-}"; ADDRESS_RAW="$2"; ADDRESS_RAWS+=("$2"); shift 2 ;;
     --for) flag_value "$1" "${2:-}"; ATTRIBUTION="$2"; shift 2 ;;
     --remove) REMOVE=1; shift ;;
     --list-for) flag_value "$1" "${2:-}"; LIST_FOR="$2"; shift 2 ;;
@@ -208,6 +216,11 @@ if [[ -n "$DEV_TESTER" ]]; then
     echo "       account's own parameter holds, so nothing has to be remembered." >&2
     exit 2
   fi
+elif (( ${#ADDRESS_RAWS[@]} > 1 )); then
+  echo "ERROR: --address is given once here. The values file is edited one entry at" >&2
+  echo "       a time, so each entry carries its own attribution; only --dev-tester" >&2
+  echo "       takes several." >&2
+  exit 2
 fi
 
 if [[ "$TARGET" == "production" && "$ASSUME_YES" == "yes" ]]; then
@@ -264,24 +277,29 @@ canonical_cidr() {
 }
 
 ADDRESS=""
+# A dev-and-tester's addresses in canonical form, each once, in the order given.
+ADDRESSES=()
 if [[ -z "$LIST_FOR" ]] && ! { [[ -n "$DEV_TESTER" ]] && (( REMOVE )); }; then
   if [[ -z "$ADDRESS_RAW" ]]; then
     echo "ERROR: --address names the address to authorize or remove." >&2
     exit 2
   fi
-  if ! WHY="$(canonical_cidr "$ADDRESS_RAW")"; then
-    echo "ERROR: ${WHY}" >&2
-    echo "       A range that is wider than you meant admits more than you meant." >&2
-    exit 2
-  fi
-  canonical_cidr "$ADDRESS_RAW" >/dev/null
-  ADDRESS="$CANON"
-  # A dev-and-tester's entry is one host. The staging Terraform admits nothing
-  # wider from a parameter, so a range written here would be silently dropped.
-  if [[ -n "$DEV_TESTER" && "$ADDRESS" != */32 ]]; then
-    echo "ERROR: a dev-and-tester's address is a single host (a.b.c.d/32), not ${ADDRESS}." >&2
-    exit 2
-  fi
+  for raw in "${ADDRESS_RAWS[@]}"; do
+    if ! WHY="$(canonical_cidr "$raw")"; then
+      echo "ERROR: ${WHY}" >&2
+      echo "       A range that is wider than you meant admits more than you meant." >&2
+      exit 2
+    fi
+    canonical_cidr "$raw" >/dev/null
+    # A dev-and-tester's entry is one host. The staging Terraform admits nothing
+    # wider from a parameter, so a range written here would be silently dropped.
+    if [[ -n "$DEV_TESTER" && "$CANON" != */32 ]]; then
+      echo "ERROR: a dev-and-tester's address is a single host (a.b.c.d/32), not ${CANON}." >&2
+      exit 2
+    fi
+    [[ " ${ADDRESSES[*]-} " == *" ${CANON} "* ]] || ADDRESSES+=("$CANON")
+  done
+  ADDRESS="${ADDRESSES[0]}"
 fi
 
 if [[ -z "$LIST_FOR" && -z "$DEV_TESTER" ]] && (( ! REMOVE )); then
@@ -452,16 +470,29 @@ whose() {
 # ── Dev-and-tester addresses ─────────────────────────────────────────────────
 
 # dev_tester_owners <cidr> -- prints, comma-separated, every dev-and-tester whose
-# own parameter holds exactly that address. Empty when none does or the path
+# own parameter lists exactly that address. Empty when none does or the path
 # cannot be read; a report built on this says which.
 dev_tester_owners() {
   local listing
   listing="$("$AWS_BIN" ssm get-parameters-by-path --region us-east-1 \
     --path "$DEV_TESTER_PATH" --output json 2>/dev/null)" || return 0
   jq -r --arg a "$1" --arg p "${DEV_TESTER_PATH}/" '
-      [ .Parameters[]? | select(.Value == $a or .Value + "/32" == $a)
+      [ .Parameters[]?
+        | select(.Value | split(",") | any(. == $a or . + "/32" == $a))
         | .Name | ltrimstr($p) ] | join(", ")
     ' <<<"$listing" 2>/dev/null || true
+}
+
+# split_list <comma-separated addresses> -- one per line, each with its /32.
+split_list() {
+  local entry
+  local -a entries=()
+  IFS=',' read -r -a entries <<<"$1"
+  for entry in ${entries[@]+"${entries[@]}"}; do
+    [[ -z "$entry" ]] && continue
+    [[ "$entry" == */* ]] || entry="${entry}/32"
+    printf '%s\n' "$entry"
+  done
 }
 
 if [[ -n "$DEV_TESTER" ]]; then
@@ -508,31 +539,53 @@ if [[ -n "$DEV_TESTER" ]]; then
     [[ "$CURRENT_DESC" == "None" ]] && CURRENT_DESC=""
   fi
 
+  # What the parameter lists now, each with its /32, so it compares with what
+  # this run was given.
+  CURRENT_ADDRESSES=()
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && CURRENT_ADDRESSES+=("$entry")
+  done < <(split_list "$CURRENT")
+
   if (( REMOVE )); then
     if [[ -z "$CURRENT" ]]; then
       echo "Already absent: ${DEV_TESTER} has no staging address parameter. Nothing to do."
       exit 0
     fi
-    ADDRESS="$CURRENT"
-    [[ "$ADDRESS" == */* ]] || ADDRESS="${ADDRESS}/32"
+    ADDRESSES=(${CURRENT_ADDRESSES[@]+"${CURRENT_ADDRESSES[@]}"})
   fi
+  NEW_VALUE="$(IFS=','; printf '%s' "${ADDRESSES[*]-}")"
 
-  echo "-- ${DEV_TESTER}'s staging SSH address --"
+  echo "-- ${DEV_TESTER}'s staging SSH addresses --"
   echo "    parameter: ${PARAM}"
   echo "    now:       ${CURRENT:-(none)}"
   if (( REMOVE )); then
     echo "    after:     (none)"
   else
-    echo "    after:     ${ADDRESS}"
+    echo "    after:     ${NEW_VALUE}"
   fi
   echo "    ports:     ${SSH_PORTS[*]}"
 
   live_or_die "Nothing has been changed."
 
-  if (( ! REMOVE )) && [[ "$CURRENT" == "$ADDRESS" ]] && admitted_everywhere; then
+  # every_address_admitted -- true when each of this run's addresses is admitted
+  # on every SSH port of the live firewall last read.
+  every_address_admitted() {
+    local one
+    for one in "${ADDRESSES[@]}"; do
+      ADDRESS="$one"
+      admitted_everywhere || return 1
+    done
+    return 0
+  }
+
+  # The same set is the same list whatever order it was given in.
+  sorted_set() { printf '%s\n' "$@" | sort -u | tr '\n' ' '; }
+  if (( ! REMOVE )) \
+     && [[ "$(sorted_set ${CURRENT_ADDRESSES[@]+"${CURRENT_ADDRESSES[@]}"})" == "$(sorted_set "${ADDRESSES[@]}")" ]] \
+     && every_address_admitted; then
     echo ""
-    echo "Already authorized: ${PARAM} holds ${ADDRESS} and the firewall admits it"
-    echo "on every SSH port. Nothing to do."
+    echo "Already authorized: ${PARAM} holds ${NEW_VALUE} and the firewall admits"
+    echo "each of them on every SSH port. Nothing to do."
     exit 0
   fi
 
@@ -540,8 +593,8 @@ if [[ -n "$DEV_TESTER" ]]; then
   if (( REMOVE )); then
     echo "This deletes ${PARAM}, applies staging's firewall alone, and then reads it"
   else
-    echo "This writes ${ADDRESS} to ${PARAM}, applies staging's firewall alone, and"
-    echo "then reads it"
+    echo "This writes ${NEW_VALUE} to ${PARAM}, replacing what it holds, applies"
+    echo "staging's firewall alone, and then reads it"
   fi
   echo "back. The values file and every administrator's entry are not touched. The"
   echo "apply replaces staging's firewall rule set, so every staging port closes for"
@@ -587,26 +640,25 @@ if [[ -n "$DEV_TESTER" ]]; then
     declare -a DESC=()
     [[ -n "$ATTRIBUTION" ]] && DESC=(--description "$ATTRIBUTION")
     if ! "$AWS_BIN" ssm put-parameter --region us-east-1 --name "$PARAM" --type String \
-          --value "$ADDRESS" --overwrite ${DESC[@]+"${DESC[@]}"} >/dev/null; then
+          --value "$NEW_VALUE" --overwrite ${DESC[@]+"${DESC[@]}"} >/dev/null; then
       RESTORE_PENDING=0
       echo "ERROR: could not write ${PARAM}. Nothing was applied." >&2
       exit 1
     fi
   fi
 
-  # The apply is held to exactly this one address: the old one out and the new
-  # one in, so a values file on this machine that disagrees with the live
-  # firewall cannot drop an administrator's address on the way through.
+  # The apply is held to exactly this person's addresses: the old ones that are
+  # not kept go out and the new ones come in, so a values file on this machine
+  # that disagrees with the live firewall cannot drop an administrator's address
+  # on the way through.
   declare -a FIREWALL_NAMES=()
   if (( REMOVE )); then
-    FIREWALL_NAMES=(--firewall-remove "$ADDRESS")
+    for one in "${ADDRESSES[@]}"; do FIREWALL_NAMES+=(--firewall-remove "$one"); done
   else
-    FIREWALL_NAMES=(--firewall-add "$ADDRESS")
-    if [[ -n "$CURRENT" ]]; then
-      PREVIOUS="$CURRENT"
-      [[ "$PREVIOUS" == */* ]] || PREVIOUS="${PREVIOUS}/32"
-      [[ "$PREVIOUS" != "$ADDRESS" ]] && FIREWALL_NAMES+=(--firewall-remove "$PREVIOUS")
-    fi
+    for one in "${ADDRESSES[@]}"; do FIREWALL_NAMES+=(--firewall-add "$one"); done
+    for one in ${CURRENT_ADDRESSES[@]+"${CURRENT_ADDRESSES[@]}"}; do
+      [[ " ${ADDRESSES[*]} " == *" ${one} "* ]] || FIREWALL_NAMES+=(--firewall-remove "$one")
+    done
   fi
   echo "==> Applying staging's firewall"
   if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only "${FIREWALL_NAMES[@]}"; then
@@ -618,29 +670,36 @@ if [[ -n "$DEV_TESTER" ]]; then
   echo "==> Reading the firewall back"
   live_or_die "The apply ran, so the firewall may or may not carry the change."
   if (( REMOVE )); then
-    if present_anywhere || COVER="$(still_covered)"; then
-      # The person's own entry is gone; whether the address still reaches the
-      # host is decided by whoever else holds it. Named, so it is never mistaken
-      # for this account still having access of its own.
-      OTHERS="$(dev_tester_owners "$ADDRESS")"
-      echo "    ${PARAM} is gone. ${ADDRESS} is still admitted, because another entry"
-      if [[ -n "$OTHERS" ]]; then
-        echo "    holds it: the dev-and-tester address of ${OTHERS}."
+    echo "    ${PARAM} is gone."
+    for one in "${ADDRESSES[@]}"; do
+      ADDRESS="$one"
+      if present_anywhere || COVER="$(still_covered)"; then
+        # The person's own entry is gone; whether the address still reaches the
+        # host is decided by whoever else holds it. Named, so it is never
+        # mistaken for this account still having access of its own.
+        OTHERS="$(dev_tester_owners "$ADDRESS")"
+        echo "    ${ADDRESS} is still admitted, because another entry"
+        if [[ -n "$OTHERS" ]]; then
+          echo "    holds it: the dev-and-tester address of ${OTHERS}."
+        else
+          echo "    holds it: the administrators' list in the values file, which this run"
+          echo "    does not change."
+        fi
       else
-        echo "    holds it: the administrators' list in the values file, which this run"
-        echo "    does not change."
+        echo "    ${ADDRESS} is no longer admitted on ports ${SSH_PORTS[*]}"
       fi
-    else
-      echo "    ${ADDRESS} is no longer admitted on ports ${SSH_PORTS[*]}"
-    fi
+    done
   else
-    if ! admitted_everywhere; then
-      echo "ERROR: ${INSTANCE} does not admit ${ADDRESS} on every SSH port." >&2
-      echo "       The parameter holds it and the apply reported success, so the" >&2
-      echo "       staging Terraform did not carry it. Check the plan's warnings." >&2
-      exit 1
-    fi
-    echo "    ${ADDRESS} is admitted on ports ${SSH_PORTS[*]}"
+    for one in "${ADDRESSES[@]}"; do
+      ADDRESS="$one"
+      if ! admitted_everywhere; then
+        echo "ERROR: ${INSTANCE} does not admit ${ADDRESS} on every SSH port." >&2
+        echo "       The parameter holds it and the apply reported success, so the" >&2
+        echo "       staging Terraform did not carry it. Check the plan's warnings." >&2
+        exit 1
+      fi
+      echo "    ${ADDRESS} is admitted on ports ${SSH_PORTS[*]}"
+    done
   fi
   echo ""
   echo "Done, and proved against the firewall rather than the parameter."

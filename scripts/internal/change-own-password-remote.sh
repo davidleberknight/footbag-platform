@@ -18,7 +18,7 @@
 # account's password is a custody operation of its own and never set from here.
 #
 # Required shell variables:
-#   CHPW_NEW   the new password, at least 12 characters
+#   CHPW_NEW   the new password, any length but not empty
 
 set -euo pipefail
 
@@ -36,8 +36,8 @@ if [[ -z "$TARGET_USER" || "$TARGET_USER" == "root" || "$TARGET_USER" == "$SHARE
   echo "          and it was run by '${TARGET_USER:-nobody}'. Nothing done." >&2
   exit 1
 fi
-if (( ${#CHPW_NEW} < 12 )); then
-  echo "REFUSING: the new password is shorter than 12 characters. Nothing done." >&2
+if [[ -z "$CHPW_NEW" ]]; then
+  echo "REFUSING: the new password is empty. Nothing done." >&2
   exit 2
 fi
 

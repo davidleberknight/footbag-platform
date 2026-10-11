@@ -87,10 +87,16 @@ describe('changing your own password on the host', () => {
     expect(chpasswdInput()).toBeNull();
   });
 
-  it('refuses a password shorter than 12 characters before setting anything', () => {
-    const r = run('james_leberknight', 'short-11chr');
+  it('refuses an empty password before setting anything', () => {
+    const r = run('james_leberknight', '');
     expect(r.status).toBe(2);
     expect(chpasswdInput()).toBeNull();
+  });
+
+  it('sets a short password: its owner chooses the length, and only empty is refused', () => {
+    const r = run('james_leberknight', 'abc');
+    expect(r.status, r.stderr).toBe(0);
+    expect(chpasswdInput()).toBe('james_leberknight:abc\n');
   });
 
   it('fails when the password it set is not usable', () => {

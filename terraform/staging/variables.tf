@@ -142,7 +142,7 @@ variable "ops_alert_email" {
 variable "operator_cidrs" {
   description = <<-EOT
     The administrators' CIDR ranges permitted to SSH into the Lightsail
-    instance. Each dev-and-tester's address is joined to these from its own
+    instance. Each dev-and-tester's addresses are joined to these from their own
     parameter under /footbag-ops/<environment>/dev-testers, never listed here.
     Must be set before first apply. Do not leave as 0.0.0.0/0.
     Example: ["1.2.3.4/32"]

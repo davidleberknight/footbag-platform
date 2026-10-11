@@ -544,6 +544,22 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(read('address.stdin')).toBe('');
   });
 
+  it('hands every address given to the allow-list step, each once and as a single-host range', () => {
+    const r = runInTerminal('APPLY\n', args({}, ['--address', '203.0.113.9', '--address', ADDRESS]));
+    expect(r.status, r.out).toBe(0);
+    expect(read('address.args')).toBe(
+      `--target staging --dev-tester ${ACCOUNT} --address ${ADDRESS} --address 203.0.113.9/32 --for ${ACCOUNT}; home\n`,
+    );
+    expect(r.out).toContain(`address:       ${ADDRESS},203.0.113.9/32`);
+  });
+
+  it('refuses before anything is minted when any one of several addresses is not a host', () => {
+    const r = runPiped(args({}, ['--address', '198.51.100.0/24']));
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/not '198\.51\.100\.0\/24'/);
+    expect(read('address.args')).toBe('');
+  });
+
   it('writes a bare address as a single-host range', () => {
     const r = runInTerminal('APPLY\n', args({ '--address': '198.51.100.7' }));
     expect(r.status, r.out).toBe(0);

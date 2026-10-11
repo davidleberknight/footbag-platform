@@ -953,7 +953,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
      --account <your_account> --host <staging address>
    ```
 
-   It checks your tools first, fetches the sealed file over your own login, and proves it was issued in this project's AWS account before trusting anything in it. It then shows each change and asks you to type `APPLY`: your AWS profiles, the pinned staging host key, the SSH stanza, and your own sudo password in place of the one-time one (at least 12 characters, kept in `~/AWS/DEV_TESTER_HOST.txt`). It removes the sealed file from the host, ends by setting up and checking your workstation as you, and prints an evidence block to send the maintainer.
+   It checks your tools first, fetches the sealed file over your own login, and proves it was issued in this project's AWS account before trusting anything in it. It then shows each change and asks you to type `APPLY`: your AWS profiles, the pinned staging host key, the SSH stanza, and your own sudo password in place of the one-time one (any password you choose, kept in `~/AWS/DEV_TESTER_HOST.txt` so you never type it again). It removes the sealed file from the host, ends by setting up and checking your workstation as you, and prints an evidence block to send the maintainer.
 3. Prove the path with a code-only deploy and the smoke suite, after telling the maintainer:
 
    ```bash

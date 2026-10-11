@@ -45,3 +45,12 @@ reference/ifpa/media-kit
 #
 worlds2012/2026/06/16/обзор-инвертора-deye-sun-6kw-особенности-и-преи
 sites/worlds2012/2026/06/16/обзор-инвертора-deye-sun-6kw-особенности-и-преи
+#
+# rules/chapter/30   The printed rulebook's table of contents, carried over
+#     as bare headings. The rulebook stored each entry as a heading with no
+#     target, so the page lists chapters a reader cannot follow anywhere, and
+#     the site's own rules index never linked to it. Every real chapter it
+#     names is already reachable from that index; the rest are placeholder
+#     chapters the archive drops. Captured at the www path only.
+#
+rules/chapter/30

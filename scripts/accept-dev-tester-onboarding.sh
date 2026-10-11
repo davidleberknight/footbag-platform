@@ -48,8 +48,7 @@
 #     the new key, and this person's cached sessions are removed when the key
 #     changes.
 #   - Edit an SSH stanza this machine already carries. A missing one is written.
-#   - Leave the one-time password standing, or accept a new one shorter than 12
-#     characters.
+#   - Leave the one-time password standing, or accept an empty new one.
 #   - Leave a copy of the delivery anywhere: it is fetched and opened into
 #     mode-600 temp files shredded on every way out, and the copy on the host is
 #     removed once everything is proved and the one-time password replaced.
@@ -443,8 +442,13 @@ if [[ -e "$NAMED_KEY" && ! -e "${NAMED_KEY}.pub" ]] || [[ ! -e "$NAMED_KEY" && -
   exit 1
 fi
 
-echo "  Checking that the private half matches the public one (a key with a"
-echo "  passphrase asks for it here)."
+echo "  Checking that the private half of your SSH key matches the public half."
+echo "  If you are now asked to 'Enter passphrase', that is the passphrase of the"
+echo "  SSH key file on THIS computer, not any password on staging. A key made by"
+echo "  setup-dev-workstation.sh has no passphrase and asks nothing. If yours has"
+echo "  one, type it now; to stop being asked, remove it later (the key and its"
+echo "  fingerprint stay the same):"
+echo "    ssh-keygen -p -f ${NAMED_KEY} -N ''"
 if [[ -f "${NAMED_KEY}.pub" ]]; then
   if [[ "$(pub_tag "${NAMED_KEY}.pub")" != "$SEALED_TAGS" ]]; then
     echo "ERROR: ${NAMED_KEY} is not the key this delivery was sealed to. Nothing" >&2
@@ -493,9 +497,11 @@ if [[ -n "${SSH_AUTH_SOCK:-}" ]] && command -v "$SSH_ADD_BIN" >/dev/null 2>&1; t
   AGENT_KEYS="$("$SSH_ADD_BIN" -l 2>/dev/null || true)"
   NAMED_FP="$(ssh-keygen -l -f "${NAMED_KEY}.pub" 2>/dev/null | awk '{print $2}')"
   if [[ -n "$NAMED_FP" ]] && ! grep -qF -- "$NAMED_FP" <<<"$AGENT_KEYS"; then
-    echo "  Your SSH agent is running and does not hold this key. Adding it for eight"
-    echo "  hours means its passphrase, if it has one, is asked for once rather than on"
-    echo "  every connection the staging work makes."
+    echo "  Your SSH agent (the program on this computer that holds unlocked SSH keys)"
+    echo "  is running and does not hold this key. This only matters if your key has a"
+    echo "  passphrase: adding it for eight hours means the passphrase is asked for"
+    echo "  once, rather than on each of the dozens of connections a staging deploy"
+    echo "  makes. If your key has no passphrase, either answer is fine."
     if confirm_from_tty "Type 'APPLY' to add it to the agent for eight hours: " "APPLY"; then
       "$SSH_ADD_BIN" -t 8h "$NAMED_KEY" || echo "  not added; every connection will ask instead"
     else
@@ -756,6 +762,9 @@ fi
 if [[ "$CURRENT_KEY" == "$DELIVERY_AWS_ACCESS_KEY_ID" && -n "$DT_SOURCE" ]] && (( ! WRITE_RT )); then
   echo "  already in place: [${ACCOUNT}] holds ${CURRENT_KEY}, and the job-role profile exists"
 else
+  echo "  Your AWS command-line settings on this computer. These let the scripts act"
+  echo "  as you on AWS, on staging only: your access key, and the profile that"
+  echo "  switches from it into the dev-and-tester role. Nothing on AWS changes."
   echo "  In ${CRED_FILE}:"
   if [[ -z "$CURRENT_KEY" ]]; then
     echo "    add [${ACCOUNT}] holding ${DELIVERY_AWS_ACCESS_KEY_ID} (the secret is not shown)"
@@ -857,6 +866,9 @@ unset _pin_host _pin_key
 if (( ${#MISSING[@]} == 0 )); then
   echo "  already pinned in ${PIN}"
 else
+  echo "  The staging host's own keys, recorded on this computer so every later"
+  echo "  connection can prove it reached the real staging host and not an impostor."
+  echo "  They are public keys; nothing secret is written."
   echo "  Into ${PIN}, replacing any older lines for ${DELIVERY_HOST_ADDRESS} and keeping every other host's:"
   printf '    %s\n' "${DELIVERY_PINS[@]}"
   if ! confirm_from_tty "Type 'APPLY' to pin them: " "APPLY"; then
@@ -968,24 +980,31 @@ else
     echo "       again." >&2
     exit 1
   fi
-  echo "  The one-time password works. It is replaced now by one you choose, which"
-  echo "  nobody else ever sees, and filed in ${OPERATOR_CREDENTIAL_DISPLAY} at mode 600,"
-  [[ -e "$OPERATOR_CREDENTIAL_FILE" ]] && echo "  replacing what that file holds now, which the host does not accept,"
-  echo "  where every script that needs it finds it."
+  echo "  The one-time password in your delivery works. You now choose your own"
+  echo "  password to replace it. What this password is, exactly:"
+  echo "    - It is the password of YOUR OWN Linux account, ${ACCOUNT}, on the"
+  echo "      ${TARGET} host. You are not root there: your account is an ordinary one"
+  echo "      that may run sudo, and sudo asks for this password."
+  echo "    - It is not a root password, not your AWS or GitHub password, not this"
+  echo "      computer's login, and not your SSH key's passphrase. It opens nothing"
+  echo "      on production."
+  echo "    - Any password you like, but not empty. You type it twice, and nothing"
+  echo "      is shown as you type."
+  echo "    - You do not need to remember it. It is saved in"
+  echo "      ${OPERATOR_CREDENTIAL_DISPLAY}, readable by you alone (mode 600), and"
+  echo "      every staging script that needs it reads it from there. Nobody else"
+  echo "      ever sees it."
+  [[ -e "$OPERATOR_CREDENTIAL_FILE" ]] && echo "    - That file holds an older password the host no longer accepts; it is replaced."
   if ! confirm_from_tty "Type 'APPLY' to choose it: " "APPLY"; then
     echo "Not confirmed; the one-time password still stands." >&2
     exit 1
   fi
-  if ! vendor_secret_read "New sudo password, at least 12 characters: "; then
+  if ! vendor_secret_read "New password for ${ACCOUNT} on the ${TARGET} host (sudo): "; then
     echo "ERROR: ${VENDOR_SECRET_ERROR}" >&2
     exit 1
   fi
   NEW_PASS="$VENDOR_SECRET_VALUE"
   VENDOR_SECRET_VALUE=""
-  if (( ${#NEW_PASS} < 12 )); then
-    echo "ERROR: that is shorter than 12 characters. Nothing changed." >&2
-    exit 1
-  fi
   mkdir -p -m 700 -- "$(dirname -- "$OPERATOR_CREDENTIAL_FILE")"
   ( umask 077 && printf '%s\n' "$NEW_PASS" > "$OPERATOR_CREDENTIAL_FILE" )
   chmod 600 -- "$OPERATOR_CREDENTIAL_FILE"

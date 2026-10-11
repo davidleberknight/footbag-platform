@@ -721,6 +721,7 @@ def test_withheld_content_list_names_each_ruling_on_both_captured_copies():
     assert entries == {
         'reference2/ifpa/media-kit', 'reference/ifpa/media-kit',
         SPAM_POST, f'sites/{SPAM_POST}',
+        'rules/chapter/30',
     }
 
 

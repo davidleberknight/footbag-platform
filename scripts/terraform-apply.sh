@@ -68,10 +68,10 @@
 # when proving the job role, applies nothing and refuses unless there is nothing
 # to apply. Either refuses any other change as drift it did not come to apply.
 #
-# --firewall-only also takes the one SSH address the caller is adding
-# (--firewall-add <cidr>) and the one it is removing (--firewall-remove <cidr>),
-# at least one of them, and refuses a plan whose SSH ports gain or lose any
-# other address. The values file is read from whichever private checkout this
+# --firewall-only also takes each SSH address the caller is adding
+# (--firewall-add <cidr>) and each it is removing (--firewall-remove <cidr>),
+# both repeatable and at least one given, and refuses a plan whose SSH ports
+# gain or lose any other address. The values file is read from whichever private checkout this
 # machine holds, so a stale one would otherwise drop an administrator's address
 # from the live firewall while every resource check passed.
 #
@@ -155,9 +155,9 @@ FIREWALL_ADDRESS="aws_lightsail_instance_public_ports.web"
 # Set when the plan replaces the firewall and the replacement is instead written
 # in place before the apply; see "The firewall, written in place" below.
 FW_INPLACE=0
-# The one SSH address a firewall-only apply may add, and the one it may remove.
-FIREWALL_ADD=""
-FIREWALL_REMOVE=""
+# The SSH addresses a firewall-only apply may add, and the ones it may remove.
+FIREWALL_ADD=()
+FIREWALL_REMOVE=()
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # confirm_from_tty reads the answer from /dev/tty rather than stdin, refuses when
@@ -342,7 +342,7 @@ while [[ $# -gt 0 ]]; do
         echo "ERROR: $1 takes an address in CIDR form, e.g. 203.0.113.7/32." >&2
         exit 2
       fi
-      if [[ "$1" == "--firewall-add" ]]; then FIREWALL_ADD="$2"; else FIREWALL_REMOVE="$2"; fi
+      if [[ "$1" == "--firewall-add" ]]; then FIREWALL_ADD+=("$2"); else FIREWALL_REMOVE+=("$2"); fi
       shift 2
       ;;
     --yes)
@@ -406,11 +406,11 @@ if [[ -n "$PLAN_SHAPE" ]] && (( BREAK_LOCK )); then
 fi
 # A firewall-only apply names the address it changes, so the plan can be held to
 # exactly that. Without one, nothing would say which addresses it may drop.
-if [[ "$PLAN_SHAPE" == "firewall-only" && -z "$FIREWALL_ADD" && -z "$FIREWALL_REMOVE" ]]; then
+if [[ "$PLAN_SHAPE" == "firewall-only" ]] && (( ${#FIREWALL_ADD[@]} + ${#FIREWALL_REMOVE[@]} == 0 )); then
   echo "ERROR: --firewall-only needs --firewall-add <cidr>, --firewall-remove <cidr>, or both." >&2
   exit 2
 fi
-if [[ "$PLAN_SHAPE" != "firewall-only" && ( -n "$FIREWALL_ADD" || -n "$FIREWALL_REMOVE" ) ]]; then
+if [[ "$PLAN_SHAPE" != "firewall-only" ]] && (( ${#FIREWALL_ADD[@]} + ${#FIREWALL_REMOVE[@]} > 0 )); then
   echo "ERROR: --firewall-add and --firewall-remove go with --firewall-only." >&2
   exit 2
 fi
@@ -1076,7 +1076,7 @@ if [[ -n "$PLAN_SHAPE" ]]; then
   fi
   # The resource being the whole change says nothing about which addresses it
   # carries. Compare the SSH ports' addresses before and after: anything gained
-  # or lost beyond the one address this run names is an administrator's entry,
+  # or lost beyond the addresses this run names is an administrator's entry,
   # or another dev-and-tester's, that this run has no business changing. An
   # after-state the plan does not know reads as every address lost, so this
   # fails closed.
@@ -1089,13 +1089,20 @@ if [[ -n "$PLAN_SHAPE" ]]; then
     echo "ERROR: could not read the firewall's addresses out of the saved plan. Nothing has been applied." >&2
     exit 1
   fi
-  UNNAMED="$(printf '%s\n' "$SSH_DIFF" | grep -vxF -e '' \
-    ${FIREWALL_ADD:+-e "added ${FIREWALL_ADD}"} \
-    ${FIREWALL_REMOVE:+-e "removed ${FIREWALL_REMOVE}"} || true)"
+  declare -a NAMED=(-e '')
+  declare -a ASKED=()
+  for fw_cidr in ${FIREWALL_ADD[@]+"${FIREWALL_ADD[@]}"}; do
+    NAMED+=(-e "added ${fw_cidr}"); ASKED+=("added ${fw_cidr}")
+  done
+  for fw_cidr in ${FIREWALL_REMOVE[@]+"${FIREWALL_REMOVE[@]}"}; do
+    NAMED+=(-e "removed ${fw_cidr}"); ASKED+=("removed ${fw_cidr}")
+  done
+  UNNAMED="$(printf '%s\n' "$SSH_DIFF" | grep -vxF "${NAMED[@]}" || true)"
   if [[ -n "$UNNAMED" ]]; then
     echo "ERROR: this firewall-only apply would change SSH addresses it was not asked to:" >&2
     printf '%s\n' "$UNNAMED" | sed 's/^/  /' >&2
-    echo "       Asked for: ${FIREWALL_ADD:+added ${FIREWALL_ADD}}${FIREWALL_ADD:+${FIREWALL_REMOVE:+, }}${FIREWALL_REMOVE:+removed ${FIREWALL_REMOVE}}." >&2
+    ASKED_TEXT="$(printf '%s, ' "${ASKED[@]}")"
+    echo "       Asked for: ${ASKED_TEXT%, }." >&2
     echo "       This machine's values file disagrees with the live firewall, so" >&2
     echo "       applying would drop or add somebody else's access. Nothing has been" >&2
     echo "       applied. Update the private checkout, or a footbag-operator holder" >&2

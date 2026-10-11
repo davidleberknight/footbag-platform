@@ -756,6 +756,118 @@ describe('authorize-operator-address --dev-tester: a person\'s own address param
     );
   });
 
+  it('writes several addresses as one list, and proves each admitted', () => {
+    const SECOND = '198.51.100.8/32';
+    const r = run({
+      args: [...addFor('jane_doe', NEW_ADDRESS), '--address', SECOND, '--address', NEW_ADDRESS],
+      before: [EXISTING],
+      after: [EXISTING, NEW_ADDRESS, SECOND],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    // Given twice, written once: the parameter lists each host one time.
+    expect(paramOf('jane_doe')).toBe(`${NEW_ADDRESS},${SECOND}`);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(
+      `--target staging --firewall-only --firewall-add ${NEW_ADDRESS} --firewall-add ${SECOND}`,
+    );
+    expect(r.stdout).toMatch(/203\.0\.113\.7\/32 is admitted on ports 22 2222/);
+    expect(r.stdout).toMatch(/198\.51\.100\.8\/32 is admitted on ports 22 2222/);
+  });
+
+  it('fails when the firewall admits only some of the addresses written', () => {
+    // Proving the first address alone would report a person reachable from a
+    // place the firewall still refuses.
+    const SECOND = '198.51.100.8/32';
+    const r = run({
+      args: [...addFor('jane_doe', NEW_ADDRESS), '--address', SECOND],
+      before: [EXISTING],
+      after: [EXISTING, NEW_ADDRESS],
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/does not admit 198\.51\.100\.8\/32 on every SSH port/);
+  });
+
+  it('replaces the list: an address dropped from it is removed, one kept is not', () => {
+    const KEPT = '198.51.100.8/32';
+    const DROPPED = '192.0.2.9/32';
+    const r = run({
+      args: [...addFor('jane_doe', KEPT), '--address', NEW_ADDRESS],
+      params: { jane_doe: `${KEPT},${DROPPED}` },
+      before: [EXISTING, KEPT, DROPPED],
+      after: [EXISTING, KEPT, NEW_ADDRESS],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(paramOf('jane_doe')).toBe(`${KEPT},${NEW_ADDRESS}`);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(
+      `--target staging --firewall-only --firewall-add ${KEPT} --firewall-add ${NEW_ADDRESS} --firewall-remove ${DROPPED}`,
+    );
+  });
+
+  it('does nothing when the parameter holds the same set in another order and the firewall admits each', () => {
+    const SECOND = '198.51.100.8/32';
+    const r = run({
+      args: [...addFor('jane_doe', SECOND), '--address', NEW_ADDRESS],
+      params: { jane_doe: `${NEW_ADDRESS},${SECOND}` },
+      before: [EXISTING, NEW_ADDRESS, SECOND],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Already authorized/);
+    expect(applyRan()).toBe(false);
+  });
+
+  it('applies when the set matches but the firewall is missing one of them', () => {
+    const SECOND = '198.51.100.8/32';
+    const r = run({
+      args: [...addFor('jane_doe', NEW_ADDRESS), '--address', SECOND],
+      params: { jane_doe: `${NEW_ADDRESS},${SECOND}` },
+      before: [EXISTING, NEW_ADDRESS],
+      after: [EXISTING, NEW_ADDRESS, SECOND],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(applyRan()).toBe(true);
+  });
+
+  it('refuses the whole run when any one address is wider than a host, writing nothing', () => {
+    const r = run({ args: [...addFor('jane_doe', NEW_ADDRESS), '--address', '198.51.100.0/24'] });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/single host/);
+    expect(paramOf('jane_doe')).toBeNull();
+    expect(applyRan()).toBe(false);
+  });
+
+  it('removes every address the list holds, and reports each', () => {
+    const SECOND = '198.51.100.8/32';
+    const r = run({
+      args: removeFor('jane_doe'),
+      params: { jane_doe: `${NEW_ADDRESS},${SECOND}` },
+      before: [EXISTING, NEW_ADDRESS, SECOND],
+      after: [EXISTING],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(paramOf('jane_doe')).toBeNull();
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(
+      `--target staging --firewall-only --firewall-remove ${NEW_ADDRESS} --firewall-remove ${SECOND}`,
+    );
+    expect(r.stdout).toMatch(/203\.0\.113\.7\/32 is no longer admitted/);
+    expect(r.stdout).toMatch(/198\.51\.100\.8\/32 is no longer admitted/);
+  });
+
+  it('names another dev-and-tester whose list holds the address being removed', () => {
+    const r = run({
+      args: removeFor('jane_doe'),
+      params: { jane_doe: NEW_ADDRESS, john_roe: `198.51.100.8/32,${NEW_ADDRESS}` },
+      before: [EXISTING, NEW_ADDRESS, '198.51.100.8/32'],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/the dev-and-tester address of john_roe/);
+  });
+
+  it('refuses several addresses for the values file, whose entries each carry their own attribution', () => {
+    const r = run({ args: ['--target', 'staging', '--address', NEW_ADDRESS, '--address', '198.51.100.8/32', '--for', ATTRIBUTION, '--yes'] });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/only --dev-tester\s+takes several/);
+    expect(values()).toBe(TFVARS_BEFORE);
+  });
+
   it('refuses anything wider than one host, which the staging Terraform would silently drop', () => {
     const r = run({ args: addFor('jane_doe', '203.0.113.0/24') });
     expect(r.status).toBe(2);
@@ -906,13 +1018,16 @@ describe('authorize-operator-address checks every port the operator list opens',
   });
 
   it('admits a dev-and-tester address only as a canonical single host, and never fails a plan over one', () => {
-    // A widened or malformed value in one person's parameter must neither open
-    // the port to a range nor stop an administrator's apply: it is filtered out
-    // and reported by a check block, which warns rather than fails.
+    // A widened or malformed entry in one person's list must neither open the
+    // port to a range nor stop an administrator's apply: it is filtered out and
+    // reported by a check block, which warns rather than fails. Each entry of
+    // the comma-separated list is judged on its own, so the list the script
+    // writes is read the way it is written.
     const staging = readFileSync(join(process.cwd(), 'terraform/staging/lightsail.tf'), 'utf-8');
     expect(staging).toMatch(/path\s*=\s*"\/footbag-ops\/\$\{var\.environment\}\/dev-testers"/);
     expect(staging).toMatch(/nonsensitive\(data\.aws_ssm_parameters_by_path\.dev_tester_addresses\.values\)/);
-    expect(staging).toMatch(/"\$\{cidrhost\(v, 0\)\}\/32" == v/);
+    expect(staging).toMatch(/for cidr in split\(",", v\)/);
+    expect(staging).toMatch(/"\$\{cidrhost\(e\.cidr, 0\)\}\/32" == e\.cidr/);
     expect(staging).toMatch(/check "dev_tester_addresses_are_single_hosts"/);
     // Production reads no dev-and-tester address at all.
     const production = readFileSync(join(process.cwd(), 'terraform/production/lightsail.tf'), 'utf-8');

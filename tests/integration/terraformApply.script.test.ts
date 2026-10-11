@@ -599,6 +599,31 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     expect(calls()).toMatch(/ apply \//);
   });
 
+  it('applies a change to several addresses at once when each one is named', () => {
+    // A dev-and-tester who connects from two places changes both in one apply:
+    // one added beside the first, and an old one taken out.
+    const SECOND = '203.0.113.8/32';
+    const OLD = '192.0.2.9/32';
+    writeTerraformStub({
+      planResourceChanges: [{ ...FIREWALL, before: ports([ADMIN, OLD]), after: ports([ADMIN, ADDED, SECOND]) }],
+    });
+    const res = run([...ADD, '--firewall-add', SECOND, '--firewall-remove', OLD]);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toMatch(/ apply \//);
+  });
+
+  it('still refuses an unnamed address when several others are named', () => {
+    const SECOND = '203.0.113.8/32';
+    writeTerraformStub({
+      planResourceChanges: [{ ...FIREWALL, after: ports([ADDED, SECOND]) }],
+    });
+    const res = run([...ADD, '--firewall-add', SECOND]);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would change SSH addresses it was not asked to:\n\s+removed 198\.51\.100\.4\/32\n/);
+    expect(res.stderr).toMatch(/Asked for: added 203\.0\.113\.7\/32, added 203\.0\.113\.8\/32\./);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
   it('refuses a firewall-only apply that names no address, before terraform runs', () => {
     writeTerraformStub();
     const res = run(['--target', 'staging', '--firewall-only']);

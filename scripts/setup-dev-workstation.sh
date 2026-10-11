@@ -574,19 +574,33 @@ if [[ -n "$ACCOUNT" ]]; then
     else
       address="${address}/32"
     fi
+    # The staging key is made with no passphrase. A pair that was already at
+    # this path is kept as it is, and if it has one, every later step asks for
+    # it; said here, where it can still be removed before anything uses it.
+    if ! ssh-keygen -y -P '' -f "$NAMED_KEY" >/dev/null 2>&1; then
+      echo ""
+      echo "NOTE: your existing key ${NAMED_KEY_TILDE} has a passphrase. The staging"
+      echo "key is meant to have none, and with one you will be asked for it again and"
+      echo "again during onboarding and every deploy. Remove it now; the key and its"
+      echo "fingerprint stay exactly the same, so nothing below changes:"
+      echo "  ssh-keygen -p -f ${NAMED_KEY_TILDE} -N ''"
+    fi
     echo ""
     # The fingerprint is how the holder proves the key arrived unchanged, which
     # it proves only when it travels apart from the key: sent together, whoever
     # can alter the one can alter the other to match.
-    echo "Send these to the holder who onboards you:"
+    echo "Send these to the holder who onboards you. The public key is safe to"
+    echo "share; its private half, ${NAMED_KEY_TILDE}, never leaves this computer:"
     echo "  account:      ${ACCOUNT}"
     echo "  public key:   $(grep -m1 . "${NAMED_KEY}.pub")"
     echo "  address:      ${address}"
     echo "Send this one through a different channel (a text message or a call, not"
     echo "the same email or thread), so they can check the key was not changed on the way:"
     echo "  fingerprint:  ${key_sha}"
-    echo "The address is the one this machine reaches the internet from now; onboard"
-    echo "from where you will work."
+    echo "The address is the one this machine reaches the internet from right now."
+    echo "Staging admits SSH only from addresses on its allow-list, so send every"
+    echo "address you will work from (home, office, and so on). If one changes later,"
+    echo "send the new one and the holder updates your list."
   fi
 fi
 

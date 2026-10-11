@@ -67,7 +67,8 @@
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh \
 #     --target staging --account james_leberknight \
 #     --full-name "James Leberknight" --public-key "ssh-ed25519 AAAA... james" \
-#     --expect-fingerprint SHA256:<as they posted it> --address 203.0.113.7/32
+#     --expect-fingerprint SHA256:<as they posted it> --address 203.0.113.7/32 \
+#     [--address 198.51.100.8/32 --location "home, work"]
 #
 #   Yourself, on your own machine, after setup-dev-workstation.sh --account
 #   made your pair: the key, its fingerprint and your address are all derived.
@@ -97,11 +98,13 @@
 #                              somebody else, so a mismatch stops the run before
 #                              anything is read or minted. Required with
 #                              --public-key; derived when onboarding yourself
-#   --address <cidr>           the address they connect from, put on the staging
-#                              allow-list as their own entry. Required for
-#                              somebody else; read from checkip when onboarding
-#                              yourself
-#   --location "<where>"       where that address is, for the entry's
+#   --address <cidr>           an address they connect from, put on the staging
+#                              allow-list as their own entry. Repeat it for each
+#                              address they use, such as home and work; the set
+#                              given replaces whatever an earlier onboarding
+#                              put there. Required for somebody else; read from
+#                              checkip when onboarding yourself and none given
+#   --location "<where>"       where those addresses are, for the entry's
 #                              description. Default: home
 #   --reissue                  replace a finished onboarding: a fresh one-time
 #                              password and key, sealed again and placed over
@@ -182,6 +185,9 @@ ACCOUNT=""
 FULL_NAME=""
 PUBLIC_KEY=""
 EXPECT_FINGERPRINT=""
+# Every address they connect from, in the order given; ADDRESS is them joined
+# with commas, as their parameter holds them.
+ADDRESSES=()
 ADDRESS=""
 LOCATION=""
 REISSUE=0
@@ -201,7 +207,7 @@ while [[ $# -gt 0 ]]; do
     --full-name) FULL_NAME="${2:-}"; shift 2 || { echo "ERROR: --full-name requires an argument" >&2; exit 2; } ;;
     --public-key) PUBLIC_KEY="${2:-}"; shift 2 || { echo "ERROR: --public-key requires an argument" >&2; exit 2; } ;;
     --expect-fingerprint) EXPECT_FINGERPRINT="${2:-}"; shift 2 || { echo "ERROR: --expect-fingerprint requires an argument" >&2; exit 2; } ;;
-    --address) ADDRESS="${2:-}"; shift 2 || { echo "ERROR: --address requires an argument" >&2; exit 2; } ;;
+    --address) ADDRESSES+=("${2:-}"); shift 2 || { echo "ERROR: --address requires an argument" >&2; exit 2; } ;;
     --location) LOCATION="${2:-}"; shift 2 || { echo "ERROR: --location requires an argument" >&2; exit 2; } ;;
     --reissue) REISSUE=1; shift ;;
     --verify) VERIFY=1; shift ;;
@@ -233,7 +239,7 @@ if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; th
   exit 2
 fi
 if (( VERIFY )); then
-  if (( REISSUE )) || [[ -n "$FULL_NAME$PUBLIC_KEY$ADDRESS$LOCATION" ]]; then
+  if (( REISSUE || ${#ADDRESSES[@]} )) || [[ -n "$FULL_NAME$PUBLIC_KEY$LOCATION" ]]; then
     echo "ERROR: --verify changes nothing and takes only --target, --account and" >&2
     echo "       --expect-fingerprint." >&2
     exit 2
@@ -339,38 +345,47 @@ fi  # the key itself, skipped when verifying by fingerprint alone
 if (( ! VERIFY )); then
   # Your own address, read the way setup-dev-workstation.sh reads it, when you
   # are onboarding yourself from the machine you will connect from.
-  if [[ -z "$ADDRESS" ]] && (( SELF )); then
+  if (( ${#ADDRESSES[@]} == 0 )) && (( SELF )); then
     if [[ -n "$FETCH_CMD" ]]; then
       echo "SYNTHETIC: checkip='${FETCH_CMD}' -- this machine's address is a stand-in." >&2
-      ADDRESS="$("$FETCH_CMD" 2>/dev/null || true)"
+      _here="$("$FETCH_CMD" 2>/dev/null || true)"
     else
-      ADDRESS="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null || true)"
+      _here="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null || true)"
     fi
-    ADDRESS="${ADDRESS//[[:space:]]/}"
-    [[ -n "$ADDRESS" ]] && echo "==> This machine connects from ${ADDRESS} (checkip)." >&2
+    _here="${_here//[[:space:]]/}"
+    [[ -n "$_here" ]] && echo "==> This machine connects from ${_here} (checkip)." >&2
+    ADDRESSES=("$_here")
   fi
+  (( ${#ADDRESSES[@]} )) || ADDRESSES=("")
   # Checked for shape here so a typo is refused before anything is minted; the
-  # allow-list step holds it to a canonical single host itself.
-  _octets_ok=1
-  if [[ "$ADDRESS" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})(/32)?$ ]]; then
-    for _o in "${BASH_REMATCH[@]:1:4}"; do (( 10#$_o <= 255 )) || _octets_ok=0; done
-  else
-    _octets_ok=0
-  fi
-  if (( ! _octets_ok )); then
-    echo "ERROR: --address must be the IPv4 address they connect from, such as" >&2
-    echo "       203.0.113.7/32, one host. Without it on the allow-list nothing else" >&2
-    echo "       this run makes reaches them. They can read it with:" >&2
-    echo "         curl -s https://checkip.amazonaws.com" >&2
-    exit 2
-  fi
+  # allow-list step holds each to a canonical single host itself.
+  _given=("${ADDRESSES[@]}")
+  ADDRESSES=()
+  for _a in "${_given[@]}"; do
+    _octets_ok=1
+    if [[ "$_a" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})(/32)?$ ]]; then
+      for _o in "${BASH_REMATCH[@]:1:4}"; do (( 10#$_o <= 255 )) || _octets_ok=0; done
+    else
+      _octets_ok=0
+    fi
+    if (( ! _octets_ok )); then
+      echo "ERROR: --address must be the IPv4 address they connect from, such as" >&2
+      echo "       203.0.113.7/32, one host each, not '${_a}'. Without one on the" >&2
+      echo "       allow-list nothing else this run makes reaches them. They can" >&2
+      echo "       read it with:" >&2
+      echo "         curl -s https://checkip.amazonaws.com" >&2
+      exit 2
+    fi
+    [[ "$_a" == */* ]] || _a="${_a}/32"
+    [[ " ${ADDRESSES[*]-} " == *" ${_a} "* ]] || ADDRESSES+=("$_a")
+  done
+  ADDRESS="$(IFS=','; printf '%s' "${ADDRESSES[*]}")"
   [[ -n "$LOCATION" ]] || LOCATION="home"
   if [[ "$LOCATION" == *$'\n'* || "$LOCATION" == *';'* ]]; then
     echo "ERROR: --location \"<where>\" goes on one line and without a ';': it" >&2
     echo "       completes the address description '${ACCOUNT}; <where>'." >&2
     exit 2
   fi
-  [[ "$ADDRESS" == */* ]] || ADDRESS="${ADDRESS}/32"
 fi
 
 # ── Tools and terminal, before anything is minted ────────────────────────────
@@ -597,15 +612,19 @@ fi
 # Both are idempotent and both hand off to the script that owns the thing, with
 # stdin closed, because this run's stdin carries the sudo password.
 
-# The person's address on the staging allow-list, as their own parameter. Without
-# it nothing else reaches them, so it is part of onboarding rather than a step to
-# remember. The values file, which holds the administrators' entries, is never
+# The person's addresses on the staging allow-list, as their own parameter.
+# Without them nothing else reaches them, so it is part of onboarding rather than
+# a step to remember. The whole set is written each time, so a re-run with a new
+# address replaces the old one rather than adding to it. The values file, which holds the administrators' entries, is never
 # opened on this path, so an administrator's entry cannot be changed by it even
 # when the person shares an administrator's address.
 onboard_address() {
   echo ""
   echo "==> ${ACCOUNT}'s address on the ${TARGET} allow-list"
-  if ! bash "$ADDRESS_CMD" --target "$TARGET" --dev-tester "$ACCOUNT" --address "$ADDRESS" \
+  local -a address_args=()
+  local one
+  for one in "${ADDRESSES[@]}"; do address_args+=(--address "$one"); done
+  if ! bash "$ADDRESS_CMD" --target "$TARGET" --dev-tester "$ACCOUNT" "${address_args[@]}" \
       --for "${ACCOUNT}; ${LOCATION}" </dev/null; then
     echo "ERROR: ${ADDRESS} is not proved on the ${TARGET} allow-list. Everything else is" >&2
     echo "       in place; re-run this same command to finish it." >&2
@@ -922,8 +941,16 @@ echo ""
 echo "   The address is the ${TARGET} host's. It carries no trust: the acceptance"
 echo "   refuses a delivery that names any other."
 echo ""
+echo "   Tell them what it will ask, so nothing surprises them:"
+echo "     - APPLY, before each change it makes on their computer."
+echo "     - A new password for their own account on the ${TARGET} host, which is"
+echo "       not root; the deploy scripts use it for sudo. Any password they like,"
+echo "       typed twice, and saved on their computer so they never type it again."
+echo "     - Nothing else. If it asks for an SSH key passphrase, their key has one;"
+echo "       they remove it with: ssh-keygen -p -f ~/.ssh/id_ed25519_${ACCOUNT} -N ''"
+echo ""
 echo "2. Nothing is sent to them. If their connection is refused, their address"
-echo "   has changed: re-run this with the new one."
+echo "   has changed: re-run this with every address they use, the new one included."
 echo ""
 echo "3. Nothing goes in the vault: nobody named has a vault entry. Who holds this"
 echo "   access is read live, and the onboarding card records who approved it."

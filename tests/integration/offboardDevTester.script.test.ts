@@ -610,6 +610,21 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     expect(r.stderr).toMatch(/--from-step 3/);
   });
 
+  it('warns and asks when this machine connects from any address in their list, not only the first', () => {
+    const r = run({ param: '198.51.100.250/32,203.0.113.7/32', here: '203.0.113.7' });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/this machine connects from 203\.0\.113\.7\/32, the address being removed/);
+    expect(addressCalls()).toBe('');
+  });
+
+  it('asks nothing when this machine\'s address only shares a prefix with one in their list', () => {
+    // 203.0.113.7 sits inside the text of 203.0.113.70; a substring match would
+    // stop an offboard for a machine that loses nothing.
+    const r = run({ param: '203.0.113.70/32', here: '203.0.113.7' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/WARNING: this machine connects from/);
+  });
+
   it('asks nothing when this machine connects from somewhere else', () => {
     const r = run({ param: '203.0.113.7/32', here: '198.51.100.250' });
     expect(r.status, r.stderr).toBe(0);
