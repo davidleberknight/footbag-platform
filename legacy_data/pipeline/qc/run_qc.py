@@ -72,15 +72,13 @@ OPTIONAL_CHECKS = [
     # Name-variants seed validator. Validates structure of
     # inputs/name_variants.csv: required columns, confidence domain,
     # source domain, duplicates, DB-CHECK compatibility. The loader
-    # (scripts/load_name_variants_seed.py) and the verify-time classifier
-    # consume the resulting DB table, so broken input is a pipeline
-    # regression rather than just a visibility signal. Severity=warn.
-    # Promote to hard once registration-time auto-link wires in and
-    # stable production use is established.
+    # (scripts/load_name_variants_seed.py) fills the table the onboarding
+    # claim matcher reads, so broken input breaks claims and is a hard
+    # failure, not a visibility signal.
     {
         "name": "name_variants",
         "path": "pipeline/qc/check_name_variants.py",
-        "severity": "warn",
+        "severity": "hard",
         "needs_workbook": False,
     },
     # Tie-flattening detector for the frozen identity lock: compares Stage 2 tie

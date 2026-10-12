@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/Br69lQdbyS0?t=33",
   "videoPlatform": "youtube",
   "title": "Eggbeater — Derek Littlefield (24 kicks, 2024-09-15)",
-  "creator": "Derek Littlefield",
   "sourceId": "passback_records",
   "startSeconds": 33,
   "tags": [
@@ -10,6 +9,7 @@
     "#freestyle",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_derek_littlefield"
   ]
 }

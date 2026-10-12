@@ -9,6 +9,9 @@ Rules for files under the `footbag_private_repo/` symlink (the maintainers'
 private operations checkout). Workflow and tracker practice live in the
 `tracker-ops` skill; this rule covers touching the files themselves.
 
+- Handovers, plans and evidence files here describe tracker cards second-hand. Before relying
+  on what one says about a card, read the card itself, body and every comment, per the
+  `tracker-ops` skill's card-reading rule.
 - Claude drafts here freely; a human reviews, commits, and pushes. Never run a git
   write in this checkout.
 - No secret values, ever (the vault holds those; point at a vault entry by name).

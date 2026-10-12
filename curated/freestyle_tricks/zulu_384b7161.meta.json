@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=-e069LRBE8M",
   "videoPlatform": "youtube",
   "title": "Freestyle Footbag Trick: Zulu Set from Jay Boychuk",
-  "creator": "Jay Boychuk",
   "sourceId": "shred_global",
   "tags": [
     "#freestyle",
@@ -10,6 +9,7 @@
     "#shred_global",
     "#set_zulu",
     "#concept_zulu_sets",
-    "#demo"
+    "#demo",
+    "#player_jay_boychuk"
   ]
 }

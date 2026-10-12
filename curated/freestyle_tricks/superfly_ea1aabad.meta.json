@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/6h7yJJoir4s?t=92",
   "videoPlatform": "youtube",
   "title": "Superfly — Anssi Sundberg (10 kicks, 2013-02-18)",
-  "creator": "Anssi Sundberg",
   "sourceId": "passback_records",
   "startSeconds": 92,
   "tags": [
@@ -10,6 +9,7 @@
     "#superfly",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_anssi_sundberg"
   ]
 }

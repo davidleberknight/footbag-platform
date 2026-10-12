@@ -464,7 +464,6 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       videoPlatform: 'youtube',
       videoId: `ROUTE_${slug}`,
       caption: `Title for ${slug}`,
-      creator: 'Original Creator',
       sourceId: 'src_route',
       tags: ['#freestyle', '#trick', `#${slug}`, '#tutorial'],
     });
@@ -483,8 +482,9 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.status).toBe(200);
     expect(res.text).toContain('URL reference fields');
     expect(res.text).toContain(`value="Title for ${slug}"`);
-    expect(res.text).toContain('value="Original Creator"');
     expect(res.text).toContain('value="src_route"');
+    // Credit is a #player_ tag only, so the form offers no credit control.
+    expect(res.text).not.toContain('name="creator"');
     // What the clip is for reaches the form as one of its tags, and the form
     // offers no separate control for it: a second control would be a second
     // place to answer one question, and only the tag reaches a member.
@@ -509,12 +509,11 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.text).not.toContain('name="creator"');
   });
 
-  it('POST edit on sidecar-backed item rewrites sidecar (caption + creator) and redirects with flash', async () => {
+  it('POST edit on sidecar-backed item rewrites sidecar (caption + source) and redirects with flash', async () => {
     const slug = `poste_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const { mediaId, sidecarPath } = seedSidecarRow(slug);
 
     const newCaption = `Edited title ${slug}`;
-    const newCreator = 'Edited Creator';
     // The edit re-attributes the clip to a different source, which has to be a
     // registered one: the column is a foreign key and the service rejects an
     // unknown id as fixable input rather than letting it reach the engine.
@@ -529,7 +528,8 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .send({
         caption: newCaption,
         tags: `#freestyle #trick #${slug} #demo`,
-        creator: newCreator,
+        // A posted credit field is ignored: credit is a #player_ tag only.
+        creator: 'Posted Credit',
         sourceId: 'src_route_edited',
       });
     expect(res.status).toBe(303);
@@ -537,7 +537,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
 
     const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf-8'));
     expect(sidecar.title).toBe(newCaption);
-    expect(sidecar.creator).toBe(newCreator);
+    expect(Object.keys(sidecar)).not.toContain('creator');
     expect(sidecar.sourceId).toBe('src_route_edited');
     // What the clip is for travels as a tag, so an edit changes it the same way
     // it changes any other tag, and the sidecar carries no separate field for it.

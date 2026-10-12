@@ -4,14 +4,14 @@ What the Emerging Vocabulary seed may and may not do to an existing database.
 The ruling table was seeded from a committed ledger and then became writable
 authority: curators author a movement onto a ruling, and publishing its trick
 resolves it. The ledger is now only a seed source, so the loader that reads it
-tops up what is missing and verifies what is there. It never writes over a row
-that exists, because everything it would write back is older than what the
-database holds.
+tops up what is missing and verifies what is there. It never writes over
+anything the app has written, because that is newer than the ledger.
 
 Three groups of fields, and the difference between them is the whole contract.
 The historical facts a ruling does not change are verified. The five fields the
-publication funnel rewrites are verified only while the row is untouched, which
-its version records. Everything a curator can write is never compared at all.
+publication funnel rewrites are taken from the ledger only while the row is
+untouched, which its version records. Everything a curator can write is never
+compared at all.
 
 These tests run the real loader against throwaway databases.
 
@@ -286,22 +286,45 @@ class TestItRefusesRatherThanRepairing:
         assert r.returncode != 0
         assert "published_trick_slug" in r.stderr
 
-    def test_a_ruling_field_is_only_compared_while_the_row_is_untouched(self, db):
-        """Version 1 compares; past it the funnel owns the field."""
+    def test_a_corrected_ruling_reaches_an_untouched_row(self, db):
+        """At version 1 nothing is authored, so the ledger's value is taken."""
+        cid = pristine_candidate(db)
+        ledger_value = rows(db)[cid]["ev_state"]
+        conn = connect(db)
+        with conn:
+            conn.execute("UPDATE freestyle_ev_adjudications SET ev_state = 'stale'"
+                         " WHERE candidate_id = ?", (cid,))
+        conn.close()
+        r = run(SEED, db)
+        assert r.returncode == 0, r.stderr
+        after = rows(db)[cid]
+        assert after["ev_state"] == ledger_value
+        # Still untouched by the app, so a later correction can reach it too.
+        assert after["version"] == 1
+        assert "untouched rulings updated      : 1" in r.stdout
+
+    def test_a_ruling_the_app_has_written_is_not_updated(self, db):
         cid = pristine_candidate(db)
         conn = connect(db)
         with conn:
-            conn.execute("UPDATE freestyle_ev_adjudications SET ev_state = 'canonical'"
-                         " WHERE candidate_id = ?", (cid,))
-        conn.close()
-        assert run(SEED, db).returncode != 0
-
-        conn = connect(db)
-        with conn:
-            conn.execute("UPDATE freestyle_ev_adjudications SET version = 2"
-                         " WHERE candidate_id = ?", (cid,))
+            conn.execute("UPDATE freestyle_ev_adjudications SET ev_state = 'stale',"
+                         " version = 2 WHERE candidate_id = ?", (cid,))
         conn.close()
         assert run(SEED, db).returncode == 0
+        assert rows(db)[cid]["ev_state"] == "stale"
+
+    def test_the_refusal_names_the_recovery_for_each_kind_of_row(self, db):
+        cid = pristine_candidate(db)
+        conn = connect(db)
+        with conn:
+            conn.execute("UPDATE freestyle_ev_adjudications SET owner = 'wrong'"
+                         " WHERE candidate_id = ?", (cid,))
+        conn.close()
+        r = run(SEED, db)
+        assert r.returncode != 0
+        assert f"{cid} (" in r.stderr and "version 1" in r.stderr
+        assert "delete that row from freestyle_ev_adjudications and rerun" in r.stderr
+        assert "past version 1 carries a curator's work; never delete it" in r.stderr
 
     def test_it_writes_nothing_at_all_when_it_refuses(self, db):
         cid = pristine_candidate(db)

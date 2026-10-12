@@ -15,7 +15,8 @@ authorization, which is its own thing to walk.
 
 Strata:
   * hp_linked_with_email -- account linked to a historical person, email on
-    file: registering with that email should surface the auto-link suggestion.
+    file: registering with that email should offer the account as claimable
+    at the claim step.
   * tier2_paid / tier1_lifetime -- paid tier evidence: the claim should grant
     the corresponding tier. tier1_lifetime excludes records carrying a
     Hall-of-Fame honor or Tier 2 payment, which grant Tier 2 regardless and

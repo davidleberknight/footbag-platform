@@ -177,9 +177,9 @@ export const adminCuratorController = {
       // poster). Capping at 2 silently dropped the poster. 4 has headroom
       // for the 3 expected parts without admitting genuinely abusive
       // multi-file submissions.
-      // fields: 24 — the upload form posts up to 11 non-file fields today
+      // fields: 24 — the upload form posts up to 10 non-file fields today
       // (mediaType, newCategory, videoPlatform, videoUrl, primarySlug,
-      // title, creator, sourceId, caption, tags, externalUrl). A cap at or
+      // title, sourceId, caption, tags, externalUrl). A cap at or
       // near the current count silently drops the trailing fields on the
       // wire, because busboy emits no warning when it truncates. 24 leaves
       // headroom for near-term form additions without re-tuning.
@@ -300,7 +300,6 @@ export const adminCuratorController = {
         videoPlatform: fields.videoPlatform ?? '',
         primarySlug: fields.primarySlug ?? '',
         title: fields.title ?? '',
-        creator: fields.creator ?? '',
         sourceId: fields.sourceId ?? '',
         externalUrl: fields.externalUrl ?? '',
       };
@@ -334,8 +333,6 @@ export const adminCuratorController = {
         const primarySlug = (fields.primarySlug ?? '').trim().toLowerCase();
         const titleRaw = (fields.title ?? '').trim();
         const title = titleRaw.length === 0 ? null : titleRaw;
-        const creatorRaw = (fields.creator ?? '').trim();
-        const creator = creatorRaw.length === 0 ? null : creatorRaw;
         const sourceIdRaw = (fields.sourceId ?? '').trim();
         const sourceId = sourceIdRaw.length === 0 ? null : sourceIdRaw;
 
@@ -372,7 +369,6 @@ export const adminCuratorController = {
             videoPlatform: videoPlatformRaw,
             primarySlug,
             title,
-            creator,
             sourceId,
             startSeconds: null,
             endSeconds: null,
@@ -578,7 +574,6 @@ export const adminCuratorController = {
         const n = parseInt(t, 10);
         return Number.isFinite(n) ? n : null;
       };
-      if (req.body?.creator !== undefined) editInput.creator = trimToNull(req.body.creator);
       if (req.body?.sourceId !== undefined) editInput.sourceId = trimToNull(req.body.sourceId);
       if (req.body?.thumbnailUrl !== undefined) editInput.thumbnailUrl = trimToNull(req.body.thumbnailUrl);
       if (req.body?.startSeconds !== undefined) editInput.startSeconds = parseIntOrNull(req.body.startSeconds);

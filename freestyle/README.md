@@ -55,7 +55,8 @@ written, and recorded per row, so no producer can delete another's rows and none
 can reach a curator's. Retirement runs last, over the complete map of what every
 committed input wants, and removes only rows whose own producer has stopped
 carrying them. The adjudication loader tops up the historical rulings a database
-is missing and verifies the ones it has, refusing rather than repairing when a
+is missing, takes a corrected ruling from the ledger into a ruling the app has
+never written to, and verifies the rest, refusing rather than repairing when a
 historical fact disagrees.
 
 Resetting the database is a different operation. `./run_dev.sh --reset`,
@@ -87,7 +88,7 @@ data is wholly derived from a committed file still replace their own rows.
 | 9 | `loaders/21a_load_alias_additions.py` | `inputs/base_dictionary/alias_additions.csv` | `freestyle_trick_aliases` | Enricher; scoped to its own rows |
 | 10 | `loaders/21b_apply_alias_overrides.py` | `inputs/base_dictionary/alias_overrides.csv` | `freestyle_trick_aliases` (class and display) | Enricher; fails closed on an override whose alias is absent |
 | 11 | `loaders/21c_retire_stale_tricks.py` | the complete desired ownership map | deletes stale committed `freestyle_tricks` rows | Runs last; removes only rows whose own producer stopped carrying them, never a curator's or an unclassified one, and fails closed on a surviving reference |
-| 12 | `loaders/28_load_ev_adjudications.py` | `inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` | `freestyle_ev_adjudications` | Inserts missing historical rulings and verifies the rest; never writes over an existing row, and refuses rather than repairing a disagreement |
+| 12 | `loaders/28_load_ev_adjudications.py` | `inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` | `freestyle_ev_adjudications` | Inserts missing historical rulings, updates the ruling fields of one the app has never written to, and verifies the rest; never writes over app-authored work, and refuses rather than repairing a disagreement |
 | 13 | `loaders/27_load_trick_tips.py` | `inputs/footbag_org_member_tips.ndjson` | `freestyle_trick_tips` | Replaces its own rows; wholly derived |
 | 14 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Derived from the notation it reads |
 | 15 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |

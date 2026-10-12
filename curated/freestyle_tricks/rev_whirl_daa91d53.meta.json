@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=aDf5DQrxO6g",
   "videoPlatform": "youtube",
   "title": "Anz' Trikz - Whirl and Reverse Whirl",
-  "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
   "tags": [
     "#anz_trikz",
@@ -10,6 +9,7 @@
     "#rev_whirl",
     "#trick",
     "#whirl",
-    "#tutorial"
+    "#tutorial",
+    "#player_anssi_sundberg"
   ]
 }

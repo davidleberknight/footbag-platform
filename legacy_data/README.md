@@ -426,6 +426,19 @@ Each skipped video keeps its original URL in the mirror and is recorded
 videos during the crawl, or run `--video-backfill` afterward to fetch the
 recorded videos and repair their referring pages from that manifest.
 
+### The legacy dump refresh
+
+`legacy_data/scripts/refresh_legacy_repo_data.py` checks each delivery of the
+legacy webmaster's repository and writes the vetted per-table CSVs. It reads the
+`footbag_legacy_repo` clone from its delivered commit, compares it against the
+untouched `footbag_legacy_repo_original_data` copy of the first delivery, parses
+every dump through `legacy_data/scripts/strict_dump_parser.py`, refuses only what
+makes a delivery unreadable or unsafe to write, and reports everything else the
+delivery changes. Output goes to the private checkout's `legacy-export/`,
+owner-only, with `REFRESH_MANIFEST.tsv`. A new module, table or column is held
+until a maintainer accepts it with `--accept-new`. The script's header is the
+authoritative list of what is refused and what is reported.
+
 ### The member-data scripts
 
 `legacy_data/member_data_scripts/` is the legacy member load: one path with no

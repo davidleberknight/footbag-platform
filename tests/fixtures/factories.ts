@@ -1317,7 +1317,6 @@ export interface CuratorUrlReferenceOverrides {
   videoId: string;
   caption?: string | null;
   thumbnailUrl?: string | null;
-  creator?: string | null;
   sourceId?: string | null;
   startSeconds?: number | null;
   endSeconds?: number | null;
@@ -1371,7 +1370,6 @@ export function insertCuratorUrlReference(
     videoPlatform: o.videoPlatform,
   };
   if (o.caption != null) sidecarBody.title = o.caption;
-  if (o.creator != null) sidecarBody.creator = o.creator;
   if (o.sourceId != null) sidecarBody.sourceId = o.sourceId;
   if (o.thumbnailUrl != null && o.videoPlatform === 'vimeo') {
     sidecarBody.thumbnailUrl = o.thumbnailUrl;

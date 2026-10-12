@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=Qhf3gHqThpk&t=429s",
   "videoPlatform": "youtube",
   "title": "Spinning Clipper — Byrin Wylie (32 kicks, 2009-06-02)",
-  "creator": "Byrin Wylie",
   "sourceId": "passback_records",
   "startSeconds": 429,
   "tags": [
@@ -10,6 +9,7 @@
     "#spinning_clipper",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_byrin_wylie"
   ]
 }

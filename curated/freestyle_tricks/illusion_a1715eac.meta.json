@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=yIzorg2mzGM",
   "videoPlatform": "youtube",
   "title": "Mirage & Illusion - Footbag Tutorials",
-  "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
   "tags": [
     "#anz_trikz",
@@ -10,6 +9,7 @@
     "#illusion",
     "#mirage",
     "#trick",
-    "#tutorial"
+    "#tutorial",
+    "#player_anssi_sundberg"
   ]
 }

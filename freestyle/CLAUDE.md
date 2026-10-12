@@ -27,8 +27,9 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
   `trick_origin_producer` on insert, ownership settles in a preflight pass before
   anything is written, and retirement runs last over the complete desired map, so no
   producer can delete another's rows and none can reach a curator's. The adjudication
-  loader inserts the historical rulings a database is missing and verifies the ones it
-  has, refusing rather than repairing when a historical fact disagrees. Both are safe
+  loader inserts the historical rulings a database is missing, takes a corrected ruling
+  from the ledger into a ruling the app has never written to, and verifies the rest,
+  refusing rather than repairing when a historical fact disagrees. Both are safe
   to re-run and reach a fixed point in one pass. Do not describe the pipeline as
   delete-and-insert; that was true before the tables held writable authority, and it is
   what made a destructive refresh look safe.

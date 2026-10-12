@@ -447,7 +447,6 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('videoUrl', '')
       .field('primarySlug', '')
       .field('title', '')
-      .field('creator', '')
       .field('sourceId', '')
       .field('caption', uniqueCaption)
       .field('tags', uniqueTag)

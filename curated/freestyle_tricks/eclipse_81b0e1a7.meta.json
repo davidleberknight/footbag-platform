@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/LdTt0x8TzsQ?t=29",
   "videoPlatform": "youtube",
   "title": "Eclipse — Yoshihito Yamamoto (32 kicks, 2020-12-06)",
-  "creator": "Yoshihito Yamamoto",
   "sourceId": "passback_records",
   "startSeconds": 29,
   "tags": [
@@ -10,6 +9,7 @@
     "#freestyle",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_yoshihito_yamamoto"
   ]
 }

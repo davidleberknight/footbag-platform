@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=K35_mFAOXbs",
   "videoPlatform": "youtube",
   "title": "Anz' Trikz - Drifter & Grifter",
-  "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
   "tags": [
     "#anz_trikz",
@@ -10,6 +9,7 @@
     "#freestyle",
     "#reverse_drifter",
     "#trick",
-    "#tutorial"
+    "#tutorial",
+    "#player_anssi_sundberg"
   ]
 }

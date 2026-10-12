@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=jogQ-qUrku0#t=3m51s",
   "videoPlatform": "youtube",
   "title": "Tombstone — Nathan Pipenberg (8 kicks, 2013-12-10)",
-  "creator": "Nathan Pipenberg",
   "sourceId": "passback_records",
   "tags": [
     "#tombstone",
@@ -10,6 +9,7 @@
     "#trick",
     "#passback_records",
     "#unavailable_embed",
-    "#record"
+    "#record",
+    "#player_nathan_pipenberg"
   ]
 }

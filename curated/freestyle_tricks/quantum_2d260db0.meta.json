@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=Go_Y7hm8rMQ",
   "videoPlatform": "youtube",
   "title": "Atomic & Quantum Sets - Footbag Tutorials",
-  "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
   "tags": [
     "#anz_trikz",
@@ -10,6 +9,7 @@
     "#freestyle",
     "#set_quantum",
     "#trick",
-    "#tutorial"
+    "#tutorial",
+    "#player_anssi_sundberg"
   ]
 }

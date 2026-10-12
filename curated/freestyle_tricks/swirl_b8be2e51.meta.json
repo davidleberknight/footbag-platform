@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/VMIUPcyyAz0?t=6",
   "videoPlatform": "youtube",
   "title": "Swirl — Jim Penske (84 kicks, 2013-11-24)",
-  "creator": "Jim Penske",
   "sourceId": "passback_records",
   "startSeconds": 6,
   "tags": [
@@ -10,6 +9,7 @@
     "#swirl",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_jim_penske"
   ]
 }

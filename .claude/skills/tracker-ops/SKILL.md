@@ -64,6 +64,11 @@ the human's instruction as given.
   Report the card's merged current state, and name any conflict the card leaves unresolved rather
   than picking a side. A card rewrite folds the live comment content into the body, so the body
   alone tells the truth again.
+- **A card is only ever read from the card.** Never read a body without its comments, and never
+  take a card's state from a description of it elsewhere: a handover, plan, evidence file, doc,
+  subagent report, or the body alone is a lead to check, not the card. Read the card itself before
+  stating, relying on or acting on what it says, and brief any subagent that relies on a card to
+  read it the same way.
 
 ## Drafting
 

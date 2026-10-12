@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/cZczu2TRrZw?t=29",
   "videoPlatform": "youtube",
   "title": "Drifter — Jim Penske (56 kicks, 2014-07-17)",
-  "creator": "Jim Penske",
   "sourceId": "passback_records",
   "startSeconds": 29,
   "tags": [
@@ -10,6 +9,7 @@
     "#freestyle",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_jim_penske"
   ]
 }

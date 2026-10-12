@@ -50,9 +50,12 @@ describe('shapeMediaTagsForBrowse — kind classification', () => {
     expect(tag.kind).toBe('creator');
   });
 
-  it('classifies content-type tags', () => {
-    expect(shapeMediaTagsForBrowse(['#tutorial'])[0].kind).toBe('content-type');
-    expect(shapeMediaTagsForBrowse(['#demo'])[0].kind).toBe('content-type');
+  it('classifies each of the three content types, so none renders among the trick tags', () => {
+    for (const tag of ['#tutorial', '#demo', '#record']) {
+      expect(shapeMediaTagsForBrowse([tag])[0].kind).toBe('content-type');
+    }
+    const out = shapeMediaTagsForBrowse(['#record', '#whirl']);
+    expect(out.map(t => t.display)).toEqual(['#whirl', '#record']);
   });
 
   it('classifies `#event_*` as event', () => {

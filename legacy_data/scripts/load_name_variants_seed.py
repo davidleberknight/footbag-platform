@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Seed the `name_variants` table from `inputs/name_variants.csv`.
 
-Draft loader — not yet wired into `run_pipeline.sh`. See
+Run by `run_pipeline.sh` (phase V) and by `scripts/reset-local-db.sh`. The
+onboarding claim matcher reads the table it fills. See
 `pipeline/identity/README.md` for the policy summary.
 
 ## Policy
@@ -12,8 +13,8 @@ loader enforces the confidence contract at load time:
   - **high**-confidence rows are production-eligible and written to
     `name_variants` with `source='mirror_mined'`.
   - **medium**-confidence rows are reported to a staging artifact and
-    NOT inserted. They do not participate in registration-time
-    auto-linking yet; they are visible for human review.
+    NOT inserted. The claim matcher never sees them; they are visible
+    for human review.
 
 The `source` tags in the CSV (`alias`, `display_name`, `bap`, `manual`)
 describe provenance within the pipeline. They all derive from the

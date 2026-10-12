@@ -8,7 +8,9 @@ Reads:
     freestyle_tricks                 (link targets; must already be loaded)
 
 Writes: database/footbag.db
-  freestyle_ev_adjudications         — DELETE + INSERT, one row per ruling
+  freestyle_ev_adjudications         — inserts a ruling the database is missing,
+                                       updates the ruling fields of one the app has
+                                       never written to, verifies every other row
 
 What this loader is for. The rulings that decide what each observational name IS
 live in a committed CSV a content generator reads. When the rebuild pipeline
@@ -184,8 +186,10 @@ IMMUTABLE_FIELDS = (
 )
 
 # Seeded from the ledger, then rewritten by the publication funnel: a published
-# ruling legitimately reads canonical, disposition A, promoted-canonical. They are
-# therefore only comparable while the row is untouched, which the version records.
+# ruling legitimately reads canonical, disposition A, promoted-canonical. While the
+# row is untouched, which the version records, nothing authored sits on them, so a
+# deliberate correction to the committed ledger is carried into the row. Past
+# version 1 they are the funnel's and the ledger is not consulted.
 RULING_FIELDS = (
     "ev_state", "hold_kind", "match_type", "final_disposition",
     "matched_existing_object",
@@ -201,44 +205,52 @@ _COLUMNS = (
 )
 
 
-def verify_existing(rows: list[dict], links: dict, existing: dict) -> list[tuple]:
+def verify_existing(
+    rows: list[dict], links: dict, existing: dict,
+) -> tuple[list[tuple], dict[str, dict]]:
     """What an already-present row disagrees with the ledger about.
 
-    Verify only. A row that exists is authority: a curator may have written a
-    movement onto it, or published its trick, and the ledger is a retired seed
-    source with no standing to put any of that back. So nothing here writes, and
-    the checks are chosen to be exactly those a legitimate curator action cannot
-    trip.
+    A row that exists is authority: a curator may have written a movement onto
+    it, or published its trick, and the ledger is a retired seed source with no
+    standing to put any of that back. The checks are chosen to be exactly those a
+    legitimate curator action cannot trip. The one thing the ledger may still
+    change is a ruling field on a row the app has never written to (version 1),
+    because nothing authored sits there to lose.
 
-    Returns (candidate_id, submitted_name, field, db_value, seed_value) tuples.
+    Returns (conflicts, updates). A conflict is a (candidate_id, submitted_name,
+    field, db_value, seed_value, version) tuple and refuses the whole seed. An
+    update maps candidate_id to the ruling fields to take from the ledger.
     """
     conflicts = []
+    updates: dict[str, dict] = {}
     for i, r in enumerate(rows):
         cid = candidate_id_for(r["normalized_name"])
         row = existing.get(cid)
         if row is None:
             continue
         current = dict(zip(_COLUMNS, row))
+        version = current["version"]
 
         # Historical seed order. Position in the committed ledger, unique per row,
         # and never renumbered: a row whose number has moved is a different row's
         # place, which the unique index would otherwise hide until it collided.
         if current["sequence_no"] != i + 1:
             conflicts.append((cid, r["submitted_name"], "sequence_no",
-                              current["sequence_no"], i + 1))
+                              current["sequence_no"], i + 1, version))
 
         for field in IMMUTABLE_FIELDS:
             if current[field] != r.get(field, current[field]) and field in r:
                 conflicts.append((cid, r["submitted_name"], field,
-                                  current[field], r[field]))
+                                  current[field], r[field], version))
 
-        # Pristine rows only. Past version 1 the funnel has written, and the
-        # retired ledger is not what these fields should agree with any more.
-        if current["version"] == 1:
-            for field in RULING_FIELDS:
-                if field in r and current[field] != r[field]:
-                    conflicts.append((cid, r["submitted_name"], field,
-                                      current[field], r[field]))
+        # Pristine rows only: the ledger's value is taken. Past version 1 the
+        # funnel has written, and the retired ledger is not what these fields
+        # should agree with any more.
+        if version == 1:
+            changed = {field: r[field] for field in RULING_FIELDS
+                       if field in r and current[field] != r[field]}
+            if changed:
+                updates[cid] = changed
 
         # A link the ledger named must still point where it named. A link the
         # ledger did not name is the funnel's and is left alone; nothing here
@@ -246,22 +258,29 @@ def verify_existing(rows: list[dict], links: dict, existing: dict) -> list[tuple
         expected = links.get(i)
         if expected is not None and current["published_trick_slug"] != expected:
             conflicts.append((cid, r["submitted_name"], "published_trick_slug",
-                              current["published_trick_slug"], expected))
+                              current["published_trick_slug"], expected, version))
 
-    return conflicts
+    return conflicts, updates
 
 
 def format_conflicts(conflicts: list[tuple]) -> str:
     lines = [f"ERROR: {len(conflicts)} ruling(s) disagree with the committed ledger. "
              f"Nothing was written."]
-    for cid, name, field, db_value, seed_value in conflicts:
-        lines.append(f"  {cid} ({name})")
+    for cid, name, field, db_value, seed_value, version in conflicts:
+        lines.append(f"  {cid} ({name}), version {version}")
         lines.append(f"    {field}: database has {db_value!r}, ledger has {seed_value!r}")
     lines.append("")
     lines.append("These are the facts a ruling does not change: its identity, the "
                  "evidence behind it, and where a historical link pointed. A refresh "
                  "does not repair them from the retired ledger, because the database "
                  "is the authority now and the difference is somebody's to explain.")
+    lines.append("")
+    lines.append("Recovery. A ruling at version 1 has never been written to in the "
+                 "app, so nothing is lost by deleting it: delete that row from "
+                 "freestyle_ev_adjudications and rerun, and it is seeded again from "
+                 "the ledger at its own ordinal. A ruling past version 1 carries a "
+                 "curator's work; never delete it. Correct whichever side is wrong, "
+                 "the ledger or the row, by hand.")
     return "\n".join(lines)
 
 
@@ -289,9 +308,23 @@ def seed(db_path: Path, ledger_path: Path) -> dict:
                     "       matched_existing_object, published_trick_slug, version"
                     "  FROM freestyle_ev_adjudications")
             }
-            conflicts = verify_existing(rows, links, existing)
+            conflicts, updates = verify_existing(rows, links, existing)
             if conflicts:
                 raise SystemExit(format_conflicts(conflicts))
+
+            # The version stays 1: it is the marker that the app has never written
+            # to the row, and the seed is not the app, so a later ledger correction
+            # can still reach it.
+            updated = 0
+            for cid, changed in updates.items():
+                assignments = ", ".join(f"{field} = ?" for field in changed)
+                cur = conn.execute(
+                    f"UPDATE freestyle_ev_adjudications SET {assignments},"
+                    f"       updated_at = ?, updated_by = ?"
+                    f" WHERE candidate_id = ? AND version = 1",
+                    (*changed.values(), stamped_at, SEED_ACTOR, cid),
+                )
+                updated += cur.rowcount
 
             missing = [
                 (i, r) for i, r in enumerate(rows)
@@ -378,6 +411,7 @@ def seed(db_path: Path, ledger_path: Path) -> dict:
     return {
         "ledger_rows": len(rows),
         "loaded": loaded,
+        "updated": updated,
         "linked": linked,
         "linked_published": published or 0,
         "linked_candidates": candidates or 0,
@@ -402,6 +436,7 @@ def main() -> None:
     print("Emerging Vocabulary adjudications seeded.")
     print(f"  rulings in the ledger          : {stats['ledger_rows']}")
     print(f"  rulings loaded                 : {stats['loaded']}")
+    print(f"  untouched rulings updated      : {stats['updated']}")
     print(f"  linked to a trick row          : {stats['linked']}")
     print(f"    of those, already published  : {stats['linked_published']}")
     print(f"    of those, still candidates   : {stats['linked_candidates']}")

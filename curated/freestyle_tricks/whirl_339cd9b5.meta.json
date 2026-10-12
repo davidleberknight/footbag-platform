@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/YlRRABchDVw?t=7",
   "videoPlatform": "youtube",
   "title": "Whirl — Ken Somolinos (41 kicks, 2012-11-14)",
-  "creator": "Ken Somolinos",
   "sourceId": "passback_records",
   "startSeconds": 7,
   "tags": [
@@ -10,6 +9,7 @@
     "#trick",
     "#whirl",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_ken_somolinos"
   ]
 }

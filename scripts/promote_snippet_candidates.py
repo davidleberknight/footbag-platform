@@ -24,7 +24,6 @@ A row is promotion-eligible when:
   "videoUrl":      "<full URL>",
   "videoPlatform": "youtube" | "vimeo",
   "title":         "<from row.notes or default>",
-  "creator":       "<row.player_name or source default>",
   "sourceId":      "<row.source_id>",
   "tags":          ["#<trick-slug>", "#freestyle", "#trick",
                     "#tutorial" | "#demo" | "#record"],
@@ -102,10 +101,6 @@ CONTENT_TYPE_BY_SOURCE = {
 # made rather than assumed, and this is the same default both public readers
 # and the coverage QC apply to a clip carrying no content type.
 DEFAULT_CONTENT_TYPE = "#demo"
-
-CREATOR_BY_SOURCE = {
-    "tt_youtube": "Kenny Shults",
-}
 
 
 def parse_youtube_id(url: str) -> str | None:
@@ -229,13 +224,6 @@ def make_title(row: dict) -> str:
     return f"{slug.replace('-', ' ').title()} reference" if slug else "Reference video"
 
 
-def make_creator(row: dict) -> str:
-    player = (row.get("player_name") or "").strip()
-    if player:
-        return player
-    return CREATOR_BY_SOURCE.get(row.get("source_id", ""), "")
-
-
 def make_content_type_tag(row: dict) -> str:
     return CONTENT_TYPE_BY_SOURCE.get(row.get("source_id", ""), DEFAULT_CONTENT_TYPE)
 
@@ -276,7 +264,6 @@ def emit_sidecar(
         "videoUrl":      video_url,
         "videoPlatform": platform,
         "title":         make_title(row),
-        "creator":       make_creator(row),
         "sourceId":      source_id,
         "tags":          tags,
     }

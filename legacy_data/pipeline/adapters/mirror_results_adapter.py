@@ -145,8 +145,13 @@ DATE_OVERRIDES = {
 def _load_recovered_results_overrides(path: str | Path = "overrides/recovered_results.jsonl") -> dict[str, str]:
     p = Path(path) if isinstance(path, str) else path
     if not p.exists():
-        print(f"[Stage1] recovered_results overrides: file not found: {p}")
-        return {}
+        # The file is curated input carrying results recovered by hand; skipping
+        # it would drop those events' corrections from the canonical output with
+        # nothing failing.
+        raise FileNotFoundError(
+            f"Required override file missing: {p}\n"
+            f"  It carries hand-recovered results blocks and is curated input, not "
+            f"generated: restore it, then rerun ./run_pipeline.sh canonical_only (or full).")
     overrides: dict[str, str] = {}
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()

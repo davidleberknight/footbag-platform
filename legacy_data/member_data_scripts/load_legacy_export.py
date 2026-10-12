@@ -456,7 +456,7 @@ def main() -> None:
         email_withheld = pk in email_cleared
         values_common = (
             field(row, "legacy_user_id") or None,
-            # Store legacy emails lowercase so the claim / auto-link lookup can
+            # Store legacy emails lowercase so the claim step's lookup can
             # use the plain email indexes (the service lowercases the lookup
             # value); a stored mixed-case address would never match.
             None if email_withheld else (field(row, "legacy_email").lower() or None),

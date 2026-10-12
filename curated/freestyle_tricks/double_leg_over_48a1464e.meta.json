@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=MccJVeGI-oc",
   "videoPlatform": "youtube",
   "title": "Anz' Trikz - DLO & Eggbeater",
-  "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
   "tags": [
     "#anz_trikz",
@@ -10,6 +9,7 @@
     "#eggbeater",
     "#freestyle",
     "#trick",
-    "#tutorial"
+    "#tutorial",
+    "#player_anssi_sundberg"
   ]
 }

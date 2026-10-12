@@ -328,7 +328,7 @@ const MEDIA_TAG_KNOWN_SOURCES = new Set([
   '#passback_records', '#tricks_of_the_trade', '#shred_global',
   '#anz_trikz', '#footbag_finland', '#footbag_hof_archive',
 ]);
-const MEDIA_TAG_KNOWN_CONTENT_TYPES = new Set(['#tutorial', '#demo']);
+const MEDIA_TAG_KNOWN_CONTENT_TYPES = new Set(['#tutorial', '#demo', '#record']);
 const MEDIA_TAG_KNOWN_DISCIPLINES = new Set(['#freestyle', '#net', '#chinlone']);
 const MEDIA_TAG_KNOWN_QUALITY = new Set(['#curated']);
 

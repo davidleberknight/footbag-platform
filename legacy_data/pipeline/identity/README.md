@@ -43,50 +43,24 @@ DB load is wired: `run_pipeline.sh` loads it in PHASE V (and
 - **high**-confidence rows are eligible for production use: the loader
   writes them to the DB `name_variants` table (source=`mirror_mined`).
 - **medium**-confidence rows are reported but not loaded. They surface in
-  the loader's staging artifact for human review; they do not participate
-  in registration-time auto-linking.
+  the loader's staging artifact for human review; the claim matcher never
+  sees them.
 
-The DB load runs in the pipeline today; the platform-side consumer that
-reads the table — the registration / email-verify auto-link path — is
-still deferred.
+## Where name_variants is read
 
-## Integration hook — where name_variants plugs into the identity flow
+`name_variants` is a **platform-side** table (`database/schema.sql`). Its
+reader is the onboarding claim step: `src/services/legacyMatchingService.ts`
+uses the HIGH rows as whole-name variants when matching a member's name
+against old accounts and competition records. A match there is a candidate
+the member may claim, subject to the claim step's email or date-of-birth
+corroboration; nothing links an account to a record automatically.
 
-`name_variants` is a **platform-side** table (`database/schema.sql`).
-Its primary consumer is the registration /
-email-verify flow, not the legacy-data pipeline. The hook locations below
-are the places where a future consumer should consult the table.
-
-### Phase 2 (current): report-only wiring
-
-- **QC:** `pipeline/qc/check_name_variants.py` runs under `run_qc.py` at
-  `severity=info`. Reports structural problems without blocking. Promote
-  to `warn` once the loader wires in, and to `hard` once production reads
-  the DB table.
-- **Loader:** `scripts/load_name_variants_seed.py` is runnable by hand
-  (`--apply --db <path>`) and loads only HIGH-confidence rows with
-  `source='mirror_mined'`. MEDIUM rows write to
-  `out/name_variants_deferred.csv` for review; they are NEVER inserted
-  by this loader. Auto-invoked by `run_pipeline.sh` (PHASE V) and
-  `scripts/reset-local-db.sh`.
-
-### Phase 3 (deferred): auto-link at registration (platform-side)
-
-Target: `src/services/legacyMigrationService.ts` (the Phase 4-F'
-extraction) or `identityAccessService.ts::verifyEmailByToken`
-(interim). Flow:
-
-1. User verifies email; `verifyEmailByToken` resolves the bound member row.
-2. Normalize the member's `real_name` with the same NFKC + lower +
-   collapse + trim rule used at load time.
-3. Look up in `name_variants` table by either `canonical_normalized` or
-   `variant_normalized`. Only HIGH rows are present (enforced at load).
-4. Join the matched canonical form to `historical_persons` by
-   `normalize(person_name)` to produce auto-link candidates.
-5. Present candidates in the claim UI, per the `M_Claim_Legacy_Account` user story.
-
-MEDIUM rows are not consulted. Treat them as a curator review queue
-backed by `out/name_variants_deferred.csv`.
+- **QC:** `pipeline/qc/check_name_variants.py` runs under `run_qc.py` as a
+  hard check, so a structurally broken CSV fails the run.
+- **Loader:** `scripts/load_name_variants_seed.py` loads only HIGH rows
+  with `source='mirror_mined'`; MEDIUM rows go to
+  `out/name_variants_deferred.csv` for review and are never inserted.
+  `run_pipeline.sh` (PHASE V) and `scripts/reset-local-db.sh` both run it.
 
 ### Pipeline-side hook (optional, deferred)
 

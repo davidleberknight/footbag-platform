@@ -2,7 +2,6 @@
   "videoUrl": "https://www.youtube.com/watch?v=NSGYzNm3OV8",
   "videoPlatform": "youtube",
   "title": "Anz' Trikz - Basic Stalls",
-  "creator": "Anssi Sundberg",
   "sourceId": "anz_trikz",
   "tags": [
     "#anz_trikz",
@@ -12,6 +11,7 @@
     "#outside_stall",
     "#toe_stall",
     "#trick",
-    "#tutorial"
+    "#tutorial",
+    "#player_anssi_sundberg"
   ]
 }

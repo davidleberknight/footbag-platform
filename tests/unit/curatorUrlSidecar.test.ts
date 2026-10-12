@@ -144,9 +144,8 @@ describe('formatUrlSidecarJson', () => {
     });
   });
 
-  it('omits null optional fields (creator, sourceId)', () => {
+  it('omits null optional fields (sourceId)', () => {
     const out = formatUrlSidecarJson(youtubeBase());
-    expect(out).not.toContain('"creator"');
     expect(out).not.toContain('"sourceId"');
   });
 
@@ -166,13 +165,12 @@ describe('formatUrlSidecarJson', () => {
       videoUrl: 'https://www.youtube.com/watch?v=ABCABCABCAB',
       videoPlatform: 'youtube',
       title: 'T',
-      creator: 'C',
       sourceId: 'src',
       startSeconds: 12,
       tags: ['#freestyle', '#trick', '#x'],
     });
     expect(out.indexOf('"videoUrl"')).toBeLessThan(out.indexOf('"videoPlatform"'));
-    expect(out.indexOf('"creator"')).toBeLessThan(out.indexOf('"sourceId"'));
+    expect(out.indexOf('"title"')).toBeLessThan(out.indexOf('"sourceId"'));
     expect(out.indexOf('"sourceId"')).toBeLessThan(out.indexOf('"startSeconds"'));
     expect(out.indexOf('"tags"')).toBeGreaterThan(out.indexOf('"startSeconds"'));
   });

@@ -5,11 +5,11 @@ Build `legacy_data/inputs/name_variants.csv` from existing identity sources.
 The output is a reviewable, deterministic seed of known name-equivalence
 pairs. It is consumed downstream by:
 
-  - scripts/load_name_variants_seed.py   (draft loader → DB `name_variants`)
-  - pipeline/qc/check_name_variants.py   (structural QC; not yet wired)
+  - scripts/load_name_variants_seed.py   (loader → DB `name_variants`)
+  - pipeline/qc/check_name_variants.py   (structural QC; a hard check)
 
-Registration-time auto-link is the consumer; see
-`database/schema.sql name_variants` for the consuming contract.
+The onboarding claim matcher reads the loaded table as whole-name variant
+rows; see `database/schema.sql name_variants` for the consuming contract.
 
 ## Sources (priority order)
 
@@ -46,8 +46,8 @@ column only when the pid is not present in current persons.csv.
 - **Collision guard**: drop any variant whose normalized form matches a
   *different* canonical person. This catches deferred Bucket-2 cases
   (e.g. Alex Zeke Ibardaloza vs Alex Ibardaloza, Andreas Grandi Peier
-  vs Andreas Peier) so domain-ambiguous pairs do not seed the
-  registration auto-link.
+  vs Andreas Peier) so domain-ambiguous pairs do not reach the
+  claim matcher.
 - **Alias MEDIUM gate**: keep only *structural* variants — token-order
   swap, initial spacing (A.J. vs AJ), hyphen/space toggle in surname,
   single-token middle-name drop. Pure letter-typo substitutions are

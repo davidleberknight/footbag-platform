@@ -3,8 +3,8 @@
 QC: name_variants seed validator.
 
 Validates `legacy_data/inputs/name_variants.csv` for structural integrity
-and DB-load compatibility. Not yet wired into `run_qc.py` — the loader
-itself (`scripts/load_name_variants_seed.py`) is not yet wired either.
+and DB-load compatibility. Run by `run_qc.py` as a hard check, ahead of
+the loader (`scripts/load_name_variants_seed.py`).
 
 ## Problem codes
 
@@ -19,9 +19,8 @@ itself (`scripts/load_name_variants_seed.py`) is not yet wired either.
     duplicate_row                same (normalized variant, canonical_name) appears twice
     collision_across_confidence  same normalized pair present as both high and medium (ambiguity)
 
-All codes are reportable. This check does NOT yet classify them as
-hard / warn — that severity assignment lives in `run_qc.py` and will be
-added when the loader is wired.
+All codes are reportable. Severity is assigned in `run_qc.py`, which
+fails the run on any of them.
 
 ## Artifact
 

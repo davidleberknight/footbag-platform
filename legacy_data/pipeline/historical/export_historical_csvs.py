@@ -1672,8 +1672,8 @@ write_csv(
 # legacy_email stays blank permanently, not pending anything. This file is
 # committed to the public repository, which holds no member personal data, and
 # nothing downstream reads the column: the platform export carries it nowhere,
-# and the claim and auto-link surfaces take their email anchor from the
-# legacy_members table, filled from the delivered member export. Assert the
+# and the claim step takes its email anchor from the legacy_members table,
+# filled from the delivered member export. Assert the
 # invariant to fail fast if a future change infers values into it.
 _pop_member_id      = sum(1 for _r in persons_out if _r.get("member_id", "").strip())
 _pop_legacy_user_id = sum(1 for _r in persons_out if _r.get("legacy_user_id", "").strip())

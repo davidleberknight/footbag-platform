@@ -789,9 +789,8 @@ def _seed_one_sidecar(
 
     media_id = _url_ref_media_id(url, platform)
     # The sidecar title maps to the legacy media_assets.title field (the closest
-    # existing column). Sidecar.creator is preserved on disk for future re-import
-    # but is not written here: there is no equivalent column, so per-asset creator
-    # info for record clips is dropped at seed time.
+    # existing column). A sidecar carries no credit field: the person in a clip
+    # is credited only by its #player_ tag.
     caption = sidecar.get("title") or None
     source_id = sidecar.get("sourceId") or None
     start_seconds = sidecar.get("startSeconds")

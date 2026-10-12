@@ -1196,7 +1196,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube',
       primarySlug: 'around-the-world',
       title: 'Around the world tutorial',
-      creator: 'Synthetic Creator',
       sourceId: 'tt_youtube',
       startSeconds: null,
       endSeconds: null,
@@ -1217,10 +1216,11 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
       videoPlatform: 'youtube',
       title: 'Around the world tutorial',
-      creator: 'Synthetic Creator',
       sourceId: 'tt_youtube',
     });
     expect(sidecar.thumbnailUrl).toBeUndefined();
+    // Credit is a #player_ tag only; a sidecar never carries a credit field.
+    expect(Object.keys(sidecar)).not.toContain('creator');
     // What the clip is for is one of its tags. The sidecar carries no separate
     // field for it, so a reader cannot find two answers to the same question.
     expect(sidecar.tags).toEqual(['#around-the-world', '#freestyle', '#trick', '#tutorial']);
@@ -1276,7 +1276,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'vimeo',
       primarySlug: 'blender',
       title: 'Vimeo demo',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1304,7 +1303,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube',
       primarySlug: 'legover',
       title: 'Legover Variation',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1330,7 +1328,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube' as const,
       primarySlug: 'mobius',
       title: 'first title',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1380,7 +1377,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube',
       primarySlug: 'pickup',
       title: 'Pickup demo',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1407,7 +1403,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube',
       primarySlug: 'quantum',
       title: 'X',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1431,7 +1426,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'vimeo',
       primarySlug: 'mirage',
       title: 'X',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1455,7 +1449,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'tiktok',
       primarySlug: 'illusion',
       title: 'X',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
@@ -1479,7 +1472,6 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube',
       primarySlug: 'drifter',
       title: 'X',
-      creator: null,
       sourceId: null,
       startSeconds: null,
       endSeconds: null,

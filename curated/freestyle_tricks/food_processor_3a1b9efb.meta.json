@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/V_N-THthxWw?t=31",
   "videoPlatform": "youtube",
   "title": "Food Processor — Jim Penske (15 kicks, 2025-03-07)",
-  "creator": "Jim Penske",
   "sourceId": "passback_records",
   "startSeconds": 31,
   "tags": [
@@ -10,6 +9,7 @@
     "#freestyle",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_jim_penske"
   ]
 }

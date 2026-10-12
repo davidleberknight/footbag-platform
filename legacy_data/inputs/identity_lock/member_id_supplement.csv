@@ -6,7 +6,7 @@ person_id,member_id,source_url,notes
 7b2f75cb-f239-5acd-a9c8-4c241b4ed695,78741,http://www.footbag.org/members/profile/78741,HOF 2011; normalized name match
 e127d87a-07d1-5dfb-a359-499f678ce286,12076,http://www.footbag.org/members/profile/12076,HOF 2008; exact name match
 aff8bed6-46fd-570d-962b-223a0780cdac,17076,http://www.footbag.org/members/profile/17076,BAP 1998; exact name match
-500f5724-f35c-53bb-b795-604ae6089f9d,82235,http://www.footbag.org/members/profile/82235,HOF 2011; profile name Etienne L. Constable; alias ET
+39ad5dbe-5648-50eb-9bd3-c93daebc9247,82235,http://www.footbag.org/members/profile/82235,HOF 2011; profile name Etienne L. Constable; alias ET
 299071d7-2781-514f-93b1-6b7a7059ab8a,82376,http://www.footbag.org/members/profile/82376,HOF 2016; alias evanne; Surrey BC
 04a43526-37ba-5ea0-a01c-8e357a694c42,33644,http://www.footbag.org/members/profile/33644,BAP 2003; normalized name match
 66a5ee0b-abd2-5b24-9d53-5c4f6e3fee14,12434,http://www.footbag.org/members/profile/12434,HOF 1999; exact name match
@@ -33,3 +33,34 @@ ff744d13-860e-5ab6-8920-dac66414b828,13463,http://www.footbag.org/members/profil
 11d216c3-891d-5728-981f-dc20ba381dd9,14775,http://www.footbag.org/members/profile/14775,HOF 2023; profile name Lon Skyler Smith; alias shredonlawn
 f1335c87-476a-577d-8929-e8059bcb0bca,83906,http://www.footbag.org/members/profile/83906,BAP 1995; exact name match
 f38e2f8e-cba6-5fff-8b20-90791fd0d794,14882,http://www.footbag.org/members/profile/14882,HOF 1999; profile name Torben Wigger Hansen; alias Wigger
+00d8d056-e8a7-5229-97bf-e0cb3b881cd8,67797,http://www.footbag.org/members/profile/67797,BAP 2009; profile name Anssi Tapio Sundberg
+6513b145-8a4a-556a-a04f-981d95db2d70,76311,http://www.footbag.org/members/profile/76311,BAP 2008; profile name Arkadiusz Piotr Dudzinski; alias norek
+67af5b3f-6e16-530a-8841-409debf11fb0,77240,http://www.footbag.org/members/profile/77240,HOF 2007; profile name William Bethurum
+92b0ee3b-efaa-545a-b07e-30ab6d8ebeb0,78789,http://www.footbag.org/members/profile/78789,HOF 1997; profile name Billy Hayne; Lewiston Idaho per HOF page
+4f554bd7-5271-53fe-a071-a17d3948b5b8,13712,http://www.footbag.org/members/profile/13712,HOF 2003; profile name Brenda Marie Solonoski
+acf08268-cade-5c38-871e-3c3f694d3021,12981,http://www.footbag.org/members/profile/12981,BAP 2002; profile name Bryan Reno Fournier
+930c2d56-749c-5f85-a221-106ebb83e0b8,81960,http://www.footbag.org/members/profile/81960,HOF; profile name Christopher Donofrio
+b08606fb-8072-5d14-ae24-b1881c22be54,76428,http://www.footbag.org/members/profile/76428,HOF 2005; profile name Chris Gator Routh
+bd1ac97c-6c20-5bcd-9fbd-f5279f4c22bf,12722,http://www.footbag.org/members/profile/12722,HOF 2011; profile name Christopher Michael Siebert; alias conan
+826201f8-2540-5663-9bbf-239e94ccee43,73938,http://www.footbag.org/members/profile/73938,HOF 2001; profile name Constance Lynn Constable
+77f224b6-e2fa-59f2-af85-15a21d1d8c51,78352,http://www.footbag.org/members/profile/78352,BAP 2024; profile name Dante M. Diotallevi
+5cb79fb4-ab20-558f-b4a2-e7206c9f22df,76405,http://www.footbag.org/members/profile/76405,HOF 1997; profile name David J. Hill; profile bio states his 1997 induction
+895b0608-34df-509a-853d-684ffa24e824,20466,http://www.footbag.org/members/profile/20466,HOF 2000; profile name David B. Robinson
+075d8a18-efd4-531c-a9cd-493213bb8382,12955,http://www.footbag.org/members/profile/12955,BAP 1992; profile name Dennis Bishop Jones; alias dmoney
+9aa9e85a-1dbb-54ad-8aed-10bd7e5719ad,19324,http://www.footbag.org/members/profile/19324,BAP 2004; profile name Dylan Harper Fry
+2105e067-8f7a-58ca-a28e-df00cf215a4f,19346,http://www.footbag.org/members/profile/19346,HOF 1997; profile name Garry Howard Gaman; Houston Skyliners per HOF page
+b14ed6c5-761b-5a32-bff8-deff2e753d7b,13230,http://www.footbag.org/members/profile/13230,HOF 1997; profile name Garwin Lee Bruce
+e41184d4-ed7c-53d0-a3be-6b1e92fa5279,20454,http://www.footbag.org/members/profile/20454,HOF 2019; profile name Heather Squires-Thomas
+a1cf399e-b52c-5ffe-9b80-10df4e20232f,44058,http://www.footbag.org/members/profile/44058,HOF; profile name Ida Bettis Fogle
+36a366ac-f423-517c-9451-cf5900cd009a,12180,http://www.footbag.org/members/profile/12180,HOF 2009; profile name Jane Jones Zerbe
+fc3f381a-650e-5582-910d-6a83702e9dae,12394,http://www.footbag.org/members/profile/12394,BAP 2004; profile name Jere Johannes Linnanen
+0c1d57ac-f8a6-5c3e-a66f-eac82c8a5df4,78983,http://www.footbag.org/members/profile/78983,BAP 2013; profile name Jindra Smola; survivor of his accounts 78983 78984 80043
+11279fb2-7b1b-5ba0-b94f-11346120220c,41051,http://www.footbag.org/members/profile/41051,BAP 2013; profile name John M. Suderman
+16aae952-d265-5e4d-81b8-5474f6c43802,42057,http://www.footbag.org/members/profile/42057,BAP 2004; profile name Jorden M. Moir
+97d088ee-48f7-5920-b973-94cc1deb0b66,13258,http://www.footbag.org/members/profile/13258,BAP 2005; profile name Juho Petteri Marjo
+c65ee681-8be4-5caa-ad79-372b1de9f5be,52228,http://www.footbag.org/members/profile/52228,BAP 1998; profile name Kyle R. Crawford; alias KungFu
+69667b03-2f4f-55b7-9c2f-79a5b60f362b,71898,http://www.footbag.org/members/profile/71898,BAP 2012; profile name Lauri Lahna Airinen
+f995558d-69d9-557a-892a-0e695d85250b,12956,http://www.footbag.org/members/profile/12956,HOF 2005; profile name Lisa McDaniel
+95fb4def-7ff2-5c9c-8de5-1b97d0e13756,75763,http://www.footbag.org/members/profile/75763,HOF 2002; profile name Maxell Smith
+282ea81a-5815-5a15-9842-ee2ad6e2047e,13236,http://www.footbag.org/members/profile/13236,HOF 1998; profile name Robert William Conover
+3d1b24de-41bd-56eb-86b8-8afb919a63b5,82401,http://www.footbag.org/members/profile/82401,HOF 2005; profile name Ted Martin

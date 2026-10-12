@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/zhrbljcVSvE?t=9",
   "videoPlatform": "youtube",
   "title": "Around The World — Krzysztof Sobótka (100 kicks, 2011-07-06)",
-  "creator": "Krzysztof Sobótka",
   "sourceId": "passback_records",
   "startSeconds": 9,
   "tags": [
@@ -10,6 +9,7 @@
     "#freestyle",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_krzysztof_sobotka"
   ]
 }

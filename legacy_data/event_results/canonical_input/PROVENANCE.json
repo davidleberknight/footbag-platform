@@ -7,15 +7,15 @@
     "persons.csv"
   ],
   "produced_by": {
-    "fingerprint": "sha256:b93ca9980be435e1b970993e741db07c9ce822da65f134ee065cac8929c3d859",
+    "fingerprint": "sha256:542bab26993af7fb26fd2aaa3c8a41447e20e6f3870d97b927d8ded2475c696f",
     "generators": {
       "pipeline/platform/export_canonical_platform.py": "002dd9c40cb71c6b9a67f92a00c163630028ecf5f6ad50f2ea9937912520ba0d",
       "pipeline/platform/output_set.py": "cd32cc99753c08c3540c53237f9f752ed7c4e76c7c1db9bd14d36530c0cce5c3",
       "pipeline/platform/build_platform_exports.py": "b11cdcc1cb8970793d416bde156392d4634f9e443d24d4c09461484e8c0184ae",
-      "pipeline/historical/export_historical_csvs.py": "2727881836ae1bd725ed0854132fb1be3c2427aa3863a896f2b7c1a914451843",
+      "pipeline/historical/export_historical_csvs.py": "048df0be36d1ac9b64277334029fd1a20a553f9834a8b38386709f4e87461c1a",
       "pipeline/05p5_remediate_canonical.py": "42c521a3c4833083156a97b152da0fa523b705bd268c6874fd394963e40754dd"
     },
-    "regenerated_at": "2026-10-11",
-    "commit": "edc0a943"
+    "regenerated_at": "2026-10-13",
+    "commit": "7ecf8346"
   }
 }

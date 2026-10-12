@@ -2,7 +2,6 @@
   "videoUrl": "https://youtu.be/gRCnEq_QZ6o?t=10",
   "videoPlatform": "youtube",
   "title": "Legover — Derek Littlefield (198 kicks, 2016-06-21)",
-  "creator": "Derek Littlefield",
   "sourceId": "passback_records",
   "startSeconds": 10,
   "tags": [
@@ -10,6 +9,7 @@
     "#legover",
     "#trick",
     "#passback_records",
-    "#record"
+    "#record",
+    "#player_derek_littlefield"
   ]
 }
